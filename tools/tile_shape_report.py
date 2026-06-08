@@ -231,7 +231,12 @@ def _resource_from_path(path: Path) -> dict[str, Any]:
                 "occupancy": totals.get("occupancy"),
                 "global_store_instruction_count": totals.get("global_store"),
                 "wait_instruction_count": totals.get("wait_instructions"),
-                "matrix_instruction_count": (totals.get("wmma") or 0) + (totals.get("mfma") or 0),
+                "matrix_instruction_count": totals.get("matrix_instruction_count")
+                if totals.get("matrix_instruction_count") is not None
+                else (totals.get("wmma") or 0) + (totals.get("mfma") or 0),
+                "dense_integer_matrix_instruction_count": totals.get("dense_integer_matrix_instruction_count"),
+                "sparse_integer_matrix_instruction_count": totals.get("sparse_integer_matrix_instruction_count"),
+                "matrix_instruction_histogram": totals.get("matrix_instruction_histogram") or {},
             },
             "evidence_status": {
                 "profiler_counter_status": "missing",

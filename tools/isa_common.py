@@ -19,7 +19,7 @@ DEVICE_FUNCTION_MARKER = " F .text"
 MNEMONIC_RE = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\b")
 FORBIDDEN_DIVIDE_RE = re.compile(r"\b[sv]_(?:div|rem|rcp)[_a-z0-9]*\b")
 FORBIDDEN_INT32_GLOBAL_STORE_RE = re.compile(r"\b(?:global|buffer)_store_dword(?:x[234])?\b")
-FORBIDDEN_MATRIX_ENGINE_RE = re.compile(r"\bv_(?:wmma|mfma)[_a-z0-9]*\b")
+FORBIDDEN_MATRIX_ENGINE_RE = re.compile(r"\bv_(?:wmma|mfma|smfmac|swmmac)[_a-z0-9]*\b")
 
 
 @dataclass(frozen=True)

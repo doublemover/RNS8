@@ -254,7 +254,7 @@ def build_summary(
     matrix_instruction_log = read_log(log_dir, "amd_matrix_instruction_report")
     matrix_instruction_dir = log_dir / "amd-matrix-instructions"
     matrix_instruction_reports = sorted(
-        path.relative_to(log_dir).as_posix() for path in matrix_instruction_dir.glob("*") if path.is_file()
+        path.relative_to(log_dir).as_posix() for path in matrix_instruction_dir.rglob("*") if path.is_file()
     )
 
     return {

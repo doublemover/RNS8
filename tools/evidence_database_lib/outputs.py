@@ -52,6 +52,9 @@ def format_isa_brief(row: dict[str, Any]) -> str:
         return ""
     parts = [f"reports={row.get('isa_report_count')}"]
     for key, label in (
+        ("isa_matrix_instruction_count", "matrix"),
+        ("isa_dense_integer_matrix_instruction_count", "dense_int"),
+        ("isa_sparse_integer_matrix_instruction_count", "sparse_int"),
         ("isa_wmma_count", "wmma"),
         ("isa_mfma_count", "mfma"),
         ("isa_global_store_count", "stores"),
@@ -179,8 +182,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 "",
                 "## ISA Resources",
                 "",
-                "| backend | target | captures | reports | WMMA | MFMA | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
-                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "| backend | target | captures | reports | matrix | dense int | sparse int | WMMA | MFMA | SMFMAC | SWMMAC | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
         groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -189,13 +192,18 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         for (backend, target), grouped_rows in sorted(groups.items()):
             representative = grouped_rows[0]
             lines.append(
-                "| {backend} | {target} | {captures} | {reports} | {wmma} | {mfma} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
+                "| {backend} | {target} | {captures} | {reports} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {smfmac} | {swmmac} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
                     backend=backend,
                     target=target,
                     captures=len(grouped_rows),
                     reports=representative.get("isa_report_count"),
+                    matrix=format_number(representative.get("isa_matrix_instruction_count")),
+                    dense_int=format_number(representative.get("isa_dense_integer_matrix_instruction_count")),
+                    sparse_int=format_number(representative.get("isa_sparse_integer_matrix_instruction_count")),
                     wmma=format_number(representative.get("isa_wmma_count")),
                     mfma=format_number(representative.get("isa_mfma_count")),
+                    smfmac=format_number(representative.get("isa_smfmac_count")),
+                    swmmac=format_number(representative.get("isa_swmmac_count")),
                     stores=format_number(representative.get("isa_global_store_count")),
                     lds=format_number(representative.get("isa_lds_mentions")),
                     lds_bytes=format_number(representative.get("isa_lds_bytes")),

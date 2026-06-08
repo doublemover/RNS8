@@ -33,6 +33,8 @@ RESOURCE_SIGNAL_FIELDS = [
     "lds_instruction_mentions",
     "wait_instruction_count",
     "matrix_instruction_count",
+    "dense_integer_matrix_instruction_count",
+    "sparse_integer_matrix_instruction_count",
     "arithmetic_intensity_ops_per_byte",
     "measured_gops",
     "pack_bandwidth_gbs",
@@ -169,6 +171,12 @@ def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
         "wait_instructions": 0,
         "wmma": 0,
         "mfma": 0,
+        "smfmac": 0,
+        "swmmac": 0,
+        "matrix_instruction_count": 0,
+        "dense_integer_matrix_instruction_count": 0,
+        "sparse_integer_matrix_instruction_count": 0,
+        "matrix_instruction_histogram": {},
         "vgpr_count": None,
         "sgpr_count": None,
         "lds_bytes": None,
@@ -180,10 +188,29 @@ def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
         instruction_totals = item.get("instruction_totals") or {}
         if not isinstance(instruction_totals, dict):
             continue
-        for key in ["global_store", "lds_mentions", "wait_instructions", "wmma", "mfma"]:
+        for key in [
+            "global_store",
+            "lds_mentions",
+            "wait_instructions",
+            "wmma",
+            "mfma",
+            "smfmac",
+            "swmmac",
+            "matrix_instruction_count",
+            "dense_integer_matrix_instruction_count",
+            "sparse_integer_matrix_instruction_count",
+        ]:
             value = _number(instruction_totals.get(key))
             if value is not None:
                 totals[key] += int(value)
+        histogram = instruction_totals.get("matrix_instruction_histogram")
+        if isinstance(histogram, dict):
+            for name, value in histogram.items():
+                number = _number(value)
+                if number is not None:
+                    totals["matrix_instruction_histogram"][str(name)] = (
+                        int(totals["matrix_instruction_histogram"].get(str(name), 0)) + int(number)
+                    )
         for key in max_keys:
             value = _number(instruction_totals.get(key))
             if value is not None:
@@ -236,7 +263,10 @@ def _counter_resource_summary(
         "global_store_instruction_count": isa_totals["global_store"],
         "lds_instruction_mentions": isa_totals["lds_mentions"],
         "wait_instruction_count": isa_totals["wait_instructions"],
-        "matrix_instruction_count": isa_totals["wmma"] + isa_totals["mfma"],
+        "matrix_instruction_count": isa_totals["matrix_instruction_count"] or isa_totals["wmma"] + isa_totals["mfma"],
+        "dense_integer_matrix_instruction_count": isa_totals["dense_integer_matrix_instruction_count"],
+        "sparse_integer_matrix_instruction_count": isa_totals["sparse_integer_matrix_instruction_count"],
+        "matrix_instruction_histogram": isa_totals["matrix_instruction_histogram"],
         "bottleneck_class": bottleneck.get("bottleneck_class"),
         "bottleneck_phase": bottleneck.get("bottleneck_phase"),
         "event_bottleneck_class": bottleneck.get("event_bottleneck_class"),
@@ -457,16 +487,19 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
 
     lines.extend(["## ISA Summaries", ""])
     if report["isa_summaries"]:
-        lines.extend(["| object | backend | target | symbols | WMMA | MFMA | stores | LDS | waits |"])
-        lines.extend(["| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"])
+        lines.extend(["| object | backend | target | symbols | matrix | dense int | sparse int | WMMA | MFMA | stores | LDS | waits |"])
+        lines.extend(["| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"])
         for item in report["isa_summaries"]:
             totals = item.get("instruction_totals") or {}
             lines.append(
-                "| `{object}` | `{backend}` | `{target}` | {symbols} | {wmma} | {mfma} | {stores} | {lds} | {waits} |".format(
+                "| `{object}` | `{backend}` | `{target}` | {symbols} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {stores} | {lds} | {waits} |".format(
                     object=item.get("object"),
                     backend=item.get("backend"),
                     target=item.get("target"),
                     symbols=item.get("reported_symbol_count"),
+                    matrix=totals.get("matrix_instruction_count"),
+                    dense_int=totals.get("dense_integer_matrix_instruction_count"),
+                    sparse_int=totals.get("sparse_integer_matrix_instruction_count"),
                     wmma=totals.get("wmma"),
                     mfma=totals.get("mfma"),
                     stores=totals.get("global_store"),

@@ -41,6 +41,7 @@ BACKEND_SYMBOL_MARKERS = {
     "vector-alu": ["gemm_i64_kernel", "gemm_u64_kernel", "rns8_vector_alu"],
 }
 GLOBAL_STORE_RE = re.compile(r"\b(?:global|buffer)_store\b|\b(?:global|buffer)_store_[a-z0-9_]+\b")
+MATRIX_MNEMONIC_RE = re.compile(r"^v_(?:mfma|smfmac|wmma|swmmac)[a-z0-9_]*$")
 VGPR_RE = re.compile(r"(?:VGPRs?|\.amdhsa_next_free_vgpr)\D+(\d+)", re.IGNORECASE)
 SGPR_RE = re.compile(r"(?:SGPRs?|\.amdhsa_next_free_sgpr)\D+(\d+)", re.IGNORECASE)
 OCCUPANCY_RE = re.compile(r"occupancy\D+(\d+)", re.IGNORECASE)
@@ -132,23 +133,91 @@ def integer_matches(pattern: re.Pattern[str], text: str) -> list[int]:
     return values
 
 
+def matrix_mnemonic_family(mnemonic: str) -> str | None:
+    lowered = mnemonic.lower()
+    for family in ("smfmac", "swmmac", "mfma", "wmma"):
+        if lowered.startswith(f"v_{family}"):
+            return family
+    return None
+
+
+def matrix_mnemonic_categories(mnemonic: str) -> set[str]:
+    lowered = mnemonic.lower()
+    family = matrix_mnemonic_family(lowered)
+    categories: set[str] = set()
+    if family is None:
+        return categories
+    categories.add("matrix_core")
+    if family in {"mfma", "wmma"}:
+        categories.add("dense_matrix_core")
+    if family in {"smfmac", "swmmac"}:
+        categories.add("sparse_matrix_core")
+    if "_i32_" in lowered and lowered.endswith(("_i8", "_iu8", "_iu4")):
+        categories.add("integer_i32_matrix_core")
+        if family in {"mfma", "wmma"}:
+            categories.add("dense_integer_i32_matrix_core")
+        if family in {"smfmac", "swmmac"}:
+            categories.add("sparse_integer_i32_matrix_core")
+    if family == "mfma" and "_i32_" in lowered and lowered.endswith("_i8"):
+        categories.add("mfma_dense_i8")
+    if family == "smfmac" and "_i32_" in lowered and lowered.endswith("_i8"):
+        categories.add("smfmac_sparse_i8")
+    if family == "wmma" and "_i32_" in lowered and lowered.endswith(("_iu8", "_iu4")):
+        categories.add("wmma_dense_integer")
+    if family == "swmmac" and "_i32_" in lowered and lowered.endswith(("_iu8", "_iu4")):
+        categories.add("swmmac_sparse_integer")
+    return categories
+
+
 def scan_disassembly(disassembly: str) -> dict[str, Any]:
     mnemonics = mnemonic_lines(disassembly)
     counts = {
         "wmma": 0,
         "mfma": 0,
+        "smfmac": 0,
+        "swmmac": 0,
+        "matrix_instruction_count": 0,
+        "dense_integer_matrix_instruction_count": 0,
+        "sparse_integer_matrix_instruction_count": 0,
+        "mfma_dense_i8": 0,
+        "smfmac_sparse_i8": 0,
+        "wmma_dense_integer": 0,
+        "swmmac_sparse_integer": 0,
         "global_store": 0,
         "lds_mentions": 0,
         "wait_instructions": 0,
         "instruction_lines": len(mnemonics),
     }
+    matrix_histogram: dict[str, int] = {}
+    matrix_families: set[str] = set()
     for line, mnemonic in mnemonics:
         lowered_line = line.lower()
         lowered_mnemonic = mnemonic.lower()
+        family = matrix_mnemonic_family(lowered_mnemonic)
+        if family is not None and MATRIX_MNEMONIC_RE.match(lowered_mnemonic):
+            matrix_histogram[lowered_mnemonic] = matrix_histogram.get(lowered_mnemonic, 0) + 1
+            matrix_families.add(family)
+            counts["matrix_instruction_count"] += 1
+            for category in matrix_mnemonic_categories(lowered_mnemonic):
+                if category == "dense_integer_i32_matrix_core":
+                    counts["dense_integer_matrix_instruction_count"] += 1
+                elif category == "sparse_integer_i32_matrix_core":
+                    counts["sparse_integer_matrix_instruction_count"] += 1
+                elif category in {
+                    "mfma_dense_i8",
+                    "smfmac_sparse_i8",
+                    "wmma_dense_integer",
+                    "swmmac_sparse_integer",
+                }:
+                    counts[category] += 1
         if lowered_mnemonic.startswith("v_wmma"):
             counts["wmma"] += 1
+        if lowered_mnemonic.startswith("v_swmmac"):
+            counts["swmmac"] += 1
         if lowered_mnemonic.startswith("v_mfma"):
             counts["mfma"] += 1
+        if lowered_mnemonic.startswith("v_smfmac"):
+            counts["smfmac"] += 1
         if GLOBAL_STORE_RE.search(lowered_mnemonic):
             counts["global_store"] += 1
         if lowered_mnemonic.startswith("ds_") or "lds" in lowered_line:
@@ -160,6 +229,8 @@ def scan_disassembly(disassembly: str) -> dict[str, Any]:
     occupancy = integer_matches(OCCUPANCY_RE, disassembly)
     return {
         **counts,
+        "matrix_instruction_histogram": dict(sorted(matrix_histogram.items())),
+        "matrix_instruction_families": sorted(matrix_families),
         "vgpr_count": max(vgprs) if vgprs else None,
         "sgpr_count": max(sgprs) if sgprs else None,
         "occupancy": max(occupancy) if occupancy else None,
@@ -238,9 +309,48 @@ def merge_resource_metadata(counts: dict[str, Any], metadata: dict[str, Any] | N
     return merged
 
 
+def _merge_histograms(symbol_reports: list[dict[str, Any]], key: str) -> dict[str, int]:
+    merged: dict[str, int] = {}
+    for report in symbol_reports:
+        histogram = report["counts"].get(key)
+        if not isinstance(histogram, dict):
+            continue
+        for name, value in histogram.items():
+            try:
+                merged[str(name)] = merged.get(str(name), 0) + int(value)
+            except (TypeError, ValueError):
+                continue
+    return dict(sorted(merged.items()))
+
+
 def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
-    keys = ["wmma", "mfma", "global_store", "lds_mentions", "wait_instructions", "instruction_lines"]
+    keys = [
+        "wmma",
+        "mfma",
+        "smfmac",
+        "swmmac",
+        "matrix_instruction_count",
+        "dense_integer_matrix_instruction_count",
+        "sparse_integer_matrix_instruction_count",
+        "mfma_dense_i8",
+        "smfmac_sparse_i8",
+        "wmma_dense_integer",
+        "swmmac_sparse_integer",
+        "global_store",
+        "lds_mentions",
+        "wait_instructions",
+        "instruction_lines",
+    ]
     totals = {key: sum(int(report["counts"].get(key) or 0) for report in symbol_reports) for key in keys}
+    totals["matrix_instruction_histogram"] = _merge_histograms(symbol_reports, "matrix_instruction_histogram")
+    totals["matrix_instruction_families"] = sorted(
+        {
+            str(family)
+            for report in symbol_reports
+            for family in (report["counts"].get("matrix_instruction_families") or [])
+            if isinstance(family, str)
+        }
+    )
     for key in [
         "vgpr_count",
         "sgpr_count",
@@ -255,6 +365,58 @@ def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
         values = [report["counts"].get(key) for report in symbol_reports if report["counts"].get(key) is not None]
         totals[key] = max(values) if values else None
     return totals
+
+
+def load_matrix_instruction_candidates(path: Path | None, target: str) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise RuntimeError(f"matrix instruction report must be a JSON object: {path}")
+    candidates: set[str] = set()
+    matched_architectures: list[str] = []
+    for arch in data.get("architectures") or []:
+        if not isinstance(arch, dict):
+            continue
+        aliases = {str(arch.get("architecture_query") or "").lower()}
+        for group_name in ("dense_integer_i32_instructions", "sparse_integer_i32_instructions", "dense_i8_i32_instructions", "sparse_i8_i32_instructions"):
+            for item in arch.get(group_name) or []:
+                if isinstance(item, dict) and isinstance(item.get("architecture_query"), str):
+                    aliases.add(item["architecture_query"].lower())
+                if isinstance(item, dict) and isinstance(item.get("architecture_reported"), str):
+                    aliases.add(item["architecture_reported"].lower())
+        if target.lower() not in aliases:
+            continue
+        matched_architectures.append(str(arch.get("architecture_query") or target))
+        for group_name in ("dense_integer_i32_instructions", "sparse_integer_i32_instructions", "dense_i8_i32_instructions", "sparse_i8_i32_instructions"):
+            for item in arch.get(group_name) or []:
+                if isinstance(item, dict) and isinstance(item.get("instruction"), str):
+                    candidates.add(item["instruction"].lower())
+    return {
+        "path": str(path),
+        "target": target,
+        "matched_architectures": sorted(set(matched_architectures)),
+        "candidate_instruction_count": len(candidates),
+        "candidate_instructions": sorted(candidates),
+        "status": "present" if candidates else "no_matching_target_candidates",
+    }
+
+
+def correlate_matrix_instruction_report(report: dict[str, Any], candidates: dict[str, Any] | None) -> None:
+    if candidates is None:
+        report["matrix_instruction_calculator_evidence"] = {
+            "status": "not_attached",
+            "observed_in_calculator_candidates": {},
+        }
+        return
+    candidate_set = set(candidates.get("candidate_instructions") or [])
+    observed = set((report.get("instruction_totals") or {}).get("matrix_instruction_histogram") or {})
+    report["matrix_instruction_calculator_evidence"] = {
+        **candidates,
+        "observed_instruction_count": len(observed),
+        "observed_in_calculator_candidates": {name: name in candidate_set for name in sorted(observed)},
+        "observed_missing_from_calculator_candidates": sorted(observed - candidate_set),
+    }
 
 
 def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, readobj_path: str | None) -> dict[str, Any]:
@@ -326,6 +488,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default")
     parser.add_argument("--capture", type=Path, help="optional schema-v4 benchmark capture to validate and cross-link")
     parser.add_argument("--capture-label", help="human label for the cross-linked capture")
+    parser.add_argument(
+        "--matrix-instruction-report",
+        type=Path,
+        help="optional amd_matrix_instruction_report.py JSON used to cross-link observed matrix mnemonics",
+    )
     parser.add_argument("--scratch-root", type=Path, default=Path("temp"), help="ignored scratch directory")
     parser.add_argument("--out-dir", type=Path, default=Path("temp") / "isa-reports", help="temp-only output directory")
     return parser.parse_args()
@@ -358,6 +525,7 @@ def main() -> int:
     }
     readobj_path = readobj_for_objdump(config_template["objdump"], args.llvm_readobj)
     linked_capture = capture_metadata(args.capture, args.capture_label) if args.capture is not None else None
+    matrix_candidates = load_matrix_instruction_candidates(args.matrix_instruction_report, args.target)
 
     outputs = []
     for obj in unique_objects:
@@ -368,6 +536,7 @@ def main() -> int:
         report = report_object(config, backend, args.rga, readobj_path)
         if linked_capture is not None:
             report["capture"] = linked_capture
+        correlate_matrix_instruction_report(report, matrix_candidates)
         report["config"] = json_safe_config(config)
         outputs.append(write_report(report, args.out_dir))
 

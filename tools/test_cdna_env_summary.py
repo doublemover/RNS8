@@ -93,11 +93,13 @@ def main() -> int:
         _write(root / "amd_matrix_instruction_report.log", "AMD matrix instruction report: PASS\n")
         _write(root / "amd-matrix-instructions" / "amd-matrix-instruction-report.json", "{}\n")
         _write(root / "amd-matrix-instructions" / "amd-matrix-instruction-report.md", "# report\n")
+        _write(root / "amd-matrix-instructions" / "layouts" / "gfx1200" / "v_swmmac_i32_16x16x32_iu8" / "compression-wave32-register-layout.csv", "matrix,0\n")
         summary = _summary(root, "0")
         assert summary["amd_matrix_instruction_calculator_ready"] is True
         assert summary["amd_matrix_instruction_reports"] == [
             "amd-matrix-instructions/amd-matrix-instruction-report.json",
             "amd-matrix-instructions/amd-matrix-instruction-report.md",
+            "amd-matrix-instructions/layouts/gfx1200/v_swmmac_i32_16x16x32_iu8/compression-wave32-register-layout.csv",
         ]
 
     with tempfile.TemporaryDirectory() as tmp_name:

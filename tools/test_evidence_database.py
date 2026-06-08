@@ -111,8 +111,13 @@ def main() -> int:
                     "device_symbol_count": 5,
                     "reported_symbol_count": 2,
                     "instruction_totals": {
+                        "matrix_instruction_count": 7,
+                        "dense_integer_matrix_instruction_count": 7,
+                        "sparse_integer_matrix_instruction_count": 0,
                         "wmma": 7,
                         "mfma": 0,
+                        "smfmac": 0,
+                        "swmmac": 0,
                         "global_store": 3,
                         "lds_mentions": 11,
                         "wait_instructions": 13,
@@ -230,7 +235,11 @@ def main() -> int:
         assert ck_row["isa_report_count"] == 1
         assert ck_row["isa_report_backends"] == ["ck"]
         assert ck_row["isa_report_targets"] == ["gfx1100"]
+        assert ck_row["isa_matrix_instruction_count"] == 7
+        assert ck_row["isa_dense_integer_matrix_instruction_count"] == 7
+        assert ck_row["isa_sparse_integer_matrix_instruction_count"] == 0
         assert ck_row["isa_wmma_count"] == 7
+        assert ck_row["isa_smfmac_count"] == 0
         assert ck_row["isa_global_store_count"] == 3
         assert ck_row["isa_vgpr_count"] == 64
         assert ck_row["isa_occupancy"] == 8
@@ -242,6 +251,8 @@ def main() -> int:
         assert written["capture_count"] == 2
         csv_text = Path(outputs["evidence_rows_csv"]).read_text(encoding="utf-8")
         assert "scenario_family" in csv_text
+        assert "isa_matrix_instruction_count" in csv_text
+        assert "isa_dense_integer_matrix_instruction_count" in csv_text
         assert "isa_wmma_count" in csv_text
         assert "scenario_source_role" in csv_text
         assert "roofline_target" in csv_text
@@ -265,6 +276,7 @@ def main() -> int:
         assert "bridge_role" in markdown
         assert "prime_or_composite" in markdown
         assert "ISA Resources" in markdown
+        assert "dense int" in markdown
 
     print("evidence database self-test: PASS")
     return 0

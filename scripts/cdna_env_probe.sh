@@ -45,7 +45,7 @@ if [[ -f "${CDNA_REPO_ROOT}/temp/amd_matrix_instruction_calculator/matrix_calcul
   cdna_repo_capture amd_matrix_instruction_report \
     "${PYTHON_BIN}" tools/amd_matrix_instruction_report.py \
     --calculator temp/amd_matrix_instruction_calculator/matrix_calculator.py \
-    --architectures gfx942,gfx1100 \
+    --architectures gfx942,gfx1100,gfx1200,gfx1201 \
     --out-dir "${CDNA_OUT_DIR}/amd-matrix-instructions" \
     --markdown || true
 else
