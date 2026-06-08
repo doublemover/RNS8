@@ -460,7 +460,10 @@ inspection commands.
   sparse-shaped input. CPU sparse-A contract tests now cover finite-u8, bounded
   i64/u64, and exact-wide signed/unsigned expand-to-dense parity against the
   dense CPU reference, including source version stamping on sparse RNS GEMM
-  outputs.
+  outputs. The AMD matrix-instruction calculator report now labels sparse
+  SMFMAC/SWMMAC candidates as requiring this explicit sparse-A 4:2 contract
+  instead of stale future-only wording, while still forbidding implicit dense
+  GEMM routing to sparse instructions.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 

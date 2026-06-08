@@ -198,7 +198,10 @@ Available instructions in the CDNA3 architecture:
     assert dense_32.register_data_types["Src0"].startswith("int8")
     assert sparse.category == "sparse_i8_i32_matrix_core"
     assert sparse.sparse_a_matrix is True
-    assert sparse.sparse_future_only is True
+    assert sparse.sparse_explicit_contract_required is True
+    assert sparse.rns8_semantic_requirements["sparse_contract"].startswith(
+        "requires the explicit RNS8 sparse-A 4:2 structured-K contract"
+    )
     assert rdna_dense.category == "dense_i8_i32_matrix_core"
     assert rdna_dense.operand_signedness == "signed_or_unsigned_selected_by_instruction_modifier"
     assert rdna_dense.wavefront_register_usage["32"]["d"] == 8
@@ -215,7 +218,7 @@ Available instructions in the CDNA3 architecture:
     assert recommendations[0]["reason"] == "highest_dense_integer_throughput_lowest_accumulator_register_pressure"
     assert recommendations[0]["ops_per_cycle"] == 4096
     sparse_notes = report._sparse_notes([dense_32, dense_16, sparse, rdna4_sparse])
-    assert sparse_notes[0]["eligibility"] == "future_sparse_only_requires_explicit_4_to_2_A_matrix_compression_contract"
+    assert sparse_notes[0]["eligibility"] == "requires_explicit_4_to_2_A_matrix_compression_contract"
 
     assert report.instruction_category("v_wmma_i32_16x16x16_iu4") == "dense_i4_i32_matrix_core"
     assert report.instruction_category("v_swmmac_i32_16x16x32_iu4") == "sparse_i4_i32_matrix_core"

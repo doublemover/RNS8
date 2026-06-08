@@ -61,7 +61,7 @@ class MatrixInstruction:
     integer_operand_bits: int | None
     operand_signedness: str | None
     rns8_integer_candidate: bool
-    sparse_future_only: bool
+    sparse_explicit_contract_required: bool
     wavefront_register_usage: dict[str, dict[str, int]] = field(default_factory=dict)
     preferred_register_usage: dict[str, int | None] = field(default_factory=dict)
     register_data_types: dict[str, str] = field(default_factory=dict)
@@ -135,7 +135,7 @@ def instruction_traits(instruction: str) -> dict[str, Any]:
         "integer_operand_bits": integer_bits,
         "operand_signedness": _operand_signedness(operand),
         "rns8_integer_candidate": integer_candidate,
-        "sparse_future_only": bool(integer_candidate and sparsity == "sparse"),
+        "sparse_explicit_contract_required": bool(integer_candidate and sparsity == "sparse"),
     }
 
 
@@ -169,7 +169,7 @@ def _rns8_semantic_requirements(family: str | None, operand: str | None, sparsit
     if family in {"mfma", "smfmac"} and operand == "i8":
         requirements["cdna_wrap64_note"] = "CDNA i8 MFMA/SMFMAC is signed-input evidence; strict byte-limb wrap64 needs the dedicated byte-limb backend or correction"
     if sparsity == "sparse":
-        requirements["sparse_contract"] = "future-only until RNS8 defines explicit 4:2 A-matrix compression metadata and validation"
+        requirements["sparse_contract"] = "requires the explicit RNS8 sparse-A 4:2 structured-K contract, canonical A-side compression indices, dense B, and CPU sparse-reference parity; dense GEMM must not route here"
     return requirements
 
 
@@ -389,7 +389,7 @@ def _sparse_notes(instructions: list[MatrixInstruction]) -> list[dict[str, Any]]
             "registers": _register_summary(item),
             "wavefront_register_usage": item.wavefront_register_usage,
             "rdna_integer_modifier_constraints": item.rdna_integer_modifier_constraints,
-            "eligibility": "future_sparse_only_requires_explicit_4_to_2_A_matrix_compression_contract",
+            "eligibility": "requires_explicit_4_to_2_A_matrix_compression_contract",
             "layout_artifacts": item.layout_artifacts,
         }
         for item in sorted(sparse, key=_sort_score)
@@ -666,7 +666,7 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 f"{regs['a']}/{regs['b']}/{regs['c']}/{regs['d']} | {regs.get('wavefront')} | {row['reason']} |"
             )
         if arch["sparse_integer_i32_notes"]:
-            lines.extend(["", "Sparse instructions are future-only unless the input contract includes A-side compression metadata:", ""])
+            lines.extend(["", "Sparse instructions require explicit A-side compression metadata:", ""])
             for row in arch["sparse_integer_i32_notes"]:
                 tile = row["tile"]
                 lines.append(
