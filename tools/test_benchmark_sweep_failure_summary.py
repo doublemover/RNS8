@@ -191,6 +191,7 @@ def main() -> int:
                                 "runtime_prepack_cache": {
                                     "production_prepack_cache_available": True,
                                     "cache_scope": "runtime_production_b_prepack_cache",
+                                    "source_version": 77,
                                     "cache_key_hash": 456,
                                     "device_bytes": 1024,
                                     "operand_pack_bytes": 768,
@@ -392,7 +393,7 @@ def main() -> int:
         ) in text
         assert (
             "cache_production=True cache_scope=runtime_production_b_prepack_cache "
-            "cache_hash=456 cache_device_bytes=1024 cache_operand_bytes=768"
+            "cache_source_version=77 cache_hash=456 cache_device_bytes=1024 cache_operand_bytes=768"
         ) in text
         assert "reuse_vs_best=0.6666666666666666 cache_production=True" in text
         assert "cache_operand_bytes=768 blockers=none" in text

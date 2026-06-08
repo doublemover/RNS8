@@ -76,7 +76,8 @@ inspection commands.
   compact per-phase ratio diagnostics for route and actionable-candidate lines.
   It also has dedicated matrix-core route rows for MFMA, SMFMAC, WMMA, and
   SWMMAC candidates so CDNA/RDNA matrix-core evidence is visible without
-  digging through review JSON.
+  digging through review JSON. Runtime prepack-cache summary rows include the
+  source version beside production eligibility, scope, hash, and byte counts.
 - Required evidence: Python tests for summary formatting, synthetic review
   fixtures for every blocker family, and one VM refresh proving zero failed
   captures, zero comparable checksum mismatches, and no hidden missing-baseline

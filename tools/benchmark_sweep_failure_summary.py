@@ -295,6 +295,7 @@ def _prepack_reuse_line(
         cache_text = (
             f"cache_production={runtime_cache.get('production_prepack_cache_available')} "
             f"cache_scope={runtime_cache.get('cache_scope')} "
+            f"cache_source_version={runtime_cache.get('source_version')} "
             f"cache_hash={runtime_cache.get('cache_key_hash')} "
             f"cache_device_bytes={runtime_cache.get('device_bytes')} "
             f"cache_operand_bytes={runtime_cache.get('operand_pack_bytes')}"
