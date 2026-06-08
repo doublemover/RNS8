@@ -726,6 +726,8 @@ class ValidatorScheduleMixin:
                 if backend_metadata.get("workspace_mode") not in {
                     "resident_device_buffers_with_ck_canonical_pack_workspace",
                     "resident_device_buffers_with_ck_centered_pack_workspace",
+                    "resident_device_buffers_with_ck_canonical_pack_accumulator_workspace",
+                    "resident_device_buffers_with_ck_centered_pack_accumulator_workspace",
                 }:
                     self._error("per-tile adaptive CK captures must use a known CK pack workspace mode")
             elif backend_metadata.get("workspace_mode") != expected_workspace:

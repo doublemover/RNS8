@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from pathlib import Path
 
 from isa_common import (
@@ -26,6 +27,7 @@ CDNA_REQUIRED_MNEMONICS = [
     "v_mfma_i32_32x32x16_i8",
     "v_mfma_i32_32x32x32_i8",
 ]
+CDNA_CK_INTERNAL_BLOCK_MAP_RCP_RE = re.compile(r"\bv_rcp_iflag_f32\b")
 
 
 def required_symbol_markers(amdgpu_target: str) -> list[str]:
@@ -49,6 +51,10 @@ def required_matrix_mnemonics(amdgpu_target: str) -> list[str]:
     return RDNA_REQUIRED_MNEMONICS
 
 
+def allowed_ck_internal_divide_line(line: str, amdgpu_target: str) -> bool:
+    return amdgpu_target.startswith("gfx9") and bool(CDNA_CK_INTERNAL_BLOCK_MAP_RCP_RE.search(line))
+
+
 def scan_disassembly(
     objdump: str,
     code_object: Path,
@@ -64,7 +70,9 @@ def scan_disassembly(
         matrix_count += sum(disassembly.count(mnemonic) for mnemonic in required)
         forbidden_stores.extend(forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE))
         forbidden_divides.extend(
-            f"{symbol}: {line}" for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
+            f"{symbol}: {line}"
+            for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
+            if not allowed_ck_internal_divide_line(line, amdgpu_target)
         )
     return matrix_count, forbidden_stores, forbidden_divides
 
@@ -94,7 +102,10 @@ def main() -> int:
     print(f"- CK GEMM matrix symbols: {len(symbols)}")
     print(f"- target matrix instructions: {matrix_count}")
     print(f"- global_store_dword/buffer_store_dword instructions: {len(forbidden_stores)}")
-    print("- no v/s reciprocal, divide, or remainder instructions")
+    if config.target.startswith("gfx9"):
+        print("- no data-path divide or remainder instructions; CK XDL block-map reciprocal is allowed")
+    else:
+        print("- no v/s reciprocal, divide, or remainder instructions")
     return 0
 
 

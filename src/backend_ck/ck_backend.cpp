@@ -125,8 +125,10 @@ bool ck_workspace_requirements(
   if (!checked_mul_u64(k_block, padded_n, b_bytes)) {
     return false;
   }
+  uint64_t c_elements = 0;
   uint64_t c_bytes = 0;
-  if (!checked_mul_u64(padded_m, padded_n, c_bytes)) {
+  if (!checked_mul_u64(padded_m, padded_n, c_elements) ||
+      !checked_mul_u64(c_elements, sizeof(int32_t), c_bytes)) {
     return false;
   }
   if (a_bytes > std::numeric_limits<std::size_t>::max() ||

@@ -17,7 +17,7 @@ extern "C" int rns8_ck_gemm_rns_device(
   }
   int8_t* a_workspace = nullptr;
   int8_t* b_workspace = nullptr;
-  int8_t* temp_c = nullptr;
+  int32_t* temp_c = nullptr;
   int status = checked_common(
       device_id,
       device_a_residues,
@@ -96,7 +96,7 @@ extern "C" int rns8_ck_gemm_rns_tiled_device(
   }
   int8_t* a_workspace = nullptr;
   int8_t* b_workspace = nullptr;
-  int8_t* temp_c = nullptr;
+  int32_t* temp_c = nullptr;
   int status = checked_common(
       device_id,
       device_a_residues,
@@ -176,7 +176,7 @@ extern "C" int rns8_ck_gemm_finite_u8_device(
     unsigned int modulus) {
   int8_t* a_workspace = nullptr;
   int8_t* b_workspace = nullptr;
-  int8_t* temp_c = nullptr;
+  int32_t* temp_c = nullptr;
   int status = checked_common(
       device_id,
       device_a_residues,

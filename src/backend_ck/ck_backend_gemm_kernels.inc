@@ -42,13 +42,15 @@ __global__ void pack_b_colmajor_kernel(
                                     : 0;
 }
 
-__global__ void copy_centered_residue_kernel(
-    const int8_t* src,
+__global__ void reduce_accumulator_to_centered_kernel(
+    const int32_t* src,
     int8_t* dst,
     int rows,
     int cols,
     int src_ld,
-    int dst_ld) {
+    int dst_ld,
+    int modulus,
+    uint32_t reciprocal) {
   const int index = blockIdx.x * blockDim.x + threadIdx.x;
   const int total = rows * cols;
   if (index >= total) {
@@ -56,11 +58,11 @@ __global__ void copy_centered_residue_kernel(
   }
   const int row = index / cols;
   const int col = index - row * cols;
-  dst[row * dst_ld + col] = src[row * src_ld + col];
+  dst[row * dst_ld + col] = center_i32_device(src[row * src_ld + col], modulus, reciprocal);
 }
 
-__global__ void add_centered_residue_kernel(
-    const int8_t* rhs,
+__global__ void add_accumulator_to_centered_kernel(
+    const int32_t* rhs,
     int8_t* dst,
     int rows,
     int cols,
@@ -75,7 +77,7 @@ __global__ void add_centered_residue_kernel(
   }
   const int row = index / cols;
   const int col = index - row * cols;
-  const int32_t sum = static_cast<int32_t>(dst[row * dst_ld + col]) + static_cast<int32_t>(rhs[row * rhs_ld + col]);
+  const int32_t sum = static_cast<int32_t>(dst[row * dst_ld + col]) + rhs[row * rhs_ld + col];
   dst[row * dst_ld + col] = center_i32_device(sum, modulus, reciprocal);
 }
 
@@ -141,23 +143,37 @@ hipError_t launch_pack_b(
   return hipGetLastError();
 }
 
-hipError_t launch_copy_centered(
-    const int8_t* src,
+hipError_t launch_reduce_accumulator(
+    const int32_t* src,
     int8_t* dst,
     int rows,
     int cols,
     int src_ld,
-    int dst_ld) {
+    int dst_ld,
+    int modulus,
+    uint32_t reciprocal) {
   const int total = rows * cols;
   const int block = 256;
   const int grid = (total + block - 1) / block;
-  hipLaunchKernelGGL(copy_centered_residue_kernel, dim3(grid), dim3(block), 0, nullptr, src, dst, rows, cols, src_ld,
-                     dst_ld);
+  hipLaunchKernelGGL(
+      reduce_accumulator_to_centered_kernel,
+      dim3(grid),
+      dim3(block),
+      0,
+      nullptr,
+      src,
+      dst,
+      rows,
+      cols,
+      src_ld,
+      dst_ld,
+      modulus,
+      reciprocal);
   return hipGetLastError();
 }
 
-hipError_t launch_add_centered(
-    const int8_t* rhs,
+hipError_t launch_add_accumulator(
+    const int32_t* rhs,
     int8_t* dst,
     int rows,
     int cols,
@@ -169,7 +185,18 @@ hipError_t launch_add_centered(
   const int block = 256;
   const int grid = (total + block - 1) / block;
   hipLaunchKernelGGL(
-      add_centered_residue_kernel, dim3(grid), dim3(block), 0, nullptr, rhs, dst, rows, cols, rhs_ld, dst_ld, modulus,
+      add_accumulator_to_centered_kernel,
+      dim3(grid),
+      dim3(block),
+      0,
+      nullptr,
+      rhs,
+      dst,
+      rows,
+      cols,
+      rhs_ld,
+      dst_ld,
+      modulus,
       reciprocal);
   return hipGetLastError();
 }
@@ -180,7 +207,7 @@ int run_ck_tile_modulus(
     int8_t* c,
     int8_t* a_workspace,
     int8_t* b_workspace,
-    int8_t* temp_c,
+    int32_t* temp_c,
     int m,
     int n,
     int k,
@@ -223,7 +250,6 @@ int run_ck_tile_modulus(
   }
   const int gemm_m = static_cast<int>(padded_m_i64);
   const int gemm_n = static_cast<int>(padded_n_i64);
-  const bool padded_output = gemm_m != m || gemm_n != n;
   for (int64_t k_offset = 0; k_offset < k; k_offset += kRns8CanonicalSafeInt32KBlock) {
     const int valid_k_block = static_cast<int>(
         (static_cast<int64_t>(k) - k_offset) < kRns8CanonicalSafeInt32KBlock
@@ -244,22 +270,19 @@ int run_ck_tile_modulus(
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
-    const bool write_workspace_output = padded_output || have_accumulated;
-    int8_t* output = write_workspace_output ? temp_c : c;
-    const int output_ld = write_workspace_output ? gemm_n : ldc;
     auto arg = DeviceGemmInstance::MakeArgument(
         a_workspace,
         b_workspace,
-        output,
+        temp_c,
         gemm_m,
         gemm_n,
         gemm_k_block,
         gemm_k_block,
         gemm_k_block,
-        output_ld,
+        gemm_n,
         PassThrough{},
         PassThrough{},
-        CenteredModulo{modulus, reciprocal});
+        PassThrough{});
     if (!DeviceGemmInstance::IsSupportedArgument(arg)) {
       return ck_unsupported_backend;
     }
@@ -277,19 +300,17 @@ int run_ck_tile_modulus(
     if (matmul_status != ck_success) {
       return ck_backend_failure;
     }
-    if (write_workspace_output) {
-      if (have_accumulated) {
-        err = timed_hip_launch(add_timing_label, add_alias, [&]() {
-          return launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
-        });
-      } else {
-        err = timed_hip_launch(copy_timing_label, copy_alias, [&]() {
-          return launch_copy_centered(temp_c, c, m, n, gemm_n, ldc);
-        });
-      }
-      if (err != hipSuccess) {
-        return ck_backend_failure;
-      }
+    if (have_accumulated) {
+      err = timed_hip_launch(add_timing_label, add_alias, [&]() {
+        return launch_add_accumulator(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
+      });
+    } else {
+      err = timed_hip_launch(copy_timing_label, copy_alias, [&]() {
+        return launch_reduce_accumulator(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
+      });
+    }
+    if (err != hipSuccess) {
+      return ck_backend_failure;
     }
     have_accumulated = true;
   }

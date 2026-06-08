@@ -118,9 +118,11 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
           "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
 #if RNS8_CK_USE_XDL
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_centered_pack_workspace");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_with_ck_centered_pack_accumulator_workspace");
 #else
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_canonical_pack_workspace");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_with_ck_canonical_pack_accumulator_workspace");
 #endif
       CHECK(std::string(capability.isa_evidence) == "ck_cshuffle_int8_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);

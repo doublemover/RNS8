@@ -536,6 +536,8 @@ class ValidatorBaseFieldsMixin:
             if metadata.get("workspace_mode") not in {
                 "resident_device_buffers_with_ck_canonical_pack_workspace",
                 "resident_device_buffers_with_ck_centered_pack_workspace",
+                "resident_device_buffers_with_ck_canonical_pack_accumulator_workspace",
+                "resident_device_buffers_with_ck_centered_pack_accumulator_workspace",
             }:
                 self._error("CK captures must use a known CK pack workspace mode")
             if metadata.get("selected_kernel") not in CK_SELECTED_KERNELS:
