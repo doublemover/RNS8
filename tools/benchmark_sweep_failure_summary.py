@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 import json
 from pathlib import Path
 import subprocess
+import sys
 from typing import Any
 
 from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
@@ -205,14 +206,16 @@ def build_summary(
     isa_index = load_isa_index([out])
 
     failed = sorted(out.rglob("*.failed.json"))
+    capture_paths = _scenario_capture_paths(out)
     lines.append(f"FAILED_CAPTURES {len(failed)}")
+    lines.append(f"CAPTURE_JSON_COUNT {len(capture_paths)}")
     for path in failed:
         payload = _load_json(path)
         stderr = str(payload.get("stderr", "")).strip().replace("\n", " | ")
         lines.append(f"{path.relative_to(out)}: {stderr}")
 
     groups: dict[str, list[tuple[str, Any, Path]]] = defaultdict(list)
-    for path in _scenario_capture_paths(out):
+    for path in capture_paths:
         payload = _load_json(path)
         groups[capture_contract_key(payload)].append((backend_id(payload), capture_checksum(payload), path))
 
@@ -253,7 +256,9 @@ def build_summary(
     bottleneck_counts: Counter[str] = Counter()
     direct_hip_production_wins: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     next_work_rows: list[tuple[str, dict[str, Any]]] = []
+    review_report_count = 0
     for path in out.rglob("review_report.json"):
+        review_report_count += 1
         report = _load_json(path)
         summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
         if isinstance(summary.get("next_work"), list):
@@ -296,6 +301,7 @@ def build_summary(
                         loss_phase_by_scenario_family.update((family, phase) for family in _scenario_families(group))
                     bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
                     bottleneck_counts.update([str(bottleneck.get("class") or "unknown")])
+    lines.append(f"REVIEW_REPORTS {review_report_count}")
     lines.append("REVIEW_BLOCKER_COUNTS")
     for blocker, count in blocker_counts.most_common():
         lines.append(f"{blocker} {count}")
@@ -437,20 +443,74 @@ def build_summary(
     return lines
 
 
+def _prefixed_int(lines: list[str], prefix: str) -> int | None:
+    for line in lines:
+        if not line.startswith(prefix):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            return None
+        try:
+            return int(parts[1])
+        except ValueError:
+            return None
+    return None
+
+
+def clean_gate_failures(lines: list[str]) -> list[str]:
+    checks = [
+        ("FAILED_CAPTURES", "failed captures"),
+        ("CHECKSUM_MISMATCH_GROUPS", "comparable checksum mismatch groups"),
+        ("MISSING_REQUIRED_BASELINE_GROUPS", "missing required baseline groups"),
+    ]
+    failures: list[str] = []
+    for prefix, label in checks:
+        count = _prefixed_int(lines, prefix)
+        if count is None:
+            failures.append(f"{prefix} section missing or malformed")
+        elif count != 0:
+            failures.append(f"{label}={count}")
+    review_count = _prefixed_int(lines, "REVIEW_REPORTS")
+    if review_count is None:
+        failures.append("REVIEW_REPORTS section missing or malformed")
+    elif review_count <= 0:
+        failures.append("review_reports=0")
+    capture_count = _prefixed_int(lines, "CAPTURE_JSON_COUNT")
+    if capture_count is None:
+        failures.append("CAPTURE_JSON_COUNT section missing or malformed")
+    elif capture_count <= 0:
+        failures.append("capture_json_count=0")
+    return failures
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", nargs="?", type=Path, help="sweep output directory; defaults to latest temp/cdna-*mi300x-*")
     parser.add_argument("--temp-root", type=Path, default=Path("temp"))
     parser.add_argument("--max-route-rows", type=int, default=DEFAULT_MAX_ROUTE_ROWS)
     parser.add_argument("--max-detail-rows", type=int, default=DEFAULT_MAX_DETAIL_ROWS)
+    parser.add_argument(
+        "--require-clean",
+        action="store_true",
+        help=(
+            "exit nonzero unless the sweep has at least one review report, zero failed captures, "
+            "zero comparable checksum mismatch groups, and zero missing required baseline groups"
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     out = args.out if args.out is not None else _latest_cdna_out(args.temp_root)
-    for line in build_summary(out, max_route_rows=args.max_route_rows, max_detail_rows=args.max_detail_rows):
+    lines = build_summary(out, max_route_rows=args.max_route_rows, max_detail_rows=args.max_detail_rows)
+    for line in lines:
         print(line)
+    if args.require_clean:
+        failures = clean_gate_failures(lines)
+        if failures:
+            print("require-clean failed: " + "; ".join(failures), file=sys.stderr)
+            return 1
     return 0
 
 

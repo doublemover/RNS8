@@ -209,6 +209,7 @@ def main() -> int:
         text = "\n".join(lines)
         normalized = text.replace("\\", "/")
         assert "FAILED_CAPTURES 1" in text
+        assert "CAPTURE_JSON_COUNT 6" in text
         assert "rns8_create_plan: range error" in text
         assert "CHECKSUM_MISMATCH_GROUPS 1" in text
         assert "workflow-c" in text
@@ -251,6 +252,37 @@ def main() -> int:
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
         assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
         assert "matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
+        assert summary.clean_gate_failures(lines) == [
+            "failed captures=1",
+            "comparable checksum mismatch groups=1",
+            "missing required baseline groups=1",
+        ]
+
+        clean_out = Path(tmp_name) / "cdna-rank79-clean-mi300x-test"
+        clean_scenarios = clean_out / "rank-scenarios" / "all" / "scenarios" / "summary-test"
+        _write(clean_scenarios / "clean-cpu.json", _capture("cpu-reference", 777, "clean-workflow"))
+        _write(clean_scenarios / "clean-direct.json", _capture("hip-direct", 777, "clean-workflow"))
+        _write(
+            clean_out / "rank-scenarios" / "all" / "review_report.json",
+            {
+                "promotable_autotune_entries": [],
+                "groups": [
+                    {
+                        "semantics": "bounded_i64",
+                        "shape": {"m": 64, "n": 64, "k": 64},
+                        "missing_required_baselines": [],
+                        "candidates": [],
+                    }
+                ],
+            },
+        )
+        clean_lines = summary.build_summary(clean_out)
+        assert "FAILED_CAPTURES 0" in clean_lines
+        assert "CAPTURE_JSON_COUNT 2" in clean_lines
+        assert "CHECKSUM_MISMATCH_GROUPS 0" in clean_lines
+        assert "REVIEW_REPORTS 1" in clean_lines
+        assert "MISSING_REQUIRED_BASELINE_GROUPS 0" in clean_lines
+        assert summary.clean_gate_failures(clean_lines) == []
 
     print("benchmark sweep failure summary self-test: PASS")
     return 0
