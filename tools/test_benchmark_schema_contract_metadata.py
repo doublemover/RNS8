@@ -130,8 +130,14 @@ def main() -> int:
         "backend_fingerprint": "ck_fixture",
         "workspace_fingerprint": "persistent_matrix_residency_fixture",
         "setup_cost_us": 123.0,
+        "setup_amortized_us": 13.666666666666666,
+        "repeat_median_end_to_end_us": 1000.0,
+        "setup_inclusive_median_end_to_end_us": 1013.6666666666666,
+        "setup_inclusive_policy": "one_time_setup_amortized_over_measured_repeats",
         "measured_repeat_count": reused["repeats"],
         "break_even_repeat_count": None,
+        "production_runtime_prepack_cache_available": False,
+        "setup_inclusive_cache_promotion_candidate": False,
         "promotion_eligible": False,
         "invalidation_reasons": ["fixture_not_reviewed_for_promotion"],
     }
@@ -140,6 +146,17 @@ def main() -> int:
     stale_reuse_role = copy.deepcopy(reused)
     stale_reuse_role["reuse_contract"]["operand_role"] = "A+C"
     expect_invalid(stale_reuse_role, "reuse_contract.operand_role must be one of")
+
+    stale_setup_inclusive = copy.deepcopy(reused)
+    stale_setup_inclusive["reuse_contract"]["setup_amortized_us"] = -1
+    expect_invalid(stale_setup_inclusive, "reuse_contract.setup_amortized_us must be a nonnegative number or null")
+
+    stale_setup_policy = copy.deepcopy(reused)
+    stale_setup_policy["reuse_contract"]["setup_inclusive_policy"] = "raw_per_repeat_only"
+    expect_invalid(
+        stale_setup_policy,
+        "reuse_contract.setup_inclusive_policy must be one_time_setup_amortized_over_measured_repeats",
+    )
 
     bounded_export = add_helper_lane_fields(copy.deepcopy(direct_hip_base))
     bounded_export["exact_output_contract"] = {

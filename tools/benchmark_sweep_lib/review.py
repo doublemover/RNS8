@@ -445,10 +445,20 @@ def graph_numeric_value(capture: dict[str, Any], key: str) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
+def reuse_contract_numeric_value(capture: dict[str, Any], key: str) -> float | None:
+    reuse = capture.get("reuse_contract")
+    if not isinstance(reuse, dict):
+        return None
+    value = reuse.get(key)
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
 def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> float | None:
     setup = 0.0
     if capture_prepacked_reuse(capture):
-        prepack = numeric_capture_value(capture, "avg_prepack_setup_us")
+        prepack = reuse_contract_numeric_value(capture, "setup_cost_us")
+        if prepack is None:
+            prepack = numeric_capture_value(capture, "avg_prepack_setup_us")
         if prepack is None:
             prepack = numeric_capture_value(capture, "prepack_setup_us")
         if prepack is None:
@@ -464,6 +474,10 @@ def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> floa
 
 
 def setup_inclusive_end_to_end_us(capture: dict[str, Any], *, include_graph_setup: bool = False) -> float | None:
+    if capture_prepacked_reuse(capture) and not include_graph_setup:
+        recorded = reuse_contract_numeric_value(capture, "setup_inclusive_median_end_to_end_us")
+        if recorded is not None:
+            return recorded
     median = median_phase(capture, "end_to_end")
     repeats = normalized_positive_int(capture.get("repeats"))
     if median is None or repeats is None:

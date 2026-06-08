@@ -320,11 +320,17 @@ reuse_rocwmma_candidate["pack_mode"] = "prepacked_reuse_b"
 reuse_rocwmma_candidate["prepack_reuse_operands"] = ["B"]
 reuse_rocwmma_candidate["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
 reuse_rocwmma_candidate["prepack_setup_us"] = 90
-reuse_rocwmma_candidate["avg_prepack_setup_us"] = 90.0
+reuse_rocwmma_candidate["avg_prepack_setup_us"] = 9000.0
 reuse_rocwmma_candidate["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
 reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_operands"] = ["B"]
 reuse_rocwmma_candidate["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
 set_phase(reuse_rocwmma_candidate, 600)
+reuse_rocwmma_candidate["reuse_contract"] = {
+    "setup_cost_us": 90.0,
+    "setup_amortized_us": 10.0,
+    "repeat_median_end_to_end_us": 600.0,
+    "setup_inclusive_median_end_to_end_us": 610.0,
+}
 reuse_report = benchmark_sweep.review_captures(
     [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, reuse_rocwmma_candidate],
     review_mode="release",
@@ -337,6 +343,8 @@ reuse_candidate_group = next(
 reuse_candidate = reuse_candidate_group["candidates"][0]
 assert reuse_candidate["promotable"] is True
 assert reuse_candidate["selection_end_to_end_us"] == 610.0
+assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
+assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
 assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_end_to_end_us"] == 900.0
 assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
 assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
@@ -348,6 +356,9 @@ slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
 slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
 slow_reuse_candidate["prepack_setup_us"] = 3600
 slow_reuse_candidate["avg_prepack_setup_us"] = 3600.0
+slow_reuse_candidate["reuse_contract"]["setup_cost_us"] = 3600.0
+slow_reuse_candidate["reuse_contract"]["setup_amortized_us"] = 400.0
+slow_reuse_candidate["reuse_contract"]["setup_inclusive_median_end_to_end_us"] = 1000.0
 slow_reuse_report = benchmark_sweep.review_captures(
     [reuse_cpu, reuse_direct, reuse_vector, reuse_rocwmma_baseline, slow_reuse_candidate],
     review_mode="release",

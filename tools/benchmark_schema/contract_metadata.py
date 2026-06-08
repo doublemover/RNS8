@@ -126,6 +126,21 @@ def validate_contract_metadata(self: Any) -> None:
             setup_cost = reuse.get("setup_cost_us")
             if setup_cost is not None and (not _is_number(setup_cost) or setup_cost < 0):
                 self._error("reuse_contract.setup_cost_us must be a nonnegative number or null")
+            for key in [
+                "setup_amortized_us",
+                "repeat_median_end_to_end_us",
+                "setup_inclusive_median_end_to_end_us",
+            ]:
+                value = reuse.get(key)
+                if value is not None and (not _is_number(value) or value < 0):
+                    self._error(f"reuse_contract.{key} must be a nonnegative number or null")
+            if "setup_inclusive_policy" in reuse and reuse.get("setup_inclusive_policy") != (
+                "one_time_setup_amortized_over_measured_repeats"
+            ):
+                self._error(
+                    "reuse_contract.setup_inclusive_policy must be "
+                    "one_time_setup_amortized_over_measured_repeats"
+                )
             repeats = reuse.get("measured_repeat_count")
             if not _is_int(repeats) or repeats <= 0:
                 self._error("reuse_contract.measured_repeat_count must be a positive integer")
@@ -134,6 +149,13 @@ def validate_contract_metadata(self: Any) -> None:
                 self._error("reuse_contract.break_even_repeat_count must be positive or null")
             if not isinstance(reuse.get("promotion_eligible"), bool):
                 self._error("reuse_contract.promotion_eligible must be a boolean")
+            for key in [
+                "production_runtime_prepack_cache_available",
+                "setup_inclusive_cache_promotion_candidate",
+            ]:
+                value = reuse.get(key)
+                if value is not None and not isinstance(value, bool):
+                    self._error(f"reuse_contract.{key} must be a boolean when present")
             invalidation = reuse.get("invalidation_reasons")
             if not isinstance(invalidation, list) or not all(isinstance(item, str) for item in invalidation):
                 self._error("reuse_contract.invalidation_reasons must be an array of strings")

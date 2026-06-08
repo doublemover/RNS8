@@ -368,6 +368,36 @@ void print_reuse_contract_json(
     std::cout << "null";
   }
   std::cout << ",\n";
+  const bool setup_inclusive_available =
+      result.prepack_setup_available && args.repeats > 0 && !result.samples.end_to_end_us.empty();
+  const double setup_amortized_us =
+      setup_inclusive_available
+          ? static_cast<double>(result.prepack_setup_us) / static_cast<double>(args.repeats)
+          : 0.0;
+  const double repeat_median_end_to_end_us =
+      setup_inclusive_available ? median(result.samples.end_to_end_us) : 0.0;
+  std::cout << "    \"setup_amortized_us\": ";
+  if (setup_inclusive_available) {
+    std::cout << setup_amortized_us;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
+  std::cout << "    \"repeat_median_end_to_end_us\": ";
+  if (setup_inclusive_available) {
+    std::cout << repeat_median_end_to_end_us;
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
+  std::cout << "    \"setup_inclusive_median_end_to_end_us\": ";
+  if (setup_inclusive_available) {
+    std::cout << (repeat_median_end_to_end_us + setup_amortized_us);
+  } else {
+    std::cout << "null";
+  }
+  std::cout << ",\n";
+  std::cout << "    \"setup_inclusive_policy\": \"one_time_setup_amortized_over_measured_repeats\",\n";
   std::cout << "    \"measured_repeat_count\": " << args.repeats << ",\n";
   std::cout << "    \"break_even_repeat_count\": null,\n";
   std::cout << "    \"output_domain\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
@@ -417,6 +447,12 @@ void print_reuse_contract_json(
     std::cout << "    }";
   }
   std::cout << ",\n";
+  const bool production_runtime_cache =
+      result.prepack_cache_info_available && result.prepack_cache_info.production_prepack_cache_available != 0;
+  std::cout << "    \"production_runtime_prepack_cache_available\": "
+            << (production_runtime_cache ? "true" : "false") << ",\n";
+  std::cout << "    \"setup_inclusive_cache_promotion_candidate\": "
+            << (reuse_enabled && production_runtime_cache ? "true" : "false") << ",\n";
   std::cout << "    \"promotion_eligible\": " << (!reuse_enabled ? "true" : "false") << ",\n";
   std::cout << "    \"invalidation_reasons\": [";
   bool first = true;
