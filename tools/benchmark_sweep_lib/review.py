@@ -644,6 +644,9 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
     loss_phase_by_scenario_family: Counter[tuple[str, str]] = Counter()
     loss_rows: list[dict[str, Any]] = []
     bottleneck_counts: Counter[str] = Counter()
+    pack_split_counts: Counter[str] = Counter()
+    pack_dominant_operand_counts: Counter[str] = Counter()
+    pack_diagnostic_rows: list[dict[str, Any]] = []
     production_counts: Counter[str] = Counter()
     accelerator_counts: Counter[str] = Counter()
     direct_hip_winners: list[dict[str, Any]] = []
@@ -670,6 +673,38 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         for candidate in group.get("candidates", []):
             blockers = candidate.get("promotion_blockers") if isinstance(candidate.get("promotion_blockers"), list) else []
             blocker_counts.update(str(item) for item in blockers)
+            pack_diagnostics = candidate.get("pack_diagnostics")
+            if isinstance(pack_diagnostics, dict):
+                split_state = "split_available" if pack_diagnostics.get("split_available") is True else "split_missing"
+                pack_split_counts.update([split_state])
+                dominant = pack_diagnostics.get("dominant_operand")
+                if isinstance(dominant, str) and dominant:
+                    pack_dominant_operand_counts.update([dominant])
+                share = pack_diagnostics.get("pack_share_of_end_to_end")
+                if isinstance(share, (int, float)) and share > 0:
+                    pack_diagnostic_rows.append(
+                        {
+                            "semantics": group.get("semantics"),
+                            "shape": group.get("shape"),
+                            "shape_family": group.get("shape_family"),
+                            "scenario_families": group.get("scenario_families"),
+                            "backend": candidate.get("backend"),
+                            "selected_kernel": candidate.get("selected_kernel"),
+                            "capture": candidate.get("capture"),
+                            "pack_median_us": pack_diagnostics.get("pack_median_us"),
+                            "pack_a_median_us": pack_diagnostics.get("pack_a_median_us"),
+                            "pack_b_median_us": pack_diagnostics.get("pack_b_median_us"),
+                            "pack_share_of_end_to_end": share,
+                            "split_available": pack_diagnostics.get("split_available"),
+                            "dominant_operand": dominant,
+                            "pack_mode": pack_diagnostics.get("pack_mode"),
+                            "pack_layout": pack_diagnostics.get("pack_layout"),
+                            "source_versioned_inputs": pack_diagnostics.get("source_versioned_inputs"),
+                            "same_source_version_pack_elision_available": pack_diagnostics.get(
+                                "same_source_version_pack_elision_available"
+                            ),
+                        }
+                    )
             route_metadata_actionable = any(str(item) in ROUTE_METADATA_BLOCKERS for item in blockers)
             if (
                 (candidate.get("accelerator_backend") is True or route_metadata_actionable)
@@ -723,6 +758,17 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         "direct_hip_production_wins": direct_hip_winners,
         "loss_phase_examples": loss_rows[:40],
         "setup_sensitive_candidates": setup_sensitive[:40],
+        "pack_split_counts": dict(pack_split_counts.most_common()),
+        "pack_dominant_operand_counts": dict(pack_dominant_operand_counts.most_common()),
+        "pack_diagnostics": sorted(
+            pack_diagnostic_rows,
+            key=lambda row: (
+                row.get("pack_share_of_end_to_end")
+                if isinstance(row.get("pack_share_of_end_to_end"), (int, float))
+                else 0.0
+            ),
+            reverse=True,
+        )[:40],
         "next_work": review_next_work(
             missing_baseline_count=missing_baseline_count,
             checksum_mismatch_count=checksum_mismatch_count,
@@ -1279,6 +1325,40 @@ def bottleneck_classification(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def pack_phase_diagnostics(capture: dict[str, Any]) -> dict[str, Any]:
+    end_to_end = median_phase(capture, "end_to_end")
+    pack = median_phase(capture, "pack")
+    pack_a = median_phase(capture, "pack_a")
+    pack_b = median_phase(capture, "pack_b")
+    split_available = pack_a is not None and pack_b is not None
+    dominant_operand = None
+    if split_available:
+        if pack_a > pack_b * 1.10:
+            dominant_operand = "A"
+        elif pack_b > pack_a * 1.10:
+            dominant_operand = "B"
+        else:
+            dominant_operand = "balanced"
+    plan_packing = capture.get("plan_packing")
+    plan_packing_dict = plan_packing if isinstance(plan_packing, dict) else {}
+    return {
+        "pack_median_us": pack,
+        "pack_a_median_us": pack_a,
+        "pack_b_median_us": pack_b,
+        "pack_share_of_end_to_end": (pack / end_to_end) if pack is not None and end_to_end else None,
+        "split_available": split_available,
+        "dominant_operand": dominant_operand,
+        "pack_mode": capture_pack_mode(capture),
+        "pack_layout": capture_timing_metadata(capture).get("pack_layout"),
+        "source_versioned_inputs": plan_packing_dict.get("source_versioned_inputs"),
+        "same_source_version_pack_elision_available": plan_packing_dict.get(
+            "same_source_version_pack_elision_available"
+        ),
+        "a_pack_workspace_bytes": plan_packing_dict.get("a_pack_workspace_bytes"),
+        "b_pack_workspace_bytes": plan_packing_dict.get("b_pack_workspace_bytes"),
+    }
+
+
 def capture_gpu_events_available(capture: dict[str, Any]) -> bool:
     timing = capture_timing_metadata(capture)
     return (
@@ -1717,6 +1797,7 @@ def review_captures(
                 "setup_comparison_key": setup_key,
                 "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
                 "phase_medians_us": phase_medians_for_capture(item),
+                "pack_diagnostics": pack_phase_diagnostics(item),
                 "tile_shape_variant": (
                     item.get("tile_shape_variant", {}).get("name")
                     if isinstance(item.get("tile_shape_variant"), dict)

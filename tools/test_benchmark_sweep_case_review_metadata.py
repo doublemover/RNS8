@@ -35,6 +35,8 @@ assert report["summary"]["next_work"] == []
 group = report["groups"][0]
 ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
 assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
+assert ck_candidate["pack_diagnostics"]["pack_median_us"] == 40.0
+assert ck_candidate["pack_diagnostics"]["split_available"] is False
 assert group["shape_family"] == "rectangular"
 assert group["scenario_families"] == []
 assert group["scenario_names"] == []

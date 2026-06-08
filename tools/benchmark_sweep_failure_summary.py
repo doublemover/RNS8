@@ -464,6 +464,45 @@ def _export_route_active(candidate: dict[str, Any]) -> bool:
     return False
 
 
+def _pack_diagnostic_active(candidate: dict[str, Any]) -> bool:
+    diagnostics = candidate.get("pack_diagnostics")
+    if not isinstance(diagnostics, dict):
+        return False
+    share = diagnostics.get("pack_share_of_end_to_end")
+    if isinstance(share, (int, float)) and share > 0:
+        return True
+    return diagnostics.get("split_available") is True
+
+
+def _pack_diagnostic_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+) -> str:
+    diagnostics = candidate.get("pack_diagnostics") if isinstance(candidate.get("pack_diagnostics"), dict) else {}
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"shape_family={group.get('shape_family') or 'unknown'} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"pack={diagnostics.get('pack_median_us')} "
+        f"pack_a={diagnostics.get('pack_a_median_us')} "
+        f"pack_b={diagnostics.get('pack_b_median_us')} "
+        f"pack_share={diagnostics.get('pack_share_of_end_to_end')} "
+        f"split={diagnostics.get('split_available')} "
+        f"dominant={diagnostics.get('dominant_operand')} "
+        f"pack_mode={diagnostics.get('pack_mode')} "
+        f"pack_layout={diagnostics.get('pack_layout')} "
+        f"source_versioned={diagnostics.get('source_versioned_inputs')} "
+        f"same_version_elision={diagnostics.get('same_source_version_pack_elision_available')} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def _export_route_line(
     out: Path,
     report_path: str,
@@ -649,6 +688,9 @@ def build_summary(
     prepack_reuse_blockers: Counter[str] = Counter()
     graph_replay_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     graph_replay_blockers: Counter[str] = Counter()
+    pack_diagnostic_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    pack_split_counts: Counter[str] = Counter()
+    pack_dominant_operand_counts: Counter[str] = Counter()
     export_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     export_kernel_counts: Counter[str] = Counter()
     sparse_a_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -694,6 +736,15 @@ def build_summary(
                 if isinstance(graph, dict):
                     graph_replay_rows.append((str(path.relative_to(out)), group, candidate, graph))
                     graph_replay_blockers.update(str(item) for item in graph.get("blockers", []) if item)
+                diagnostics = candidate.get("pack_diagnostics")
+                if isinstance(diagnostics, dict):
+                    split_state = "split_available" if diagnostics.get("split_available") is True else "split_missing"
+                    pack_split_counts.update([split_state])
+                    dominant = diagnostics.get("dominant_operand")
+                    if isinstance(dominant, str) and dominant:
+                        pack_dominant_operand_counts.update([dominant])
+                    if _pack_diagnostic_active(candidate):
+                        pack_diagnostic_rows.append((str(path.relative_to(out)), group, candidate))
                 if _export_route_active(candidate):
                     export_route_rows.append((str(path.relative_to(out)), group, candidate))
                     export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
@@ -850,6 +901,31 @@ def build_summary(
         lines.append(_graph_replay_line(out, report_path, group, candidate, graph))
     if len(graph_replay_rows) > max_detail_rows:
         lines.append(f"  ... {len(graph_replay_rows) - max_detail_rows} more")
+    lines.append(f"PACK_PHASE_DIAGNOSTICS {len(pack_diagnostic_rows)}")
+    lines.append("PACK_PHASE_SPLIT_COUNTS")
+    if pack_split_counts:
+        for split_state, count in pack_split_counts.most_common():
+            lines.append(f"{split_state} {count}")
+    else:
+        lines.append("none 0")
+    lines.append("PACK_PHASE_DOMINANT_OPERAND_COUNTS")
+    if pack_dominant_operand_counts:
+        for operand, count in pack_dominant_operand_counts.most_common():
+            lines.append(f"{operand} {count}")
+    else:
+        lines.append("none 0")
+    pack_diagnostic_rows.sort(
+        key=lambda row: (
+            row[2].get("pack_diagnostics", {}).get("pack_share_of_end_to_end")
+            if isinstance(row[2].get("pack_diagnostics", {}).get("pack_share_of_end_to_end"), (int, float))
+            else 0.0
+        ),
+        reverse=True,
+    )
+    for report_path, group, candidate in pack_diagnostic_rows[:max_detail_rows]:
+        lines.append(_pack_diagnostic_line(out, report_path, group, candidate))
+    if len(pack_diagnostic_rows) > max_detail_rows:
+        lines.append(f"  ... {len(pack_diagnostic_rows) - max_detail_rows} more")
     lines.append(f"EXPORT_CRT_ROUTE_ROWS {len(export_route_rows)}")
     lines.append("EXPORT_CRT_KERNEL_COUNTS")
     if export_kernel_counts:

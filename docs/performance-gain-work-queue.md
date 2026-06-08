@@ -346,6 +346,12 @@ inspection commands.
   grouped packs through dedicated contiguous kernels. Those kernels keep the
   existing strided fallback unchanged but avoid per-thread row/column division
   and load source cells as `src[cell]` on the common row-major release path.
+  Release review candidates now carry `pack_diagnostics` with pack, pack-A,
+  pack-B, pack share, dominant operand, pack layout, source-versioned-input,
+  and same-version pack-elision metadata. The supported failure-summary tool
+  prints a dedicated `PACK_PHASE_DIAGNOSTICS` section so pack-bound VM results
+  identify whether A, B, or missing split timing is the next optimization target
+  without digging through review JSON.
 - Remaining work: implement wider vectorized pack kernels and fused native-pack
   plus GEMM routes selected by split evidence, then prove setup-inclusive wins
   against the contiguous-pack baseline.

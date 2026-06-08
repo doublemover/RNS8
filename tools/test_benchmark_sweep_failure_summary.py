@@ -150,6 +150,18 @@ def main() -> int:
                                     "crt_export": 3.0,
                                     "end_to_end": 123.0,
                                 },
+                                "pack_diagnostics": {
+                                    "pack_median_us": 100.0,
+                                    "pack_a_median_us": 70.0,
+                                    "pack_b_median_us": 30.0,
+                                    "pack_share_of_end_to_end": 100.0 / 123.0,
+                                    "split_available": True,
+                                    "dominant_operand": "A",
+                                    "pack_mode": "per_repeat_repack",
+                                    "pack_layout": "matrix_engine_transient_pack_layout",
+                                    "source_versioned_inputs": True,
+                                    "same_source_version_pack_elision_available": False,
+                                },
                                 "tile_shape_variant": "amdgpu-cdna3-mfma-16x16x32",
                                 "matrix_instruction_family": "mfma",
                                 "matrix_instruction_shape": "16x16x32",
@@ -409,6 +421,19 @@ def main() -> int:
             "break_even_repeats=4 declared_repeats=9 declared_meets_break_even=True"
         ) in text
         assert "speedup_vs_baseline=0.9536423841059603 blockers=none" in text
+        assert "PACK_PHASE_DIAGNOSTICS 1" in text
+        assert "PACK_PHASE_SPLIT_COUNTS" in text
+        assert "split_available 1" in text
+        assert "PACK_PHASE_DOMINANT_OPERAND_COUNTS" in text
+        assert "A 1" in text
+        assert (
+            "backend=ck semantics=bounded_i64 shape=64x64x64 shape_family=small_square "
+            "kernel=ck_kernel pack=100.0 pack_a=70.0 pack_b=30.0"
+        ) in text
+        assert (
+            "split=True dominant=A pack_mode=per_repeat_repack "
+            "pack_layout=matrix_engine_transient_pack_layout source_versioned=True same_version_elision=False"
+        ) in text
         assert "EXPORT_CRT_ROUTE_ROWS 1" in text
         assert "EXPORT_CRT_KERNEL_COUNTS" in text
         assert "hip_direct_export_exact_wide_signed_tree_crt_limbs_device 1" in text
