@@ -164,7 +164,10 @@ real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
 `RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx90a;gfx942;gfx950`, and no
 Windows vcpkg or local workstation paths. It is a configure/build surface only;
 CDNA performance readiness still requires target-validation and release-review
-captures.
+captures. The preset leaves `RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=OFF`
+because that internal byte-limb wrap64 candidate is not a public backend or
+AUTO-selected accelerator; public rocWMMA bounded, exact-wide, and finite-u8
+tests remain enabled when `RNS8_ENABLE_ROCWMMA=ON`.
 
 The dedicated accelerator first-pass command is:
 

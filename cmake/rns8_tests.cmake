@@ -476,20 +476,22 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     endif()
 
     if(RNS8_ENABLE_ROCWMMA)
-      add_test(
-        NAME benchmark_rocwmma_wrap64_candidate_smoke
-        COMMAND
-          "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_rocwmma_wrap64_candidate.py"
-          "$<TARGET_FILE:rns8-bench>"
-          "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
-          "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-rocwmma-wrap64-candidate-smoke"
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-      )
-      set_tests_properties(
-        benchmark_rocwmma_wrap64_candidate_smoke
-        PROPERTIES LABELS "benchmark;hip;rocwmma;wrap64"
-      )
+      if(RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS)
+        add_test(
+          NAME benchmark_rocwmma_wrap64_candidate_smoke
+          COMMAND
+            "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_rocwmma_wrap64_candidate.py"
+            "$<TARGET_FILE:rns8-bench>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_schema.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/temp/benchmark-rocwmma-wrap64-candidate-smoke"
+          WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        )
+        set_tests_properties(
+          benchmark_rocwmma_wrap64_candidate_smoke
+          PROPERTIES LABELS "benchmark;hip;rocwmma;wrap64"
+        )
+      endif()
 
       add_test(
         NAME benchmark_auto_default_cache_hit_rocwmma
@@ -623,6 +625,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>)
+  target_compile_definitions(
+    rns8_tests
+    PRIVATE $<$<BOOL:${RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS}>:RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=1>
+  )
   if(RNS8_ENABLE_HIP)
     target_include_directories(rns8_tests PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
     target_link_libraries(rns8_tests PRIVATE ${RNS8_HIP_LIBRARIES})

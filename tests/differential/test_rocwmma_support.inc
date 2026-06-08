@@ -193,14 +193,16 @@ rns8_matrix_desc matrix_desc(
 void require_same_i64(const std::vector<int64_t>& expected, const std::vector<int64_t>& actual) {
   REQUIRE(expected.size() == actual.size());
   for (std::size_t i = 0; i < expected.size(); ++i) {
-    CHECK(actual[i] == expected[i]);
+    CAPTURE(i);
+    REQUIRE(actual[i] == expected[i]);
   }
 }
 
 void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<uint64_t>& actual) {
   REQUIRE(expected.size() == actual.size());
   for (std::size_t i = 0; i < expected.size(); ++i) {
-    CHECK(actual[i] == expected[i]);
+    CAPTURE(i);
+    REQUIRE(actual[i] == expected[i]);
   }
 }
 

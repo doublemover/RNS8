@@ -12,6 +12,11 @@ option(RNS8_PROBE_ACCELERATORS "Run CMake evidence-only discovery for optional a
 option(RNS8_ENABLE_HIPBLASLT "Enable hipBLASLt accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_CK "Enable CK accelerator backend after validated implementation" OFF)
 option(RNS8_ENABLE_ROCWMMA "Enable rocWMMA accelerator backend after validated implementation" OFF)
+option(
+  RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS
+  "Run internal rocWMMA wrap64 byte-GEMM36 candidate tests and benchmark smoke"
+  ON
+)
 option(RNS8_ENABLE_AMDGPU_BUILTINS "Enable target-specific AMDGPU builtin accelerator kernels after validated implementation" OFF)
 
 set(RNS8_AMDGPU_TARGETS "gfx1100" CACHE STRING "Semicolon-separated AMDGPU offload targets for direct HIP sources")

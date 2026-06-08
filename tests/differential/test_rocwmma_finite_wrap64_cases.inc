@@ -32,6 +32,7 @@ TEST_CASE("rocWMMA finite u8 K-split preserves signed centered accumulation") {
   rns8_destroy_context(cpu);
 }
 
+#if defined(RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS) && RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS
 TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP and CPU oracle across tails") {
   if (!rocwmma_available()) {
     SKIP("rocWMMA backend is not available on this device");
@@ -79,3 +80,4 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP on large rele
     require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(candidate_case, false);
   }
 }
+#endif
