@@ -214,6 +214,8 @@ def validate_backend_metadata(self: Any) -> None:
         ).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report a registered amdgpu_builtin_* selected_kernel")
         amdgpu_kernel = str(metadata.get("selected_kernel") or "")
+        if "_research_" in amdgpu_kernel:
+            self._error("research-only amdgpu-builtins kernels cannot be reported as executed runtime captures")
         expected_matrix = {
             "matrix_instruction_family": _amdgpu_builtin_matrix_family(amdgpu_kernel),
             "matrix_instruction_shape": _amdgpu_builtin_matrix_shape(amdgpu_kernel),

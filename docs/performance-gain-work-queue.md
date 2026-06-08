@@ -517,6 +517,10 @@ inspection commands.
   sparse-A contract from ranks 95 and 96.
 - Required evidence: compile/ISA/schema tests on available toolchains; runtime
   performance claims are deferred until real RDNA4 hardware captures exist.
+- Local progress: benchmark schema validation now rejects `_research_`
+  AMDGPU builtin selected kernels as executed runtime captures, so RDNA4 IU4
+  SWMMAC metadata cannot accidentally count as implemented sparse runtime
+  evidence.
 - Constraint: RDNA3 has no sparse runtime backend because it has WMMA, not
   SWMMAC.
 
@@ -533,6 +537,9 @@ inspection commands.
 - Required evidence: CPU/direct differential tests, ISA histograms, matrix
   calculator layout artifacts, and release comparisons against Direct HIP, CK,
   rocWMMA, and hipBLASLt where available.
+- Local progress: RDNA3 IU4 WMMA remains registry/calculator research metadata
+  only; schema validation rejects it as an executed AMDGPU builtin runtime
+  capture until a real INT4 semantic contract and runtime gate exist.
 - Constraint: no sparse RDNA3 runtime claim.
 
 ### Rank 99 - RDNA3 VALU Optimization Lane

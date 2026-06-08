@@ -493,6 +493,20 @@ bad_amdgpu_sparsity = copy.deepcopy(amdgpu_builtins)
 bad_amdgpu_sparsity["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
 expect_invalid(bad_amdgpu_sparsity, "backend_metadata.matrix_instruction_sparsity=dense")
 
+research_amdgpu_kernel = copy.deepcopy(amdgpu_builtins)
+research_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1"
+research_amdgpu_kernel["selected_kernel"] = research_kernel
+research_amdgpu_kernel["backend_metadata"]["selected_kernel"] = research_kernel
+research_amdgpu_kernel["backend_metadata"]["matrix_instruction_dtype"] = "iu4"
+research_amdgpu_kernel["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+    research_amdgpu_kernel["backend_metadata"]["autotune_key"].replace(
+        f"kernel={amdgpu_kernel}",
+        f"kernel={research_kernel}",
+    ),
+    research_amdgpu_kernel,
+)
+expect_invalid(research_amdgpu_kernel, "research-only amdgpu-builtins kernels cannot be reported")
+
 bad_hip_target = copy.deepcopy(v4_ck_i64)
 bad_hip_target["device"]["gcn_arch"] = "unknown"
 expect_invalid(bad_hip_target, "HIP backend captures must include non-placeholder device.gcn_arch")
