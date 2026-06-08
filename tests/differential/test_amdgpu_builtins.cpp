@@ -46,6 +46,11 @@ bool sparse_runtime_target(const std::string& target) {
   return target.rfind("gfx942", 0) == 0 || target.rfind("gfx1200", 0) == 0 || target.rfind("gfx1201", 0) == 0;
 }
 
+uint8_t nonzero_mod251(int64_t value) {
+  const uint8_t residue = static_cast<uint8_t>(value % 251);
+  return residue == 0 ? uint8_t{1} : residue;
+}
+
 rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
@@ -238,9 +243,9 @@ TEST_CASE("AMDGPU builtin explicit sparse-A finite u8 backend matches dense back
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t group = 0; group < k / 4; ++group) {
       A[static_cast<std::size_t>(row * k + group * 4 + 0)] =
-          static_cast<uint8_t>((row * 13 + group * 17 + 1) % 251);
+          nonzero_mod251(row * 13 + group * 17 + 1);
       A[static_cast<std::size_t>(row * k + group * 4 + 2)] =
-          static_cast<uint8_t>((row * 19 + group * 23 + 3) % 251);
+          nonzero_mod251(row * 19 + group * 23 + 3);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
