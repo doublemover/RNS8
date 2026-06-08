@@ -121,8 +121,8 @@ bool direct_hip_bounded_oneshot_resident_fallback_path(
          selected_prefix < requested_prefix;
 }
 
-bool direct_hip_host_batch_split_pack_event_path(const Args& args, rns8_backend_kind selected_backend) {
-  return host_api_batch_requested(args) && !grouped_dispatch_requested(args) &&
+bool direct_hip_split_pack_event_path(const Args& args, rns8_backend_kind selected_backend) {
+  return (host_api_batch_requested(args) || grouped_dispatch_requested(args)) &&
          selected_backend == RNS8_BACKEND_HIP_DIRECT;
 }
 
@@ -130,7 +130,7 @@ std::vector<std::string> direct_hip_pack_event_phases(
     const Args& args,
     rns8_backend_kind selected_backend,
     bool finite) {
-  if (direct_hip_host_batch_split_pack_event_path(args, selected_backend)) {
+  if (direct_hip_split_pack_event_path(args, selected_backend)) {
     if (finite) {
       return {
           "finite_pack_a_h2d",

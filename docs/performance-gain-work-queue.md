@@ -270,13 +270,11 @@ inspection commands.
   signed/unsigned, and finite-u8 captures. Direct-HIP host-batch GPU event
   captures now split the per-task A/B H2D and pack-kernel labels while also
   preserving aggregate pack labels for existing setup-inclusive comparisons.
-  Grouped-dispatch paths that use a combined device A+B pack kernel
-  intentionally keep aggregate pack timing until split grouped pack kernels
-  exist.
-- Remaining work: implement separate grouped A/B pack kernels where
-  grouped-dispatch diagnostics need them, and then implement the actual
-  coalesced/vectorized pack kernels or pack-elision routes selected by the new
-  evidence.
+  Grouped-dispatch slab pack captures now split the existing A-then-B slab
+  uploads and pack kernels into matching A/B GPU event labels while preserving
+  aggregate pack labels.
+- Remaining work: implement the actual coalesced/vectorized pack kernels or
+  pack-elision routes selected by the new split evidence.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 
