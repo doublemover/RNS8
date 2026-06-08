@@ -721,7 +721,10 @@ inspection commands.
   `rns8-bench` path when none is supplied, prints a compact JSON summary, and
   exits before capture execution or review. The command-matrix test invokes the
   real CLI for `--scenario release-candidates` and verifies that only release
-  candidates appear in the manifest and no review report is written.
+  candidates appear in the manifest and no review report is written. The CDNA
+  first-pass wrapper now runs the lint mode before every rank-scenario sweep and
+  records it in `command-plan.txt`, so scenario catalog failures stop before
+  paid benchmark captures start.
 - Constraint: do not make scripts permissive to hide invalid contracts.
 
 ### Rank 113 - GPU Event Coverage Completion

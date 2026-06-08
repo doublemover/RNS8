@@ -511,6 +511,31 @@ if [[ "${CDNA_SKIP_RANK_SCENARIOS}" -eq 0 && -n "${CDNA_RANK_SCENARIOS}" ]]; the
   for scenario in "${RANK_SCENARIO_LIST[@]}"; do
     scenario_out="${RANK_SCENARIO_ROOT}/${scenario}"
     CDNA_CURRENT_PHASE="rank_scenario_${scenario}"
+    cdna_note_command "rank_scenario_${scenario}_lint" \
+      "${PYTHON_BIN}" tools/benchmark_sweep.py \
+      --lint-scenarios \
+      --out-root "${scenario_out}" \
+      --scenario "${scenario}" \
+      --review-mode release \
+      --warmups 3 \
+      --repeats 9 \
+      --seed 20260606 \
+      "${CDNA_SWEEP_ARGV[@]}"
+    if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
+      mkdir -p "${scenario_out}"
+      printf 'dry-run rank scenario lint %s\n' "${scenario}" >"${scenario_out}/rank-scenario-lint-plan.log"
+    else
+      (cd "${CDNA_REPO_ROOT}" && \
+        "${PYTHON_BIN}" tools/benchmark_sweep.py \
+          --lint-scenarios \
+          --out-root "${scenario_out}" \
+          --scenario "${scenario}" \
+          --review-mode release \
+          --warmups 3 \
+          --repeats 9 \
+          --seed 20260606 \
+          "${CDNA_SWEEP_ARGV[@]}")
+    fi
     cdna_note_command "rank_scenario_${scenario}" env ROCR_VISIBLE_DEVICES="${DEVICE}" HIP_VISIBLE_DEVICES="${DEVICE}" \
       "${PYTHON_BIN}" tools/benchmark_sweep.py \
       --bench "${BENCH_BIN}" \

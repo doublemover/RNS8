@@ -152,7 +152,10 @@ def main() -> int:
     assert "required_gate_failures" in first_status["records"][0]["dependency_check"]
     assert (REPO_ROOT / first_pass / "env" / "cdna-env-summary.json").exists()
     first_plan = (REPO_ROOT / first_pass / "command-plan.txt").read_text(encoding="utf-8")
+    assert "rank_scenario_vector-to-rns-chain_lint" in first_plan
+    assert "--lint-scenarios" in first_plan
     assert "--scenario vector-to-rns-chain" in first_plan
+    assert (REPO_ROOT / first_pass / "rank-scenarios" / "vector-to-rns-chain" / "rank-scenario-lint-plan.log").exists()
     assert (REPO_ROOT / first_pass / "rank-scenarios" / "vector-to-rns-chain" / "rank-scenario-plan.log").exists()
 
     _require_ok(
