@@ -89,12 +89,21 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_i64_task_inputs(host API batch exact-wide signed)", status);
       }
       (void)task;
-      return;
+      return OptionalPackOperandTiming{};
     }
+    OptionalPackOperandTiming timing{};
+    timing.available = true;
+    const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch exact-wide A)", status);
+    const auto pack_a_end = std::chrono::steady_clock::now();
+    timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
+    const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch exact-wide B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
+    return timing;
   };
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {
@@ -271,12 +280,21 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_u64_task_inputs(host API batch exact-wide unsigned)", status);
       }
       (void)task;
-      return;
+      return OptionalPackOperandTiming{};
     }
+    OptionalPackOperandTiming timing{};
+    timing.available = true;
+    const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch exact-wide A)", status);
+    const auto pack_a_end = std::chrono::steady_clock::now();
+    timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
+    const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch exact-wide B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
+    return timing;
   };
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_gemm_slab_enabled) {

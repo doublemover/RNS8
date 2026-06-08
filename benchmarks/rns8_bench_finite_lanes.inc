@@ -184,14 +184,23 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_finite_u8_task_inputs(grouped finite)", status);
       }
       (void)task;
-      return;
+      return OptionalPackOperandTiming{};
     }
+    OptionalPackOperandTiming timing{};
+    timing.available = true;
+    const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_finite_u8(
         ctx, task.a, args.finite_modulus, batch_a[task_index].data(), args.k, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch A)", status);
+    const auto pack_a_end = std::chrono::steady_clock::now();
+    timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
+    const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_finite_u8(
         ctx, task.b, args.finite_modulus, batch_b[task_index].data(), args.n, source_version);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack_finite_u8(host API batch B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
+    return timing;
   };
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {

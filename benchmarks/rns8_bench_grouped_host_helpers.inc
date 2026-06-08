@@ -190,9 +190,21 @@ void run_host_api_batch_iteration(
   const auto repeat_start = std::chrono::steady_clock::now();
 
   const auto pack_start = repeat_start;
+  OptionalPackOperandTiming pack_operand_timing{};
   begin_gpu_event_phase(collect_gpu_events);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    pack_task(tasks[task_index], task_index, host_api_batch_source_version(repeat_source_version, task_index));
+    if constexpr (std::is_same_v<
+                      std::invoke_result_t<const PackTask&, HostApiBatchTask&, uint32_t, uint64_t>,
+                      OptionalPackOperandTiming>) {
+      const OptionalPackOperandTiming task_timing =
+          pack_task(tasks[task_index], task_index, host_api_batch_source_version(repeat_source_version, task_index));
+      if (task_timing.available) {
+        pack_operand_timing.available = true;
+        accumulate_pack_operand_timing(pack_operand_timing.timing, task_timing.timing);
+      }
+    } else {
+      pack_task(tasks[task_index], task_index, host_api_batch_source_version(repeat_source_version, task_index));
+    }
   }
   enforce_grouped_dispatch_pack_source_versions(
       args, plan, tasks, semantics, matrix_prefix, repeat_source_version, "grouped dispatch pack phase");
@@ -228,6 +240,7 @@ void run_host_api_batch_iteration(
 
   if (samples) {
     samples->pack_us.push_back(elapsed_us(pack_start, pack_end));
+    record_pack_operand_timing(samples, pack_operand_timing);
     samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
     samples->export_us.push_back(elapsed_us(export_start, export_end));
     samples->end_to_end_us.push_back(elapsed_us(repeat_start, export_end));

@@ -265,11 +265,16 @@ inspection commands.
   split pack medians, and the evidence database records per-side pack medians,
   bandwidth estimates, and dominant operand classification. The diagnosis now
   survives review refresh, cache installation, compact VM triage output, and
-  durable JSON/CSV/Markdown evidence export.
-- Remaining work: add task-level split timing for host-batch/grouped-dispatch
-  captures, GPU-event split labels for Direct-HIP pack kernels that currently
-  report only aggregate pack, and then implement the actual coalesced/vectorized
-  pack kernels or pack-elision routes selected by the new evidence.
+  durable JSON/CSV/Markdown evidence export. Host-batch per-task pack paths now
+  return measured A/B pack totals for bounded i64/u64, exact-wide
+  signed/unsigned, and finite-u8 captures. Grouped-dispatch paths that use a
+  combined device A+B pack kernel intentionally keep aggregate pack timing until
+  split grouped pack kernels exist.
+- Remaining work: add split GPU-event labels for Direct-HIP pack kernels that
+  currently report only aggregate pack, implement separate grouped A/B pack
+  kernels where grouped-dispatch diagnostics need them, and then implement the
+  actual coalesced/vectorized pack kernels or pack-elision routes selected by
+  the new evidence.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 

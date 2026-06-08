@@ -729,6 +729,16 @@ struct PackOperandTiming {
   uint64_t b_us = 0;
 };
 
+struct OptionalPackOperandTiming {
+  bool available = false;
+  PackOperandTiming timing{};
+};
+
+void accumulate_pack_operand_timing(PackOperandTiming& total, const PackOperandTiming& increment) {
+  total.a_us += increment.a_us;
+  total.b_us += increment.b_us;
+}
+
 template <typename PackA, typename PackB>
 PackOperandTiming pack_per_repeat_inputs_timed(
     const Args& args,
@@ -761,6 +771,13 @@ void record_pack_operand_timing(TimingSamples* samples, uint64_t pack_a_us, uint
 
 void record_pack_operand_timing(TimingSamples* samples, const PackOperandTiming& timing) {
   record_pack_operand_timing(samples, timing.a_us, timing.b_us);
+}
+
+void record_pack_operand_timing(TimingSamples* samples, const OptionalPackOperandTiming& timing) {
+  if (!timing.available) {
+    return;
+  }
+  record_pack_operand_timing(samples, timing.timing);
 }
 
 std::string prepack_reuse_operand_text(const Args& args) {
