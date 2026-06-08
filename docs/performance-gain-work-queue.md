@@ -695,6 +695,13 @@ inspection commands.
 - Required evidence: review tests for Direct-HIP winners, accelerator winners,
   duplicate backend captures, missing baselines, source mismatch, and target
   mismatch.
+- Local progress: the supported compact failure summary now emits
+  `TOP_ACTIONABLE_ACCELERATOR_BLOCKERS`, sorted by setup-sensitive blockers,
+  setup-inclusive reuse/graph gaps, direct/vector underperformance, and the
+  worst phase ratio. Each row includes backend, shape, selected kernel, primary
+  loss phase, bottleneck, pack split, route score, blocker set, capture path,
+  and contract key, so one VM summary identifies the exact accelerator rows to
+  optimize after Direct HIP is the current production winner.
 - Constraint: no approximate family promotion without a real family contract.
 
 ### Rank 112 - Scenario Catalog Cleanup And Pre-VM Linting

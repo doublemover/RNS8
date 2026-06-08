@@ -265,6 +265,96 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
     return " ".join(details) if details else "none"
 
 
+SETUP_BLOCKERS = {
+    "reuse_not_faster_than_same_backend_setup_inclusive",
+    "reuse_not_faster_than_best_nonreuse_setup_inclusive",
+    "graph_not_faster_than_non_graph_setup_inclusive",
+    "missing_graph_setup_inclusive_timing",
+    "missing_prepack_setup_inclusive_timing",
+}
+
+
+def _positive_number(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return float(value)
+    return None
+
+
+def _candidate_underperformance_score(candidate: dict[str, Any]) -> float:
+    score = 0.0
+    for key in ("speedup_vs_direct_hip", "speedup_vs_vector_alu"):
+        speedup = _positive_number(candidate.get(key))
+        if speedup is not None and speedup < 1.0:
+            score = max(score, 1.0 / speedup)
+
+    prepack = candidate.get("prepacked_reuse_review")
+    if isinstance(prepack, dict):
+        for key in ("speedup_vs_same_backend_setup_inclusive", "speedup_vs_best_nonreuse_setup_inclusive"):
+            speedup = _positive_number(prepack.get(key))
+            if speedup is not None and speedup < 1.0:
+                score = max(score, 1.0 / speedup)
+
+    graph = candidate.get("hip_graph_replay_review")
+    if isinstance(graph, dict):
+        speedup = _positive_number(graph.get("speedup_vs_non_graph_setup_inclusive"))
+        if speedup is not None and speedup < 1.0:
+            score = max(score, 1.0 / speedup)
+
+    diagnostics = candidate.get("phase_diagnostics")
+    if isinstance(diagnostics, dict):
+        ratio = _positive_number(diagnostics.get("slowest_phase_candidate_over_direct"))
+        if ratio is not None and ratio > 1.0:
+            score = max(score, ratio)
+    return score
+
+
+def _candidate_setup_blocked(candidate: dict[str, Any]) -> bool:
+    blockers = _actionable_blockers(candidate)
+    return any(blocker in SETUP_BLOCKERS for blocker in blockers)
+
+
+def _candidate_sort_key(row: tuple[str, str, dict[str, Any], dict[str, Any]]) -> tuple[int, float, str, str]:
+    _report_path, _contract_key, group, candidate = row
+    setup_rank = 1 if _candidate_setup_blocked(candidate) else 0
+    phase = str(candidate.get("primary_loss_phase_vs_direct_hip") or "")
+    backend = str(candidate.get("backend") or "")
+    semantics = str(group.get("semantics") or "")
+    return (setup_rank, _candidate_underperformance_score(candidate), phase, f"{semantics}:{backend}")
+
+
+def _top_actionable_line(
+    out: Path,
+    report_path: str,
+    contract_key: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+) -> str:
+    blockers = ",".join(_actionable_blockers(candidate))
+    bottleneck = candidate.get("bottleneck")
+    bottleneck_text = "unknown"
+    if isinstance(bottleneck, dict):
+        bottleneck_text = f"{bottleneck.get('class')}:{bottleneck.get('phase')}"
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"score={_candidate_underperformance_score(candidate)} "
+        f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
+        f"bottleneck={bottleneck_text} "
+        f"e2e={candidate.get('median_end_to_end_us')} "
+        f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
+        f"vs_vector={candidate.get('speedup_vs_vector_alu')} "
+        f"phase_ratios={_phase_ratio_text(candidate)} "
+        f"pack_split={_pack_split_text(candidate)} "
+        f"blockers={blockers} "
+        f"capture={_relative_capture(out, candidate.get('capture'))} "
+        f"contract={contract_key}"
+    )
+
+
 def _declared_repeats_meet_break_even(graph: dict[str, Any]) -> Any:
     explicit = graph.get("declared_repeats_meet_break_even")
     if explicit is not None:
@@ -825,6 +915,12 @@ def build_summary(
         )
     if len(actionable_rows) > max_detail_rows:
         lines.append(f"  ... {len(actionable_rows) - max_detail_rows} more")
+    top_actionable_rows = sorted(actionable_rows, key=_candidate_sort_key, reverse=True)
+    lines.append(f"TOP_ACTIONABLE_ACCELERATOR_BLOCKERS {len(top_actionable_rows)}")
+    for report_path, contract_key, group, candidate in top_actionable_rows[:max_detail_rows]:
+        lines.append(_top_actionable_line(out, report_path, contract_key, group, candidate))
+    if len(top_actionable_rows) > max_detail_rows:
+        lines.append(f"  ... {len(top_actionable_rows) - max_detail_rows} more")
     lines.append(f"FASTEST_PRODUCTION_ROUTES {len(production_routes)}")
     for group, candidate in production_routes[:max_route_rows]:
         lines.append(_route_line(out, "production", group, candidate, isa_index))

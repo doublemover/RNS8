@@ -468,6 +468,13 @@ def main() -> int:
         assert "graph_break_even_repeats=4" in text
         assert "graph_declared_repeats=9" in text
         assert "graph_declared_meets_break_even=True" in text
+        assert "TOP_ACTIONABLE_ACCELERATOR_BLOCKERS 1" in text
+        assert (
+            "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
+            "score=2.0 primary_loss=pack bottleneck=pack_bound:pack "
+            "e2e=123 vs_direct=0.8 vs_vector=1.2"
+        ) in text
+        assert "blockers=not_faster_than_direct_hip" in text
         assert "FASTEST_PRODUCTION_ROUTES 1" in text
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
