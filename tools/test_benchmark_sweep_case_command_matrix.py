@@ -105,6 +105,23 @@ assert [name for name, _command, _output in exact_commands] == [
 assert all("--semantics" in command and "exact-wide-signed" in command for _name, command, _output in exact_commands)
 assert all("--exact-wide-limbs" in command and "4" in command for _name, command, _output in exact_commands)
 
+anchor_args = copy.copy(exact_args)
+anchor_args.cpu_reference_mode = "correctness-anchor"
+anchor_args.cpu_threads = 4
+anchor_args.cpu_parallel_threshold = 0
+anchor_args.progress = True
+anchor_commands = benchmark_sweep.sweep_commands(anchor_args)
+anchor_cpu_command = anchor_commands[0][1]
+anchor_gpu_command = anchor_commands[1][1]
+assert anchor_cpu_command[anchor_cpu_command.index("--warmups") + 1] == "0"
+assert anchor_cpu_command[anchor_cpu_command.index("--repeats") + 1] == "1"
+assert anchor_gpu_command[anchor_gpu_command.index("--warmups") + 1] == "1"
+assert anchor_gpu_command[anchor_gpu_command.index("--repeats") + 1] == "2"
+assert "--cpu-threads" in anchor_cpu_command and "4" in anchor_cpu_command
+assert "--cpu-parallel-threshold" in anchor_cpu_command and "0" in anchor_cpu_command
+assert "--cpu-reference-mode" in anchor_cpu_command and "correctness-anchor" in anchor_cpu_command
+assert "--progress" in anchor_cpu_command and "--progress" in anchor_gpu_command
+
 for mask in ["0", "0,1", "0,1,2,3", "0,1,2,3,4,5,6,7"]:
     visible_args = copy.copy(exact_args)
     visible_args.hip_visible_devices = mask
@@ -127,6 +144,43 @@ assert {entry.env["HIP_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", 
 assert {entry.env["ROCR_VISIBLE_DEVICES"] for entry in sharded_entries} == {"0", "1", "2", "3"}
 assert {entry.output.parent.name for entry in sharded_entries} == {"gpu0", "gpu1", "gpu2", "gpu3"}
 assert all(entry.name.startswith("gpu") for entry in sharded_entries)
+
+with tempfile.TemporaryDirectory() as temp_dir:
+    temp_path = Path(temp_dir)
+    fake_command = [
+        sys.executable,
+        "-c",
+        "print('{\"capture\": true}')",
+        "--backend",
+        "cpu",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "16",
+        "--k",
+        "16",
+        "--seed",
+        "7",
+    ]
+    entries = [
+        benchmark_sweep.SweepCommand("cpu-a", fake_command, temp_path / "cpu-a.json"),
+        benchmark_sweep.SweepCommand("cpu-b", fake_command, temp_path / "cpu-b.json"),
+    ]
+    dedupe_args = argparse.Namespace(
+        skip_existing=False,
+        max_new_captures=None,
+        capture_timeout_seconds=None,
+        progress=False,
+    )
+    capture_paths = []
+    stats = benchmark_sweep.execute_sweep_entries(entries, dedupe_args, capture_paths)
+    assert stats["new_captures_attempted"] == 1
+    assert stats["new_captures_completed"] == 1
+    assert stats["deduped_cpu_captures"] == 1
+    assert [path.name for path in capture_paths] == ["cpu-a.json", "cpu-b.json"]
+    assert entries[0].output.read_text(encoding="utf-8") == entries[1].output.read_text(encoding="utf-8")
 
 exact_variant_args = copy.copy(exact_args)
 exact_variant_args.backends = ["cpu"]

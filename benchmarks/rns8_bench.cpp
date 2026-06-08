@@ -233,8 +233,18 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 
 int main(int argc, char** argv) {
   const Args args = parse_args(argc, argv);
+  rns8::detail::configure_cpu_parallel(args.cpu_threads, args.cpu_parallel_threshold, args.progress);
   const uint64_t bound = benchmark_bound(args);
   const std::string cmdline = command_line(argc, argv);
+  if (args.progress) {
+    std::cerr << "rns8-bench start: semantics=" << semantics_name(args.semantics)
+              << " backend=" << requested_backend_name(args)
+              << " shape=" << args.m << "x" << args.n << "x" << args.k
+              << " warmups=" << args.warmups << " repeats=" << args.repeats
+              << " cpu_runtime=" << rns8::detail::cpu_parallel_runtime_name()
+              << " cpu_threads=" << rns8::detail::cpu_parallel_effective_threads()
+              << " cpu_threshold_ops=" << rns8::detail::cpu_parallel_threshold_ops() << "\n";
+  }
   if (args.write_autotune_cache) {
     std::cerr << "write autotune cache: refused raw benchmark cache write; use "
                  "tools\\benchmark_sweep.py --review-mode release --write-autotune-cache\n";
@@ -358,6 +368,11 @@ int main(int argc, char** argv) {
   }
   rns8_destroy_context(ctx);
   const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
+  if (args.progress) {
+    std::cerr << "rns8-bench complete: semantics=" << semantics_name(args.semantics)
+              << " backend=" << selected_backend_name(args, info, &result)
+              << " checksum=" << result.checksum << "\n";
+  }
   print_json(args, info, result, effective_bound, cmdline);
   return 0;
 }

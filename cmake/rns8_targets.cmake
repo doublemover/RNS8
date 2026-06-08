@@ -19,6 +19,7 @@ function(rns8_configure_library target_name)
       $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>
       $<$<BOOL:${RNS8_ENABLE_GMP}>:RNS8_ENABLE_GMP=1>
       $<$<BOOL:${RNS8_ENABLE_FLINT}>:RNS8_ENABLE_FLINT=1>
+      $<$<BOOL:${RNS8_CPU_PARALLEL_OPENMP}>:RNS8_CPU_PARALLEL_OPENMP=1>
   )
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
@@ -33,6 +34,9 @@ function(rns8_configure_library target_name)
     target_include_directories(${target_name} PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
     target_link_libraries(${target_name} PRIVATE ${RNS8_HIP_LIBRARIES})
     target_compile_definitions(${target_name} PRIVATE __HIP_PLATFORM_AMD__=1)
+  endif()
+  if(RNS8_CPU_PARALLEL_OPENMP)
+    target_link_libraries(${target_name} PUBLIC OpenMP::OpenMP_CXX)
   endif()
   if(RNS8_ENABLE_HIPBLASLT)
     if(RNS8_HIPBLASLT_INCLUDE_DIR)

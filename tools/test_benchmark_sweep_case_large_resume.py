@@ -322,6 +322,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "skipped_existing_captures": 1,
         "new_captures_attempted": 0,
         "new_captures_completed": 0,
+        "deduped_cpu_captures": 0,
         "deferred_captures": 1,
     }
 

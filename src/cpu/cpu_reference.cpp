@@ -50,44 +50,104 @@ std::size_t residue_index(const rns8_matrix& matrix, uint32_t modulus_index, int
 }
 
 void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld) {
-  for (uint32_t p = 0; p < matrix.prefix; ++p) {
+  const int64_t plane_rows = static_cast<int64_t>(matrix.prefix) * matrix.desc.rows;
+  const auto pack_plane_row = [&](int64_t plane_row) {
+    const auto p = static_cast<uint32_t>(plane_row / matrix.desc.rows);
+    const int64_t row = plane_row % matrix.desc.rows;
     const uint16_t modulus = kDefaultModuli[p];
-    for (int64_t row = 0; row < matrix.desc.rows; ++row) {
-      for (int64_t col = 0; col < matrix.desc.cols; ++col) {
-        matrix.residues[residue_index(matrix, p, row, col)] =
-            centered_residue(cpp_int(src[row * ld + col]), modulus);
-      }
+    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
+      matrix.residues[residue_index(matrix, p, row, col)] =
+          centered_residue(cpp_int(src[row * ld + col]), modulus);
     }
+  };
+  const uint64_t work =
+      cpu_parallel_saturating_mul3(static_cast<uint64_t>(matrix.prefix), static_cast<uint64_t>(matrix.desc.rows),
+                                   static_cast<uint64_t>(matrix.desc.cols));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+    for (int64_t plane_row = 0; plane_row < plane_rows; ++plane_row) {
+      pack_plane_row(plane_row);
+    }
+    return;
+  }
+#endif
+  for (int64_t plane_row = 0; plane_row < plane_rows; ++plane_row) {
+    pack_plane_row(plane_row);
   }
 }
 
 void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
-  for (uint32_t p = 0; p < matrix.prefix; ++p) {
+  const int64_t plane_rows = static_cast<int64_t>(matrix.prefix) * matrix.desc.rows;
+  const auto pack_plane_row = [&](int64_t plane_row) {
+    const auto p = static_cast<uint32_t>(plane_row / matrix.desc.rows);
+    const int64_t row = plane_row % matrix.desc.rows;
     const uint16_t modulus = kDefaultModuli[p];
-    for (int64_t row = 0; row < matrix.desc.rows; ++row) {
-      for (int64_t col = 0; col < matrix.desc.cols; ++col) {
-        matrix.residues[residue_index(matrix, p, row, col)] =
-            centered_residue(cpp_int(src[row * ld + col]), modulus);
-      }
+    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
+      matrix.residues[residue_index(matrix, p, row, col)] =
+          centered_residue(cpp_int(src[row * ld + col]), modulus);
     }
+  };
+  const uint64_t work =
+      cpu_parallel_saturating_mul3(static_cast<uint64_t>(matrix.prefix), static_cast<uint64_t>(matrix.desc.rows),
+                                   static_cast<uint64_t>(matrix.desc.cols));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+    for (int64_t plane_row = 0; plane_row < plane_rows; ++plane_row) {
+      pack_plane_row(plane_row);
+    }
+    return;
+  }
+#endif
+  for (int64_t plane_row = 0; plane_row < plane_rows; ++plane_row) {
+    pack_plane_row(plane_row);
   }
 }
 
 void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, uint16_t modulus) {
-  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+  const auto pack_row = [&](int64_t row) {
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)] =
           centered_residue(cpp_int(src[row * ld + col]), modulus);
     }
+  };
+  const uint64_t work = cpu_parallel_saturating_mul(
+      static_cast<uint64_t>(matrix.desc.rows), static_cast<uint64_t>(matrix.desc.cols));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+    for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+      pack_row(row);
+    }
+    return;
+  }
+#endif
+  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+    pack_row(row);
   }
 }
 
 void export_finite_u8_matrix(const rns8_matrix& matrix, uint8_t* dst, int64_t ld, uint16_t modulus) {
-  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+  const auto export_row = [&](int64_t row) {
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       dst[row * ld + col] = static_cast<uint8_t>(
           canonical_from_centered(matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)], modulus));
     }
+  };
+  const uint64_t work = cpu_parallel_saturating_mul(
+      static_cast<uint64_t>(matrix.desc.rows), static_cast<uint64_t>(matrix.desc.cols));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+    for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+      export_row(row);
+    }
+    return;
+  }
+#endif
+  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+    export_row(row);
   }
 }
 
@@ -102,8 +162,7 @@ void ring_gemm_modulus(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
-  std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
-  for (int64_t row = 0; row < m; ++row) {
+  const auto compute_row = [&](int64_t row, std::vector<int32_t>& block_acc) {
     int8_t* c_row = C + row * ldc;
     std::fill(c_row, c_row + n, int8_t{0});
     int64_t offset = 0;
@@ -123,6 +182,25 @@ void ring_gemm_modulus(
       }
       offset += block;
     }
+  };
+  const uint64_t work =
+      cpu_parallel_saturating_mul3(static_cast<uint64_t>(m), static_cast<uint64_t>(n), static_cast<uint64_t>(k));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel
+    {
+      std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
+#  pragma omp for schedule(static)
+      for (int64_t row = 0; row < m; ++row) {
+        compute_row(row, block_acc);
+      }
+    }
+    return;
+  }
+#endif
+  std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
+  for (int64_t row = 0; row < m; ++row) {
+    compute_row(row, block_acc);
   }
 }
 

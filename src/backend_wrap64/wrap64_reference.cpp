@@ -188,10 +188,24 @@ uint64_t wrap64_low_diagonal_byte_pair_gemm_cell(
 }
 
 void pack_wrap_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
-  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+  const auto pack_row = [&](int64_t row) {
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       set_wrap_u64_matrix_cell(matrix, row, col, src[row * ld + col]);
     }
+  };
+  const uint64_t work = cpu_parallel_saturating_mul(
+      static_cast<uint64_t>(matrix.desc.rows), static_cast<uint64_t>(matrix.desc.cols));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+    for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+      pack_row(row);
+    }
+    return;
+  }
+#endif
+  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
+    pack_row(row);
   }
 }
 
@@ -238,8 +252,7 @@ rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const
   if (!A.host_byte_limbs_current || !B.host_byte_limbs_current) {
     return RNS8_INVALID_ARGUMENT;
   }
-  std::vector<uint64_t> row_acc(static_cast<std::size_t>(plan.desc.n), 0);
-  for (int64_t row = 0; row < plan.desc.m; ++row) {
+  const auto compute_row = [&](int64_t row, std::vector<uint64_t>& row_acc) {
     std::fill(row_acc.begin(), row_acc.end(), 0);
     for (int64_t kk = 0; kk < plan.desc.k; ++kk) {
       const uint64_t a_value = wrap_u64_matrix_cell(A, row, kk);
@@ -252,6 +265,25 @@ rns8_status cpu_gemm_wrap_u64(const rns8_plan& plan, const rns8_matrix& A, const
     for (int64_t col = 0; col < plan.desc.n; ++col) {
       set_wrap_u64_matrix_cell(C, row, col, row_acc[static_cast<std::size_t>(col)]);
     }
+  };
+  const uint64_t work = cpu_parallel_saturating_mul3(
+      static_cast<uint64_t>(plan.desc.m), static_cast<uint64_t>(plan.desc.n), static_cast<uint64_t>(plan.desc.k));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel
+    {
+      std::vector<uint64_t> row_acc(static_cast<std::size_t>(plan.desc.n), 0);
+#  pragma omp for schedule(static)
+      for (int64_t row = 0; row < plan.desc.m; ++row) {
+        compute_row(row, row_acc);
+      }
+    }
+    return RNS8_SUCCESS;
+  }
+#endif
+  std::vector<uint64_t> row_acc(static_cast<std::size_t>(plan.desc.n), 0);
+  for (int64_t row = 0; row < plan.desc.m; ++row) {
+    compute_row(row, row_acc);
   }
   return RNS8_SUCCESS;
 }

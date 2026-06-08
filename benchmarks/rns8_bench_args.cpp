@@ -57,12 +57,16 @@ uint32_t parse_u32(const char* text, const char* label) {
   return static_cast<uint32_t>(value);
 }
 
-uint64_t parse_u64_seed(const char* text) {
-  const int64_t value = parse_i64(text, "--seed");
+uint64_t parse_u64(const char* text, const char* label) {
+  const int64_t value = parse_i64(text, label);
   if (value < 0) {
-    usage_error("seed must be non-negative");
+    usage_error(std::string(label) + " must be non-negative");
   }
   return static_cast<uint64_t>(value);
+}
+
+uint64_t parse_u64_seed(const char* text) {
+  return parse_u64(text, "--seed");
 }
 
 bool valid_tile_size(uint32_t value) {
@@ -192,6 +196,16 @@ NextOpHint parse_next_op_hint(const std::string& value) {
   usage_error("unknown next-op hint: " + value);
 }
 
+std::string parse_cpu_reference_mode(const std::string& value) {
+  if (value == "timed-baseline" || value == "timed_baseline") {
+    return "timed-baseline";
+  }
+  if (value == "correctness-anchor" || value == "correctness_anchor" || value == "anchor") {
+    return "correctness-anchor";
+  }
+  usage_error("unknown CPU reference mode: " + value);
+}
+
 std::vector<std::string> parse_string_list(const std::string& value, const char* label) {
   std::vector<std::string> items;
   std::size_t start = 0;
@@ -231,6 +245,14 @@ Args parse_args(int argc, char** argv) {
       args.warmups = parse_u32(argv[++i], "--warmups");
     } else if (arg == "--repeats" && i + 1 < argc) {
       args.repeats = parse_u32(argv[++i], "--repeats");
+    } else if (arg == "--cpu-threads" && i + 1 < argc) {
+      args.cpu_threads = parse_u32(argv[++i], "--cpu-threads");
+    } else if (arg == "--cpu-parallel-threshold" && i + 1 < argc) {
+      args.cpu_parallel_threshold = parse_u64(argv[++i], "--cpu-parallel-threshold");
+    } else if (arg == "--cpu-reference-mode" && i + 1 < argc) {
+      args.cpu_reference_mode = parse_cpu_reference_mode(argv[++i]);
+    } else if (arg == "--progress") {
+      args.progress = true;
     } else if (arg == "--seed" && i + 1 < argc) {
       args.seed = parse_u64_seed(argv[++i]);
     } else if (arg == "--tile-m" && i + 1 < argc) {
@@ -388,6 +410,10 @@ Args parse_args(int argc, char** argv) {
           << "                  [--vector-to-rns-chain-host-repack-control]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
+          << "                  [--cpu-threads N]\n"
+          << "                  [--cpu-parallel-threshold OPS]\n"
+          << "                  [--cpu-reference-mode timed-baseline|correctness-anchor]\n"
+          << "                  [--progress]\n"
           << "                  [--warmups W] [--repeats R] [--seed S]\n";
       std::exit(0);
     } else {
@@ -397,6 +423,9 @@ Args parse_args(int argc, char** argv) {
 
   if (args.m <= 0 || args.n <= 0 || args.k <= 0 || args.repeats == 0) {
     usage_error("matrix dimensions must be positive and repeats must be nonzero");
+  }
+  if (args.cpu_threads > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+    usage_error("--cpu-threads must fit in int for the OpenMP runtime");
   }
   if (args.output_ld_padding < 0) {
     usage_error("--output-ld-padding must be nonnegative");

@@ -32,6 +32,7 @@ from .parsing import parse_case
 from .scenarios import load_scenario_data_catalog
 
 FINITE_SEMANTICS = {"finite-u8-ring", "finite-u8-field"}
+CPU_REFERENCE_CAPTURE_BACKENDS = {"cpu", "wrap64-byte-limb"}
 
 VISIBILITY_ENV_OPTIONS = {
     "hip_visible_devices": "HIP_VISIBLE_DEVICES",
@@ -291,6 +292,10 @@ def scenario_metadata(
         "error_detection_policy": item.error_detection_policy,
         "cpu_small_shape_selector": item.cpu_small_shape_selector,
         "incremental_result_cache": item.incremental_result_cache,
+        "cpu_reference_mode": getattr(scenario_args, "cpu_reference_mode", "timed-baseline"),
+        "cpu_threads": int(getattr(scenario_args, "cpu_threads", 0) or 0),
+        "cpu_parallel_threshold": int(getattr(scenario_args, "cpu_parallel_threshold", 1 << 20) or 0),
+        "progress": bool(getattr(scenario_args, "progress", False)),
         "oneshot": oneshot,
         "evidence_scope": item.evidence_scope,
         "output_domain": item.output_domain,
@@ -329,6 +334,19 @@ def backend_allowed_for(semantics: str, case: SweepCase, backend: str) -> bool:
             return False
         return True
     return False
+
+
+def cpu_reference_capture_backend(backend: str) -> bool:
+    return backend in CPU_REFERENCE_CAPTURE_BACKENDS
+
+
+def capture_timing_counts(args: argparse.Namespace, backend: str) -> tuple[int, int]:
+    if (
+        getattr(args, "cpu_reference_mode", "timed-baseline") == "correctness-anchor"
+        and cpu_reference_capture_backend(backend)
+    ):
+        return 0, 1
+    return int(args.warmups), int(args.repeats)
 
 
 def capture_name(
@@ -388,6 +406,7 @@ def command_for(
 ) -> list[str]:
     tile_m = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_m
     tile_n = 16 if semantics == "wrap-u64" and backend == WRAP64_ROCWMMA_CANDIDATE_BACKEND else case.tile_n
+    warmups, repeats = capture_timing_counts(args, backend)
     command = [
         str(bench),
         "--backend",
@@ -407,12 +426,20 @@ def command_for(
         "--bound-mode",
         case.bound_mode,
         "--warmups",
-        str(args.warmups),
+        str(warmups),
         "--repeats",
-        str(args.repeats),
+        str(repeats),
         "--seed",
         str(args.seed),
     ]
+    command.extend(["--cpu-threads", str(int(getattr(args, "cpu_threads", 0) or 0))])
+    command.extend([
+        "--cpu-parallel-threshold",
+        str(int(getattr(args, "cpu_parallel_threshold", 1 << 20) or 0)),
+    ])
+    command.extend(["--cpu-reference-mode", getattr(args, "cpu_reference_mode", "timed-baseline")])
+    if getattr(args, "progress", False):
+        command.append("--progress")
     if case.require_adaptive and getattr(args, "prefix_policy", None) != "fixed-requested":
         command.append("--require-adaptive-execution")
     if case.input_profile != "uniform-small":

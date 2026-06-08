@@ -65,6 +65,10 @@ struct Args {
   int64_t output_ld_padding = 0;
   uint32_t warmups = 1;
   uint32_t repeats = 5;
+  uint32_t cpu_threads = 0;
+  uint64_t cpu_parallel_threshold = UINT64_C(1) << 20;
+  bool progress = false;
+  std::string cpu_reference_mode = "timed-baseline";
   uint64_t seed = 1;
   uint32_t tile_m = 128;
   uint32_t tile_n = 128;

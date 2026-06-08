@@ -308,6 +308,19 @@ uint32_t canonical_from_centered(int8_t residue, uint16_t modulus);
 int8_t centered_residue(const cpp_int& value, uint16_t modulus);
 int8_t reduce_to_centered(int64_t value, uint16_t modulus);
 
+void configure_cpu_parallel(uint32_t requested_threads, uint64_t threshold_ops, bool progress);
+bool cpu_parallel_runtime_available();
+bool cpu_parallel_enabled();
+const char* cpu_parallel_runtime_name();
+uint32_t cpu_parallel_requested_threads();
+uint32_t cpu_parallel_max_threads();
+uint32_t cpu_parallel_effective_threads();
+uint64_t cpu_parallel_threshold_ops();
+bool cpu_parallel_progress_enabled();
+uint64_t cpu_parallel_saturating_mul(uint64_t lhs, uint64_t rhs);
+uint64_t cpu_parallel_saturating_mul3(uint64_t lhs, uint64_t rhs, uint64_t rhs2);
+bool cpu_parallel_should_use(uint64_t work_estimate);
+
 std::size_t residue_index(const rns8_matrix& matrix, uint32_t modulus_index, int64_t row, int64_t col);
 void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld);
 void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld);

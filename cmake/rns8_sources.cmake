@@ -23,6 +23,7 @@ set(RNS8_SOURCES
   src/core/moduli.cpp
   src/core/plan_lowering.cpp
   src/core/status.cpp
+  src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp
   src/backend_hip_direct/hip_backend.cpp

@@ -295,6 +295,9 @@ rns8_status ensure_export_plan_resources(
 }  // namespace rns8::detail::api
 
 using namespace rns8::detail::api;
+using rns8::detail::cpu_parallel_saturating_mul;
+using rns8::detail::cpu_parallel_saturating_mul3;
+using rns8::detail::cpu_parallel_should_use;
 
 rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C, int64_t* dst, int64_t ld) {
   return guard_api([&]() -> rns8_status {
@@ -355,22 +358,47 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           ld);
     }
     std::vector<int64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
-    for (int64_t row = 0; row < plan->desc.m; ++row) {
-      for (int64_t col = 0; col < plan->desc.n; ++col) {
-        const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
-        if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
-          staged[static_cast<std::size_t>(row * plan->desc.n + col)] = 0;
-          continue;
-        }
-        int64_t value = 0;
-        const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
-        const uint64_t bound = bound_for_cell(*plan, row, col);
-        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, prefix);
-        const rns8_status status = rns8::detail::reconstruct_signed(residues, prefix, bound, value);
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
-        staged[static_cast<std::size_t>(row * plan->desc.n + col)] = value;
+    std::vector<rns8_status> cell_status(staged.size(), RNS8_SUCCESS);
+    const auto export_cell = [&](int64_t cell) {
+      const int64_t row = cell / plan->desc.n;
+      const int64_t col = cell % plan->desc.n;
+      const std::size_t index = static_cast<std::size_t>(cell);
+      const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
+      if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+        staged[index] = 0;
+        return;
+      }
+      int64_t value = 0;
+      const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
+      const uint64_t bound = bound_for_cell(*plan, row, col);
+      const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, prefix);
+      const rns8_status status = rns8::detail::reconstruct_signed(residues, prefix, bound, value);
+      if (status != RNS8_SUCCESS) {
+        cell_status[index] = status;
+        return;
+      }
+      staged[index] = value;
+    };
+    const int64_t output_cells = plan->desc.m * plan->desc.n;
+    const uint64_t work = cpu_parallel_saturating_mul3(
+        static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n),
+        static_cast<uint64_t>(plan->prefix));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+    if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    } else
+#endif
+    {
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    }
+    for (rns8_status status : cell_status) {
+      if (status != RNS8_SUCCESS) {
+        return status;
       }
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {
@@ -446,22 +474,47 @@ rns8_status rns8_export_u64(
           ld);
     }
     std::vector<uint64_t> staged(static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n), 0);
-    for (int64_t row = 0; row < plan->desc.m; ++row) {
-      for (int64_t col = 0; col < plan->desc.n; ++col) {
-        const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
-        if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
-          staged[static_cast<std::size_t>(row * plan->desc.n + col)] = 0;
-          continue;
-        }
-        uint64_t value = 0;
-        const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
-        const uint64_t bound = bound_for_cell(*plan, row, col);
-        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, prefix);
-        const rns8_status status = rns8::detail::reconstruct_unsigned(residues, prefix, bound, value);
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
-        staged[static_cast<std::size_t>(row * plan->desc.n + col)] = value;
+    std::vector<rns8_status> cell_status(staged.size(), RNS8_SUCCESS);
+    const auto export_cell = [&](int64_t cell) {
+      const int64_t row = cell / plan->desc.n;
+      const int64_t col = cell % plan->desc.n;
+      const std::size_t index = static_cast<std::size_t>(cell);
+      const auto* entry = tile_schedule_entry_for_cell(*plan, row, col);
+      if (entry && (entry->flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
+        staged[index] = 0;
+        return;
+      }
+      uint64_t value = 0;
+      const uint32_t prefix = selected_prefix_for_cell(*plan, row, col);
+      const uint64_t bound = bound_for_cell(*plan, row, col);
+      const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, prefix);
+      const rns8_status status = rns8::detail::reconstruct_unsigned(residues, prefix, bound, value);
+      if (status != RNS8_SUCCESS) {
+        cell_status[index] = status;
+        return;
+      }
+      staged[index] = value;
+    };
+    const int64_t output_cells = plan->desc.m * plan->desc.n;
+    const uint64_t work = cpu_parallel_saturating_mul3(
+        static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n),
+        static_cast<uint64_t>(plan->prefix));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+    if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    } else
+#endif
+    {
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    }
+    for (rns8_status status : cell_status) {
+      if (status != RNS8_SUCCESS) {
+        return status;
       }
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {
@@ -495,10 +548,24 @@ rns8_status rns8_export_wrap_u64(
       if (!C->host_byte_limbs_current) {
         return RNS8_INVALID_ARGUMENT;
       }
-      for (int64_t row = 0; row < plan->desc.m; ++row) {
+      const auto export_row = [&](int64_t row) {
         for (int64_t col = 0; col < plan->desc.n; ++col) {
           dst[row * ld + col] = rns8::detail::wrap_u64_matrix_cell(*C, row, col);
         }
+      };
+      const uint64_t work = cpu_parallel_saturating_mul(
+          static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+      if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+        for (int64_t row = 0; row < plan->desc.m; ++row) {
+          export_row(row);
+        }
+        return RNS8_SUCCESS;
+      }
+#endif
+      for (int64_t row = 0; row < plan->desc.m; ++row) {
+        export_row(row);
       }
       return RNS8_SUCCESS;
     }
@@ -597,16 +664,38 @@ rns8_status rns8_export_exact_wide_signed_limbs(
         static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n) *
             static_cast<std::size_t>(limb_count),
         0);
-    for (int64_t row = 0; row < plan->desc.m; ++row) {
-      for (int64_t col = 0; col < plan->desc.n; ++col) {
-        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
-        uint64_t* cell_dst =
-            staged.data() + static_cast<std::size_t>((row * plan->desc.n + col) * limb_count);
-        const rns8_status status = rns8::detail::export_exact_wide_signed_limbs(
-            residues, plan->prefix, cell_dst, limb_count);
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
+    const int64_t output_cells = plan->desc.m * plan->desc.n;
+    std::vector<rns8_status> cell_status(static_cast<std::size_t>(output_cells), RNS8_SUCCESS);
+    const auto export_cell = [&](int64_t cell) {
+      const int64_t row = cell / plan->desc.n;
+      const int64_t col = cell % plan->desc.n;
+      const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
+      uint64_t* cell_dst = staged.data() + static_cast<std::size_t>(cell) * static_cast<std::size_t>(limb_count);
+      const rns8_status status =
+          rns8::detail::export_exact_wide_signed_limbs(residues, plan->prefix, cell_dst, limb_count);
+      if (status != RNS8_SUCCESS) {
+        cell_status[static_cast<std::size_t>(cell)] = status;
+      }
+    };
+    const uint64_t work = cpu_parallel_saturating_mul3(
+        static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n),
+        static_cast<uint64_t>(plan->prefix) * static_cast<uint64_t>(limb_count));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+    if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    } else
+#endif
+    {
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    }
+    for (rns8_status status : cell_status) {
+      if (status != RNS8_SUCCESS) {
+        return status;
       }
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {
@@ -662,16 +751,38 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
         static_cast<std::size_t>(plan->desc.m) * static_cast<std::size_t>(plan->desc.n) *
             static_cast<std::size_t>(limb_count),
         0);
-    for (int64_t row = 0; row < plan->desc.m; ++row) {
-      for (int64_t col = 0; col < plan->desc.n; ++col) {
-        const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
-        uint64_t* cell_dst =
-            staged.data() + static_cast<std::size_t>((row * plan->desc.n + col) * limb_count);
-        const rns8_status status = rns8::detail::export_exact_wide_unsigned_limbs(
-            residues, plan->prefix, cell_dst, limb_count);
-        if (status != RNS8_SUCCESS) {
-          return status;
-        }
+    const int64_t output_cells = plan->desc.m * plan->desc.n;
+    std::vector<rns8_status> cell_status(static_cast<std::size_t>(output_cells), RNS8_SUCCESS);
+    const auto export_cell = [&](int64_t cell) {
+      const int64_t row = cell / plan->desc.n;
+      const int64_t col = cell % plan->desc.n;
+      const std::vector<int8_t> residues = gather_cell_residues(*C, row, col, plan->prefix);
+      uint64_t* cell_dst = staged.data() + static_cast<std::size_t>(cell) * static_cast<std::size_t>(limb_count);
+      const rns8_status status =
+          rns8::detail::export_exact_wide_unsigned_limbs(residues, plan->prefix, cell_dst, limb_count);
+      if (status != RNS8_SUCCESS) {
+        cell_status[static_cast<std::size_t>(cell)] = status;
+      }
+    };
+    const uint64_t work = cpu_parallel_saturating_mul3(
+        static_cast<uint64_t>(plan->desc.m), static_cast<uint64_t>(plan->desc.n),
+        static_cast<uint64_t>(plan->prefix) * static_cast<uint64_t>(limb_count));
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+    if (cpu_parallel_should_use(work)) {
+#  pragma omp parallel for schedule(static)
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    } else
+#endif
+    {
+      for (int64_t cell = 0; cell < output_cells; ++cell) {
+        export_cell(cell);
+      }
+    }
+    for (rns8_status status : cell_status) {
+      if (status != RNS8_SUCCESS) {
+        return status;
       }
     }
     for (int64_t row = 0; row < plan->desc.m; ++row) {

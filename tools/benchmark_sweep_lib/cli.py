@@ -273,6 +273,29 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--warmups", type=int, default=1)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=0,
+        help="pass through to rns8-bench; 0 leaves OpenMP/env default thread selection in control",
+    )
+    parser.add_argument(
+        "--cpu-parallel-threshold",
+        type=int,
+        default=1 << 20,
+        help="pass through to rns8-bench as the CPU OpenMP work-estimate threshold",
+    )
+    parser.add_argument(
+        "--cpu-reference-mode",
+        choices=["timed-baseline", "correctness-anchor"],
+        default="timed-baseline",
+        help="mark CPU captures as timed baselines or single exact correctness anchors",
+    )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="stream per-capture start/end progress and pass --progress through to rns8-bench stderr",
+    )
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(
         "--write-autotune-cache",
@@ -285,6 +308,10 @@ def parse_args() -> argparse.Namespace:
         parser.error("--max-new-captures must be non-negative")
     if args.capture_timeout_seconds is not None and args.capture_timeout_seconds <= 0:
         parser.error("--capture-timeout-seconds must be positive")
+    if args.cpu_threads < 0:
+        parser.error("--cpu-threads must be non-negative")
+    if args.cpu_parallel_threshold < 0:
+        parser.error("--cpu-parallel-threshold must be non-negative")
     for option_name in ["hip_visible_devices", "rocr_visible_devices", "gpu_device_ordinal", "gpu_shards"]:
         value = getattr(args, option_name, None)
         if value is None:
