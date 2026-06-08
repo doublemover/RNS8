@@ -23,8 +23,11 @@ def capture(
     with_source_identity: bool = True,
     with_reuse_contract: bool = True,
     with_stale_source_rejection: bool = True,
+    prepack_reuse_strategy: str | None = None,
+    runtime_prepack_cache: dict | None = None,
 ) -> dict:
     reuse = pack_mode != "per_repeat_repack"
+    strategy = prepack_reuse_strategy or ("persistent_matrix_residency" if reuse else "none")
     operands = {
         "prepacked_reuse": ["A", "B"],
         "prepacked_reuse_a": ["A"],
@@ -59,7 +62,7 @@ def capture(
         "pack_mode": pack_mode,
         "reuse_packed_inputs": reuse,
         "prepack_reuse_operands": operands,
-        "prepack_reuse_strategy": "persistent_matrix_residency" if reuse else "none",
+        "prepack_reuse_strategy": strategy,
         "resident_lifetime": {
             "enabled": reuse,
             "output_domain": "native_i64_u64_host",
@@ -80,7 +83,7 @@ def capture(
         "timing_metadata": {
             "pack_mode": pack_mode,
             "prepack_reuse_operands": operands,
-            "prepack_reuse_strategy": "persistent_matrix_residency" if reuse else "none",
+            "prepack_reuse_strategy": strategy,
             "gpu_event_timing": True,
             "gpu_event_timing_status": "available",
             "gpu_event_timing_source": "hip_events",
@@ -120,7 +123,39 @@ def capture(
             if with_stale_source_rejection
             else ["descriptor_identity_changed"],
         }
+        if runtime_prepack_cache is not None:
+            result["reuse_contract"]["runtime_prepack_cache"] = runtime_prepack_cache
     return result
+
+
+def runtime_b_cache(source_version: int = 1, production: bool = True) -> dict:
+    return {
+        "source": "rns8_get_prepack_cache_info",
+        "backend": "rocwmma",
+        "semantics": "bounded_i64",
+        "operand_role": "B",
+        "cache_key_valid": True,
+        "reusable_prepack_cache_available": source_version > 0,
+        "production_prepack_cache_available": production,
+        "hip_device_id": 0,
+        "matrix_rows": 1024,
+        "matrix_cols": 1024,
+        "k": 1024,
+        "max_prefix": 9,
+        "finite_modulus": 0,
+        "source_version": source_version,
+        "plan_fingerprint": 123,
+        "cache_key_hash": 456,
+        "device_bytes": 1024,
+        "operand_pack_bytes": 1024,
+        "matrix_layout_version": "rns_centered_residue_planes_v1",
+        "operand_layout_version": "rns_i8_tile_swizzled_b_v1",
+        "cache_scope": "runtime_production_b_prepack_cache"
+        if production
+        else "runtime_reusable_b_prepack_cache",
+        "cache_key": f"prepack-v2;backend=rocwmma;operand=B;source_version={source_version};hash=456",
+        "detail": "synthetic runtime cache fixture",
+    }
 
 
 def main() -> int:
@@ -185,6 +220,60 @@ def main() -> int:
     assert legacy_item["stale_source_rejection"]["available"] is True
     assert legacy_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
     assert "missing_reuse_contract_metadata" in legacy_item["selector_eligibility"]["blockers"]
+
+    rocwmma_same_backend = capture(backend="rocwmma", median_us=1000.0)
+    rocwmma_best_nonreuse = capture(backend="hip-direct", median_us=900.0)
+    rocwmma_runtime_reuse = capture(
+        backend="rocwmma",
+        median_us=700.0,
+        pack_mode="prepacked_reuse_b",
+        setup_us=900.0,
+        with_source_identity=False,
+        prepack_reuse_strategy="rocwmma_reusable_b_cache",
+        runtime_prepack_cache=runtime_b_cache(source_version=77, production=True),
+    )
+    runtime_report = reuse_contract_report.compare_reuse_contracts(
+        [rocwmma_same_backend, rocwmma_best_nonreuse, rocwmma_runtime_reuse]
+    )
+    runtime_item = runtime_report["comparisons"][0]
+    assert runtime_item["decision"] == "candidate_workload_win"
+    assert runtime_item["source_identity"]["reason"] == "runtime_prepack_cache_source_identity"
+    assert runtime_item["runtime_prepack_cache"]["available"] is True
+    assert runtime_item["runtime_prepack_cache"]["production_available"] is True
+    assert runtime_item["selector_eligibility"]["runtime_prepack_cache_required"] is True
+    assert runtime_item["selector_eligibility"]["explicit_workload_selector_eligible"] is True
+    assert runtime_report["summary"]["runtime_prepack_cache_ready"] == 1
+    assert runtime_report["summary"]["runtime_prepack_cache_production_ready"] == 1
+
+    zero_source_runtime_reuse = copy.deepcopy(rocwmma_runtime_reuse)
+    zero_source_runtime_reuse["_path"] = "zero-source-runtime-cache.json"
+    zero_source_runtime_reuse["reuse_contract"]["runtime_prepack_cache"] = runtime_b_cache(
+        source_version=0,
+        production=True,
+    )
+    zero_source_report = reuse_contract_report.compare_reuse_contracts(
+        [rocwmma_same_backend, rocwmma_best_nonreuse, zero_source_runtime_reuse]
+    )
+    zero_source_item = zero_source_report["comparisons"][0]
+    assert zero_source_item["decision"] == "keep_experimental"
+    assert "runtime_prepack_cache_missing_reusable_source_version_cache_key_source" in zero_source_item["blockers"]
+    assert zero_source_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
+
+    nonproduction_runtime_reuse = copy.deepcopy(rocwmma_runtime_reuse)
+    nonproduction_runtime_reuse["_path"] = "nonproduction-runtime-cache.json"
+    nonproduction_runtime_reuse["reuse_contract"]["runtime_prepack_cache"] = runtime_b_cache(
+        source_version=77,
+        production=False,
+    )
+    nonproduction_report = reuse_contract_report.compare_reuse_contracts(
+        [rocwmma_same_backend, rocwmma_best_nonreuse, nonproduction_runtime_reuse]
+    )
+    nonproduction_item = nonproduction_report["comparisons"][0]
+    assert nonproduction_item["decision"] == "candidate_workload_win"
+    assert nonproduction_item["runtime_prepack_cache"]["available"] is True
+    assert nonproduction_item["runtime_prepack_cache"]["production_available"] is False
+    assert "runtime_prepack_cache_not_production_available" in nonproduction_item["selector_eligibility"]["blockers"]
+    assert nonproduction_item["selector_eligibility"]["explicit_workload_selector_eligible"] is False
 
     missing_baseline_report = reuse_contract_report.compare_reuse_contracts([best_nonreuse, winning_reuse])
     missing_item = missing_baseline_report["comparisons"][0]

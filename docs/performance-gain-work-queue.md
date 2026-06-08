@@ -198,6 +198,9 @@ inspection commands.
   `rns8_create_prepack_cache` is the measured production path, unsupported
   plans stay on persistent matrix residency, and successful cache captures still
   emit `rns8_get_prepack_cache_info` metadata for review/cache-key visibility.
+  The reuse-contract report now treats `runtime_prepack_cache` as first-class
+  source identity for rocWMMA B-cache rows and requires production runtime
+  cache metadata before marking an explicit repeated-B selector ready.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.
@@ -219,7 +222,10 @@ inspection commands.
   evidence-only while preserving cached-GEMM correctness coverage. Runtime
   cache creation and cache metadata now require a nonzero operand
   `source_version`; zero-version operands remain key-inspectable only and
-  cannot be treated as reusable cache evidence.
+  cannot be treated as reusable cache evidence. Reuse reports now distinguish
+  legacy persistent-residency source identity from public runtime-cache source
+  identity, so production B-cache selector readiness cannot be inferred from
+  allocation metadata alone.
 - Required evidence: API/unit tests for identity rejection, stale version
   rejection, unsupported backend/shape rejection, and release captures proving
   setup-inclusive wins.

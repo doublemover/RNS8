@@ -38,6 +38,7 @@ def starfoundry_capture() -> dict:
     capture.setdefault("residue_planes_skipped", 0)
     capture.setdefault("residue_plane_skip_fraction", 0.0)
     selected_kernel = capture["selected_kernel"]
+    export_kernel = "hip_direct_export_i64_tiled_device"
     capture["reuse_contract"] = {
         "enabled": True,
         "operand_role": "B",
@@ -60,7 +61,7 @@ def starfoundry_capture() -> dict:
         "limb_count": None,
         "output_logical_ld": capture["output_logical_ld"],
         "status_policy": "required",
-        "kernel_identity": selected_kernel,
+        "kernel_identity": export_kernel,
         "output_domain_after_measured_repeats": "native_i64_u64_host",
         "final_checksum_export_after_repeats": False,
     }
@@ -72,7 +73,7 @@ def starfoundry_capture() -> dict:
             f"semantics={capture['semantics']};backend={capture['backend_selected']};"
             f"target_id={capture['target_id']};prefix={capture['selected_prefix']};limb_count=0;"
             f"signedness=signed;output_layout=scalar_i64;status_policy=range_checked_status_buffer;"
-            f"d2h_policy=host_ld_padded;final_output_mode=final_host_output;selected_kernel={selected_kernel}"
+            f"d2h_policy=host_ld_padded;final_output_mode=final_host_output;selected_kernel={export_kernel}"
         ),
         "selector_policy": "semantic_prefix_limb_layout_status_d2h_backend_target",
         "semantic_contract": capture["semantics"],
@@ -91,7 +92,7 @@ def starfoundry_capture() -> dict:
         "status_elision_reason": None,
         "requires_tile_metadata": False,
         "all_zero_tiled_output": False,
-        "selected_kernel": selected_kernel,
+        "selected_kernel": export_kernel,
         "constants_placement": "backend_default",
         "promotion_eligible": True,
         "promotion_blocker": None,
@@ -100,7 +101,7 @@ def starfoundry_capture() -> dict:
         "name": "default_garner",
         "family": "garner_fixed_prefix",
         "prefix_count": capture["selected_prefix"],
-        "kernel_identity": selected_kernel,
+        "kernel_identity": export_kernel,
         "controller": "benchmark_metadata_only",
         "promotion_eligible": True,
         "promotion_blocker": None,

@@ -193,13 +193,29 @@ def phase_comparison(baseline: dict[str, Any] | None, reuse: dict[str, Any], pha
 
 
 def source_identity_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    runtime_cache = runtime_prepack_cache_metadata(capture)
+    if runtime_cache.get("available"):
+        return {
+            "available": True,
+            "setup_scope": "runtime_prepack_cache",
+            "source_version_inputs": "runtime_prepack_cache.source_version_and_cache_key",
+            "reason": "runtime_prepack_cache_source_identity",
+            "runtime_prepack_cache": runtime_cache,
+        }
     allocation = capture.get("device_allocation")
     if not isinstance(allocation, dict):
+        runtime_reason = str(runtime_cache.get("reason") or "")
+        reason = (
+            runtime_reason
+            if runtime_reason not in {"missing_runtime_prepack_cache_metadata", "missing_reuse_contract_metadata"}
+            else "missing_device_allocation_metadata"
+        )
         return {
             "available": False,
             "setup_scope": None,
             "source_version_inputs": None,
-            "reason": "missing_device_allocation_metadata",
+            "reason": reason,
+            "runtime_prepack_cache": runtime_cache,
         }
     setup_scope = allocation.get("setup_scope")
     source_version_inputs = allocation.get("source_version_inputs")
@@ -213,6 +229,60 @@ def source_identity_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "setup_scope": setup_scope,
         "source_version_inputs": source_version_inputs,
         "reason": "available" if available else "incomplete_prepack_source_identity_metadata",
+        "runtime_prepack_cache": runtime_cache,
+    }
+
+
+def runtime_prepack_cache_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    contract = capture.get("reuse_contract")
+    if not isinstance(contract, dict):
+        return {
+            "available": False,
+            "production_available": False,
+            "reason": "missing_reuse_contract_metadata",
+        }
+    runtime_cache = contract.get("runtime_prepack_cache")
+    if runtime_cache is None:
+        return {
+            "available": False,
+            "production_available": False,
+            "reason": "missing_runtime_prepack_cache_metadata",
+        }
+    if not isinstance(runtime_cache, dict):
+        return {
+            "available": False,
+            "production_available": False,
+            "reason": "invalid_runtime_prepack_cache_metadata",
+        }
+    source_version = runtime_cache.get("source_version")
+    cache_key = runtime_cache.get("cache_key")
+    source_version_valid = isinstance(source_version, int) and not isinstance(source_version, bool) and source_version > 0
+    cache_key_source_match = (
+        source_version_valid
+        and isinstance(cache_key, str)
+        and f"source_version={source_version}" in cache_key
+    )
+    required = {
+        "source": runtime_cache.get("source") == "rns8_get_prepack_cache_info",
+        "backend": runtime_cache.get("backend") == "rocwmma",
+        "operand_role": runtime_cache.get("operand_role") == "B",
+        "cache_key_valid": runtime_cache.get("cache_key_valid") is True,
+        "reusable": runtime_cache.get("reusable_prepack_cache_available") is True,
+        "source_version": source_version_valid,
+        "cache_key_source": cache_key_source_match,
+    }
+    missing = [key for key, ok in required.items() if not ok]
+    available = not missing
+    reason = "available" if available else "runtime_prepack_cache_missing_" + "_".join(missing)
+    return {
+        "available": available,
+        "production_available": available and runtime_cache.get("production_prepack_cache_available") is True,
+        "source_version": source_version if source_version_valid else None,
+        "cache_key_hash": runtime_cache.get("cache_key_hash"),
+        "cache_scope": runtime_cache.get("cache_scope"),
+        "cache_key_source_match": cache_key_source_match,
+        "missing_fields": missing,
+        "reason": reason,
     }
 
 
@@ -346,6 +416,8 @@ def selector_eligibility_metadata(
     source_identity: dict[str, Any],
     stale_source_rejection: dict[str, Any],
     reuse_contract: dict[str, Any],
+    runtime_prepack_cache: dict[str, Any],
+    requires_runtime_prepack_cache: bool,
 ) -> dict[str, Any]:
     selector_blockers = list(blockers)
     if not release_review_pair:
@@ -356,6 +428,11 @@ def selector_eligibility_metadata(
         selector_blockers.append(str(source_identity.get("reason") or "missing_source_identity_metadata"))
     if not stale_source_rejection.get("available"):
         selector_blockers.append(str(stale_source_rejection.get("reason") or "missing_stale_source_rejection_metadata"))
+    if requires_runtime_prepack_cache:
+        if not runtime_prepack_cache.get("available"):
+            selector_blockers.append(str(runtime_prepack_cache.get("reason") or "missing_runtime_prepack_cache_metadata"))
+        elif not runtime_prepack_cache.get("production_available"):
+            selector_blockers.append("runtime_prepack_cache_not_production_available")
 
     # Top-level reuse_contract metadata is required for future captures. Legacy
     # release evidence is still useful because device_allocation records source
@@ -373,6 +450,7 @@ def selector_eligibility_metadata(
         and same_workload_family.get("available") is True
         and source_identity.get("available") is True
         and stale_source_rejection.get("available") is True
+        and (not requires_runtime_prepack_cache or runtime_prepack_cache.get("production_available") is True)
         and reuse_contract.get("promotion_eligible") is not True
         and not selector_blockers
     )
@@ -382,6 +460,9 @@ def selector_eligibility_metadata(
         "explicit_workload_selector_eligible": explicit_ready,
         "autotune_selector_eligible": False,
         "capture_contract_available": contract_available,
+        "runtime_prepack_cache_required": requires_runtime_prepack_cache,
+        "runtime_prepack_cache_available": bool(runtime_prepack_cache.get("available")),
+        "runtime_prepack_cache_production_available": bool(runtime_prepack_cache.get("production_available")),
         "blockers": sorted(set(selector_blockers)),
         "reason": "explicit_workload_selector_ready" if explicit_ready else "selector_blocked_or_evidence_only",
     }
@@ -482,6 +563,7 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         )
         source_identity = source_identity_metadata(reuse)
         reuse_contract = reuse_contract_metadata(reuse)
+        runtime_prepack_cache = runtime_prepack_cache_metadata(reuse)
         stale_source_rejection = stale_source_rejection_metadata(reuse, source_identity, reuse_contract)
         same_workload_family = same_workload_family_metadata(reuse, same_backend_baseline, best_nonreuse_baseline)
         decision, blockers = decision_for(
@@ -494,6 +576,7 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             source_identity,
             stale_source_rejection,
         )
+        requires_runtime_prepack_cache = reuse.get("prepack_reuse_strategy") == "rocwmma_reusable_b_cache"
         release_review_pair = bool(
             same_backend_baseline is not None
             and best_nonreuse_baseline is not None
@@ -509,6 +592,8 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             source_identity,
             stale_source_rejection,
             reuse_contract,
+            runtime_prepack_cache,
+            requires_runtime_prepack_cache,
         )
         comparisons.append(
             {
@@ -538,6 +623,7 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "break_even_repeats_best_nonreuse": break_even_best_nonreuse,
                 "source_identity": source_identity,
                 "reuse_contract": reuse_contract,
+                "runtime_prepack_cache": runtime_prepack_cache,
                 "stale_source_rejection": stale_source_rejection,
                 "same_workload_family": same_workload_family,
                 "selector_eligibility": selector_eligibility,
@@ -569,6 +655,14 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
         ),
         "same_workload_family_ready": sum(
             1 for item in comparisons if item.get("same_workload_family", {}).get("available") is True
+        ),
+        "runtime_prepack_cache_ready": sum(
+            1 for item in comparisons if item.get("runtime_prepack_cache", {}).get("available") is True
+        ),
+        "runtime_prepack_cache_production_ready": sum(
+            1
+            for item in comparisons
+            if item.get("runtime_prepack_cache", {}).get("production_available") is True
         ),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
