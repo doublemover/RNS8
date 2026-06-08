@@ -419,7 +419,7 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             if not missing and not extra:
                 self._error("vector-ALU GPU event phase order must match the native int64 operation order")
         return
-    if backend not in {"ck", "rocwmma"} or self._is_wrap64_rocwmma_candidate():
+    if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
         return
     deep_labels = [phase for phase in phases if self._is_deep_accelerator_gpu_event_label(phase)]
     if scope == OLD_ACCELERATOR_GPU_EVENT_SCOPE:
@@ -500,7 +500,11 @@ def validate_gpu_events(self) -> None:
         return
     selected_backend = self.data.get("backend_selected")
     residue_current_chain = self._is_residue_current_chain_capture()
-    if selected_backend in {"ck", "rocwmma", "hip-vector-alu-int64"} and enabled is not True and not residue_current_chain:
+    if (
+        selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
+        and enabled is not True
+        and not residue_current_chain
+    ):
         self._error(f"{selected_backend} captures must include HIP event operation-group timings")
     timings = self.data.get("gpu_event_timings_us")
     summary = self.data.get("gpu_event_timing_summary_us")
@@ -530,7 +534,7 @@ def validate_gpu_events(self) -> None:
     elif selected_backend == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
         expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
-    elif selected_backend in {"ck", "rocwmma"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
+    elif selected_backend in {"ck", "rocwmma", "amdgpu-builtins"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
         expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
         self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
     elif selected_backend == "hip-vector-alu-int64" and scope not in VECTOR_ALU_GPU_EVENT_SCOPES:

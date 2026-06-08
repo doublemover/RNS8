@@ -643,11 +643,29 @@ class ValidatorScheduleMixin:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1
             else:
                 direct_hip_expected_kernel = DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3
+            amdgpu_expected_kernel = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1"
+            device = self.data.get("device")
+            target = device.get("gcn_arch") if isinstance(device, dict) else None
+            if isinstance(target, str) and target.startswith("gfx110"):
+                amdgpu_expected_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+            elif target in {"gfx1200", "gfx1201"}:
+                amdgpu_expected_kernel = "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+            elif (
+                isinstance(target, str)
+                and target.startswith("gfx942")
+                and _is_int(self.data.get("m"))
+                and _is_int(self.data.get("n"))
+                and _is_int(self.data.get("k"))
+                and self.data.get("m") >= 128
+                and self.data.get("n") >= 128
+                and self.data.get("k") >= 128
+            ):
+                amdgpu_expected_kernel = "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1"
             expected_kernels = {
                 "hip-direct": direct_hip_expected_kernel,
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
-                "amdgpu-builtins": "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+                "amdgpu-builtins": amdgpu_expected_kernel,
             }
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:

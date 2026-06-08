@@ -1,7 +1,7 @@
 bool backend_supports_gpu_event_capture(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
          backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
-         backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+         backend == RNS8_BACKEND_AMDGPU_BUILTINS || backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
 }
 
 rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkResult& result) {
@@ -379,6 +379,16 @@ void collect_finite_direct_gemm_gpu_events(GpuEventSamples& events) {
   }
 }
 
+void collect_amdgpu_builtin_gemm_gpu_events(const BenchmarkResult& result, GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const char* label = amdgpu_builtin_matrix_core_event_label(result);
+  const double kernel = sum_event_label(events, samples, "rns_gemm", label);
+  if (events.complete) {
+    push_gpu_event_value(events, label, kernel);
+    push_gpu_event_value(events, "rns_gemm", kernel);
+  }
+}
+
 void collect_finite_native_a_pack_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const double h2d = sum_event_label(events, samples, "pack", "finite_native_a_h2d");
@@ -656,6 +666,8 @@ void collect_rns_gemm_gpu_events(
     collect_hipblaslt_gemm_gpu_events(args, events);
   } else if (selected_backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     collect_vector_alu_gemm_gpu_events(args, events);
+  } else if (selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    collect_amdgpu_builtin_gemm_gpu_events(result, events);
   } else if (finite_benchmark_semantics(args.semantics) && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
     collect_finite_direct_gemm_gpu_events(events);
   } else if (native_to_rns_bridge_path(args, result, selected_backend)) {

@@ -369,6 +369,17 @@ HIPBLASLT_GPU_EVENT_LABELS = {
     'hipblaslt_pack_transpose_centered',
 }
 ACCELERATOR_GPU_EVENT_LABELS = {
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel',
+    'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel',
+    'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel',
     'ck_int8_matmul_kernel',
     'rocwmma_matmul_kernel',
     'rocwmma_matmul_prepacked_b_kernel',
@@ -430,6 +441,19 @@ ROCWMMA_DEEP_GPU_EVENT_LABELS = {
     'rocwmma_pack_a_prepacked_b_kernel',
     'rocwmma_pack_b_kernel',
     'rocwmma_zero_output_tile_memset',
+}
+AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS = {
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel',
+    'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel',
+    'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel',
 }
 EPILOGUE_TYPES = {
     'canonical_u8_export',

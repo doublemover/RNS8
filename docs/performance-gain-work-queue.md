@@ -318,7 +318,10 @@ inspection commands.
   `matrix_instruction_sparsity` derived from the selected builtin kernel.
   Local `gfx1100` smoke captures report the RDNA3 dense WMMA route as
   `wmma/16x16x16/iu8/dense`; compiled ISA reports remain the proof of the
-  actual instruction histogram.
+  actual instruction histogram. AMDGPU builtin GPU-event capture now records
+  the selected target-specific matrix-core label instead of a generic backend
+  label, including local bounded and finite-u8 schema smokes for the RDNA3
+  WMMA route.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
@@ -637,6 +640,10 @@ inspection commands.
   showing required events available for promotable rows.
 - Constraint: nullable events are allowed for unsupported paths, but missing
   required events must block promotion.
+- Local progress: AMDGPU builtins are now event-capable in `rns8-bench`; dense
+  bounded/exact and finite-u8 captures use deep accelerator source scope and
+  selected MFMA/WMMA/SMFMAC/SWMMAC event labels derived from the public selected
+  kernel.
 
 ### Rank 114 - Counter And Resource Evidence Gate
 

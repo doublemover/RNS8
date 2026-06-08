@@ -357,6 +357,7 @@ def validate_registry(registry: Registry) -> None:
         "vector_alu_gpu_event_scopes",
         "ck_deep_gpu_event_labels",
         "rocwmma_deep_gpu_event_labels",
+        "amdgpu_builtin_deep_gpu_event_labels",
     ]:
         _require_string_list(event, key, "event_phases")
     _require_string_list(registry.epilogues(), "epilogue_types", "epilogues")
@@ -471,6 +472,7 @@ def render_python_constants(registry: Registry) -> str:
         f"VECTOR_ALU_GPU_EVENT_SCOPES = {_python_repr_set(event['vector_alu_gpu_event_scopes'])}",
         f"CK_DEEP_GPU_EVENT_LABELS = {_python_repr_set(event['ck_deep_gpu_event_labels'])}",
         f"ROCWMMA_DEEP_GPU_EVENT_LABELS = {_python_repr_set(event['rocwmma_deep_gpu_event_labels'])}",
+        f"AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS = {_python_repr_set(event['amdgpu_builtin_deep_gpu_event_labels'])}",
         f"EPILOGUE_TYPES = {_python_repr_set(epilogues['epilogue_types'])}",
         f"BACKEND_EPILOGUE_MODES = {_python_repr_set(epilogues['backend_epilogue_modes'])}",
         f"GENERATED_REDUCER_IDENTITIES = {_python_repr_set(_generated_reducer_identities(registry))}",

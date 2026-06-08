@@ -41,13 +41,48 @@ void append_rocwmma_deep_event_phases(
   }
 }
 
+const char* amdgpu_builtin_matrix_core_event_label(const BenchmarkResult& result) {
+  const char* selected_kernel =
+      result.backend_info_available && result.backend_info.selected_kernel[0] != '\0' ? result.backend_info.selected_kernel
+                                                                                      : "";
+  const std::string kernel(selected_kernel);
+  if (kernel.find("cdna3_mfma_i32_32x32x16_i8") != std::string::npos) {
+    return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
+  }
+  if (kernel.find("cdna3_mfma_i32_16x16x32_i8_finite") != std::string::npos) {
+    return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel";
+  }
+  if (kernel.find("cdna3_mfma_i32_16x16x32_i8") != std::string::npos) {
+    return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel";
+  }
+  if (kernel.find("rdna3_wmma_i32_16x16x16_iu8_finite") != std::string::npos) {
+    return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel";
+  }
+  if (kernel.find("rdna3_wmma_i32_16x16x16_iu8") != std::string::npos) {
+    return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel";
+  }
+  if (kernel.find("rdna4_wmma_i32_16x16x16_iu8_finite") != std::string::npos) {
+    return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel";
+  }
+  if (kernel.find("rdna4_wmma_i32_16x16x16_iu8") != std::string::npos) {
+    return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
+  }
+  if (kernel.find("cdna3_smfmac_i32_16x16x64_i8") != std::string::npos) {
+    return "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel";
+  }
+  if (kernel.find("rdna4_swmmac_i32_16x16x32_iu8") != std::string::npos) {
+    return "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel";
+  }
+  return "amdgpu_builtin_rns_matrix_core_kernel";
+}
+
 void append_accelerator_deep_event_phases(
     std::vector<std::string>& phases,
     const Args& args,
     const BenchmarkResult& result,
     rns8_backend_kind selected_backend,
     bool use_prepacked_b_cache) {
-  if (finite_benchmark_semantics(args.semantics)) {
+  if (finite_benchmark_semantics(args.semantics) && selected_backend != RNS8_BACKEND_AMDGPU_BUILTINS) {
     return;
   }
   const uint32_t prefix_count = gpu_event_selected_prefix_count(args, result);
@@ -291,10 +326,12 @@ std::vector<std::string> gpu_event_phase_order(
       phases.push_back("residue_d2d_sync");
       phases.push_back("finite_resident_gemm_region_kernel");
     } else {
-      phases.push_back(
-          finite_native_a_reuse_b_path(args, result)
-              ? "finite_native_a_gemm_kernel"
-              : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel" : "rns_gemm_kernel_group");
+      phases.push_back(finite_native_a_reuse_b_path(args, result)
+                           ? "finite_native_a_gemm_kernel"
+                           : selected_backend == RNS8_BACKEND_HIP_DIRECT ? "finite_resident_gemm_kernel"
+                           : selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS
+                               ? amdgpu_builtin_matrix_core_event_label(result)
+                               : "rns_gemm_kernel_group");
     }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
@@ -322,7 +359,9 @@ std::vector<std::string> gpu_event_phase_order(
       phases.push_back("residue_d2d_sync");
       phases.push_back("rns_gemm_region_kernel_group");
     } else {
-      phases.push_back(use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group");
+      phases.push_back(selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS
+                           ? amdgpu_builtin_matrix_core_event_label(result)
+                           : use_prepacked_b_cache ? "rns_gemm_prepacked_b_kernel_group" : "rns_gemm_kernel_group");
     }
     append_accelerator_deep_event_phases(phases, args, result, selected_backend, use_prepacked_b_cache);
     phases.push_back("rns_gemm");
@@ -379,7 +418,9 @@ std::vector<std::string> gpu_event_phase_order(
       phases.push_back("residue_d2d_sync");
       phases.push_back("rns_gemm_region_kernel_group");
     } else {
-      phases.push_back(gemm_phase);
+      phases.push_back(
+          selected_backend == RNS8_BACKEND_AMDGPU_BUILTINS ? amdgpu_builtin_matrix_core_event_label(result)
+                                                           : gemm_phase);
     }
   }
   if (selected_backend == RNS8_BACKEND_HIP_DIRECT && result.zero_output_tile_count != 0) {

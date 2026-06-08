@@ -4,6 +4,7 @@ from typing import Any
 
 from .core_shared import *
 from .gpu_events import (
+    amdgpu_builtin_deep_gpu_event_phases,
     ck_deep_gpu_event_phases,
     is_deep_accelerator_gpu_event_label,
     prefix_event_label,
@@ -207,19 +208,25 @@ class ValidatorTimingEventsMixin:
     def _expected_vector_gpu_event_phases(self) -> list[str]:
         return vector_gpu_event_phases(self.data.get("semantics"), self.data.get("selected_kernel"))
 
+    def _amdgpu_builtin_deep_gpu_event_phases(self) -> list[str]:
+        return amdgpu_builtin_deep_gpu_event_phases(self.data.get("selected_kernel"))
+
     def _expected_accelerator_deep_gpu_event_phases(self) -> list[str] | None:
         backend = self.data.get("backend_selected")
-        if backend not in {"ck", "rocwmma"} or self._is_wrap64_rocwmma_candidate():
+        if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
             return None
         semantics = self.data.get("semantics")
         use_prepacked_b = backend == "rocwmma" and self._uses_rocwmma_prepacked_b_cache()
         gemm_group = "rns_gemm_prepacked_b_kernel_group" if use_prepacked_b else "rns_gemm_kernel_group"
         if semantics in {"finite_ring_u8", "finite_field_u8"}:
-            phases = ["finite_pack_h2d", "finite_pack_kernel", "pack", "rns_gemm_kernel_group"]
+            phases = ["finite_pack_h2d", "finite_pack_kernel", "pack"]
+            if backend != "amdgpu-builtins":
+                phases.extend(["rns_gemm_kernel_group", "rns_gemm", "finite_export_kernel", "finite_export_d2h", "crt_export"])
+                return phases
         elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-            phases = ["pack_h2d", "pack_kernel", "pack", gemm_group]
+            phases = ["pack_h2d", "pack_kernel", "pack"]
         else:
-            phases = ["pack_h2d", "pack_kernel", "pack", gemm_group]
+            phases = ["pack_h2d", "pack_kernel", "pack"]
         prefix_count = self._gpu_event_selected_prefix_count()
         schedule = self.data.get("schedule_metadata")
         zero_output_tiles = (
@@ -228,9 +235,13 @@ class ValidatorTimingEventsMixin:
             and schedule.get("zero_output_tile_count") > 0
         )
         if backend == "ck":
+            phases.append(gemm_group)
             phases.extend(self._ck_deep_gpu_event_phases(prefix_count, zero_output_tiles))
-        else:
+        elif backend == "rocwmma":
+            phases.append(gemm_group)
             phases.extend(self._rocwmma_deep_gpu_event_phases(prefix_count, use_prepacked_b, zero_output_tiles))
+        else:
+            phases.extend(self._amdgpu_builtin_deep_gpu_event_phases())
         phases.append("rns_gemm")
         if self._is_residue_current_chain_capture():
             return phases

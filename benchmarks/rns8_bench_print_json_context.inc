@@ -41,10 +41,12 @@
   const char* selected_backend = selected_backend_name(args, info, &result);
   const std::string selected_backend_string(selected_backend);
   const bool hipblaslt_events = gpu_events_available && selected_backend_string == "hipblaslt";
-  const bool accelerator_events =
-      gpu_events_available && (selected_backend_string == "ck" || selected_backend_string == "rocwmma");
+  const bool accelerator_events = gpu_events_available &&
+                                  (selected_backend_string == "ck" || selected_backend_string == "rocwmma" ||
+                                   selected_backend_string == "amdgpu-builtins");
   const bool finite_accelerator_operation_group_events =
-      accelerator_events && finite_benchmark_semantics(args.semantics);
+      accelerator_events && finite_benchmark_semantics(args.semantics) &&
+      selected_backend_string != "amdgpu-builtins";
   const bool accelerator_deep_kernel_events = accelerator_events && !finite_accelerator_operation_group_events;
   const bool vector_alu_events = gpu_events_available && selected_backend_string == "hip-vector-alu-int64";
   const bool oneshot_hip_events =
