@@ -25,6 +25,11 @@ void print_autotune_text(
     if (hit) {
       std::cout << "autotune_backend:      " << hit->selected_backend << "\n";
       std::cout << "autotune_kernel:       " << hit->selected_kernel << "\n";
+      std::cout << "autotune_median_pack:  " << hit->measured_median_pack_us << "\n";
+      std::cout << "autotune_median_pack_a: " << hit->measured_median_pack_a_us << "\n";
+      std::cout << "autotune_median_pack_b: " << hit->measured_median_pack_b_us << "\n";
+      std::cout << "autotune_median_gemm:  " << hit->measured_median_gemm_us << "\n";
+      std::cout << "autotune_median_export: " << hit->measured_median_export_us << "\n";
       std::cout << "autotune_median_e2e:   " << hit->measured_median_end_to_end_us << "\n";
     }
     if (plan_packing) {
@@ -107,6 +112,14 @@ void print_autotune_json(
     std::cout << "      \"target_id\": \"" << json_escape(hit->target_id) << "\",\n";
     std::cout << "      \"validation_status\": \"" << json_escape(hit->validation_status) << "\",\n";
     std::cout << "      \"performance_validated\": " << (hit->performance_validated ? "true" : "false") << ",\n";
+    std::cout << "      \"measured_medians_us\": {\n";
+    std::cout << "        \"pack\": " << hit->measured_median_pack_us << ",\n";
+    std::cout << "        \"pack_a\": " << hit->measured_median_pack_a_us << ",\n";
+    std::cout << "        \"pack_b\": " << hit->measured_median_pack_b_us << ",\n";
+    std::cout << "        \"rns_gemm\": " << hit->measured_median_gemm_us << ",\n";
+    std::cout << "        \"crt_export\": " << hit->measured_median_export_us << ",\n";
+    std::cout << "        \"end_to_end\": " << hit->measured_median_end_to_end_us << "\n";
+    std::cout << "      },\n";
     std::cout << "      \"measured_median_end_to_end_us\": " << hit->measured_median_end_to_end_us << "\n";
     std::cout << "    }";
   }

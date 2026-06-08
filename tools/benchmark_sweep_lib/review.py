@@ -1491,6 +1491,8 @@ def cache_entry_from_capture(capture: dict[str, Any], validation_status: str) ->
         "setup_inclusive_median_end_to_end_us": selection_end_to_end_us(capture),
         "measured_medians_us": {
             "pack": median("pack"),
+            "pack_a": median("pack_a"),
+            "pack_b": median("pack_b"),
             "rns_gemm": median("rns_gemm"),
             "crt_export": median("crt_export"),
             "end_to_end": median("end_to_end"),

@@ -28,6 +28,8 @@ struct AutotuneCacheEntry {
   std::string kernel_family;
   uint64_t workspace_bytes = 0;
   double measured_median_pack_us = 0.0;
+  double measured_median_pack_a_us = 0.0;
+  double measured_median_pack_b_us = 0.0;
   double measured_median_gemm_us = 0.0;
   double measured_median_export_us = 0.0;
   double measured_median_end_to_end_us = 0.0;

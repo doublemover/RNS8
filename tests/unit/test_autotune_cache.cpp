@@ -149,7 +149,8 @@ void write_cache_fixture(const std::filesystem::path& path, bool root_schema, bo
          << "\"epilogue\":\"" << kCkBoundedEpilogue << "\","
          << "\"kernel_family\":\"" << kCkBoundedKernel << "\","
          << "\"workspace_bytes\":0,"
-         << "\"measured_medians_us\":{\"pack\":1.0,\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
+         << "\"measured_medians_us\":{\"pack\":1.0,\"pack_a\":0.4,\"pack_b\":0.6,"
+            "\"rns_gemm\":2.0,\"crt_export\":3.0,\"end_to_end\":4.0},"
          << "\"performance_validated\":true,"
          << "\"validation_status\":\"reviewed_release_same_contract_fastest_windows_gfx1100\","
          << "\"updated_utc\":\"2026-06-02T00:00:00Z\"";
@@ -668,7 +669,11 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
     const auto snapshot = rns8::detail::read_autotune_cache();
     REQUIRE(snapshot.loaded);
     CHECK(snapshot.schema_version == 1);
-    REQUIRE(rns8::detail::find_validated_autotune_entry(snapshot, key) != nullptr);
+    const auto* hit = rns8::detail::find_validated_autotune_entry(snapshot, key);
+    REQUIRE(hit != nullptr);
+    CHECK(hit->measured_median_pack_us == 1.0);
+    CHECK(hit->measured_median_pack_a_us == 0.4);
+    CHECK(hit->measured_median_pack_b_us == 0.6);
     CHECK(
         rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
         std::string("exact_cache_hit_validated:ck/") + kCkBoundedKernel);

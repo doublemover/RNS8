@@ -259,7 +259,9 @@ inspection commands.
   vector-ALU, and vector-to-RNS chain captures. `raw_timings_us.pack` remains
   the aggregate measured phase, so existing setup-inclusive comparisons stay
   stable while pack-bound diagnostics identify the operand side that needs
-  kernel or reuse work.
+  kernel or reuse work. Promoted autotune cache entries and `rns8-inspect`
+  cache-hit output preserve `pack_a` and `pack_b` medians when present, so the
+  diagnosis survives review/cache installation.
 - Remaining work: add task-level split timing for host-batch/grouped-dispatch
   captures, GPU-event split labels for Direct-HIP pack kernels that currently
   report only aggregate pack, and then implement the actual coalesced/vectorized

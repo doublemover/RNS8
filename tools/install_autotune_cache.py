@@ -286,6 +286,9 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             raise AutotuneCacheInstallError("measured_medians_us must be an object")
         for name in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
             require_number(medians, name)
+        for name in ["pack_a", "pack_b"]:
+            if name in medians:
+                require_number(medians, name)
 
         fields = key_fields(key)
         require_key_field(fields, "backend", selected_backend)

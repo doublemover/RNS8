@@ -61,6 +61,8 @@ assert exact_blocked["groups"][0]["missing_required_baselines"] == ["cpu-referen
 
 with tempfile.TemporaryDirectory() as temp_dir:
     bounded_ck = bounded_capture("ck", 180)
+    bounded_ck["timing_summary_us"]["pack_a"] = {"avg": 70.0, "median": 70.0, "p95": 70.0}
+    bounded_ck["timing_summary_us"]["pack_b"] = {"avg": 30.0, "median": 30.0, "p95": 30.0}
     bounded_direct = bounded_capture("hip-direct", 300)
     bounded_vector = bounded_capture("hip-vector-alu-int64", 240)
     bounded_cpu = bounded_capture("cpu-reference", 500)
@@ -85,6 +87,8 @@ with tempfile.TemporaryDirectory() as temp_dir:
     assert entry["performance_validated"] is True
     assert entry["validation_status"] == "reviewed_release_same_contract_fastest_windows_gfx1100"
     assert entry["epilogue"] == bounded_ck["backend_metadata"]["epilogue_mode"]
+    assert entry["measured_medians_us"]["pack_a"] == 70.0
+    assert entry["measured_medians_us"]["pack_b"] == 30.0
     assert f";epilogue={entry['epilogue']}" in entry["key"]
 
 validate_capture(load_capture(FIXTURE_DIR / "v4_finite_ring_u8_ck.json"))

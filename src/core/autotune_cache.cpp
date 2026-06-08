@@ -99,6 +99,8 @@ json entry_to_json(AutotuneCacheEntry entry) {
       {"measured_medians_us",
        {
            {"pack", entry.measured_median_pack_us},
+           {"pack_a", entry.measured_median_pack_a_us},
+           {"pack_b", entry.measured_median_pack_b_us},
            {"rns_gemm", entry.measured_median_gemm_us},
            {"crt_export", entry.measured_median_export_us},
            {"end_to_end", entry.measured_median_end_to_end_us},
@@ -134,6 +136,8 @@ AutotuneCacheEntry entry_from_json(const json& item) {
   entry.workspace_bytes = item.value("workspace_bytes", uint64_t{0});
   if (const auto medians = item.find("measured_medians_us"); medians != item.end() && medians->is_object()) {
     entry.measured_median_pack_us = medians->value("pack", 0.0);
+    entry.measured_median_pack_a_us = medians->value("pack_a", 0.0);
+    entry.measured_median_pack_b_us = medians->value("pack_b", 0.0);
     entry.measured_median_gemm_us = medians->value("rns_gemm", 0.0);
     entry.measured_median_export_us = medians->value("crt_export", 0.0);
     entry.measured_median_end_to_end_us = medians->value("end_to_end", 0.0);
