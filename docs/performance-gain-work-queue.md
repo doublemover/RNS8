@@ -107,6 +107,11 @@ inspection commands.
   Public Direct-HIP plan metadata now reports the same GEMV selected kernel,
   epilogue, and workspace for bounded fixed-prefix `N=1` plans instead of the
   generic grouped GEMM identity.
+  Release review now treats stale `N=1` Direct-HIP captures as route-invalid
+  unless they report a `gemv_n1` selected kernel, the
+  `direct_hip_skinny_gemv_n1_resident_rns` execution mode, and GEMV-specific
+  GPU event phase metadata, so generic tiled GEMM cannot be reported as the
+  production skinny route by accident.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024` against CPU anchor, current tiled Direct HIP, vector-ALU
   where applicable, and rocWMMA; schema must report a GEMV selected kernel and
@@ -129,7 +134,9 @@ inspection commands.
   `benchmark_owned_vector_alu_gemv_n1_native_buffers`, selected
   `hip_vector_alu_*_gemv_n1_exact_192b_v1` kernels, GEMV-specific GPU event
   labels, native output-domain packing metadata, and local Windows HIP
-  signed/unsigned schema-validated smokes.
+  signed/unsigned schema-validated smokes. Release review now also blocks
+  stale vector-ALU `N=1` captures unless their execution mode, selected kernel,
+  and GPU event phases identify the GEMV route explicitly.
 - Required evidence: `skinny-gemv` release groups with CPU, Direct HIP,
   vector-ALU, and accelerator comparators; vector-ALU rows must not be compared
   against exact-wide, finite-u8, or wrap64 contracts.
@@ -361,7 +368,11 @@ inspection commands.
   with the producer source version. The public AUTO Direct-HIP materialization
   path now applies the same nonzero source-version guard before converting
   current native bounded storage into RNS residues, so cache/reuse evidence
-  cannot be generated from anonymous native producers.
+  cannot be generated from anonymous native producers. Release review now
+  blocks native-to-RNS bridge and vector-to-RNS chain captures that omit forced
+  bridge metadata, producer/consumer backend identity, control mode, or the
+  device handoff phase scope, making stale handoff evidence visible in compact
+  summaries instead of only schema failures.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 
@@ -415,7 +426,10 @@ inspection commands.
   `amdgpu-cdna3-mfma-32x32x16` tile-shape variants force the AMDGPU builtin
   dense CDNA3 runtime down each MFMA path and record the selected kernel in
   benchmark metadata; LDS, K-block, swizzled-layout, and occupancy tuning still
-  need measured follow-through.
+  need measured follow-through. Release review now blocks AMDGPU builtin
+  CDNA3 tile-shape captures when the `amdgpu-cdna3-mfma-*` variant name
+  disagrees with the selected kernel or matrix-instruction family/shape/dtype,
+  so a 32x32x16 tuning row cannot be certified by a 16x16x32 kernel.
 - Required evidence: `tile-shape-sweeps`, `k-block-tile-variants`, and
   `layout-search` release captures plus ISA/resource/counter reports.
 - Promotion rule: no tile variant promotes without same-contract default
@@ -494,6 +508,11 @@ inspection commands.
   GEMM routing to sparse instructions. Sparse public API tests now also reject
   mismatched RNS/finite sparse contracts and wrong finite moduli before
   mutating output source versions or residue contents.
+  Release review now treats sparse-A route identity as promotion-critical:
+  sparse captures must carry the explicit sparse scenario contract, K must be
+  divisible by 4, input distribution must identify 4:2 sparse-A structure, and
+  the autotune key must record A-side 4:2, group size 4, exactly 2 nonzeros,
+  canonical 2-bit K-group indices, and dense B.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 
@@ -528,7 +547,10 @@ inspection commands.
   upload phases for RNS sparse captures. Sparse bounded, finite-u8, and
   exact-wide AMDGPU differential shapes now use non-multiple M/N with
   K-divisible-by-4 inputs, so CDNA3 SMFMAC and RDNA4 SWMMAC runtime gates cover
-  sparse tile tails instead of only exact 16x16 output tiles.
+  sparse tile tails instead of only exact 16x16 output tiles. Review now blocks
+  sparse runtime rows unless the selected kernel is a sparse-A kernel, AMDGPU
+  builtin metadata reports structured 4:2 SMFMAC/SWMMAC family evidence, and
+  dense sparse-input baselines remain separated from sparse runtime kernels.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 

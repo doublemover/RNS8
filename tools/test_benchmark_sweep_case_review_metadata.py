@@ -150,6 +150,161 @@ assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32
 assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
 assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
 
+skinny_cpu = bounded_capture("cpu-reference", 5000)
+skinny_direct = bounded_capture("hip-direct", 300)
+skinny_vector = bounded_capture("hip-vector-alu-int64", 250)
+for capture in (skinny_cpu, skinny_direct, skinny_vector):
+    capture["n"] = 1
+    capture["output_logical_ld"] = 1
+    capture["scenario_metadata"] = {
+        "family": "skinny-gemv",
+        "name": "bounded-i64-512x1x512-review-fixture",
+        "promotion_eligibility": "release_review_candidate",
+        "metadata": {"workflow_name": "skinny_gemv"},
+    }
+stale_skinny_report = benchmark_sweep.review_captures(
+    [skinny_cpu, skinny_direct, skinny_vector],
+    review_mode="release",
+)
+stale_skinny_group = stale_skinny_report["groups"][0]
+stale_direct_candidate = next(item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct")
+assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidate["promotion_blockers"]
+assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
+stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
+assert "select_direct_hip_skinny_gemv_kernel_before_n1_promotion" in stale_skinny_next_work
+
+valid_skinny_direct = copy.deepcopy(skinny_direct)
+valid_skinny_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_n1_i64_v1"
+valid_skinny_direct["backend_metadata"]["selected_kernel"] = valid_skinny_direct["selected_kernel"]
+valid_skinny_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_n1_resident_rns"
+valid_skinny_direct["timing_metadata"]["benchmark_execution_mode"] = valid_skinny_direct["benchmark_execution_mode"]
+valid_skinny_direct["timing_metadata"]["gpu_event_phase_order"] = [
+    "direct_hip_prefix9_pack_a",
+    "direct_hip_prefix9_pack_b",
+    "direct_hip_skinny_gemv_n1_kernel",
+    "direct_hip_bounded_crt_export",
+]
+valid_skinny_report = benchmark_sweep.review_captures(
+    [skinny_cpu, valid_skinny_direct, skinny_vector],
+    review_mode="release",
+)
+valid_skinny_group = valid_skinny_report["groups"][0]
+valid_direct_candidate = next(item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct")
+assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_direct_candidate["promotion_blockers"]
+assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_direct_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" not in valid_direct_candidate["promotion_blockers"]
+assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
+
+native_bridge = bounded_capture("hip-direct", 220)
+native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+native_bridge["timing_metadata"]["benchmark_execution_mode"] = "auto_native_to_rns_bridge"
+native_bridge_report = benchmark_sweep.review_captures(
+    [bounded_capture("cpu-reference", 5000), native_bridge],
+    review_mode="release",
+)
+native_bridge_candidate = next(
+    item for item in native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+)
+assert "missing_native_to_rns_bridge_forced_metadata" in native_bridge_candidate["promotion_blockers"]
+assert "missing_native_to_rns_handoff_scope" in native_bridge_candidate["promotion_blockers"]
+native_bridge_next_work = {row["work"] for row in native_bridge_report["summary"]["next_work"]}
+assert "attach_native_to_rns_bridge_forced_metadata" in native_bridge_next_work
+
+valid_native_bridge = copy.deepcopy(native_bridge)
+valid_native_bridge["timing_metadata"]["native_to_rns_bridge_forced"] = True
+valid_native_bridge["timing_metadata"]["phase_availability"] = {
+    "native_to_rns_bridge": {
+        "timed": True,
+        "timing_key": "rns_gemm",
+        "scope": "device_native_to_rns_conversion_inside_rns_gemm",
+        "reason": "measured as native_i64_to_rns_kernel inside rns_gemm",
+    },
+}
+valid_native_bridge_report = benchmark_sweep.review_captures(
+    [bounded_capture("cpu-reference", 5000), valid_native_bridge],
+    review_mode="release",
+)
+valid_native_bridge_candidate = next(
+    item for item in valid_native_bridge_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+)
+assert "missing_native_to_rns_bridge_forced_metadata" not in valid_native_bridge_candidate["promotion_blockers"]
+assert "missing_native_to_rns_handoff_scope" not in valid_native_bridge_candidate["promotion_blockers"]
+
+sparse_amdgpu = copy.deepcopy(amdgpu)
+sparse_amdgpu["_path"] = "amdgpu-sparse-a.json"
+sparse_amdgpu["k"] = 64
+sparse_amdgpu["input_distribution"] = "u8_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
+sparse_amdgpu["scenario_metadata"] = {
+    "family": "sparse-a-4-to-2",
+    "name": "finite-u8-sparse-a-review-fixture",
+    "promotion_eligibility": "release_review_candidate",
+    "sparse_a_4_to_2": True,
+    "metadata": {"workflow_name": "sparse_a_4_to_2"},
+}
+sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
+sparse_amdgpu["backend_metadata"]["selected_kernel"] = sparse_amdgpu["selected_kernel"]
+sparse_amdgpu["backend_metadata"]["matrix_instruction_family"] = "smfmac"
+sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "16x16x64"
+sparse_amdgpu["backend_metadata"]["matrix_instruction_dtype"] = "i8"
+sparse_amdgpu["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
+sparse_key = (
+    "backend=amdgpu-builtins;target_id=gfx1100;semantics=finite_ring_u8;m=64;n=64;k=64;"
+    "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
+    "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
+    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;dense_operand=B;"
+    "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1;"
+    "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
+)
+sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(sparse_key, sparse_amdgpu)
+bad_sparse = copy.deepcopy(sparse_amdgpu)
+bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"]["autotune_key"].replace(
+    "sparse_nonzeros_per_group=2;",
+    "",
+)
+bad_sparse_report = benchmark_sweep.review_captures(
+    [bad_sparse],
+    review_mode="release",
+    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+)
+bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
+assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
+assert "missing_sparse_a_4_to_2_autotune_contract" in bad_sparse_candidate["promotion_blockers"]
+bad_sparse_next_work = {row["work"] for row in bad_sparse_report["summary"]["next_work"]}
+assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_work
+valid_sparse_report = benchmark_sweep.review_captures(
+    [sparse_amdgpu],
+    review_mode="release",
+    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+)
+valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
+assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
+assert valid_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_16x16x64_i8"
+
+amdgpu_tile = copy.deepcopy(amdgpu)
+amdgpu_tile["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
+amdgpu_tile["backend_metadata"]["selected_kernel"] = amdgpu_tile["selected_kernel"]
+amdgpu_tile["backend_metadata"]["matrix_instruction_family"] = "mfma"
+amdgpu_tile["backend_metadata"]["matrix_instruction_shape"] = "16x16x32"
+amdgpu_tile["backend_metadata"]["matrix_instruction_dtype"] = "i8"
+amdgpu_tile["backend_metadata"]["matrix_instruction_sparsity"] = "dense"
+amdgpu_tile["tile_shape_variant"] = {
+    "name": "amdgpu-cdna3-mfma-32x32x16",
+    "tile_m": amdgpu_tile["tile_m"],
+    "tile_n": amdgpu_tile["tile_n"],
+    "tile_k": amdgpu_tile["k_block_size"],
+}
+amdgpu_tile_report = benchmark_sweep.review_captures(
+    [amdgpu_tile, direct, cpu],
+    review_mode="release",
+    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 4}}]},
+)
+amdgpu_tile_candidate = next(
+    item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert "amdgpu_builtin_tile_variant_kernel_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
+assert "amdgpu_builtin_tile_variant_shape_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
+
 summary_fixture_group = {
     "semantics": "bounded_i64",
     "shape": {"m": 64, "n": 64, "k": 64},

@@ -86,6 +86,47 @@ FINAL_OUTPUT_EXPORT_SEMANTICS = {
     "exact_wide_signed",
     "exact_wide_unsigned",
 }
+ROUTE_METADATA_BLOCKERS = {
+    "missing_direct_hip_skinny_gemv_kernel_identity",
+    "missing_direct_hip_skinny_gemv_execution_mode",
+    "missing_vector_alu_skinny_gemv_kernel_identity",
+    "missing_vector_alu_skinny_gemv_execution_mode",
+    "missing_skinny_gemv_gpu_event_phase",
+    "missing_native_to_rns_bridge_forced_metadata",
+    "missing_native_to_rns_handoff_scope",
+    "missing_native_to_rns_phase_availability",
+    "missing_vector_to_rns_chain_metadata",
+    "vector_to_rns_chain_control_mode_mismatch",
+    "missing_vector_to_rns_chain_producer_backend",
+    "missing_vector_to_rns_chain_consumer_backend",
+    "missing_vector_to_rns_chain_phase_scope",
+    "missing_sparse_a_4_to_2_scenario_contract",
+    "sparse_a_k_not_divisible_by_4",
+    "missing_sparse_a_4_to_2_input_distribution",
+    "missing_sparse_a_runtime_kernel_identity",
+    "dense_sparse_a_baseline_used_sparse_kernel",
+    "missing_sparse_a_matrix_instruction_sparsity",
+    "missing_sparse_a_matrix_instruction_family",
+    "missing_sparse_a_4_to_2_autotune_contract",
+    "amdgpu_builtin_tile_variant_kernel_mismatch",
+    "amdgpu_builtin_tile_variant_family_mismatch",
+    "amdgpu_builtin_tile_variant_shape_mismatch",
+    "amdgpu_builtin_tile_variant_dtype_mismatch",
+}
+NATIVE_TO_RNS_EXECUTION_MODES = {
+    "auto_native_to_rns_bridge",
+    "vector_native_to_direct_rns_chain",
+    "vector_native_host_export_repack_direct_rns_chain",
+}
+
+
+def _truthy_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _autotune_key_has_all(metadata: dict[str, Any], tokens: tuple[str, ...]) -> bool:
+    key = metadata.get("autotune_key")
+    return isinstance(key, str) and all(token in key for token in tokens)
 
 
 def requires_amdgpu_builtin_matrix_isa_proof(backend_family: str, metadata: dict[str, Any]) -> bool:
@@ -171,6 +212,152 @@ def final_output_export_metadata_blockers(
         prefix_count = reconstruction_variant.get("prefix_count")
         if not isinstance(prefix_count, int) or isinstance(prefix_count, bool) or prefix_count < 0:
             blockers.append("missing_reconstruction_prefix_count")
+    return blockers
+
+
+def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, backend_family: str) -> list[str]:
+    if semantics not in {"bounded_i64", "bounded_u64"} or capture.get("n") != 1:
+        return []
+    if backend_family not in {"hip-direct", "hip-vector-alu-int64"}:
+        return []
+
+    blockers: list[str] = []
+    kernel = selected_kernel(capture)
+    mode = capture_execution_mode(capture)
+    if backend_family == "hip-direct":
+        if "gemv_n1" not in kernel:
+            blockers.append("missing_direct_hip_skinny_gemv_kernel_identity")
+        if mode != "direct_hip_skinny_gemv_n1_resident_rns":
+            blockers.append("missing_direct_hip_skinny_gemv_execution_mode")
+    else:
+        if "gemv_n1" not in kernel:
+            blockers.append("missing_vector_alu_skinny_gemv_kernel_identity")
+        if "gemv_n1" not in mode:
+            blockers.append("missing_vector_alu_skinny_gemv_execution_mode")
+
+    timing = capture_timing_metadata(capture)
+    phase_order = timing.get("gpu_event_phase_order")
+    if not isinstance(phase_order, list) or not any("gemv" in str(phase) for phase in phase_order):
+        blockers.append("missing_skinny_gemv_gpu_event_phase")
+    return blockers
+
+
+def native_to_rns_handoff_metadata_blockers(
+    capture: dict[str, Any],
+    *,
+    semantics: Any,
+    backend_family: str,
+) -> list[str]:
+    mode = capture_execution_mode(capture)
+    if semantics not in {"bounded_i64", "bounded_u64"} or backend_family != "hip-direct":
+        return []
+    if mode not in NATIVE_TO_RNS_EXECUTION_MODES:
+        return []
+
+    blockers: list[str] = []
+    timing = capture_timing_metadata(capture)
+    phase_availability = timing.get("phase_availability")
+    if not isinstance(phase_availability, dict):
+        blockers.append("missing_native_to_rns_phase_availability")
+
+    if mode == "auto_native_to_rns_bridge":
+        if timing.get("native_to_rns_bridge_forced") is not True:
+            blockers.append("missing_native_to_rns_bridge_forced_metadata")
+        phase = phase_availability.get("native_to_rns_bridge") if isinstance(phase_availability, dict) else None
+        if not isinstance(phase, dict) or phase.get("scope") != "device_native_to_rns_conversion_inside_rns_gemm":
+            blockers.append("missing_native_to_rns_handoff_scope")
+    else:
+        if timing.get("vector_to_rns_chain") is not True:
+            blockers.append("missing_vector_to_rns_chain_metadata")
+        expected_control = (
+            "host_export_repack_control"
+            if mode == "vector_native_host_export_repack_direct_rns_chain"
+            else "fused_device_native_to_rns"
+        )
+        if timing.get("vector_to_rns_chain_control_mode") != expected_control:
+            blockers.append("vector_to_rns_chain_control_mode_mismatch")
+        if timing.get("vector_to_rns_chain_producer_backend") != "hip-vector-alu-int64":
+            blockers.append("missing_vector_to_rns_chain_producer_backend")
+        if timing.get("vector_to_rns_chain_consumer_backend") != "hip-direct":
+            blockers.append("missing_vector_to_rns_chain_consumer_backend")
+        phase = phase_availability.get("vector_to_rns_chain") if isinstance(phase_availability, dict) else None
+        if not isinstance(phase, dict):
+            blockers.append("missing_vector_to_rns_chain_phase_scope")
+    return blockers
+
+
+def sparse_a_4_to_2_contract_blockers(
+    capture: dict[str, Any],
+    *,
+    backend: str,
+    backend_family: str,
+    metadata: dict[str, Any],
+) -> list[str]:
+    scenario = capture.get("scenario_metadata")
+    sparse_scenario = isinstance(scenario, dict) and scenario.get("sparse_a_4_to_2") is True
+    kernel = selected_kernel(capture)
+    sparse_runtime = backend.endswith("-sparse-a-runtime")
+    dense_sparse_baseline = backend.endswith("-dense-sparse-a-input")
+    if not sparse_scenario and "sparse_a" not in kernel and not sparse_runtime and not dense_sparse_baseline:
+        return []
+
+    blockers: list[str] = []
+    if not sparse_scenario:
+        blockers.append("missing_sparse_a_4_to_2_scenario_contract")
+    if not _truthy_int(capture.get("k")) or capture["k"] % 4 != 0:
+        blockers.append("sparse_a_k_not_divisible_by_4")
+    if "sparse_a_4_to_2" not in str(capture.get("input_distribution", "")):
+        blockers.append("missing_sparse_a_4_to_2_input_distribution")
+    if sparse_runtime and "sparse_a" not in kernel:
+        blockers.append("missing_sparse_a_runtime_kernel_identity")
+    if dense_sparse_baseline and "sparse_a" in kernel:
+        blockers.append("dense_sparse_a_baseline_used_sparse_kernel")
+    if backend_family == "amdgpu-builtins" and sparse_runtime:
+        if metadata.get("matrix_instruction_sparsity") != "structured_4_2":
+            blockers.append("missing_sparse_a_matrix_instruction_sparsity")
+        if metadata.get("matrix_instruction_family") not in {"smfmac", "swmmac"}:
+            blockers.append("missing_sparse_a_matrix_instruction_family")
+
+    required_key_tokens = (
+        "sparse_contract=a_4_to_2_structured_k_v1",
+        "sparse_operand=A",
+        "sparse_group_size=4",
+        "sparse_nonzeros_per_group=2",
+        "sparse_index_layout=canonical_2bit_k_groups_v1",
+        "dense_operand=B",
+    )
+    if not _autotune_key_has_all(metadata, required_key_tokens):
+        blockers.append("missing_sparse_a_4_to_2_autotune_contract")
+    return blockers
+
+
+def amdgpu_builtin_tile_variant_blockers(capture: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
+    if backend_family_id(backend_id(capture)) != "amdgpu-builtins":
+        return []
+    tile_variant = capture.get("tile_shape_variant")
+    if not isinstance(tile_variant, dict):
+        return []
+    name = tile_variant.get("name")
+    if not isinstance(name, str):
+        return []
+
+    expectations = {
+        "amdgpu-cdna3-mfma-16x16x32": ("mfma_i32_16x16x32_i8", "mfma", "16x16x32", "i8"),
+        "amdgpu-cdna3-mfma-32x32x16": ("mfma_i32_32x32x16_i8", "mfma", "32x32x16", "i8"),
+    }
+    expected = expectations.get(name)
+    if expected is None:
+        return []
+    kernel_token, family, shape, dtype = expected
+    blockers: list[str] = []
+    if kernel_token not in selected_kernel(capture):
+        blockers.append("amdgpu_builtin_tile_variant_kernel_mismatch")
+    if metadata.get("matrix_instruction_family") != family:
+        blockers.append("amdgpu_builtin_tile_variant_family_mismatch")
+    if metadata.get("matrix_instruction_shape") != shape:
+        blockers.append("amdgpu_builtin_tile_variant_shape_mismatch")
+    if metadata.get("matrix_instruction_dtype") != dtype:
+        blockers.append("amdgpu_builtin_tile_variant_dtype_mismatch")
     return blockers
 
 
@@ -378,6 +565,31 @@ def review_next_work(
         ("missing_reconstruction_variant_metadata", "attach_reconstruction_variant_metadata_before_promotion"),
         ("missing_reconstruction_kernel_identity", "attach_reconstruction_kernel_identity_before_promotion"),
         ("missing_reconstruction_prefix_count", "attach_reconstruction_prefix_count_before_promotion"),
+        ("missing_direct_hip_skinny_gemv_kernel_identity", "select_direct_hip_skinny_gemv_kernel_before_n1_promotion"),
+        ("missing_direct_hip_skinny_gemv_execution_mode", "route_n1_direct_hip_captures_through_skinny_gemv_mode"),
+        ("missing_vector_alu_skinny_gemv_kernel_identity", "select_vector_alu_skinny_gemv_kernel_before_n1_promotion"),
+        ("missing_vector_alu_skinny_gemv_execution_mode", "route_n1_vector_alu_captures_through_gemv_mode"),
+        ("missing_skinny_gemv_gpu_event_phase", "attach_skinny_gemv_gpu_event_phase_timing"),
+        ("missing_native_to_rns_bridge_forced_metadata", "attach_native_to_rns_bridge_forced_metadata"),
+        ("missing_native_to_rns_handoff_scope", "attach_native_to_rns_handoff_phase_scope"),
+        ("missing_native_to_rns_phase_availability", "attach_native_to_rns_phase_availability_metadata"),
+        ("missing_vector_to_rns_chain_metadata", "attach_vector_to_rns_chain_metadata"),
+        ("vector_to_rns_chain_control_mode_mismatch", "fix_vector_to_rns_chain_control_mode_metadata"),
+        ("missing_vector_to_rns_chain_producer_backend", "attach_vector_to_rns_chain_producer_backend"),
+        ("missing_vector_to_rns_chain_consumer_backend", "attach_vector_to_rns_chain_consumer_backend"),
+        ("missing_vector_to_rns_chain_phase_scope", "attach_vector_to_rns_chain_phase_scope"),
+        ("missing_sparse_a_4_to_2_scenario_contract", "route_sparse_a_captures_through_explicit_sparse_contract_scenarios"),
+        ("sparse_a_k_not_divisible_by_4", "fix_sparse_a_shapes_to_k_divisible_by_4"),
+        ("missing_sparse_a_4_to_2_input_distribution", "attach_sparse_a_4_to_2_input_distribution_metadata"),
+        ("missing_sparse_a_runtime_kernel_identity", "compile_sparse_a_matrix_core_runtime_kernel"),
+        ("dense_sparse_a_baseline_used_sparse_kernel", "separate_dense_sparse_input_baseline_from_sparse_runtime_kernel"),
+        ("missing_sparse_a_matrix_instruction_sparsity", "attach_sparse_a_matrix_instruction_sparsity_metadata"),
+        ("missing_sparse_a_matrix_instruction_family", "attach_sparse_a_smfmac_or_swmmac_family_metadata"),
+        ("missing_sparse_a_4_to_2_autotune_contract", "attach_sparse_a_4_to_2_autotune_contract_metadata"),
+        ("amdgpu_builtin_tile_variant_kernel_mismatch", "align_amdgpu_builtin_tile_variant_with_selected_kernel"),
+        ("amdgpu_builtin_tile_variant_family_mismatch", "align_amdgpu_builtin_tile_variant_family_metadata"),
+        ("amdgpu_builtin_tile_variant_shape_mismatch", "align_amdgpu_builtin_tile_variant_shape_metadata"),
+        ("amdgpu_builtin_tile_variant_dtype_mismatch", "align_amdgpu_builtin_tile_variant_dtype_metadata"),
         ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
         ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
     ]:
@@ -458,8 +670,16 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
         for candidate in group.get("candidates", []):
             blockers = candidate.get("promotion_blockers") if isinstance(candidate.get("promotion_blockers"), list) else []
             blocker_counts.update(str(item) for item in blockers)
-            if candidate.get("accelerator_backend") is True and candidate.get("scenario_promotion_scope") in {None, "release_review_candidate"}:
-                actionable = [str(item) for item in blockers if str(item) not in {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}]
+            route_metadata_actionable = any(str(item) in ROUTE_METADATA_BLOCKERS for item in blockers)
+            if (
+                (candidate.get("accelerator_backend") is True or route_metadata_actionable)
+                and candidate.get("scenario_promotion_scope") in {None, "release_review_candidate"}
+            ):
+                actionable = [
+                    str(item)
+                    for item in blockers
+                    if str(item) not in {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
+                ]
                 actionable_blockers.update(actionable)
                 phase = candidate.get("primary_loss_phase_vs_direct_hip")
                 if isinstance(phase, str) and phase:
@@ -1153,6 +1373,31 @@ def review_route_candidate(candidate: dict[str, Any]) -> bool:
         "missing_reference_checksum",
         "checksum_mismatch_vs_reference",
         "scenario_scope_not_autotune_promotable",
+        "missing_direct_hip_skinny_gemv_kernel_identity",
+        "missing_direct_hip_skinny_gemv_execution_mode",
+        "missing_vector_alu_skinny_gemv_kernel_identity",
+        "missing_vector_alu_skinny_gemv_execution_mode",
+        "missing_skinny_gemv_gpu_event_phase",
+        "missing_native_to_rns_bridge_forced_metadata",
+        "missing_native_to_rns_handoff_scope",
+        "missing_native_to_rns_phase_availability",
+        "missing_vector_to_rns_chain_metadata",
+        "vector_to_rns_chain_control_mode_mismatch",
+        "missing_vector_to_rns_chain_producer_backend",
+        "missing_vector_to_rns_chain_consumer_backend",
+        "missing_vector_to_rns_chain_phase_scope",
+        "missing_sparse_a_4_to_2_scenario_contract",
+        "sparse_a_k_not_divisible_by_4",
+        "missing_sparse_a_4_to_2_input_distribution",
+        "missing_sparse_a_runtime_kernel_identity",
+        "dense_sparse_a_baseline_used_sparse_kernel",
+        "missing_sparse_a_matrix_instruction_sparsity",
+        "missing_sparse_a_matrix_instruction_family",
+        "missing_sparse_a_4_to_2_autotune_contract",
+        "amdgpu_builtin_tile_variant_kernel_mismatch",
+        "amdgpu_builtin_tile_variant_family_mismatch",
+        "amdgpu_builtin_tile_variant_shape_mismatch",
+        "amdgpu_builtin_tile_variant_dtype_mismatch",
     }
     return (
         scope in {None, "release_review_candidate"}
@@ -1419,6 +1664,29 @@ def review_captures(
                     accelerator=accelerator,
                 )
             )
+            blockers.extend(
+                skinny_gemv_metadata_blockers(
+                    item,
+                    semantics=semantics,
+                    backend_family=backend_family,
+                )
+            )
+            blockers.extend(
+                native_to_rns_handoff_metadata_blockers(
+                    item,
+                    semantics=semantics,
+                    backend_family=backend_family,
+                )
+            )
+            blockers.extend(
+                sparse_a_4_to_2_contract_blockers(
+                    item,
+                    backend=backend,
+                    backend_family=backend_family,
+                    metadata=metadata,
+                )
+            )
+            blockers.extend(amdgpu_builtin_tile_variant_blockers(item, metadata))
             item_checksum = capture_checksum(item)
             if item_checksum is None:
                 blockers.append("missing_checksum")
