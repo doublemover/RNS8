@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "backend_common/finite_u8_reducer.hpp"
 #include "rns8/moduli.h"
 
 #include <cstdlib>
@@ -327,6 +328,9 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
   }
   if (entry.selected_backend == "ck") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
+      if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
+        return false;
+      }
       return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
@@ -339,6 +343,9 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
   }
   if (entry.selected_backend == "rocwmma") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
+      if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
+        return false;
+      }
       return entry.selected_kernel == expected_rocwmma_finite_kernel(entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {

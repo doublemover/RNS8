@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "backend_ck/ck_backend.hpp"
+#include "backend_common/finite_u8_reducer.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"

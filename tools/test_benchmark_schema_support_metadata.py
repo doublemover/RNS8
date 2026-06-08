@@ -388,7 +388,7 @@ def as_direct_hip_oneshot_capture(capture: dict) -> dict:
 def as_direct_hip_resident_fallback_oneshot_capture(capture: dict) -> dict:
     fallback = copy.deepcopy(capture)
     repeats = fallback["repeats"]
-    kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    kernel = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
     epilogue = "fused_centered_residue_then_crt_export"
     fallback["benchmark"] = "rns8_bounded_gemm_public_oneshot"
     fallback["benchmark_execution_mode"] = "public_oneshot_transient_native_inputs"

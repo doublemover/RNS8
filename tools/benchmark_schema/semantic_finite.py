@@ -134,12 +134,20 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                     f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE}"
                 )
     if self.data.get("backend_selected") == "ck" and _is_int(modulus):
+        if modulus not in CK_FINITE_STATIC_MODULI:
+            self._error(
+                f"CK finite-u8 modulus {modulus} captures are unsupported by the static CK reducer set"
+            )
         expected_kernel = CK_FINITE_SPECIALIZED_KERNELS.get(modulus, CK_FINITE_GENERIC_KERNEL)
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(
                 f"CK finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
             )
     if self.data.get("backend_selected") == "rocwmma" and _is_int(modulus):
+        if modulus not in ROCWMMA_FINITE_STATIC_MODULI:
+            self._error(
+                f"rocWMMA finite-u8 modulus {modulus} captures are unsupported by the static rocWMMA reducer set"
+            )
         expected_kernel = ROCWMMA_FINITE_SPECIALIZED_KERNELS.get(modulus, ROCWMMA_FINITE_GENERIC_KERNEL)
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(

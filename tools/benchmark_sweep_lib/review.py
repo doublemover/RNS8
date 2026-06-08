@@ -93,6 +93,26 @@ def release_capture_satisfied(capture: dict[str, Any]) -> bool:
     )
 
 
+def capture_checksum(capture: dict[str, Any] | None) -> Any:
+    if not capture:
+        return None
+    if capture.get("checksum_u64") is not None:
+        return capture.get("checksum_u64")
+    return capture.get("checksum")
+
+
+def reference_checksum_for_group(by_backend: dict[str, dict[str, Any]]) -> tuple[str | None, Any]:
+    for backend in ("cpu-reference", "wrap64-byte-limb", "hip-direct"):
+        checksum = capture_checksum(by_backend.get(backend))
+        if checksum is not None:
+            return backend, checksum
+    for backend, capture in sorted(by_backend.items()):
+        checksum = capture_checksum(capture)
+        if checksum is not None:
+            return backend, checksum
+    return None, None
+
+
 def promotion_blockers(
     *,
     missing: list[str],
@@ -376,6 +396,15 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         repeat_count_values = {count for count in repeat_counts.values() if count}
         repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
         release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
+        checksum_by_backend = {backend: capture_checksum(capture) for backend, capture in by_backend.items()}
+        checksum_reference_backend, checksum_reference = reference_checksum_for_group(by_backend)
+        missing_checksums = sorted(backend for backend, checksum in checksum_by_backend.items() if checksum is None)
+        checksum_mismatches = sorted(
+            backend
+            for backend, checksum in checksum_by_backend.items()
+            if checksum_reference is not None and checksum is not None and checksum != checksum_reference
+        )
+        checksum_consistent = checksum_reference is not None and not missing_checksums and not checksum_mismatches
         scenario_promotion_scopes = sorted(
             {
                 scope
@@ -432,6 +461,13 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 direct=direct,
                 vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
             )
+            item_checksum = capture_checksum(item)
+            if item_checksum is None:
+                blockers.append("missing_checksum")
+            elif checksum_reference is None:
+                blockers.append("missing_reference_checksum")
+            elif item_checksum != checksum_reference:
+                blockers.append("checksum_mismatch_vs_reference")
             blockers.extend(scenario_promotion_blockers(item))
             promotable = not blockers
             candidate = {
@@ -442,6 +478,14 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "scenario_promotion_scope": capture_scenario_promotion_scope(item),
                 "accelerator_backend": accelerator,
                 "release_review_capture": release_capture_satisfied(item),
+                "checksum": item_checksum,
+                "checksum_reference_backend": checksum_reference_backend,
+                "checksum_reference": checksum_reference,
+                "checksum_matches_reference": (
+                    item_checksum is not None
+                    and checksum_reference is not None
+                    and item_checksum == checksum_reference
+                ),
                 "median_end_to_end_us": end_to_end,
                 "phase_diagnostics": phase_ratios(item, direct_capture, vector_capture),
                 "speedup_vs_direct_hip": (direct / end_to_end) if direct and end_to_end else None,
@@ -538,6 +582,12 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "repeat_count_complete": repeat_count_complete,
                 "repeat_count_compatible": repeat_count_compatible,
                 "duplicate_backends": duplicate_backends,
+                "checksum_reference_backend": checksum_reference_backend,
+                "checksum_reference": checksum_reference,
+                "checksum_by_backend": checksum_by_backend,
+                "missing_checksums": missing_checksums,
+                "checksum_mismatches": checksum_mismatches,
+                "checksum_consistent": checksum_consistent,
                 "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,

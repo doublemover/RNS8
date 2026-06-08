@@ -249,8 +249,13 @@ __device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t mod
   return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
+__host__ __device__ __forceinline__ bool rocwmma_static_modulus_supported(uint32_t modulus) {
+  return rns8::detail::finite_u8::static_byte_modulus_supported(modulus);
+}
+
 __device__ int8_t reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {
-  return rns8::detail::finite_u8::reduce_to_centered_accelerator_i32(
-      value, static_cast<uint32_t>(modulus), reciprocal);
+  (void)reciprocal;
+  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(
+      value, static_cast<uint32_t>(modulus));
 }
 

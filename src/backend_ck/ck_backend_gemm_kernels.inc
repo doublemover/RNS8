@@ -315,6 +315,9 @@ int run_ck_tile_modulus(
     int modulus,
     uint32_t reciprocal,
     int prefix_index) {
+  if (!ck_static_modulus_supported(static_cast<uint32_t>(modulus))) {
+    return ck_unsupported_backend;
+  }
   return run_ck_tile_modulus_impl(
       a,
       b,

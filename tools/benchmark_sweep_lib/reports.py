@@ -135,6 +135,12 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- repeat_count_compatible: `{group.get('repeat_count_compatible')}`")
         duplicates = group.get("duplicate_backends") or []
         lines.append(f"- duplicate_backends: `{','.join(duplicates) if duplicates else 'none'}`")
+        lines.append(f"- checksum_reference_backend: `{group.get('checksum_reference_backend') or 'none'}`")
+        lines.append(f"- checksum_consistent: `{group.get('checksum_consistent')}`")
+        checksum_mismatches = group.get("checksum_mismatches") or []
+        lines.append(
+            f"- checksum_mismatches: `{','.join(checksum_mismatches) if checksum_mismatches else 'none'}`"
+        )
         scenario_scopes = group.get("scenario_promotion_scopes") or []
         lines.append(
             f"- scenario_promotion_scopes: `{','.join(scenario_scopes) if scenario_scopes else 'none'}`"

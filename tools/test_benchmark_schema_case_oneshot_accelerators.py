@@ -377,6 +377,23 @@ bad_ck_finite_kernel["backend_metadata"]["autotune_key"] = bad_ck_finite_kernel[
 )
 expect_invalid(bad_ck_finite_kernel, "CK finite-u8 modulus 256 captures")
 
+unsupported_ck_finite_modulus = copy.deepcopy(v4_finite_ring_ck)
+unsupported_ck_finite_modulus["finite_modulus"] = 2
+unsupported_ck_finite_modulus["selected_kernel"] = "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+unsupported_ck_finite_modulus["backend_metadata"]["selected_kernel"] = (
+    "ck_wmma_cshuffle_finite_u8_centered_epilogue_v1"
+)
+unsupported_ck_finite_modulus["backend_metadata"]["autotune_key"] = unsupported_ck_finite_modulus[
+    "backend_metadata"
+]["autotune_key"].replace(
+    "finite_modulus=255",
+    "finite_modulus=2",
+).replace(
+    "kernel=ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
+    "kernel=ck_wmma_cshuffle_finite_u8_centered_epilogue_v1",
+)
+expect_invalid(unsupported_ck_finite_modulus, "unsupported by the static CK reducer set")
+
 bad_rocwmma_finite_kernel = copy.deepcopy(v4_finite_field_rocwmma)
 bad_rocwmma_finite_kernel["semantics"] = "finite_ring_u8"
 bad_rocwmma_finite_kernel["finite_modulus"] = 256
@@ -390,6 +407,28 @@ bad_rocwmma_finite_kernel["backend_metadata"]["autotune_key"] = bad_rocwmma_fini
     "finite_modulus=256",
 )
 expect_invalid(bad_rocwmma_finite_kernel, "rocWMMA finite-u8 modulus 256 captures")
+
+unsupported_rocwmma_finite_modulus = copy.deepcopy(v4_finite_field_rocwmma)
+unsupported_rocwmma_finite_modulus["semantics"] = "finite_ring_u8"
+unsupported_rocwmma_finite_modulus["finite_modulus"] = 2
+unsupported_rocwmma_finite_modulus["selected_kernel"] = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+unsupported_rocwmma_finite_modulus["backend_metadata"]["semantic_contract"] = "finite_ring_u8"
+unsupported_rocwmma_finite_modulus["backend_metadata"]["selected_kernel"] = (
+    "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
+)
+unsupported_rocwmma_finite_modulus["backend_metadata"]["autotune_key"] = unsupported_rocwmma_finite_modulus[
+    "backend_metadata"
+]["autotune_key"].replace(
+    "semantics=finite_field_u8",
+    "semantics=finite_ring_u8",
+).replace(
+    "finite_modulus=251",
+    "finite_modulus=2",
+).replace(
+    "kernel=rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
+    "kernel=rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
+)
+expect_invalid(unsupported_rocwmma_finite_modulus, "unsupported by the static rocWMMA reducer set")
 
 bad_finite_epilogue = copy.deepcopy(v4_finite_field_rocwmma)
 bad_finite_epilogue["epilogue_type"] = "crt_export"

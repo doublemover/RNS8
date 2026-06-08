@@ -21,6 +21,9 @@ extern "C" int rns8_rocwmma_gemm_finite_u8_device(
       !checked_i32_shape(ldc)) {
     return rocwmma_invalid_argument;
   }
+  if (!rocwmma_static_modulus_supported(modulus)) {
+    return rocwmma_unsupported_backend;
+  }
   uint64_t a_bytes = 0;
   uint64_t b_bytes = 0;
   if (!rocwmma_workspace_requirements_u64(m, n, k, &a_bytes, &b_bytes)) {

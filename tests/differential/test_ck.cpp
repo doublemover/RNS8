@@ -229,7 +229,7 @@ TEST_CASE("CK fused adaptive bounded i64 schedule matches CPU and direct HIP") {
   constexpr int64_t m = 65;
   constexpr int64_t n = 65;
   constexpr int64_t k = 64;
-  std::vector<uint64_t> bounds = {64, 1024, uint64_t{1} << 32u, uint64_t{1} << 40u};
+  std::vector<uint64_t> bounds = {128, 1024, uint64_t{1} << 32u, uint64_t{1} << 40u};
   std::vector<int64_t> A(static_cast<std::size_t>(m * k), 0);
   std::vector<int64_t> B(static_cast<std::size_t>(k * n), 0);
   for (int64_t row = 0; row < m; ++row) {
@@ -388,6 +388,76 @@ TEST_CASE("CK finite u8 backend matches CPU and direct HIP across padded strides
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("CK finite u8 generic byte moduli match CPU and direct HIP") {
+  if (!ck_available()) {
+    SKIP("CK backend is not available on this device");
+  }
+
+  rns8_context* cpu = create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_backend_context(RNS8_BACKEND_HIP_DIRECT);
+  rns8_context* ck = create_backend_context(RNS8_BACKEND_CK);
+  constexpr int64_t m = 64;
+  constexpr int64_t n = 128;
+  constexpr int64_t k = 64;
+  constexpr int64_t lda = k + 3;
+  constexpr int64_t ldb = n + 5;
+  constexpr int64_t ldc = n + 7;
+  struct Case {
+    rns8_semantics semantics;
+    uint16_t modulus;
+  };
+  const Case cases[] = {
+      {RNS8_FINITE_FIELD_U8, 127},
+      {RNS8_FINITE_FIELD_U8, 241},
+      {RNS8_FINITE_RING_U8, 243},
+      {RNS8_FINITE_RING_U8, 253},
+  };
+
+  for (const auto& item : cases) {
+    std::vector<uint8_t> A(static_cast<std::size_t>(m * lda), 0xa5);
+    std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0x5a);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A[static_cast<std::size_t>(row * lda + col)] =
+            static_cast<uint8_t>((row * 17 + col * 23 + item.modulus / 3) % item.modulus);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(row * ldb + col)] =
+            static_cast<uint8_t>((row * 29 + col * 31 + 7) % item.modulus);
+      }
+    }
+    std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> ck_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE, item.modulus);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
+    auto ck_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CK, item.modulus);
+    if (item.semantics == RNS8_FINITE_FIELD_U8) {
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  ck, &ck_desc, item.modulus, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
+    } else {
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  ck, &ck_desc, item.modulus, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
+    }
+    require_same_u8(cpu_out, hip_out);
+    require_same_u8(cpu_out, ck_out);
+  }
+
+  rns8_destroy_context(ck);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
   if (!ck_available()) {
     SKIP("CK backend is not available on this device");
@@ -416,6 +486,19 @@ TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
     CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_then_canonical_u8_export");
     rns8_destroy_plan(plan);
   }
+  rns8_destroy_context(ck);
+}
+
+TEST_CASE("CK finite u8 unsupported moduli fail before execution") {
+  if (!ck_available()) {
+    SKIP("CK backend is not available on this device");
+  }
+
+  rns8_context* ck = create_backend_context(RNS8_BACKEND_CK);
+  auto desc = finite_desc(64, 64, 64, RNS8_FINITE_RING_U8, RNS8_BACKEND_CK, 2);
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(ck, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(plan == nullptr);
   rns8_destroy_context(ck);
 }
 

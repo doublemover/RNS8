@@ -38,6 +38,25 @@ assert group["configured_target_compatible"] is True
 assert group["missing_hip_runtime_versions"] == []
 assert group["hip_runtime_version_complete"] is True
 assert group["hip_runtime_version_compatible"] is True
+assert group["checksum_reference_backend"] == "cpu-reference"
+assert group["checksum_reference"] == 987654321
+assert group["checksum_consistent"] is True
+assert group["checksum_mismatches"] == []
+
+checksum_bad_ck = copy.deepcopy(ck)
+checksum_bad_ck["checksum_u64"] = checksum_bad_ck["checksum_u64"] + 1
+checksum_mismatch_report = benchmark_sweep.review_captures(
+    [checksum_bad_ck, direct, cpu],
+    review_mode="release",
+)
+checksum_mismatch_group = checksum_mismatch_report["groups"][0]
+assert checksum_mismatch_report["promotable_autotune_entries"] == []
+assert checksum_mismatch_group["checksum_reference_backend"] == "cpu-reference"
+assert checksum_mismatch_group["checksum_consistent"] is False
+assert checksum_mismatch_group["checksum_mismatches"] == ["ck"]
+checksum_bad_candidate = next(item for item in checksum_mismatch_group["candidates"] if item["backend"] == "ck")
+assert checksum_bad_candidate["checksum_matches_reference"] is False
+assert "checksum_mismatch_vs_reference" in checksum_bad_candidate["promotion_blockers"]
 
 bounded_ck = bounded_capture("ck", 700)
 bounded_direct = bounded_capture("hip-direct", 300)

@@ -129,12 +129,45 @@ CK_FINITE_SPECIALIZED_KERNELS = {
     255: "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     256: "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",
 }
+CK_FINITE_STATIC_MODULI = {
+    127,
+    131,
+    137,
+    139,
+    149,
+    151,
+    157,
+    163,
+    167,
+    173,
+    179,
+    181,
+    191,
+    193,
+    197,
+    199,
+    211,
+    217,
+    223,
+    227,
+    229,
+    233,
+    239,
+    241,
+    243,
+    247,
+    251,
+    253,
+    255,
+    256,
+}
 ROCWMMA_FINITE_GENERIC_KERNEL = "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1"
 ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
     251: "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
     255: "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
     256: "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
 }
+ROCWMMA_FINITE_STATIC_MODULI = CK_FINITE_STATIC_MODULI
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL = "direct_hip_native_a_finite_u8_gemm_v1"
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS = {
     251: "direct_hip_native_a_finite_u8_gemm_mod251_v1",
@@ -149,7 +182,7 @@ DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2 = (
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
-DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
 DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_EPILOGUE = "fused_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_WORKSPACE = "resident_device_buffers"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {

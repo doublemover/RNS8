@@ -103,6 +103,11 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
     if (!backend_supports_semantics(candidate_backend, plan.desc.semantics)) {
       continue;
     }
+    if ((candidate_backend == RNS8_BACKEND_CK || candidate_backend == RNS8_BACKEND_ROCWMMA) &&
+        uses_finite_storage(plan.desc.semantics) &&
+        !rns8::detail::finite_u8::static_byte_modulus_supported(plan.desc.finite_modulus)) {
+      continue;
+    }
     if (candidate_backend == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(plan.desc.bound_kind)) {
       continue;
     }

@@ -169,6 +169,91 @@ TEST_CASE("rocWMMA finite u8 backend matches CPU and direct HIP across padded st
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("rocWMMA finite u8 generic byte moduli match CPU and direct HIP") {
+  if (!rocwmma_available()) {
+    SKIP("rocWMMA backend is not available on this device");
+  }
+
+  rns8_context* cpu = create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* hip = create_backend_context(RNS8_BACKEND_HIP_DIRECT);
+  rns8_context* rocwmma = create_backend_context(RNS8_BACKEND_ROCWMMA);
+  constexpr int64_t m = 48;
+  constexpr int64_t n = 64;
+  constexpr int64_t k = 96;
+  constexpr int64_t lda = k + 3;
+  constexpr int64_t ldb = n + 5;
+  constexpr int64_t ldc = n + 7;
+
+  struct Case {
+    rns8_semantics semantics;
+    uint16_t modulus;
+  };
+  const Case cases[] = {
+      {RNS8_FINITE_FIELD_U8, 127},
+      {RNS8_FINITE_FIELD_U8, 241},
+      {RNS8_FINITE_RING_U8, 243},
+      {RNS8_FINITE_RING_U8, 253},
+  };
+  for (const auto& item : cases) {
+    std::vector<uint8_t> A(static_cast<std::size_t>(m * lda), 0xa5);
+    std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0x5a);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < k; ++col) {
+        A[static_cast<std::size_t>(row * lda + col)] =
+            static_cast<uint8_t>((row * 17 + col * 23 + item.modulus / 3) % item.modulus);
+      }
+    }
+    for (int64_t row = 0; row < k; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(row * ldb + col)] =
+            static_cast<uint8_t>((row * 29 + col * 31 + 7) % item.modulus);
+      }
+    }
+    std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> hip_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    std::vector<uint8_t> rocwmma_out(static_cast<std::size_t>(m * ldc), 0xcc);
+    auto cpu_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CPU_REFERENCE, item.modulus);
+    auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
+    auto rocwmma_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_ROCWMMA, item.modulus);
+    if (item.semantics == RNS8_FINITE_FIELD_U8) {
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
+                  rocwmma, &rocwmma_desc, item.modulus, A.data(), lda, B.data(), ldb, rocwmma_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    } else {
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
+                  rocwmma, &rocwmma_desc, item.modulus, A.data(), lda, B.data(), ldb, rocwmma_out.data(), ldc) ==
+              RNS8_SUCCESS);
+    }
+    CHECK(hip_out == cpu_out);
+    CHECK(rocwmma_out == cpu_out);
+  }
+
+  rns8_destroy_context(rocwmma);
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
+
+TEST_CASE("rocWMMA finite u8 unsupported moduli fail before execution") {
+  if (!rocwmma_available()) {
+    SKIP("rocWMMA backend is not available on this device");
+  }
+
+  rns8_context* rocwmma = create_backend_context(RNS8_BACKEND_ROCWMMA);
+  auto desc = finite_desc(64, 64, 64, RNS8_FINITE_RING_U8, RNS8_BACKEND_ROCWMMA, 2);
+  rns8_plan* plan = nullptr;
+  CHECK(rns8_create_plan(rocwmma, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(rocwmma);
+}
+
 TEST_CASE("rocWMMA finite u8 common moduli report specialized reducer kernels") {
   if (!rocwmma_available()) {
     SKIP("rocWMMA backend is not available on this device");

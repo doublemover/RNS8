@@ -29,6 +29,11 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (!backend_supports_semantics(requested, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
+    if ((requested == RNS8_BACKEND_CK || requested == RNS8_BACKEND_ROCWMMA) &&
+        uses_finite_storage(desc->semantics) &&
+        !rns8::detail::finite_u8::static_byte_modulus_supported(desc->finite_modulus)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
     if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }

@@ -16,6 +16,44 @@ RNS8_FINITE_U8_INLINE uint32_t modulus_reciprocal_u32(uint32_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / modulus);
 }
 
+RNS8_FINITE_U8_INLINE bool static_byte_modulus_supported(uint32_t modulus) {
+  switch (modulus) {
+    case 256:
+    case 255:
+    case 253:
+    case 251:
+    case 247:
+    case 243:
+    case 241:
+    case 239:
+    case 233:
+    case 229:
+    case 227:
+    case 223:
+    case 217:
+    case 211:
+    case 199:
+    case 197:
+    case 193:
+    case 191:
+    case 181:
+    case 179:
+    case 173:
+    case 167:
+    case 163:
+    case 157:
+    case 151:
+    case 149:
+    case 139:
+    case 137:
+    case 131:
+    case 127:
+      return true;
+    default:
+      return false;
+  }
+}
+
 RNS8_FINITE_U8_INLINE uint32_t abs_i32_to_u32(int32_t value) {
   return value < 0 ? static_cast<uint32_t>(-static_cast<int64_t>(value)) : static_cast<uint32_t>(value);
 }
@@ -171,6 +209,73 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_fixed_i32(int32_t value) {
     const uint32_t negative_mask = 0u - negative_nonzero;
     residue = (residue & ~negative_mask) | ((modulus - residue) & negative_mask);
     return center_unsigned_residue(residue, modulus);
+  }
+}
+
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t value, uint32_t modulus) {
+  switch (modulus) {
+    case 256:
+      return reduce_to_centered_fixed_i32<256>(value);
+    case 255:
+      return reduce_to_centered_fixed_i32<255>(value);
+    case 253:
+      return reduce_to_centered_fixed_i32<253>(value);
+    case 251:
+      return reduce_to_centered_fixed_i32<251>(value);
+    case 247:
+      return reduce_to_centered_fixed_i32<247>(value);
+    case 243:
+      return reduce_to_centered_fixed_i32<243>(value);
+    case 241:
+      return reduce_to_centered_fixed_i32<241>(value);
+    case 239:
+      return reduce_to_centered_fixed_i32<239>(value);
+    case 233:
+      return reduce_to_centered_fixed_i32<233>(value);
+    case 229:
+      return reduce_to_centered_fixed_i32<229>(value);
+    case 227:
+      return reduce_to_centered_fixed_i32<227>(value);
+    case 223:
+      return reduce_to_centered_fixed_i32<223>(value);
+    case 217:
+      return reduce_to_centered_fixed_i32<217>(value);
+    case 211:
+      return reduce_to_centered_fixed_i32<211>(value);
+    case 199:
+      return reduce_to_centered_fixed_i32<199>(value);
+    case 197:
+      return reduce_to_centered_fixed_i32<197>(value);
+    case 193:
+      return reduce_to_centered_fixed_i32<193>(value);
+    case 191:
+      return reduce_to_centered_fixed_i32<191>(value);
+    case 181:
+      return reduce_to_centered_fixed_i32<181>(value);
+    case 179:
+      return reduce_to_centered_fixed_i32<179>(value);
+    case 173:
+      return reduce_to_centered_fixed_i32<173>(value);
+    case 167:
+      return reduce_to_centered_fixed_i32<167>(value);
+    case 163:
+      return reduce_to_centered_fixed_i32<163>(value);
+    case 157:
+      return reduce_to_centered_fixed_i32<157>(value);
+    case 151:
+      return reduce_to_centered_fixed_i32<151>(value);
+    case 149:
+      return reduce_to_centered_fixed_i32<149>(value);
+    case 139:
+      return reduce_to_centered_fixed_i32<139>(value);
+    case 137:
+      return reduce_to_centered_fixed_i32<137>(value);
+    case 131:
+      return reduce_to_centered_fixed_i32<131>(value);
+    case 127:
+      return reduce_to_centered_fixed_i32<127>(value);
+    default:
+      return 0;
   }
 }
 

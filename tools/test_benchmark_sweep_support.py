@@ -278,6 +278,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         vector["configured_amdgpu_targets"] = capture["configured_amdgpu_targets"]
         vector["hip_toolchain"] = copy.deepcopy(capture["hip_toolchain"])
         vector["device"] = copy.deepcopy(capture["device"])
+        vector["checksum_u64"] = capture["checksum_u64"]
         apply_accumulator_safety(vector, vector_accumulator_safety(vector))
         vector["backend_metadata"]["autotune_key"] = (
             "backend=hip-vector-alu-int64;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
