@@ -9,6 +9,7 @@ from typing import Any
 
 from .capture_metadata import (
     backend_id,
+    backend_family_id,
     candidate_source_metadata,
     backend_requires_gpu_target,
     capture_backend_metadata,
@@ -50,6 +51,19 @@ def required_baselines(semantics: Any) -> list[str]:
 
 REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
 GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
+CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
+
+
+def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
+    if backend_family_id(backend_id(capture)) not in CORRECTNESS_ANCHOR_REFERENCE_BACKENDS:
+        return False
+    cpu_parallel = capture.get("cpu_parallel")
+    if not isinstance(cpu_parallel, dict):
+        return False
+    return (
+        cpu_parallel.get("correctness_anchor") is True
+        or cpu_parallel.get("reference_mode") == "correctness-anchor"
+    )
 
 
 def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
@@ -387,17 +401,30 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
         git_commit_identity_complete = not missing_git_commits
         git_commit_values = {commit for commit in git_commits.values() if commit}
         git_commit_identity_compatible = git_commit_identity_complete and len(git_commit_values) <= 1
-        warmup_counts = {backend: normalized_positive_int(capture.get("warmups")) for backend, capture in by_backend.items()}
+        release_timing_by_backend = {
+            backend: capture
+            for backend, capture in by_backend.items()
+            if not correctness_anchor_reference_capture(capture)
+        }
+        warmup_counts = {
+            backend: normalized_positive_int(capture.get("warmups"))
+            for backend, capture in release_timing_by_backend.items()
+        }
         missing_warmup_counts = sorted(backend for backend, count in warmup_counts.items() if count is None)
         warmup_count_complete = not missing_warmup_counts
         warmup_count_values = {count for count in warmup_counts.values() if count}
         warmup_count_compatible = warmup_count_complete and len(warmup_count_values) <= 1
-        repeat_counts = {backend: normalized_positive_int(capture.get("repeats")) for backend, capture in by_backend.items()}
+        repeat_counts = {
+            backend: normalized_positive_int(capture.get("repeats"))
+            for backend, capture in release_timing_by_backend.items()
+        }
         missing_repeat_counts = sorted(backend for backend, count in repeat_counts.items() if count is None)
         repeat_count_complete = not missing_repeat_counts
         repeat_count_values = {count for count in repeat_counts.values() if count}
         repeat_count_compatible = repeat_count_complete and len(repeat_count_values) <= 1
-        release_review_satisfied = review_mode == "release" and all(release_capture_satisfied(item) for item in items)
+        release_review_satisfied = review_mode == "release" and bool(release_timing_by_backend) and all(
+            release_capture_satisfied(item) for item in release_timing_by_backend.values()
+        )
         checksum_by_backend = {backend: capture_checksum(capture) for backend, capture in by_backend.items()}
         checksum_reference_backend, checksum_reference = reference_checksum_for_group(by_backend)
         missing_checksums = sorted(backend for backend, checksum in checksum_by_backend.items() if checksum is None)
@@ -425,7 +452,12 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             host_api_batch_capture = execution_mode == "benchmark_host_api_batch"
             hip_graph_replay_capture = execution_mode == "hip_graph_replay_resident_rns_chain"
             end_to_end = median_phase(item, "end_to_end")
-            cpu = median_phase(cpu_capture, "end_to_end") if cpu_capture else None
+            timed_cpu_capture = (
+                cpu_capture
+                if cpu_capture is not None and not correctness_anchor_reference_capture(cpu_capture)
+                else None
+            )
+            cpu = median_phase(timed_cpu_capture, "end_to_end") if timed_cpu_capture else None
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
             blockers = promotion_blockers(

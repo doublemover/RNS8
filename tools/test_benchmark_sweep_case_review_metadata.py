@@ -120,6 +120,26 @@ assert cpu_faster_report["promotable_autotune_entries"] == []
 assert cpu_faster_group["fastest_promotable"] is None
 cpu_faster_candidate = next(item for item in cpu_faster_group["candidates"] if item["backend"] == "ck")
 assert "not_faster_than_cpu_reference" in cpu_faster_candidate["promotion_blockers"]
+
+cpu_anchor = finite_capture("cpu-reference", 100)
+cpu_anchor["warmups"] = 0
+cpu_anchor["repeats"] = 1
+cpu_anchor["cpu_parallel"] = {
+    "reference_mode": "correctness-anchor",
+    "correctness_anchor": True,
+    "timed_cpu_baseline": False,
+}
+anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
+anchor_group = anchor_report["groups"][0]
+anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
+assert anchor_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert anchor_group["release_review_satisfied"] is True
+assert "cpu-reference" not in anchor_group["warmup_counts"]
+assert "cpu-reference" not in anchor_group["repeat_counts"]
+assert "not_release_review" not in anchor_ck_candidate["promotion_blockers"]
+assert "missing_warmup_count" not in anchor_ck_candidate["promotion_blockers"]
+assert "repeat_count_mismatch" not in anchor_ck_candidate["promotion_blockers"]
+assert "not_faster_than_cpu_reference" not in anchor_ck_candidate["promotion_blockers"]
 assert group["missing_hip_driver_versions"] == []
 assert group["hip_driver_version_complete"] is True
 assert group["hip_driver_version_compatible"] is True
