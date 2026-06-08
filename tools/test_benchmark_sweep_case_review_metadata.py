@@ -110,6 +110,26 @@ assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candi
 amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
 assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
 
+amdgpu_wrong_isa_index = {
+    "amdgpu-builtins|gfx1100": [
+        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu4": 4}},
+    ],
+}
+amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
+    [amdgpu, direct, cpu],
+    review_mode="release",
+    isa_index=amdgpu_wrong_isa_index,
+)
+amdgpu_wrong_isa_group = amdgpu_wrong_isa_report["groups"][0]
+amdgpu_wrong_isa_candidate = next(
+    item for item in amdgpu_wrong_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_wrong_isa_candidate["promotion_blockers"]
+assert "missing_selected_amdgpu_builtin_matrix_instruction" in amdgpu_wrong_isa_candidate["promotion_blockers"]
+assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
+amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
+assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
+
 amdgpu_isa_index = {
     "amdgpu-builtins|gfx1100": [
         {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu8": 4}},
@@ -125,7 +145,9 @@ amdgpu_with_isa_candidate = next(
     item for item in amdgpu_with_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
 )
 assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_candidate["promotion_blockers"]
+assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
 assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
+assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
 assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
 
 summary_fixture_group = {

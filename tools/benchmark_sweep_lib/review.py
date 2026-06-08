@@ -87,6 +87,36 @@ def requires_amdgpu_builtin_matrix_isa_proof(backend_family: str, metadata: dict
     return backend_family == "amdgpu-builtins" and isinstance(family, str) and family in AMDGPU_BUILTIN_MATRIX_FAMILIES
 
 
+def expected_amdgpu_builtin_matrix_mnemonic(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+    kernel = str(selected_kernel(capture) or metadata.get("selected_kernel") or "")
+    kernel_tokens = (
+        ("smfmac_i32_32x32x32_i8", "v_smfmac_i32_32x32x32_i8"),
+        ("smfmac_i32_16x16x64_i8", "v_smfmac_i32_16x16x64_i8"),
+        ("mfma_i32_32x32x16_i8", "v_mfma_i32_32x32x16_i8"),
+        ("mfma_i32_16x16x32_i8", "v_mfma_i32_16x16x32_i8"),
+        ("swmmac_i32_16x16x32_iu4", "v_swmmac_i32_16x16x32_iu4"),
+        ("swmmac_i32_16x16x32_iu8", "v_swmmac_i32_16x16x32_iu8"),
+        ("wmma_i32_16x16x16_iu4", "v_wmma_i32_16x16x16_iu4"),
+        ("wmma_i32_16x16x16_iu8", "v_wmma_i32_16x16x16_iu8"),
+    )
+    for token, mnemonic in kernel_tokens:
+        if token in kernel:
+            return mnemonic
+    family = metadata.get("matrix_instruction_family")
+    shape = metadata.get("matrix_instruction_shape")
+    dtype = metadata.get("matrix_instruction_dtype")
+    if (
+        isinstance(family, str)
+        and family in AMDGPU_BUILTIN_MATRIX_FAMILIES
+        and isinstance(shape, str)
+        and shape
+        and isinstance(dtype, str)
+        and dtype
+    ):
+        return f"v_{family}_i32_{shape}_{dtype}"
+    return None
+
+
 def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
     if backend_family_id(backend_id(capture)) not in CORRECTNESS_ANCHOR_REFERENCE_BACKENDS:
         return False
@@ -277,6 +307,10 @@ def review_next_work(
         ("graph_not_faster_than_non_graph_setup_inclusive", "improve_graph_replay_break_even_or_keep_graph_benchmark_only"),
         ("missing_graph_setup_inclusive_timing", "fix_graph_setup_inclusive_timing_metadata"),
         ("missing_amdgpu_builtin_matrix_isa_histogram", "attach_compiled_matrix_isa_reports_before_builtin_promotion"),
+        (
+            "missing_selected_amdgpu_builtin_matrix_instruction",
+            "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction",
+        ),
         ("not_faster_than_direct_hip", "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner"),
         ("not_faster_than_vector_alu", "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion"),
     ]:
@@ -1301,8 +1335,16 @@ def review_captures(
                     blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
-            if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata) and not matrix_histogram:
-                blockers.append("missing_amdgpu_builtin_matrix_isa_histogram")
+            expected_matrix_mnemonic = expected_amdgpu_builtin_matrix_mnemonic(item, metadata)
+            if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata):
+                if not matrix_histogram:
+                    blockers.append("missing_amdgpu_builtin_matrix_isa_histogram")
+                elif (
+                    not isinstance(expected_matrix_mnemonic, str)
+                    or not expected_matrix_mnemonic
+                    or matrix_histogram.get(expected_matrix_mnemonic, 0) <= 0
+                ):
+                    blockers.append("missing_selected_amdgpu_builtin_matrix_instruction")
             item_checksum = capture_checksum(item)
             if item_checksum is None:
                 blockers.append("missing_checksum")
@@ -1359,6 +1401,7 @@ def review_captures(
                 "matrix_instruction_shape": metadata.get("matrix_instruction_shape"),
                 "matrix_instruction_dtype": metadata.get("matrix_instruction_dtype"),
                 "matrix_instruction_sparsity": metadata.get("matrix_instruction_sparsity"),
+                "expected_matrix_instruction_mnemonic": expected_matrix_mnemonic,
                 "promotable": promotable,
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",

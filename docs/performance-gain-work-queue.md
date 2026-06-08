@@ -392,7 +392,10 @@ inspection commands.
   deeper CDNA/RDNA tile tuning. Release review now blocks AMDGPU builtin
   matrix-core promotion with `missing_amdgpu_builtin_matrix_isa_histogram`
   unless a compiled ISA sidecar supplies an exact MFMA/WMMA/SMFMAC/SWMMAC
-  histogram for the selected target/backend.
+  histogram for the selected target/backend. Review also checks the selected
+  builtin kernel against the expected matrix instruction mnemonic, so a
+  `16x16x32` MFMA route cannot be certified by a different WMMA/SMFMAC/SWMMAC
+  histogram or by the wrong dense/sparse instruction shape.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
