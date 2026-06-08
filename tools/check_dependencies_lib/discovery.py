@@ -317,29 +317,39 @@ def parse_rocminfo_details(output: str) -> dict[str, str]:
     }
 
 
+def rocminfo_report(previous_report: dict[str, object] | None = None) -> dict[str, object] | None:
+    rocminfo = find_command("rocminfo")
+    if not rocminfo:
+        return None
+    code, output = run([rocminfo], timeout=30)
+    details = parse_rocminfo_details(output)
+    target = details["target"]
+    report: dict[str, object] = {
+        "ok": code == 0 and bool(target),
+        "detail": (
+            ", ".join(part for part in [details["gpu_name"], details["gcn_arch"]] if part)
+            or "no ROCm GPU details parsed"
+        ),
+        "exit_code": code,
+        "gpu_name": details["gpu_name"],
+        "gcn_arch": details["gcn_arch"],
+        "target": target,
+        "target_supported_by_spec": target in SUPPORTED_TARGETS,
+        "target_info": SUPPORTED_TARGETS.get(target),
+        "hip_version": "",
+        "runtime_version": "",
+        "source": "rocminfo",
+    }
+    if previous_report is not None:
+        report["fallback_from"] = previous_report
+    return report
+
+
 def hip_info_report(path: str | None) -> dict[str, object]:
     if not path and platform.system() == "Linux":
-        rocminfo = find_command("rocminfo")
-        if rocminfo:
-            code, output = run([rocminfo], timeout=30)
-            details = parse_rocminfo_details(output)
-            target = details["target"]
-            return {
-                "ok": code == 0 and bool(target),
-                "detail": (
-                    ", ".join(part for part in [details["gpu_name"], details["gcn_arch"]] if part)
-                    or "no ROCm GPU details parsed"
-                ),
-                "exit_code": code,
-                "gpu_name": details["gpu_name"],
-                "gcn_arch": details["gcn_arch"],
-                "target": target,
-                "target_supported_by_spec": target in SUPPORTED_TARGETS,
-                "target_info": SUPPORTED_TARGETS.get(target),
-                "hip_version": "",
-                "runtime_version": "",
-                "source": "rocminfo",
-            }
+        report = rocminfo_report()
+        if report is not None:
+            return report
     if not path:
         return {
             "ok": False,
@@ -352,7 +362,7 @@ def hip_info_report(path: str | None) -> dict[str, object]:
     code, output = run([path], timeout=30)
     details = parse_hip_info_details(output)
     target = details["gcn_arch"].split(":", 1)[0].strip()
-    return {
+    report = {
         "ok": code == 0 and bool(target),
         "detail": parse_hip_info_summary(output),
         "exit_code": code,
@@ -365,6 +375,13 @@ def hip_info_report(path: str | None) -> dict[str, object]:
         "runtime_version": details["runtime_version"],
         "source": "hipInfo",
     }
+    if platform.system() == "Linux" and (
+        report["ok"] is not True or report["target_supported_by_spec"] is not True
+    ):
+        fallback = rocminfo_report(report)
+        if fallback is not None and fallback["ok"] is True:
+            return fallback
+    return report
 
 
 def find_msvc() -> str | None:

@@ -59,6 +59,24 @@ Agent 2:
         hip_info = deps.hip_info_report(None)
     expect(hip_info["ok"] is True, "Linux GPU architecture detection must fall back to rocminfo when hipInfo is absent")
     expect(hip_info["target"] == "gfx942", "rocminfo fallback must produce a supported base target id")
+    with (
+        patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"),
+        patch(
+            "check_dependencies_lib.discovery.find_command",
+            side_effect=lambda name: "/opt/rocm/bin/rocminfo" if name == "rocminfo" else None,
+        ),
+        patch(
+            "check_dependencies_lib.discovery.run",
+            side_effect=[
+                (0, "HIP version: 7.2.0\nno HIP device details parsed"),
+                (0, rocminfo_output),
+            ],
+        ),
+    ):
+        hip_info = deps.hip_info_report("/opt/rocm/bin/hipInfo")
+    expect(hip_info["ok"] is True, "Linux GPU architecture detection must fall back to rocminfo when hipInfo is unusable")
+    expect(hip_info["source"] == "rocminfo", "Linux unusable hipInfo fallback must report rocminfo as the source")
+    expect(hip_info["target"] == "gfx942", "Linux unusable hipInfo fallback must produce a supported base target id")
     with patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"):
         linux_ck_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("ck")]
         linux_rocwmma_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("rocwmma")]

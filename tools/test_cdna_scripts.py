@@ -145,6 +145,9 @@ def main() -> int:
     )
     first_status = json.loads((REPO_ROOT / first_pass / "target-status.json").read_text(encoding="utf-8"))
     assert first_status["records"][0]["device_index"] == 0
+    assert first_status["records"][0]["validation"]["dependency_check"] == "planned"
+    assert first_status["records"][0]["dependency_check"]["status"] == "planned"
+    assert "required_gate_failures" in first_status["records"][0]["dependency_check"]
     assert (REPO_ROOT / first_pass / "env" / "cdna-env-summary.json").exists()
     first_plan = (REPO_ROOT / first_pass / "command-plan.txt").read_text(encoding="utf-8")
     assert "--scenario vector-to-rns-chain" in first_plan

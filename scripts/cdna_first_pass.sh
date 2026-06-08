@@ -43,6 +43,7 @@ cdna_repo_run_artifact_command env_probe "${SCRIPT_DIR}/cdna_env_probe.sh" "${EN
 
 cdna_note_command check_dependencies_json "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes"
 DEPS_STATUS="not_run"
+DEPS_EXIT_CODE=0
 if [[ "${CDNA_DRY_RUN}" -eq 1 ]]; then
   printf '{"dry_run": true, "accelerator_probes": "planned"}\n' >"${DEPS_JSON}"
   DEPS_STATUS="planned"
@@ -50,6 +51,7 @@ else
   if (cd "${CDNA_REPO_ROOT}" && "${PYTHON_BIN}" tools/check_dependencies.py --json --accelerator-probes --accelerator-probe-dir "${CDNA_OUT_DIR}/dependency-probes") >"${DEPS_JSON}"; then
     DEPS_STATUS="pass"
   else
+    DEPS_EXIT_CODE=$?
     DEPS_STATUS="$("${PYTHON_BIN}" - "${DEPS_JSON}" <<'PY'
 from __future__ import annotations
 
@@ -70,6 +72,9 @@ if not isinstance(readiness, dict):
 gates = readiness.get("gates")
 if not isinstance(gates, dict):
     print("fail")
+    raise SystemExit(0)
+if readiness.get("host_readiness_ok") is True:
+    print("pass")
     raise SystemExit(0)
 required_failures = []
 for name, gate in gates.items():
@@ -135,7 +140,9 @@ CDNA_BUILD_STATUS="${BUILD_STATUS}" \
 CDNA_CTEST_STATUS="${CTEST_STATUS}" \
 CDNA_SMOKE_STATUS="${SMOKE_STATUS}" \
 CDNA_CAPTURE_STATUS="${CAPTURE_STATUS}" \
+CDNA_DEPS_JSON="${DEPS_JSON}" \
 CDNA_DEPS_STATUS="${DEPS_STATUS}" \
+CDNA_DEPS_EXIT_CODE="${DEPS_EXIT_CODE}" \
 "${PYTHON_BIN}" - <<'PY'
 from __future__ import annotations
 
@@ -158,6 +165,12 @@ except OSError:
     capture = {}
 except json.JSONDecodeError:
     capture = {}
+try:
+    deps = json.loads(Path(os.environ["CDNA_DEPS_JSON"]).read_text(encoding="utf-8"))
+except OSError:
+    deps = {}
+except json.JSONDecodeError:
+    deps = {}
 
 targets = summary.get("rocminfo_gfx_targets") or []
 names = summary.get("smi_device_names") or []
@@ -172,6 +185,19 @@ physical_devices = {
     for item in summary.get("physical_devices", [])
     if isinstance(item, dict) and item.get("physical_device_id") is not None
 }
+dependency_failures = []
+dependency_readiness = deps.get("readiness") if isinstance(deps, dict) else {}
+if not isinstance(dependency_readiness, dict):
+    dependency_readiness = {}
+dependency_gates = dependency_readiness.get("gates")
+if isinstance(dependency_gates, dict):
+    for name, gate in dependency_gates.items():
+        if (
+            isinstance(gate, dict)
+            and gate.get("required_for_host_readiness") is True
+            and gate.get("ok") is not True
+        ):
+            dependency_failures.append(str(name))
 physical = physical_devices.get(str(device), {})
 physical_device_id = int(device) if device.isdigit() else device
 toolchain_version = (
@@ -205,6 +231,12 @@ record = {
     "rccl_ready": summary.get("rccl_ready"),
     "rccl_tests_ready": summary.get("rccl_tests_ready"),
     "configured_amdgpu_targets": "gfx90a;gfx942;gfx950",
+    "dependency_check": {
+        "status": os.environ["CDNA_DEPS_STATUS"],
+        "checker_exit_code": int(os.environ["CDNA_DEPS_EXIT_CODE"]),
+        "host_readiness_ok": dependency_readiness.get("host_readiness_ok"),
+        "required_gate_failures": dependency_failures,
+    },
     "validation": {
         "dependency_check": os.environ["CDNA_DEPS_STATUS"],
         "build": os.environ["CDNA_BUILD_STATUS"],
