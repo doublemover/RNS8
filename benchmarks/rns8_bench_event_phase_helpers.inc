@@ -324,7 +324,7 @@ std::vector<std::string> gpu_event_phase_order(
       phases.push_back("crt_export");
       return phases;
     }
-    std::vector<std::string> phases = args.sparse_a_4_to_2
+    std::vector<std::string> phases = args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline
         ? std::vector<std::string>{
               "sparse_a_values_h2d", "sparse_a_indices_h2d", "finite_pack_h2d", "finite_pack_kernel", "pack"}
         : direct_hip_pack_event_phases(args, selected_backend, true);

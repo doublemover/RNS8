@@ -187,6 +187,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
     scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
     scenario_args.sparse_a_4_to_2 = item.sparse_a_4_to_2
+    scenario_args.sparse_a_4_to_2_dense_baseline = item.sparse_a_4_to_2_dense_baseline
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
     scenario_args.max_prefix = item.max_prefix if item.max_prefix is not None else getattr(args, "max_prefix", None)
     scenario_args.bound_source = item.bound_source or getattr(args, "bound_source", None)
@@ -304,6 +305,7 @@ def scenario_metadata(
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
         "sparse_a_4_to_2": item.sparse_a_4_to_2,
+        "sparse_a_4_to_2_dense_baseline": item.sparse_a_4_to_2_dense_baseline,
         "next_op_hint": item.next_op_hint,
         "residue_channel_fusion": item.residue_channel_fusion,
         "modulus_set": item.modulus_set,
@@ -402,6 +404,7 @@ def capture_name(
     oneshot: bool = False,
     residue_chain_independent_final_export: bool = False,
     sparse_a_4_to_2: bool = False,
+    sparse_a_4_to_2_dense_baseline: bool = False,
 ) -> str:
     parts = [semantics, case.name, f"{case.m}x{case.n}x{case.k}"]
     if modulus is not None:
@@ -424,6 +427,8 @@ def capture_name(
         parts.append("oneshot")
     if sparse_a_4_to_2:
         parts.append("sparse-a-4to2")
+    if sparse_a_4_to_2_dense_baseline:
+        parts.append("dense-baseline")
     if pack_mode == "prepacked_reuse":
         parts.append("reuse-packed")
     elif pack_mode == "prepacked_reuse_a":
@@ -533,6 +538,8 @@ def command_for(
             command.append("--vector-to-rns-chain")
     if getattr(args, "sparse_a_4_to_2", False):
         command.append("--sparse-a-4-to-2")
+    if getattr(args, "sparse_a_4_to_2_dense_baseline", False):
+        command.append("--sparse-a-4-to-2-dense-baseline")
     modulus_set = getattr(args, "modulus_set", "default")
     if modulus_set and modulus_set != "default":
         command.extend(["--modulus-set", modulus_set])
@@ -937,6 +944,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         oneshot=item.oneshot,
                         residue_chain_independent_final_export=item.residue_chain_independent_final_export,
                         sparse_a_4_to_2=item.sparse_a_4_to_2,
+                        sparse_a_4_to_2_dense_baseline=item.sparse_a_4_to_2_dense_baseline,
                     )
                     name = f"{item.family}-{item.name}-{base_name}"
                     command = command_for(

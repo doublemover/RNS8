@@ -153,6 +153,12 @@ def backend_id(capture: dict[str, Any]) -> str:
     if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
         return WRAP64_ROCWMMA_CANDIDATE_BACKEND
     backend = str(capture.get("backend_selected"))
+    scenario = capture.get("scenario_metadata")
+    sparse_input = isinstance(scenario, dict) and scenario.get("sparse_a_4_to_2") is True
+    if sparse_input and scenario.get("sparse_a_4_to_2_dense_baseline") is True:
+        return f"{backend}-dense-sparse-a-input"
+    if sparse_input and "sparse_a" in selected_kernel(capture):
+        return f"{backend}-sparse-a-runtime"
     execution_mode = capture_execution_mode(capture)
     if execution_mode == "public_oneshot_transient_native_inputs":
         return f"{backend}-oneshot"

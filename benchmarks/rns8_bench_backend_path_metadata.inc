@@ -70,7 +70,8 @@ bool finite_native_a_reuse_b_path(const Args& args, const BenchmarkResult& resul
 }
 
 bool finite_sparse_a_4_to_2_path(const Args& args, const BenchmarkResult& result) {
-  return args.sparse_a_4_to_2 && finite_benchmark_semantics(args.semantics) &&
+  return args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline &&
+         finite_benchmark_semantics(args.semantics) &&
          result.backend_info_available &&
          (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE ||
           result.backend_info.backend == RNS8_BACKEND_AMDGPU_BUILTINS);

@@ -79,6 +79,7 @@ class ScenarioItem:
     vector_to_rns_chain: bool = False
     vector_to_rns_chain_host_repack_control: bool = False
     sparse_a_4_to_2: bool = False
+    sparse_a_4_to_2_dense_baseline: bool = False
     prefix_policy: str | None = None
     max_prefix: int | None = None
     bound_source: str | None = None

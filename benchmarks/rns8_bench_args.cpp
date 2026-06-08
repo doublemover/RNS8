@@ -357,6 +357,9 @@ Args parse_args(int argc, char** argv) {
       args.vector_to_rns_chain_host_repack_control = true;
     } else if (arg == "--sparse-a-4-to-2" || arg == "--sparse-a-4to2") {
       args.sparse_a_4_to_2 = true;
+    } else if (arg == "--sparse-a-4-to-2-dense-baseline" || arg == "--sparse-a-4to2-dense-baseline") {
+      args.sparse_a_4_to_2 = true;
+      args.sparse_a_4_to_2_dense_baseline = true;
     } else if (arg == "--reuse-packed-inputs") {
       args.reuse_packed_inputs = true;
       args.reuse_packed_a = true;
@@ -415,6 +418,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--vector-to-rns-chain]\n"
           << "                  [--vector-to-rns-chain-host-repack-control]\n"
           << "                  [--sparse-a-4-to-2]\n"
+          << "                  [--sparse-a-4-to-2-dense-baseline]\n"
           << "                  [--reuse-packed-inputs|--reuse-packed-a|--reuse-packed-b]\n"
           << "                  [--write-autotune-cache]\n"
           << "                  [--cpu-threads N]\n"
@@ -462,6 +466,9 @@ Args parse_args(int argc, char** argv) {
     }
     if (args.k % 4 != 0) {
       usage_error("--sparse-a-4-to-2 requires K divisible by 4");
+    }
+    if (args.sparse_a_4_to_2_dense_baseline && args.backend == RNS8_BACKEND_CPU_REFERENCE) {
+      usage_error("--sparse-a-4-to-2-dense-baseline requires a GPU dense baseline backend");
     }
     if (args.backend != RNS8_BACKEND_CPU_REFERENCE && args.backend != RNS8_BACKEND_HIP_DIRECT &&
         args.backend != RNS8_BACKEND_HIPBLASLT && args.backend != RNS8_BACKEND_CK &&

@@ -162,7 +162,8 @@ bool collect_direct_hip_grouped_dispatch_pack_gpu_events(
 
 void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backend, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  if (args.sparse_a_4_to_2 && finite_benchmark_semantics(args.semantics)) {
+  if (args.sparse_a_4_to_2 && !args.sparse_a_4_to_2_dense_baseline &&
+      finite_benchmark_semantics(args.semantics)) {
     const double sparse_values_h2d = sum_event_label(events, samples, "pack", "sparse_a_values_h2d");
     const double sparse_indices_h2d = sum_event_label(events, samples, "pack", "sparse_a_indices_h2d");
     const double dense_b_h2d = sum_event_label(events, samples, "pack", "finite_pack_h2d");

@@ -227,6 +227,18 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("expected invalid sparse-A K shape to fail validation")
 
+    bad_item = copy.deepcopy(payload["items"][0])
+    bad_item["sparse_a_4_to_2"] = False
+    bad_item["sparse_a_4_to_2_dense_baseline"] = True
+    payload["items"] = [bad_item]
+    scenario_path.write_text(json.dumps(payload), encoding="utf-8")
+    try:
+        benchmark_sweep.load_scenario_data_family(scenario_path)
+    except SystemExit as exc:
+        assert "sparse_a_4_to_2_dense_baseline requires sparse_a_4_to_2=true" in str(exc)
+    else:
+        raise AssertionError("expected sparse-A dense baseline without sparse input to fail validation")
+
 fusion_item = catalog["residue-channel-fusion"][0]
 assert fusion_item.residue_channel_fusion is True
 assert fusion_item.next_op_hint == "final-export"
@@ -473,6 +485,40 @@ sparse_command = benchmark_sweep.command_for(
 assert "--sparse-a-4-to-2" in sparse_command
 assert "--modulus" in sparse_command and "251" in sparse_command
 assert sparse_item.metadata["sparse_contract"] == "a_4_to_2_structured_k_v1"
+dense_sparse_item = next(item for item in catalog["sparse-a-4-to-2"] if item.sparse_a_4_to_2_dense_baseline)
+dense_sparse_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, dense_sparse_item)
+dense_sparse_command = benchmark_sweep.command_for(
+    Path("rns8-bench"),
+    "amdgpu-builtins",
+    dense_sparse_item.semantics,
+    dense_sparse_item.case,
+    251,
+    None,
+    dense_sparse_args,
+)
+assert "--sparse-a-4-to-2" in dense_sparse_command
+assert "--sparse-a-4-to-2-dense-baseline" in dense_sparse_command
+assert dense_sparse_item.metadata["dense_baseline_role"] == "same_expanded_sparse_input_amdgpu_builtin_dense"
+assert (
+    benchmark_sweep.backend_id(
+        {
+            "backend_selected": "amdgpu-builtins",
+            "selected_kernel": "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+            "scenario_metadata": {"sparse_a_4_to_2": True},
+        }
+    )
+    == "amdgpu-builtins-sparse-a-runtime"
+)
+assert (
+    benchmark_sweep.backend_id(
+        {
+            "backend_selected": "amdgpu-builtins",
+            "selected_kernel": "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+            "scenario_metadata": {"sparse_a_4_to_2": True, "sparse_a_4_to_2_dense_baseline": True},
+        }
+    )
+    == "amdgpu-builtins-dense-sparse-a-input"
+)
 
 with tempfile.TemporaryDirectory() as temp_dir:
     capture_path = Path(temp_dir) / "capture.json"

@@ -290,6 +290,12 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 default=False,
             ),
             sparse_a_4_to_2=_bool_or_default(raw, "sparse_a_4_to_2", label=label, default=False),
+            sparse_a_4_to_2_dense_baseline=_bool_or_default(
+                raw,
+                "sparse_a_4_to_2_dense_baseline",
+                label=label,
+                default=False,
+            ),
             prefix_policy=_optional_string(raw, "prefix_policy", label=label),
             max_prefix=_optional_int(raw, "max_prefix", label=label),
             bound_source=_optional_string(raw, "bound_source", label=label),
@@ -367,6 +373,10 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 raise SystemExit(
                     f"{label}.sparse_a_4_to_2 supports only persistent single-capture scenarios in this pass"
                 )
+        elif item.sparse_a_4_to_2_dense_baseline:
+            raise SystemExit(f"{label}.sparse_a_4_to_2_dense_baseline requires sparse_a_4_to_2=true")
+        if item.sparse_a_4_to_2_dense_baseline and item.backends and "cpu" in item.backends:
+            raise SystemExit(f"{label}.sparse_a_4_to_2_dense_baseline requires GPU dense baseline backends")
         _validate_fixed_prefix_static_host_export(item, label=label)
         items.append(item)
     return items
