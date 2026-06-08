@@ -79,6 +79,12 @@ GRAPH_REPLAY_EXECUTION_MODES = {
     "hip_graph_replay_finite_u8_pack_gemm_export",
     "hip_graph_replay_wrap64_pack_gemm_export",
 }
+AMDGPU_BUILTIN_MATRIX_FAMILIES = {"mfma", "smfmac", "wmma", "swmmac"}
+
+
+def requires_amdgpu_builtin_matrix_isa_proof(backend_family: str, metadata: dict[str, Any]) -> bool:
+    family = metadata.get("matrix_instruction_family")
+    return backend_family == "amdgpu-builtins" and isinstance(family, str) and family in AMDGPU_BUILTIN_MATRIX_FAMILIES
 
 
 def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
@@ -1251,6 +1257,7 @@ def review_captures(
                 if hip_graph_replay_capture
                 else None
             )
+            matrix_histogram = matrix_instruction_histogram(item, isa_index)
             if autotune_promotable_scope(item):
                 blockers = promotion_blockers(
                     missing=missing,
@@ -1293,6 +1300,8 @@ def review_captures(
                     blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
+            if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata) and not matrix_histogram:
+                blockers.append("missing_amdgpu_builtin_matrix_isa_histogram")
             item_checksum = capture_checksum(item)
             if item_checksum is None:
                 blockers.append("missing_checksum")
@@ -1344,7 +1353,7 @@ def review_captures(
                     else None
                 ),
                 "hip_graph_replay_review": graph_review,
-                "matrix_instruction_histogram": matrix_instruction_histogram(item, isa_index),
+                "matrix_instruction_histogram": matrix_histogram,
                 "matrix_instruction_family": metadata.get("matrix_instruction_family"),
                 "matrix_instruction_shape": metadata.get("matrix_instruction_shape"),
                 "matrix_instruction_dtype": metadata.get("matrix_instruction_dtype"),

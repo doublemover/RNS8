@@ -377,7 +377,10 @@ inspection commands.
   epilogue. Dense bounded and finite-u8 AMDGPU builtin differential coverage
   now includes non-multiple M/N/K shapes, so matrix-core tile tails,
   finite-output tails, and K-tail zero-padding are checked against CPU before
-  deeper CDNA/RDNA tile tuning.
+  deeper CDNA/RDNA tile tuning. Release review now blocks AMDGPU builtin
+  matrix-core promotion with `missing_amdgpu_builtin_matrix_isa_histogram`
+  unless a compiled ISA sidecar supplies an exact MFMA/WMMA/SMFMAC/SWMMAC
+  histogram for the selected target/backend.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 

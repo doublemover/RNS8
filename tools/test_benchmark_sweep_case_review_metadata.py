@@ -70,6 +70,62 @@ assert group["checksum_reference"] == 987654321
 assert group["checksum_consistent"] is True
 assert group["checksum_mismatches"] == []
 
+amdgpu = finite_capture("ck", 100)
+amdgpu_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"
+amdgpu["backend_requested"] = "amdgpu-builtins"
+amdgpu["backend_selected"] = "amdgpu-builtins"
+amdgpu["selected_kernel"] = amdgpu_kernel
+amdgpu_metadata = amdgpu["backend_metadata"]
+amdgpu_metadata["selected_kernel"] = amdgpu_kernel
+amdgpu_metadata["accelerator_backend"] = True
+amdgpu_metadata["correctness_backend"] = True
+amdgpu_metadata["matrix_engine_backend"] = True
+amdgpu_metadata["accelerator_library"] = "AMDGPU builtins"
+amdgpu_metadata["accelerator_version"] = "compiled_target_specific"
+amdgpu_metadata["capability_status"] = "implemented_opt_in_amdgpu_builtin_backend"
+amdgpu_metadata["epilogue_mode"] = "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
+amdgpu_metadata["workspace_mode"] = "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
+amdgpu_metadata["isa_evidence"] = "amdgpu_builtin_matrix_isa_gate_no_divide"
+amdgpu_metadata["matrix_instruction_family"] = "wmma"
+amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
+amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
+amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
+amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
+    amdgpu_metadata["autotune_key"]
+    .replace("backend=ck", "backend=amdgpu-builtins")
+    .replace("kernel=ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2", f"kernel={amdgpu_kernel}")
+    .replace(
+        "epilogue=ck_fused_centered_residue_then_canonical_u8_export",
+        "epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
+    ),
+    amdgpu,
+)
+amdgpu_missing_isa_report = benchmark_sweep.review_captures([amdgpu, direct, cpu], review_mode="release")
+amdgpu_missing_isa_group = amdgpu_missing_isa_report["groups"][0]
+amdgpu_missing_isa_candidate = next(
+    item for item in amdgpu_missing_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert amdgpu_missing_isa_report["promotable_autotune_entries"] == []
+assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candidate["promotion_blockers"]
+
+amdgpu_isa_index = {
+    "amdgpu-builtins|gfx1100": [
+        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu8": 4}},
+    ],
+}
+amdgpu_with_isa_report = benchmark_sweep.review_captures(
+    [amdgpu, direct, cpu],
+    review_mode="release",
+    isa_index=amdgpu_isa_index,
+)
+amdgpu_with_isa_group = amdgpu_with_isa_report["groups"][0]
+amdgpu_with_isa_candidate = next(
+    item for item in amdgpu_with_isa_group["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_candidate["promotion_blockers"]
+assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
+assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
+
 summary_fixture_group = {
     "semantics": "bounded_i64",
     "shape": {"m": 64, "n": 64, "k": 64},
