@@ -66,6 +66,11 @@ def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
     )
 
 
+def autotune_promotable_scope(capture: dict[str, Any]) -> bool:
+    scope = capture_scenario_promotion_scope(capture)
+    return scope is None or scope == "release_review_candidate"
+
+
 def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
     if not items:
         return False
@@ -76,6 +81,8 @@ def reuse_evidence_group(items: list[dict[str, Any]]) -> bool:
 
 
 def required_baselines_for_group(semantics: Any, items: list[dict[str, Any]]) -> list[str]:
+    if not any(autotune_promotable_scope(item) for item in items):
+        return []
     if reuse_evidence_group(items):
         return []
     scopes = {capture_scenario_promotion_scope(item) for item in items}
@@ -460,41 +467,44 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
             cpu = median_phase(timed_cpu_capture, "end_to_end") if timed_cpu_capture else None
             direct = median_phase(direct_capture, "end_to_end") if direct_capture else None
             vector = median_phase(vector_capture, "end_to_end") if vector_capture else None
-            blockers = promotion_blockers(
-                missing=missing,
-                semantics=semantics,
-                release_review_satisfied=release_review_satisfied,
-                gpu_target_identity_complete=gpu_target_identity_complete,
-                gpu_target_compatible=gpu_target_compatible,
-                configured_target_identity_complete=configured_target_identity_complete,
-                configured_target_compatible=configured_target_compatible,
-                hip_toolchain_version_complete=hip_toolchain_version_complete,
-                hip_toolchain_version_compatible=hip_toolchain_version_compatible,
-                hip_runtime_version_complete=hip_runtime_version_complete,
-                hip_runtime_version_compatible=hip_runtime_version_compatible,
-                hip_driver_version_complete=hip_driver_version_complete,
-                hip_driver_version_compatible=hip_driver_version_compatible,
-                compiler_identity_complete=compiler_identity_complete,
-                compiler_identity_compatible=compiler_identity_compatible,
-                git_commit_identity_complete=git_commit_identity_complete,
-                git_commit_identity_compatible=git_commit_identity_compatible,
-                warmup_count_complete=warmup_count_complete,
-                warmup_count_compatible=warmup_count_compatible,
-                repeat_count_complete=repeat_count_complete,
-                repeat_count_compatible=repeat_count_compatible,
-                duplicate_backends=duplicate_backends,
-                accelerator=accelerator,
-                internal_candidate=internal_candidate,
-                prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
-                oneshot_capture=oneshot_capture,
-                host_api_batch_capture=host_api_batch_capture,
-                hip_graph_replay_capture=hip_graph_replay_capture,
-                gpu_events_available=capture_gpu_events_available(item),
-                end_to_end=end_to_end,
-                cpu=cpu,
-                direct=direct,
-                vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
-            )
+            if autotune_promotable_scope(item):
+                blockers = promotion_blockers(
+                    missing=missing,
+                    semantics=semantics,
+                    release_review_satisfied=release_review_satisfied,
+                    gpu_target_identity_complete=gpu_target_identity_complete,
+                    gpu_target_compatible=gpu_target_compatible,
+                    configured_target_identity_complete=configured_target_identity_complete,
+                    configured_target_compatible=configured_target_compatible,
+                    hip_toolchain_version_complete=hip_toolchain_version_complete,
+                    hip_toolchain_version_compatible=hip_toolchain_version_compatible,
+                    hip_runtime_version_complete=hip_runtime_version_complete,
+                    hip_runtime_version_compatible=hip_runtime_version_compatible,
+                    hip_driver_version_complete=hip_driver_version_complete,
+                    hip_driver_version_compatible=hip_driver_version_compatible,
+                    compiler_identity_complete=compiler_identity_complete,
+                    compiler_identity_compatible=compiler_identity_compatible,
+                    git_commit_identity_complete=git_commit_identity_complete,
+                    git_commit_identity_compatible=git_commit_identity_compatible,
+                    warmup_count_complete=warmup_count_complete,
+                    warmup_count_compatible=warmup_count_compatible,
+                    repeat_count_complete=repeat_count_complete,
+                    repeat_count_compatible=repeat_count_compatible,
+                    duplicate_backends=duplicate_backends,
+                    accelerator=accelerator,
+                    internal_candidate=internal_candidate,
+                    prepacked_reuse=capture_pack_mode(item) != "per_repeat_repack",
+                    oneshot_capture=oneshot_capture,
+                    host_api_batch_capture=host_api_batch_capture,
+                    hip_graph_replay_capture=hip_graph_replay_capture,
+                    gpu_events_available=capture_gpu_events_available(item),
+                    end_to_end=end_to_end,
+                    cpu=cpu,
+                    direct=direct,
+                    vector=vector if semantics in {"bounded_i64", "bounded_u64"} else None,
+                )
+            else:
+                blockers = []
             item_checksum = capture_checksum(item)
             if item_checksum is None:
                 blockers.append("missing_checksum")

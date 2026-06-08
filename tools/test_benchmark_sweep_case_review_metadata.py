@@ -191,6 +191,8 @@ non_promoting_ck_candidate = next(
 )
 assert non_promoting_ck_candidate["scenario_promotion_scope"] == "non_promoting_modulus_map"
 assert "scenario_scope_not_autotune_promotable" in non_promoting_ck_candidate["promotion_blockers"]
+assert "missing_required_baselines" not in non_promoting_ck_candidate["promotion_blockers"]
+assert "not_faster_than_direct_hip" not in non_promoting_ck_candidate["promotion_blockers"]
 
 missing_target_ck = copy.deepcopy(ck)
 missing_target_ck["device"]["gcn_arch"] = "unknown"
@@ -584,7 +586,7 @@ assert reuse_evidence_group["required_baselines"] == []
 assert reuse_evidence_group["missing_required_baselines"] == []
 reuse_evidence_blockers = reuse_evidence_group["candidates"][0]["promotion_blockers"]
 assert "missing_required_baselines" not in reuse_evidence_blockers
-assert "prepacked_reuse_not_autotune_promotable" in reuse_evidence_blockers
+assert "prepacked_reuse_not_autotune_promotable" not in reuse_evidence_blockers
 assert "scenario_scope_not_autotune_promotable" in reuse_evidence_blockers
 
 graph_evidence_direct = mark_reused_a_pack(direct)
@@ -605,7 +607,7 @@ assert graph_evidence_group["required_baselines"] == []
 assert graph_evidence_group["missing_required_baselines"] == []
 graph_evidence_blockers = graph_evidence_group["candidates"][0]["promotion_blockers"]
 assert "missing_required_baselines" not in graph_evidence_blockers
-assert "hip_graph_replay_not_autotune_promotable" in graph_evidence_blockers
+assert "hip_graph_replay_not_autotune_promotable" not in graph_evidence_blockers
 assert "scenario_scope_not_autotune_promotable" in graph_evidence_blockers
 
 variant_direct_a = exact_wide_capture("hip-direct", 3000)
