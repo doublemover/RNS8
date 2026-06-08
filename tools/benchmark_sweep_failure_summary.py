@@ -262,6 +262,16 @@ def _prepack_reuse_line(
     prepack: dict[str, Any],
 ) -> str:
     blockers = _blocker_text(prepack.get("blockers"))
+    runtime_cache = candidate.get("runtime_prepack_cache")
+    cache_text = "cache=none"
+    if isinstance(runtime_cache, dict):
+        cache_text = (
+            f"cache_production={runtime_cache.get('production_prepack_cache_available')} "
+            f"cache_scope={runtime_cache.get('cache_scope')} "
+            f"cache_hash={runtime_cache.get('cache_key_hash')} "
+            f"cache_device_bytes={runtime_cache.get('device_bytes')} "
+            f"cache_operand_bytes={runtime_cache.get('operand_pack_bytes')}"
+        )
     return (
         "  "
         f"review={report_path} "
@@ -277,6 +287,7 @@ def _prepack_reuse_line(
         f"best_e2e={prepack.get('best_nonreuse_median_end_to_end_us')} "
         f"reuse_vs_same={prepack.get('speedup_vs_same_backend_setup_inclusive')} "
         f"reuse_vs_best={prepack.get('speedup_vs_best_nonreuse_setup_inclusive')} "
+        f"{cache_text} "
         f"blockers={blockers} "
         f"capture={_relative_capture(out, candidate.get('capture'))}"
     )

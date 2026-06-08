@@ -163,6 +163,13 @@ def main() -> int:
                                     "speedup_vs_same_backend_setup_inclusive": 0.9333333333333333,
                                     "speedup_vs_best_nonreuse_setup_inclusive": 0.6666666666666666,
                                 },
+                                "runtime_prepack_cache": {
+                                    "production_prepack_cache_available": True,
+                                    "cache_scope": "runtime_production_b_prepack_cache",
+                                    "cache_key_hash": 456,
+                                    "device_bytes": 1024,
+                                    "operand_pack_bytes": 768,
+                                },
                                 "hip_graph_replay_review": {
                                     "setup_inclusive_median_end_to_end_us": 151.0,
                                     "graph_capture_us": 13.0,
@@ -302,7 +309,12 @@ def main() -> int:
             "setup_e2e=150.0 prepack_setup=27.0 same_backend=ck same_e2e=140.0 "
             "best_nonreuse=hip-direct best_e2e=100.0"
         ) in text
-        assert "reuse_vs_best=0.6666666666666666 blockers=none" in text
+        assert (
+            "cache_production=True cache_scope=runtime_production_b_prepack_cache "
+            "cache_hash=456 cache_device_bytes=1024 cache_operand_bytes=768"
+        ) in text
+        assert "reuse_vs_best=0.6666666666666666 cache_production=True" in text
+        assert "cache_operand_bytes=768 blockers=none" in text
         assert "HIP_GRAPH_REPLAY_REVIEWS 1" in text
         assert "HIP_GRAPH_REPLAY_BLOCKER_COUNTS" in text
         assert (

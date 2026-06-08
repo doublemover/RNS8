@@ -1279,6 +1279,11 @@ def review_captures(
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
                 "prepacked_reuse_review": prepack_review,
+                "runtime_prepack_cache": (
+                    item.get("reuse_contract", {}).get("runtime_prepack_cache")
+                    if isinstance(item.get("reuse_contract"), dict)
+                    else None
+                ),
                 "hip_graph_replay_review": graph_review,
                 "matrix_instruction_histogram": matrix_instruction_histogram(item, isa_index),
                 "matrix_instruction_family": metadata.get("matrix_instruction_family"),
