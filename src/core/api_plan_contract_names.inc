@@ -122,6 +122,12 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     }
     return "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
   }
+  if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    if (uses_finite_storage(plan.desc.semantics)) {
+      return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+    }
+    return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
+  }
   return "not_implemented";
 }
 
@@ -159,6 +165,15 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
     }
     return "rocwmma_fused_i32_to_centered_residue_then_crt_export";
   }
+  if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    if (uses_finite_storage(plan.desc.semantics)) {
+      return "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
+    }
+    if (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+      return "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
+    }
+    return "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
+  }
   if (uses_finite_storage(plan.desc.semantics)) {
     return "fused_centered_residue_then_canonical_u8_export";
   }
@@ -188,6 +203,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return "resident_device_buffers_with_rocwmma_pack_workspace";
+  }
+  if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    return "resident_device_buffers_with_amdgpu_builtin_pack_workspace";
   }
   if (plan.backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
     return "host_byte_limb_reference_workspace";
@@ -304,6 +322,9 @@ std::string isa_evidence_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return "rocwmma_i8_matrix_isa_gate_no_divide";
+  }
+  if (plan.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+    return "amdgpu_builtin_matrix_isa_gate_no_divide";
   }
   return "not_applicable_cpu";
 }

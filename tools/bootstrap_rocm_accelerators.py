@@ -179,7 +179,7 @@ def probe_dependencies(target: str, probe_root: Path) -> dict[str, object]:
         "items": items,
         "policy": (
             "dependency compile/run probes plus object-only int8 primitive compile probes; "
-            "backend enable flags remain fail-fast"
+            "backend runtime enablement remains disabled until exact kernels pass target validation"
         ),
     }
 

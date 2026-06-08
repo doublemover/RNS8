@@ -31,6 +31,6 @@ Unsupported contracts:
 
 This is a correctness baseline only. It remains optional, is not required for
 CPU or direct-HIP correctness, and benchmark metadata reports
-`perf_validated=0` until reviewed captures prove otherwise. CK, rocWMMA, and
-AMDGPU builtin accelerator flags remain fail-fast until their real kernels and
-exact differentials exist.
+`perf_validated=0` until reviewed captures prove otherwise. CK and rocWMMA
+accelerators remain opt-in, and AMDGPU builtin runtime dispatch remains
+unsupported until real kernels and exact differentials exist.

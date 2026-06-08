@@ -159,6 +159,27 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 #endif
     }
 
+    if (requested == RNS8_BACKEND_AMDGPU_BUILTINS) {
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+      ctx->backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+      ctx->device_id = default_visible_hip_context_device(device_id);
+      ctx->device_info.struct_size = sizeof(ctx->device_info);
+      ctx->device_info.abi_version = RNS8_ABI_VERSION;
+      const rns8_status status = rns8::detail::hip_direct_probe(ctx->device_id, ctx->device_info);
+      if (status != RNS8_SUCCESS) {
+        delete ctx;
+        return status;
+      }
+      ctx->device_info.backend = RNS8_BACKEND_AMDGPU_BUILTINS;
+      *out = ctx;
+      return RNS8_SUCCESS;
+#else
+      delete ctx;
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
+
     if (requested == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       ctx->backend = RNS8_BACKEND_WRAP64_BYTE_LIMB;
       ctx->device_id = -1;

@@ -647,6 +647,7 @@ class ValidatorScheduleMixin:
                 "hip-direct": direct_hip_expected_kernel,
                 "ck": "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
                 "rocwmma": "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2",
+                "amdgpu-builtins": "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
             }
             expected_kernel = expected_kernels.get(selected_backend)
             if expected_kernel is not None and selected_kernel != expected_kernel:
@@ -690,6 +691,12 @@ class ValidatorScheduleMixin:
                 expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
                 if metadata.get("gpu_event_timing_source_scope") != expected_scope:
                     self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+            elif self.data.get("backend_selected") == "amdgpu-builtins":
+                if metadata.get("gpu_event_timing") is not True:
+                    self._error("AMDGPU builtin per-tile adaptive captures must include HIP event operation-group timings")
+                expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+                if metadata.get("gpu_event_timing_source_scope") != expected_scope:
+                    self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
             elif self.data.get("backend_selected") == "hip-vector-alu-int64":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error("vector-ALU per-tile adaptive captures must include HIP event operation-group timings")
@@ -701,6 +708,7 @@ class ValidatorScheduleMixin:
             expected_epilogues = {
                 "ck": "ck_fused_i32_to_centered_residue_then_crt_export",
                 "rocwmma": "rocwmma_fused_i32_to_centered_residue_then_crt_export",
+                "amdgpu-builtins": "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export",
                 "hip-vector-alu-int64": "direct_int64_export",
             }
             expected_epilogue = expected_epilogues.get(
@@ -713,6 +721,7 @@ class ValidatorScheduleMixin:
             expected_workspaces = {
                 "cpu-reference": "host_reference_workspace",
                 "rocwmma": "resident_device_buffers_with_rocwmma_pack_workspace",
+                "amdgpu-builtins": "resident_device_buffers_with_amdgpu_builtin_pack_workspace",
                 "hip-vector-alu-int64": (
                     "native_device_i64_u64_buffers"
                     if self._is_vector_alu_runtime_capture()
@@ -736,6 +745,7 @@ class ValidatorScheduleMixin:
                 "cpu-reference": "not_applicable_cpu",
                 "ck": "ck_cshuffle_int8_matrix_isa_gate_no_divide",
                 "rocwmma": "rocwmma_i8_matrix_isa_gate_no_divide",
+                "amdgpu-builtins": "amdgpu_builtin_matrix_isa_gate_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
             expected_isa = expected_isas.get(

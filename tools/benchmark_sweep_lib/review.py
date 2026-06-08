@@ -313,6 +313,81 @@ def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
     return ["scenario_scope_not_autotune_promotable"]
 
 
+def matrix_instruction_histogram(capture: dict[str, Any]) -> dict[str, Any]:
+    direct = capture.get("matrix_instruction_histogram")
+    if isinstance(direct, dict):
+        return direct
+    for key in ("gpu_isa_report", "isa_report", "backend_isa_report", "compiled_isa"):
+        report = capture.get(key)
+        if not isinstance(report, dict):
+            continue
+        for nested_key in (
+            "matrix_instruction_histogram",
+            "matrix_instruction_counts",
+            "mnemonic_histogram",
+        ):
+            histogram = report.get(nested_key)
+            if isinstance(histogram, dict):
+                return histogram
+    return {}
+
+
+def review_route_candidate(candidate: dict[str, Any]) -> bool:
+    scope = candidate.get("scenario_promotion_scope")
+    blockers = {str(item) for item in candidate.get("promotion_blockers", [])}
+    fatal = {
+        "missing_required_baselines",
+        "not_release_review",
+        "missing_gpu_target_id",
+        "gpu_target_mismatch",
+        "missing_configured_gpu_target",
+        "configured_gpu_target_mismatch",
+        "missing_hip_toolchain_version",
+        "hip_toolchain_version_mismatch",
+        "missing_hip_runtime_version",
+        "hip_runtime_version_mismatch",
+        "missing_hip_driver_version",
+        "hip_driver_version_mismatch",
+        "missing_compiler_identity",
+        "compiler_identity_mismatch",
+        "missing_git_commit",
+        "git_commit_mismatch",
+        "missing_warmup_count",
+        "warmup_count_mismatch",
+        "missing_repeat_count",
+        "repeat_count_mismatch",
+        "duplicate_backend_capture",
+        "internal_candidate_not_public_backend",
+        "prepacked_reuse_not_autotune_promotable",
+        "oneshot_api_capture_not_autotune_promotable",
+        "host_api_batch_not_autotune_promotable",
+        "hip_graph_replay_not_autotune_promotable",
+        "missing_checksum",
+        "missing_reference_checksum",
+        "checksum_mismatch_vs_reference",
+        "scenario_scope_not_autotune_promotable",
+    }
+    return (
+        scope in {None, "release_review_candidate"}
+        and candidate.get("release_review_capture") is True
+        and candidate.get("checksum_matches_reference") is True
+        and candidate.get("median_end_to_end_us") is not None
+        and not (blockers & fatal)
+    )
+
+
+def fastest_route(candidates: list[dict[str, Any]], *, accelerator_only: bool) -> dict[str, Any] | None:
+    route_candidates = [
+        candidate
+        for candidate in candidates
+        if review_route_candidate(candidate)
+        and (candidate.get("accelerator_backend") is True if accelerator_only else candidate.get("backend") != "cpu-reference")
+    ]
+    if not route_candidates:
+        return None
+    return min(route_candidates, key=lambda item: item["median_end_to_end_us"])
+
+
 def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke") -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
@@ -535,6 +610,7 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "phase_diagnostics": phase_ratios(item, direct_capture, vector_capture),
                 "speedup_vs_direct_hip": (direct / end_to_end) if direct and end_to_end else None,
                 "speedup_vs_vector_alu": (vector / end_to_end) if vector and end_to_end else None,
+                "matrix_instruction_histogram": matrix_instruction_histogram(item),
                 "promotable": promotable,
                 "promotion_blockers": blockers,
                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
@@ -543,6 +619,9 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "cache_write_status": "eligible_after_review" if promotable else "not_eligible",
             }
             candidates.append(candidate)
+
+        fastest_production_route = fastest_route(candidates, accelerator_only=False)
+        fastest_accelerator_route = fastest_route(candidates, accelerator_only=True)
 
         fastest = None
         promotable_candidates = [item for item in candidates if item["promotable"]]
@@ -636,6 +715,8 @@ def review_captures(captures: list[dict[str, Any]], *, review_mode: str = "smoke
                 "scenario_promotion_scopes": scenario_promotion_scopes,
                 "phase_medians_us": phase_medians,
                 "fastest_promotable": fastest,
+                "fastest_production_route": fastest_production_route,
+                "fastest_accelerator_route": fastest_accelerator_route,
                 "candidates": candidates,
             }
         )

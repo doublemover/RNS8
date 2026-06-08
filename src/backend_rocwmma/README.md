@@ -35,5 +35,8 @@ backend keeps `performance_validated=false` until reviewed captures prove a
 target-shape win.
 
 Dependency discovery and primitive compile probes remain evidence only; they
-do not enable rocWMMA by themselves. `RNS8_ENABLE_AMDGPU_BUILTINS` still fails
-fast because no target-specific builtin correctness kernels have been added.
+do not enable rocWMMA by themselves. `RNS8_ENABLE_AMDGPU_BUILTINS` now exposes
+the public AMDGPU builtin backend identity and disabled capability metadata,
+but runtime contexts and GEMM dispatch remain unsupported until target-specific
+MFMA/WMMA/SMFMAC/SWMMAC kernels have exact CPU parity, timing, and ISA
+evidence.

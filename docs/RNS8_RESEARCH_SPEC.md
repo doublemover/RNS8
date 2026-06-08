@@ -82,6 +82,9 @@ semantic interpretation, or hidden compatibility mode.
 - Exact-wide integer GEMM with RNS output.
 - Strict wraparound `mod 2^64` GEMM through a separate byte-limb backend.
 - Persistent RNS matrix storage and reuse.
+- Explicit A-side 4:2 structured sparse input/storage contract for future
+  SMFMAC/SWMMAC acceleration. This is a caller-supplied sparse-A contract, not
+  automatic pruning or general sparse matrix multiplication.
 - Per-tile adaptive modulus counts using deterministic bounds.
 - Grouped and persistent scheduling across `(modulus, tile)` work.
 - Fused modulo reduction in CK, rocWMMA, AMDGPU builtin, or direct HIP kernels.
@@ -93,6 +96,8 @@ semantic interpretation, or hidden compatibility mode.
 - Drop-in BLAS interception.
 - Approximate integer output.
 - General sparse matrix multiplication as a primary product.
+- Automatic dense-to-sparse pruning, B-side sparsity, unstructured sparsity,
+  and sampled sparse correctness.
 - Compiler integration.
 - Automatic proof of user-provided numerical bounds.
 - Default probabilistic correctness.
@@ -221,16 +226,17 @@ The dependency checker reports:
 - rocWMMA shallow discovery, optional compile/run probe evidence, and backend
   enablement status.
 - AMDGPU builtin readiness status. This has no shallow discovery-only pass:
-  it remains disabled until target-specific exact kernels and ISA evidence
-  exist.
+  the public backend identity may be reported as disabled capability metadata,
+  but runtime contexts and GEMM dispatch remain unsupported until
+  target-specific exact kernels and ISA evidence exist.
 - Accelerator enablement policy as a first-class readiness object. hipBLASLt
   must report as an explicit opt-in baseline backend only after the dedicated
   build/test preset validates exact CPU/direct-HIP differentials; dependency
   discovery alone remains evidence-only. CK and rocWMMA may report explicit
   opt-in correctness backends only after real compiled kernels, semantic
   coverage, exact CPU/direct-HIP differentials, schema fixtures, and ISA
-  evidence exist for the target. AMDGPU builtin enable flags must continue to
-  report fail-fast with `backend_enablement=disabled` and
+  evidence exist for the target. AMDGPU builtin enablement must continue to
+  report disabled runtime capability with
   `correctness_backend=not_implemented` until real target-specific exact
   correctness kernels exist.
 - Correctness-backend validation as a separate readiness object. Candidate
@@ -1098,10 +1104,9 @@ exact-match guarded at configure time, emitted as build-tree include overlays,
 and tracked as source dependencies for the compiled HIP object they affect. If
 the expected upstream or patched header block is not present, the CK enable
 flag must fail fast instead of compiling an untested CK variant.
-Configure-time enable flags for accelerator backends must continue to fail fast
-while only evidence probes exist. The test suite should include
-configure-negative coverage so discovery probes cannot become placeholder
-correctness backends.
+Accelerator runtime enablement must continue to fail explicitly while only
+evidence probes exist. The test suite should include coverage so discovery
+probes cannot become placeholder correctness backends.
 
 ### 12.2 Backend Selection Policy
 

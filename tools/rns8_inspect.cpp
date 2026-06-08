@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
       std::cerr << "enable_flag: " << requested_capability.enable_flag << "\n";
     }
     if (status == RNS8_UNSUPPORTED_BACKEND && evidence_only_accelerator_backend(backend)) {
-      std::cerr << "requested accelerator is evidence-only; enable flags fail fast until a real exact "
-                   "correctness backend exists\n";
+      std::cerr << "requested accelerator is evidence-only; runtime remains unsupported until a real exact "
+                   "correctness backend, compiled kernels, and ISA evidence exist\n";
     } else if (status == RNS8_UNSUPPORTED_BACKEND) {
       std::cerr << "backend is not available for this context; RNS8_BACKEND_AUTO does not route across "
                    "bounded, exact-wide, or wrap64 semantic backends\n";

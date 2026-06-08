@@ -33,8 +33,17 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
             self._error("finite one-shot captures must use pack_mode=per_repeat_repack")
         if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
             self._error("finite one-shot captures must use prepack_reuse_strategy=none")
-    if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
-        self._error("finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
+    if self.data.get("backend_selected") not in {
+        "cpu-reference",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma",
+        "amdgpu-builtins",
+    }:
+        self._error(
+            "finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
+        )
     if bound_mode != "global":
         self._error("finite-u8 captures must use bound_mode=global")
     if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:

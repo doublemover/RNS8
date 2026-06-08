@@ -31,15 +31,20 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
     out = RNS8_BACKEND_ROCWMMA;
     return true;
   }
+  if (value == "amdgpu-builtins" || value == "amdgpu-builtin") {
+    out = RNS8_BACKEND_AMDGPU_BUILTINS;
+    return true;
+  }
   return false;
 }
 
 bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
+         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 void print_usage(std::ostream& out) {
-  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma]"
+  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma|amdgpu-builtins]"
       << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache] [--selector-shadow]\n";
 }
 
@@ -59,6 +64,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "ck";
     case RNS8_BACKEND_ROCWMMA:
       return "rocwmma";
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return "amdgpu-builtins";
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return "wrap64-byte-limb";
   }

@@ -234,6 +234,10 @@ def print_human(report: dict[str, object]) -> None:
     print(f"correctness backends enabled: {accelerator_enablement['correctness_backends_enabled']}")
     print(f"validated correctness backend count: {accelerator_enablement['validated_correctness_backend_count']}")
     print(f"enable flags fail fast: {accelerator_enablement['enable_flags_fail_fast']}")
+    print(
+        "runtime unsupported until compiled: "
+        f"{accelerator_enablement.get('runtime_unsupported_until_compiled', 'none')}"
+    )
     print(f"evidence class: {accelerator_enablement['evidence_class']}")
     print(f"candidate evidence is correctness validation: {accelerator_enablement['candidate_evidence_is_correctness_validation']}")
     print(f"policy: {accelerator_enablement['policy']}")

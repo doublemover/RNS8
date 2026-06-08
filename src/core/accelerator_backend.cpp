@@ -28,16 +28,34 @@ constexpr accelerator_backend_descriptor kCkDescriptor{
 constexpr accelerator_backend_descriptor kRocwmmaDescriptor{
     RNS8_BACKEND_ROCWMMA,
     "rocwmma",
-    "rocWMMA/AMDGPU builtins",
-    "RNS8_ENABLE_ROCWMMA/RNS8_ENABLE_AMDGPU_BUILTINS",
+    "rocWMMA",
+    "RNS8_ENABLE_ROCWMMA",
     "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2_disabled",
     "rocwmma_fused_i32_to_centered_residue_disabled",
     "resident_device_buffers_with_rocwmma_pack_workspace_disabled",
     "not_validated",
-    "not_enabled_or_builtin_not_implemented",
+    "not_enabled_in_this_build",
     "rocWMMA has an opt-in Windows gfx1100 correctness backend with exact differentials and ISA/schema evidence; this "
-    "build did not enable RNS8_ENABLE_ROCWMMA. AMDGPU builtins remain fail-fast until target-specific exact kernels "
-    "exist.",
+    "build did not enable RNS8_ENABLE_ROCWMMA.",
+    1,
+    1,
+    1,
+    0,
+    1,
+};
+
+constexpr accelerator_backend_descriptor kAmdgpuBuiltinsDescriptor{
+    RNS8_BACKEND_AMDGPU_BUILTINS,
+    "amdgpu-builtins",
+    "AMDGPU builtins",
+    "RNS8_ENABLE_AMDGPU_BUILTINS",
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled",
+    "amdgpu_builtin_fused_i32_to_centered_residue_disabled",
+    "amdgpu_builtin_pack_workspace_disabled",
+    "not_validated",
+    "not_compiled_in_this_build",
+    "Public target-specific AMDGPU builtin backend is reserved for MFMA/WMMA/SMFMAC/SWMMAC kernels. Dense and sparse "
+    "calls do not route here until compiled kernels have exact CPU parity and ISA evidence.",
     1,
     1,
     1,
@@ -52,7 +70,8 @@ void set_text(char* dst, std::size_t dst_size, const char* text) {
 }  // namespace
 
 bool accelerator_backend_kind(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
+  return backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
+         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 bool accelerator_backend_compiled(rns8_backend_kind backend) {
@@ -64,8 +83,14 @@ bool accelerator_backend_compiled(rns8_backend_kind backend) {
       return false;
 #endif
     case RNS8_BACKEND_ROCWMMA:
-#if (defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA) || \
-    (defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS)
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+      return true;
+#else
+      return false;
+#endif
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
       return true;
 #else
       return false;
@@ -109,6 +134,8 @@ const accelerator_backend_descriptor* accelerator_backend_descriptor_for(rns8_ba
       return &kCkDescriptor;
     case RNS8_BACKEND_ROCWMMA:
       return &kRocwmmaDescriptor;
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return &kAmdgpuBuiltinsDescriptor;
     default:
       return nullptr;
   }

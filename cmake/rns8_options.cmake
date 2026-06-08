@@ -70,11 +70,15 @@ if(RNS8_ENABLE_ROCWMMA AND NOT RNS8_ENABLE_HIP)
   message(FATAL_ERROR "RNS8_ENABLE_ROCWMMA requires RNS8_ENABLE_HIP because rocWMMA uses resident HIP buffers")
 endif()
 
+if(RNS8_ENABLE_AMDGPU_BUILTINS AND NOT RNS8_ENABLE_HIP)
+  message(FATAL_ERROR "RNS8_ENABLE_AMDGPU_BUILTINS requires RNS8_ENABLE_HIP because AMDGPU builtins use resident HIP buffers")
+endif()
+
 if(RNS8_ENABLE_AMDGPU_BUILTINS)
   message(
-    FATAL_ERROR
-      "AMDGPU builtin accelerator backend is not implemented. "
-      "Use RNS8_PROBE_ACCELERATORS=ON or tools/check_dependencies.py --accelerator-probes for evidence-only probes."
+    STATUS
+      "RNS8 AMDGPU builtin public backend API is enabled, but runtime kernels remain unavailable until "
+      "RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE is defined by compiled MFMA/WMMA/SMFMAC/SWMMAC sources."
   )
 endif()
 

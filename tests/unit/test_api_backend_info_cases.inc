@@ -9,6 +9,9 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
 #if !defined(RNS8_ENABLE_HIPBLASLT) || !RNS8_ENABLE_HIPBLASLT
   backends.push_back(RNS8_BACKEND_HIPBLASLT);
 #endif
+#if !defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) || !RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+  backends.push_back(RNS8_BACKEND_AMDGPU_BUILTINS);
+#endif
   for (const rns8_backend_kind backend : backends) {
     rns8_context_options options{};
     options.struct_size = sizeof(options);
@@ -22,7 +25,7 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
 
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
-  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
+  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA, RNS8_BACKEND_AMDGPU_BUILTINS};
 
   for (const rns8_backend_kind backend : backends) {
     rns8_gemm_desc desc{};
@@ -76,7 +79,12 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(wrap.supports_wrap64 == 1);
   CHECK(std::string(wrap.selected_kernel) == "cpu_wrap64_byte_limb_reference_v1");
 
-  const rns8_backend_kind accelerators[] = {RNS8_BACKEND_HIPBLASLT, RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA};
+  const rns8_backend_kind accelerators[] = {
+      RNS8_BACKEND_HIPBLASLT,
+      RNS8_BACKEND_CK,
+      RNS8_BACKEND_ROCWMMA,
+      RNS8_BACKEND_AMDGPU_BUILTINS,
+  };
   for (const rns8_backend_kind backend : accelerators) {
     rns8_backend_capability_info capability{};
     capability.struct_size = sizeof(capability);
@@ -155,6 +163,29 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       continue;
     }
 #endif
+#if defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+    if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      CHECK(capability.is_correctness_backend == 1);
+      CHECK(capability.requires_feature_detection == 1);
+      CHECK(capability.enable_flag_fail_fast == 0);
+      CHECK(capability.candidate_evidence_only == 0);
+      CHECK(capability.compiled_kernel_available == 1);
+      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.performance_validated == 0);
+      CHECK(std::string(capability.status) == "implemented_opt_in_amdgpu_builtin_backend");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+      CHECK(std::string(capability.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_amdgpu_builtin_pack_workspace");
+      CHECK(std::string(capability.isa_evidence) == "amdgpu_builtin_matrix_isa_gate_no_divide");
+      CHECK(capability.supports_bounded_rns == 1);
+      CHECK(capability.supports_exact_wide_rns == 1);
+      CHECK(capability.supports_finite_u8 == 1);
+      CHECK(capability.supports_wrap64 == 0);
+      continue;
+    }
+#endif
     CHECK(capability.is_correctness_backend == 0);
     CHECK(capability.requires_feature_detection == 1);
     CHECK(capability.enable_flag_fail_fast == 1);
@@ -175,12 +206,23 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
     } else if (backend == RNS8_BACKEND_ROCWMMA) {
-      CHECK(std::string(capability.status) == "not_enabled_or_builtin_not_implemented");
+      CHECK(std::string(capability.status) == "not_enabled_in_this_build");
       CHECK(
           std::string(capability.selected_kernel) ==
           "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2_disabled");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
       CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace_disabled");
+      CHECK(capability.supports_bounded_rns == 1);
+      CHECK(capability.supports_exact_wide_rns == 1);
+      CHECK(capability.supports_finite_u8 == 1);
+      CHECK(capability.supports_wrap64 == 0);
+    } else if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      CHECK(std::string(capability.status) == "not_compiled_in_this_build");
+      CHECK(
+          std::string(capability.selected_kernel) ==
+          "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled");
+      CHECK(std::string(capability.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_disabled");
+      CHECK(std::string(capability.workspace_mode) == "amdgpu_builtin_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);

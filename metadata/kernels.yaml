@@ -35,6 +35,16 @@
     "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
     "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
     "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2",
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+    "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+    "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+    "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
+    "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
+    "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1",
+    "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
+    "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1",
+    "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1",
     "hip_vector_alu_i64_exact_192b_v1",
     "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
@@ -77,6 +87,18 @@
       "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",
       "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2",
       "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2"
+    ],
+    "amdgpu_builtins": [
+      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+      "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
+      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+      "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+      "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
+      "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
+      "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1",
+      "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
+      "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1",
+      "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1"
     ]
   }
 }

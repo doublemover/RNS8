@@ -113,7 +113,10 @@ inline constexpr std::array<std::string_view, 4> epilogue_types{{
     "residue_current_rns_output"
 }};
 
-inline constexpr std::array<std::string_view, 15> backend_epilogue_modes{{
+inline constexpr std::array<std::string_view, 18> backend_epilogue_modes{{
+    "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
+    "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
+    "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export",
     "ck_fused_i32_to_centered_residue_rns_output",
     "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
     "ck_fused_i32_to_centered_residue_then_crt_export",
@@ -148,7 +151,17 @@ inline constexpr std::array<std::string_view, 14> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 52> selected_kernels{{
+inline constexpr std::array<std::string_view, 62> selected_kernels{{
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+    "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+    "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
+    "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+    "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
+    "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1",
+    "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
+    "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1",
+    "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1",
+    "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
     "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2",
     "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2",

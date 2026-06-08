@@ -37,6 +37,7 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
       return false;
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_ROCWMMA:
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
       return rns8::detail::accelerator_backend_supports_semantics(backend, semantics);
   }
   return false;
@@ -52,6 +53,7 @@ bool known_backend_kind(rns8_backend_kind backend) {
     case RNS8_BACKEND_ROCWMMA:
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
       return true;
   }
   return false;
@@ -75,12 +77,15 @@ const char* backend_name(rns8_backend_kind backend) {
       return "wrap64-byte-limb";
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
       return "hip-vector-alu-int64";
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return "amdgpu-builtins";
   }
   return "unknown";
 }
 
 bool accelerator_backend(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA;
+  return backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
+         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 uint32_t direct_hip_compiled() {
@@ -348,6 +353,44 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
           info.detail,
           sizeof(info.detail),
           "Opt-in rocWMMA backend using signed int8 matrix GEMM with fused centered-residue reduction specialized for mod 256/255/251.");
+#else
+      rns8::detail::fill_disabled_accelerator_capability(backend, info);
+#endif
+      break;
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+      info.is_available = 1;
+      info.is_correctness_backend = 1;
+      info.requires_feature_detection = 1;
+      info.supports_bounded_rns = 1;
+      info.supports_exact_wide_rns = 1;
+      info.supports_finite_u8 = 1;
+      info.compiled_kernel_available = 1;
+      info.exact_differential_validated = 1;
+      info.performance_validated = 0;
+      info.is_matrix_engine_backend = 1;
+      set_text(
+          info.selected_kernel,
+          sizeof(info.selected_kernel),
+          "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+      set_text(info.library_name, sizeof(info.library_name), "AMDGPU builtins");
+      set_text(info.library_version, sizeof(info.library_version), "compiled_target_specific");
+      set_text(info.enable_flag, sizeof(info.enable_flag), "RNS8_ENABLE_AMDGPU_BUILTINS");
+      set_text(
+          info.epilogue_mode,
+          sizeof(info.epilogue_mode),
+          "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export");
+      set_text(
+          info.workspace_mode,
+          sizeof(info.workspace_mode),
+          "resident_device_buffers_with_amdgpu_builtin_pack_workspace");
+      set_text(info.isa_evidence, sizeof(info.isa_evidence), "amdgpu_builtin_matrix_isa_gate_no_divide");
+      set_text(info.status, sizeof(info.status), "implemented_opt_in_amdgpu_builtin_backend");
+      set_text(
+          info.detail,
+          sizeof(info.detail),
+          "Opt-in target-specific AMDGPU builtin backend using compiled MFMA/WMMA/SMFMAC/SWMMAC kernels with exact CPU parity.");
 #else
       rns8::detail::fill_disabled_accelerator_capability(backend, info);
 #endif

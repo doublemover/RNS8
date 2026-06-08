@@ -73,6 +73,13 @@ bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend
 #else
       return false;
 #endif
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+    defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+      return rns8::detail::hip_direct_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
+#else
+      return false;
+#endif
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       return rns8::detail::vector_alu_probe(ctx.device_id, probe_info) == RNS8_SUCCESS;
@@ -94,6 +101,7 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
       RNS8_BACKEND_HIPBLASLT,
       RNS8_BACKEND_CK,
       RNS8_BACKEND_ROCWMMA,
+      RNS8_BACKEND_AMDGPU_BUILTINS,
   };
   const auto snapshot = rns8::detail::read_autotune_cache();
   const rns8::detail::AutotuneCacheEntry* best_hit = nullptr;
@@ -103,7 +111,8 @@ void select_auto_backend_from_reviewed_cache(rns8_context& ctx, rns8_plan& plan)
     if (!backend_supports_semantics(candidate_backend, plan.desc.semantics)) {
       continue;
     }
-    if ((candidate_backend == RNS8_BACKEND_CK || candidate_backend == RNS8_BACKEND_ROCWMMA) &&
+    if ((candidate_backend == RNS8_BACKEND_CK || candidate_backend == RNS8_BACKEND_ROCWMMA ||
+         candidate_backend == RNS8_BACKEND_AMDGPU_BUILTINS) &&
         uses_finite_storage(plan.desc.semantics) &&
         !rns8::detail::finite_u8::static_byte_modulus_supported(plan.desc.finite_modulus)) {
       continue;

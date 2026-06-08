@@ -152,6 +152,16 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
             lines.append(f"- winner_rationale: `{fastest.get('promotion_reason')}`")
         else:
             lines.append("- fastest_promotable: `none`")
+        production = group.get("fastest_production_route")
+        if production:
+            lines.append(f"- fastest_production_route: `{production['backend']}/{production['selected_kernel']}`")
+        else:
+            lines.append("- fastest_production_route: `none`")
+        accelerator = group.get("fastest_accelerator_route")
+        if accelerator:
+            lines.append(f"- fastest_accelerator_route: `{accelerator['backend']}/{accelerator['selected_kernel']}`")
+        else:
+            lines.append("- fastest_accelerator_route: `none`")
         lines.append("")
         lines.append(
             "| backend | kernel | target | e2e median us | bottleneck | promotable | cache | blockers | primary loss phase |"

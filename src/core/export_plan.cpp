@@ -150,6 +150,8 @@ std::string export_backend_name(rns8_backend_kind backend) {
       return "ck";
     case RNS8_BACKEND_ROCWMMA:
       return "rocwmma";
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return "amdgpu-builtins";
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return "wrap64-byte-limb";
     case RNS8_BACKEND_AUTO:

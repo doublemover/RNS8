@@ -26,9 +26,27 @@ shims or hidden fallback semantics.
 - rocWMMA: opt-in fused matrix-engine backend for bounded,
   adaptive bounded, exact-wide RNS output, and finite u8. It also contains an
   internal wrap64 candidate harness that is not public or AUTO-selected.
+- AMDGPU builtins: public backend identity and metadata for target-specific
+  MFMA, WMMA, SMFMAC, and SWMMAC kernels. The enum and capability surface exist
+  so plans, schemas, reviews, and autotune metadata can name the path honestly.
+  Runtime contexts and GEMM dispatch remain unsupported until compiled kernels
+  pass exact CPU parity, timing, and ISA evidence gates.
 
-AMDGPU builtin kernels are intentionally fail-fast until target-specific exact
-correctness kernels, CPU/direct-HIP differentials, and ISA evidence exist.
+## Sparse-A v1
+
+Sparse support is an explicit A-side 4:2 structured contract, not automatic
+dense pruning and not a general sparse GEMM API. A valid sparse-A v1 descriptor
+requires dense B, expanded K divisible by four, exactly two nonzero A values in
+each four-lane K group, ascending canonical two-bit indices, explicit signed or
+unsigned byte interpretation, and semantic identity for either RNS prefix
+planes or one finite-u8 modulus plane.
+
+Sparse handles are separate from dense `rns8_matrix` handles. Dense GEMM APIs
+cannot consume sparse A, sparse GEMM APIs reject dense A, and accelerator
+sparse paths remain unsupported until a real SMFMAC/SWMMAC implementation
+exists. The current CPU sparse path expands resident sparse A into the existing
+exact dense CPU reference before GEMM; this is the correctness anchor for
+future CDNA3 SMFMAC and RDNA4 SWMMAC claims.
 
 ## Selection Policy
 
@@ -41,8 +59,8 @@ are accepted only for bounded i64/u64 final/native-output plans. Without that
 exact hit, AUTO remains on the configured correctness path.
 
 Dependency discovery, header probes, CMake probes, and tiny compile probes are
-candidate evidence only. They do not enable CK, rocWMMA, hipBLASLt, or AMDGPU
-builtins by themselves.
+candidate evidence only. They do not enable CK, rocWMMA, hipBLASLt, AMDGPU
+builtins, or sparse matrix-core paths by themselves.
 
 ## Public Metadata
 
@@ -104,7 +122,10 @@ Raw `rns8-bench` captures cannot write production autotune entries.
 `tools/benchmark_sweep.py --review-mode release --write-autotune-cache` is the
 promotion boundary: it validates schema, groups same-contract captures, checks
 required baselines, requires release repeat counts, and writes only fastest
-reviewed accelerator winners.
+reviewed accelerator winners. Review output separately reports the fastest
+production route, which may be Direct HIP, and the fastest accelerator route,
+which excludes correctness baselines. This prevents a correct Direct-HIP win
+from being misread as "no wins."
 
 `tools/gpu_event_report.py`, `tools/gpu_isa_report.py`, and
 `tools/gpu_counter_report.py` are attribution tools for optimizer work. Their

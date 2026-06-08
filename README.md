@@ -32,6 +32,12 @@ and correctness requirements are human defined. Codex does the typing.
 - Native vector-ALU runtime backend for explicit bounded i64/u64 contracts.
 - Opt-in hipBLASLt, CK, and rocWMMA accelerator backends with reviewed local
   `gfx1100` winners for selected bounded, finite-u8, and exact-wide shapes.
+- Public AMDGPU builtin backend identity and metadata for future MFMA, WMMA,
+  SMFMAC, and SWMMAC kernels. Runtime calls remain unsupported until compiled
+  target-specific kernels have CPU parity, timings, and ISA evidence.
+- Explicit sparse-A 4:2 structured contract helpers and resident sparse-A
+  handles. Sparse CPU GEMM expands A into the exact dense CPU reference path;
+  dense GEMM calls never route to sparse hardware implicitly.
 - AUTO backend selection from reviewed autotune-cache entries only; unsupported
   or unreviewed backends fall back to correctness paths.
 - Benchmark schema v4, release-sweep review tooling, result comparison, GPU
@@ -162,6 +168,8 @@ validation work.
   correctness.
 - Strict wrap64 matrix-engine acceleration is an internal candidate, not a
   public optimized backend.
+- AMDGPU builtin and sparse matrix-core runtime kernels are not production
+  paths yet; their public surfaces are contract and evidence plumbing only.
 - Linux ROCm and Instinct readiness require live validation on those platforms.
 
 ## What This Is Not

@@ -247,6 +247,7 @@
     "hipblaslt",
     "ck",
     "rocwmma",
+    "amdgpu-builtins",
     "hip-vector-alu-int64"
   ],
   "current_correctness_backends": [
@@ -261,6 +262,7 @@
     "hipblaslt",
     "ck",
     "rocwmma",
+    "amdgpu-builtins",
     "hip-vector-alu-int64",
     "auto",
     "rocwmma-wrap64-candidate"
@@ -272,6 +274,7 @@
     "hipblaslt",
     "ck",
     "rocwmma",
+    "amdgpu-builtins",
     "hip-vector-alu-int64"
   ],
   "bounded_semantics": [

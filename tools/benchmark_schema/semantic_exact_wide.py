@@ -17,8 +17,17 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
     status_check = ctx['status_check']
     prefix_policy = ctx['prefix_policy']
     metadata = ctx['metadata']
-    if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma"}:
-        self._error("exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, or rocwmma backend")
+    if self.data.get("backend_selected") not in {
+        "cpu-reference",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma",
+        "amdgpu-builtins",
+    }:
+        self._error(
+            "exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
+        )
     if bound_mode != "global":
         self._error("exact-wide captures must use bound_mode=global")
     if self.data.get("bound_kind") != "none" or self.data.get("bound") != 0:
@@ -104,6 +113,7 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
             "hipblaslt": "separate_i32_scratch_reduce_rns_output",
             "ck": "ck_fused_i32_to_centered_residue_rns_output",
             "rocwmma": "rocwmma_fused_i32_to_centered_residue_rns_output",
+            "amdgpu-builtins": "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
         }
         expected_backend_epilogue = expected_epilogues.get(str(backend))
         if (

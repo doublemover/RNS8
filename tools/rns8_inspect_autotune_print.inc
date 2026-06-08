@@ -136,6 +136,7 @@ const char* selector_family_for_backend(rns8_backend_kind backend) {
     case RNS8_BACKEND_HIPBLASLT:
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_ROCWMMA:
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
       return "matrix_engine_accelerator_family";
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
       return "native_vector_alu_family";

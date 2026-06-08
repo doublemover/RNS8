@@ -115,6 +115,26 @@ struct rns8_matrix {
   uint64_t hip_export_tile_max_elements = 0;
 };
 
+struct rns8_sparse_matrix {
+  rns8_sparse_matrix_desc desc{};
+  rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
+  uint64_t matrix_instance_id = 0;
+  uint32_t value_plane_count = 0;
+  uint64_t source_version = 0;
+  uint64_t group_count = 0;
+  uint64_t packed_value_count = 0;
+  std::vector<uint8_t> packed_values;
+  std::vector<uint8_t> packed_indices;
+  bool host_current = false;
+  bool device_current = false;
+  int hip_device_id = -1;
+  void* hip_packed_values = nullptr;
+  std::size_t hip_packed_value_bytes = 0;
+  void* hip_packed_indices = nullptr;
+  std::size_t hip_packed_index_bytes = 0;
+  std::string cache_key;
+};
+
 struct rns8_workspace {
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;

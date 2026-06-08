@@ -255,12 +255,13 @@ def accelerator_enablement_policy(
         "backend_enablement": "probe_only_dependency_report",
         "correctness_backends_enabled": False,
         "validated_correctness_backend_count": 0,
-        "enable_flags_fail_fast": "amdgpu_builtins",
+        "enable_flags_fail_fast": "none",
+        "runtime_unsupported_until_compiled": "amdgpu_builtins",
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "policy": (
             "hipBLASLt, CK, and rocWMMA have explicit opt-in backends validated by separate build/test presets; "
-            "AMDGPU builtin flags fail fast until real exact correctness backends exist; "
+            "AMDGPU builtin runtime remains unsupported until real exact correctness backends exist; "
             "discovery and probes are evidence only"
         ),
         "flags": flags,

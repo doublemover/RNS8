@@ -507,10 +507,11 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
             "hip-direct",
             "ck",
             "rocwmma",
+            "amdgpu-builtins",
             "hip-vector-alu-int64",
         }:
             self._error(
-                "per-tile adaptive captures must select cpu-reference, hip-direct, ck, rocwmma, "
+                "per-tile adaptive captures must select cpu-reference, hip-direct, ck, rocwmma, amdgpu-builtins, "
                 "or hip-vector-alu-int64 backend"
             )
         if self.data.get("bound") != 0:

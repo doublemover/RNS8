@@ -261,7 +261,8 @@ bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEnt
     return entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64";
   }
   const bool public_accelerator =
-      entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" || entry.selected_backend == "rocwmma";
+      entry.selected_backend == "hipblaslt" || entry.selected_backend == "ck" ||
+      entry.selected_backend == "rocwmma" || entry.selected_backend == "amdgpu-builtins";
   const bool hip_resident_rns_semantic =
       entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64" ||
       entry.semantic_contract == "exact_wide_signed" || entry.semantic_contract == "exact_wide_unsigned" ||
@@ -356,6 +357,18 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
              entry.selected_kernel == "rocwmma_i8_i32_signed_tiled_mod251_255_256_hot_residue_v2";
     }
   }
+  if (entry.selected_backend == "amdgpu-builtins") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
+        return false;
+      }
+      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract) || is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1" ||
+             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
+    }
+  }
   return false;
 }
 
@@ -395,6 +408,17 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
       return entry.epilogue == "rocwmma_fused_i32_to_centered_residue_then_crt_export";
+    }
+  }
+  if (entry.selected_backend == "amdgpu-builtins") {
+    if (is_finite_u8_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
+    }
+    if (is_exact_wide_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
+    }
+    if (is_bounded_rns_semantic(entry.semantic_contract)) {
+      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export";
     }
   }
   return false;

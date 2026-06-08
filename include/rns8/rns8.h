@@ -15,6 +15,7 @@ extern "C" {
 typedef struct rns8_context rns8_context;
 typedef struct rns8_plan rns8_plan;
 typedef struct rns8_matrix rns8_matrix;
+typedef struct rns8_sparse_matrix rns8_sparse_matrix;
 typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
 typedef struct rns8_result_cache rns8_result_cache;
@@ -148,6 +149,8 @@ typedef enum rns8_sparse_value_signedness {
 typedef struct rns8_sparse_matrix_desc {
   uint64_t struct_size;
   uint32_t abi_version;
+  rns8_semantics semantics;
+  rns8_bound_kind bound_kind;
   rns8_sparse_contract contract;
   rns8_sparse_operand sparse_operand;
   rns8_sparse_index_layout index_layout;
@@ -156,10 +159,50 @@ typedef struct rns8_sparse_matrix_desc {
   int64_t expanded_k;
   uint32_t group_size;
   uint32_t nonzeros_per_group;
+  /*
+   * RNS sparse-A storage is per-residue plane and requires an explicit prefix
+   * identity. Finite-u8 sparse-A storage has exactly one plane and requires an
+   * explicit modulus. Unused fields for the selected semantic must be zero.
+   */
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
   /* Reserved for future hard-cut ABI versions. Must be zero. */
   uint32_t flags;
   uint32_t reserved0;
 } rns8_sparse_matrix_desc;
+
+typedef struct rns8_sparse_matrix_storage_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_backend_kind backend;
+  rns8_semantics semantics;
+  rns8_bound_kind bound_kind;
+  rns8_sparse_contract contract;
+  rns8_sparse_operand sparse_operand;
+  rns8_sparse_index_layout index_layout;
+  rns8_sparse_value_signedness value_signedness;
+  int64_t rows;
+  int64_t expanded_k;
+  uint32_t group_size;
+  uint32_t nonzeros_per_group;
+  uint32_t max_prefix;
+  uint32_t finite_modulus;
+  uint64_t matrix_instance_id;
+  uint64_t source_version;
+  uint64_t group_count;
+  uint64_t packed_value_count;
+  uint64_t host_packed_value_bytes;
+  uint64_t host_packed_index_bytes;
+  uint64_t device_packed_value_bytes;
+  uint64_t device_packed_index_bytes;
+  uint32_t host_current;
+  uint32_t device_current;
+  int32_t hip_device_id;
+  uint32_t flags;
+  char layout_version[96];
+  char cache_key[512];
+  char detail[256];
+} rns8_sparse_matrix_storage_info;
 
 typedef struct rns8_plan_schedule_info {
   uint64_t struct_size;
@@ -825,6 +868,45 @@ RNS8_API rns8_status rns8_expand_sparse_a_4_to_2_u8(
     uint8_t* dense_a,
     int64_t dense_ld);
 
+/*
+ * Resident sparse-A storage for the explicit v1 4:2 contract. Sparse handles
+ * are separate from dense rns8_matrix handles: dense GEMM APIs cannot consume
+ * sparse A by accident, and sparse APIs reject every backend without an
+ * implemented sparse path. CPU sparse GEMM expands A into the existing exact
+ * dense CPU reference path and is the correctness anchor for future
+ * SMFMAC/SWMMAC kernels.
+ */
+RNS8_API rns8_status rns8_create_sparse_matrix(
+    rns8_context* ctx,
+    const rns8_sparse_matrix_desc* desc,
+    rns8_sparse_matrix** out);
+
+RNS8_API rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix);
+
+RNS8_API rns8_status rns8_get_sparse_matrix_storage_info(
+    const rns8_sparse_matrix* matrix,
+    rns8_sparse_matrix_storage_info* out);
+
+RNS8_API rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
+    rns8_context* ctx,
+    rns8_sparse_matrix* matrix,
+    const uint8_t* dense_a_planes,
+    int64_t dense_ld,
+    uint64_t source_version);
+
+RNS8_API rns8_status rns8_expand_sparse_a_4_to_2_matrix_u8(
+    const rns8_sparse_matrix* matrix,
+    uint8_t* dense_a_planes,
+    int64_t dense_ld);
+
+RNS8_API rns8_status rns8_gemm_rns_sparse_a(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_sparse_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -900,6 +982,15 @@ RNS8_API rns8_status rns8_gemm_finite_u8(
     const rns8_plan* plan,
     uint16_t modulus,
     const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+RNS8_API rns8_status rns8_gemm_finite_u8_sparse_a(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    uint16_t modulus,
+    const rns8_sparse_matrix* A,
     const rns8_matrix* B,
     rns8_matrix* C,
     rns8_workspace* workspace);

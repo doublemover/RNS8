@@ -132,6 +132,7 @@ NON_RNS_PREFIX_SEMANTICS = {
     'wrap_u64_mod_2_64',
 }
 HIP_RESIDENT_BACKENDS = {
+    'amdgpu-builtins',
     'ck',
     'hip-direct',
     'hip-vector-alu-int64',
@@ -144,6 +145,7 @@ CURRENT_CORRECTNESS_BACKENDS = {
     'wrap64-byte-limb',
 }
 BACKEND_REQUESTED_VALUES = {
+    'amdgpu-builtins',
     'auto',
     'ck',
     'cpu-reference',
@@ -155,6 +157,7 @@ BACKEND_REQUESTED_VALUES = {
     'wrap64-byte-limb',
 }
 BACKEND_SELECTED_VALUES = {
+    'amdgpu-builtins',
     'ck',
     'cpu-reference',
     'hip-direct',
@@ -421,6 +424,9 @@ EPILOGUE_TYPES = {
     'residue_current_rns_output',
 }
 BACKEND_EPILOGUE_MODES = {
+    'amdgpu_builtin_fused_i32_to_centered_residue_rns_output',
+    'amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export',
+    'amdgpu_builtin_fused_i32_to_centered_residue_then_crt_export',
     'ck_fused_i32_to_centered_residue_rns_output',
     'ck_fused_i32_to_centered_residue_then_canonical_u8_export',
     'ck_fused_i32_to_centered_residue_then_crt_export',
@@ -461,6 +467,16 @@ REDUCER_FAMILIES = {
     'rns_prefix_centered_crt_export',
 }
 SELECTED_KERNELS = {
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1',
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1',
+    'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1',
+    'amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1',
+    'amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1',
     'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',
     'ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2',
     'ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2',

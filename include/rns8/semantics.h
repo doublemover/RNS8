@@ -28,7 +28,8 @@ typedef enum rns8_backend_kind {
   RNS8_BACKEND_CK = 4,
   RNS8_BACKEND_ROCWMMA = 5,
   RNS8_BACKEND_WRAP64_BYTE_LIMB = 6,
-  RNS8_BACKEND_HIP_VECTOR_ALU_INT64 = 7
+  RNS8_BACKEND_HIP_VECTOR_ALU_INT64 = 7,
+  RNS8_BACKEND_AMDGPU_BUILTINS = 8
 } rns8_backend_kind;
 
 #ifdef __cplusplus

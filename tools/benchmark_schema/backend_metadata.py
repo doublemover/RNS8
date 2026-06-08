@@ -7,6 +7,7 @@ from typing import Any
 from metadata_registry_constants import (
     CURRENT_CORRECTNESS_BACKENDS,
     HIP_RESIDENT_BACKENDS,
+    SELECTED_KERNELS,
     VECTOR_ALU_SELECTED_KERNELS,
 )
 
@@ -169,3 +170,32 @@ def validate_backend_metadata(self: Any) -> None:
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:
                 self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
+    if selected_backend == "amdgpu-builtins":
+        if metadata.get("selected_kernel") not in SELECTED_KERNELS or not str(
+            metadata.get("selected_kernel")
+        ).startswith("amdgpu_builtin_"):
+            self._error("amdgpu-builtins captures must report a registered amdgpu_builtin_* selected_kernel")
+        if metadata.get("accelerator_library") != "AMDGPU builtins":
+            self._error("amdgpu-builtins captures must use accelerator_library=AMDGPU builtins")
+        if metadata.get("capability_status") != "implemented_opt_in_amdgpu_builtin_backend":
+            self._error(
+                "amdgpu-builtins captures must use capability_status=implemented_opt_in_amdgpu_builtin_backend"
+            )
+        if not str(metadata.get("epilogue_mode", "")).startswith("amdgpu_builtin_"):
+            self._error("amdgpu-builtins captures must report an amdgpu_builtin_* epilogue")
+        if metadata.get("workspace_mode") != "resident_device_buffers_with_amdgpu_builtin_pack_workspace":
+            self._error(
+                "amdgpu-builtins captures must use workspace_mode=resident_device_buffers_with_amdgpu_builtin_pack_workspace"
+            )
+        if metadata.get("isa_evidence") != "amdgpu_builtin_matrix_isa_gate_no_divide":
+            self._error("amdgpu-builtins captures must use isa_evidence=amdgpu_builtin_matrix_isa_gate_no_divide")
+        bool_expected = {
+            "accelerator_backend": True,
+            "correctness_backend": True,
+            "matrix_engine_backend": True,
+            "compiled_kernel_available": True,
+            "exact_differential_validated": True,
+        }
+        for key, value in bool_expected.items():
+            if metadata.get(key) is not value:
+                self._error(f"amdgpu-builtins captures must use backend_metadata.{key}={value}")

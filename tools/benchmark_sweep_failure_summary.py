@@ -17,6 +17,7 @@ from benchmark_sweep_lib.review import capture_checksum
 REFERENCE_BACKEND_FAMILIES = {"cpu-reference", "wrap64-byte-limb", "hip-direct"}
 NON_ACTIONABLE_BLOCKERS = {"not_accelerator_backend", "scenario_scope_not_autotune_promotable"}
 PROMOTABLE_SCOPES = {None, "release_review_candidate"}
+DEFAULT_MAX_ROUTE_ROWS = 40
 
 
 def _latest_cdna_out(root: Path) -> Path:
@@ -77,7 +78,45 @@ def _actionable_blockers(candidate: dict[str, Any]) -> list[str]:
     return [str(item) for item in blockers if str(item) not in NON_ACTIONABLE_BLOCKERS]
 
 
-def build_summary(out: Path) -> list[str]:
+def _shape_text(group: dict[str, Any]) -> str:
+    shape = group.get("shape")
+    if isinstance(shape, dict):
+        return f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}"
+    return "unknown"
+
+
+def _histogram_text(candidate: dict[str, Any]) -> str:
+    histogram = candidate.get("matrix_instruction_histogram")
+    if not isinstance(histogram, dict) or not histogram:
+        return "none"
+    items = sorted((str(key), value) for key, value in histogram.items() if isinstance(value, int) and value > 0)
+    if not items:
+        return "none"
+    return ",".join(f"{key}:{value}" for key, value in items[:8])
+
+
+def _route_line(out: Path, label: str, group: dict[str, Any], candidate: dict[str, Any]) -> str:
+    bottleneck = candidate.get("bottleneck")
+    bottleneck_text = "unknown"
+    if isinstance(bottleneck, dict):
+        bottleneck_text = f"{bottleneck.get('class')}:{bottleneck.get('phase')}"
+    return (
+        "  "
+        f"{label} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"e2e={candidate.get('median_end_to_end_us')} "
+        f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
+        f"primary_loss={candidate.get('primary_loss_phase_vs_direct_hip')} "
+        f"bottleneck={bottleneck_text} "
+        f"matrix_isa={_histogram_text(candidate)} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
+def build_summary(out: Path, *, max_route_rows: int = DEFAULT_MAX_ROUTE_ROWS) -> list[str]:
     lines = [f"HEAD {_git_head()}", f"OUT {out}"]
 
     failed = sorted(out.rglob("*.failed.json"))
@@ -115,9 +154,17 @@ def build_summary(out: Path) -> list[str]:
     blocker_counts: Counter[str] = Counter()
     actionable_counts: Counter[str] = Counter()
     actionable_rows: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
+    production_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    accelerator_routes: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for path in out.rglob("review_report.json"):
         report = _load_json(path)
         for group in report.get("groups", []):
+            production = group.get("fastest_production_route")
+            if isinstance(production, dict):
+                production_routes.append((group, production))
+            accelerator = group.get("fastest_accelerator_route")
+            if isinstance(accelerator, dict):
+                accelerator_routes.append((group, accelerator))
             for candidate in group.get("candidates", []):
                 blocker_counts.update(candidate.get("promotion_blockers", []))
                 blockers = _actionable_blockers(candidate)
@@ -136,16 +183,11 @@ def build_summary(out: Path) -> list[str]:
     lines.append(f"ACTIONABLE_PROMOTION_CANDIDATES {len(actionable_rows)}")
     for _report_path, _contract_key, group, candidate in actionable_rows:
         blockers = ",".join(_actionable_blockers(candidate))
-        shape = group.get("shape")
-        if isinstance(shape, dict):
-            shape_text = f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}"
-        else:
-            shape_text = "unknown"
         lines.append(
             "  "
             f"{candidate.get('backend')} "
             f"semantics={group.get('semantics')} "
-            f"shape={shape_text} "
+            f"shape={_shape_text(group)} "
             f"kernel={candidate.get('selected_kernel')} "
             f"e2e={candidate.get('median_end_to_end_us')} "
             f"vs_direct={candidate.get('speedup_vs_direct_hip')} "
@@ -153,6 +195,16 @@ def build_summary(out: Path) -> list[str]:
             f"blockers={blockers} "
             f"capture={_relative_capture(out, candidate.get('capture'))}"
         )
+    lines.append(f"FASTEST_PRODUCTION_ROUTES {len(production_routes)}")
+    for group, candidate in production_routes[:max_route_rows]:
+        lines.append(_route_line(out, "production", group, candidate))
+    if len(production_routes) > max_route_rows:
+        lines.append(f"  ... {len(production_routes) - max_route_rows} more")
+    lines.append(f"FASTEST_ACCELERATOR_ROUTES {len(accelerator_routes)}")
+    for group, candidate in accelerator_routes[:max_route_rows]:
+        lines.append(_route_line(out, "accelerator", group, candidate))
+    if len(accelerator_routes) > max_route_rows:
+        lines.append(f"  ... {len(accelerator_routes) - max_route_rows} more")
     return lines
 
 
@@ -160,13 +212,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("out", nargs="?", type=Path, help="sweep output directory; defaults to latest temp/cdna-*mi300x-*")
     parser.add_argument("--temp-root", type=Path, default=Path("temp"))
+    parser.add_argument("--max-route-rows", type=int, default=DEFAULT_MAX_ROUTE_ROWS)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     out = args.out if args.out is not None else _latest_cdna_out(args.temp_root)
-    for line in build_summary(out):
+    for line in build_summary(out, max_route_rows=args.max_route_rows):
         print(line)
     return 0
 

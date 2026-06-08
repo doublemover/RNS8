@@ -23,13 +23,14 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
         requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
         requested != RNS8_BACKEND_ROCWMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-        requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
+        requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!backend_supports_semantics(requested, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if ((requested == RNS8_BACKEND_CK || requested == RNS8_BACKEND_ROCWMMA) &&
+    if ((requested == RNS8_BACKEND_CK || requested == RNS8_BACKEND_ROCWMMA ||
+         requested == RNS8_BACKEND_AMDGPU_BUILTINS) &&
         uses_finite_storage(desc->semantics) &&
         !rns8::detail::finite_u8::static_byte_modulus_supported(desc->finite_modulus)) {
       return RNS8_UNSUPPORTED_BACKEND;
@@ -480,6 +481,20 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
             sizeof(out->detail),
             "rocWMMA packs A/B into transient INT8 matrix-engine workspaces; no reusable production prepack cache.");
       }
+      return RNS8_SUCCESS;
+    }
+
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      out->uses_transient_pack_workspace = 1;
+      out->uses_matrix_engine_pack_layout = 1;
+      set_text(out->a_layout_version, sizeof(out->a_layout_version), "amdgpu_builtin_a_centered_i8_matrix_core_v1");
+      set_text(out->b_layout_version, sizeof(out->b_layout_version), "amdgpu_builtin_b_centered_i8_matrix_core_v1");
+      set_text(out->output_layout_version, sizeof(out->output_layout_version), persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope, sizeof(out->prepack_cache_scope), "transient_per_dispatch_workspace");
+      set_text(
+          out->detail,
+          sizeof(out->detail),
+          "AMDGPU builtin kernels require explicit target-specific matrix-core pack layouts; sparse-A uses a separate public sparse handle and is not inferred from dense inputs.");
       return RNS8_SUCCESS;
     }
 

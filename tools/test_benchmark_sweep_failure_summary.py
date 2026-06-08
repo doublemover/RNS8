@@ -111,6 +111,12 @@ def main() -> int:
                                 "backend": "hip-direct",
                                 "accelerator_backend": False,
                                 "scenario_promotion_scope": "release_review_candidate",
+                                "selected_kernel": "direct_kernel",
+                                "median_end_to_end_us": 100,
+                                "speedup_vs_direct_hip": 1.0,
+                                "primary_loss_phase_vs_direct_hip": None,
+                                "bottleneck": {"class": "mixed_bound", "phase": "rns_gemm"},
+                                "capture": str(scenarios / "b-direct.json"),
                                 "promotion_blockers": ["not_accelerator_backend"],
                             },
                             {
@@ -120,6 +126,30 @@ def main() -> int:
                                 "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
                             },
                         ],
+                        "fastest_production_route": {
+                            "backend": "hip-direct",
+                            "accelerator_backend": False,
+                            "scenario_promotion_scope": "release_review_candidate",
+                            "selected_kernel": "direct_kernel",
+                            "median_end_to_end_us": 100,
+                            "speedup_vs_direct_hip": 1.0,
+                            "primary_loss_phase_vs_direct_hip": None,
+                            "bottleneck": {"class": "mixed_bound", "phase": "rns_gemm"},
+                            "matrix_instruction_histogram": {},
+                            "capture": str(scenarios / "b-direct.json"),
+                        },
+                        "fastest_accelerator_route": {
+                            "backend": "ck",
+                            "accelerator_backend": True,
+                            "scenario_promotion_scope": "release_review_candidate",
+                            "selected_kernel": "ck_kernel",
+                            "median_end_to_end_us": 123,
+                            "speedup_vs_direct_hip": 0.8,
+                            "primary_loss_phase_vs_direct_hip": "pack",
+                            "bottleneck": {"class": "pack_bound", "phase": "pack"},
+                            "matrix_instruction_histogram": {"v_mfma": 2},
+                            "capture": str(scenarios / "c-ck.json"),
+                        },
                     }
                 ]
             },
@@ -139,6 +169,11 @@ def main() -> int:
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
         assert "ck semantics=bounded_i64 shape=64x64x64" in text
+        assert "FASTEST_PRODUCTION_ROUTES 1" in text
+        assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
+        assert "FASTEST_ACCELERATOR_ROUTES 1" in text
+        assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
+        assert "matrix_isa=v_mfma:2" in text
 
     print("benchmark sweep failure summary self-test: PASS")
     return 0
