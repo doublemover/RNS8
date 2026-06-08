@@ -212,6 +212,19 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
+struct CenteredModulo {
+  int32_t modulus;
+  uint32_t reciprocal;
+
+  __host__ __device__ CenteredModulo(int32_t m = 253, uint32_t r = 0) : modulus(m), reciprocal(r) {}
+
+  template <typename Y, typename X>
+  __host__ __device__ void operator()(Y& y, const X& x) const {
+    y = static_cast<Y>(rns8::detail::finite_u8::reduce_to_centered_ck_i32(
+        static_cast<int32_t>(x), static_cast<uint32_t>(modulus), reciprocal));
+  }
+};
+
 #if RNS8_CK_USE_XDL
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
     Row,
@@ -219,12 +232,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle
     Row,
     int8_t,
     int8_t,
-    int32_t,
+    int8_t,
     int32_t,
     int32_t,
     PassThrough,
     PassThrough,
-    PassThrough,
+    CenteredModulo,
     ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     1,
     256,
@@ -262,12 +275,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
     Row,
     int8_t,
     int8_t,
-    int32_t,
+    int8_t,
     int32_t,
     int32_t,
     PassThrough,
     PassThrough,
-    PassThrough,
+    CenteredModulo,
     ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     1,
     128,
@@ -357,16 +370,15 @@ bool ck_workspace_requirements_u64(
   if (!checked_mul_u64(padded_k_block, static_cast<uint64_t>(padded_n), b_bytes)) {
     return false;
   }
-  uint64_t temp_elements = 0;
-  if (!checked_mul_u64(static_cast<uint64_t>(padded_m), static_cast<uint64_t>(padded_n), &temp_elements) ||
-      !checked_mul_u64(temp_elements, sizeof(int32_t), temp_bytes)) {
+  if (!checked_mul_u64(static_cast<uint64_t>(padded_m), static_cast<uint64_t>(padded_n), temp_bytes)) {
     return false;
   }
   return *a_bytes <= UINT64_MAX - *b_bytes && *a_bytes + *b_bytes <= UINT64_MAX - *temp_bytes;
 }
 
 __device__ int8_t center_i32_device(int32_t value, int modulus, uint32_t reciprocal) {
-  return rns8::detail::finite_u8::reduce_to_centered_ck_i32(value, static_cast<uint32_t>(modulus), reciprocal);
+  return rns8::detail::finite_u8::reduce_to_centered_accelerator_i32(
+      value, static_cast<uint32_t>(modulus), reciprocal);
 }
 
 __device__ int8_t canonical_byte_from_centered_device(int8_t residue, int modulus) {

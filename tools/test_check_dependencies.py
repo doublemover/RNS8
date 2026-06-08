@@ -112,8 +112,13 @@ Agent 2:
         expect(bool(ck["sha_matches"]), "initialized CK submodule is not at the pinned release SHA")
     expect("ck" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES, "CK primitive probe source missing")
     expect(
+        "DeviceGemm_Xdl_CShuffle" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"] and
         "DeviceGemmWmma_CShuffle" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
-        "CK primitive probe no longer instantiates the WMMA CShuffle GEMM primitive",
+        "CK primitive probe must cover both XDL and WMMA CShuffle GEMM primitives",
+    )
+    expect(
+        "CenteredModulo" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
+        "CK primitive probe must instantiate the real centered-residue epilogue",
     )
 
     rocwmma = deps.repo_local_dependency_report("rocwmma")

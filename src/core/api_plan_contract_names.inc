@@ -181,9 +181,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   }
   if (plan.backend == RNS8_BACKEND_CK) {
 #if RNS8_CK_USE_XDL
-    return "resident_device_buffers_with_ck_centered_pack_accumulator_workspace";
+    return "resident_device_buffers_with_ck_centered_pack_workspace";
 #else
-    return "resident_device_buffers_with_ck_canonical_pack_accumulator_workspace";
+    return "resident_device_buffers_with_ck_canonical_pack_workspace";
 #endif
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {

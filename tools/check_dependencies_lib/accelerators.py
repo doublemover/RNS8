@@ -86,7 +86,7 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "cmake_module": first_existing([modules / "FindRNS8CK.cmake"]),
             "probe": (
                 "repo-local header discovery plus optional hipcc compile/run probe and object-only "
-                "int8 DeviceGemmWmma_CShuffle primitive probe for gfx1100; no backend correctness validation"
+                "target-selected int8 DeviceGemm CShuffle primitive probe; no backend correctness validation"
             ),
             "backend_stage": "B5/B6",
             "experiment": "E006",
@@ -232,6 +232,7 @@ def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
                 "#define CK_ENABLE_FP64 ON",
                 "#define CK_ENABLE_DL_KERNELS ON",
                 "#define CK_ENABLE_DPP_KERNELS ON",
+                "#define CK_USE_XDL ON",
                 "#define CK_USE_WMMA ON",
                 "#endif",
                 "",
@@ -269,6 +270,7 @@ def include_roots_for_component(name: str, component: dict[str, object], probe_d
             commit_value = dependency.get("actual_sha") or dependency.get("expected_sha")
             commit_id = str(commit_value) if commit_value else ""
         roots.append(str(write_ck_generated_headers(probe_dir, commit_id)))
+        roots.append(str(repo_root() / "src" / "backend_common"))
     if include_root:
         roots.append(include_root)
     return roots
@@ -395,6 +397,9 @@ def compile_accelerator_primitive_probe(
     command = [hipcc, "-std=c++17", "-O2"]
     if offload_target:
         command.append(f"--offload-arch={offload_target}")
+    if name == "ck":
+        use_xdl = bool(offload_target and offload_target.startswith("gfx9"))
+        command.append(f"-DRNS8_CK_PRIMITIVE_USE_XDL={1 if use_xdl else 0}")
     command.extend(["-c", str(source)])
     for include_root in include_roots_for_component(name, component, root):
         command.extend(["-I", include_root])

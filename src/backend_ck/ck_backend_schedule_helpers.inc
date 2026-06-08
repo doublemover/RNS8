@@ -16,7 +16,7 @@ int run_ck_entry(
     int8_t* c_base,
     int8_t* a_workspace,
     int8_t* b_workspace,
-    int32_t* temp_c,
+    int8_t* temp_c,
     int64_t m,
     int64_t n,
     int64_t k,
@@ -97,7 +97,7 @@ int run_ck_finite(
     int8_t* c,
     int8_t* a_workspace,
     int8_t* b_workspace,
-    int32_t* temp_c,
+    int8_t* temp_c,
     int64_t m,
     int64_t n,
     int64_t k,
@@ -143,7 +143,7 @@ int checked_common(
     int64_t max_n,
     int8_t** a_workspace,
     int8_t** b_workspace,
-    int32_t** temp_c) {
+    int8_t** temp_c) {
   if (!a || !b || !c || !workspace || !checked_i32_shape(m) || !checked_i32_shape(n) || !checked_i32_shape(k) ||
       !checked_i32_shape(lda) || !checked_i32_shape(ldb) || !checked_i32_shape(ldc) || lda < k || ldb < n ||
       ldc < n) {
@@ -166,8 +166,7 @@ int checked_common(
   }
   *a_workspace = static_cast<int8_t*>(workspace);
   *b_workspace = static_cast<int8_t*>(workspace) + a_bytes;
-  *temp_c = temp_bytes == 0 ? nullptr
-                            : reinterpret_cast<int32_t*>(static_cast<int8_t*>(workspace) + a_bytes + b_bytes);
+  *temp_c = temp_bytes == 0 ? nullptr : static_cast<int8_t*>(workspace) + a_bytes + b_bytes;
   return ck_success;
 }
 

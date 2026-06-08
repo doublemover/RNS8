@@ -2,7 +2,11 @@
 
 #include <cstdint>
 
+#if defined(__HIPCC__) || defined(__CUDACC__)
 #define RNS8_FINITE_U8_INLINE __host__ __device__ __forceinline__
+#else
+#define RNS8_FINITE_U8_INLINE inline
+#endif
 
 namespace rns8::detail::finite_u8 {
 
@@ -148,31 +152,7 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(
     int32_t value,
     uint32_t modulus,
     uint32_t reciprocal) {
-  if (modulus == 256u) {
-    return reduce_to_centered_mod256_i32(value);
-  }
-  if (modulus == 255u) {
-    return reduce_to_centered_mod255_i32(value);
-  }
-  if (modulus == 251u) {
-    return reduce_to_centered_mod251_i32(value);
-  }
-  const bool negative = value < 0;
-  uint32_t magnitude = abs_i32_to_u32(value);
-  uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(magnitude) * reciprocal) >> 32u);
-  uint32_t residue = magnitude - quotient * modulus;
-  while (residue >= modulus) {
-    residue -= modulus;
-  }
-  int32_t centered = static_cast<int32_t>(residue);
-  if (negative && centered != 0) {
-    centered = static_cast<int32_t>(modulus) - centered;
-  }
-  const int32_t threshold = (static_cast<int32_t>(modulus) + 1) / 2;
-  if (centered >= threshold) {
-    centered -= static_cast<int32_t>(modulus);
-  }
-  return static_cast<int8_t>(centered);
+  return reduce_to_centered_accelerator_i32(value, modulus, reciprocal);
 }
 
 template <uint32_t Modulus>
