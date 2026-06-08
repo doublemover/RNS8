@@ -546,6 +546,63 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend matches CPU") {
   rns8_destroy_context(cpu);
 }
 
+TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails") {
+  if (!amdgpu_builtins_available()) {
+    SKIP("AMDGPU builtin backend is not available on this device");
+  }
+
+  rns8_context* cpu = require_context(RNS8_BACKEND_CPU_REFERENCE);
+  rns8_context* amdgpu = require_context(RNS8_BACKEND_AMDGPU_BUILTINS);
+  constexpr int64_t m = 17;
+  constexpr int64_t n = 19;
+  constexpr int64_t k = 35;
+  std::vector<uint8_t> A(static_cast<std::size_t>(m * k));
+  std::vector<uint8_t> B(static_cast<std::size_t>(k * n));
+  for (int64_t row = 0; row < m; ++row) {
+    for (int64_t col = 0; col < k; ++col) {
+      A[static_cast<std::size_t>(row * k + col)] = static_cast<uint8_t>((row * 17 + col * 19 + 5) % 251);
+    }
+  }
+  for (int64_t row = 0; row < k; ++row) {
+    for (int64_t col = 0; col < n; ++col) {
+      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint8_t>((row * 23 + col * 29 + 7) % 251);
+    }
+  }
+  std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * n), 0);
+  std::vector<uint8_t> gpu_out(static_cast<std::size_t>(m * n), 0);
+  auto cpu_desc = finite_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
+  auto gpu_desc = finite_desc(m, n, k, RNS8_BACKEND_AMDGPU_BUILTINS);
+
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), k, B.data(), n, cpu_out.data(), n) ==
+          RNS8_SUCCESS);
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_workspace(amdgpu, plan, &workspace) == RNS8_SUCCESS);
+  auto a_desc = finite_matrix_desc(m, k);
+  auto b_desc = finite_matrix_desc(k, n);
+  auto c_desc = finite_matrix_desc(m, n);
+  rns8_matrix* a = nullptr;
+  rns8_matrix* b = nullptr;
+  rns8_matrix* c = nullptr;
+  REQUIRE(rns8_create_matrix(amdgpu, &a_desc, &a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(amdgpu, &b_desc, &b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(amdgpu, &c_desc, &c) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_finite_u8(amdgpu, a, 251, A.data(), k, 11) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_finite_u8(amdgpu, b, 251, B.data(), n, 12) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8(amdgpu, plan, 251, a, b, c, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_finite_u8(amdgpu, plan, 251, c, gpu_out.data(), n) == RNS8_SUCCESS);
+  CHECK(gpu_out == cpu_out);
+
+  rns8_destroy_matrix(c);
+  rns8_destroy_matrix(b);
+  rns8_destroy_matrix(a);
+  rns8_destroy_workspace(workspace);
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(amdgpu);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("AMDGPU builtin explicit sparse-A bounded backend matches dense backend") {
   if (!amdgpu_builtins_available()) {
     SKIP("AMDGPU builtin backend is not available on this device");
