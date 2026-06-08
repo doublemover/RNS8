@@ -21,6 +21,40 @@ def main() -> int:
         for path in rocm_candidates
     )
     assert gpu_isa_report.backend_for_object(Path("amdgpu_builtins_kernels.o"), "all") == "amdgpu-builtins"
+    with tempfile.TemporaryDirectory() as tmp_name:
+        build_tree = Path(tmp_name)
+        host_object = build_tree / "CMakeFiles" / "rns8-bench.dir" / "benchmarks" / "rns8_bench.cpp.o"
+        gpu_object = build_tree / "CMakeFiles" / "rns8.dir" / "src" / "backend_amdgpu_builtins" / "amdgpu_builtins_kernels.hip.o"
+        host_object.parent.mkdir(parents=True, exist_ok=True)
+        gpu_object.parent.mkdir(parents=True, exist_ok=True)
+        host_object.write_bytes(b"host")
+        gpu_object.write_bytes(b"gpu")
+        discovered = gpu_isa_report.discover_objects(build_tree, "all")
+        assert discovered == [gpu_object]
+        assert gpu_isa_report.discover_objects(build_tree, "amdgpu-builtins") == [gpu_object]
+        (build_tree / "CMakeCache.txt").write_text(
+            "\n".join(
+                [
+                    "RNS8_ENABLE_HIP:BOOL=ON",
+                    "RNS8_ENABLE_HIPBLASLT:BOOL=OFF",
+                    "RNS8_ENABLE_CK:BOOL=OFF",
+                    "RNS8_ENABLE_ROCWMMA:BOOL=OFF",
+                    "RNS8_ENABLE_AMDGPU_BUILTINS:BOOL=ON",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        assert gpu_isa_report.expected_backends_from_cmake_cache(build_tree, "all") == {
+            "amdgpu-builtins",
+            "direct-hip",
+            "vector-alu",
+            "wrap64",
+        }
+        assert gpu_isa_report.expected_backends_from_cmake_cache(build_tree, "ck") == {"ck"}
+        assert gpu_isa_report.is_missing_hip_fatbin_error(
+            RuntimeError("section '.hip_fatbin' not found")
+        )
 
     readobj_output = """
 AMDGPU Metadata: ---

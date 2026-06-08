@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from evidence_database_lib.isa import load_isa_index
+from evidence_database_lib.io import discover_capture_paths, discover_isa_report_paths
 
 from .commands import scenario_names, sweep_command_entries
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
@@ -28,6 +29,13 @@ def parse_args() -> argparse.Namespace:
         help="ignored output directory for raw captures and review report",
     )
     parser.add_argument("--capture", type=Path, action="append", default=[], help="existing capture to review")
+    parser.add_argument(
+        "--capture-root",
+        type=Path,
+        action="append",
+        default=[],
+        help="directory containing existing benchmark capture JSON files to review",
+    )
     parser.add_argument(
         "--isa-report",
         type=Path,
@@ -350,12 +358,34 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def review_capture_paths(args: argparse.Namespace) -> list[Path]:
+    paths = list(args.capture)
+    if args.capture_root:
+        paths.extend(discover_capture_paths(args.capture_root))
+    if args.review_only and not paths:
+        default_root = args.out_root / "scenarios"
+        if default_root.exists():
+            paths.extend(discover_capture_paths([default_root]))
+    return list(dict.fromkeys(paths))
+
+
+def load_required_isa_index(paths: list[Path]) -> dict:
+    for path in paths:
+        if not path.exists():
+            raise SystemExit(f"--isa-report path does not exist: {path}")
+    discovered = discover_isa_report_paths(paths)
+    if not discovered:
+        joined = ", ".join(str(path) for path in paths)
+        raise SystemExit(f"--isa-report found no *-isa-summary.json reports under: {joined}")
+    return load_isa_index(paths)
+
+
 def main() -> int:
     args = parse_args()
     args.out_root = Path(args.out_root)
     args.out_root.mkdir(parents=True, exist_ok=True)
 
-    capture_paths = list(args.capture)
+    capture_paths = review_capture_paths(args)
     entries: list[SweepCommand] = []
     execution_stats: dict[str, int] | None = None
     if not args.review_only:
@@ -365,7 +395,7 @@ def main() -> int:
         execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)
-    isa_index = load_isa_index(args.isa_report) if args.isa_report else None
+    isa_index = load_required_isa_index(args.isa_report) if args.isa_report else None
     report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index)
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()

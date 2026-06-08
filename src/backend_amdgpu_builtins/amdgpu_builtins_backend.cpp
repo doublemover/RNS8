@@ -147,6 +147,10 @@ bool amdgpu_builtins_workspace_requirements(int64_t max_m, int64_t max_n, int64_
   return max_m > 0 && max_n > 0 && k > 0 && k <= RNS8_SAFE_INT32_K_BLOCK;
 }
 
+bool amdgpu_builtins_use_cdna3_mfma_32x32x16(int64_t m, int64_t n, int64_t k) {
+  return m >= 128 && n >= 128 && k >= 128;
+}
+
 rns8_status amdgpu_builtins_gemm_rns_device(
     int device_id,
     const void* device_a_residues,

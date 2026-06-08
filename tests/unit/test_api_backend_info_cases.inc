@@ -23,6 +23,12 @@ TEST_CASE("public accelerator backend context kinds fail fast") {
   }
 }
 
+TEST_CASE("AMDGPU builtins CDNA MFMA route selection is conservative") {
+  CHECK_FALSE(rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(64, 64, 64));
+  CHECK_FALSE(rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(128, 64, 128));
+  CHECK(rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(128, 128, 128));
+}
+
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
   const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA, RNS8_BACKEND_AMDGPU_BUILTINS};

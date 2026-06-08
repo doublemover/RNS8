@@ -182,6 +182,59 @@ with tempfile.TemporaryDirectory() as temp_dir:
     assert [path.name for path in capture_paths] == ["cpu-a.json", "cpu-b.json"]
     assert entries[0].output.read_text(encoding="utf-8") == entries[1].output.read_text(encoding="utf-8")
 
+from benchmark_sweep_lib.cli import load_required_isa_index, review_capture_paths
+
+with tempfile.TemporaryDirectory() as tmp_name:
+    root = Path(tmp_name)
+    out_root = root / "rank-scenarios" / "all"
+    scenario_root = out_root / "scenarios"
+    scenario_root.mkdir(parents=True)
+    capture_path = scenario_root / "bounded-hip-direct.json"
+    capture = bounded_capture("hip-direct", 100)
+    capture["_path"] = str(capture_path)
+    capture_path.write_text(json.dumps(capture), encoding="utf-8")
+    (scenario_root / "bounded-hip-direct.failed.json").write_text("{}", encoding="utf-8")
+    default_args = argparse.Namespace(capture=[], capture_root=[], review_only=True, out_root=out_root)
+    assert review_capture_paths(default_args) == [capture_path]
+    explicit_args = argparse.Namespace(capture=[], capture_root=[scenario_root], review_only=True, out_root=root / "unused")
+    assert review_capture_paths(explicit_args) == [capture_path]
+    try:
+        load_required_isa_index([root / "missing-isa"])
+        raise AssertionError("missing ISA report directory was accepted")
+    except SystemExit as exc:
+        assert "--isa-report path does not exist" in str(exc)
+    isa_root = root / "isa-reports"
+    isa_root.mkdir()
+    try:
+        load_required_isa_index([isa_root])
+        raise AssertionError("empty ISA report directory was accepted")
+    except SystemExit as exc:
+        assert "--isa-report found no" in str(exc)
+    isa_path = isa_root / "hip_direct_kernels-gfx942-direct-hip-isa-summary.json"
+    isa_path.write_text(
+        json.dumps(
+            {
+                "object": "build/linux/hip_direct_kernels.hip.o",
+                "target": "gfx942",
+                "backend": "direct-hip",
+                "reported_symbol_count": 1,
+                "device_symbol_count": 1,
+                "tools": {"rga_status": "not_run_optional", "rga": None},
+                "instruction_totals": {
+                    "matrix_instruction_count": 0,
+                    "dense_integer_matrix_instruction_count": 0,
+                    "sparse_integer_matrix_instruction_count": 0,
+                    "matrix_instruction_histogram": {},
+                    "matrix_instruction_families": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    isa_index = load_required_isa_index([isa_root])
+    assert "direct-hip|gfx942" in isa_index
+    assert "direct-hip|*" in isa_index
+
 exact_variant_args = copy.copy(exact_args)
 exact_variant_args.backends = ["cpu"]
 exact_variant_args.include_exact_wide_limb_variants = True

@@ -33,6 +33,13 @@ BACKEND_OBJECT_MARKERS = {
     "wrap64": ["wrap64_hip_kernels"],
     "vector-alu": ["vector_alu_kernels", "hip_vector_alu_baseline_kernels"],
 }
+CMAKE_OPTION_BACKENDS = {
+    "RNS8_ENABLE_HIP": ["direct-hip", "wrap64", "vector-alu"],
+    "RNS8_ENABLE_HIPBLASLT": ["hipblaslt"],
+    "RNS8_ENABLE_CK": ["ck"],
+    "RNS8_ENABLE_ROCWMMA": ["rocwmma"],
+    "RNS8_ENABLE_AMDGPU_BUILTINS": ["amdgpu-builtins"],
+}
 BACKEND_SYMBOL_MARKERS = {
     "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide"],
     "hipblaslt": ["rns8_hipblaslt", "pack_transpose", "reduce_i32_to_centered"],
@@ -103,13 +110,43 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
 
 
 def discover_objects(build_tree: Path, backend: str) -> list[Path]:
-    markers = BACKEND_OBJECT_MARKERS.get(backend, [])
+    if backend == "all":
+        markers = sorted({marker for values in BACKEND_OBJECT_MARKERS.values() for marker in values})
+    else:
+        markers = BACKEND_OBJECT_MARKERS.get(backend, [])
     candidates = sorted(
         path
         for path in build_tree.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".obj", ".o"} and (not markers or any(marker in path.name for marker in markers))
+        if path.is_file()
+        and path.suffix.lower() in {".obj", ".o"}
+        and (not markers or any(marker in path.name for marker in markers))
     )
     return candidates
+
+
+def read_cmake_cache(build_tree: Path) -> dict[str, str]:
+    cache_path = build_tree / "CMakeCache.txt"
+    if not cache_path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for line in cache_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line or line.startswith("//") or line.startswith("#") or ":" not in line or "=" not in line:
+            continue
+        key, rest = line.split(":", 1)
+        _type, value = rest.split("=", 1)
+        values[key] = value.strip()
+    return values
+
+
+def expected_backends_from_cmake_cache(build_tree: Path, backend: str) -> set[str]:
+    if backend != "all":
+        return {backend}
+    cache = read_cmake_cache(build_tree)
+    expected: set[str] = set()
+    for option, backends in CMAKE_OPTION_BACKENDS.items():
+        if cache.get(option, "").upper() == "ON":
+            expected.update(backends)
+    return expected
 
 
 def backend_for_object(path: Path, requested_backend: str) -> str:
@@ -475,6 +512,36 @@ def write_report(report: dict[str, Any], out_dir: Path) -> Path:
     return out_path
 
 
+def write_manifest(
+    *,
+    args: argparse.Namespace,
+    outputs: list[Path],
+    skipped_objects: list[dict[str, Any]],
+    expected_backends: set[str],
+    reported_backends: set[str],
+    out_dir: Path,
+) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "backend": args.backend,
+        "target": args.target,
+        "reports": [str(path) for path in outputs],
+        "report_count": len(outputs),
+        "expected_backends": sorted(expected_backends),
+        "reported_backends": sorted(reported_backends),
+        "skipped_objects": skipped_objects,
+        "skipped_object_count": len(skipped_objects),
+    }
+    manifest_path = out_dir / "gpu-isa-report-manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+def is_missing_hip_fatbin_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return ".hip_fatbin" in text and "not found" in text
+
+
 def json_safe_config(config: IsaToolConfig) -> dict[str, Any]:
     return {key: str(value) if isinstance(value, Path) else value for key, value in asdict(config).items()}
 
@@ -537,21 +604,76 @@ def main() -> int:
     matrix_candidates = load_matrix_instruction_candidates(args.matrix_instruction_report, args.target)
 
     outputs = []
+    skipped_objects: list[dict[str, Any]] = []
+    reported_backends: set[str] = set()
+    expected_backends = expected_backends_from_cmake_cache(args.build_tree, args.backend)
     for obj in unique_objects:
         if not obj.exists():
             raise RuntimeError(f"HIP object does not exist: {obj}")
         backend = backend_for_object(obj, args.backend)
+        if not expected_backends and backend != "all":
+            expected_backends.add(backend)
         config = IsaToolConfig(host_object=obj, **config_template)
-        report = report_object(config, backend, args.rga, readobj_path)
+        try:
+            report = report_object(config, backend, args.rga, readobj_path)
+        except RuntimeError as exc:
+            if not is_missing_hip_fatbin_error(exc):
+                raise
+            skipped_objects.append(
+                {
+                    "object": str(obj),
+                    "backend": backend,
+                    "reason": "missing_hip_fatbin_section",
+                    "detail": str(exc).splitlines()[0],
+                }
+            )
+            continue
         if linked_capture is not None:
             report["capture"] = linked_capture
         correlate_matrix_instruction_report(report, matrix_candidates)
         report["config"] = json_safe_config(config)
         outputs.append(write_report(report, args.out_dir))
+        reported_backends.add(backend)
+
+    missing_backends = sorted(expected_backends - reported_backends)
+    if missing_backends:
+        write_manifest(
+            args=args,
+            outputs=outputs,
+            skipped_objects=skipped_objects,
+            expected_backends=expected_backends,
+            reported_backends=reported_backends,
+            out_dir=args.out_dir,
+        )
+        raise RuntimeError(
+            "no ISA report produced for expected backend(s): "
+            + ", ".join(missing_backends)
+            + "; skipped objects are recorded in gpu-isa-report-manifest.json"
+        )
+    if not outputs:
+        write_manifest(
+            args=args,
+            outputs=outputs,
+            skipped_objects=skipped_objects,
+            expected_backends=expected_backends,
+            reported_backends=reported_backends,
+            out_dir=args.out_dir,
+        )
+        raise RuntimeError("no ISA reports produced; skipped objects are recorded in gpu-isa-report-manifest.json")
+    manifest_path = write_manifest(
+        args=args,
+        outputs=outputs,
+        skipped_objects=skipped_objects,
+        expected_backends=expected_backends,
+        reported_backends=reported_backends,
+        out_dir=args.out_dir,
+    )
 
     print("GPU ISA report: PASS")
     for out_path in outputs:
         print(f"- {out_path}")
+    if skipped_objects:
+        print(f"skipped_non_hip_objects={len(skipped_objects)} manifest={manifest_path}")
     return 0
 
 

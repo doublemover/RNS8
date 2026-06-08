@@ -11,6 +11,7 @@ namespace rns8::detail {
 bool amdgpu_builtins_compiled();
 rns8_status amdgpu_builtins_probe(int device_id, rns8_device_info& out);
 bool amdgpu_builtins_workspace_requirements(int64_t max_m, int64_t max_n, int64_t k, std::size_t& total_bytes);
+bool amdgpu_builtins_use_cdna3_mfma_32x32x16(int64_t m, int64_t n, int64_t k);
 
 rns8_status amdgpu_builtins_gemm_rns_device(
     int device_id,

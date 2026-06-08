@@ -138,6 +138,10 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     if (plan.backend_target_id == "gfx1200" || plan.backend_target_id == "gfx1201") {
       return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
+    if (plan.backend_target_id.rfind("gfx942", 0) == 0 &&
+        rns8::detail::amdgpu_builtins_use_cdna3_mfma_32x32x16(plan.desc.m, plan.desc.n, plan.desc.k)) {
+      return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
+    }
     return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
   }
   return "not_implemented";

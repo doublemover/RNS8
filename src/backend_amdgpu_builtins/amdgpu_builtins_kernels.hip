@@ -10,10 +10,13 @@ namespace {
 using i32x2 = int __attribute__((ext_vector_type(2)));
 using i32x4 = int __attribute__((ext_vector_type(4)));
 using i32x8 = int __attribute__((ext_vector_type(8)));
+using i32x16 = int __attribute__((ext_vector_type(16)));
 
 constexpr int kRns8DefaultModulusCount = 28;
 constexpr int kRns8DenseTile = 16;
 constexpr int kRns8DenseCdnaK = 32;
+constexpr int kRns8DenseCdnaWideTile = 32;
+constexpr int kRns8DenseCdnaWideK = 16;
 constexpr int kRns8DenseRdnaK = 16;
 constexpr int kRns8SparseCdnaK = 64;
 constexpr int kRns8SparseRdna4K = 32;
@@ -222,6 +225,66 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
   store_accumulator<Finite>(acc[1], c, plane, modulus, m, n, ldc, row_base + 1, col);
   store_accumulator<Finite>(acc[2], c, plane, modulus, m, n, ldc, row_base + 2, col);
   store_accumulator<Finite>(acc[3], c, plane, modulus, m, n, ldc, row_base + 3, col);
+#else
+  (void)a;
+  (void)b;
+  (void)c;
+  (void)m;
+  (void)n;
+  (void)k;
+  (void)lda;
+  (void)ldb;
+  (void)ldc;
+  (void)plane_count_or_modulus;
+#endif
+}
+
+template <bool Finite>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
+    const int8_t* a,
+    const int8_t* b,
+    int8_t* c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int plane_count_or_modulus) {
+#if defined(__gfx942__)
+  const int lane = static_cast<int>(threadIdx.x);
+  const int lane_row = lane & 31;
+  const int lane_col = lane & 31;
+  const int lane_half = lane >> 5;
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseCdnaWideTile;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseCdnaWideTile;
+  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  const int modulus = Finite ? plane_count_or_modulus : 0;
+
+  i32x16 acc = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  for (int kk = 0; kk < k; kk += kRns8DenseCdnaWideK) {
+    const int a_row = tile_row + lane_row;
+    const int b_col = tile_col + lane_col;
+    const int k_base = kk + lane_half * 8;
+    const uint64_t packed_a =
+        static_cast<uint64_t>(pack4_centered_i8(a, plane, m, k, lda, a_row, k_base)) |
+        (static_cast<uint64_t>(pack4_centered_i8(a, plane, m, k, lda, a_row, k_base + 4)) << 32u);
+    const uint64_t packed_b =
+        static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col)) |
+        (static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col)) << 32u);
+    acc = __builtin_amdgcn_mfma_i32_32x32x16_i8(
+        static_cast<long long>(packed_a),
+        static_cast<long long>(packed_b),
+        acc,
+        0,
+        0,
+        0);
+  }
+  const int col = tile_col + lane_col;
+  for (int reg = 0; reg < 16; ++reg) {
+    const int row = tile_row + 8 * (reg >> 2) + 4 * lane_half + (reg & 3);
+    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col);
+  }
 #else
   (void)a;
   (void)b;
@@ -517,6 +580,10 @@ int active_device_arch_kind(int device_id, rns8_amdgpu_arch_kind& kind) {
   return kind == rns8_amdgpu_arch_kind::unsupported ? 2 : 0;
 }
 
+bool use_cdna3_mfma_32x32x16(int m, int n, int k) {
+  return m >= 128 && n >= 128 && k >= 128;
+}
+
 template <bool Finite>
 int launch_dense(
     int device_id,
@@ -535,28 +602,56 @@ int launch_dense(
   if (arch_status != 0) {
     return arch_status;
   }
-  const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
   hipError_t err = hipSuccess;
   switch (kind) {
     case rns8_amdgpu_arch_kind::cdna3:
-      hipLaunchKernelGGL(
-          (cdna3_dense_mfma_kernel<Finite>),
-          grid,
-          dim3(64),
-          0,
-          0,
-          static_cast<const int8_t*>(device_a_residues),
-          static_cast<const int8_t*>(device_b_residues),
-          static_cast<int8_t*>(device_c_residues),
-          m,
-          n,
-          k,
-          lda,
-          ldb,
-          ldc,
-          plane_count_or_modulus);
+      if (!Finite && use_cdna3_mfma_32x32x16(m, n, k)) {
+        const dim3 grid(
+            (static_cast<unsigned>(n) + 31u) / 32u,
+            (static_cast<unsigned>(m) + 31u) / 32u,
+            static_cast<unsigned>(plane_count_or_modulus));
+        hipLaunchKernelGGL(
+            (cdna3_dense_mfma_32x32x16_kernel<Finite>),
+            grid,
+            dim3(64),
+            0,
+            0,
+            static_cast<const int8_t*>(device_a_residues),
+            static_cast<const int8_t*>(device_b_residues),
+            static_cast<int8_t*>(device_c_residues),
+            m,
+            n,
+            k,
+            lda,
+            ldb,
+            ldc,
+            plane_count_or_modulus);
+      } else {
+        const dim3 grid(
+            (static_cast<unsigned>(n) + 15u) / 16u,
+            (static_cast<unsigned>(m) + 15u) / 16u,
+            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+        hipLaunchKernelGGL(
+            (cdna3_dense_mfma_kernel<Finite>),
+            grid,
+            dim3(64),
+            0,
+            0,
+            static_cast<const int8_t*>(device_a_residues),
+            static_cast<const int8_t*>(device_b_residues),
+            static_cast<int8_t*>(device_c_residues),
+            m,
+            n,
+            k,
+            lda,
+            ldb,
+            ldc,
+            plane_count_or_modulus);
+      }
       break;
     case rns8_amdgpu_arch_kind::rdna3:
+    {
+      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
       hipLaunchKernelGGL(
           (rdna3_dense_wmma_kernel<Finite>),
           grid,
@@ -574,7 +669,10 @@ int launch_dense(
           ldc,
           plane_count_or_modulus);
       break;
+    }
     case rns8_amdgpu_arch_kind::rdna4:
+    {
+      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
       hipLaunchKernelGGL(
           (rdna4_dense_wmma_kernel<Finite>),
           grid,
@@ -592,6 +690,7 @@ int launch_dense(
           ldc,
           plane_count_or_modulus);
       break;
+    }
     case rns8_amdgpu_arch_kind::unsupported:
       return 2;
   }
