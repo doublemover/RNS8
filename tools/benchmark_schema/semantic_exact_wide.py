@@ -146,6 +146,9 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
             "rocwmma": "rocwmma_fused_i32_to_centered_residue_rns_output",
             "amdgpu-builtins": "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
         }
+        selected_kernel = str(self.data.get("selected_kernel") or "")
+        if backend == "amdgpu-builtins" and "sparse_a" in selected_kernel:
+            expected_epilogues["amdgpu-builtins"] = "amdgpu_builtin_sparse_a_fused_i32_to_centered_residue_rns_output"
         expected_backend_epilogue = expected_epilogues.get(str(backend))
         if (
             expected_backend_epilogue is not None

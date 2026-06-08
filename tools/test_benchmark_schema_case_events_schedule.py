@@ -228,6 +228,100 @@ amdgpu_sparse_rns["gpu_event_timing_summary_us"] = {
 }
 validate_capture(amdgpu_sparse_rns)
 
+amdgpu_sparse_exact = as_exact_wide_capture(v4_rocwmma_i64)
+amdgpu_sparse_exact_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
+amdgpu_sparse_exact["benchmark"] = "rns8_exact_wide_explicit_sparse_a_4_to_2_persistent_rns"
+amdgpu_sparse_exact["benchmark_execution_mode"] = "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+amdgpu_sparse_exact["backend_requested"] = "amdgpu-builtins"
+amdgpu_sparse_exact["backend_selected"] = "amdgpu-builtins"
+amdgpu_sparse_exact["selected_kernel"] = amdgpu_sparse_exact_kernel
+amdgpu_sparse_exact["configured_amdgpu_targets"] = "gfx942"
+amdgpu_sparse_exact["device"]["name"] = "AMD Instinct MI300X"
+amdgpu_sparse_exact["device"]["gcn_arch"] = "gfx942"
+amdgpu_sparse_exact["input_distribution"] = (
+    "signed_i64_sparse_a_4_to_2_structured_k_groups_exactly_two_nonzero_per_group"
+)
+amdgpu_sparse_exact["command_line"] = (
+    "rns8-bench --backend amdgpu-builtins --semantics exact-wide-signed "
+    "--m 64 --n 128 --k 64 --exact-wide-limbs 4 --sparse-a-4-to-2 --warmups 1 --repeats 2 --seed 23"
+)
+amdgpu_sparse_exact["backend_metadata"].update(
+    {
+        "source": "rns8_bench_explicit_sparse_a_4_to_2_path",
+        "selected_kernel": amdgpu_sparse_exact_kernel,
+        "accelerator_library": "AMDGPU builtins",
+        "accelerator_version": "compiled_target_specific",
+        "capability_status": "implemented_opt_in_amdgpu_builtin_backend",
+        "epilogue_mode": "amdgpu_builtin_sparse_a_fused_i32_to_centered_residue_rns_output",
+        "workspace_mode": "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns",
+        "workspace_required_bytes": 24576,
+        "isa_evidence": "amdgpu_builtin_sparse_a_matrix_core_isa_gate_no_divide",
+        "matrix_instruction_family": "smfmac",
+        "matrix_instruction_shape": "16x16x64",
+        "matrix_instruction_dtype": "i8",
+        "matrix_instruction_sparsity": "structured_4_2",
+        "autotune_key": (
+            "backend=amdgpu-builtins;target_id=gfx942;semantics=exact_wide_signed;"
+            "m=64;n=128;k=64;bound=0;input_profile=uniform-small;"
+            "prefix=20;requested_max_prefix=20;prefix_policy=minimum-proven;"
+            "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "schedule_flags=0;zero_output_tiles=0;sparse_contract=a_4_to_2_structured_k_v1;"
+            "sparse_operand=A;sparse_group_size=4;sparse_nonzeros_per_group=2;"
+            "sparse_index_layout=canonical_2bit_k_groups_v1;sparse_value_signedness=signed_i8;"
+            "dense_operand=B;accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;"
+            "accumulator_modulus_policy=selected_rns_modulus_ladder;k_block_size=64;k_block_cap=65536;"
+            f"kernel={amdgpu_sparse_exact_kernel};epilogue=sparse_a_centered_residue_rns_output"
+        ),
+    }
+)
+amdgpu_sparse_exact["backend_metadata"]["accumulator_safety"]["k_block_cap"] = 65536
+amdgpu_sparse_exact["timing_metadata"]["benchmark_execution_mode"] = (
+    "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns"
+)
+amdgpu_sparse_exact["timing_metadata"]["gpu_event_timing_reason"] = (
+    "captured_by_accelerator_backend_deep_kernel_hooks"
+)
+amdgpu_sparse_exact["timing_metadata"]["gpu_event_timing_source_scope"] = (
+    "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
+)
+amdgpu_sparse_exact["timing_metadata"]["gpu_event_timing_caveat"] = (
+    "HIP event timings record explicit sparse-A uploads, dense-B RNS pack, one matrix-core sparse GEMM "
+    "kernel, and exact-wide limb export"
+)
+amdgpu_sparse_exact_phases = [
+    "sparse_a_values_h2d",
+    "sparse_a_indices_h2d",
+    "pack_h2d",
+    "pack_kernel",
+    "pack",
+    "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel",
+    "rns_gemm",
+    "exact_wide_export_status_memset",
+    "exact_wide_export_kernel",
+    "exact_wide_export_status_d2h",
+    "exact_wide_export_d2h",
+    "crt_export",
+]
+amdgpu_sparse_exact["timing_metadata"]["gpu_event_phase_order"] = amdgpu_sparse_exact_phases
+amdgpu_sparse_exact["gpu_event_timings_us"] = {
+    "sparse_a_values_h2d": [2.0, 2.0],
+    "sparse_a_indices_h2d": [1.0, 1.0],
+    "pack_h2d": [3.0, 3.0],
+    "pack_kernel": [4.0, 4.0],
+    "pack": [10.0, 10.0],
+    "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel": [20.0, 21.0],
+    "rns_gemm": [20.0, 21.0],
+    "exact_wide_export_status_memset": [0.0, 0.0],
+    "exact_wide_export_kernel": [5.0, 6.0],
+    "exact_wide_export_status_d2h": [0.0, 0.0],
+    "exact_wide_export_d2h": [7.0, 8.0],
+    "crt_export": [12.0, 14.0],
+}
+amdgpu_sparse_exact["gpu_event_timing_summary_us"] = {
+    phase: summary(values) for phase, values in amdgpu_sparse_exact["gpu_event_timings_us"].items()
+}
+validate_capture(amdgpu_sparse_exact)
+
 missing_sparse_a_index_event = copy.deepcopy(amdgpu_sparse_finite)
 missing_sparse_a_index_event["timing_metadata"]["gpu_event_phase_order"].remove("sparse_a_indices_h2d")
 del missing_sparse_a_index_event["gpu_event_timings_us"]["sparse_a_indices_h2d"]
