@@ -6,6 +6,10 @@
 
 #include <limits>
 
+#ifndef RNS8_CK_SHAPE_ALIGNMENT
+#define RNS8_CK_SHAPE_ALIGNMENT 64
+#endif
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
 extern "C" int rns8_ck_gemm_rns_device(
     int device_id,
@@ -56,6 +60,11 @@ extern "C" int rns8_ck_gemm_finite_u8_device(
 
 namespace rns8::detail {
 
+namespace {
+constexpr uint64_t kCkShapeAlignment = RNS8_CK_SHAPE_ALIGNMENT;
+static_assert(kCkShapeAlignment == 64 || kCkShapeAlignment == 128, "unsupported CK shape alignment");
+}  // namespace
+
 bool ck_compiled() {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   return true;
@@ -104,8 +113,8 @@ bool ck_workspace_requirements(
   }
   uint64_t padded_m = 0;
   uint64_t padded_n = 0;
-  if (!round_up_aligned_u64(static_cast<uint64_t>(max_m), 64, padded_m) ||
-      !round_up_aligned_u64(static_cast<uint64_t>(max_n), 64, padded_n)) {
+  if (!round_up_aligned_u64(static_cast<uint64_t>(max_m), kCkShapeAlignment, padded_m) ||
+      !round_up_aligned_u64(static_cast<uint64_t>(max_n), kCkShapeAlignment, padded_n)) {
     return false;
   }
   uint64_t a_bytes = 0;

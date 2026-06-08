@@ -338,7 +338,7 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       set_text(
           info.isa_evidence,
           sizeof(info.isa_evidence),
-          "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide");
+          "rocwmma_i8_matrix_isa_gate_no_divide");
       set_text(info.status, sizeof(info.status), "implemented_opt_in_rocwmma_backend");
       set_text(
           info.detail,

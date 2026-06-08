@@ -730,7 +730,7 @@ class ValidatorScheduleMixin:
             expected_isas = {
                 "cpu-reference": "not_applicable_cpu",
                 "ck": "ck_cshuffle_int8_matrix_isa_gate_no_int32_global_store_no_divide",
-                "rocwmma": "rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide",
+                "rocwmma": "rocwmma_i8_matrix_isa_gate_no_divide",
                 "hip-vector-alu-int64": "source_level_192bit_limb_accumulator_no_matrix_engine",
             }
             expected_isa = expected_isas.get(

@@ -17,7 +17,8 @@ from isa_common import (
 )
 
 
-CK_SYMBOL_MARKERS = ["kernel_gemm_wmma", "kernel_gemm_xdl_cshuffle"]
+RDNA_SYMBOL_MARKERS = ["kernel_gemm_wmma"]
+CDNA_SYMBOL_MARKERS = ["kernel_gemm_xdl_cshuffle"]
 RDNA_REQUIRED_MNEMONICS = ["v_wmma_i32_16x16x16_iu8"]
 CDNA_REQUIRED_MNEMONICS = [
     "v_mfma_i32_16x16x32_i8",
@@ -27,8 +28,19 @@ CDNA_REQUIRED_MNEMONICS = [
 ]
 
 
-def ck_symbols(objdump: str, code_object: Path) -> list[str]:
-    return symbols_matching_markers(objdump, code_object, CK_SYMBOL_MARKERS, "CK GEMM matrix symbols")
+def required_symbol_markers(amdgpu_target: str) -> list[str]:
+    if amdgpu_target.startswith("gfx9"):
+        return CDNA_SYMBOL_MARKERS
+    return RDNA_SYMBOL_MARKERS
+
+
+def ck_symbols(objdump: str, code_object: Path, amdgpu_target: str) -> list[str]:
+    return symbols_matching_markers(
+        objdump,
+        code_object,
+        required_symbol_markers(amdgpu_target),
+        "CK GEMM matrix symbols",
+    )
 
 
 def required_matrix_mnemonics(amdgpu_target: str) -> list[str]:
@@ -62,7 +74,7 @@ def scan_disassembly(
 def main() -> int:
     config = parse_isa_tool_config(__doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object")
     with extracted_device_code_object(config, "rns8-ck-isa-", "ck_backend_kernels.fatbin") as code_object:
-        symbols = ck_symbols(config.objdump, code_object)
+        symbols = ck_symbols(config.objdump, code_object, config.target)
         matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(
             config.objdump,
             code_object,

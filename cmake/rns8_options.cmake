@@ -34,6 +34,17 @@ set(RNS8_ROCM_DEPS_INSTALL_ROOT "${_RNS8_ROCM_DEPS_INSTALL_ROOT_DEFAULT}" CACHE 
 set(RNS8_CK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/composable_kernel" CACHE PATH "Repo-local Composable Kernel source or install root")
 set(RNS8_ROCWMMA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rocm/rocWMMA" CACHE PATH "Repo-local rocWMMA source or install root")
 
+set(RNS8_ACTIVE_AMDGPU_TARGET "")
+set(RNS8_CK_USE_XDL 0)
+set(RNS8_CK_SHAPE_ALIGNMENT 64)
+if(RNS8_AMDGPU_TARGETS)
+  list(GET RNS8_AMDGPU_TARGETS 0 RNS8_ACTIVE_AMDGPU_TARGET)
+  if(RNS8_ACTIVE_AMDGPU_TARGET MATCHES "^gfx9")
+    set(RNS8_CK_USE_XDL 1)
+    set(RNS8_CK_SHAPE_ALIGNMENT 128)
+  endif()
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 rns8_assert_linux_native_discovery_context()
 

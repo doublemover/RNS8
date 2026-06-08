@@ -96,7 +96,7 @@ def main() -> int:
         expect_text(rocwmma.stdout, "perf_validated:    0", "rocwmma")
         expect_text(
             rocwmma.stdout,
-            "isa_evidence:      rocwmma_i8_matrix_isa_gate_no_int32_global_store_no_divide",
+            "isa_evidence:      rocwmma_i8_matrix_isa_gate_no_divide",
             "rocwmma",
         )
     else:

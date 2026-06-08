@@ -3,6 +3,10 @@ bool valid_prepack_operand_role(rns8_operand_role operand_role) {
   return operand_role == RNS8_OPERAND_A || operand_role == RNS8_OPERAND_B;
 }
 
+#ifndef RNS8_CK_SHAPE_ALIGNMENT
+#define RNS8_CK_SHAPE_ALIGNMENT 64
+#endif
+
 const char* operand_role_name(rns8_operand_role operand_role) {
   switch (operand_role) {
     case RNS8_OPERAND_A:
@@ -46,8 +50,13 @@ const char* prepack_operand_layout_version_for_plan(const rns8_plan& plan, rns8_
                                           : "hipblaslt_b_transposed_centered_i8_nk16_v1";
   }
   if (plan.backend == RNS8_BACKEND_CK) {
+#if RNS8_CK_SHAPE_ALIGNMENT == 128
+    return operand_role == RNS8_OPERAND_A ? "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1"
+                                          : "ck_b_canonical_colmajor_i8_n128_kblock32768_v1";
+#else
     return operand_role == RNS8_OPERAND_A ? "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1"
                                           : "ck_b_canonical_colmajor_i8_n64_kblock32768_v1";
+#endif
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return operand_role == RNS8_OPERAND_A ? "rocwmma_a_rowmajor_i8_m16_kblock65536_v1"

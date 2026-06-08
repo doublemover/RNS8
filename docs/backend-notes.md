@@ -20,9 +20,10 @@ shims or hidden fallback semantics.
   residue-reduction kernel. Fixed-prefix single-K-block RNS work can reuse
   workspace-local repeated-A and repeated-B transposed operands when identity
   matches, but this is not a public production prepack cache.
-- CK: opt-in Windows `gfx1100` fused matrix-engine backend for bounded,
-  adaptive bounded, exact-wide RNS output, and finite u8.
-- rocWMMA: opt-in Windows `gfx1100` fused matrix-engine backend for bounded,
+- CK: opt-in fused matrix-engine backend for bounded, adaptive bounded,
+  exact-wide RNS output, and finite u8. It selects CK WMMA on RDNA targets and
+  CK XDL on CDNA targets.
+- rocWMMA: opt-in fused matrix-engine backend for bounded,
   adaptive bounded, exact-wide RNS output, and finite u8. It also contains an
   internal wrap64 candidate harness that is not public or AUTO-selected.
 

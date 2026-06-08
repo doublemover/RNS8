@@ -1,5 +1,12 @@
 namespace {
 
+#ifndef RNS8_CK_SHAPE_ALIGNMENT
+#define RNS8_CK_SHAPE_ALIGNMENT 64
+#endif
+#ifndef RNS8_CK_USE_XDL
+#define RNS8_CK_USE_XDL 0
+#endif
+
 constexpr uint32_t kRns8AbiVersion = 1;
 constexpr uint32_t kRns8DefaultModulusCount = 28;
 constexpr uint32_t kRns8MaxSupportedPrefix = 28;
@@ -8,7 +15,9 @@ constexpr uint32_t kRns8TileScheduleZeroRowColProduct = 0x00000002u;
 constexpr uint32_t kRns8SupportedTileScheduleFlags =
     kRns8TileScheduleZeroOutput | kRns8TileScheduleZeroRowColProduct;
 constexpr int64_t kRns8CanonicalSafeInt32KBlock = 32768;
-constexpr int64_t kRns8CkShapeAlignment = 64;
+constexpr int64_t kRns8CkShapeAlignment = RNS8_CK_SHAPE_ALIGNMENT;
+static_assert(kRns8CkShapeAlignment == 64 || kRns8CkShapeAlignment == 128, "unsupported CK shape alignment");
+static_assert(RNS8_CK_USE_XDL == 0 || RNS8_CK_USE_XDL == 1, "unsupported CK kernel family selector");
 constexpr uint16_t kDefaultModuli[kRns8DefaultModulusCount] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
@@ -216,7 +225,7 @@ struct CenteredModulo {
   }
 };
 
-#if defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#if RNS8_CK_USE_XDL
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
     Row,
     Col,

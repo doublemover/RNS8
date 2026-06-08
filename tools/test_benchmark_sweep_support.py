@@ -399,7 +399,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
                 "capability_status": "internal_wrap64_matrix_engine_candidate",
                 "workspace_mode": "benchmark_owned_compact_byte_limb_device_buffers",
                 "workspace_required_bytes": 640,
-                "isa_evidence": "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_int32_global_store_no_divide",
+                "isa_evidence": "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_divide",
                 "autotune_key": (
                     "backend=rocwmma-wrap64-candidate;semantics=wrap_u64_mod_2_64;m=4;n=4;k=8;"
                     "prefix=0;tile_m=16;tile_n=16;groups=0;adaptive_prefix=0;adaptive_skip=0;"

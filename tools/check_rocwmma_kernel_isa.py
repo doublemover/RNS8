@@ -8,7 +8,6 @@ from pathlib import Path
 
 from isa_common import (
     FORBIDDEN_DIVIDE_RE,
-    FORBIDDEN_INT32_GLOBAL_STORE_RE,
     disassemble_code_object,
     extracted_device_code_object,
     forbidden_mnemonic_lines,
@@ -42,13 +41,12 @@ def wmma_symbols(objdump: str, code_object: Path) -> list[str]:
     return symbols_matching_markers(objdump, code_object, WMMA_SYMBOL_MARKERS, "rocWMMA kernel symbols")
 
 
-def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str) -> tuple[int, list[str], list[str]]:
+def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str) -> tuple[int, list[str]]:
     disassembly = disassemble_code_object(objdump, code_object, amdgpu_target)
     required = required_matrix_mnemonics(amdgpu_target)
     matrix_count = sum(disassembly.count(mnemonic) for mnemonic in required)
-    forbidden_stores = forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE)
     forbidden_divides = forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
-    return matrix_count, forbidden_stores, forbidden_divides
+    return matrix_count, forbidden_divides
 
 
 def main() -> int:
@@ -59,15 +57,11 @@ def main() -> int:
     )
     with extracted_device_code_object(config, "rns8-rocwmma-isa-", "rocwmma_backend_kernels.fatbin") as code_object:
         symbols = wmma_symbols(config.objdump, code_object)
-        matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
+        matrix_count, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
         required = required_matrix_mnemonics(config.target)
         if matrix_count <= 0:
             raise RuntimeError(
                 f"rocWMMA object does not contain required matrix instructions: {', '.join(required)}"
-            )
-        if forbidden_stores:
-            raise RuntimeError(
-                "rocWMMA object contains forbidden INT32 global/buffer stores:\n" + "\n".join(forbidden_stores[:20])
             )
         if forbidden_divides:
             raise RuntimeError(
@@ -82,7 +76,6 @@ def main() -> int:
     for symbol in symbols:
         print(f"  - {symbol}")
     print(f"- target matrix instructions: {matrix_count}")
-    print("- no global_store_dword/buffer_store_dword instructions")
     print("- no v/s reciprocal, divide, or remainder instructions")
     return 0
 

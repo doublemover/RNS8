@@ -298,13 +298,21 @@ TEST_CASE("CK plan packing info reports canonical transient pack workspace") {
   CHECK(packing.output_host_current == 0);
   CHECK(packing.output_device_current == 1);
   CHECK((packing.next_op_flags & RNS8_NEXT_OP_RNS_GEMM) != 0);
-  CHECK(packing.a_pack_workspace_bytes == static_cast<uint64_t>(m * k));
-  CHECK(packing.b_pack_workspace_bytes == static_cast<uint64_t>(n * k));
-  CHECK(packing.accumulator_workspace_bytes == static_cast<uint64_t>(m * n));
+  constexpr int64_t ck_shape_alignment = RNS8_CK_SHAPE_ALIGNMENT;
+  constexpr int64_t padded_m = ((m + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
+  constexpr int64_t padded_n = ((n + ck_shape_alignment - 1) / ck_shape_alignment) * ck_shape_alignment;
+  CHECK(packing.a_pack_workspace_bytes == static_cast<uint64_t>(padded_m * k));
+  CHECK(packing.b_pack_workspace_bytes == static_cast<uint64_t>(padded_n * k));
+  CHECK(packing.accumulator_workspace_bytes == static_cast<uint64_t>(padded_m * padded_n));
   CHECK(packing.library_workspace_bytes == 0);
   CHECK(packing.total_transient_workspace_bytes == backend.workspace_required_bytes);
+#if RNS8_CK_SHAPE_ALIGNMENT == 128
+  CHECK(std::string(packing.a_layout_version) == "ck_a_canonical_rowmajor_i8_m128_kblock32768_v1");
+  CHECK(std::string(packing.b_layout_version) == "ck_b_canonical_colmajor_i8_n128_kblock32768_v1");
+#else
   CHECK(std::string(packing.a_layout_version) == "ck_a_canonical_rowmajor_i8_m64_kblock32768_v1");
   CHECK(std::string(packing.b_layout_version) == "ck_b_canonical_colmajor_i8_n64_kblock32768_v1");
+#endif
   CHECK(packing.reusable_prepack_cache_available == 0);
 
   rns8_destroy_plan(plan);

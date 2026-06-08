@@ -420,7 +420,7 @@ void fill_wrap64_rocwmma_candidate_backend_info(const Args& args, BenchmarkResul
   set_backend_text(
       result.backend_info.isa_evidence,
       sizeof(result.backend_info.isa_evidence),
-      "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_int32_global_store_no_divide");
+      "rocwmma_wrap64_byte_gemm36_matrix_isa_gate_no_divide");
   fill_wrap64_rocwmma_candidate_accumulator_info(args, result.backend_info);
   const std::string key = wrap64_rocwmma_candidate_autotune_key(args, result);
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
