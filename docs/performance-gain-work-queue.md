@@ -211,7 +211,10 @@ inspection commands.
   `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
   and `reconstruction_variant.kernel_identity`, and grouped bounded captures now
   report the actual grouped export kernels plus `compact_contiguous` D2H policy.
-  Local Windows HIP bounded i64/u64 normal and grouped smokes passed schema
+  Direct-HIP fixed-prefix bounded i64/u64 single and grouped export launchers
+  now use four-cell CRT/export kernels for the default and max supported prefix
+  routes, keeping dynamic-prefix and scheduled/tiled fallbacks unchanged. Local
+  Windows HIP bounded i64/u64 normal and grouped smokes passed schema
   validation. Release review requires those route-identity objects for
   accelerator bounded final-output candidates before promotion.
 - Required evidence: repeated-B, large-release-validation, and export-bound

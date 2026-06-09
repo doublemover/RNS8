@@ -164,10 +164,11 @@ extern "C" int rns8_hip_direct_export_i64_device_on_stream(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -179,8 +180,8 @@ extern "C" int rns8_hip_direct_export_i64_device_on_stream(
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -236,10 +237,11 @@ extern "C" int rns8_hip_direct_export_i64_grouped_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
@@ -252,8 +254,8 @@ extern "C" int rns8_hip_direct_export_i64_grouped_device(
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
@@ -338,10 +340,11 @@ extern "C" int rns8_hip_direct_export_u64_device_on_stream(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -353,8 +356,8 @@ extern "C" int rns8_hip_direct_export_u64_device_on_stream(
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -410,10 +413,11 @@ extern "C" int rns8_hip_direct_export_u64_grouped_device(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
@@ -426,8 +430,8 @@ extern "C" int rns8_hip_direct_export_u64_grouped_device(
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_kernel<kRns8MaxSupportedPrefix>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
