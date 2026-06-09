@@ -84,6 +84,10 @@ def _as_generic_direct(capture: dict) -> dict:
     repeats = int(direct["repeats"])
     direct["gpu_event_timings_us"] = {phase: [1.0] * repeats for phase in STREAMING_PHASES}
     direct["gpu_event_timing_summary_us"] = {phase: _summary([1.0] * repeats) for phase in STREAMING_PHASES}
+    direct["target_variant"] = capture["device"]["gcn_arch"]
+    direct["export_variant"] = {"selected_kernel": kernel}
+    direct["exact_output_contract"] = {"kernel_identity": kernel}
+    direct["reconstruction_variant"] = {"kernel_identity": kernel}
     return direct
 
 
@@ -122,6 +126,10 @@ def _as_cpu(capture: dict) -> dict:
         ),
         cpu,
     )
+    cpu["target_variant"] = "cpu"
+    cpu["export_variant"] = {"selected_kernel": cpu["selected_kernel"]}
+    cpu["exact_output_contract"] = {"kernel_identity": cpu["selected_kernel"]}
+    cpu["reconstruction_variant"] = {"kernel_identity": cpu["selected_kernel"]}
     return cpu
 
 
@@ -169,6 +177,10 @@ def _as_streaming_candidate(capture: dict, end_to_end_us: int) -> dict:
     candidate["per_modulus_gemm_estimate_applicable"] = False
     candidate["avg_per_modulus_gemm_estimate_us"] = float(candidate["avg_rns_gemm_us"])
     add_target_variant_fields(candidate)
+    kernel = candidate["selected_kernel"]
+    candidate["export_variant"] = {"selected_kernel": kernel}
+    candidate["exact_output_contract"] = {"kernel_identity": kernel}
+    candidate["reconstruction_variant"] = {"kernel_identity": kernel}
     return candidate
 
 
