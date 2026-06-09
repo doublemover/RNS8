@@ -384,7 +384,12 @@ inspection commands.
   blocks native-to-RNS bridge and vector-to-RNS chain captures that omit forced
   bridge metadata, producer/consumer backend identity, control mode, or the
   device handoff phase scope, making stale handoff evidence visible in compact
-  summaries instead of only schema failures.
+  summaries instead of only schema failures. Review candidates now also carry
+  `native_to_rns_handoff_diagnostics`, and the supported failure-summary tool
+  prints the conversion event label, conversion median, host-repack control
+  median, vector-output D2H median, consumer GEMM median, and conversion share
+  of consumer GEMM so the unfused materialization cost is visible before
+  implementing fused native-pack plus GEMM kernels.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 

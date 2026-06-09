@@ -503,6 +503,44 @@ def _pack_diagnostic_line(
     )
 
 
+def _native_handoff_active(candidate: dict[str, Any]) -> bool:
+    diagnostics = candidate.get("native_to_rns_handoff_diagnostics")
+    return isinstance(diagnostics, dict) and bool(diagnostics.get("execution_mode"))
+
+
+def _native_handoff_line(
+    out: Path,
+    report_path: str,
+    group: dict[str, Any],
+    candidate: dict[str, Any],
+) -> str:
+    diagnostics = (
+        candidate.get("native_to_rns_handoff_diagnostics")
+        if isinstance(candidate.get("native_to_rns_handoff_diagnostics"), dict)
+        else {}
+    )
+    return (
+        "  "
+        f"review={report_path} "
+        f"backend={candidate.get('backend')} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"kernel={candidate.get('selected_kernel')} "
+        f"mode={diagnostics.get('execution_mode')} "
+        f"control={diagnostics.get('control_mode')} "
+        f"producer={diagnostics.get('producer_backend')} "
+        f"consumer={diagnostics.get('consumer_backend')} "
+        f"consumer_k={diagnostics.get('consumer_k')} "
+        f"conversion_label={diagnostics.get('conversion_event_label')} "
+        f"conversion={diagnostics.get('conversion_median_us')} "
+        f"host_repack={diagnostics.get('host_repack_median_us')} "
+        f"vector_output_d2h={diagnostics.get('vector_output_d2h_median_us')} "
+        f"consumer_gemm={diagnostics.get('consumer_gemm_median_us')} "
+        f"conversion_share={diagnostics.get('conversion_share_of_consumer_gemm')} "
+        f"capture={_relative_capture(out, candidate.get('capture'))}"
+    )
+
+
 def _export_route_line(
     out: Path,
     report_path: str,
@@ -691,6 +729,7 @@ def build_summary(
     pack_diagnostic_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     pack_split_counts: Counter[str] = Counter()
     pack_dominant_operand_counts: Counter[str] = Counter()
+    native_handoff_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     export_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     export_kernel_counts: Counter[str] = Counter()
     sparse_a_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -745,6 +784,8 @@ def build_summary(
                         pack_dominant_operand_counts.update([dominant])
                     if _pack_diagnostic_active(candidate):
                         pack_diagnostic_rows.append((str(path.relative_to(out)), group, candidate))
+                if _native_handoff_active(candidate):
+                    native_handoff_rows.append((str(path.relative_to(out)), group, candidate))
                 if _export_route_active(candidate):
                     export_route_rows.append((str(path.relative_to(out)), group, candidate))
                     export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
@@ -926,6 +967,11 @@ def build_summary(
         lines.append(_pack_diagnostic_line(out, report_path, group, candidate))
     if len(pack_diagnostic_rows) > max_detail_rows:
         lines.append(f"  ... {len(pack_diagnostic_rows) - max_detail_rows} more")
+    lines.append(f"NATIVE_TO_RNS_HANDOFF_DIAGNOSTICS {len(native_handoff_rows)}")
+    for report_path, group, candidate in native_handoff_rows[:max_detail_rows]:
+        lines.append(_native_handoff_line(out, report_path, group, candidate))
+    if len(native_handoff_rows) > max_detail_rows:
+        lines.append(f"  ... {len(native_handoff_rows) - max_detail_rows} more")
     lines.append(f"EXPORT_CRT_ROUTE_ROWS {len(export_route_rows)}")
     lines.append("EXPORT_CRT_KERNEL_COUNTS")
     if export_kernel_counts:

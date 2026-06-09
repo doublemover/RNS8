@@ -235,6 +235,19 @@ def main() -> int:
                                 "speedup_vs_direct_hip": 1.0,
                                 "primary_loss_phase_vs_direct_hip": None,
                                 "bottleneck": {"class": "mixed_bound", "phase": "rns_gemm"},
+                                "native_to_rns_handoff_diagnostics": {
+                                    "execution_mode": "auto_native_to_rns_bridge",
+                                    "control_mode": None,
+                                    "producer_backend": None,
+                                    "consumer_backend": None,
+                                    "consumer_k": None,
+                                    "conversion_event_label": "native_i64_to_rns_kernel",
+                                    "conversion_median_us": 12.0,
+                                    "host_repack_median_us": None,
+                                    "vector_output_d2h_median_us": None,
+                                    "consumer_gemm_median_us": 48.0,
+                                    "conversion_share_of_consumer_gemm": 0.25,
+                                },
                                 "capture": str(scenarios / "b-direct.json"),
                                 "promotion_blockers": ["not_accelerator_backend"],
                             },
@@ -434,6 +447,10 @@ def main() -> int:
             "split=True dominant=A pack_mode=per_repeat_repack "
             "pack_layout=matrix_engine_transient_pack_layout source_versioned=True same_version_elision=False"
         ) in text
+        assert "NATIVE_TO_RNS_HANDOFF_DIAGNOSTICS 1" in text
+        assert "mode=auto_native_to_rns_bridge" in text
+        assert "conversion_label=native_i64_to_rns_kernel conversion=12.0" in text
+        assert "consumer_gemm=48.0 conversion_share=0.25" in text
         assert "EXPORT_CRT_ROUTE_ROWS 1" in text
         assert "EXPORT_CRT_KERNEL_COUNTS" in text
         assert "hip_direct_export_exact_wide_signed_tree_crt_limbs_device 1" in text

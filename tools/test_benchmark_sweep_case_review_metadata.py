@@ -223,6 +223,16 @@ valid_native_bridge["timing_metadata"]["phase_availability"] = {
         "reason": "measured as native_i64_to_rns_kernel inside rns_gemm",
     },
 }
+valid_native_bridge["gpu_event_timing_summary_us"]["native_i64_to_rns_kernel"] = {
+    "avg": 12.0,
+    "median": 12.0,
+    "p95": 12.0,
+}
+valid_native_bridge["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = {
+    "avg": 48.0,
+    "median": 48.0,
+    "p95": 48.0,
+}
 valid_native_bridge_report = benchmark_sweep.review_captures(
     [bounded_capture("cpu-reference", 5000), valid_native_bridge],
     review_mode="release",
@@ -232,6 +242,12 @@ valid_native_bridge_candidate = next(
 )
 assert "missing_native_to_rns_bridge_forced_metadata" not in valid_native_bridge_candidate["promotion_blockers"]
 assert "missing_native_to_rns_handoff_scope" not in valid_native_bridge_candidate["promotion_blockers"]
+valid_native_bridge_diagnostics = valid_native_bridge_candidate["native_to_rns_handoff_diagnostics"]
+assert valid_native_bridge_diagnostics["execution_mode"] == "auto_native_to_rns_bridge"
+assert valid_native_bridge_diagnostics["conversion_event_label"] == "native_i64_to_rns_kernel"
+assert valid_native_bridge_diagnostics["conversion_median_us"] == 12.0
+assert valid_native_bridge_diagnostics["consumer_gemm_median_us"] == 48.0
+assert valid_native_bridge_diagnostics["conversion_share_of_consumer_gemm"] == 0.25
 
 sparse_amdgpu = copy.deepcopy(amdgpu)
 sparse_amdgpu["_path"] = "amdgpu-sparse-a.json"

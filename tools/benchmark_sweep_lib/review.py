@@ -286,6 +286,45 @@ def native_to_rns_handoff_metadata_blockers(
     return blockers
 
 
+def _gpu_event_median(capture: dict[str, Any], label: str) -> float | None:
+    summary = capture.get("gpu_event_timing_summary_us")
+    if not isinstance(summary, dict):
+        return None
+    item = summary.get(label)
+    if not isinstance(item, dict):
+        return None
+    value = item.get("median")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def native_to_rns_handoff_diagnostics(capture: dict[str, Any]) -> dict[str, Any] | None:
+    mode = capture_execution_mode(capture)
+    if mode not in NATIVE_TO_RNS_EXECUTION_MODES:
+        return None
+    semantics = capture.get("semantics")
+    conversion_label = "native_u64_to_rns_kernel" if semantics == "bounded_u64" else "native_i64_to_rns_kernel"
+    timing = capture_timing_metadata(capture)
+    diagnostics = {
+        "execution_mode": mode,
+        "control_mode": timing.get("vector_to_rns_chain_control_mode"),
+        "producer_backend": timing.get("vector_to_rns_chain_producer_backend"),
+        "consumer_backend": timing.get("vector_to_rns_chain_consumer_backend"),
+        "consumer_k": timing.get("vector_to_rns_chain_consumer_k"),
+        "conversion_event_label": conversion_label,
+        "conversion_median_us": _gpu_event_median(capture, conversion_label),
+        "host_repack_median_us": _gpu_event_median(capture, "vector_to_rns_host_repack_a"),
+        "vector_output_d2h_median_us": _gpu_event_median(capture, "vector_alu_output_d2h"),
+        "consumer_gemm_median_us": _gpu_event_median(capture, "rns_gemm_kernel_group"),
+    }
+    conversion = diagnostics["conversion_median_us"]
+    gemm = diagnostics["consumer_gemm_median_us"]
+    if isinstance(conversion, (int, float)) and isinstance(gemm, (int, float)) and gemm > 0:
+        diagnostics["conversion_share_of_consumer_gemm"] = conversion / gemm
+    else:
+        diagnostics["conversion_share_of_consumer_gemm"] = None
+    return diagnostics
+
+
 def sparse_a_4_to_2_contract_blockers(
     capture: dict[str, Any],
     *,
@@ -1856,6 +1895,7 @@ def review_captures(
                 "phase_diagnostics": phase_ratios(item, direct_baseline, vector_baseline),
                 "phase_medians_us": phase_medians_for_capture(item),
                 "pack_diagnostics": pack_phase_diagnostics(item),
+                "native_to_rns_handoff_diagnostics": native_to_rns_handoff_diagnostics(item),
                 "tile_shape_variant": (
                     item.get("tile_shape_variant", {}).get("name")
                     if isinstance(item.get("tile_shape_variant"), dict)
