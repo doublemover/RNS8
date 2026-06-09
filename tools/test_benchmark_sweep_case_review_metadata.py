@@ -164,6 +164,26 @@ assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32
 assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
 assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
 
+amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
+amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
+amdgpu_wrong_semantic_kernel["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
+amdgpu_wrong_semantic_kernel["backend_metadata"]["selected_kernel"] = amdgpu_wrong_semantic_kernel_name
+amdgpu_wrong_semantic_report = benchmark_sweep.review_captures(
+    [amdgpu_wrong_semantic_kernel, direct, cpu],
+    review_mode="release",
+    isa_index=amdgpu_isa_index,
+)
+amdgpu_wrong_semantic_group = amdgpu_wrong_semantic_report["groups"][0]
+amdgpu_wrong_semantic_candidate = next(
+    item for item in amdgpu_wrong_semantic_group["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert (
+    "amdgpu_builtin_selected_kernel_semantic_target_mismatch"
+    in amdgpu_wrong_semantic_candidate["promotion_blockers"]
+)
+amdgpu_wrong_semantic_next_work = {row["work"] for row in amdgpu_wrong_semantic_report["summary"]["next_work"]}
+assert "align_amdgpu_builtin_selected_kernel_with_semantics_and_target" in amdgpu_wrong_semantic_next_work
+
 skinny_cpu = bounded_capture("cpu-reference", 5000)
 skinny_direct = bounded_capture("hip-direct", 300)
 skinny_vector = bounded_capture("hip-vector-alu-int64", 250)

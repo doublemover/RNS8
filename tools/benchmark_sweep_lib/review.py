@@ -115,6 +115,7 @@ ROUTE_METADATA_BLOCKERS = {
     "missing_sparse_a_compression_index_layout",
     "missing_rdna_integer_modifier_policy",
     "missing_sparse_a_4_to_2_autotune_contract",
+    "amdgpu_builtin_selected_kernel_semantic_target_mismatch",
     "amdgpu_builtin_tile_variant_kernel_mismatch",
     "amdgpu_builtin_tile_variant_family_mismatch",
     "amdgpu_builtin_tile_variant_shape_mismatch",
@@ -169,6 +170,68 @@ def expected_amdgpu_builtin_matrix_mnemonic(capture: dict[str, Any], metadata: d
     ):
         return f"v_{family}_i32_{shape}_{dtype}"
     return None
+
+
+def _amdgpu_builtin_target_family(capture: dict[str, Any]) -> str | None:
+    target = capture_device(capture).get("gcn_arch")
+    if not isinstance(target, str):
+        return None
+    if target.startswith("gfx942"):
+        return "cdna3"
+    if target.startswith("gfx110"):
+        return "rdna3"
+    if target in {"gfx1200", "gfx1201"}:
+        return "rdna4"
+    return None
+
+
+def _amdgpu_builtin_allowed_selected_kernels(capture: dict[str, Any]) -> set[str] | None:
+    target_family = _amdgpu_builtin_target_family(capture)
+    if target_family is None:
+        return None
+    finite = _capture_semantics_are_finite_u8(capture)
+    if target_family == "cdna3":
+        dense = (
+            {"amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"}
+            if finite
+            else {
+                "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+                "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
+            }
+        )
+        return dense | {"amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"}
+    if target_family == "rdna3":
+        return (
+            {"amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"}
+            if finite
+            else {"amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"}
+        )
+    if target_family == "rdna4":
+        dense = (
+            {"amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"}
+            if finite
+            else {"amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1"}
+        )
+        return dense | {"amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1"}
+    return None
+
+
+def amdgpu_builtin_selected_kernel_blockers(
+    capture: dict[str, Any],
+    *,
+    backend_family: str,
+    metadata: dict[str, Any],
+) -> list[str]:
+    if backend_family != "amdgpu-builtins":
+        return []
+    family = metadata.get("matrix_instruction_family")
+    if not isinstance(family, str) or family not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
+        return []
+    allowed = _amdgpu_builtin_allowed_selected_kernels(capture)
+    if allowed is None:
+        return ["amdgpu_builtin_selected_kernel_semantic_target_mismatch"]
+    kernel = str(selected_kernel(capture) or metadata.get("selected_kernel") or "")
+    return [] if kernel in allowed else ["amdgpu_builtin_selected_kernel_semantic_target_mismatch"]
 
 
 def _capture_semantics_are_finite_u8(capture: dict[str, Any]) -> bool:
@@ -743,6 +806,10 @@ def review_next_work(
         ("missing_sparse_a_compression_index_layout", "attach_sparse_a_compression_index_layout_metadata"),
         ("missing_rdna_integer_modifier_policy", "attach_rdna_integer_modifier_policy_metadata"),
         ("missing_sparse_a_4_to_2_autotune_contract", "attach_sparse_a_4_to_2_autotune_contract_metadata"),
+        (
+            "amdgpu_builtin_selected_kernel_semantic_target_mismatch",
+            "align_amdgpu_builtin_selected_kernel_with_semantics_and_target",
+        ),
         ("amdgpu_builtin_tile_variant_kernel_mismatch", "align_amdgpu_builtin_tile_variant_with_selected_kernel"),
         ("amdgpu_builtin_tile_variant_family_mismatch", "align_amdgpu_builtin_tile_variant_family_metadata"),
         ("amdgpu_builtin_tile_variant_shape_mismatch", "align_amdgpu_builtin_tile_variant_shape_metadata"),
@@ -2001,6 +2068,13 @@ def review_captures(
             )
             blockers.extend(
                 amdgpu_builtin_matrix_contract_blockers(
+                    item,
+                    backend_family=backend_family,
+                    metadata=metadata,
+                )
+            )
+            blockers.extend(
+                amdgpu_builtin_selected_kernel_blockers(
                     item,
                     backend_family=backend_family,
                     metadata=metadata,

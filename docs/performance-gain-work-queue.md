@@ -481,7 +481,9 @@ inspection commands.
   now also rejects AMDGPU builtin captures whose selected kernel does not match
   the capture semantics and runtime target family, so finite-u8 rows cannot
   claim the non-finite CDNA3 `32x32x16` route and RDNA3 rows cannot claim
-  sparse SMFMAC/SWMMAC kernels.
+  sparse SMFMAC/SWMMAC kernels. Release review applies the same compatibility
+  check as a promotion blocker for older or programmatic review inputs that
+  bypass schema validation.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
