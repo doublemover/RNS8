@@ -797,6 +797,15 @@ with tempfile.TemporaryDirectory() as temp_dir:
     validate_capture(annotated, capture_path)
     assert annotated["scenario_metadata"] == metadata
 
+finite_generic_items = catalog["finite-generic-moduli"]
+feature_boundary_items = [item for item in finite_generic_items if item.promotion_eligibility == "feature_boundary"]
+exploratory_generic_items = [item for item in finite_generic_items if item.promotion_eligibility == "exploratory_only"]
+assert {item.review_mode_expectation for item in feature_boundary_items} == {"release"}
+assert {item.review_mode_expectation for item in exploratory_generic_items} == {"smoke"}
+assert {item.finite_moduli for item in feature_boundary_items} == {(127,), (253,)}
+assert {item.case.m for item in feature_boundary_items} == {512}
+assert {item.case.m for item in exploratory_generic_items} == {2048}
+
 broader_chain_items = catalog["rns-chain-final-output-broader"]
 assert len(broader_chain_items) == 16
 assert {

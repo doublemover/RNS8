@@ -24,7 +24,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         127
@@ -60,7 +60,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         127
@@ -96,7 +96,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "feature_boundary",
       "finite_moduli": [
         253

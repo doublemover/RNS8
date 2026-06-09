@@ -1346,3 +1346,34 @@ assert any(
     for entry in finite_distribution_entries
 )
 
+finite_generic_args = copy.copy(scenario_args)
+finite_generic_args.backends = None
+finite_generic_args.scenario = ["finite-generic-moduli"]
+finite_generic_entries = benchmark_sweep.sweep_command_entries(finite_generic_args)
+assert len(finite_generic_entries) == 10
+assert {entry.scenario["family"] for entry in finite_generic_entries} == {"finite-generic-moduli"}
+assert {
+    entry.scenario["review_mode_expectation"]
+    for entry in finite_generic_entries
+    if entry.scenario["promotion_eligibility"] == "feature_boundary"
+} == {"release"}
+assert {
+    entry.scenario["review_mode_expectation"]
+    for entry in finite_generic_entries
+    if entry.scenario["promotion_eligibility"] == "exploratory_only"
+} == {"smoke"}
+assert {
+    entry.scenario["modulus"]
+    for entry in finite_generic_entries
+    if entry.scenario["promotion_eligibility"] == "feature_boundary"
+} == {127, 253}
+assert {
+    entry.scenario["shape"]["m"]
+    for entry in finite_generic_entries
+    if entry.scenario["promotion_eligibility"] == "feature_boundary"
+} == {512}
+assert {
+    entry.scenario["shape"]["m"]
+    for entry in finite_generic_entries
+    if entry.scenario["promotion_eligibility"] == "exploratory_only"
+} == {2048}

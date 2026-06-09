@@ -889,6 +889,10 @@ inspection commands.
   multiplication-matrix, and exact CRT/Garner export proxy phases. The scenario
   metadata keeps these as computational-algebra proxy phases rather than
   CAS-wide correctness claims.
+  `finite-generic-moduli` now contributes release-mode feature-boundary rows
+  for generic modulus 127 prime field/ring and generic composite modulus 253
+  at 512-square shape; the 2048 generic-modulus probes remain smoke-only
+  exploratory evidence.
 - Required evidence: `finite-distributions`, `finite-modulus-map`,
   `finite-generic-moduli`, and large finite release captures.
 - Constraint: modulus-specific wins must not be generalized to other moduli.
