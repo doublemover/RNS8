@@ -1061,6 +1061,7 @@ adaptive_bands_args.scenario = ["adaptive-bands"]
 adaptive_bands_entries = benchmark_sweep.sweep_command_entries(adaptive_bands_args)
 assert len(adaptive_bands_entries) == 14
 assert {entry.scenario["family"] for entry in adaptive_bands_entries} == {"adaptive-bands"}
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in adaptive_bands_entries)
 assert {
     entry.scenario["backend"]
     for entry in adaptive_bands_entries
@@ -1073,6 +1074,36 @@ assert all(
 )
 assert all("--bound-mode" in entry.command and "per-tile" in entry.command for entry in adaptive_bands_entries)
 assert all("--require-adaptive-execution" in entry.command for entry in adaptive_bands_entries)
+
+computational_algebra_args = copy.copy(scenario_args)
+computational_algebra_args.backends = None
+computational_algebra_args.scenario = ["computational-algebra-proxies"]
+computational_algebra_entries = benchmark_sweep.sweep_command_entries(computational_algebra_args)
+assert len(computational_algebra_entries) == 30
+assert {entry.scenario["family"] for entry in computational_algebra_entries} == {"computational-algebra-proxies"}
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in computational_algebra_entries)
+assert {entry.scenario.get("metadata", {}).get("source_role") for entry in computational_algebra_entries} == {
+    "computational_algebra_proxy"
+}
+assert {
+    entry.scenario["name"]
+    for entry in computational_algebra_entries
+} == {
+    "dense-finite-field-blas-512",
+    "rank-k-update-field-251",
+    "f4-dense-field-251",
+    "fglm-multiplication-matrix-field-251",
+    "crt-rational-reconstruction-export",
+}
+assert all(
+    entry.scenario["modulus"] == 251
+    for entry in computational_algebra_entries
+    if entry.scenario["semantics"] == "finite-u8-field"
+)
+assert any(
+    entry.scenario["semantics"] == "exact-wide-signed" and "--exact-wide-limbs" in entry.command
+    for entry in computational_algebra_entries
+)
 
 bound_discovery_args = copy.copy(scenario_args)
 bound_discovery_args.backends = None

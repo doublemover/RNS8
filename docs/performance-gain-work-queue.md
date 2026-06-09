@@ -882,6 +882,11 @@ inspection commands.
 - Implementation scope: direct-HIP finite pack/export tuning, CK/rocWMMA finite
   epilogues, hot modulus reducers for 251/255/256, generic modulus fallback,
   and distribution-sensitive scenario coverage.
+- Local progress: `computational-algebra-proxies` is release-mode evidence for
+  dense finite-field BLAS, rank-k update, F4 dense matrix, FGLM
+  multiplication-matrix, and exact CRT/Garner export proxy phases. The scenario
+  metadata keeps these as computational-algebra proxy phases rather than
+  CAS-wide correctness claims.
 - Required evidence: `finite-distributions`, `finite-modulus-map`,
   `finite-generic-moduli`, and large finite release captures.
 - Constraint: modulus-specific wins must not be generalized to other moduli.
@@ -908,6 +913,9 @@ inspection commands.
   work, but only when tile bounds prove it deterministically.
 - Implementation scope: improve per-tile bound computation cost, prefix grouping
   execution, zero-row/zero-column/output skip, and tile metadata reuse.
+- Local progress: `adaptive-bands` is now release-mode evidence with
+  input-scan bound source, per-tile bound mode, and required adaptive execution
+  for signed and unsigned bounded shapes.
 - Required evidence: `adaptive-bands`, `adaptive-grouped-scheduler`,
   `bound-discovery`, and zero-skip scenarios with exact proof metadata.
 - Constraint: no probabilistic early termination in production.

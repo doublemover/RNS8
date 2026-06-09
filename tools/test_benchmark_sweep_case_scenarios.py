@@ -405,6 +405,16 @@ ordinary_requested_item = next(
     for item in catalog["adaptive-bands"]
     if item.name == "bounded-i64-256"
 )
+adaptive_band_items = catalog["adaptive-bands"]
+assert {item.review_mode_expectation for item in adaptive_band_items} == {"release"}
+assert {item.promotion_eligibility for item in adaptive_band_items} == {"release_review_candidate"}
+assert {item.bound_source for item in adaptive_band_items} == {"input-scan"}
+assert all(item.case.require_adaptive for item in adaptive_band_items)
+computational_algebra_items = catalog["computational-algebra-proxies"]
+assert {item.review_mode_expectation for item in computational_algebra_items} == {"release"}
+assert {item.promotion_eligibility for item in computational_algebra_items} == {"release_review_candidate"}
+assert {item.metadata["source_role"] for item in computational_algebra_items} == {"computational_algebra_proxy"}
+assert {item.semantics for item in computational_algebra_items} == {"finite-u8-field", "exact-wide-signed"}
 ordinary_backends = benchmark_sweep.scenario_backends_for_item(backend_filter_args, ordinary_requested_item)
 assert ordinary_backends == ["cpu", "hip-direct"]
 locked_requested_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
