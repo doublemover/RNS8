@@ -396,6 +396,13 @@ inspection commands.
   median, vector-output D2H median, consumer GEMM median, and conversion share
   of consumer GEMM so the unfused materialization cost is visible before
   implementing fused native-pack plus GEMM kernels.
+  The supported failure-summary tool now pairs vector-to-RNS fused device
+  handoff rows against matching host export/repack controls even when review
+  scenario identities differ. It reports local promote/drop/keep-experimental
+  disposition, fused/control end-to-end medians, conversion, host-repack,
+  vector-output D2H, consumer-GEMM costs, checksum blockers, and capture paths
+  so VM output immediately shows whether the device-current handoff is worth
+  deeper kernel work.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 

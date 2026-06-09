@@ -366,6 +366,92 @@ def main() -> int:
                             },
                         ],
                     },
+                    {
+                        "semantics": "bounded_i64",
+                        "shape": {"m": 64, "n": 64, "k": 64},
+                        "shape_family": "small_square",
+                        "scenario_families": ["vector-to-rns-chain"],
+                        "contract_key": (
+                            "scenario_identity=family=vector-to-rns-chain;"
+                            "name=i64-64-fused-device;"
+                            "promotion=execution_path_evidence;"
+                            "output_domain=host_export;"
+                            "workflow=vector_to_rns_chain;"
+                            "evidence_scope=fused_device;"
+                            "semantics=bounded_i64;m=64;n=64;k=64;pack_mode=per_repeat_repack"
+                        ),
+                        "required_baselines": [],
+                        "missing_required_baselines": [],
+                        "scenario_promotion_scopes": ["execution_path_evidence"],
+                        "candidates": [
+                            {
+                                "backend": "hip-direct",
+                                "accelerator_backend": False,
+                                "scenario_promotion_scope": "execution_path_evidence",
+                                "selected_kernel": "direct_kernel",
+                                "median_end_to_end_us": 70.0,
+                                "checksum": 555,
+                                "native_to_rns_handoff_diagnostics": {
+                                    "execution_mode": "vector_native_to_direct_rns_chain",
+                                    "control_mode": "fused_device_native_to_rns",
+                                    "producer_backend": "hip-vector-alu-int64",
+                                    "consumer_backend": "hip-direct",
+                                    "consumer_k": 64,
+                                    "conversion_event_label": "native_i64_to_rns_kernel",
+                                    "conversion_median_us": 8.0,
+                                    "host_repack_median_us": None,
+                                    "vector_output_d2h_median_us": None,
+                                    "consumer_gemm_median_us": 40.0,
+                                    "conversion_share_of_consumer_gemm": 0.2,
+                                },
+                                "capture": str(scenarios / "vector-fused.json"),
+                                "promotion_blockers": [],
+                            },
+                        ],
+                    },
+                    {
+                        "semantics": "bounded_i64",
+                        "shape": {"m": 64, "n": 64, "k": 64},
+                        "shape_family": "small_square",
+                        "scenario_families": ["vector-to-rns-chain"],
+                        "contract_key": (
+                            "scenario_identity=family=vector-to-rns-chain;"
+                            "name=i64-64-host-repack-control;"
+                            "promotion=execution_path_evidence;"
+                            "output_domain=host_export;"
+                            "workflow=vector_to_rns_chain;"
+                            "evidence_scope=host_repack_control;"
+                            "semantics=bounded_i64;m=64;n=64;k=64;pack_mode=per_repeat_repack"
+                        ),
+                        "required_baselines": [],
+                        "missing_required_baselines": [],
+                        "scenario_promotion_scopes": ["execution_path_evidence"],
+                        "candidates": [
+                            {
+                                "backend": "hip-direct",
+                                "accelerator_backend": False,
+                                "scenario_promotion_scope": "execution_path_evidence",
+                                "selected_kernel": "direct_kernel",
+                                "median_end_to_end_us": 100.0,
+                                "checksum": 555,
+                                "native_to_rns_handoff_diagnostics": {
+                                    "execution_mode": "vector_native_host_export_repack_direct_rns_chain",
+                                    "control_mode": "host_export_repack_control",
+                                    "producer_backend": "hip-vector-alu-int64",
+                                    "consumer_backend": "hip-direct",
+                                    "consumer_k": 64,
+                                    "conversion_event_label": "native_i64_to_rns_kernel",
+                                    "conversion_median_us": None,
+                                    "host_repack_median_us": 30.0,
+                                    "vector_output_d2h_median_us": 10.0,
+                                    "consumer_gemm_median_us": 40.0,
+                                    "conversion_share_of_consumer_gemm": None,
+                                },
+                                "capture": str(scenarios / "vector-control.json"),
+                                "promotion_blockers": [],
+                            },
+                        ],
+                    },
                 ]
             },
         )
@@ -458,10 +544,17 @@ def main() -> int:
             "split=True dominant=A pack_mode=per_repeat_repack "
             "pack_layout=matrix_engine_transient_pack_layout source_versioned=True same_version_elision=False"
         ) in text
-        assert "NATIVE_TO_RNS_HANDOFF_DIAGNOSTICS 1" in text
+        assert "NATIVE_TO_RNS_HANDOFF_DIAGNOSTICS 3" in text
         assert "mode=auto_native_to_rns_bridge" in text
         assert "conversion_label=native_i64_to_rns_kernel conversion=12.0" in text
         assert "consumer_gemm=48.0 conversion_share=0.25" in text
+        assert "NATIVE_TO_RNS_CHAIN_PAIRS 1" in text
+        assert "NATIVE_TO_RNS_CHAIN_PAIR_DISPOSITIONS" in text
+        assert "local_promote 1" in text
+        assert "NATIVE_TO_RNS_CHAIN_PAIR_BLOCKERS" in text
+        assert "pack_mode=per_repeat_repack disposition=local_promote speedup_vs_host_repack=1.4285714285714286" in text
+        assert "fused_e2e=70.0 control_e2e=100.0 fused_conversion=8.0 host_repack=30.0" in text
+        assert "vector_output_d2h=10.0 consumer_gemm=40.0 blockers=none" in text
         assert "EXPORT_CRT_ROUTE_ROWS 1" in text
         assert "EXPORT_CRT_KERNEL_COUNTS" in text
         assert "hip_direct_export_exact_wide_signed_tree_crt_limbs_device 1" in text

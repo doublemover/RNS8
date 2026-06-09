@@ -565,6 +565,114 @@ def _native_handoff_line(
     )
 
 
+def _contract_without_scenario_identity(group: dict[str, Any]) -> str:
+    contract = str(group.get("contract_key") or "")
+    if not contract:
+        return f"semantics={group.get('semantics')};shape={_shape_text(group)}"
+    scenario_keys = {
+        "scenario_identity",
+        "name",
+        "promotion",
+        "output_domain",
+        "workflow",
+        "evidence_scope",
+    }
+    kept: list[str] = []
+    for part in contract.split(";"):
+        key = part.split("=", 1)[0]
+        if key not in scenario_keys:
+            kept.append(part)
+    return ";".join(kept) if kept else contract
+
+
+def _contract_value(contract: str, name: str) -> str | None:
+    prefix = f"{name}="
+    for part in contract.split(";"):
+        if part.startswith(prefix):
+            return part[len(prefix) :]
+    return None
+
+
+def _native_handoff_pair_key(report_path: str, group: dict[str, Any]) -> tuple[str, str]:
+    return (report_path, _contract_without_scenario_identity(group))
+
+
+def _native_handoff_pair_disposition(
+    fused: dict[str, Any] | None,
+    control: dict[str, Any] | None,
+) -> tuple[str, list[str], float | None]:
+    blockers: list[str] = []
+    if fused is None:
+        blockers.append("missing_fused_device_handoff")
+    if control is None:
+        blockers.append("missing_host_export_repack_control")
+    if fused is None or control is None:
+        return "keep_experimental", blockers, None
+
+    fused_e2e = fused.get("median_end_to_end_us")
+    control_e2e = control.get("median_end_to_end_us")
+    if not isinstance(fused_e2e, (int, float)):
+        blockers.append("missing_fused_device_end_to_end")
+    if not isinstance(control_e2e, (int, float)):
+        blockers.append("missing_host_control_end_to_end")
+    if fused.get("checksum") != control.get("checksum"):
+        blockers.append("checksum_mismatch")
+
+    speedup = None
+    if isinstance(fused_e2e, (int, float)) and fused_e2e > 0 and isinstance(control_e2e, (int, float)):
+        speedup = float(control_e2e) / float(fused_e2e)
+
+    if blockers:
+        return "keep_experimental", blockers, speedup
+    if speedup is not None and speedup >= 1.02:
+        return "local_promote", blockers, speedup
+    if speedup is not None and speedup < 1.0:
+        return "drop_deprioritize", blockers, speedup
+    return "keep_experimental", blockers, speedup
+
+
+def _native_handoff_pair_line(
+    out: Path,
+    report_path: str,
+    contract: str,
+    fused_row: tuple[str, dict[str, Any], dict[str, Any]] | None,
+    control_row: tuple[str, dict[str, Any], dict[str, Any]] | None,
+) -> tuple[str, str, list[str]]:
+    group = fused_row[1] if fused_row is not None else control_row[1] if control_row is not None else {}
+    fused = fused_row[2] if fused_row is not None else None
+    control = control_row[2] if control_row is not None else None
+    disposition, blockers, speedup = _native_handoff_pair_disposition(fused, control)
+    fused_diag = (
+        fused.get("native_to_rns_handoff_diagnostics")
+        if isinstance(fused, dict) and isinstance(fused.get("native_to_rns_handoff_diagnostics"), dict)
+        else {}
+    )
+    control_diag = (
+        control.get("native_to_rns_handoff_diagnostics")
+        if isinstance(control, dict) and isinstance(control.get("native_to_rns_handoff_diagnostics"), dict)
+        else {}
+    )
+    line = (
+        "  "
+        f"review={report_path} "
+        f"semantics={group.get('semantics')} "
+        f"shape={_shape_text(group)} "
+        f"pack_mode={_contract_value(contract, 'pack_mode') or 'unknown'} "
+        f"disposition={disposition} "
+        f"speedup_vs_host_repack={speedup} "
+        f"fused_e2e={fused.get('median_end_to_end_us') if fused else None} "
+        f"control_e2e={control.get('median_end_to_end_us') if control else None} "
+        f"fused_conversion={fused_diag.get('conversion_median_us')} "
+        f"host_repack={control_diag.get('host_repack_median_us')} "
+        f"vector_output_d2h={control_diag.get('vector_output_d2h_median_us')} "
+        f"consumer_gemm={fused_diag.get('consumer_gemm_median_us')} "
+        f"blockers={_blocker_text(blockers)} "
+        f"fused_capture={_relative_capture(out, fused.get('capture') if fused else None)} "
+        f"control_capture={_relative_capture(out, control.get('capture') if control else None)}"
+    )
+    return line, disposition, blockers
+
+
 def _export_route_line(
     out: Path,
     report_path: str,
@@ -754,6 +862,10 @@ def build_summary(
     pack_split_counts: Counter[str] = Counter()
     pack_dominant_operand_counts: Counter[str] = Counter()
     native_handoff_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    native_handoff_pair_rows: dict[
+        tuple[str, str],
+        dict[str, tuple[str, dict[str, Any], dict[str, Any]]],
+    ] = defaultdict(dict)
     export_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     export_kernel_counts: Counter[str] = Counter()
     sparse_a_route_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -809,7 +921,15 @@ def build_summary(
                     if _pack_diagnostic_active(candidate):
                         pack_diagnostic_rows.append((str(path.relative_to(out)), group, candidate))
                 if _native_handoff_active(candidate):
-                    native_handoff_rows.append((str(path.relative_to(out)), group, candidate))
+                    report_path = str(path.relative_to(out))
+                    native_handoff_rows.append((report_path, group, candidate))
+                    diagnostics = candidate.get("native_to_rns_handoff_diagnostics")
+                    if isinstance(diagnostics, dict):
+                        control_mode = diagnostics.get("control_mode")
+                        if control_mode in {"fused_device_native_to_rns", "host_export_repack_control"}:
+                            native_handoff_pair_rows[_native_handoff_pair_key(report_path, group)][
+                                str(control_mode)
+                            ] = (report_path, group, candidate)
                 if _export_route_active(candidate):
                     export_route_rows.append((str(path.relative_to(out)), group, candidate))
                     export = candidate.get("export_variant") if isinstance(candidate.get("export_variant"), dict) else {}
@@ -996,6 +1116,41 @@ def build_summary(
         lines.append(_native_handoff_line(out, report_path, group, candidate))
     if len(native_handoff_rows) > max_detail_rows:
         lines.append(f"  ... {len(native_handoff_rows) - max_detail_rows} more")
+    native_handoff_pair_lines: list[tuple[str, str, list[str]]] = []
+    for (_report_path, contract), pair in sorted(native_handoff_pair_rows.items()):
+        fused_row = pair.get("fused_device_native_to_rns")
+        control_row = pair.get("host_export_repack_control")
+        report_path = (
+            fused_row[0]
+            if fused_row is not None
+            else control_row[0]
+            if control_row is not None
+            else _report_path
+        )
+        native_handoff_pair_lines.append(
+            _native_handoff_pair_line(out, report_path, contract, fused_row, control_row)
+        )
+    native_handoff_pair_dispositions = Counter(row[1] for row in native_handoff_pair_lines)
+    native_handoff_pair_blockers: Counter[str] = Counter()
+    for _line, _disposition, blockers in native_handoff_pair_lines:
+        native_handoff_pair_blockers.update(blockers)
+    lines.append(f"NATIVE_TO_RNS_CHAIN_PAIRS {len(native_handoff_pair_lines)}")
+    lines.append("NATIVE_TO_RNS_CHAIN_PAIR_DISPOSITIONS")
+    if native_handoff_pair_dispositions:
+        for disposition, count in native_handoff_pair_dispositions.most_common():
+            lines.append(f"{disposition} {count}")
+    else:
+        lines.append("none 0")
+    lines.append("NATIVE_TO_RNS_CHAIN_PAIR_BLOCKERS")
+    if native_handoff_pair_blockers:
+        for blocker, count in native_handoff_pair_blockers.most_common():
+            lines.append(f"{blocker} {count}")
+    else:
+        lines.append("none 0")
+    for line, _disposition, _blockers in native_handoff_pair_lines[:max_detail_rows]:
+        lines.append(line)
+    if len(native_handoff_pair_lines) > max_detail_rows:
+        lines.append(f"  ... {len(native_handoff_pair_lines) - max_detail_rows} more")
     lines.append(f"EXPORT_CRT_ROUTE_ROWS {len(export_route_rows)}")
     lines.append("EXPORT_CRT_KERNEL_COUNTS")
     if export_kernel_counts:
