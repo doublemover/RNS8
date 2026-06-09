@@ -78,6 +78,7 @@ class ScenarioItem:
     native_to_rns_bridge: bool = False
     vector_to_rns_chain: bool = False
     vector_to_rns_chain_host_repack_control: bool = False
+    transient_uniform_small_inputs: bool = False
     sparse_a_4_to_2: bool = False
     sparse_a_4_to_2_dense_baseline: bool = False
     prefix_policy: str | None = None

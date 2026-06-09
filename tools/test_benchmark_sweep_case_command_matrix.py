@@ -311,6 +311,45 @@ assert all("--max-prefix" in entry.command and "9" in entry.command for entry in
 assert all("scenarios" in entry.output.parts and "repeated-b" in entry.output.parts for entry in scenario_entries)
 assert scenario_entries[0].name.startswith("repeated-b-bounded-i64-512-production-baselines-")
 
+fused_pack_args = copy.copy(scenario_args)
+fused_pack_args.backends = None
+fused_pack_args.scenario = ["fused-pack-gemm-small"]
+fused_pack_entries = benchmark_sweep.sweep_command_entries(fused_pack_args)
+assert len(fused_pack_entries) == 23
+assert {entry.scenario["family"] for entry in fused_pack_entries} == {"fused-pack-gemm-small"}
+fused_transient_entries = [
+    entry
+    for entry in fused_pack_entries
+    if entry.scenario.get("metadata", {}).get("workflow_name") == "direct_hip_fused_native_pack_gemm"
+]
+assert len(fused_transient_entries) == 6
+assert {entry.scenario["name"] for entry in fused_transient_entries} == {
+    "bounded-i64-transient-fused128",
+    "bounded-u64-transient-fused128",
+}
+assert {entry.scenario["semantics"] for entry in fused_transient_entries} == {"bounded-i64", "bounded-u64"}
+assert {entry.scenario["backend"] for entry in fused_transient_entries} == {"cpu", "hip-direct"}
+assert all("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in fused_transient_entries)
+assert all("--max-prefix" in entry.command and "9" in entry.command for entry in fused_transient_entries)
+assert all("--next-op-hint" in entry.command and "final-export" in entry.command for entry in fused_transient_entries)
+assert sum(1 for entry in fused_transient_entries if "--transient-uniform-small-inputs" in entry.command) == 2
+assert all(
+    ("--transient-uniform-small-inputs" in entry.command)
+    == (entry.scenario.get("metadata", {}).get("pack_fusion_role") == "transient_uniform_small_candidate")
+    for entry in fused_transient_entries
+    if entry.scenario["backend"] == "hip-direct"
+)
+assert all(
+    "transient-uniform-small" in entry.output.name
+    for entry in fused_transient_entries
+    if "--transient-uniform-small-inputs" in entry.command
+)
+assert all(
+    "transient-uniform-small" not in entry.output.name
+    for entry in fused_transient_entries
+    if "--transient-uniform-small-inputs" not in entry.command
+)
+
 with tempfile.TemporaryDirectory() as temp_dir:
     lint_root = Path(temp_dir) / "scenario-lint"
     lint_completed = subprocess.run(

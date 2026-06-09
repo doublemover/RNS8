@@ -289,6 +289,12 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
                 label=label,
                 default=False,
             ),
+            transient_uniform_small_inputs=_bool_or_default(
+                raw,
+                "transient_uniform_small_inputs",
+                label=label,
+                default=False,
+            ),
             sparse_a_4_to_2=_bool_or_default(raw, "sparse_a_4_to_2", label=label, default=False),
             sparse_a_4_to_2_dense_baseline=_bool_or_default(
                 raw,
@@ -352,6 +358,33 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
             ),
             metadata=_metadata(raw, label=label),
         )
+        if item.transient_uniform_small_inputs:
+            if item.semantics not in {"bounded-i64", "bounded-u64"}:
+                raise SystemExit(f"{label}.transient_uniform_small_inputs requires bounded i64/u64 semantics")
+            if item.case.input_profile != "uniform-small" or item.case.bound_mode != "global":
+                raise SystemExit(
+                    f"{label}.transient_uniform_small_inputs requires uniform-small global-bound inputs"
+                )
+            if item.backends != ("hip-direct",):
+                raise SystemExit(f"{label}.transient_uniform_small_inputs requires backends=[\"hip-direct\"]")
+            if item.pack_mode != "per_repeat_repack" or item.oneshot:
+                raise SystemExit(
+                    f"{label}.transient_uniform_small_inputs cannot combine with packed reuse or one-shot"
+                )
+            if (
+                item.native_to_rns_bridge
+                or item.vector_to_rns_chain
+                or item.sparse_a_4_to_2
+                or item.residue_channel_fusion
+                or item.residue_chain_length != 1
+            ):
+                raise SystemExit(
+                    f"{label}.transient_uniform_small_inputs cannot combine with bridge, chain, sparse, residue fusion, or residue-chain modes"
+                )
+            if item.prefix_policy != "fixed-requested" or item.max_prefix != 9:
+                raise SystemExit(
+                    f"{label}.transient_uniform_small_inputs requires fixed-requested max_prefix=9"
+                )
         if item.sparse_a_4_to_2:
             if item.semantics not in {
                 "finite-u8-ring",

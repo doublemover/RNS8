@@ -195,6 +195,7 @@ def scenario_args_for_item(args: argparse.Namespace, item: ScenarioItem) -> argp
     scenario_args.native_to_rns_bridge = item.native_to_rns_bridge
     scenario_args.vector_to_rns_chain = item.vector_to_rns_chain
     scenario_args.vector_to_rns_chain_host_repack_control = item.vector_to_rns_chain_host_repack_control
+    scenario_args.transient_uniform_small_inputs = item.transient_uniform_small_inputs
     scenario_args.sparse_a_4_to_2 = item.sparse_a_4_to_2
     scenario_args.sparse_a_4_to_2_dense_baseline = item.sparse_a_4_to_2_dense_baseline
     scenario_args.prefix_policy = item.prefix_policy or getattr(args, "prefix_policy", None)
@@ -247,6 +248,7 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
         or item.hip_graph_replay
         or item.native_to_rns_bridge
         or item.vector_to_rns_chain
+        or item.transient_uniform_small_inputs
         or item.sparse_a_4_to_2
         or item.residue_channel_fusion
         or item.grouped_dispatch_tasks > 1
@@ -313,6 +315,7 @@ def scenario_metadata(
         "native_to_rns_bridge": item.native_to_rns_bridge,
         "vector_to_rns_chain": item.vector_to_rns_chain,
         "vector_to_rns_chain_host_repack_control": item.vector_to_rns_chain_host_repack_control,
+        "transient_uniform_small_inputs": item.transient_uniform_small_inputs and backend == "hip-direct",
         "sparse_a_4_to_2": item.sparse_a_4_to_2,
         "sparse_a_4_to_2_dense_baseline": item.sparse_a_4_to_2_dense_baseline,
         "next_op_hint": item.next_op_hint,
@@ -411,6 +414,7 @@ def capture_name(
     host_api_batch_size: int = 1,
     hip_graph_replay: bool = False,
     oneshot: bool = False,
+    transient_uniform_small_inputs: bool = False,
     residue_chain_independent_final_export: bool = False,
     sparse_a_4_to_2: bool = False,
     sparse_a_4_to_2_dense_baseline: bool = False,
@@ -434,6 +438,8 @@ def capture_name(
         parts.append("hipgraph")
     if oneshot:
         parts.append("oneshot")
+    if transient_uniform_small_inputs:
+        parts.append("transient-uniform-small")
     if sparse_a_4_to_2:
         parts.append("sparse-a-4to2")
     if sparse_a_4_to_2_dense_baseline:
@@ -529,6 +535,8 @@ def command_for(
         command.extend(["--output-ld-padding", str(output_ld_padding)])
     if getattr(args, "residue_channel_fusion", False):
         command.append("--residue-channel-fusion")
+    if getattr(args, "transient_uniform_small_inputs", False) and backend == "hip-direct":
+        command.append("--transient-uniform-small-inputs")
     if oneshot:
         command.append("--oneshot")
     pack_mode = requested_pack_mode(args)
@@ -951,6 +959,7 @@ def scenario_sweep_command_entries(args: argparse.Namespace) -> list[SweepComman
                         item.host_api_batch_size,
                         item.hip_graph_replay,
                         oneshot=item.oneshot,
+                        transient_uniform_small_inputs=item.transient_uniform_small_inputs and backend == "hip-direct",
                         residue_chain_independent_final_export=item.residue_chain_independent_final_export,
                         sparse_a_4_to_2=item.sparse_a_4_to_2,
                         sparse_a_4_to_2_dense_baseline=item.sparse_a_4_to_2_dense_baseline,

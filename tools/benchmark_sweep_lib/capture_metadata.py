@@ -162,6 +162,8 @@ def backend_id(capture: dict[str, Any]) -> str:
     execution_mode = capture_execution_mode(capture)
     if execution_mode == "public_oneshot_transient_native_inputs":
         return f"{backend}-oneshot"
+    if execution_mode == "transient_uniform_small_i8_ab_inputs":
+        return f"{backend}-transient-uniform-small"
     if execution_mode == "benchmark_host_api_batch":
         return f"{backend}-hostbatch"
     if execution_mode == "hip_graph_replay_resident_rns_chain":
@@ -193,6 +195,7 @@ def backend_family_id(backend: str) -> str:
     for suffix in (
         "-dense-sparse-a-input",
         "-sparse-a-runtime",
+        "-transient-uniform-small",
         "-oneshot",
         "-hostbatch",
         "-hipgraph",

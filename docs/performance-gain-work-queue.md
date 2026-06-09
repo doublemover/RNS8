@@ -357,10 +357,16 @@ inspection commands.
   native-input pack-fusion follow-up. Direct-HIP fixed-prefix contiguous i64/u64
   single and grouped pack launchers now use pair-cell kernels that process two
   adjacent row-major source cells per thread while preserving the original
-  strided fallback and output residue-plane layout.
-- Remaining work: implement fused native-pack plus GEMM routes selected by
-  split evidence, then prove setup-inclusive wins against the contiguous and
-  pair-cell pack baselines.
+  strided fallback and output residue-plane layout. `fused-pack-gemm-small`
+  now has fixed-prefix bounded i64/u64 release-review pairs for the existing
+  transient uniform-small native i8 A/B input path: each pair includes CPU and
+  ordinary Direct-HIP baselines plus a Direct-HIP
+  `--transient-uniform-small-inputs` candidate with distinct capture naming and
+  backend identity, so VM evidence can compare the fused native-input route
+  against the contiguous and pair-cell pack baselines without ad hoc commands.
+- Remaining work: implement broader fused native-pack plus GEMM routes selected
+  by split evidence, then prove setup-inclusive wins beyond the current
+  uniform-small fixed-prefix Direct-HIP candidate lane.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 
