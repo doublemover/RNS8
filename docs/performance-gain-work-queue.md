@@ -111,11 +111,16 @@ inspection commands.
   unless they report a `gemv_n1` selected kernel, the
   `direct_hip_skinny_gemv_n1_resident_rns` execution mode, and GEMV-specific
   GPU event phase metadata, so generic tiled GEMM cannot be reported as the
-  production skinny route by accident.
+  production skinny route by accident. The `skinny-gemv` scenario family now
+  also includes bounded i64/u64 `N=4` rows without vector-ALU claims, so CDNA
+  and RDNA captures can decide whether generic Direct-HIP GEMM is sufficient
+  for small-N or whether a broader GEMV-family kernel is required.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
-  `1024x1x1024` against CPU anchor, current tiled Direct HIP, vector-ALU
-  where applicable, and rocWMMA; schema must report a GEMV selected kernel and
-  phase timings.
+  `1024x1x1024`, plus small-N `512x4x512` and `1024x4x1024`, against CPU
+  anchor, current tiled Direct HIP, vector-ALU where applicable, and rocWMMA;
+  schema must report a GEMV selected kernel and phase timings for `N=1`, while
+  `N=4` rows must remain explicit small-N generic-vs-specialized evidence
+  until a dedicated kernel lands.
 - Promotion rule: promote only if setup-inclusive end-to-end beats the current
   Direct-HIP production route for the same contract.
 

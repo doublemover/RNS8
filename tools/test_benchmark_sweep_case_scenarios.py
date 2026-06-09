@@ -83,6 +83,16 @@ for item in repeated_b_items:
     if item.promotion_eligibility == "reuse_contract_evidence_only":
         assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
 
+skinny_items = catalog["skinny-gemv"]
+assert skinny_items
+assert {item.case.n for item in skinny_items} == {1, 4}
+small_n_items = [item for item in skinny_items if item.case.n == 4]
+assert {item.name for item in small_n_items} == {"bounded-i64-n4-512", "bounded-u64-n4-1024"}
+for item in small_n_items:
+    assert item.metadata and item.metadata["workflow_name"] == "gemv_small_n"
+    assert item.metadata["optimization_status"] == "needs_measured_small_n_kernel_decision"
+    assert "hip-vector-alu-int64" not in item.backends
+
 multi_modulus_items = catalog["multi-modulus-pack"]
 assert multi_modulus_items
 assert {item.promotion_eligibility for item in multi_modulus_items} == {"execution_path_evidence"}

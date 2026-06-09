@@ -526,21 +526,42 @@ skinny_args = copy.copy(scenario_args)
 skinny_args.backends = ["hip-vector-alu-int64"]
 skinny_args.scenario = ["skinny-gemv"]
 skinny_entries = benchmark_sweep.sweep_command_entries(skinny_args)
-assert len(skinny_entries) == 3
+assert len(skinny_entries) == 5
 assert [entry.scenario["name"] for entry in skinny_entries] == [
     "bounded-i64-n1-512",
     "bounded-u64-n1-1024",
+    "bounded-i64-n4-512",
+    "bounded-u64-n4-1024",
     "bounded-i64-n1-longk-256",
 ]
 assert all(entry.scenario["family"] == "skinny-gemv" for entry in skinny_entries)
 assert all(entry.scenario["backend"] == "hip-vector-alu-int64" for entry in skinny_entries)
-assert all(entry.scenario["shape"]["n"] == 1 for entry in skinny_entries)
+assert {entry.scenario["shape"]["n"] for entry in skinny_entries} == {1, 4}
 assert all("--backend" in entry.command for entry in skinny_entries)
 assert all(benchmark_sweep.cli_backend("hip-vector-alu-int64") in entry.command for entry in skinny_entries)
 assert all("scenarios" in entry.output.parts and "skinny-gemv" in entry.output.parts for entry in skinny_entries)
 assert skinny_entries[0].name.startswith("skinny-gemv-bounded-i64-n1-512-")
-assert skinny_entries[2].scenario.get("metadata", {}).get("workflow_name") == "gemv_n1_long_k"
-assert skinny_entries[2].command[skinny_entries[2].command.index("--k") + 1] == "4096"
+assert skinny_entries[2].scenario.get("metadata", {}).get("workflow_name") == "gemv_small_n"
+assert skinny_entries[4].scenario.get("metadata", {}).get("workflow_name") == "gemv_n1_long_k"
+assert skinny_entries[4].command[skinny_entries[4].command.index("--k") + 1] == "4096"
+
+skinny_direct_args = copy.copy(scenario_args)
+skinny_direct_args.backends = ["hip-direct"]
+skinny_direct_args.scenario = ["skinny-gemv"]
+skinny_direct_entries = benchmark_sweep.sweep_command_entries(skinny_direct_args)
+assert len(skinny_direct_entries) == 5
+assert {entry.scenario["shape"]["n"] for entry in skinny_direct_entries} == {1, 4}
+assert {
+    entry.scenario["name"]
+    for entry in skinny_direct_entries
+    if entry.scenario["shape"]["n"] == 4
+} == {"bounded-i64-n4-512", "bounded-u64-n4-1024"}
+assert all(entry.scenario["backend"] == "hip-direct" for entry in skinny_direct_entries)
+assert all(
+    entry.scenario.get("metadata", {}).get("workflow_name") == "gemv_small_n"
+    for entry in skinny_direct_entries
+    if entry.scenario["shape"]["n"] == 4
+)
 
 many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
