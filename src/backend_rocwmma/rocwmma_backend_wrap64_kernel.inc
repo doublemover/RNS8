@@ -321,15 +321,11 @@ int prepack_b_rns_prefix(
   const dim3 pack_b_grid(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
       static_cast<unsigned int>((padded_n + pack_block.y - 1) / pack_block.y),
-      1);
-  for (uint32_t modulus_index = 0; modulus_index < prefix; ++modulus_index) {
-    const auto plane_b = b + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(k) * ldb;
-    auto* plane_b_prepack = b_prepack + static_cast<uint64_t>(modulus_index) * b_bytes;
-    pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
-        plane_b, plane_b_prepack, k, gemm_k_block, n, padded_n, ldb, 0);
-    if (hipGetLastError() != hipSuccess) {
-      return rocwmma_backend_failure;
-    }
+      static_cast<unsigned int>(prefix));
+  pack_b_colmajor_prefix_kernel<<<pack_b_grid, pack_block>>>(
+      b, b_prepack, b_bytes, k, gemm_k_block, n, padded_n, ldb);
+  if (hipGetLastError() != hipSuccess) {
+    return rocwmma_backend_failure;
   }
   return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
                                                                                        : rocwmma_backend_failure;

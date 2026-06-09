@@ -34,6 +34,30 @@ __global__ void pack_b_colmajor_kernel(
       col < n && kk < valid_k_block ? b[(k_offset + kk) * ldb + col] : static_cast<int8_t>(0);
 }
 
+__global__ void pack_b_colmajor_prefix_kernel(
+    const int8_t* b,
+    int8_t* packed,
+    uint64_t packed_plane_bytes,
+    int valid_k_block,
+    int gemm_k_block,
+    int n,
+    int padded_n,
+    int ldb) {
+  const int kk = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+  const int col = static_cast<int>(blockIdx.y * blockDim.y + threadIdx.y);
+  const uint32_t modulus_index = static_cast<uint32_t>(blockIdx.z);
+  if (col >= padded_n || kk >= gemm_k_block) {
+    return;
+  }
+  const int64_t b_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(valid_k_block) * static_cast<int64_t>(ldb);
+  const uint64_t packed_plane_offset = static_cast<uint64_t>(modulus_index) * packed_plane_bytes;
+  const uint64_t packed_index =
+      packed_plane_offset + static_cast<uint64_t>(col) * static_cast<uint64_t>(gemm_k_block) + static_cast<uint64_t>(kk);
+  const int64_t b_index = b_plane_offset + static_cast<int64_t>(kk) * static_cast<int64_t>(ldb) + col;
+  packed[packed_index] = col < n && kk < valid_k_block ? b[b_index] : static_cast<int8_t>(0);
+}
+
 __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_kernel(
     const int8_t* a_pack,
     const int8_t* b_pack,

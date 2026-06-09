@@ -254,7 +254,11 @@ inspection commands.
   phase counts, and the compact VM failure summary emits
   `PREPACK_SETUP_PRIMARY_PHASE_COUNTS`, so cache selector diagnostics can
   identify whether a reuse row is B-pack-bound, cache-bound, or dominated by
-  unclassified setup overhead.
+  unclassified setup overhead. The rocWMMA public runtime B-cache materializer
+  now uses one prefix-aware 3D B-pack launch for all RNS planes instead of one
+  launch per modulus plane, directly reducing setup launch count for bounded
+  prefix-9 repeated-B rows while preserving the ordinary per-GEMM rocWMMA pack
+  path.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.
