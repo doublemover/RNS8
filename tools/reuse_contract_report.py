@@ -130,6 +130,33 @@ def prepack_setup_us(capture: dict[str, Any]) -> float | None:
     return None
 
 
+PREPACK_SETUP_BREAKDOWN_KEYS = ("pack_a", "pack_b", "runtime_cache", "unclassified")
+
+
+def prepack_setup_breakdown_us(capture: dict[str, Any]) -> dict[str, float] | None:
+    value = capture.get("prepack_setup_breakdown_us")
+    if not isinstance(value, dict):
+        contract = capture.get("reuse_contract")
+        value = contract.get("setup_breakdown_us") if isinstance(contract, dict) else None
+    if not isinstance(value, dict):
+        return None
+    breakdown: dict[str, float] = {}
+    for key in PREPACK_SETUP_BREAKDOWN_KEYS:
+        item = value.get(key)
+        if not isinstance(item, (int, float)) or isinstance(item, bool):
+            return None
+        breakdown[key] = float(item)
+    return breakdown
+
+
+def prepack_setup_primary_phase(capture: dict[str, Any]) -> str | None:
+    breakdown = prepack_setup_breakdown_us(capture)
+    if not breakdown:
+        return None
+    phase, value = max(breakdown.items(), key=lambda item: item[1])
+    return phase if value > 0.0 else "none"
+
+
 def normalized_contract_key(capture: dict[str, Any]) -> str:
     parts: list[str] = []
     for key in result_compare.CONTRACT_KEYS:
@@ -326,6 +353,8 @@ def reuse_contract_metadata(capture: dict[str, Any]) -> dict[str, Any]:
         "enabled": contract.get("enabled"),
         "operand_role": contract.get("operand_role"),
         "setup_scope": contract.get("setup_scope"),
+        "setup_breakdown_us": prepack_setup_breakdown_us(capture),
+        "setup_primary_phase": prepack_setup_primary_phase(capture),
         "source_version_inputs": contract.get("source_version_inputs"),
         "output_domain": contract.get("output_domain"),
         "next_op": contract.get("next_op"),
@@ -607,6 +636,8 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
                 "prepack_reuse_strategy": reuse.get("prepack_reuse_strategy"),
                 "repeats": reuse.get("repeats"),
                 "prepack_setup_us": prepack_setup_us(reuse),
+                "prepack_setup_breakdown_us": prepack_setup_breakdown_us(reuse),
+                "prepack_setup_primary_phase": prepack_setup_primary_phase(reuse),
                 "reuse_capture": reuse.get("_path"),
                 "same_backend_nonreuse_capture": same_backend_baseline.get("_path")
                 if same_backend_baseline is not None
@@ -641,6 +672,10 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
 
+    setup_phase_counts: dict[str, int] = defaultdict(int)
+    for item in comparisons:
+        setup_phase_counts[str(item.get("prepack_setup_primary_phase") or "unknown")] += 1
+
     summary = {
         "reuse_captures": len(reuse_captures),
         "comparisons": len(comparisons),
@@ -664,6 +699,7 @@ def compare_reuse_contracts(captures: list[dict[str, Any]]) -> dict[str, Any]:
             for item in comparisons
             if item.get("runtime_prepack_cache", {}).get("production_available") is True
         ),
+        "prepack_setup_primary_phase_counts": dict(sorted(setup_phase_counts.items())),
         "deprioritized": sum(1 for item in comparisons if item["decision"] == "deprioritize"),
         "experimental": sum(1 for item in comparisons if item["decision"] == "keep_experimental"),
         "missing_baselines": sum(1 for item in comparisons if item["decision"] == "missing_baseline"),
@@ -702,8 +738,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
     lines.extend(
         [
             "",
-            "| backend | semantics | shape | mode | operands | repeats | setup us | same-backend steady us | setup-inclusive us | same-backend speedup | best non-reuse | workload speedup | break-even repeats | decision | blockers |",
-            "|---|---|---|---|---|---:|---:|---:|---:|---:|---|---:|---:|---|---|",
+            "| backend | semantics | shape | mode | operands | repeats | setup us | setup breakdown us | setup primary | same-backend steady us | setup-inclusive us | same-backend speedup | best non-reuse | workload speedup | break-even repeats | decision | blockers |",
+            "|---|---|---|---|---|---:|---:|---|---|---:|---:|---:|---|---:|---:|---|---|",
         ]
     )
     for item in report["comparisons"]:
@@ -717,8 +753,19 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
         stale = item.get("stale_source_rejection", {})
         selector_note = "explicit-ready" if selector.get("explicit_workload_selector_eligible") else "blocked"
         stale_note = "ready" if stale.get("available") else fmt(stale.get("reason"))
+        breakdown = item.get("prepack_setup_breakdown_us")
+        breakdown_text = (
+            "A:{pack_a},B:{pack_b},cache:{runtime_cache},other:{unclassified}".format(
+                pack_a=fmt(breakdown.get("pack_a")),
+                pack_b=fmt(breakdown.get("pack_b")),
+                runtime_cache=fmt(breakdown.get("runtime_cache")),
+                unclassified=fmt(breakdown.get("unclassified")),
+            )
+            if isinstance(breakdown, dict)
+            else "none"
+        )
         lines.append(
-            "| {backend} | {semantics} | {m}x{n}x{k} | {mode} | {operands} | {repeats} | {setup} | {steady} | {inclusive} | {same_speedup} | {best} | {workload_speedup} | {break_even} | {decision} ({selector}; stale={stale}) | {blockers} |".format(
+            "| {backend} | {semantics} | {m}x{n}x{k} | {mode} | {operands} | {repeats} | {setup} | {breakdown} | {primary} | {steady} | {inclusive} | {same_speedup} | {best} | {workload_speedup} | {break_even} | {decision} ({selector}; stale={stale}) | {blockers} |".format(
                 backend=item.get("backend"),
                 semantics=item.get("semantics"),
                 m=shape.get("m"),
@@ -728,6 +775,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
                 operands=",".join(item.get("prepack_reuse_operands") or []),
                 repeats=item.get("repeats"),
                 setup=fmt(item.get("prepack_setup_us")),
+                breakdown=breakdown_text,
+                primary=fmt(item.get("prepack_setup_primary_phase")),
                 steady=fmt(phase.get("reuse_steady_median_us")),
                 inclusive=fmt(phase.get("reuse_setup_inclusive_per_repeat_us")),
                 same_speedup=fmt(phase.get("setup_inclusive_speedup")),

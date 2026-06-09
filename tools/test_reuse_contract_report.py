@@ -96,6 +96,18 @@ def capture(
             "end_to_end": phase_summary(median_us),
         },
     }
+    setup_breakdown = None
+    if reuse and setup_us is not None:
+        setup_breakdown = {
+            "pack_a": setup_us if pack_mode == "prepacked_reuse_a" else 0.0,
+            "pack_b": setup_us if pack_mode == "prepacked_reuse_b" else 0.0,
+            "runtime_cache": 0.0,
+            "unclassified": 0.0,
+        }
+        if pack_mode == "prepacked_reuse":
+            setup_breakdown["pack_a"] = setup_us / 2.0
+            setup_breakdown["pack_b"] = setup_us / 2.0
+        result["prepack_setup_breakdown_us"] = setup_breakdown
     if reuse and with_source_identity:
         result["device_allocation"] = {
             "tracking_available": True,
@@ -110,6 +122,7 @@ def capture(
             "source_version_inputs": "monotonic_source_version_per_repeat_when_packing_runs",
             "setup_scope": "persistent_plan_workspace_prepacked_reuse",
             "setup_cost_us": setup_us,
+            "setup_breakdown_us": setup_breakdown,
             "measured_repeat_count": repeats,
             "break_even_repeat_count": None,
             "output_domain": "native_i64_u64_host",
@@ -199,6 +212,15 @@ def main() -> int:
     assert item["break_even_repeats_same_backend"] == 4
     assert round(item["phases"]["end_to_end"]["setup_inclusive_speedup"], 4) == 1.25
     assert round(item["speedup_vs_best_nonreuse_setup_inclusive"], 4) == 1.125
+    assert item["prepack_setup_breakdown_us"] == {
+        "pack_a": 0.0,
+        "pack_b": 900.0,
+        "runtime_cache": 0.0,
+        "unclassified": 0.0,
+    }
+    assert item["prepack_setup_primary_phase"] == "pack_b"
+    assert item["reuse_contract"]["setup_primary_phase"] == "pack_b"
+    assert report["summary"]["prepack_setup_primary_phase_counts"] == {"pack_b": 1}
     assert item["stale_source_rejection"]["available"] is True
     assert item["same_workload_family"]["available"] is True
     assert item["selector_eligibility"]["explicit_workload_selector_eligible"] is True
@@ -267,6 +289,8 @@ def main() -> int:
     )
     runtime_item = runtime_report["comparisons"][0]
     assert runtime_item["decision"] == "candidate_workload_win"
+    assert runtime_item["prepack_setup_primary_phase"] == "pack_b"
+    assert runtime_item["prepack_setup_breakdown_us"]["pack_b"] == 900.0
     assert runtime_item["source_identity"]["reason"] == "runtime_prepack_cache_source_identity"
     assert runtime_item["runtime_prepack_cache"]["available"] is True
     assert runtime_item["runtime_prepack_cache"]["production_available"] is True

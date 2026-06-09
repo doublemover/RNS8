@@ -243,7 +243,10 @@ inspection commands.
   work can attack the actual setup loss phase instead of the aggregate number.
   The benchmark now skips reusable-B cache materialization probes unless the
   plan actually selected rocWMMA, so CPU/Direct-HIP/CK repeated-B controls no
-  longer pay an unsupported rocWMMA-cache setup attempt.
+  longer pay an unsupported rocWMMA-cache setup attempt. The standalone
+  reuse-contract report now carries the same setup breakdown and primary setup
+  phase counts, so cache selector diagnostics can identify whether a reuse row
+  is B-pack-bound, cache-bound, or dominated by unclassified setup overhead.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.
