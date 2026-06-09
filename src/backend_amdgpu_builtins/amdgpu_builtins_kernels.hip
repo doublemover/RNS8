@@ -616,11 +616,11 @@ int launch_dense(
   hipError_t err = hipSuccess;
   switch (kind) {
     case rns8_amdgpu_arch_kind::cdna3:
-      if (!Finite && use_cdna3_mfma_32x32x16(m, n, k, dense_kernel_variant)) {
+      if (use_cdna3_mfma_32x32x16(m, n, k, dense_kernel_variant)) {
         const dim3 grid(
             (static_cast<unsigned>(n) + 31u) / 32u,
             (static_cast<unsigned>(m) + 31u) / 32u,
-            static_cast<unsigned>(plane_count_or_modulus));
+            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
         hipLaunchKernelGGL(
             (cdna3_dense_mfma_32x32x16_kernel<Finite>),
             grid,

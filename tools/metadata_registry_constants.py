@@ -378,6 +378,7 @@ HIPBLASLT_GPU_EVENT_LABELS = {
 ACCELERATOR_GPU_EVENT_LABELS = {
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel',
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel',
     'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel',
     'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel',
     'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel',
@@ -454,6 +455,7 @@ ROCWMMA_DEEP_GPU_EVENT_LABELS = {
 AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS = {
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel',
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel',
     'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel',
     'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel',
     'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel',
@@ -518,6 +520,7 @@ SELECTED_KERNELS = {
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1',
     'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1',
     'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1',
     'amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1',
     'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1',
     'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1',

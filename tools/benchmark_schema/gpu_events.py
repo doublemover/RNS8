@@ -105,7 +105,11 @@ def amdgpu_builtin_gpu_event_label(selected_kernel: object, semantics: object = 
     kernel = selected_kernel if isinstance(selected_kernel, str) else ""
     finite = semantics in {"finite_ring_u8", "finite_field_u8"}
     if "cdna3_mfma_i32_32x32x16_i8" in kernel:
-        return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel"
+        return (
+            "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
+            if finite
+            else "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel"
+        )
     if "cdna3_mfma_i32_16x16x32_i8_finite" in kernel:
         return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
     if "cdna3_mfma_i32_16x16x32_i8" in kernel:

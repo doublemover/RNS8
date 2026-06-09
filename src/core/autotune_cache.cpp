@@ -354,7 +354,8 @@ bool reviewed_amdgpu_builtin_kernel_supported_for_contract(const AutotuneCacheEn
       return false;
     }
     if (amdgpu_builtin_cdna3_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1" ||
+             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
     }
     if (amdgpu_builtin_rdna3_target_id(entry.target_id)) {
       return entry.selected_kernel == "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";

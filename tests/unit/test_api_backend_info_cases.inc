@@ -60,6 +60,22 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
 
   plan.desc.semantics = RNS8_FINITE_FIELD_U8;
   plan.desc.finite_modulus = 251;
+  plan.backend_target_id = "gfx942";
+  plan.desc.m = 64;
+  plan.desc.n = 64;
+  plan.desc.k = 64;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1");
+
+  plan.desc.m = 128;
+  plan.desc.n = 128;
+  plan.desc.k = 128;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1");
+
+  plan.backend_target_id = "gfx1201";
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
       "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");

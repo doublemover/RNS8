@@ -150,8 +150,9 @@ const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_
                     : "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
-      if (!finite && use_cdna3_mfma_32x32x16_for_override(m, n, k)) {
-        return "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
+      if (use_cdna3_mfma_32x32x16_for_override(m, n, k)) {
+        return finite ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
+                      : "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
       }
       return finite ? "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
                     : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel";

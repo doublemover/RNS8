@@ -456,6 +456,32 @@ amdgpu_tile_candidate = next(
 assert "amdgpu_builtin_tile_variant_kernel_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
 assert "amdgpu_builtin_tile_variant_shape_mismatch" in amdgpu_tile_candidate["promotion_blockers"]
 
+amdgpu_tile_wide_finite = copy.deepcopy(amdgpu_tile)
+amdgpu_tile_wide_finite["device"]["gcn_arch"] = "gfx942"
+amdgpu_tile_wide_finite["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
+amdgpu_tile_wide_finite["backend_metadata"]["selected_kernel"] = amdgpu_tile_wide_finite["selected_kernel"]
+amdgpu_tile_wide_finite["backend_metadata"]["matrix_instruction_shape"] = "32x32x16"
+amdgpu_tile_wide_finite["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
+amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
+    amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"]
+    .replace("target_id=gfx1100", "target_id=gfx942")
+    .replace(
+        "kernel=amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1",
+        "kernel=amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
+    )
+)
+amdgpu_tile_wide_report = benchmark_sweep.review_captures(
+    [amdgpu_tile_wide_finite, direct, cpu],
+    review_mode="release",
+    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_32x32x16_i8": 4}}]},
+)
+amdgpu_tile_wide_candidate = next(
+    item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
+)
+assert "amdgpu_builtin_tile_variant_kernel_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
+assert "amdgpu_builtin_tile_variant_shape_mismatch" not in amdgpu_tile_wide_candidate["promotion_blockers"]
+assert amdgpu_tile_wide_candidate["expected_matrix_instruction_mnemonic"] == "v_mfma_i32_32x32x16_i8"
+
 summary_fixture_group = {
     "semantics": "bounded_i64",
     "shape": {"m": 64, "n": 64, "k": 64},

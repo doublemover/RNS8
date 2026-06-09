@@ -388,6 +388,15 @@ assert {item.tile_shape_variant for item in amdgpu_mfma_tile_items} == {
     "amdgpu-cdna3-mfma-16x16x32",
     "amdgpu-cdna3-mfma-32x32x16",
 }
+assert {
+    (item.tile_shape_variant, item.semantics)
+    for item in amdgpu_mfma_tile_items
+} == {
+    ("amdgpu-cdna3-mfma-16x16x32", "bounded-i64"),
+    ("amdgpu-cdna3-mfma-32x32x16", "bounded-i64"),
+    ("amdgpu-cdna3-mfma-16x16x32", "finite-u8-ring"),
+    ("amdgpu-cdna3-mfma-32x32x16", "finite-u8-ring"),
+}
 for item in amdgpu_mfma_tile_items:
     assert item.backends == ("amdgpu-builtins",)
     assert item.promotion_eligibility == "tile_shape_evidence_only"

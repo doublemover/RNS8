@@ -59,6 +59,7 @@
   "accelerator_events": [
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel",
+    "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel",
@@ -135,6 +136,7 @@
   "amdgpu_builtin_deep_gpu_event_labels": [
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel",
+    "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel",

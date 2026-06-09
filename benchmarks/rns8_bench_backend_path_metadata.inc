@@ -510,21 +510,25 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
   if (!amdgpu_builtin_cdna3_dense_variant_name(args)) {
     return;
   }
-  if (result.backend_info.backend != RNS8_BACKEND_AMDGPU_BUILTINS || finite_benchmark_semantics(args.semantics)) {
-    usage_error("amdgpu-cdna3 MFMA tile-shape variants require dense RNS --backend amdgpu-builtins");
+  if (result.backend_info.backend != RNS8_BACKEND_AMDGPU_BUILTINS) {
+    usage_error("amdgpu-cdna3 MFMA tile-shape variants require --backend amdgpu-builtins");
   }
   if (result.target_id.rfind("gfx942", 0) != 0) {
     usage_error("amdgpu-cdna3 MFMA tile-shape variants require a gfx942 CDNA3 target");
   }
+  const bool finite = finite_benchmark_semantics(args.semantics);
+  const bool wide = args.tile_shape_variant == "amdgpu-cdna3-mfma-32x32x16";
   const char* kernel =
-      args.tile_shape_variant == "amdgpu-cdna3-mfma-32x32x16"
-          ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1"
-          : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
+      finite
+          ? (wide ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1"
+                  : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1")
+          : (wide ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1"
+                  : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+  const char* epilogue =
+      finite ? "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export"
+             : "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
-  set_backend_text(
-      result.backend_info.epilogue_mode,
-      sizeof(result.backend_info.epilogue_mode),
-      "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
+  set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
   std::ostringstream out;
   out << "backend=amdgpu-builtins"
       << ";target_id=" << benchmark_key_target_id(result)
@@ -532,6 +536,7 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
       << ";m=" << args.m
       << ";n=" << args.n
       << ";k=" << args.k
+      << ";finite_modulus=" << (finite ? args.finite_modulus : 0)
       << ";prefix=" << selected_execution_prefix(args, result)
       << ";requested_max_prefix=" << benchmark_prefix(args)
       << ";prefix_policy=" << prefix_policy_name(args, result)
@@ -540,7 +545,7 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
       << ";tile_shape_variant=" << args.tile_shape_variant;
   append_accumulator_key_fields(out, result.backend_info);
   out << ";kernel=" << kernel
-      << ";epilogue=amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
+      << ";epilogue=" << epilogue;
   const std::string key = out.str();
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }

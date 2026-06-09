@@ -27,6 +27,8 @@ constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_mod251_255_
 constexpr const char* kRocwmmaBoundedOldKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
 constexpr const char* kRocwmmaBoundedEpilogue = "rocwmma_fused_i32_to_centered_residue_then_crt_export";
 constexpr const char* kAmdgpuCdnaFiniteKernel = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+constexpr const char* kAmdgpuCdnaWideFiniteKernel =
+    "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
 constexpr const char* kAmdgpuCdnaCenteredKernel =
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1";
 constexpr const char* kAmdgpuCdnaWideCenteredKernel =
@@ -551,6 +553,26 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     cases.push_back({item.key, item, ""});
   }
   {
+    std::string key =
+        reviewed_key(
+            "amdgpu-builtins", "gfx942", "7.2", "finite_field_u8", 2048, 2048, 2048, "row_major",
+            2048, 128, 128, kAmdgpuCdnaWideFiniteKernel, kAmdgpuFiniteEpilogue) +
+        ";finite_modulus=251";
+    auto item = cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_linux_gfx942");
+    item.selected_kernel = kAmdgpuCdnaWideFiniteKernel;
+    item.target_id = "gfx942";
+    item.hip_sdk_or_library_version = "7.2";
+    item.semantic_contract = "finite_field_u8";
+    item.finite_modulus = 251;
+    item.m = 2048;
+    item.n = 2048;
+    item.k = 2048;
+    item.k_block_size = 2048;
+    item.epilogue = kAmdgpuFiniteEpilogue;
+    item.kernel_family = kAmdgpuCdnaWideFiniteKernel;
+    cases.push_back({item.key, item, ""});
+  }
+  {
     std::string key = reviewed_key(
         "amdgpu-builtins",
         "gfx942",
@@ -669,6 +691,21 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.finite_modulus = 251;
     item.epilogue = kAmdgpuFiniteEpilogue;
     item.kernel_family = kAmdgpuCdnaFiniteKernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    std::string key =
+        reviewed_key(
+            "amdgpu-builtins", "gfx1100", "7.1", "finite_ring_u8", 512, 512, 512, "row_major", 512,
+            128, 128, kAmdgpuCdnaWideFiniteKernel, kAmdgpuFiniteEpilogue) +
+        ";finite_modulus=251";
+    auto item =
+        cache_entry(key.c_str(), "amdgpu-builtins", true, "reviewed_release_same_contract_fastest_windows_gfx1100");
+    item.selected_kernel = kAmdgpuCdnaWideFiniteKernel;
+    item.semantic_contract = "finite_ring_u8";
+    item.finite_modulus = 251;
+    item.epilogue = kAmdgpuFiniteEpilogue;
+    item.kernel_family = kAmdgpuCdnaWideFiniteKernel;
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {

@@ -622,6 +622,66 @@
         "promotion_scope": "tile_shape_evidence_only",
         "resource_report_required": "isa_or_counter"
       }
+    },
+    {
+      "name": "finite-ring-2048-amdgpu-cdna3-mfma-16x16x32",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-2048-amdgpu-cdna3-mfma-16x16x32",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "AMDGPU builtin CDNA3 MFMA 16x16x32 dense finite-ring u8 variant",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "same-contract finite-u8 MFMA variant evidence for CDNA3 before any finite builtin promotion",
+      "backends": ["amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "finite_moduli": [251],
+      "tile_shape_variant": "amdgpu-cdna3-mfma-16x16x32",
+      "metadata": {
+        "rank": 91,
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "mfma_isa_histogram_and_phase_timings",
+        "matrix_instruction_candidate": "v_mfma_i32_16x16x32_i8"
+      }
+    },
+    {
+      "name": "finite-ring-2048-amdgpu-cdna3-mfma-32x32x16",
+      "semantics": "finite-u8-ring",
+      "case": {
+        "name": "finite-2048-amdgpu-cdna3-mfma-32x32x16",
+        "m": 2048,
+        "n": 2048,
+        "k": 2048,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "AMDGPU builtin CDNA3 MFMA 32x32x16 dense finite-ring u8 variant",
+      "output_domain": "finite_u8_canonical_host_export",
+      "rationale": "same-contract wider finite-u8 MFMA variant evidence for CDNA3 before any finite builtin promotion",
+      "backends": ["amdgpu-builtins"],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "finite_moduli": [251],
+      "tile_shape_variant": "amdgpu-cdna3-mfma-32x32x16",
+      "metadata": {
+        "rank": 91,
+        "promotion_scope": "tile_shape_evidence_only",
+        "resource_report_required": "mfma_isa_histogram_and_phase_timings",
+        "matrix_instruction_candidate": "v_mfma_i32_32x32x16_i8"
+      }
     }
   ]
 }

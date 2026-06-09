@@ -192,7 +192,10 @@ def _amdgpu_builtin_allowed_selected_kernels(capture: dict[str, Any]) -> set[str
     finite = _capture_semantics_are_finite_u8(capture)
     if target_family == "cdna3":
         dense = (
-            {"amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"}
+            {
+                "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
+                "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
+            }
             if finite
             else {
                 "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
