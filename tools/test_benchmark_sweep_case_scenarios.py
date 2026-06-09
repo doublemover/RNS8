@@ -68,6 +68,13 @@ production_reuse_items = [
     if item.promotion_eligibility == "release_review_candidate" and item.pack_mode == "prepacked_reuse_b"
 ]
 assert production_reuse_items
+assert {item.semantics for item in production_reuse_items} == {"bounded-i64", "bounded-u64"}
+assert {item.name for item in production_reuse_items} == {
+    "bounded-i64-512-production-reuse-b",
+    "bounded-i64-1024-production-reuse-b",
+    "bounded-u64-512-production-reuse-b",
+    "bounded-u64-1024-production-reuse-b",
+}
 for item in production_reuse_items:
     assert item.backends == ("rocwmma",)
     assert item.metadata and item.metadata["reuse_contract_role"] == "stable_b_production_candidate"
@@ -77,6 +84,13 @@ baseline_items = [
     if item.promotion_eligibility == "release_review_candidate" and item.pack_mode == "per_repeat_repack"
 ]
 assert baseline_items
+assert {item.semantics for item in baseline_items} == {"bounded-i64", "bounded-u64"}
+assert {item.name for item in baseline_items} == {
+    "bounded-i64-512-production-baselines",
+    "bounded-i64-1024-production-baselines",
+    "bounded-u64-512-production-baselines",
+    "bounded-u64-1024-production-baselines",
+}
 for item in baseline_items:
     assert {"cpu", "hip-direct", "hip-vector-alu-int64", "rocwmma"}.issubset(set(item.backends))
 for item in repeated_b_items:

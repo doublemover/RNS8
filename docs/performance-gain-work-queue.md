@@ -264,6 +264,10 @@ inspection commands.
   through them, so repeated-B captures can materialize the reusable B cache
   directly from row-major native input instead of first packing B into resident
   RNS storage and then swizzling that storage into the rocWMMA cache layout.
+  The production `repeated-b` scenario family now includes bounded-u64 512 and
+  1024 release baselines plus matching rocWMMA prepacked-B candidates, so the
+  public B-cache gate exercises both bounded signed and unsigned contracts
+  setup-inclusively.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

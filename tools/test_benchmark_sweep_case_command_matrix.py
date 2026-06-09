@@ -296,10 +296,12 @@ scenario_args.semantics = None
 scenario_args.case = None
 scenario_args.scenario = ["repeated-b"]
 scenario_entries = benchmark_sweep.sweep_command_entries(scenario_args)
-assert len(scenario_entries) == 4
+assert len(scenario_entries) == 6
 assert [entry.scenario["name"] for entry in scenario_entries] == [
     "bounded-i64-512-production-baselines",
     "bounded-i64-1024-production-baselines",
+    "bounded-u64-512-production-baselines",
+    "bounded-u64-1024-production-baselines",
     "bounded-i64-512",
     "bounded-i64-1024",
 ]

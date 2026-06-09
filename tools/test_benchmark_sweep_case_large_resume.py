@@ -294,7 +294,7 @@ with tempfile.TemporaryDirectory() as tmp:
     manifest = json.loads(Path(manifest_paths["scenario_manifest"]).read_text(encoding="utf-8"))
     assert manifest["schema_version"] == 1
     assert manifest["scenario_families"] == ["repeated-b"]
-    assert manifest["capture_count"] == 4
+    assert manifest["capture_count"] == 6
     assert manifest["entries"][0]["output_domain"] == "host_export"
     assert Path(manifest_paths["scenario_markdown"]).exists()
 
