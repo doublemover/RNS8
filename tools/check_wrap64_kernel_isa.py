@@ -20,11 +20,13 @@ from isa_common import (
 WRAP64_SYMBOL_MARKERS = [
     "rns8_wrap64_pack_u64_kernel",
     "rns8_wrap64_pack_u64_scalar_kernel",
+    "rns8_wrap64_pack_u64_contiguous4_kernel",
     "rns8_wrap64_byte_gemm36_tiled_u32acc_kernel",
     "rns8_wrap64_byte_gemm36_tiled_u64acc_kernel",
     "rns8_wrap64_byte_gemm36_colpair_u32acc_kernel",
     "rns8_wrap64_export_u64_kernel",
     "rns8_wrap64_export_u64_scalar_kernel",
+    "rns8_wrap64_export_u64_contiguous4_kernel",
 ]
 
 def wrap64_symbols(objdump: str, code_object: Path) -> list[str]:

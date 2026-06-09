@@ -410,7 +410,12 @@ inspection commands.
   launchers now also use four-cell kernels for moduli 251, 255, and 256. The
   generic dynamic-modulus and strided paths stay on the existing one-cell
   kernels, while the hot row-major finite release paths reduce launch work-items
-  further and keep the same centered-residue output layout.
+  further and keep the same centered-residue output layout. Wrap64 Direct-HIP
+  contiguous row-major pack and export now use four-cell byte-limb kernels as
+  well, preserving strided pack fallbacks while reducing work-items and address
+  arithmetic on small and medium strict `mod 2^64` captures. The wrap64 ISA
+  checker names the widened pack/export kernels explicitly so the hot-symbol
+  no-divide/no-matrix-engine gate still covers the executed code path.
 - Remaining work: implement broader fused native-pack plus GEMM routes selected
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.

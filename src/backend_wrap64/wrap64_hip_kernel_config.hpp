@@ -9,6 +9,7 @@ namespace rns8::detail {
 
 constexpr int64_t kWrap64HipU32AccumulatorMaxK = 4096;
 constexpr int64_t kWrap64HipVectorizedPackExportMinDimension = 128;
+constexpr int64_t kWrap64HipContiguous4PackExportCells = 4;
 constexpr int64_t kWrap64HipColPairMinDimension = 256;
 
 constexpr const char* kWrap64HipU32Kernel = "direct_hip_wrap64_byte_gemm36_u32acc_tiled_2d_v4";
@@ -58,6 +59,11 @@ inline const char* wrap64_hip_selected_kernel_for_shape(int64_t m, int64_t n, in
 
 inline bool wrap64_hip_uses_vectorized_pack_export(int64_t rows, int64_t cols) {
   return rows >= kWrap64HipVectorizedPackExportMinDimension && cols >= kWrap64HipVectorizedPackExportMinDimension;
+}
+
+inline bool wrap64_hip_uses_contiguous4_pack_export(int64_t rows, int64_t cols) {
+  return rows > 0 && cols > 0 && rows <= INT64_MAX / cols &&
+         rows * cols >= kWrap64HipContiguous4PackExportCells;
 }
 
 }  // namespace rns8::detail

@@ -173,6 +173,23 @@ __global__ void rns8_wrap64_pack_u64_scalar_kernel(
       byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0), src[row * ld + col]);
 }
 
+__global__ void rns8_wrap64_pack_u64_contiguous4_kernel(
+    const uint64_t* src,
+    uint8_t* byte_limbs,
+    int64_t rows,
+    int64_t cols) {
+  const int64_t base_cell =
+      (static_cast<int64_t>(blockIdx.x) * blockDim.x + static_cast<int64_t>(threadIdx.x)) * 4;
+  const int64_t total_cells = rows * cols;
+#pragma unroll
+  for (int lane = 0; lane < 4; ++lane) {
+    const int64_t cell = base_cell + lane;
+    if (cell < total_cells) {
+      rns8_store_u64_limbs_vectorized(byte_limbs + cell * kWrap64ByteLimbs, src[cell]);
+    }
+  }
+}
+
 template <typename Accumulator>
 __device__ void rns8_wrap64_byte_gemm36_tiled_kernel_impl(
     const uint8_t* a_limbs,
@@ -384,6 +401,23 @@ __global__ void rns8_wrap64_export_u64_scalar_kernel(
       rns8_load_u64_limbs_scalar(byte_limbs + rns8_wrap64_compact_limb_index(row, col, cols, 0));
 }
 
+__global__ void rns8_wrap64_export_u64_contiguous4_kernel(
+    const uint8_t* byte_limbs,
+    uint64_t* dst,
+    int64_t rows,
+    int64_t cols) {
+  const int64_t base_cell =
+      (static_cast<int64_t>(blockIdx.x) * blockDim.x + static_cast<int64_t>(threadIdx.x)) * 4;
+  const int64_t total_cells = rows * cols;
+#pragma unroll
+  for (int lane = 0; lane < 4; ++lane) {
+    const int64_t cell = base_cell + lane;
+    if (cell < total_cells) {
+      dst[cell] = rns8_load_u64_limbs_vectorized(byte_limbs + cell * kWrap64ByteLimbs);
+    }
+  }
+}
+
 }  // namespace
 
 extern "C" int rns8_wrap64_hip_pack_u64_device_on_stream(
@@ -394,6 +428,23 @@ extern "C" int rns8_wrap64_hip_pack_u64_device_on_stream(
     int64_t ld,
     void* stream_ptr) {
   hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
+  if (ld == cols && rns8::detail::wrap64_hip_uses_contiguous4_pack_export(rows, cols)) {
+    constexpr int threads = 256;
+    const int64_t packed_cells = (rows * cols + 3) / 4;
+    const dim3 blocks(static_cast<unsigned int>((packed_cells + threads - 1) / threads));
+    hipLaunchKernelGGL(
+        rns8_wrap64_pack_u64_contiguous4_kernel,
+        blocks,
+        dim3(threads),
+        0,
+        stream,
+        src,
+        byte_limbs,
+        rows,
+        cols);
+    return static_cast<int>(hipGetLastError());
+  }
+
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
@@ -512,6 +563,23 @@ extern "C" int rns8_wrap64_hip_export_u64_device_on_stream(
     int64_t cols,
     void* stream_ptr) {
   hipStream_t stream = static_cast<hipStream_t>(stream_ptr);
+  if (rns8::detail::wrap64_hip_uses_contiguous4_pack_export(rows, cols)) {
+    constexpr int threads = 256;
+    const int64_t packed_cells = (rows * cols + 3) / 4;
+    const dim3 blocks(static_cast<unsigned int>((packed_cells + threads - 1) / threads));
+    hipLaunchKernelGGL(
+        rns8_wrap64_export_u64_contiguous4_kernel,
+        blocks,
+        dim3(threads),
+        0,
+        stream,
+        byte_limbs,
+        dst,
+        rows,
+        cols);
+    return static_cast<int>(hipGetLastError());
+  }
+
   constexpr int threads_x = 16;
   constexpr int threads_y = 16;
   const dim3 threads(threads_x, threads_y);
