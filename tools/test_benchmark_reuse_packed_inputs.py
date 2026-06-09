@@ -69,7 +69,7 @@ def main() -> int:
             assert breakdown["pack_b"] == 0
         if expected_mode == "prepacked_reuse_b":
             assert breakdown["pack_a"] == 0
-        assert breakdown["runtime_cache"] >= 0
+        assert breakdown["runtime_cache"] == 0
         assert len(capture["raw_timings_us"]["pack"]) == 2
         if expect_zero_pack:
             assert capture["raw_timings_us"]["pack"] == [0, 0]

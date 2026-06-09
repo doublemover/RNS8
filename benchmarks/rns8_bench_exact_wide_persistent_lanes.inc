@@ -101,7 +101,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
     uint64_t setup_runtime_cache_us = 0;
-    if (should_probe_reusable_b_prepack_cache(args)) {
+    if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
         result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
@@ -450,7 +450,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
     uint64_t setup_runtime_cache_us = 0;
-    if (should_probe_reusable_b_prepack_cache(args)) {
+    if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
         result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;

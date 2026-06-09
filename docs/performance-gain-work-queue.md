@@ -241,6 +241,9 @@ inspection commands.
   captures also split one-time `prepack_setup_us` into A pack, B pack, runtime
   cache materialization, and unclassified setup overhead so Rank 84 follow-up
   work can attack the actual setup loss phase instead of the aggregate number.
+  The benchmark now skips reusable-B cache materialization probes unless the
+  plan actually selected rocWMMA, so CPU/Direct-HIP/CK repeated-B controls no
+  longer pay an unsupported rocWMMA-cache setup attempt.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

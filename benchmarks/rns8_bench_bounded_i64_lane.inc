@@ -196,7 +196,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
     uint64_t setup_runtime_cache_us = 0;
-    if (!use_native_a_reuse_b && b_matrix && should_probe_reusable_b_prepack_cache(args)) {
+    if (!use_native_a_reuse_b && b_matrix && should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
         result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;

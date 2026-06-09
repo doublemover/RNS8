@@ -886,9 +886,9 @@ bool uses_runtime_b_prepack_cache(const BenchmarkResult& result) {
   return result.prepack_reuse_strategy == PrepackReuseStrategy::RocwmmaReusableBCache;
 }
 
-bool should_probe_reusable_b_prepack_cache(const Args& args) {
+bool should_probe_reusable_b_prepack_cache(const Args& args, rns8_backend_kind selected_backend) {
   return args.reuse_packed_inputs && args.reuse_packed_b && !args.reuse_packed_a &&
-         args.backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64;
+         selected_backend == RNS8_BACKEND_ROCWMMA;
 }
 
 rns8_status run_rns_gemm_with_optional_b_cache(
