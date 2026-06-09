@@ -57,6 +57,25 @@ expect_invalid(
     "direct-HIP skinny GEMV N=1 GPU event phase set is incomplete",
 )
 
+direct_hip_skinny_gemv_small_n = as_direct_hip_bounded_skinny_gemv_small_n_capture(v4_ck_i64, n=4)
+validate_capture(direct_hip_skinny_gemv_small_n)
+
+stale_direct_hip_skinny_gemv_small_n_event = copy.deepcopy(direct_hip_skinny_gemv_small_n)
+small_n_phases = stale_direct_hip_skinny_gemv_small_n_event["timing_metadata"]["gpu_event_phase_order"]
+small_n_phases[small_n_phases.index("rns_gemv_small_n_kernel_group")] = "rns_gemm_kernel_group"
+stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"]["rns_gemm_kernel_group"] = (
+    stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timings_us"].pop("rns_gemv_small_n_kernel_group")
+)
+stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"]["rns_gemm_kernel_group"] = (
+    stale_direct_hip_skinny_gemv_small_n_event["gpu_event_timing_summary_us"].pop(
+        "rns_gemv_small_n_kernel_group"
+    )
+)
+expect_invalid(
+    stale_direct_hip_skinny_gemv_small_n_event,
+    "direct-HIP skinny GEMV small-N GPU event phase set is incomplete",
+)
+
 adaptive_vector_runtime = copy.deepcopy(v4_adaptive_i64)
 adaptive_vector_runtime["benchmark"] = "rns8_bounded_gemm_hip_vector_alu_int64_runtime"
 adaptive_vector_runtime["benchmark_execution_mode"] = "public_runtime_vector_alu_native_buffers"

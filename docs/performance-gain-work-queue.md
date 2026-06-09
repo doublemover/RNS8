@@ -104,23 +104,25 @@ inspection commands.
   `direct_hip_prefix9_rns_gemv_n1_i64_v1` and
   `direct_hip_prefix9_rns_gemv_n1_u64_v1`; local Windows HIP smokes selected
   the new `direct_hip_skinny_gemv_n1_resident_rns` route and schema-validated.
+  The Direct-HIP backend now also has a resident-RNS `2 <= N <= 4` row-parallel
+  route, reported as `direct_hip_prefix9_rns_gemv_small_n_i64_v1` /
+  `direct_hip_prefix9_rns_gemv_small_n_u64_v1` with the
+  `direct_hip_skinny_gemv_small_n_resident_rns` execution mode and a dedicated
+  `rns_gemv_small_n_kernel_group` event phase.
   Public Direct-HIP plan metadata now reports the same GEMV selected kernel,
   epilogue, and workspace for bounded fixed-prefix `N=1` plans instead of the
   generic grouped GEMM identity.
-  Release review now treats stale `N=1` Direct-HIP captures as route-invalid
-  unless they report a `gemv_n1` selected kernel, the
-  `direct_hip_skinny_gemv_n1_resident_rns` execution mode, and GEMV-specific
-  GPU event phase metadata, so generic tiled GEMM cannot be reported as the
-  production skinny route by accident. The `skinny-gemv` scenario family now
-  also includes bounded i64/u64 `N=4` rows without vector-ALU claims, so CDNA
-  and RDNA captures can decide whether generic Direct-HIP GEMM is sufficient
-  for small-N or whether a broader GEMV-family kernel is required.
+  Release review now treats stale `N <= 4` Direct-HIP captures as route-invalid
+  unless they report a GEMV selected kernel, the matching skinny GEMV execution
+  mode, and GEMV-specific GPU event phase metadata, so generic tiled GEMM
+  cannot be reported as the production skinny route by accident. The
+  `skinny-gemv` scenario family includes bounded i64/u64 `N=4` rows to compare
+  the specialized small-N route against current tiled Direct HIP and accelerator
+  candidates.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024`, plus small-N `512x4x512` and `1024x4x1024`, against CPU
   anchor, current tiled Direct HIP, vector-ALU where applicable, and rocWMMA;
-  schema must report a GEMV selected kernel and phase timings for `N=1`, while
-  `N=4` rows must remain explicit small-N generic-vs-specialized evidence
-  until a dedicated kernel lands.
+  schema must report a GEMV selected kernel and phase timings for `N <= 4`.
 - Promotion rule: promote only if setup-inclusive end-to-end beats the current
   Direct-HIP production route for the same contract.
 

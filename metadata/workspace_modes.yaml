@@ -13,6 +13,7 @@
     "transient_native_a_to_resident_b_rns_output",
     "transient_native_b_to_resident_a_rns_output",
     "resident_rns_inputs_skinny_n1_output",
+    "resident_rns_inputs_skinny_n_le4_output",
     "residue_channel_width3_native_inputs_to_resident_rns_output"
   ]
 }

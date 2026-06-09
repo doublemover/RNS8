@@ -219,6 +219,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
 }
 
 constexpr int kRns8HipGemvN1Threads = 256;
+constexpr int kRns8HipGemvSmallNMaxN = 4;
 
 __global__ void __launch_bounds__(kRns8HipGemvN1Threads)
     rns8_ring_gemv_n1_i8_i32_grouped_prefix_kernel(
@@ -278,6 +279,80 @@ __global__ void __launch_bounds__(kRns8HipGemvN1Threads)
     }
     C[row * ldc] =
         rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
+  }
+}
+
+__global__ void __launch_bounds__(kRns8HipGemvN1Threads)
+    rns8_ring_gemv_small_n_i8_i32_grouped_prefix_kernel(
+        const int8_t* A_base,
+        const int8_t* B_base,
+        int8_t* C_base,
+        int m,
+        int n,
+        int k,
+        int k_offset,
+        int k_block,
+        int lda,
+        int ldb,
+        int ldc,
+        int grouped_prefix,
+        int accumulate) {
+  const int row = static_cast<int>(blockIdx.x);
+  const int modulus_index = static_cast<int>(blockIdx.y);
+  if (row >= m || modulus_index >= grouped_prefix || n <= 0 || n > kRns8HipGemvSmallNMaxN) {
+    return;
+  }
+
+  const int64_t a_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * static_cast<int64_t>(lda);
+  const int64_t b_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(k) * static_cast<int64_t>(ldb);
+  const int64_t c_plane_offset =
+      static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * static_cast<int64_t>(ldc);
+  const int8_t* A = A_base + a_plane_offset;
+  const int8_t* B = B_base + b_plane_offset;
+  int8_t* C = C_base + c_plane_offset;
+  const int modulus = rns8_default_moduli_device[modulus_index];
+  const uint32_t modulus_reciprocal =
+      static_cast<uint32_t>(kRns8ReciprocalScale / static_cast<uint32_t>(modulus));
+
+  int32_t thread_acc[kRns8HipGemvSmallNMaxN] = {0, 0, 0, 0};
+  for (int kk = static_cast<int>(threadIdx.x); kk < k_block; kk += static_cast<int>(blockDim.x)) {
+    const int source_k = k_offset + kk;
+    const int32_t a_value = static_cast<int32_t>(A[row * lda + source_k]);
+    for (int col = 0; col < kRns8HipGemvSmallNMaxN; ++col) {
+      if (col < n) {
+        thread_acc[col] += a_value * static_cast<int32_t>(B[source_k * ldb + col]);
+      }
+    }
+  }
+
+  __shared__ int32_t partials[kRns8HipGemvN1Threads][kRns8HipGemvSmallNMaxN];
+  for (int col = 0; col < kRns8HipGemvSmallNMaxN; ++col) {
+    partials[threadIdx.x][col] = thread_acc[col];
+  }
+  __syncthreads();
+
+  for (int stride = kRns8HipGemvN1Threads / 2; stride > 0; stride >>= 1) {
+    if (static_cast<int>(threadIdx.x) < stride) {
+      for (int col = 0; col < kRns8HipGemvSmallNMaxN; ++col) {
+        partials[threadIdx.x][col] += partials[threadIdx.x + stride][col];
+      }
+    }
+    __syncthreads();
+  }
+
+  if (threadIdx.x == 0) {
+    for (int col = 0; col < kRns8HipGemvSmallNMaxN; ++col) {
+      if (col < n) {
+        int32_t acc = partials[0][col];
+        if (accumulate) {
+          acc += static_cast<int32_t>(C[row * ldc + col]);
+        }
+        C[row * ldc + col] =
+            rns8_reduce_to_centered_default_modulus_fixed_device(acc, modulus_index, modulus, modulus_reciprocal);
+      }
+    }
   }
 }
 

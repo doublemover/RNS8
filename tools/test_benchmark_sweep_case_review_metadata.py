@@ -186,7 +186,7 @@ assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidat
 assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
 assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
 stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
-assert "select_direct_hip_skinny_gemv_kernel_before_n1_promotion" in stale_skinny_next_work
+assert "select_direct_hip_skinny_gemv_kernel_before_promotion" in stale_skinny_next_work
 
 valid_skinny_direct = copy.deepcopy(skinny_direct)
 valid_skinny_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_n1_i64_v1"
@@ -209,6 +209,50 @@ assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_direct_cand
 assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_direct_candidate["promotion_blockers"]
 assert "missing_skinny_gemv_gpu_event_phase" not in valid_direct_candidate["promotion_blockers"]
 assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
+
+skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
+skinny_small_n_direct = bounded_capture("hip-direct", 280)
+for capture in (skinny_small_n_cpu, skinny_small_n_direct):
+    capture["n"] = 4
+    capture["output_logical_ld"] = 4
+    capture["scenario_metadata"] = {
+        "family": "skinny-gemv",
+        "name": "bounded-i64-512x4x512-review-fixture",
+        "promotion_eligibility": "release_review_candidate",
+        "metadata": {"workflow_name": "skinny_gemv"},
+    }
+stale_small_n_report = benchmark_sweep.review_captures(
+    [skinny_small_n_cpu, skinny_small_n_direct],
+    review_mode="release",
+)
+stale_small_n_candidate = next(
+    item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+)
+assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_small_n_candidate["promotion_blockers"]
+assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_small_n_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
+
+valid_small_n_direct = copy.deepcopy(skinny_small_n_direct)
+valid_small_n_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
+valid_small_n_direct["backend_metadata"]["selected_kernel"] = valid_small_n_direct["selected_kernel"]
+valid_small_n_direct["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
+valid_small_n_direct["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_direct["benchmark_execution_mode"]
+valid_small_n_direct["timing_metadata"]["gpu_event_phase_order"] = [
+    "direct_hip_prefix9_pack_a",
+    "direct_hip_prefix9_pack_b",
+    "direct_hip_skinny_gemv_small_n_kernel",
+    "direct_hip_bounded_crt_export",
+]
+valid_small_n_report = benchmark_sweep.review_captures(
+    [skinny_small_n_cpu, valid_small_n_direct],
+    review_mode="release",
+)
+valid_small_n_candidate = next(
+    item for item in valid_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
+)
+assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_small_n_candidate["promotion_blockers"]
+assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_small_n_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_candidate["promotion_blockers"]
 
 native_bridge = bounded_capture("hip-direct", 220)
 native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"

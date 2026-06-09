@@ -295,7 +295,13 @@ def final_output_export_metadata_blockers(
 
 
 def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, backend_family: str) -> list[str]:
-    if semantics not in {"bounded_i64", "bounded_u64"} or capture.get("n") != 1:
+    n = capture.get("n")
+    if (
+        semantics not in {"bounded_i64", "bounded_u64"}
+        or not isinstance(n, int)
+        or isinstance(n, bool)
+        or n > 4
+    ):
         return []
     if backend_family not in {"hip-direct", "hip-vector-alu-int64"}:
         return []
@@ -304,10 +310,16 @@ def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, ba
     kernel = selected_kernel(capture)
     mode = capture_execution_mode(capture)
     if backend_family == "hip-direct":
-        if "gemv_n1" not in kernel:
-            blockers.append("missing_direct_hip_skinny_gemv_kernel_identity")
-        if mode != "direct_hip_skinny_gemv_n1_resident_rns":
-            blockers.append("missing_direct_hip_skinny_gemv_execution_mode")
+        if n == 1:
+            if "gemv_n1" not in kernel:
+                blockers.append("missing_direct_hip_skinny_gemv_kernel_identity")
+            if mode != "direct_hip_skinny_gemv_n1_resident_rns":
+                blockers.append("missing_direct_hip_skinny_gemv_execution_mode")
+        elif n > 1:
+            if "gemv_small_n" not in kernel:
+                blockers.append("missing_direct_hip_skinny_gemv_kernel_identity")
+            if mode != "direct_hip_skinny_gemv_small_n_resident_rns":
+                blockers.append("missing_direct_hip_skinny_gemv_execution_mode")
     else:
         if "gemv_n1" not in kernel:
             blockers.append("missing_vector_alu_skinny_gemv_kernel_identity")
@@ -697,10 +709,10 @@ def review_next_work(
         ("missing_reconstruction_variant_metadata", "attach_reconstruction_variant_metadata_before_promotion"),
         ("missing_reconstruction_kernel_identity", "attach_reconstruction_kernel_identity_before_promotion"),
         ("missing_reconstruction_prefix_count", "attach_reconstruction_prefix_count_before_promotion"),
-        ("missing_direct_hip_skinny_gemv_kernel_identity", "select_direct_hip_skinny_gemv_kernel_before_n1_promotion"),
-        ("missing_direct_hip_skinny_gemv_execution_mode", "route_n1_direct_hip_captures_through_skinny_gemv_mode"),
-        ("missing_vector_alu_skinny_gemv_kernel_identity", "select_vector_alu_skinny_gemv_kernel_before_n1_promotion"),
-        ("missing_vector_alu_skinny_gemv_execution_mode", "route_n1_vector_alu_captures_through_gemv_mode"),
+        ("missing_direct_hip_skinny_gemv_kernel_identity", "select_direct_hip_skinny_gemv_kernel_before_promotion"),
+        ("missing_direct_hip_skinny_gemv_execution_mode", "route_direct_hip_skinny_captures_through_gemv_mode"),
+        ("missing_vector_alu_skinny_gemv_kernel_identity", "select_vector_alu_skinny_gemv_kernel_before_promotion"),
+        ("missing_vector_alu_skinny_gemv_execution_mode", "route_vector_alu_skinny_captures_through_gemv_mode"),
         ("missing_skinny_gemv_gpu_event_phase", "attach_skinny_gemv_gpu_event_phase_timing"),
         ("missing_native_to_rns_bridge_forced_metadata", "attach_native_to_rns_bridge_forced_metadata"),
         ("missing_native_to_rns_handoff_scope", "attach_native_to_rns_handoff_phase_scope"),

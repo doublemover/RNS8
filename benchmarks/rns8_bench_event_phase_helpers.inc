@@ -412,6 +412,9 @@ std::vector<std::string> gpu_event_phase_order(
   if (bounded_direct_hip_skinny_gemv_n1_path(args, result)) {
     gemm_phase = "rns_gemv_n1_kernel_group";
   }
+  if (bounded_direct_hip_skinny_gemv_small_n_path(args, result)) {
+    gemm_phase = "rns_gemv_small_n_kernel_group";
+  }
   std::vector<std::string> phases;
   if (bounded_uniform_small_i8_ab_transient_path(args, result)) {
     gemm_phase = bounded_uniform_small_i8_ab_transient_event_label();

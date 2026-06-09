@@ -52,6 +52,8 @@
     "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
     "direct_hip_prefix9_rns_gemv_n1_i64_v1",
     "direct_hip_prefix9_rns_gemv_n1_u64_v1",
+    "direct_hip_prefix9_rns_gemv_small_n_i64_v1",
+    "direct_hip_prefix9_rns_gemv_small_n_u64_v1",
     "direct_hip_tiled_rns_gemm_v1",
     "direct_hip_prefix9_grouped_rns_gemm_v1",
     "direct_hip_prefix20_grouped_rns_gemm_v1",

@@ -217,6 +217,52 @@ hipError_t launch_resident_rns_prefix_gemv_n1(
   return err;
 }
 
+hipError_t launch_resident_rns_prefix_gemv_small_n(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block) {
+  const dim3 block(kRns8HipGemvN1Threads);
+  const dim3 grid(m, grouped_prefix);
+  hipError_t err = hipSuccess;
+  int k_offset = 0;
+  int accumulate = 0;
+  while (k_offset < k && err == hipSuccess) {
+    const int k_remaining = k - k_offset;
+    const int k_block = k_remaining > safe_k_block ? safe_k_block : k_remaining;
+    hipLaunchKernelGGL(
+        rns8_ring_gemv_small_n_i8_i32_grouped_prefix_kernel,
+        grid,
+        block,
+        0,
+        nullptr,
+        d_a,
+        d_b,
+        d_c,
+        m,
+        n,
+        k,
+        k_offset,
+        k_block,
+        lda,
+        ldb,
+        ldc,
+        grouped_prefix,
+        accumulate);
+    err = hipGetLastError();
+    k_offset += k_block;
+    accumulate = 1;
+  }
+  return err;
+}
+
 template <typename NativeT>
 hipError_t launch_native_prefix9_colpair_grouped_gemm(
     const NativeT* d_a,
@@ -540,6 +586,34 @@ extern "C" int rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
   }
   return static_cast<int>(
       launch_resident_rns_prefix_gemv_n1(d_a, d_b, d_c, m, k, lda, ldb, ldc, grouped_prefix, safe_k_block));
+}
+
+extern "C" int rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 1 || n > kRns8HipGemvSmallNMaxN || k <= 0 ||
+      lda < k || ldb < n || ldc < n ||
+      grouped_prefix <= 0 || grouped_prefix > kRns8DefaultModulusCount ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int64_t max_grouped_plane_elements = kRns8MaxInt64 / grouped_prefix;
+  if (static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(lda) ||
+      static_cast<int64_t>(k) > max_grouped_plane_elements / static_cast<int64_t>(ldb) ||
+      static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(ldc)) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  return static_cast<int>(
+      launch_resident_rns_prefix_gemv_small_n(d_a, d_b, d_c, m, n, k, lda, ldb, ldc, grouped_prefix, safe_k_block));
 }
 
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_colpair_device(

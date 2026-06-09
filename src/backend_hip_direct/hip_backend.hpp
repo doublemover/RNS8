@@ -413,6 +413,15 @@ rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
     int64_t m,
     int64_t k,
     uint64_t source_version);
+rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
+    int device_id,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    uint64_t source_version);
 rns8_status hip_direct_gemm_i64_native_prefix9_device(
     int device_id,
     const void* device_a_native,

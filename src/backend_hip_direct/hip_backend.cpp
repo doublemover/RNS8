@@ -185,6 +185,19 @@ extern "C" int rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(
     int grouped_prefix,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(
+    const int8_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int grouped_prefix,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_ring_gemm_i64_native_prefix9_colpair_device(
     const int64_t* d_a,
     const int64_t* d_b,

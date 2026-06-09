@@ -245,6 +245,18 @@ class ValidatorPredicatesMixin:
             and self._benchmark_execution_mode() == "direct_hip_skinny_gemv_n1_resident_rns"
         )
 
+    def _is_direct_hip_bounded_skinny_gemv_small_n_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-direct"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and _is_int(self.data.get("n"))
+            and 1 < self.data.get("n") <= 4
+            and self.data.get("prefix") == self.data.get("selected_prefix") == 9
+            and self.data.get("pack_mode") == "per_repeat_repack"
+            and self.data.get("prepack_reuse_strategy") == "none"
+            and self._benchmark_execution_mode() == "direct_hip_skinny_gemv_small_n_resident_rns"
+        )
+
     def _is_direct_hip_finite_native_a_reuse_b_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"

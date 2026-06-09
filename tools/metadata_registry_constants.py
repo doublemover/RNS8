@@ -10,6 +10,7 @@ BENCHMARK_EXECUTION_MODES = {
     'benchmark_owned_vector_alu_native_buffers',
     'benchmark_streaming_overlap_resident_b_pipeline',
     'direct_hip_skinny_gemv_n1_resident_rns',
+    'direct_hip_skinny_gemv_small_n_resident_rns',
     'hip_graph_replay_bounded_pack_gemm_export',
     'hip_graph_replay_finite_u8_pack_gemm_export',
     'hip_graph_replay_resident_rns_chain',
@@ -345,6 +346,7 @@ DIRECT_HIP_CORE_EVENTS = {
     'rns_gemm',
     'rns_gemm_kernel_group',
     'rns_gemv_n1_kernel_group',
+    'rns_gemv_small_n_kernel_group',
 }
 GROUPED_DISPATCH_EVENTS = {
     'exact_wide_export_compact_to_host',
@@ -546,6 +548,8 @@ SELECTED_KERNELS = {
     'direct_hip_prefix9_native_input_grouped_rns_gemm_v1',
     'direct_hip_prefix9_rns_gemv_n1_i64_v1',
     'direct_hip_prefix9_rns_gemv_n1_u64_v1',
+    'direct_hip_prefix9_rns_gemv_small_n_i64_v1',
+    'direct_hip_prefix9_rns_gemv_small_n_u64_v1',
     'direct_hip_tiled_active_prefix_rns_gemm_v2',
     'direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1',
     'direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3',

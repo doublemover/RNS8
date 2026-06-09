@@ -279,6 +279,15 @@ void collect_bounded_direct_hip_skinny_gemv_n1_gpu_events(GpuEventSamples& event
   }
 }
 
+void collect_bounded_direct_hip_skinny_gemv_small_n_gpu_events(GpuEventSamples& events) {
+  const auto samples = rns8::detail::hip_direct_timing_snapshot();
+  const double kernel = sum_event_label(events, samples, "rns_gemm", "rns_gemv_small_n_kernel_group");
+  if (events.complete) {
+    push_gpu_event_value(events, "rns_gemv_small_n_kernel_group", kernel);
+    push_gpu_event_value(events, "rns_gemm", kernel);
+  }
+}
+
 void collect_incremental_result_cache_gemm_gpu_events(const Args& args, GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   const bool finite = finite_benchmark_semantics(args.semantics);

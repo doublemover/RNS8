@@ -758,3 +758,76 @@ def as_direct_hip_bounded_skinny_gemv_n1_capture(capture: dict) -> dict:
     return skinny
 
 
+def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int = 4) -> dict:
+    if n <= 1 or n > 4:
+        raise ValueError("small-N skinny GEMV test fixture requires 2 <= n <= 4")
+    skinny = as_direct_hip_bounded_skinny_gemv_n1_capture(capture)
+    semantics = skinny["semantics"]
+    signed = semantics == "bounded_i64"
+    kernel = (
+        "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
+        if signed
+        else "direct_hip_prefix9_rns_gemv_small_n_u64_v1"
+    )
+    epilogue = "resident_rns_gemv_small_n_centered_residue_then_crt_export"
+    old_kernel = skinny["selected_kernel"]
+    old_epilogue = skinny["backend_metadata"]["epilogue_mode"]
+    old_event = "rns_gemv_n1_kernel_group"
+    new_event = "rns_gemv_small_n_kernel_group"
+
+    skinny["benchmark"] = "rns8_bounded_gemm_direct_hip_skinny_gemv_small_n"
+    skinny["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
+    skinny["m"] = 512
+    skinny["n"] = n
+    skinny["k"] = 512
+    skinny["output_logical_ld"] = n
+    skinny["output_ld"] = n
+    skinny["bound"] = 131072
+    skinny["selected_kernel"] = kernel
+    skinny["k_block_size"] = 512
+    skinny["schedule_metadata"]["tile_rows"] = 4
+    skinny["schedule_metadata"]["tile_cols"] = 1
+    skinny["schedule_metadata"]["tile_count"] = 4
+    skinny["schedule_metadata"]["range_bit_length"] = 18
+
+    add_output_policy_fields(skinny)
+    skinny["backend_metadata"]["source"] = "rns8_bench_skinny_gemv_small_n_path"
+    skinny["backend_metadata"]["selected_kernel"] = kernel
+    skinny["backend_metadata"]["epilogue_mode"] = epilogue
+    skinny["backend_metadata"]["workspace_mode"] = "resident_rns_inputs_skinny_n_le4_output"
+    skinny["backend_metadata"]["accumulator_safety"]["k_block_size"] = skinny["k"]
+    skinny["backend_metadata"]["autotune_key"] = (
+        skinny["backend_metadata"]["autotune_key"]
+        .replace(";m=256;", ";m=512;")
+        .replace(";n=1;", f";n={n};")
+        .replace(";k=4096;", ";k=512;")
+        .replace(";bound=1048576;", ";bound=131072;")
+        .replace("execution=direct_hip_skinny_gemv_n1_resident_rns", "execution=direct_hip_skinny_gemv_small_n_resident_rns")
+        .replace(f"kernel={old_kernel}", f"kernel={kernel}")
+        .replace(f"epilogue={old_epilogue}", f"epilogue={epilogue}")
+        .replace("k_block_size=4096;", "k_block_size=512;")
+    )
+
+    skinny["timing_metadata"]["benchmark_execution_mode"] = "direct_hip_skinny_gemv_small_n_resident_rns"
+    skinny["timing_metadata"]["gpu_event_phase_order"] = [
+        new_event if phase == old_event else phase
+        for phase in skinny["timing_metadata"]["gpu_event_phase_order"]
+    ]
+    skinny["timing_metadata"]["phase_notes"]["rns_gemm"] = (
+        "HIP events around the skinny small-N resident-RNS GEMV kernel group"
+    )
+    skinny["gpu_event_timings_us"][new_event] = skinny["gpu_event_timings_us"].pop(old_event)
+    skinny["gpu_event_timing_summary_us"][new_event] = skinny["gpu_event_timing_summary_us"].pop(old_event)
+    skinny["raw_timings_us"]["rns_gemm"] = [130, 133][: skinny["repeats"]]
+    skinny["raw_timings_us"]["end_to_end"] = [325, 335][: skinny["repeats"]]
+    skinny["timing_summary_us"]["rns_gemm"] = summary(skinny["raw_timings_us"]["rns_gemm"])
+    skinny["timing_summary_us"]["end_to_end"] = summary(skinny["raw_timings_us"]["end_to_end"])
+    skinny["avg_rns_gemm_us"] = skinny["timing_summary_us"]["rns_gemm"]["avg"]
+    skinny["avg_end_to_end_us"] = skinny["timing_summary_us"]["end_to_end"]["avg"]
+    skinny["avg_per_modulus_gemm_estimate_us"] = skinny["avg_rns_gemm_us"] / skinny["prefix"]
+    skinny["comparison_baseline"]["notes"] = (
+        "skinny small-N direct-HIP GEMV evidence must beat the same-contract tiled direct-HIP route"
+    )
+    return skinny
+
+

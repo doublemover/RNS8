@@ -283,6 +283,35 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             if not missing and not extra:
                 self._error("direct-HIP skinny GEMV N=1 GPU event phase order must match the operation order")
         return
+    if self._is_direct_hip_bounded_skinny_gemv_small_n_capture():
+        expected = [
+            "pack_h2d",
+            "pack_kernel",
+            "pack",
+            "rns_gemv_small_n_kernel_group",
+            "rns_gemm",
+            "crt_export_status_memset",
+            "crt_export_kernel",
+            "crt_export_status_d2h",
+            "crt_export_d2h",
+            "crt_export",
+        ]
+        if phases != expected:
+            missing = [phase for phase in expected if phase not in phases]
+            extra = [phase for phase in phases if phase not in expected]
+            if missing:
+                self._error(
+                    "direct-HIP skinny GEMV small-N GPU event phase set is incomplete; "
+                    f"missing {', '.join(missing)}"
+                )
+            if extra:
+                self._error(
+                    "direct-HIP skinny GEMV small-N GPU event phase set contains undeclared phases: "
+                    f"{', '.join(extra)}"
+                )
+            if not missing and not extra:
+                self._error("direct-HIP skinny GEMV small-N GPU event phase order must match the operation order")
+        return
     if self._is_direct_hip_native_to_rns_bridge_capture():
         conversion_event = (
             "native_i64_to_rns_kernel"
