@@ -234,6 +234,16 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 
 int main(int argc, char** argv) {
   const Args args = parse_args(argc, argv);
+  struct ScopedAmdgpuBuiltinDenseVariantOverride {
+    explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {
+      rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(
+          amdgpu_builtin_dense_variant_for_args(args));
+    }
+    ~ScopedAmdgpuBuiltinDenseVariantOverride() {
+      rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(
+          rns8::detail::amdgpu_builtins_dense_kernel_variant::auto_select);
+    }
+  } amdgpu_builtin_dense_variant_override(args);
   rns8::detail::configure_cpu_parallel(args.cpu_threads, args.cpu_parallel_threshold, args.progress);
   const uint64_t bound = benchmark_bound(args);
   const std::string cmdline = command_line(argc, argv);

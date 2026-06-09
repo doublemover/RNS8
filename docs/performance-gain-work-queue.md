@@ -533,8 +533,12 @@ inspection commands.
 - Current implementation status: explicit `amdgpu-cdna3-mfma-16x16x32` and
   `amdgpu-cdna3-mfma-32x32x16` tile-shape variants force the AMDGPU builtin
   dense CDNA3 runtime down each MFMA path and record the selected kernel in
-  benchmark metadata; LDS, K-block, swizzled-layout, and occupancy tuning still
-  need measured follow-through. Release review now blocks AMDGPU builtin
+  benchmark metadata. The tile-shape sweep catalog now covers bounded i64,
+  bounded u64, exact-wide signed, exact-wide unsigned, and finite-u8 contracts
+  for both dense MFMA variants, so CDNA3 tuning evidence is no longer inferred
+  from signed bounded and finite proxy rows alone. LDS, K-block,
+  swizzled-layout, and occupancy tuning still need measured follow-through.
+  Release review now blocks AMDGPU builtin
   CDNA3 tile-shape captures when the `amdgpu-cdna3-mfma-*` variant name
   disagrees with the selected kernel or matrix-instruction family/shape/dtype,
   so a 32x32x16 tuning row cannot be certified by a 16x16x32 kernel.

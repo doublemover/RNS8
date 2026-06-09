@@ -506,7 +506,6 @@ rns8::detail::amdgpu_builtins_dense_kernel_variant amdgpu_builtin_dense_variant_
 }
 
 void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, BenchmarkResult& result) {
-  rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(amdgpu_builtin_dense_variant_for_args(args));
   if (!amdgpu_builtin_cdna3_dense_variant_name(args)) {
     return;
   }

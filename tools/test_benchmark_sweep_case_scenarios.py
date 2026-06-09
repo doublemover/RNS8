@@ -415,6 +415,12 @@ assert {
 } == {
     ("amdgpu-cdna3-mfma-16x16x32", "bounded-i64"),
     ("amdgpu-cdna3-mfma-32x32x16", "bounded-i64"),
+    ("amdgpu-cdna3-mfma-16x16x32", "bounded-u64"),
+    ("amdgpu-cdna3-mfma-32x32x16", "bounded-u64"),
+    ("amdgpu-cdna3-mfma-16x16x32", "exact-wide-signed"),
+    ("amdgpu-cdna3-mfma-32x32x16", "exact-wide-signed"),
+    ("amdgpu-cdna3-mfma-16x16x32", "exact-wide-unsigned"),
+    ("amdgpu-cdna3-mfma-32x32x16", "exact-wide-unsigned"),
     ("amdgpu-cdna3-mfma-16x16x32", "finite-u8-ring"),
     ("amdgpu-cdna3-mfma-32x32x16", "finite-u8-ring"),
 }
