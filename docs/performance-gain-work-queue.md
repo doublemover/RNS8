@@ -183,7 +183,10 @@ inspection commands.
   `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
   and `reconstruction_variant.kernel_identity`. Local Windows HIP fixed-prefix18
   signed/unsigned smokes selected the matching device export kernels and passed
-  schema validation. Release review now blocks accelerator final-output
+  schema validation. Direct-HIP exact-wide fixed-prefix fixed-limb export now
+  has four-cell kernels for signed/unsigned prefix18 and prefix20, including
+  tree-CRT and grouped fixed-limb export routes; dynamic variable-limb fallbacks
+  remain unchanged. Release review now blocks accelerator final-output
   promotion when bounded/exact-wide captures omit exact-output,
   export-variant, or reconstruction-variant route identity, so raw RNS GEMM
   wins cannot promote without CRT/export proof.

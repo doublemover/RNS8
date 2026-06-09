@@ -727,6 +727,19 @@ __global__ void rns8_export_exact_wide_unsigned_limbs_fixed_prefix_kernel(
 }
 
 template <int Prefix, int LimbCount>
+__device__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+}
+
+template <int Prefix, int LimbCount>
 __global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -738,11 +751,36 @@ __global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_kernel(
   if (cell >= elements) {
     return;
   }
+  rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+}
 
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
-  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 1, elements, status);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 2, elements, status);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 3, elements, status);
+  }
 }
 
 template <int Prefix>
@@ -766,6 +804,19 @@ __global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_kernel(
 }
 
 template <int Prefix, int LimbCount>
+__device__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+}
+
+template <int Prefix, int LimbCount>
 __global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -777,11 +828,36 @@ __global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limb
   if (cell >= elements) {
     return;
   }
+  rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+}
 
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
-  rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(dst, cell, x, status);
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 1, elements, status);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 2, elements, status);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_unsigned_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 3, elements, status);
+  }
 }
 
 __device__ void rns8_export_exact_wide_signed_limbs_device(
@@ -855,6 +931,19 @@ __global__ void rns8_export_exact_wide_signed_limbs_fixed_prefix_kernel(
 }
 
 template <int Prefix, int LimbCount>
+__device__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+}
+
+template <int Prefix, int LimbCount>
 __global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -866,11 +955,36 @@ __global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_kernel(
   if (cell >= elements) {
     return;
   }
+  rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+}
 
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
-  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 1, elements, status);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 2, elements, status);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 3, elements, status);
+  }
 }
 
 template <int Prefix>
@@ -894,6 +1008,19 @@ __global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_kernel(
 }
 
 template <int Prefix, int LimbCount>
+__device__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device(
+    const int8_t* residues,
+    uint64_t* dst,
+    int cell,
+    int elements,
+    int* status) {
+  rns8_u192_device x{};
+  rns8_u192_device product{};
+  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
+  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+}
+
+template <int Prefix, int LimbCount>
 __global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_kernel(
     const int8_t* residues,
     uint64_t* dst,
@@ -905,11 +1032,36 @@ __global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_
   if (cell >= elements) {
     return;
   }
+  rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+}
 
-  rns8_u192_device x{};
-  rns8_u192_device product{};
-  rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device<Prefix>(residues, cell, elements, &x, &product);
-  rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(dst, cell, x, product, status);
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* residues,
+    uint64_t* dst,
+    int rows,
+    int cols,
+    int* status) {
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+  rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, dst, cell, elements, status);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 1, elements, status);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 2, elements, status);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_signed_tree_crt_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, dst, cell + 3, elements, status);
+  }
 }
 
 __global__ void rns8_export_exact_wide_unsigned_grouped_limbs_kernel(
@@ -963,6 +1115,41 @@ __global__ void rns8_export_exact_wide_unsigned_grouped_fixed_prefix_fixed_limbs
   rns8_export_exact_wide_unsigned_fixed_limbs_device<LimbCount>(task_dst, cell, x, nullptr);
 }
 
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_unsigned_grouped_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements) * LimbCount;
+  rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, task_dst, cell, elements, nullptr);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 1, elements, nullptr);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 2, elements, nullptr);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_unsigned_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 3, elements, nullptr);
+  }
+}
+
 __global__ void rns8_export_exact_wide_signed_grouped_limbs_kernel(
     const int8_t* const* residue_ptrs,
     uint64_t* dst,
@@ -1014,3 +1201,37 @@ __global__ void rns8_export_exact_wide_signed_grouped_fixed_prefix_fixed_limbs_k
   rns8_export_exact_wide_signed_fixed_limbs_device<LimbCount>(task_dst, cell, x, product, nullptr);
 }
 
+template <int Prefix, int LimbCount>
+__global__ void rns8_export_exact_wide_signed_grouped_fixed_prefix_fixed_limbs_quad_kernel(
+    const int8_t* const* residue_ptrs,
+    uint64_t* dst,
+    int task_count,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int cell = (blockIdx.x * blockDim.x + threadIdx.x) * 4;
+  const int elements = rows * cols;
+  if (cell >= elements) {
+    return;
+  }
+
+  const int8_t* residues = residue_ptrs[task];
+  uint64_t* task_dst = dst + static_cast<int64_t>(task) * static_cast<int64_t>(elements) * LimbCount;
+  rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+      residues, task_dst, cell, elements, nullptr);
+  if (cell + 1 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 1, elements, nullptr);
+  }
+  if (cell + 2 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 2, elements, nullptr);
+  }
+  if (cell + 3 < elements) {
+    rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_cell_device<Prefix, LimbCount>(
+        residues, task_dst, cell + 3, elements, nullptr);
+  }
+}
