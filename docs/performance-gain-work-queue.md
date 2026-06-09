@@ -409,6 +409,10 @@ inspection commands.
   `backend_metadata.matrix_instruction_family`,
   `matrix_instruction_shape`, `matrix_instruction_dtype`, and
   `matrix_instruction_sparsity` derived from the selected builtin kernel.
+  Captures now also report matrix operand signedness, A/B value contracts,
+  sparse contract fields when applicable, and RDNA integer modifier policy,
+  so `iu8` WMMA/SWMMAC rows cannot hide whether signed centered residues were
+  actually requested through the builtin operands.
   Local `gfx1100` smoke captures report the RDNA3 dense WMMA route as
   `wmma/16x16x16/iu8/dense`; compiled ISA reports remain the proof of the
   actual instruction histogram. AMDGPU builtin GPU-event capture now records
@@ -529,7 +533,11 @@ inspection commands.
   sparse captures must carry the explicit sparse scenario contract, K must be
   divisible by 4, input distribution must identify 4:2 sparse-A structure, and
   the autotune key must record A-side 4:2, group size 4, exactly 2 nonzeros,
-  canonical 2-bit K-group indices, and dense B.
+  canonical 2-bit K-group indices, explicit sparse-A value signedness, and
+  dense B. Schema validation now separately requires the public A value
+  contract, dense-B contract, and canonical compression index layout in
+  `backend_metadata`, so finite-u8 sparse public values and centered RNS sparse
+  planes cannot be conflated.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 
@@ -566,8 +574,10 @@ inspection commands.
   K-divisible-by-4 inputs, so CDNA3 SMFMAC and RDNA4 SWMMAC runtime gates cover
   sparse tile tails instead of only exact 16x16 output tiles. Review now blocks
   sparse runtime rows unless the selected kernel is a sparse-A kernel, AMDGPU
-  builtin metadata reports structured 4:2 SMFMAC/SWMMAC family evidence, and
-  dense sparse-input baselines remain separated from sparse runtime kernels.
+  builtin metadata reports structured 4:2 SMFMAC/SWMMAC family evidence, the
+  metadata names the explicit sparse-A contract, dense-B operand, canonical
+  low2/high2 compression index layout, and matching public value signedness,
+  and dense sparse-input baselines remain separated from sparse runtime kernels.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 
@@ -604,7 +614,10 @@ inspection commands.
   rocWMMA, and hipBLASLt where available.
 - Local progress: RDNA3 IU4 WMMA remains registry/calculator research metadata
   only; schema validation rejects it as an executed AMDGPU builtin runtime
-  capture until a real INT4 semantic contract and runtime gate exist.
+  capture until a real INT4 semantic contract and runtime gate exist. RDNA
+  dense WMMA/SWMMAC metadata now records the integer `NEG[0]` and `NEG[1]`
+  signedness policy plus the `NEG[2]`/`NEG_HI` zero constraint, matching the
+  current signed-centered operand use in runtime builtins.
 - Constraint: no sparse RDNA3 runtime claim.
 
 ### Rank 99 - RDNA3 VALU Optimization Lane

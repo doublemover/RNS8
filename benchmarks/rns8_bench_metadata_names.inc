@@ -286,6 +286,72 @@ const char* amdgpu_builtin_matrix_sparsity(const char* selected_kernel) {
   return family_name == "smfmac" || family_name == "swmmac" ? "structured_4_2" : "dense";
 }
 
+bool benchmark_semantics_are_finite_u8(const Args& args) {
+  return args.semantics == BenchSemantics::FiniteRingU8 || args.semantics == BenchSemantics::FiniteFieldU8;
+}
+
+const char* amdgpu_builtin_matrix_operand_signedness(const char* selected_kernel) {
+  if (!amdgpu_builtin_matrix_instruction_family(selected_kernel)) {
+    return nullptr;
+  }
+  const char* dtype = amdgpu_builtin_matrix_instruction_dtype(selected_kernel);
+  if (!dtype) {
+    return nullptr;
+  }
+  const std::string dtype_name(dtype);
+  if (dtype_name == "i8" || dtype_name == "iu8") {
+    return "signed_i8x_signed_i8";
+  }
+  if (dtype_name == "iu4") {
+    return "signed_i4x_signed_i4_research_only";
+  }
+  return nullptr;
+}
+
+const char* amdgpu_builtin_matrix_sparse_contract(const char* selected_kernel) {
+  const char* sparsity = amdgpu_builtin_matrix_sparsity(selected_kernel);
+  return sparsity && std::string(sparsity) == "structured_4_2" ? "a_4_to_2_structured_k_v1" : nullptr;
+}
+
+const char* amdgpu_builtin_matrix_sparse_dense_operand(const char* selected_kernel) {
+  return amdgpu_builtin_matrix_sparse_contract(selected_kernel) ? "B" : nullptr;
+}
+
+const char* amdgpu_builtin_matrix_sparse_index_layout(const char* selected_kernel) {
+  return amdgpu_builtin_matrix_sparse_contract(selected_kernel)
+      ? "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+      : nullptr;
+}
+
+const char* amdgpu_builtin_matrix_a_value_contract(const Args& args, const char* selected_kernel) {
+  if (!amdgpu_builtin_matrix_instruction_family(selected_kernel)) {
+    return nullptr;
+  }
+  if (amdgpu_builtin_matrix_sparse_contract(selected_kernel)) {
+    return benchmark_semantics_are_finite_u8(args) ? "unsigned_u8_public_values_centered_for_matrix_core"
+                                                   : "signed_i8_centered_residue_planes";
+  }
+  return benchmark_semantics_are_finite_u8(args) ? "dense_a_public_u8_centered_for_matrix_core"
+                                                 : "dense_a_centered_i8_residue_planes";
+}
+
+const char* amdgpu_builtin_matrix_b_value_contract(const Args& args, const char* selected_kernel) {
+  if (!amdgpu_builtin_matrix_instruction_family(selected_kernel)) {
+    return nullptr;
+  }
+  return benchmark_semantics_are_finite_u8(args) ? "dense_b_public_u8_centered_for_matrix_core"
+                                                 : "dense_b_centered_i8_residue_planes";
+}
+
+bool amdgpu_builtin_matrix_uses_rdna_integer_modifiers(const char* selected_kernel) {
+  const char* family = amdgpu_builtin_matrix_instruction_family(selected_kernel);
+  if (!family) {
+    return false;
+  }
+  const std::string family_name(family);
+  return family_name == "wmma" || family_name == "swmmac";
+}
+
 int64_t benchmark_k_block_size(const Args& args, const BenchmarkResult& result) {
   if (result.backend_info_available && result.backend_info.accumulator_k_block_size > 0 &&
       result.backend_info.accumulator_k_block_size <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {

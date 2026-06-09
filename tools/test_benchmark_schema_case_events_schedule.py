@@ -79,12 +79,22 @@ amdgpu_sparse_finite["backend_metadata"].update(
         "matrix_instruction_shape": "16x16x64",
         "matrix_instruction_dtype": "i8",
         "matrix_instruction_sparsity": "structured_4_2",
+        "matrix_operand_signedness": "signed_i8x_signed_i8",
+        "matrix_a_value_contract": "unsigned_u8_public_values_centered_for_matrix_core",
+        "matrix_b_value_contract": "dense_b_public_u8_centered_for_matrix_core",
+        "matrix_sparse_contract": "a_4_to_2_structured_k_v1",
+        "matrix_sparse_dense_operand": "B",
+        "matrix_sparse_a_compression_index_layout": (
+            "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+        ),
+        "matrix_rdna_integer_modifier_policy": None,
         "autotune_key": (
             "backend=amdgpu-builtins;target_id=gfx942;semantics=finite_ring_u8;"
             "m=64;n=128;k=64;finite_modulus=255;prefix=0;tile_m=128;tile_n=128;"
             "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;"
             "sparse_group_size=4;sparse_nonzeros_per_group=2;"
-            "sparse_index_layout=canonical_2bit_k_groups_v1;dense_operand=B;"
+            "sparse_index_layout=canonical_2bit_k_groups_v1;sparse_value_signedness=unsigned_u8;"
+            "dense_operand=B;"
             "accumulator_type=int32;accumulator_signedness=signed_i8x_signed_i8;"
             "accumulator_modulus_policy=finite_u8_modulus;k_block_size=64;k_block_cap=65536;"
             f"kernel={amdgpu_sparse_finite_kernel};"
@@ -134,6 +144,22 @@ amdgpu_sparse_finite["gpu_event_timing_summary_us"] = {
 }
 validate_capture(amdgpu_sparse_finite)
 
+missing_sparse_matrix_index_layout = copy.deepcopy(amdgpu_sparse_finite)
+del missing_sparse_matrix_index_layout["backend_metadata"]["matrix_sparse_a_compression_index_layout"]
+expect_invalid(
+    missing_sparse_matrix_index_layout,
+    "backend_metadata.matrix_sparse_a_compression_index_layout=canonical_2bit_k_groups_v1_low2_first_value_high2_second_value",
+)
+
+missing_sparse_value_signedness_key = copy.deepcopy(amdgpu_sparse_finite)
+missing_sparse_value_signedness_key["backend_metadata"]["autotune_key"] = missing_sparse_value_signedness_key[
+    "backend_metadata"
+]["autotune_key"].replace("sparse_value_signedness=unsigned_u8;", "")
+expect_invalid(
+    missing_sparse_value_signedness_key,
+    "sparse captures must include unsigned_u8 sparse-A contract tokens",
+)
+
 amdgpu_sparse_rns = copy.deepcopy(v4_rocwmma_i64)
 amdgpu_sparse_rns_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
 amdgpu_sparse_rns["benchmark"] = "rns8_bounded_explicit_sparse_a_4_to_2_persistent_rns"
@@ -166,6 +192,15 @@ amdgpu_sparse_rns["backend_metadata"].update(
         "matrix_instruction_shape": "16x16x64",
         "matrix_instruction_dtype": "i8",
         "matrix_instruction_sparsity": "structured_4_2",
+        "matrix_operand_signedness": "signed_i8x_signed_i8",
+        "matrix_a_value_contract": "signed_i8_centered_residue_planes",
+        "matrix_b_value_contract": "dense_b_centered_i8_residue_planes",
+        "matrix_sparse_contract": "a_4_to_2_structured_k_v1",
+        "matrix_sparse_dense_operand": "B",
+        "matrix_sparse_a_compression_index_layout": (
+            "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+        ),
+        "matrix_rdna_integer_modifier_policy": None,
         "autotune_key": (
             "backend=amdgpu-builtins;target_id=gfx942;semantics=bounded_i64;"
             "m=64;n=128;k=64;bound=16384;input_profile=uniform-small;"
@@ -260,6 +295,15 @@ amdgpu_sparse_exact["backend_metadata"].update(
         "matrix_instruction_shape": "16x16x64",
         "matrix_instruction_dtype": "i8",
         "matrix_instruction_sparsity": "structured_4_2",
+        "matrix_operand_signedness": "signed_i8x_signed_i8",
+        "matrix_a_value_contract": "signed_i8_centered_residue_planes",
+        "matrix_b_value_contract": "dense_b_centered_i8_residue_planes",
+        "matrix_sparse_contract": "a_4_to_2_structured_k_v1",
+        "matrix_sparse_dense_operand": "B",
+        "matrix_sparse_a_compression_index_layout": (
+            "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+        ),
+        "matrix_rdna_integer_modifier_policy": None,
         "autotune_key": (
             "backend=amdgpu-builtins;target_id=gfx942;semantics=exact_wide_signed;"
             "m=64;n=128;k=64;bound=0;input_profile=uniform-small;"

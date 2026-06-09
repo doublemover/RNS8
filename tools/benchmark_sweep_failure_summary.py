@@ -146,9 +146,33 @@ def _matrix_metadata_text(candidate: dict[str, Any]) -> str:
         candidate.get("matrix_instruction_dtype"),
         candidate.get("matrix_instruction_sparsity"),
     ]
-    if not any(isinstance(value, str) and value for value in values):
+    extra_values = [
+        candidate.get("matrix_operand_signedness"),
+        candidate.get("matrix_a_value_contract"),
+        candidate.get("matrix_b_value_contract"),
+        candidate.get("matrix_sparse_contract"),
+        candidate.get("matrix_sparse_dense_operand"),
+        candidate.get("matrix_sparse_a_compression_index_layout"),
+    ]
+    if not any(isinstance(value, str) and value for value in values + extra_values):
         return "none"
-    return "/".join(str(value or "unknown") for value in values)
+    base = "/".join(str(value or "unknown") for value in values)
+    extras: list[str] = []
+    labels = (
+        ("operand", candidate.get("matrix_operand_signedness")),
+        ("a", candidate.get("matrix_a_value_contract")),
+        ("b", candidate.get("matrix_b_value_contract")),
+        ("sparse", candidate.get("matrix_sparse_contract")),
+        ("dense", candidate.get("matrix_sparse_dense_operand")),
+        ("index", candidate.get("matrix_sparse_a_compression_index_layout")),
+    )
+    for label, value in labels:
+        if isinstance(value, str) and value:
+            extras.append(f"{label}={value}")
+    policy = candidate.get("matrix_rdna_integer_modifier_policy")
+    if isinstance(policy, dict) and policy:
+        extras.append("rdna_neg_policy=present")
+    return base + (" " + " ".join(extras) if extras else "")
 
 
 def _phase_ratio_text(candidate: dict[str, Any]) -> str:

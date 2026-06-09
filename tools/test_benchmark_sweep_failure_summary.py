@@ -330,6 +330,14 @@ def main() -> int:
                                 "matrix_instruction_shape": "16x16x64",
                                 "matrix_instruction_dtype": "i8",
                                 "matrix_instruction_sparsity": "structured_4_2",
+                                "matrix_operand_signedness": "signed_i8x_signed_i8",
+                                "matrix_a_value_contract": "unsigned_u8_public_values_centered_for_matrix_core",
+                                "matrix_b_value_contract": "dense_b_public_u8_centered_for_matrix_core",
+                                "matrix_sparse_contract": "a_4_to_2_structured_k_v1",
+                                "matrix_sparse_dense_operand": "B",
+                                "matrix_sparse_a_compression_index_layout": (
+                                    "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+                                ),
                                 "matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 3},
                                 "capture": str(scenarios / "sparse-runtime.json"),
                                 "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
@@ -349,6 +357,9 @@ def main() -> int:
                                 "matrix_instruction_shape": "16x16x32",
                                 "matrix_instruction_dtype": "i8",
                                 "matrix_instruction_sparsity": "dense",
+                                "matrix_operand_signedness": "signed_i8x_signed_i8",
+                                "matrix_a_value_contract": "dense_a_public_u8_centered_for_matrix_core",
+                                "matrix_b_value_contract": "dense_b_public_u8_centered_for_matrix_core",
                                 "matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 2},
                                 "capture": str(scenarios / "sparse-dense.json"),
                                 "promotion_blockers": ["scenario_scope_not_autotune_promotable"],
@@ -469,13 +480,23 @@ def main() -> int:
             "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1 "
             "e2e=90.0 pack=30.0 rns_gemm=40.0 crt_export=20.0"
         ) in text
-        assert "matrix_meta=smfmac/16x16x64/i8/structured_4_2 matrix_isa=v_smfmac_i32_16x16x64_i8:3" in text
+        assert (
+            "matrix_meta=smfmac/16x16x64/i8/structured_4_2 operand=signed_i8x_signed_i8 "
+            "a=unsigned_u8_public_values_centered_for_matrix_core "
+            "b=dense_b_public_u8_centered_for_matrix_core sparse=a_4_to_2_structured_k_v1 dense=B "
+            "index=canonical_2bit_k_groups_v1_low2_first_value_high2_second_value "
+            "matrix_isa=v_smfmac_i32_16x16x64_i8:3"
+        ) in text
         assert (
             "backend=amdgpu-builtins-dense-sparse-a-input semantics=finite_ring_u8 shape=128x128x128 "
             "kernel=amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1 "
             "e2e=120.0 pack=45.0 rns_gemm=55.0 crt_export=20.0"
         ) in text
-        assert "matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
+        assert (
+            "matrix_meta=mfma/16x16x32/i8/dense operand=signed_i8x_signed_i8 "
+            "a=dense_a_public_u8_centered_for_matrix_core b=dense_b_public_u8_centered_for_matrix_core "
+            "matrix_isa=v_mfma_i32_16x16x32_i8:2"
+        ) in text
         assert "MATRIX_CORE_ROUTE_ROWS 3" in text
         assert "MATRIX_CORE_FAMILY_COUNTS" in text
         assert "mfma 2" in text

@@ -477,6 +477,7 @@ std::string finite_sparse_a_4_to_2_autotune_key(const Args& args, const Benchmar
       << ";sparse_group_size=4"
       << ";sparse_nonzeros_per_group=2"
       << ";sparse_index_layout=canonical_2bit_k_groups_v1"
+      << ";sparse_value_signedness=unsigned_u8"
       << ";dense_operand=B";
   append_accumulator_key_fields(out, result.backend_info);
   out << ";kernel=" << kernel

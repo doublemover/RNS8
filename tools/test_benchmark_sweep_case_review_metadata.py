@@ -92,6 +92,18 @@ amdgpu_metadata["matrix_instruction_family"] = "wmma"
 amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
 amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
 amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
+amdgpu_metadata["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+amdgpu_metadata["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
+amdgpu_metadata["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+amdgpu_metadata["matrix_sparse_contract"] = None
+amdgpu_metadata["matrix_sparse_dense_operand"] = None
+amdgpu_metadata["matrix_sparse_a_compression_index_layout"] = None
+amdgpu_metadata["matrix_rdna_integer_modifier_policy"] = {
+    "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+    "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+    "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+    "NEG_HI": "must be zero for integer WMMA/SWMMAC",
+}
 amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
     amdgpu_metadata["autotune_key"]
     .replace("backend=ck", "backend=amdgpu-builtins")
@@ -266,11 +278,23 @@ sparse_amdgpu["backend_metadata"]["matrix_instruction_family"] = "smfmac"
 sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "16x16x64"
 sparse_amdgpu["backend_metadata"]["matrix_instruction_dtype"] = "i8"
 sparse_amdgpu["backend_metadata"]["matrix_instruction_sparsity"] = "structured_4_2"
+sparse_amdgpu["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+sparse_amdgpu["backend_metadata"]["matrix_a_value_contract"] = (
+    "unsigned_u8_public_values_centered_for_matrix_core"
+)
+sparse_amdgpu["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+sparse_amdgpu["backend_metadata"]["matrix_sparse_contract"] = "a_4_to_2_structured_k_v1"
+sparse_amdgpu["backend_metadata"]["matrix_sparse_dense_operand"] = "B"
+sparse_amdgpu["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = (
+    "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+)
+sparse_amdgpu["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
 sparse_key = (
     "backend=amdgpu-builtins;target_id=gfx1100;semantics=finite_ring_u8;m=64;n=64;k=64;"
     "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
     "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
-    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;dense_operand=B;"
+    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
+    "sparse_value_signedness=unsigned_u8;dense_operand=B;"
     "kernel=amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1;"
     "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
 )
@@ -306,6 +330,13 @@ amdgpu_tile["backend_metadata"]["matrix_instruction_family"] = "mfma"
 amdgpu_tile["backend_metadata"]["matrix_instruction_shape"] = "16x16x32"
 amdgpu_tile["backend_metadata"]["matrix_instruction_dtype"] = "i8"
 amdgpu_tile["backend_metadata"]["matrix_instruction_sparsity"] = "dense"
+amdgpu_tile["backend_metadata"]["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+amdgpu_tile["backend_metadata"]["matrix_a_value_contract"] = "dense_a_public_u8_centered_for_matrix_core"
+amdgpu_tile["backend_metadata"]["matrix_b_value_contract"] = "dense_b_public_u8_centered_for_matrix_core"
+amdgpu_tile["backend_metadata"]["matrix_sparse_contract"] = None
+amdgpu_tile["backend_metadata"]["matrix_sparse_dense_operand"] = None
+amdgpu_tile["backend_metadata"]["matrix_sparse_a_compression_index_layout"] = None
+amdgpu_tile["backend_metadata"]["matrix_rdna_integer_modifier_policy"] = None
 amdgpu_tile["tile_shape_variant"] = {
     "name": "amdgpu-cdna3-mfma-32x32x16",
     "tile_m": amdgpu_tile["tile_m"],

@@ -107,6 +107,13 @@ ROUTE_METADATA_BLOCKERS = {
     "dense_sparse_a_baseline_used_sparse_kernel",
     "missing_sparse_a_matrix_instruction_sparsity",
     "missing_sparse_a_matrix_instruction_family",
+    "missing_amdgpu_builtin_operand_signedness_contract",
+    "missing_amdgpu_builtin_a_value_contract",
+    "missing_amdgpu_builtin_b_value_contract",
+    "missing_sparse_a_contract_metadata",
+    "missing_sparse_a_dense_b_contract",
+    "missing_sparse_a_compression_index_layout",
+    "missing_rdna_integer_modifier_policy",
     "missing_sparse_a_4_to_2_autotune_contract",
     "amdgpu_builtin_tile_variant_kernel_mismatch",
     "amdgpu_builtin_tile_variant_family_mismatch",
@@ -162,6 +169,78 @@ def expected_amdgpu_builtin_matrix_mnemonic(capture: dict[str, Any], metadata: d
     ):
         return f"v_{family}_i32_{shape}_{dtype}"
     return None
+
+
+def _capture_semantics_are_finite_u8(capture: dict[str, Any]) -> bool:
+    return capture.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+
+
+def _amdgpu_matrix_operand_signedness(metadata: dict[str, Any]) -> str | None:
+    dtype = metadata.get("matrix_instruction_dtype")
+    if dtype in {"i8", "iu8"}:
+        return "signed_i8x_signed_i8"
+    if dtype == "iu4":
+        return "signed_i4x_signed_i4_research_only"
+    return None
+
+
+def _amdgpu_matrix_sparse_contract(metadata: dict[str, Any]) -> str | None:
+    if metadata.get("matrix_instruction_sparsity") == "structured_4_2":
+        return "a_4_to_2_structured_k_v1"
+    return None
+
+
+def _amdgpu_matrix_a_value_contract(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+    if metadata.get("matrix_instruction_family") not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
+        return None
+    finite = _capture_semantics_are_finite_u8(capture)
+    if _amdgpu_matrix_sparse_contract(metadata):
+        return "unsigned_u8_public_values_centered_for_matrix_core" if finite else "signed_i8_centered_residue_planes"
+    return "dense_a_public_u8_centered_for_matrix_core" if finite else "dense_a_centered_i8_residue_planes"
+
+
+def _amdgpu_matrix_b_value_contract(capture: dict[str, Any], metadata: dict[str, Any]) -> str | None:
+    if metadata.get("matrix_instruction_family") not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
+        return None
+    return (
+        "dense_b_public_u8_centered_for_matrix_core"
+        if _capture_semantics_are_finite_u8(capture)
+        else "dense_b_centered_i8_residue_planes"
+    )
+
+
+def _amdgpu_rdna_integer_modifier_policy(metadata: dict[str, Any]) -> dict[str, str] | None:
+    if metadata.get("matrix_instruction_family") not in {"wmma", "swmmac"}:
+        return None
+    return {
+        "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+        "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+        "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+        "NEG_HI": "must be zero for integer WMMA/SWMMAC",
+    }
+
+
+def amdgpu_builtin_matrix_contract_blockers(
+    capture: dict[str, Any],
+    *,
+    backend_family: str,
+    metadata: dict[str, Any],
+) -> list[str]:
+    if backend_family != "amdgpu-builtins":
+        return []
+    if metadata.get("matrix_instruction_family") not in AMDGPU_BUILTIN_MATRIX_FAMILIES:
+        return []
+
+    blockers: list[str] = []
+    if metadata.get("matrix_operand_signedness") != _amdgpu_matrix_operand_signedness(metadata):
+        blockers.append("missing_amdgpu_builtin_operand_signedness_contract")
+    if metadata.get("matrix_a_value_contract") != _amdgpu_matrix_a_value_contract(capture, metadata):
+        blockers.append("missing_amdgpu_builtin_a_value_contract")
+    if metadata.get("matrix_b_value_contract") != _amdgpu_matrix_b_value_contract(capture, metadata):
+        blockers.append("missing_amdgpu_builtin_b_value_contract")
+    if metadata.get("matrix_rdna_integer_modifier_policy") != _amdgpu_rdna_integer_modifier_policy(metadata):
+        blockers.append("missing_rdna_integer_modifier_policy")
+    return blockers
 
 
 def final_output_export_metadata_blockers(
@@ -356,13 +435,24 @@ def sparse_a_4_to_2_contract_blockers(
             blockers.append("missing_sparse_a_matrix_instruction_sparsity")
         if metadata.get("matrix_instruction_family") not in {"smfmac", "swmmac"}:
             blockers.append("missing_sparse_a_matrix_instruction_family")
+        if metadata.get("matrix_sparse_contract") != "a_4_to_2_structured_k_v1":
+            blockers.append("missing_sparse_a_contract_metadata")
+        if metadata.get("matrix_sparse_dense_operand") != "B":
+            blockers.append("missing_sparse_a_dense_b_contract")
+        if (
+            metadata.get("matrix_sparse_a_compression_index_layout")
+            != "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+        ):
+            blockers.append("missing_sparse_a_compression_index_layout")
 
+    sparse_value_signedness = "unsigned_u8" if _capture_semantics_are_finite_u8(capture) else "signed_i8"
     required_key_tokens = (
         "sparse_contract=a_4_to_2_structured_k_v1",
         "sparse_operand=A",
         "sparse_group_size=4",
         "sparse_nonzeros_per_group=2",
         "sparse_index_layout=canonical_2bit_k_groups_v1",
+        f"sparse_value_signedness={sparse_value_signedness}",
         "dense_operand=B",
     )
     if not _autotune_key_has_all(metadata, required_key_tokens):
@@ -627,6 +717,13 @@ def review_next_work(
         ("dense_sparse_a_baseline_used_sparse_kernel", "separate_dense_sparse_input_baseline_from_sparse_runtime_kernel"),
         ("missing_sparse_a_matrix_instruction_sparsity", "attach_sparse_a_matrix_instruction_sparsity_metadata"),
         ("missing_sparse_a_matrix_instruction_family", "attach_sparse_a_smfmac_or_swmmac_family_metadata"),
+        ("missing_amdgpu_builtin_operand_signedness_contract", "attach_amdgpu_builtin_operand_signedness_contract"),
+        ("missing_amdgpu_builtin_a_value_contract", "attach_amdgpu_builtin_a_value_contract"),
+        ("missing_amdgpu_builtin_b_value_contract", "attach_amdgpu_builtin_dense_b_value_contract"),
+        ("missing_sparse_a_contract_metadata", "attach_sparse_a_contract_metadata"),
+        ("missing_sparse_a_dense_b_contract", "attach_sparse_a_dense_b_contract_metadata"),
+        ("missing_sparse_a_compression_index_layout", "attach_sparse_a_compression_index_layout_metadata"),
+        ("missing_rdna_integer_modifier_policy", "attach_rdna_integer_modifier_policy_metadata"),
         ("missing_sparse_a_4_to_2_autotune_contract", "attach_sparse_a_4_to_2_autotune_contract_metadata"),
         ("amdgpu_builtin_tile_variant_kernel_mismatch", "align_amdgpu_builtin_tile_variant_with_selected_kernel"),
         ("amdgpu_builtin_tile_variant_family_mismatch", "align_amdgpu_builtin_tile_variant_family_metadata"),
@@ -1856,6 +1953,13 @@ def review_captures(
                 )
             )
             blockers.extend(
+                amdgpu_builtin_matrix_contract_blockers(
+                    item,
+                    backend_family=backend_family,
+                    metadata=metadata,
+                )
+            )
+            blockers.extend(
                 sparse_a_4_to_2_contract_blockers(
                     item,
                     backend=backend,
@@ -1922,6 +2026,15 @@ def review_captures(
                 "matrix_instruction_shape": metadata.get("matrix_instruction_shape"),
                 "matrix_instruction_dtype": metadata.get("matrix_instruction_dtype"),
                 "matrix_instruction_sparsity": metadata.get("matrix_instruction_sparsity"),
+                "matrix_operand_signedness": metadata.get("matrix_operand_signedness"),
+                "matrix_a_value_contract": metadata.get("matrix_a_value_contract"),
+                "matrix_b_value_contract": metadata.get("matrix_b_value_contract"),
+                "matrix_sparse_contract": metadata.get("matrix_sparse_contract"),
+                "matrix_sparse_dense_operand": metadata.get("matrix_sparse_dense_operand"),
+                "matrix_sparse_a_compression_index_layout": metadata.get(
+                    "matrix_sparse_a_compression_index_layout"
+                ),
+                "matrix_rdna_integer_modifier_policy": metadata.get("matrix_rdna_integer_modifier_policy"),
                 "expected_matrix_instruction_mnemonic": expected_matrix_mnemonic,
                 "promotable": promotable,
                 "promotion_blockers": blockers,

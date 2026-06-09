@@ -55,6 +55,12 @@
     const char* matrix_shape = amdgpu_builtin_matrix_instruction_shape(selected_kernel);
     const char* matrix_dtype = amdgpu_builtin_matrix_instruction_dtype(selected_kernel);
     const char* matrix_sparsity = amdgpu_builtin_matrix_sparsity(selected_kernel);
+    const char* matrix_operand_signedness = amdgpu_builtin_matrix_operand_signedness(selected_kernel);
+    const char* matrix_a_value_contract = amdgpu_builtin_matrix_a_value_contract(args, selected_kernel);
+    const char* matrix_b_value_contract = amdgpu_builtin_matrix_b_value_contract(args, selected_kernel);
+    const char* matrix_sparse_contract = amdgpu_builtin_matrix_sparse_contract(selected_kernel);
+    const char* matrix_sparse_dense_operand = amdgpu_builtin_matrix_sparse_dense_operand(selected_kernel);
+    const char* matrix_sparse_index_layout = amdgpu_builtin_matrix_sparse_index_layout(selected_kernel);
     std::cout << "    \"matrix_instruction_family\": ";
     print_json_string_or_null(matrix_family);
     std::cout << ",\n";
@@ -66,6 +72,36 @@
     std::cout << ",\n";
     std::cout << "    \"matrix_instruction_sparsity\": ";
     print_json_string_or_null(matrix_sparsity);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_operand_signedness\": ";
+    print_json_string_or_null(matrix_operand_signedness);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_a_value_contract\": ";
+    print_json_string_or_null(matrix_a_value_contract);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_b_value_contract\": ";
+    print_json_string_or_null(matrix_b_value_contract);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_sparse_contract\": ";
+    print_json_string_or_null(matrix_sparse_contract);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_sparse_dense_operand\": ";
+    print_json_string_or_null(matrix_sparse_dense_operand);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_sparse_a_compression_index_layout\": ";
+    print_json_string_or_null(matrix_sparse_index_layout);
+    std::cout << ",\n";
+    std::cout << "    \"matrix_rdna_integer_modifier_policy\": ";
+    if (amdgpu_builtin_matrix_uses_rdna_integer_modifiers(selected_kernel)) {
+      std::cout << "{\n";
+      std::cout << "      \"NEG[0]\": \"A operand signedness: 0 unsigned, 1 signed\",\n";
+      std::cout << "      \"NEG[1]\": \"B operand signedness: 0 unsigned, 1 signed\",\n";
+      std::cout << "      \"NEG[2]\": \"must be zero for integer WMMA/SWMMAC\",\n";
+      std::cout << "      \"NEG_HI\": \"must be zero for integer WMMA/SWMMAC\"\n";
+      std::cout << "    }";
+    } else {
+      std::cout << "null";
+    }
     std::cout << ",\n";
   }
   std::cout << "    \"accumulator_safety\": {\n";

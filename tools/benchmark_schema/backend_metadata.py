@@ -48,6 +48,71 @@ def _amdgpu_builtin_matrix_sparsity(family: str | None) -> str | None:
     return "structured_4_2" if family in {"smfmac", "swmmac"} else "dense"
 
 
+def _semantics_are_finite_u8(data: dict[str, Any]) -> bool:
+    return data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+
+
+def _amdgpu_builtin_matrix_operand_signedness(selected_kernel: str) -> str | None:
+    dtype = _amdgpu_builtin_matrix_dtype(selected_kernel)
+    if dtype in {"i8", "iu8"}:
+        return "signed_i8x_signed_i8"
+    if dtype == "iu4":
+        return "signed_i4x_signed_i4_research_only"
+    return None
+
+
+def _amdgpu_builtin_matrix_sparse_contract(selected_kernel: str) -> str | None:
+    family = _amdgpu_builtin_matrix_family(selected_kernel)
+    if _amdgpu_builtin_matrix_sparsity(family) == "structured_4_2":
+        return "a_4_to_2_structured_k_v1"
+    return None
+
+
+def _amdgpu_builtin_matrix_sparse_dense_operand(selected_kernel: str) -> str | None:
+    return "B" if _amdgpu_builtin_matrix_sparse_contract(selected_kernel) else None
+
+
+def _amdgpu_builtin_matrix_sparse_index_layout(selected_kernel: str) -> str | None:
+    if _amdgpu_builtin_matrix_sparse_contract(selected_kernel):
+        return "canonical_2bit_k_groups_v1_low2_first_value_high2_second_value"
+    return None
+
+
+def _amdgpu_builtin_matrix_a_value_contract(data: dict[str, Any], selected_kernel: str) -> str | None:
+    if _amdgpu_builtin_matrix_family(selected_kernel) is None:
+        return None
+    finite = _semantics_are_finite_u8(data)
+    if _amdgpu_builtin_matrix_sparse_contract(selected_kernel):
+        return (
+            "unsigned_u8_public_values_centered_for_matrix_core"
+            if finite
+            else "signed_i8_centered_residue_planes"
+        )
+    return "dense_a_public_u8_centered_for_matrix_core" if finite else "dense_a_centered_i8_residue_planes"
+
+
+def _amdgpu_builtin_matrix_b_value_contract(data: dict[str, Any], selected_kernel: str) -> str | None:
+    if _amdgpu_builtin_matrix_family(selected_kernel) is None:
+        return None
+    return "dense_b_public_u8_centered_for_matrix_core" if _semantics_are_finite_u8(data) else "dense_b_centered_i8_residue_planes"
+
+
+def _amdgpu_builtin_rdna_integer_modifier_policy(selected_kernel: str) -> dict[str, str] | None:
+    if _amdgpu_builtin_matrix_family(selected_kernel) not in {"wmma", "swmmac"}:
+        return None
+    return {
+        "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+        "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+        "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+        "NEG_HI": "must be zero for integer WMMA/SWMMAC",
+    }
+
+
+def _autotune_key_contains_all(metadata: dict[str, Any], tokens: tuple[str, ...]) -> bool:
+    key = metadata.get("autotune_key")
+    return isinstance(key, str) and all(token in key for token in tokens)
+
+
 def validate_backend_metadata(self: Any) -> None:
     metadata = self._require("backend_metadata", "dict")
     if not isinstance(metadata, dict):
@@ -220,6 +285,14 @@ def validate_backend_metadata(self: Any) -> None:
             "matrix_instruction_family": _amdgpu_builtin_matrix_family(amdgpu_kernel),
             "matrix_instruction_shape": _amdgpu_builtin_matrix_shape(amdgpu_kernel),
             "matrix_instruction_dtype": _amdgpu_builtin_matrix_dtype(amdgpu_kernel),
+            "matrix_operand_signedness": _amdgpu_builtin_matrix_operand_signedness(amdgpu_kernel),
+            "matrix_a_value_contract": _amdgpu_builtin_matrix_a_value_contract(self.data, amdgpu_kernel),
+            "matrix_b_value_contract": _amdgpu_builtin_matrix_b_value_contract(self.data, amdgpu_kernel),
+            "matrix_sparse_contract": _amdgpu_builtin_matrix_sparse_contract(amdgpu_kernel),
+            "matrix_sparse_dense_operand": _amdgpu_builtin_matrix_sparse_dense_operand(amdgpu_kernel),
+            "matrix_sparse_a_compression_index_layout": _amdgpu_builtin_matrix_sparse_index_layout(
+                amdgpu_kernel
+            ),
         }
         expected_matrix["matrix_instruction_sparsity"] = _amdgpu_builtin_matrix_sparsity(
             expected_matrix["matrix_instruction_family"]
@@ -227,6 +300,11 @@ def validate_backend_metadata(self: Any) -> None:
         for key, value in expected_matrix.items():
             if metadata.get(key) != value:
                 self._error(f"amdgpu-builtins captures must use backend_metadata.{key}={value}")
+        expected_rdna_policy = _amdgpu_builtin_rdna_integer_modifier_policy(amdgpu_kernel)
+        if metadata.get("matrix_rdna_integer_modifier_policy") != expected_rdna_policy:
+            self._error(
+                "amdgpu-builtins captures must report the expected RDNA integer modifier policy"
+            )
         if metadata.get("accelerator_library") != "AMDGPU builtins":
             self._error("amdgpu-builtins captures must use accelerator_library=AMDGPU builtins")
         if metadata.get("capability_status") != "implemented_opt_in_amdgpu_builtin_backend":
@@ -256,6 +334,21 @@ def validate_backend_metadata(self: Any) -> None:
         )
         if metadata.get("isa_evidence") != expected_isa:
             self._error(f"amdgpu-builtins captures must use isa_evidence={expected_isa}")
+        if "sparse_a" in amdgpu_kernel:
+            sparse_value_signedness = "unsigned_u8" if finite_sparse_capture else "signed_i8"
+            required_sparse_tokens = (
+                "sparse_contract=a_4_to_2_structured_k_v1",
+                "sparse_operand=A",
+                "sparse_group_size=4",
+                "sparse_nonzeros_per_group=2",
+                "sparse_index_layout=canonical_2bit_k_groups_v1",
+                f"sparse_value_signedness={sparse_value_signedness}",
+                "dense_operand=B",
+            )
+            if not _autotune_key_contains_all(metadata, required_sparse_tokens):
+                self._error(
+                    f"amdgpu-builtins sparse captures must include {sparse_value_signedness} sparse-A contract tokens in backend_metadata.autotune_key"
+                )
         bool_expected = {
             "accelerator_backend": True,
             "correctness_backend": True,

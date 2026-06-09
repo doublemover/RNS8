@@ -552,6 +552,18 @@ amdgpu_metadata["matrix_instruction_family"] = "wmma"
 amdgpu_metadata["matrix_instruction_shape"] = "16x16x16"
 amdgpu_metadata["matrix_instruction_dtype"] = "iu8"
 amdgpu_metadata["matrix_instruction_sparsity"] = "dense"
+amdgpu_metadata["matrix_operand_signedness"] = "signed_i8x_signed_i8"
+amdgpu_metadata["matrix_a_value_contract"] = "dense_a_centered_i8_residue_planes"
+amdgpu_metadata["matrix_b_value_contract"] = "dense_b_centered_i8_residue_planes"
+amdgpu_metadata["matrix_sparse_contract"] = None
+amdgpu_metadata["matrix_sparse_dense_operand"] = None
+amdgpu_metadata["matrix_sparse_a_compression_index_layout"] = None
+amdgpu_metadata["matrix_rdna_integer_modifier_policy"] = {
+    "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
+    "NEG[1]": "B operand signedness: 0 unsigned, 1 signed",
+    "NEG[2]": "must be zero for integer WMMA/SWMMAC",
+    "NEG_HI": "must be zero for integer WMMA/SWMMAC",
+}
 apply_int32_accumulator_contract(amdgpu_builtins)
 amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
     amdgpu_metadata["autotune_key"]
