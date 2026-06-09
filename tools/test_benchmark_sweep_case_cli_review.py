@@ -5,7 +5,13 @@ import json
 import tempfile
 from pathlib import Path
 
-from benchmark_sweep_lib.cli import load_required_isa_index, review_capture_paths
+from benchmark_sweep_lib.cli import (
+    list_scenarios_payload,
+    load_required_isa_index,
+    review_capture_paths,
+    write_command_plan,
+)
+from benchmark_sweep_lib.config import SweepCommand
 
 
 with tempfile.TemporaryDirectory() as tmp_name:
@@ -88,3 +94,28 @@ with tempfile.TemporaryDirectory() as tmp_name:
     assert index["ck|gfx1100"][0]["isa_matrix_instruction_histogram"] == {
         "v_wmma_i32_16x16x16_iu8": 2,
     }
+
+    scenarios = list_scenarios_payload()
+    assert scenarios["schema_version"] == 1
+    assert "release-candidates" in scenarios["special_scenarios"]
+    assert "skinny-gemv" in scenarios["scenarios"]
+    assert scenarios["count"] == len(scenarios["scenarios"])
+
+    plan_root = tmp / "plan"
+    command_paths = write_command_plan(
+        [
+            SweepCommand(
+                name="example",
+                command=["rns8-bench", "--backend", "hip-direct"],
+                output=plan_root / "example.json",
+                env={"HIP_VISIBLE_DEVICES": "0"},
+                scenario={"family": "fixture", "name": "example"},
+            )
+        ],
+        plan_root,
+    )
+    plan_json = json.loads(Path(command_paths["command_plan"]).read_text(encoding="utf-8"))
+    assert plan_json["capture_count"] == 1
+    assert plan_json["entries"][0]["environment"] == {"HIP_VISIBLE_DEVICES": "0"}
+    plan_text = Path(command_paths["command_plan_text"]).read_text(encoding="utf-8")
+    assert "HIP_VISIBLE_DEVICES=0 rns8-bench --backend hip-direct" in plan_text

@@ -922,6 +922,11 @@ inspection commands.
   covered by a subprocess command-matrix test that copies schema-valid captures,
   runs without `--bench`, and verifies review JSON/Markdown output. This is the
   supported review-refresh path for VM captures and replaces shell-expanded
-  `--capture` arrays.
+  `--capture` arrays. `benchmark_sweep.py --list-scenarios` now prints the
+  supported scenario catalog as JSON, and `benchmark_sweep.py --dry-run` writes
+  `command_plan.json`, `command_plan.txt`, and the scenario manifest without
+  executing or reviewing captures. That gives VM work a supported preflight path
+  for release-candidate/all-scenario command inspection instead of ad hoc shell
+  expansion or guessed scenario names.
 - Constraint: diagnostics must not change benchmark semantics or promotion
   strictness.

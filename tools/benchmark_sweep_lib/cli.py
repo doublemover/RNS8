@@ -14,6 +14,11 @@ from .review import attach_cache_write_status, review_captures, write_promoted_c
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--list-scenarios",
+        action="store_true",
+        help="print supported scenario names as JSON and exit without creating captures",
+    )
     parser.add_argument("--bench", type=Path, help="path to rns8-bench executable")
     parser.add_argument(
         "--bench-for",
@@ -52,6 +57,11 @@ def parse_args() -> argparse.Namespace:
         help="gpu_isa_report.py JSON summary or directory of *-isa-summary.json reports to attach to review candidates",
     )
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="write the planned benchmark commands and scenario manifest, then exit without executing or reviewing",
+    )
     parser.add_argument(
         "--skip-existing",
         action="store_true",
@@ -331,6 +341,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
+    if args.dry_run and args.review_only:
+        parser.error("--dry-run cannot be combined with --review-only")
     if args.capture_timeout_seconds is not None and args.capture_timeout_seconds <= 0:
         parser.error("--capture-timeout-seconds must be positive")
     if args.cpu_threads < 0:
@@ -388,8 +400,51 @@ def load_required_isa_index(paths: list[Path]) -> dict:
     return load_isa_index(paths)
 
 
+def list_scenarios_payload() -> dict[str, object]:
+    names = scenario_names()
+    return {
+        "schema_version": 1,
+        "scenarios": names,
+        "special_scenarios": ["all", "release-candidates"],
+        "count": len(names),
+    }
+
+
+def write_command_plan(entries: list[SweepCommand], out_root: Path) -> dict[str, str]:
+    out_root.mkdir(parents=True, exist_ok=True)
+    json_path = out_root / "command_plan.json"
+    text_path = out_root / "command_plan.txt"
+    payload = {
+        "schema_version": 1,
+        "capture_count": len(entries),
+        "entries": [
+            {
+                "name": entry.name,
+                "output": str(entry.output),
+                "command": entry.command,
+                "environment": entry.env or {},
+                "scenario": entry.scenario,
+            }
+            for entry in entries
+        ],
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    lines: list[str] = []
+    for entry in entries:
+        env = ""
+        if entry.env:
+            env = " ".join(f"{key}={value}" for key, value in sorted(entry.env.items())) + " "
+        lines.append(f"[{entry.name}] {env}{' '.join(entry.command)} > {entry.output}")
+    text_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return {"command_plan": str(json_path), "command_plan_text": str(text_path)}
+
+
 def main() -> int:
     args = parse_args()
+    if args.list_scenarios:
+        print(json.dumps(list_scenarios_payload(), indent=2))
+        return 0
+
     args.out_root = Path(args.out_root)
     args.out_root.mkdir(parents=True, exist_ok=True)
 
@@ -404,6 +459,23 @@ def main() -> int:
             "scenario_lint": "ok",
             "scenario_entries": len(entries),
             "scenario_request": list(args.scenario or []),
+        }
+        if scenario_paths is not None:
+            output.update(scenario_paths)
+        print(json.dumps(output, indent=2))
+        return 0
+
+    if args.dry_run:
+        if args.bench is None:
+            args.bench = Path("rns8-bench")
+        entries = sweep_command_entries(args)
+        scenario_paths = write_scenario_manifest(entries, args, args.out_root)
+        command_paths = write_command_plan(entries, args.out_root)
+        output = {
+            "dry_run": True,
+            "planned_captures": len(entries),
+            "scenario_request": list(args.scenario or []),
+            **command_paths,
         }
         if scenario_paths is not None:
             output.update(scenario_paths)
