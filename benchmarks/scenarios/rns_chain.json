@@ -28,7 +28,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "residue_chain_length": 3,
       "metadata": {
@@ -60,7 +60,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 3,
@@ -101,7 +101,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "residue_chain_length": 4,
       "metadata": {
@@ -134,7 +134,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 4,
@@ -175,7 +175,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "residue_chain_length": 3,
       "metadata": {
@@ -208,7 +208,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "reuse_contract_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 3,
@@ -250,7 +250,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -286,7 +286,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "exact_wide_limb_counts": [
@@ -330,7 +330,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -366,7 +366,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "pack_mode": "prepacked_reuse_b",
       "exact_wide_limb_counts": [

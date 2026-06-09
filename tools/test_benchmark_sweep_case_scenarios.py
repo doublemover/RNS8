@@ -157,6 +157,8 @@ assert bounded_rns_chain_reuse_items
 for item in bounded_rns_chain_reuse_items:
     assert item.promotion_eligibility == "reuse_contract_evidence_only"
     assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
+assert {item.review_mode_expectation for item in catalog["rns-chain"]} == {"release"}
+assert {item.review_mode_expectation for item in catalog["rns-chain-final-output"]} == {"release"}
 for scenario_name in [
     "bound-discovery",
     "generated-prefix-reducers",

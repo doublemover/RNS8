@@ -814,6 +814,10 @@ inspection commands.
 - Implementation scope: residue-current output routing, lazy final export,
   chain metadata, cache identity, and clear next-op contracts for RNS GEMM,
   native GEMM, final export, and reuse-B.
+- Local progress: canonical `rns-chain` and `rns-chain-final-output` rows are
+  release-mode evidence, while the broader 512/1024 exact-wide final-output
+  matrix remains the larger-shape companion. This keeps lazy residue-current
+  and same-final-output comparisons visible in ordinary release reviews.
 - Required evidence: `rns-chain`, `rns-chain-final-output`,
   `exact-wide-output-chain`, and vector/native-to-RNS chain captures.
 - Promotion rule: compare against independent export/repack controls.

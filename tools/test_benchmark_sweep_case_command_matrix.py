@@ -849,6 +849,7 @@ assert [entry.scenario["name"] for entry in rns_chain_entries] == [
     "exact-wide-unsigned-chain3-256-reuse-b",
 ]
 assert all(entry.scenario["output_domain"] == "residue_current_rns" for entry in rns_chain_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in rns_chain_entries)
 assert all(entry.scenario.get("metadata", {}).get("output_domain_requirement") == "lazy_export" for entry in rns_chain_entries)
 assert any("--residue-chain-length" in entry.command and "4" in entry.command for entry in rns_chain_entries)
 assert any(entry.scenario.get("metadata", {}).get("chain_depth") == 4 for entry in rns_chain_entries)
@@ -880,6 +881,7 @@ assert [entry.scenario["name"] for entry in rns_chain_final_entries] == [
     "exact-wide-signed-chain3-final-export-512",
 ]
 assert all(entry.scenario["family"] == "rns-chain-final-output" for entry in rns_chain_final_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in rns_chain_final_entries)
 assert all(entry.scenario["residue_chain_final_export"] is True for entry in rns_chain_final_entries)
 assert all(entry.scenario["residue_chain_length"] == 3 for entry in rns_chain_final_entries)
 assert all(entry.scenario["output_domain"] != "residue_current_rns" for entry in rns_chain_final_entries)
