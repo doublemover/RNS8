@@ -370,10 +370,14 @@ def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, ba
         semantics not in {"bounded_i64", "bounded_u64"}
         or not isinstance(n, int)
         or isinstance(n, bool)
-        or n > 4
+        or n < 1
     ):
         return []
     if backend_family not in {"hip-direct", "hip-vector-alu-int64"}:
+        return []
+    if backend_family == "hip-direct" and n > 8:
+        return []
+    if backend_family == "hip-vector-alu-int64" and n > 4:
         return []
 
     blockers: list[str] = []

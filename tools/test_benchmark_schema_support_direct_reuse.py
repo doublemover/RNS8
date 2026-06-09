@@ -764,8 +764,8 @@ def as_direct_hip_bounded_skinny_gemv_n1_capture(capture: dict) -> dict:
 
 
 def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int = 4) -> dict:
-    if n <= 1 or n > 4:
-        raise ValueError("small-N skinny GEMV test fixture requires 2 <= n <= 4")
+    if n <= 1 or n > 8:
+        raise ValueError("small-N skinny GEMV test fixture requires 2 <= n <= 8")
     skinny = as_direct_hip_bounded_skinny_gemv_n1_capture(capture)
     semantics = skinny["semantics"]
     signed = semantics == "bounded_i64"
@@ -799,7 +799,7 @@ def as_direct_hip_bounded_skinny_gemv_small_n_capture(capture: dict, *, n: int =
     skinny["backend_metadata"]["source"] = "rns8_bench_skinny_gemv_small_n_path"
     skinny["backend_metadata"]["selected_kernel"] = kernel
     skinny["backend_metadata"]["epilogue_mode"] = epilogue
-    skinny["backend_metadata"]["workspace_mode"] = "resident_rns_inputs_skinny_n_le4_output"
+    skinny["backend_metadata"]["workspace_mode"] = "resident_rns_inputs_skinny_n_le8_output"
     skinny["backend_metadata"]["accumulator_safety"]["k_block_size"] = skinny["k"]
     skinny["backend_metadata"]["autotune_key"] = (
         skinny["backend_metadata"]["autotune_key"]

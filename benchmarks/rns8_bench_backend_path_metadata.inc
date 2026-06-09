@@ -56,7 +56,7 @@ bool bounded_direct_hip_skinny_gemv_n1_path(const Args& args, const BenchmarkRes
 bool bounded_direct_hip_skinny_gemv_small_n_path(const Args& args, const BenchmarkResult& result) {
   return (args.semantics == BenchSemantics::BoundedI64 ||
           args.semantics == BenchSemantics::BoundedU64) &&
-         args.n > 1 && args.n <= 4 && args.residue_chain_length == 1 &&
+         args.n > 1 && args.n <= 8 && args.residue_chain_length == 1 &&
          args.bound_mode == BoundMode::Global &&
          !args.oneshot && !args.streaming_overlap && !args.hip_graph_replay &&
          !args.native_to_rns_bridge && !args.vector_to_rns_chain &&
@@ -185,7 +185,7 @@ const char* bounded_direct_hip_skinny_gemv_n1_workspace() {
 }
 
 const char* bounded_direct_hip_skinny_gemv_small_n_workspace() {
-  return "resident_rns_inputs_skinny_n_le4_output";
+  return "resident_rns_inputs_skinny_n_le8_output";
 }
 
 std::string bounded_direct_hip_skinny_gemv_n1_autotune_key(

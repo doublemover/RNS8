@@ -219,7 +219,7 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
 }
 
 constexpr int kRns8HipGemvN1Threads = 256;
-constexpr int kRns8HipGemvSmallNMaxN = 4;
+constexpr int kRns8HipGemvSmallNMaxN = 8;
 
 __global__ void __launch_bounds__(kRns8HipGemvN1Threads)
     rns8_ring_gemv_n1_i8_i32_grouped_prefix_kernel(
@@ -316,7 +316,7 @@ __global__ void __launch_bounds__(kRns8HipGemvN1Threads)
   const uint32_t modulus_reciprocal =
       static_cast<uint32_t>(kRns8ReciprocalScale / static_cast<uint32_t>(modulus));
 
-  int32_t thread_acc[kRns8HipGemvSmallNMaxN] = {0, 0, 0, 0};
+  int32_t thread_acc[kRns8HipGemvSmallNMaxN] = {};
   for (int kk = static_cast<int>(threadIdx.x); kk < k_block; kk += static_cast<int>(blockDim.x)) {
     const int source_k = k_offset + kk;
     const int32_t a_value = static_cast<int32_t>(A[row * lda + source_k]);

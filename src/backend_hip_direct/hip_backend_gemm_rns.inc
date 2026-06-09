@@ -520,7 +520,7 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
       A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
       A->desc.bound_kind != B->desc.bound_kind || A->desc.bound_kind != C->desc.bound_kind ||
       A->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || B->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
-      C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || m <= 0 || n <= 1 || n > 4 || k <= 0 ||
+      C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || m <= 0 || n <= 1 || n > 8 || k <= 0 ||
       A->desc.rows != m || A->desc.cols != k || B->desc.rows != k || B->desc.cols != n ||
       C->desc.rows != m || C->desc.cols != n || A->desc.logical_ld < k || B->desc.logical_ld < n ||
       C->desc.logical_ld < n || m > std::numeric_limits<int>::max() ||

@@ -251,6 +251,135 @@
       }
     },
     {
+      "name": "bounded-i64-n8-512",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "gemv-n8-512",
+        "m": 512,
+        "n": 8,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "skinny N=8 bounded i64 small-N workload",
+      "output_domain": "host_export",
+      "rationale": "measures the widened Direct-HIP small-N GEMV-family route against the generic tiled Direct-HIP control",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma",
+        "amdgpu-builtins"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {
+        "shape_signature": "skinny_n8",
+        "workflow_name": "gemv_small_n",
+        "phase_label": "small_n_widened_route_decision",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-i64-n8-512-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "gemv-n8-512-tiled-control",
+        "m": 512,
+        "n": 8,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=8 bounded i64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "compares the widened small-N GEMV-family kernel against the generic tiled Direct-HIP route",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-i64-n8-512",
+        "phase_label": "generic_tiled_direct_hip_control"
+      }
+    },
+    {
+      "name": "bounded-u64-n8-1024",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "gemv-n8-1024",
+        "m": 1024,
+        "n": 8,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "skinny N=8 bounded u64 small-N workload",
+      "output_domain": "host_export",
+      "rationale": "measures unsigned widened small-N behavior before promotion decisions",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "rocwmma",
+        "amdgpu-builtins"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {
+        "shape_signature": "skinny_n8",
+        "workflow_name": "gemv_small_n",
+        "phase_label": "small_n_widened_route_decision",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-u64-n8-1024-tiled-control",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "gemv-n8-1024-tiled-control",
+        "m": 1024,
+        "n": 8,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=8 bounded u64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "compares the widened small-N GEMV-family kernel against the generic tiled Direct-HIP route",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-u64-n8-1024",
+        "phase_label": "generic_tiled_direct_hip_control"
+      }
+    },
+    {
       "name": "bounded-i64-n1-longk-256",
       "semantics": "bounded-i64",
       "case": {

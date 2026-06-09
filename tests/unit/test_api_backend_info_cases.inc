@@ -114,7 +114,7 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
       "resident_rns_gemv_small_n_centered_residue_then_crt_export");
   CHECK(
       rns8::detail::api::workspace_mode_for_plan(plan) ==
-      "resident_rns_inputs_skinny_n_le4_output");
+      "resident_rns_inputs_skinny_n_le8_output");
 
   plan.desc.semantics = RNS8_BOUNDED_I64;
   plan.desc.n = 4;
@@ -122,7 +122,15 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
       rns8::detail::api::selected_kernel_for_plan(plan) ==
       "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
 
-  plan.desc.n = 5;
+  plan.desc.n = 8;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
+  CHECK(
+      rns8::detail::api::workspace_mode_for_plan(plan) ==
+      "resident_rns_inputs_skinny_n_le8_output");
+
+  plan.desc.n = 9;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
       "direct_hip_prefix9_grouped_rns_gemm_v1");

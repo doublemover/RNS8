@@ -63,7 +63,7 @@ bool direct_hip_bounded_skinny_gemv_small_n_plan(const rns8_plan& plan) {
          plan.tile_schedule.empty() &&
          plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
          plan.desc.n > 1 &&
-         plan.desc.n <= 4 &&
+         plan.desc.n <= 8 &&
          (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64);
 }
 
@@ -244,7 +244,7 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
       return "resident_rns_inputs_skinny_n1_output";
     }
     if (direct_hip_bounded_skinny_gemv_small_n_plan(plan)) {
-      return "resident_rns_inputs_skinny_n_le4_output";
+      return "resident_rns_inputs_skinny_n_le8_output";
     }
     return plan.tile_schedule.empty() ? "resident_device_buffers"
                                       : "resident_device_buffers_with_active_prefix_tiled_schedule";

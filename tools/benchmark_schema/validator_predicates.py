@@ -31,7 +31,7 @@ class ValidatorPredicatesMixin:
             self.data.get("backend_selected") == "hip-vector-alu-int64"
             and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
             and _is_int(self.data.get("n"))
-            and 1 < self.data.get("n") <= 4
+            and 1 < self.data.get("n") <= 8
             and _is_int(self.data.get("k"))
             and self.data.get("k") >= 512
         )
@@ -267,7 +267,7 @@ class ValidatorPredicatesMixin:
             self.data.get("backend_selected") == "hip-direct"
             and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
             and _is_int(self.data.get("n"))
-            and 1 < self.data.get("n") <= 4
+            and 1 < self.data.get("n") <= 8
             and self.data.get("prefix") == self.data.get("selected_prefix") == 9
             and self.data.get("pack_mode") == "per_repeat_repack"
             and self.data.get("prepack_reuse_strategy") == "none"
