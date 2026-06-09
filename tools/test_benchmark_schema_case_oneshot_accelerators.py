@@ -596,6 +596,28 @@ amdgpu_metadata["autotune_key"] = with_accumulator_key_fields(
 )
 validate_capture(amdgpu_builtins)
 
+bad_amdgpu_finite_kernel_for_rns = copy.deepcopy(amdgpu_builtins)
+bad_amdgpu_finite_kernel_for_rns_kernel = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"
+bad_amdgpu_finite_kernel_for_rns["selected_kernel"] = bad_amdgpu_finite_kernel_for_rns_kernel
+bad_amdgpu_finite_kernel_for_rns["backend_metadata"][
+    "selected_kernel"
+] = bad_amdgpu_finite_kernel_for_rns_kernel
+expect_invalid(
+    bad_amdgpu_finite_kernel_for_rns,
+    "amdgpu-builtins selected_kernel must match capture semantics and device target",
+)
+
+bad_amdgpu_sparse_kernel_for_rdna3 = copy.deepcopy(amdgpu_builtins)
+bad_amdgpu_sparse_kernel_for_rdna3_kernel = "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"
+bad_amdgpu_sparse_kernel_for_rdna3["selected_kernel"] = bad_amdgpu_sparse_kernel_for_rdna3_kernel
+bad_amdgpu_sparse_kernel_for_rdna3["backend_metadata"][
+    "selected_kernel"
+] = bad_amdgpu_sparse_kernel_for_rdna3_kernel
+expect_invalid(
+    bad_amdgpu_sparse_kernel_for_rdna3,
+    "amdgpu-builtins selected_kernel must match capture semantics and device target",
+)
+
 bad_amdgpu_family = copy.deepcopy(amdgpu_builtins)
 bad_amdgpu_family["backend_metadata"]["matrix_instruction_family"] = "mfma"
 expect_invalid(bad_amdgpu_family, "backend_metadata.matrix_instruction_family=wmma")

@@ -52,6 +52,51 @@ def _semantics_are_finite_u8(data: dict[str, Any]) -> bool:
     return data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
 
 
+def _amdgpu_builtin_target_family(data: dict[str, Any]) -> str | None:
+    device = data.get("device")
+    target = device.get("gcn_arch") if isinstance(device, dict) else None
+    if not isinstance(target, str):
+        return None
+    if target.startswith("gfx942"):
+        return "cdna3"
+    if target.startswith("gfx110"):
+        return "rdna3"
+    if target in {"gfx1200", "gfx1201"}:
+        return "rdna4"
+    return None
+
+
+def _amdgpu_builtin_allowed_selected_kernels(data: dict[str, Any]) -> set[str] | None:
+    target_family = _amdgpu_builtin_target_family(data)
+    if target_family is None:
+        return None
+    finite = _semantics_are_finite_u8(data)
+    if target_family == "cdna3":
+        dense = (
+            {"amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"}
+            if finite
+            else {
+                "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
+                "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
+            }
+        )
+        return dense | {"amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"}
+    if target_family == "rdna3":
+        return (
+            {"amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"}
+            if finite
+            else {"amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"}
+        )
+    if target_family == "rdna4":
+        dense = (
+            {"amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"}
+            if finite
+            else {"amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1"}
+        )
+        return dense | {"amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1"}
+    return None
+
+
 def _amdgpu_builtin_matrix_operand_signedness(selected_kernel: str) -> str | None:
     dtype = _amdgpu_builtin_matrix_dtype(selected_kernel)
     if dtype in {"i8", "iu8"}:
@@ -293,6 +338,13 @@ def validate_backend_metadata(self: Any) -> None:
         amdgpu_kernel = str(metadata.get("selected_kernel") or "")
         if "_research_" in amdgpu_kernel:
             self._error("research-only amdgpu-builtins kernels cannot be reported as executed runtime captures")
+        allowed_kernels = _amdgpu_builtin_allowed_selected_kernels(self.data)
+        if allowed_kernels is None:
+            self._error("amdgpu-builtins captures require a supported device.gcn_arch target")
+        elif amdgpu_kernel not in allowed_kernels:
+            self._error(
+                "amdgpu-builtins selected_kernel must match capture semantics and device target"
+            )
         expected_matrix = {
             "matrix_instruction_family": _amdgpu_builtin_matrix_family(amdgpu_kernel),
             "matrix_instruction_shape": _amdgpu_builtin_matrix_shape(amdgpu_kernel),

@@ -477,7 +477,11 @@ inspection commands.
   histogram for the selected target/backend. Review also checks the selected
   builtin kernel against the expected matrix instruction mnemonic, so a
   `16x16x32` MFMA route cannot be certified by a different WMMA/SMFMAC/SWMMAC
-  histogram or by the wrong dense/sparse instruction shape.
+  histogram or by the wrong dense/sparse instruction shape. Schema validation
+  now also rejects AMDGPU builtin captures whose selected kernel does not match
+  the capture semantics and runtime target family, so finite-u8 rows cannot
+  claim the non-finite CDNA3 `32x32x16` route and RDNA3 rows cannot claim
+  sparse SMFMAC/SWMMAC kernels.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
