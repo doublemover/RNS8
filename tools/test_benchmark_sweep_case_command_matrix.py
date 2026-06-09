@@ -1171,6 +1171,45 @@ assert any(
     for entry in large_entries
 )
 
+prefix_reducer_args = copy.copy(scenario_args)
+prefix_reducer_args.backends = None
+prefix_reducer_args.scenario = ["generated-prefix-reducers"]
+prefix_reducer_entries = benchmark_sweep.sweep_command_entries(prefix_reducer_args)
+assert [entry.scenario["name"] for entry in prefix_reducer_entries] == [
+    "bounded-i64-prefix3",
+    "bounded-i64-prefix5",
+    "bounded-i64-prefix9",
+    "bounded-u64-prefix3",
+    "bounded-u64-prefix5",
+    "bounded-u64-prefix9",
+    "exact-wide-signed-prefix20",
+]
+assert all(entry.scenario["family"] == "generated-prefix-reducers" for entry in prefix_reducer_entries)
+assert all(entry.scenario["backend"] == "hip-direct" for entry in prefix_reducer_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in prefix_reducer_entries)
+assert all("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in prefix_reducer_entries)
+assert {
+    entry.command[entry.command.index("--max-prefix") + 1] for entry in prefix_reducer_entries
+} == {"3", "5", "9", "20"}
+assert "1" not in {
+    entry.command[entry.command.index("--max-prefix") + 1] for entry in prefix_reducer_entries
+}
+assert any("--exact-wide-limbs" in entry.command and "4" in entry.command for entry in prefix_reducer_entries)
+
+residue_fusion_args = copy.copy(scenario_args)
+residue_fusion_args.backends = None
+residue_fusion_args.scenario = ["residue-channel-fusion"]
+residue_fusion_entries = benchmark_sweep.sweep_command_entries(residue_fusion_args)
+assert [entry.scenario["name"] for entry in residue_fusion_entries] == [
+    "bounded-i64-small64",
+    "bounded-u64-small128",
+]
+assert all(entry.scenario["family"] == "residue-channel-fusion" for entry in residue_fusion_entries)
+assert all(entry.scenario["backend"] == "hip-direct" for entry in residue_fusion_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in residue_fusion_entries)
+assert all("--residue-channel-fusion" in entry.command for entry in residue_fusion_entries)
+assert all("--max-prefix" in entry.command and "9" in entry.command for entry in residue_fusion_entries)
+
 layout_args = copy.copy(scenario_args)
 layout_args.backends = ["hip-direct"]
 layout_args.scenario = ["layout-search"]

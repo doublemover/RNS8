@@ -371,6 +371,16 @@ with tempfile.TemporaryDirectory() as temp_dir:
 fusion_item = catalog["residue-channel-fusion"][0]
 assert fusion_item.residue_channel_fusion is True
 assert fusion_item.next_op_hint == "final-export"
+fusion_items = catalog["residue-channel-fusion"]
+assert {item.review_mode_expectation for item in fusion_items} == {"release"}
+assert {item.promotion_eligibility for item in fusion_items} == {"release_review_candidate"}
+assert {item.max_prefix for item in fusion_items} == {9}
+prefix_reducer_items = catalog["generated-prefix-reducers"]
+assert {item.review_mode_expectation for item in prefix_reducer_items} == {"release"}
+assert {item.promotion_eligibility for item in prefix_reducer_items} == {"release_review_candidate"}
+assert {item.max_prefix for item in prefix_reducer_items} == {3, 5, 9, 20}
+assert all(item.max_prefix and item.max_prefix > 1 for item in prefix_reducer_items)
+assert all(item.prefix_policy == "fixed-requested" for item in prefix_reducer_items)
 scenario_base_args = argparse.Namespace(
     warmups=1,
     repeats=2,

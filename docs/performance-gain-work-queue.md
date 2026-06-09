@@ -441,6 +441,9 @@ inspection commands.
   `multi-modulus-pack` is now release-mode evidence for fixed bounded prefixes
   3, 5, and 9 plus exact-wide prefix 20, keeping the fixed-prefix pack pressure
   lane in the same release review as the fused native-input rows.
+  `generated-prefix-reducers` is also release-mode evidence for bounded
+  prefixes 3/5/9 and exact-wide prefix 20, with prefix-1 host-export scenarios
+  still rejected by catalog lint before VM time is spent.
 - Remaining work: implement broader fused native-pack plus GEMM routes selected
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.
@@ -835,6 +838,9 @@ inspection commands.
   release-mode evidence, while the broader 512/1024 exact-wide final-output
   matrix remains the larger-shape companion. This keeps lazy residue-current
   and same-final-output comparisons visible in ordinary release reviews.
+  `residue-channel-fusion` is now release-mode Direct-HIP evidence for width-3
+  bounded final-export fusion, keeping the fused-residue route comparable to
+  ordinary final-output paths.
 - Required evidence: `rns-chain`, `rns-chain-final-output`,
   `exact-wide-output-chain`, and vector/native-to-RNS chain captures.
 - Promotion rule: compare against independent export/repack controls.
