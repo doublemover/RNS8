@@ -483,7 +483,10 @@ inspection commands.
   claim the non-finite CDNA3 `32x32x16` route and RDNA3 rows cannot claim
   sparse SMFMAC/SWMMAC kernels. Release review applies the same compatibility
   check as a promotion blocker for older or programmatic review inputs that
-  bypass schema validation.
+  bypass schema validation. Runtime reviewed-cache selection now uses the same
+  target-aware dense AMDGPU builtin kernel rules for CDNA3, RDNA3, and RDNA4
+  entries, while still rejecting sparse SMFMAC/SWMMAC and INT4 research kernels
+  from the dense `rns8_plan` autotune cache path.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 

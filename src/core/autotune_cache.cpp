@@ -336,6 +336,49 @@ std::string expected_vector_alu_kernel(const AutotuneCacheEntry& entry) {
   return {};
 }
 
+bool amdgpu_builtin_cdna3_target_id(const std::string& target_id) {
+  return target_id.rfind("gfx942", 0) == 0;
+}
+
+bool amdgpu_builtin_rdna3_target_id(const std::string& target_id) {
+  return target_id.rfind("gfx110", 0) == 0;
+}
+
+bool amdgpu_builtin_rdna4_target_id(const std::string& target_id) {
+  return target_id == "gfx1200" || target_id == "gfx1201";
+}
+
+bool reviewed_amdgpu_builtin_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
+  if (is_finite_u8_semantic(entry.semantic_contract)) {
+    if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
+      return false;
+    }
+    if (amdgpu_builtin_cdna3_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
+    }
+    if (amdgpu_builtin_rdna3_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
+    }
+    if (amdgpu_builtin_rdna4_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
+    }
+    return false;
+  }
+  if (is_exact_wide_semantic(entry.semantic_contract) || is_bounded_rns_semantic(entry.semantic_contract)) {
+    if (amdgpu_builtin_cdna3_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1" ||
+             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
+    }
+    if (amdgpu_builtin_rdna3_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
+    }
+    if (amdgpu_builtin_rdna4_target_id(entry.target_id)) {
+      return entry.selected_kernel == "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
+    }
+  }
+  return false;
+}
+
 bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& entry) {
   if (entry.selected_backend == "hip-vector-alu-int64") {
     const std::string expected = expected_vector_alu_kernel(entry);
@@ -375,16 +418,7 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
     }
   }
   if (entry.selected_backend == "amdgpu-builtins") {
-    if (is_finite_u8_semantic(entry.semantic_contract)) {
-      if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
-        return false;
-      }
-      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1";
-    }
-    if (is_exact_wide_semantic(entry.semantic_contract) || is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1" ||
-             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
-    }
+    return reviewed_amdgpu_builtin_kernel_supported_for_contract(entry);
   }
   return false;
 }
