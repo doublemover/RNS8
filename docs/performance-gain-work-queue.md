@@ -258,7 +258,11 @@ inspection commands.
   now uses one prefix-aware 3D B-pack launch for all RNS planes instead of one
   launch per modulus plane, directly reducing setup launch count for bounded
   prefix-9 repeated-B rows while preserving the ordinary per-GEMM rocWMMA pack
-  path.
+  path. The next reduction slice adds explicit host-native bounded i64/u64
+  B-cache constructors and routes rocWMMA `--reuse-packed-b` benchmark setup
+  through them, so repeated-B captures can materialize the reusable B cache
+  directly from row-major native input instead of first packing B into resident
+  RNS storage and then swizzling that storage into the rocWMMA cache layout.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

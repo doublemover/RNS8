@@ -169,6 +169,201 @@ rns8_status rns8_create_prepack_cache(
   });
 }
 
+namespace {
+
+template <typename NativeT>
+rns8_status create_b_prepack_cache_from_native(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const NativeT* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_semantics expected_semantics,
+    const char* native_layout_version,
+    rns8_prepack_cache** out) {
+  if (!out) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  *out = nullptr;
+  if (!ctx || !plan || !values || source_version == 0 ||
+      !valid_matrix_access(plan->desc.k, plan->desc.n, ld)) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  if (plan->desc.semantics != expected_semantics || !rocwmma_b_prepack_cache_production_supported(*plan)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  if (!context_accepts_backend(*ctx, plan->backend) || ctx->device_id < 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+
+  std::size_t b_pack_bytes = 0;
+  std::size_t total_cache_bytes = 0;
+  if (!rocwmma_b_prepack_bytes_for_plan(*plan, b_pack_bytes, total_cache_bytes)) {
+    return RNS8_RANGE_ERROR;
+  }
+  std::size_t native_bytes = 0;
+  if (!native_matrix_bytes(plan->desc.k, plan->desc.n, sizeof(NativeT), native_bytes)) {
+    return RNS8_RANGE_ERROR;
+  }
+
+  rns8_matrix synthetic_source{};
+  synthetic_source.backend = plan->backend;
+  synthetic_source.desc.struct_size = sizeof(synthetic_source.desc);
+  synthetic_source.desc.abi_version = RNS8_ABI_VERSION;
+  synthetic_source.desc.semantics = plan->desc.semantics;
+  synthetic_source.desc.bound_kind = plan->desc.bound_kind;
+  synthetic_source.desc.rows = plan->desc.k;
+  synthetic_source.desc.cols = plan->desc.n;
+  synthetic_source.desc.logical_ld = ld;
+  synthetic_source.desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+  synthetic_source.desc.max_prefix = plan->prefix;
+  synthetic_source.desc.tile_m = plan->desc.tile_m;
+  synthetic_source.desc.tile_n = plan->desc.tile_n;
+  synthetic_source.prefix = plan->prefix;
+  synthetic_source.source_version = source_version;
+  synthetic_source.hip_device_id = ctx->device_id;
+  synthetic_source.device_native_current = true;
+
+  auto* cache = new (std::nothrow) rns8_prepack_cache();
+  if (!cache) {
+    return RNS8_INTERNAL_ERROR;
+  }
+  cache->backend = plan->backend;
+  cache->semantics = plan->desc.semantics;
+  cache->operand_role = RNS8_OPERAND_B;
+  cache->rows = plan->desc.k;
+  cache->cols = plan->desc.n;
+  cache->k = plan->desc.k;
+  cache->tile_m = plan->desc.tile_m;
+  cache->tile_n = plan->desc.tile_n;
+  cache->prefix = plan->prefix;
+  cache->finite_modulus = 0;
+  cache->prefix_schedule_fingerprint = prepack_prefix_schedule_fingerprint(*plan);
+  cache->k_block_size = rocwmma_b_prepack_k_block_size(*plan);
+  cache->k_block_cap = rocwmma_b_prepack_k_block_cap();
+  cache->source_version = source_version;
+  cache->plan_fingerprint = plan_workspace_fingerprint(*plan);
+  cache->target_id = prepack_target_id_for_context(*ctx);
+  cache->selected_kernel = plan->backend_selected_kernel;
+  cache->prepack_kernel_variant = rocwmma_b_prepack_kernel_variant();
+  cache->matrix_layout_version = native_layout_version;
+  cache->operand_layout_version = prepack_operand_layout_version_for_plan(*plan, RNS8_OPERAND_B);
+  cache->cache_key_hash = prepack_cache_key_hash(
+      *plan,
+      synthetic_source,
+      RNS8_OPERAND_B,
+      cache->matrix_layout_version,
+      cache->operand_layout_version);
+  cache->cache_key = build_prepack_cache_key(
+      *plan,
+      synthetic_source,
+      RNS8_OPERAND_B,
+      cache->plan_fingerprint,
+      cache->cache_key_hash,
+      cache->matrix_layout_version,
+      cache->operand_layout_version);
+  cache->hip_device_id = ctx->device_id;
+  cache->device_bytes = total_cache_bytes;
+  cache->operand_pack_bytes = b_pack_bytes;
+
+  rns8_status status = rns8::detail::hip_direct_allocate(ctx->device_id, total_cache_bytes, &cache->device_data);
+  if (status != RNS8_SUCCESS) {
+    delete cache;
+    return status;
+  }
+
+  void* native_device = nullptr;
+  status = rns8::detail::hip_direct_allocate(ctx->device_id, native_bytes, &native_device);
+  if (status != RNS8_SUCCESS) {
+    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
+    delete cache;
+    return status;
+  }
+
+  std::vector<NativeT> staged;
+  const NativeT* upload_values = values;
+  if (ld != plan->desc.n) {
+    const auto rows = static_cast<std::size_t>(plan->desc.k);
+    const auto cols = static_cast<std::size_t>(plan->desc.n);
+    staged.resize(rows * cols);
+    for (std::size_t row = 0; row < rows; ++row) {
+      const auto* src_row = values + static_cast<int64_t>(row) * ld;
+      std::copy(src_row, src_row + cols, staged.data() + row * cols);
+    }
+    upload_values = staged.data();
+  }
+
+  status = rns8::detail::hip_direct_copy_host_to_device(ctx->device_id, native_device, upload_values, native_bytes);
+  if (status == RNS8_SUCCESS) {
+    if constexpr (std::is_same_v<NativeT, int64_t>) {
+      status = rns8::detail::rocwmma_prepack_b_native_i64_device(
+          ctx->device_id,
+          native_device,
+          cache->device_data,
+          cache->device_bytes,
+          plan->desc.k,
+          plan->desc.n,
+          plan->desc.n,
+          plan->prefix);
+    } else {
+      status = rns8::detail::rocwmma_prepack_b_native_u64_device(
+          ctx->device_id,
+          native_device,
+          cache->device_data,
+          cache->device_bytes,
+          plan->desc.k,
+          plan->desc.n,
+          plan->desc.n,
+          plan->prefix);
+    }
+  }
+
+  const rns8_status free_status = rns8::detail::hip_direct_free(ctx->device_id, native_device);
+  if (status != RNS8_SUCCESS) {
+    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
+    cache->device_data = nullptr;
+    delete cache;
+    return status;
+  }
+  if (free_status != RNS8_SUCCESS) {
+    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
+    cache->device_data = nullptr;
+    delete cache;
+    return free_status;
+  }
+
+  *out = cache;
+  return RNS8_SUCCESS;
+}
+
+}  // namespace
+
+rns8_status rns8_create_b_prepack_cache_i64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const int64_t* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_prepack_cache** out) {
+  return guard_api([&]() -> rns8_status {
+    return create_b_prepack_cache_from_native(
+        ctx, plan, values, ld, source_version, RNS8_BOUNDED_I64, "native_i64_rowmajor_v1", out);
+  });
+}
+
+rns8_status rns8_create_b_prepack_cache_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const uint64_t* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_prepack_cache** out) {
+  return guard_api([&]() -> rns8_status {
+    return create_b_prepack_cache_from_native(
+        ctx, plan, values, ld, source_version, RNS8_BOUNDED_U64, "native_u64_rowmajor_v1", out);
+  });
+}
+
 rns8_status rns8_get_prepack_cache_info(const rns8_prepack_cache* cache, rns8_prepack_cache_info* out) {
   return guard_api([&]() -> rns8_status {
     if (!cache || !out) {

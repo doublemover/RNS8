@@ -206,6 +206,14 @@ class PrepackCache final {
     check(rns8_create_prepack_cache(context.get(), plan.get(), matrix.get(), operand_role, &handle_));
   }
 
+  PrepackCache(Context& context, const Plan& plan, const int64_t* values, int64_t ld, uint64_t source_version) {
+    check(rns8_create_b_prepack_cache_i64(context.get(), plan.get(), values, ld, source_version, &handle_));
+  }
+
+  PrepackCache(Context& context, const Plan& plan, const uint64_t* values, int64_t ld, uint64_t source_version) {
+    check(rns8_create_b_prepack_cache_u64(context.get(), plan.get(), values, ld, source_version, &handle_));
+  }
+
   PrepackCache(const PrepackCache&) = delete;
   PrepackCache& operator=(const PrepackCache&) = delete;
 

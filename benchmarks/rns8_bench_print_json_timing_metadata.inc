@@ -422,7 +422,7 @@
   std::cout << "        \"reason\": \""
             << (result.prepack_setup_available
                     ? (use_prepacked_b_cache
-                           ? "packed B into persistent matrix storage, materialized a reusable rocWMMA B cache before warmups, and reused that cache for every measured repeat"
+                           ? "materialized a reusable rocWMMA B cache before warmups and reused that cache for every measured repeat"
                            : "prepacked " + prepack_reuse_operand_text(args) +
                                  " once before warmups and reused for every measured repeat")
                     : (args.oneshot

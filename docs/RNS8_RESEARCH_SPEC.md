@@ -1592,12 +1592,18 @@ public contracts. Created cache handles must expose matching key/hash material,
 device id, and allocation byte contract through `rns8_get_prepack_cache_info`
 instead of remaining opaque after creation. The first validated reusable cache
 slice is intentionally narrow:
-rocWMMA may cache non-tiled RNS B operands for `K <= 65536`, then run GEMM with
-only A repacked per dispatch. It does not satisfy the broader production cache
-ship rule for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt,
-or cross-platform production policy. Until that broader source-versioned cache
-policy exists and is validated, every production plan must report no production
-prepack cache.
+rocWMMA may cache non-tiled bounded i64/u64 B operands for `K <= 65536`, then
+run GEMM with only A repacked per dispatch. The first public setup surfaces are
+the ordinary resident-matrix cache constructor and explicit host-native
+row-major B constructors. The native constructors are repeated-B setup routes:
+they accept a nonzero caller source version, convert directly into the rocWMMA
+column-major B cache layout, expose a native matrix-layout identity in cache
+metadata, and do not imply dense GEMM should silently prepack, sparsify, or
+change semantics. This does not satisfy the broader production cache ship rule
+for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt, or
+cross-platform production policy. Until that broader source-versioned cache
+policy exists and is validated, every other production plan must report no
+production prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 

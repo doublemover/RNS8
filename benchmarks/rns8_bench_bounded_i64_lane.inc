@@ -203,9 +203,22 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
-    const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
+    PackOperandTiming setup_pack_timing{};
     uint64_t setup_runtime_cache_us = 0;
-    if (!use_native_a_reuse_b && b_matrix && should_probe_reusable_b_prepack_cache(args, selected_backend)) {
+    const bool use_native_b_cache_constructor =
+        !args.reuse_packed_a && !use_native_a_reuse_b && should_probe_reusable_b_prepack_cache(args, selected_backend);
+    if (use_native_b_cache_constructor) {
+      const auto cache_start = std::chrono::steady_clock::now();
+      if (maybe_create_native_b_prepack_cache(ctx, plan, B.data(), args.n, 1, &b_prepack_cache, result)) {
+        result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;
+      }
+      const auto cache_end = std::chrono::steady_clock::now();
+      setup_runtime_cache_us = elapsed_us(cache_start, cache_end);
+    } else {
+      setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
+    }
+    if (!use_native_b_cache_constructor && !use_native_a_reuse_b && b_matrix &&
+        should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
         result.prepack_reuse_strategy = PrepackReuseStrategy::RocwmmaReusableBCache;

@@ -787,6 +787,31 @@ RNS8_API rns8_status rns8_create_prepack_cache(
     rns8_prepack_cache** out);
 
 /*
+ * Create a rocWMMA B-operand prepack cache directly from bounded host-native
+ * row-major B input. These constructors are explicit repeated-B setup routes:
+ * they do not mutate a matrix handle and they do not make dense GEMM
+ * implicitly sparse or prepacked. The plan supplies the B shape as KxN, ld is
+ * the host leading dimension for B rows, and source_version must be nonzero.
+ * Only the matching bounded i64/u64 rocWMMA B-cache production surface is
+ * accepted.
+ */
+RNS8_API rns8_status rns8_create_b_prepack_cache_i64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const int64_t* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_prepack_cache** out);
+
+RNS8_API rns8_status rns8_create_b_prepack_cache_u64(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const uint64_t* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_prepack_cache** out);
+
+/*
  * Report deterministic metadata for a created reusable prepack cache. This is
  * a read-only inspection API: it exposes the cache key, source version, device
  * id, layout versions, production eligibility, and allocation byte counts.

@@ -12,6 +12,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "backend_ck/ck_backend.hpp"

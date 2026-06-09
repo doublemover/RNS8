@@ -348,6 +348,16 @@ bool prepack_cache_key_self_consistent(const rns8_prepack_cache& cache) {
          cache_key_contains_field(cache.cache_key, "hash", std::to_string(cache.cache_key_hash));
 }
 
+bool rocwmma_b_prepack_cache_matrix_layout_matches(const rns8_prepack_cache& cache, const rns8_plan& plan) {
+  if (cache.matrix_layout_version == persistent_layout_version_for_semantics(plan.desc.semantics)) {
+    return true;
+  }
+  if (!rocwmma_b_prepack_cache_production_supported(cache)) {
+    return false;
+  }
+  return cache.matrix_layout_version == native_layout_version_for_semantics(plan.desc.semantics);
+}
+
 bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan& plan) {
   std::size_t b_pack_bytes = 0;
   std::size_t total_cache_bytes = 0;
@@ -364,7 +374,7 @@ bool prepack_cache_matches_plan(const rns8_prepack_cache& cache, const rns8_plan
          cache.plan_fingerprint == plan_workspace_fingerprint(plan) &&
          cache.selected_kernel == plan.backend_selected_kernel &&
          cache.prepack_kernel_variant == rocwmma_b_prepack_kernel_variant() &&
-         cache.matrix_layout_version == persistent_layout_version_for_semantics(plan.desc.semantics) &&
+         rocwmma_b_prepack_cache_matrix_layout_matches(cache, plan) &&
          cache.operand_layout_version == prepack_operand_layout_version_for_plan(plan, RNS8_OPERAND_B) &&
          prepack_cache_key_self_consistent(cache) &&
          cache.device_data != nullptr && cache.device_bytes == total_cache_bytes &&

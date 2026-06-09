@@ -392,7 +392,7 @@
   } else if (args.reuse_packed_inputs) {
     if (use_prepacked_b_cache) {
       std::cout << "  \"timing_note\": \"host wall-clock timings with a reusable rocWMMA B prepack cache; "
-                   "prepack_setup_us records persistent B packing plus cache materialization before warmups, "
+                   "prepack_setup_us records explicit cache materialization before warmups, "
                    "end_to_end includes per-repeat A packing, cached-B rns_gemm, and export\",\n";
     } else if (reuses_all_packed_inputs(args)) {
       std::cout << "  \"timing_note\": \"host wall-clock timings for repeated GEMM/export against persistent "

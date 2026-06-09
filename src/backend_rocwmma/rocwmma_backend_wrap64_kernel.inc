@@ -331,6 +331,52 @@ int prepack_b_rns_prefix(
                                                                                        : rocwmma_backend_failure;
 }
 
+template <typename NativeT>
+int prepack_b_native_rns_prefix(
+    int device_id,
+    const NativeT* b,
+    int8_t* b_prepack,
+    uint64_t b_prepack_bytes,
+    int k,
+    int n,
+    int ldb,
+    uint32_t prefix) {
+  if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
+    return rocwmma_invalid_argument;
+  }
+  uint64_t a_bytes = 0;
+  uint64_t b_bytes = 0;
+  if (!rocwmma_workspace_requirements_u64(16, n, k, &a_bytes, &b_bytes)) {
+    return rocwmma_range_error;
+  }
+  if (b_bytes != 0 && static_cast<uint64_t>(prefix) > UINT64_MAX / b_bytes) {
+    return rocwmma_range_error;
+  }
+  if (!b || !b_prepack || b_prepack_bytes < static_cast<uint64_t>(prefix) * b_bytes) {
+    return rocwmma_invalid_argument;
+  }
+  int64_t padded_n64 = 0;
+  int64_t gemm_k_block64 = k < kRns8WmmaTileK ? kRns8WmmaTileK : k;
+  if (!round_up_aligned_i64(n, kRns8WmmaTileN, &padded_n64) ||
+      !round_up_aligned_i64(gemm_k_block64, kRns8WmmaTileK, &gemm_k_block64)) {
+    return rocwmma_range_error;
+  }
+  const int padded_n = static_cast<int>(padded_n64);
+  const int gemm_k_block = static_cast<int>(gemm_k_block64);
+  const dim3 pack_block(16, 16, 1);
+  const dim3 pack_b_grid(
+      static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
+      static_cast<unsigned int>((padded_n + pack_block.y - 1) / pack_block.y),
+      static_cast<unsigned int>(prefix));
+  pack_b_native_colmajor_prefix_kernel<NativeT><<<pack_b_grid, pack_block>>>(
+      b, b_prepack, b_bytes, k, gemm_k_block, n, padded_n, ldb);
+  if (hipGetLastError() != hipSuccess) {
+    return rocwmma_backend_failure;
+  }
+  return hipSetDevice(device_id) == hipSuccess && hipDeviceSynchronize() == hipSuccess ? rocwmma_success
+                                                                                       : rocwmma_backend_failure;
+}
+
 int launch_pack_a_and_gemm_prepacked_b(
     const int8_t* a,
     const int8_t* b_pack,

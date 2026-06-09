@@ -383,6 +383,46 @@ TEST_CASE("public prepack cache info rejects zero source-version reuse eligibili
   CHECK(std::string(info.cache_scope) == "runtime_unstable_source_prepack_cache_rejected");
 }
 
+TEST_CASE("native B prepack cache constructors reject invalid and unsupported public inputs") {
+  rns8_context* cpu = create_cpu_context();
+  rns8_gemm_desc desc{};
+  desc.struct_size = sizeof(desc);
+  desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_BOUNDED_I64;
+  desc.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
+  desc.requested_backend = RNS8_BACKEND_CPU_REFERENCE;
+  desc.m = 2;
+  desc.n = 3;
+  desc.k = 4;
+  desc.bound = 64;
+  desc.max_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
+
+  rns8_plan* plan = nullptr;
+  REQUIRE(rns8_create_plan(cpu, &desc, &plan) == RNS8_SUCCESS);
+
+  const int64_t signed_b[] = {1, -2, 3, 4, -5, 6, 7, -8, 9, 10, -11, 12};
+  const uint64_t unsigned_b[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  rns8_prepack_cache* cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
+
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 0, &cache) == RNS8_INVALID_ARGUMENT);
+  CHECK(cache == nullptr);
+  cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n - 1, 1, &cache) == RNS8_INVALID_ARGUMENT);
+  CHECK(cache == nullptr);
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, nullptr) == RNS8_INVALID_ARGUMENT);
+
+  cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
+  CHECK(rns8_create_b_prepack_cache_i64(cpu, plan, signed_b, desc.n, 1, &cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(cache == nullptr);
+
+  cache = reinterpret_cast<rns8_prepack_cache*>(uintptr_t{0x1});
+  CHECK(rns8_create_b_prepack_cache_u64(cpu, plan, unsigned_b, desc.n, 1, &cache) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(cache == nullptr);
+
+  rns8_destroy_plan(plan);
+  rns8_destroy_context(cpu);
+}
+
 TEST_CASE("public prepack cache key info rejects finite modulus mismatch") {
   rns8_context* cpu = create_cpu_context();
   rns8_gemm_desc desc{};

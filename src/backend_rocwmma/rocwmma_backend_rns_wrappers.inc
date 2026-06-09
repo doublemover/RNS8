@@ -63,6 +63,60 @@ extern "C" int rns8_rocwmma_prepack_b_rns_device(
       prefix);
 }
 
+extern "C" int rns8_rocwmma_prepack_b_native_i64_device(
+    int device_id,
+    const void* device_b_native,
+    void* device_b_prepack,
+    unsigned long long device_b_prepack_bytes,
+    long long k,
+    long long n,
+    long long ldb,
+    unsigned int prefix) {
+  if (hipSetDevice(device_id) != hipSuccess) {
+    return rocwmma_backend_failure;
+  }
+  if (!device_b_native || !device_b_prepack || k <= 0 || n <= 0 || ldb < n ||
+      !checked_i32_shape(k) || !checked_i32_shape(n) || !checked_i32_shape(ldb)) {
+    return rocwmma_invalid_argument;
+  }
+  return prepack_b_native_rns_prefix(
+      device_id,
+      static_cast<const int64_t*>(device_b_native),
+      static_cast<int8_t*>(device_b_prepack),
+      device_b_prepack_bytes,
+      static_cast<int>(k),
+      static_cast<int>(n),
+      static_cast<int>(ldb),
+      prefix);
+}
+
+extern "C" int rns8_rocwmma_prepack_b_native_u64_device(
+    int device_id,
+    const void* device_b_native,
+    void* device_b_prepack,
+    unsigned long long device_b_prepack_bytes,
+    long long k,
+    long long n,
+    long long ldb,
+    unsigned int prefix) {
+  if (hipSetDevice(device_id) != hipSuccess) {
+    return rocwmma_backend_failure;
+  }
+  if (!device_b_native || !device_b_prepack || k <= 0 || n <= 0 || ldb < n ||
+      !checked_i32_shape(k) || !checked_i32_shape(n) || !checked_i32_shape(ldb)) {
+    return rocwmma_invalid_argument;
+  }
+  return prepack_b_native_rns_prefix(
+      device_id,
+      static_cast<const uint64_t*>(device_b_native),
+      static_cast<int8_t*>(device_b_prepack),
+      device_b_prepack_bytes,
+      static_cast<int>(k),
+      static_cast<int>(n),
+      static_cast<int>(ldb),
+      prefix);
+}
+
 extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     int device_id,
     const void* device_a_residues,

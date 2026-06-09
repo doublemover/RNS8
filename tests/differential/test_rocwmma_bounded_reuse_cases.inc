@@ -81,6 +81,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   rns8_matrix* rocwmma_c = nullptr;
   rns8_matrix* cached_c = nullptr;
   rns8_prepack_cache* b_cache = nullptr;
+  rns8_prepack_cache* native_b_cache = nullptr;
 
   REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
   REQUIRE(rns8_create_plan(rocwmma, &rocwmma_desc, &rocwmma_plan) == RNS8_SUCCESS);
@@ -207,6 +208,21 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   require_same_i64(cpu_out, rocwmma_out);
   require_same_i64(cpu_out, cached_out);
 
+  REQUIRE(rns8_create_b_prepack_cache_i64(rocwmma, rocwmma_plan, B.data(), n, 202, &native_b_cache) == RNS8_SUCCESS);
+  rns8_prepack_cache_info native_cache_info{};
+  native_cache_info.struct_size = sizeof(native_cache_info);
+  native_cache_info.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_prepack_cache_info(native_b_cache, &native_cache_info) == RNS8_SUCCESS);
+  CHECK(native_cache_info.reusable_prepack_cache_available == 1);
+  CHECK(native_cache_info.production_prepack_cache_available == 1);
+  CHECK(std::string(native_cache_info.matrix_layout_version) == "native_i64_rowmajor_v1");
+  CHECK(std::string(native_cache_info.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
+  REQUIRE(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, native_b_cache, cached_c, cached_workspace) ==
+          RNS8_SUCCESS);
+  std::vector<int64_t> native_cached_out(static_cast<std::size_t>(m * n), 0);
+  REQUIRE(rns8_export_i64(rocwmma, rocwmma_plan, cached_c, native_cached_out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(cpu_out, native_cached_out);
+
   rns8_prepack_cache role_mismatch = *b_cache;
   role_mismatch.operand_role = RNS8_OPERAND_A;
   CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, &role_mismatch, cached_c, cached_workspace) ==
@@ -228,6 +244,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
             rocwmma, rocwmma_plan, rocwmma_a, &source_version_mismatch, cached_c, cached_workspace) ==
         RNS8_INVALID_ARGUMENT);
 
+  rns8_destroy_prepack_cache(native_b_cache);
   rns8_destroy_prepack_cache(b_cache);
   rns8_destroy_matrix(cached_c);
   rns8_destroy_matrix(rocwmma_c);
@@ -287,6 +304,7 @@ TEST_CASE("rocWMMA reusable B prepack cache covers unsigned and exact-wide RNS s
     rns8_matrix* rocwmma_c = nullptr;
     rns8_matrix* cached_c = nullptr;
     rns8_prepack_cache* b_cache = nullptr;
+    rns8_prepack_cache* native_b_cache = nullptr;
 
     REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
     REQUIRE(rns8_create_plan(rocwmma, &rocwmma_desc, &rocwmma_plan) == RNS8_SUCCESS);
@@ -336,6 +354,22 @@ TEST_CASE("rocWMMA reusable B prepack cache covers unsigned and exact-wide RNS s
     require_same_u64(cpu_out, rocwmma_out);
     require_same_u64(cpu_out, cached_out);
 
+    REQUIRE(rns8_create_b_prepack_cache_u64(rocwmma, rocwmma_plan, B.data(), n, 302, &native_b_cache) == RNS8_SUCCESS);
+    rns8_prepack_cache_info native_cache_info{};
+    native_cache_info.struct_size = sizeof(native_cache_info);
+    native_cache_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_prepack_cache_info(native_b_cache, &native_cache_info) == RNS8_SUCCESS);
+    CHECK(native_cache_info.reusable_prepack_cache_available == 1);
+    CHECK(native_cache_info.production_prepack_cache_available == 1);
+    CHECK(std::string(native_cache_info.matrix_layout_version) == "native_u64_rowmajor_v1");
+    CHECK(std::string(native_cache_info.operand_layout_version) == "rns_i8_tile_swizzled_b_v1");
+    REQUIRE(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, native_b_cache, cached_c, cached_workspace) ==
+            RNS8_SUCCESS);
+    std::vector<uint64_t> native_cached_out(static_cast<std::size_t>(m * n), 0);
+    REQUIRE(rns8_export_u64(rocwmma, rocwmma_plan, cached_c, native_cached_out.data(), n) == RNS8_SUCCESS);
+    require_same_u64(cpu_out, native_cached_out);
+
+    rns8_destroy_prepack_cache(native_b_cache);
     rns8_destroy_prepack_cache(b_cache);
     rns8_destroy_matrix(cached_c);
     rns8_destroy_matrix(rocwmma_c);

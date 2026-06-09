@@ -1058,6 +1058,39 @@ bool maybe_create_reusable_b_prepack_cache(
   return true;
 }
 
+template <typename NativeT>
+bool maybe_create_native_b_prepack_cache(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const NativeT* values,
+    int64_t ld,
+    uint64_t source_version,
+    rns8_prepack_cache** out,
+    BenchmarkResult& result) {
+  *out = nullptr;
+  rns8_status cache_status = RNS8_UNSUPPORTED_BACKEND;
+  if constexpr (std::is_same_v<NativeT, int64_t>) {
+    cache_status = rns8_create_b_prepack_cache_i64(ctx, plan, values, ld, source_version, out);
+  } else {
+    cache_status = rns8_create_b_prepack_cache_u64(ctx, plan, values, ld, source_version, out);
+  }
+  if (cache_status == RNS8_UNSUPPORTED_BACKEND) {
+    return false;
+  }
+  if (cache_status != RNS8_SUCCESS) {
+    fail_status("rns8_create_b_prepack_cache(native B)", cache_status);
+  }
+  result.prepack_cache_info = {};
+  result.prepack_cache_info.struct_size = sizeof(result.prepack_cache_info);
+  result.prepack_cache_info.abi_version = RNS8_ABI_VERSION;
+  const rns8_status info_status = rns8_get_prepack_cache_info(*out, &result.prepack_cache_info);
+  if (info_status != RNS8_SUCCESS) {
+    fail_status("rns8_get_prepack_cache_info(native B)", info_status);
+  }
+  result.prepack_cache_info_available = true;
+  return true;
+}
+
 void set_backend_text(char* dst, std::size_t dst_size, const char* text) {
   if (dst_size == 0) {
     return;

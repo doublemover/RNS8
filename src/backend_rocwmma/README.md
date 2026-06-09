@@ -11,14 +11,18 @@ residues without global INT32 scratch output. RDNA builds use the rocWMMA
 wave32 path; CDNA builds select wave64 launch geometry from the active
 `RNS8_AMDGPU_TARGETS` codegen target.
 
-Eligible non-tiled RNS B operands with `K <= 65536` can be packed once into the
-rocWMMA column-major B panel layout through `rns8_create_prepack_cache` and
-reused by `rns8_gemm_rns_prepacked_b`. A remains packed through the normal
-transient workspace per dispatch. `rns8_get_prepack_cache_info` exposes the
-created cache key, device id, and allocation byte contract. This is a narrow
-runtime cache path, not a broad production prepack-cache policy: tiled
-schedules, finite/wrap64 semantics, A-operand caches, oversize K, and other
-backends remain unsupported.
+Eligible non-tiled bounded i64/u64 B operands with `K <= 65536` can be packed
+once into the rocWMMA column-major B panel layout through
+`rns8_create_prepack_cache` for resident RNS matrices or through the explicit
+host-native `rns8_create_b_prepack_cache_i64/u64` constructors. The native
+constructors avoid first materializing B as a persistent RNS matrix: they stage
+host row-major B into device memory, center it per modulus, and write the
+rocWMMA B panel cache directly. A remains packed through the normal transient
+workspace per dispatch. `rns8_get_prepack_cache_info` exposes the created cache
+key, source version, layout identities, device id, and allocation byte contract.
+This is a narrow runtime cache path, not a broad production prepack-cache
+policy: tiled schedules, finite/wrap64 semantics, exact-wide caches, A-operand
+caches, oversize K, and other backends remain unsupported.
 
 The implemented rocWMMA coverage includes fixed-prefix bounded RNS plans,
 adaptive per-tile bounded schedules, exact-wide RNS output, and finite u8. The
