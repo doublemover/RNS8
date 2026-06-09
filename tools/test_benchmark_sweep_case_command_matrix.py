@@ -641,6 +641,7 @@ assert [entry.scenario["name"] for entry in skinny_entries] == [
 ]
 assert all(entry.scenario["family"] == "skinny-gemv" for entry in skinny_entries)
 assert all(entry.scenario["backend"] == "hip-vector-alu-int64" for entry in skinny_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in skinny_entries)
 assert {entry.scenario["shape"]["n"] for entry in skinny_entries} == {1, 4, 8}
 assert all("--backend" in entry.command for entry in skinny_entries)
 assert all(benchmark_sweep.cli_backend("hip-vector-alu-int64") in entry.command for entry in skinny_entries)
@@ -689,7 +690,17 @@ assert all(
     if entry.scenario["shape"]["n"] in {4, 8} and not entry.scenario["name"].endswith("-tiled-control")
 )
 assert all(
+    entry.scenario["review_mode_expectation"] == "release"
+    for entry in skinny_direct_entries
+    if not entry.scenario["name"].endswith("-tiled-control")
+)
+assert all(
     entry.scenario.get("metadata", {}).get("workflow_name") == "skinny_tiled_control"
+    for entry in skinny_direct_entries
+    if entry.scenario["name"].endswith("-tiled-control")
+)
+assert all(
+    entry.scenario["review_mode_expectation"] == "smoke"
     for entry in skinny_direct_entries
     if entry.scenario["name"].endswith("-tiled-control")
 )

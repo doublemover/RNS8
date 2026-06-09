@@ -100,6 +100,10 @@ for item in repeated_b_items:
 skinny_items = catalog["skinny-gemv"]
 assert skinny_items
 assert {item.case.n for item in skinny_items} == {1, 4, 8}
+skinny_release_items = [item for item in skinny_items if item.promotion_eligibility == "release_review_candidate"]
+skinny_control_items = [item for item in skinny_items if item.promotion_eligibility == "tile_shape_evidence_only"]
+assert {item.review_mode_expectation for item in skinny_release_items} == {"release"}
+assert {item.review_mode_expectation for item in skinny_control_items} == {"smoke"}
 small_n_items = [item for item in skinny_items if item.case.n in {4, 8}]
 small_n_release_items = [item for item in small_n_items if item.promotion_eligibility == "release_review_candidate"]
 small_n_control_items = [item for item in small_n_items if item.promotion_eligibility == "tile_shape_evidence_only"]

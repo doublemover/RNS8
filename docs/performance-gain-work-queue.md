@@ -125,7 +125,9 @@ inspection commands.
   tiled-control rows using `direct-hip-skinny-tiled-control-128x128`, which
   intentionally disables skinny auto-routing through the non-default tile-shape
   guard so the supported failure-summary tool can print specialized-vs-tiled
-  comparisons without changing release-review grouping.
+  comparisons without changing release-review grouping. The promotable
+  `skinny-gemv` rows are now release-mode evidence, while the tiled controls
+  remain smoke-only comparison captures.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024`, plus small-N `512x4x512`, `1024x4x1024`,
   `512x8x512`, and `1024x8x1024`, against CPU
