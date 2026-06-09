@@ -166,7 +166,7 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   CHECK(cache_info.cache_key_valid == 1);
   CHECK(cache_info.reusable_prepack_cache_available == 1);
   CHECK(cache_info.production_prepack_cache_available == 1);
-  CHECK(cache_info.hip_device_id == 0);
+  CHECK(cache_info.hip_device_id == default_visible_hip_test_device());
   CHECK(cache_info.reserved0 == 0);
   CHECK(cache_info.matrix_rows == k);
   CHECK(cache_info.matrix_cols == n);
