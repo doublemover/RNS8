@@ -237,7 +237,10 @@ inspection commands.
   emit `rns8_get_prepack_cache_info` metadata for review/cache-key visibility.
   The reuse-contract report now treats `runtime_prepack_cache` as first-class
   source identity for rocWMMA B-cache rows and requires production runtime
-  cache metadata before marking an explicit repeated-B selector ready.
+  cache metadata before marking an explicit repeated-B selector ready. Current
+  captures also split one-time `prepack_setup_us` into A pack, B pack, runtime
+  cache materialization, and unclassified setup overhead so Rank 84 follow-up
+  work can attack the actual setup loss phase instead of the aggregate number.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

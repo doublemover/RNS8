@@ -131,8 +131,8 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         if isinstance(setup_rows, list) and setup_rows:
             lines.extend(
                 [
-                    "| backend | shape | family | prepack setup e2e us | graph setup e2e us | blockers |",
-                    "|---|---|---|---|---|---|",
+                    "| backend | shape | family | prepack setup e2e us | prepack setup breakdown us | graph setup e2e us | blockers |",
+                    "|---|---|---|---|---|---|---|",
                 ]
             )
             for row in setup_rows[:20]:
@@ -142,14 +142,25 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
                 prepack = row.get("prepacked_reuse_review")
                 graph = row.get("hip_graph_replay_review")
                 prepack_e2e = prepack.get("setup_inclusive_median_end_to_end_us") if isinstance(prepack, dict) else ""
+                prepack_breakdown = prepack.get("prepack_setup_breakdown_us") if isinstance(prepack, dict) else None
+                if isinstance(prepack_breakdown, dict):
+                    prepack_breakdown_text = "A:{pack_a},B:{pack_b},cache:{runtime_cache},other:{unclassified}".format(
+                        pack_a=prepack_breakdown.get("pack_a"),
+                        pack_b=prepack_breakdown.get("pack_b"),
+                        runtime_cache=prepack_breakdown.get("runtime_cache"),
+                        unclassified=prepack_breakdown.get("unclassified"),
+                    )
+                else:
+                    prepack_breakdown_text = ""
                 graph_e2e = graph.get("setup_inclusive_median_end_to_end_us") if isinstance(graph, dict) else ""
                 blockers = row.get("promotion_blockers") if isinstance(row.get("promotion_blockers"), list) else []
                 lines.append(
-                    "| {backend} | {shape} | {family} | {prepack_e2e} | {graph_e2e} | {blockers} |".format(
+                    "| {backend} | {shape} | {family} | {prepack_e2e} | {prepack_breakdown} | {graph_e2e} | {blockers} |".format(
                         backend=row.get("backend"),
                         shape=f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}",
                         family=row.get("shape_family") or "unknown",
                         prepack_e2e=prepack_e2e,
+                        prepack_breakdown=prepack_breakdown_text,
                         graph_e2e=graph_e2e,
                         blockers=",".join(str(item) for item in blockers) if blockers else "none",
                     )

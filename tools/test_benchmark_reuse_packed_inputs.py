@@ -59,6 +59,17 @@ def main() -> int:
         assert isinstance(capture["prepack_setup_us"], int)
         assert capture["prepack_setup_us"] >= 0
         assert capture["avg_prepack_setup_us"] == float(capture["prepack_setup_us"])
+        breakdown = capture["prepack_setup_breakdown_us"]
+        assert isinstance(breakdown, dict)
+        assert set(breakdown) == {"pack_a", "pack_b", "runtime_cache", "unclassified"}
+        assert all(isinstance(breakdown[key], int) and breakdown[key] >= 0 for key in breakdown)
+        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
+        if expected_mode == "prepacked_reuse_a":
+            assert breakdown["pack_b"] == 0
+        if expected_mode == "prepacked_reuse_b":
+            assert breakdown["pack_a"] == 0
+        assert breakdown["runtime_cache"] >= 0
         assert len(capture["raw_timings_us"]["pack"]) == 2
         if expect_zero_pack:
             assert capture["raw_timings_us"]["pack"] == [0, 0]
@@ -67,6 +78,10 @@ def main() -> int:
             assert capture["avg_pack_us"] >= 0.0
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timed"] is True
         assert capture["timing_metadata"]["phase_availability"]["prepack_setup"]["timing_key"] == "prepack_setup_us"
+        assert (
+            capture["timing_metadata"]["phase_availability"]["prepack_setup"]["breakdown_key"]
+            == "prepack_setup_breakdown_us"
+        )
         assert capture["gpu_event_timings_us"] is None
 
     capture_path = out_dir / "bounded-i64-rocwmma-reuse-packed-b.json"
@@ -100,6 +115,12 @@ def main() -> int:
         assert capture["prepack_reuse_operands"] == ["B"]
         assert capture["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
         assert capture["timing_metadata"]["prepack_reuse_strategy"] == "rocwmma_reusable_b_cache"
+        breakdown = capture["prepack_setup_breakdown_us"]
+        assert breakdown["pack_a"] == 0
+        assert breakdown["pack_b"] >= 0
+        assert breakdown["runtime_cache"] >= 0
+        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         runtime_cache = capture["reuse_contract"]["runtime_prepack_cache"]
         assert runtime_cache["source"] == "rns8_get_prepack_cache_info"
         assert runtime_cache["backend"] == "rocwmma"

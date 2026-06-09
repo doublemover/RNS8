@@ -1039,6 +1039,33 @@ def reuse_contract_numeric_value(capture: dict[str, Any], key: str) -> float | N
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
+PREPACK_SETUP_BREAKDOWN_KEYS = ("pack_a", "pack_b", "runtime_cache", "unclassified")
+
+
+def prepack_setup_breakdown_us(capture: dict[str, Any]) -> dict[str, float] | None:
+    value = capture.get("prepack_setup_breakdown_us")
+    if not isinstance(value, dict):
+        reuse = capture.get("reuse_contract")
+        value = reuse.get("setup_breakdown_us") if isinstance(reuse, dict) else None
+    if not isinstance(value, dict):
+        return None
+    breakdown: dict[str, float] = {}
+    for key in PREPACK_SETUP_BREAKDOWN_KEYS:
+        item = value.get(key)
+        if not isinstance(item, (int, float)) or isinstance(item, bool):
+            return None
+        breakdown[key] = float(item)
+    return breakdown
+
+
+def prepack_setup_primary_phase(capture: dict[str, Any]) -> str | None:
+    breakdown = prepack_setup_breakdown_us(capture)
+    if not breakdown:
+        return None
+    phase, value = max(breakdown.items(), key=lambda item: item[1])
+    return phase if value > 0.0 else "none"
+
+
 def setup_cost_us(capture: dict[str, Any], *, include_graph_setup: bool) -> float | None:
     setup = 0.0
     if capture_prepacked_reuse(capture):
@@ -1273,6 +1300,8 @@ def prepacked_reuse_review(
         "setup_inclusive_median_end_to_end_us": candidate_setup,
         "candidate_median_end_to_end_us": candidate_median,
         "prepack_setup_us": prepack_setup,
+        "prepack_setup_breakdown_us": prepack_setup_breakdown_us(capture),
+        "prepack_setup_primary_phase": prepack_setup_primary_phase(capture),
         "declared_repeat_count": declared_repeats,
         "setup_amortized_us": setup_amortized,
         "setup_share_of_setup_inclusive": (

@@ -14,6 +14,32 @@ from .core import (
     _is_number,
 )
 
+PREPACK_SETUP_BREAKDOWN_KEYS = ("pack_a", "pack_b", "runtime_cache", "unclassified")
+
+
+def _validate_prepack_setup_breakdown(self: Any, value: Any, *, field: str, setup_cost: Any) -> dict[str, float] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        self._error(f"{field} must be an object or null")
+        return None
+    breakdown: dict[str, float] = {}
+    for key in PREPACK_SETUP_BREAKDOWN_KEYS:
+        item = value.get(key)
+        if not _is_number(item) or item < 0:
+            self._error(f"{field}.{key} must be a nonnegative number")
+            return None
+        breakdown[key] = float(item)
+    extra = sorted(str(key) for key in value if key not in PREPACK_SETUP_BREAKDOWN_KEYS)
+    if extra:
+        self._error(f"{field} has unknown keys: {extra}")
+    if _is_number(setup_cost):
+        total = sum(breakdown.values())
+        if not _close(total, float(setup_cost)):
+            self._error(f"{field} must sum to prepack setup cost")
+    return breakdown
+
+
 def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> None:
     reuse_value = self.data.get("reuse_packed_inputs", False)
     if "reuse_packed_inputs" in self.data and not isinstance(reuse_value, bool):
@@ -78,6 +104,7 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
 
     prepack_setup = self.data.get("prepack_setup_us")
     avg_prepack_setup = self.data.get("avg_prepack_setup_us")
+    prepack_setup_breakdown = self.data.get("prepack_setup_breakdown_us")
     if reuse_packed:
         if not _is_int(prepack_setup) or prepack_setup < 0:
             self._error("prepacked reuse captures must include nonnegative integer prepack_setup_us")
@@ -85,6 +112,20 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
             self._error("prepacked reuse captures must include avg_prepack_setup_us")
         elif _is_int(prepack_setup) and not _close(float(avg_prepack_setup), float(prepack_setup)):
             self._error("avg_prepack_setup_us must match prepack_setup_us")
+        breakdown = (
+            _validate_prepack_setup_breakdown(
+                self,
+                prepack_setup_breakdown,
+                field="prepack_setup_breakdown_us",
+                setup_cost=prepack_setup,
+            )
+            if prepack_setup_breakdown is not None
+            else None
+        )
+        if breakdown is not None and pack_mode == "prepacked_reuse_a" and breakdown["pack_b"] != 0.0:
+            self._error("prepacked_reuse_a captures must report prepack_setup_breakdown_us.pack_b=0")
+        elif breakdown is not None and pack_mode == "prepacked_reuse_b" and breakdown["pack_a"] != 0.0:
+            self._error("prepacked_reuse_b captures must report prepack_setup_breakdown_us.pack_a=0")
         if pack_mode == "prepacked_reuse":
             pack_values = raw_timings.get("pack")
             if pack_values is not None and any(value != 0.0 for value in pack_values):
@@ -100,6 +141,8 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
             self._error("per-repeat repack captures must use prepack_setup_us=null")
         if "avg_prepack_setup_us" in self.data and avg_prepack_setup is not None:
             self._error("per-repeat repack captures must use avg_prepack_setup_us=null")
+        if "prepack_setup_breakdown_us" in self.data and prepack_setup_breakdown is not None:
+            self._error("per-repeat repack captures must use prepack_setup_breakdown_us=null")
 
 def validate_residue_current_timings(self, raw_timings: dict[str, list[float]]) -> None:
     if not self._is_residue_current_chain_capture():

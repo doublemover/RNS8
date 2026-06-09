@@ -348,6 +348,19 @@ uint32_t estimated_modulus_product_bits(const Args& args, const BenchmarkResult&
   return prefix * 8u;
 }
 
+void print_prepack_setup_breakdown_json(const BenchmarkResult& result, const char* indent) {
+  if (!result.prepack_setup_available) {
+    std::cout << "null";
+    return;
+  }
+  std::cout << "{\n";
+  std::cout << indent << "  \"pack_a\": " << result.prepack_setup_pack_a_us << ",\n";
+  std::cout << indent << "  \"pack_b\": " << result.prepack_setup_pack_b_us << ",\n";
+  std::cout << indent << "  \"runtime_cache\": " << result.prepack_setup_runtime_cache_us << ",\n";
+  std::cout << indent << "  \"unclassified\": " << result.prepack_setup_unclassified_us << "\n";
+  std::cout << indent << "}";
+}
+
 void print_reuse_contract_json(
     const Args& args,
     const BenchmarkResult& result,
@@ -367,6 +380,9 @@ void print_reuse_contract_json(
   } else {
     std::cout << "null";
   }
+  std::cout << ",\n";
+  std::cout << "    \"setup_breakdown_us\": ";
+  print_prepack_setup_breakdown_json(result, "    ");
   std::cout << ",\n";
   const bool setup_inclusive_available =
       result.prepack_setup_available && args.repeats > 0 && !result.samples.end_to_end_us.empty();

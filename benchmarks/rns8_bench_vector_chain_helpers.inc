@@ -144,11 +144,13 @@ BenchmarkResult run_vector_to_rns_chain(
   if (args.reuse_packed_b) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
+    PackOperandTiming setup_pack_timing{};
     status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, 1);
     if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain reused direct B)", status);
+    const auto pack_b_end = std::chrono::steady_clock::now();
+    setup_pack_timing.b_us = elapsed_us(prepack_start, pack_b_end);
     const auto prepack_end = std::chrono::steady_clock::now();
-    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
-    result.prepack_setup_available = true;
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, 0);
   }
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {

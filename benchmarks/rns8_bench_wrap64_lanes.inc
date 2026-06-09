@@ -60,10 +60,9 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
-    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
-    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
-    result.prepack_setup_available = true;
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, 0);
   }
 
   const auto run_iteration = [&](TimingSamples* samples) {
@@ -198,10 +197,9 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
-    pack_preused_inputs(args, 1, pack_a_input, pack_b_input);
+    const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
     const auto prepack_end = std::chrono::steady_clock::now();
-    result.prepack_setup_us = elapsed_us(prepack_start, prepack_end);
-    result.prepack_setup_available = true;
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, 0);
   }
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {

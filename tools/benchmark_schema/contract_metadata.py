@@ -100,6 +100,38 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
 
 
+PREPACK_SETUP_BREAKDOWN_KEYS = ("pack_a", "pack_b", "runtime_cache", "unclassified")
+
+
+def _validate_setup_breakdown(
+    self: Any,
+    value: Any,
+    *,
+    field: str,
+    setup_cost: Any,
+) -> dict[str, float] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        self._error(f"{field} must be an object or null")
+        return None
+    breakdown: dict[str, float] = {}
+    for key in PREPACK_SETUP_BREAKDOWN_KEYS:
+        item = value.get(key)
+        if not _is_number(item) or item < 0:
+            self._error(f"{field}.{key} must be a nonnegative number")
+            return None
+        breakdown[key] = float(item)
+    extra = sorted(str(key) for key in value if key not in PREPACK_SETUP_BREAKDOWN_KEYS)
+    if extra:
+        self._error(f"{field} has unknown keys: {extra}")
+    if _is_number(setup_cost):
+        total = sum(breakdown.values())
+        if abs(total - float(setup_cost)) > 1.0e-6:
+            self._error(f"{field} must sum to reuse_contract.setup_cost_us")
+    return breakdown
+
+
 def _prepack_cache_key_fields(cache_key: str) -> dict[str, str] | None:
     if not isinstance(cache_key, str) or not cache_key.startswith("prepack-v2;"):
         return None
@@ -140,6 +172,20 @@ def validate_contract_metadata(self: Any) -> None:
             setup_cost = reuse.get("setup_cost_us")
             if setup_cost is not None and (not _is_number(setup_cost) or setup_cost < 0):
                 self._error("reuse_contract.setup_cost_us must be a nonnegative number or null")
+            setup_breakdown = _validate_setup_breakdown(
+                self,
+                reuse.get("setup_breakdown_us"),
+                field="reuse_contract.setup_breakdown_us",
+                setup_cost=setup_cost,
+            )
+            top_level_breakdown = self.data.get("prepack_setup_breakdown_us")
+            if setup_breakdown is not None and top_level_breakdown is not None and setup_breakdown != _validate_setup_breakdown(
+                self,
+                top_level_breakdown,
+                field="prepack_setup_breakdown_us",
+                setup_cost=setup_cost,
+            ):
+                self._error("reuse_contract.setup_breakdown_us must match prepack_setup_breakdown_us")
             for key in [
                 "setup_amortized_us",
                 "repeat_median_end_to_end_us",

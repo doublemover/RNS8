@@ -232,6 +232,10 @@ struct BenchmarkResult {
   std::string workspace_arena_policy{};
   uint64_t prepack_setup_us = 0;
   bool prepack_setup_available = false;
+  uint64_t prepack_setup_pack_a_us = 0;
+  uint64_t prepack_setup_pack_b_us = 0;
+  uint64_t prepack_setup_runtime_cache_us = 0;
+  uint64_t prepack_setup_unclassified_us = 0;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
   rns8_prepack_cache_info prepack_cache_info{};
   bool prepack_cache_info_available = false;

@@ -108,6 +108,12 @@ class ValidatorScheduleMixin:
                     self._error(
                         f"timing_metadata.phase_availability.prepack_setup.timing_key must be {expected_key}"
                     )
+                expected_breakdown_key = "prepack_setup_breakdown_us" if reuse_packed else None
+                if "breakdown_key" in prepack and prepack.get("breakdown_key") != expected_breakdown_key:
+                    self._error(
+                        "timing_metadata.phase_availability.prepack_setup.breakdown_key must be "
+                        f"{expected_breakdown_key}"
+                    )
                 if prepack.get("scope") != expected_scope:
                     self._error(
                         f"timing_metadata.phase_availability.prepack_setup.scope must be {expected_scope}"

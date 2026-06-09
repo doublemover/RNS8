@@ -724,6 +724,47 @@ void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA&
   }
 }
 
+struct PackOperandTiming {
+  uint64_t a_us = 0;
+  uint64_t b_us = 0;
+};
+
+template <typename PackA, typename PackB>
+PackOperandTiming pack_preused_inputs_timed(
+    const Args& args,
+    uint64_t source_version,
+    const PackA& pack_a,
+    const PackB& pack_b) {
+  PackOperandTiming timing{};
+  if (args.reuse_packed_a) {
+    const auto start = std::chrono::steady_clock::now();
+    pack_a(source_version);
+    const auto end = std::chrono::steady_clock::now();
+    timing.a_us = elapsed_us(start, end);
+  }
+  if (args.reuse_packed_b) {
+    const auto start = std::chrono::steady_clock::now();
+    pack_b(source_version);
+    const auto end = std::chrono::steady_clock::now();
+    timing.b_us = elapsed_us(start, end);
+  }
+  return timing;
+}
+
+void record_prepack_setup_timing(
+    BenchmarkResult& result,
+    uint64_t total_us,
+    const PackOperandTiming& pack_timing,
+    uint64_t runtime_cache_us) {
+  result.prepack_setup_us = total_us;
+  result.prepack_setup_available = true;
+  result.prepack_setup_pack_a_us = pack_timing.a_us;
+  result.prepack_setup_pack_b_us = pack_timing.b_us;
+  result.prepack_setup_runtime_cache_us = runtime_cache_us;
+  const uint64_t classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
+  result.prepack_setup_unclassified_us = total_us > classified ? total_us - classified : 0;
+}
+
 template <typename PackA, typename PackB>
 void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const PackA& pack_a, const PackB& pack_b) {
   if (!args.reuse_packed_a) {
@@ -733,11 +774,6 @@ void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const Pac
     pack_b(source_version);
   }
 }
-
-struct PackOperandTiming {
-  uint64_t a_us = 0;
-  uint64_t b_us = 0;
-};
 
 struct OptionalPackOperandTiming {
   bool available = false;

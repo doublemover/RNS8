@@ -226,6 +226,13 @@ def main() -> int:
                                     "setup_inclusive_median_end_to_end_us": 150.0,
                                     "candidate_median_end_to_end_us": 147.0,
                                     "prepack_setup_us": 27.0,
+                                    "prepack_setup_breakdown_us": {
+                                        "pack_a": 0.0,
+                                        "pack_b": 22.0,
+                                        "runtime_cache": 4.0,
+                                        "unclassified": 1.0,
+                                    },
+                                    "prepack_setup_primary_phase": "pack_b",
                                     "declared_repeat_count": 9,
                                     "setup_amortized_us": 3.0,
                                     "setup_share_of_setup_inclusive": 0.02,
@@ -545,7 +552,9 @@ def main() -> int:
         assert "none 0" in text
         assert (
             "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
-            "setup_e2e=150.0 steady_e2e=147.0 prepack_setup=27.0 declared_repeats=9 "
+            "setup_e2e=150.0 steady_e2e=147.0 prepack_setup=27.0 "
+            "prepack_breakdown=A:0.0,B:22.0,cache:4.0,other:1.0 prepack_primary=pack_b "
+            "declared_repeats=9 "
             "setup_amortized=3.0 setup_share=0.02 same_backend=ck same_e2e=140.0 "
             "best_nonreuse=hip-direct best_e2e=100.0"
         ) in text
@@ -657,7 +666,10 @@ def main() -> int:
             "details=phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8 "
             "pack_split=pack_a:70.0,pack_b:30.0 reuse_setup_e2e=150.0"
         ) in text
-        assert "reuse_setup_e2e=150.0 reuse_steady_e2e=147.0 prepack_setup=27.0 reuse_repeats=9" in text
+        assert (
+            "reuse_setup_e2e=150.0 reuse_steady_e2e=147.0 prepack_setup=27.0 "
+            "prepack_breakdown=A:0.0,B:22.0,cache:4.0,other:1.0 prepack_primary=pack_b reuse_repeats=9"
+        ) in text
         assert "setup_amortized=3.0 setup_share=0.02 same_backend=ck" in text
         assert "reuse_vs_best=0.6666666666666666" in text
         assert "graph_setup_e2e=151.0 graph_steady_e2e=144.0 graph_capture=13.0" in text

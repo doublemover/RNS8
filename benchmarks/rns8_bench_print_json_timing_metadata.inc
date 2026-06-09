@@ -409,6 +409,8 @@
   std::cout << "        \"timed\": " << (result.prepack_setup_available ? "true" : "false") << ",\n";
   std::cout << "        \"timing_key\": "
             << (result.prepack_setup_available ? "\"prepack_setup_us\"" : "null") << ",\n";
+  std::cout << "        \"breakdown_key\": "
+            << (result.prepack_setup_available ? "\"prepack_setup_breakdown_us\"" : "null") << ",\n";
   std::cout << "        \"scope\": \""
             << (result.prepack_setup_available ? "one_time_before_warmups" : "not_requested_per_repeat_repack")
             << "\",\n";

@@ -372,6 +372,20 @@ def _blocker_text(values: Any) -> str:
     return ",".join(str(item) for item in values) if isinstance(values, list) and values else "none"
 
 
+def _setup_breakdown_text(value: Any) -> str:
+    if not isinstance(value, dict):
+        return "none"
+    parts: list[str] = []
+    for label, key in [
+        ("A", "pack_a"),
+        ("B", "pack_b"),
+        ("cache", "runtime_cache"),
+        ("other", "unclassified"),
+    ]:
+        parts.append(f"{label}:{value.get(key)}")
+    return ",".join(parts)
+
+
 def _review_detail_text(candidate: dict[str, Any]) -> str:
     details: list[str] = []
     phase_ratios = _phase_ratio_text(candidate)
@@ -387,6 +401,8 @@ def _review_detail_text(candidate: dict[str, Any]) -> str:
                 f"reuse_setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')}",
                 f"reuse_steady_e2e={prepack.get('candidate_median_end_to_end_us')}",
                 f"prepack_setup={prepack.get('prepack_setup_us')}",
+                f"prepack_breakdown={_setup_breakdown_text(prepack.get('prepack_setup_breakdown_us'))}",
+                f"prepack_primary={prepack.get('prepack_setup_primary_phase')}",
                 f"reuse_repeats={prepack.get('declared_repeat_count')}",
                 f"setup_amortized={prepack.get('setup_amortized_us')}",
                 f"setup_share={prepack.get('setup_share_of_setup_inclusive')}",
@@ -559,6 +575,8 @@ def _prepack_reuse_line(
         f"setup_e2e={prepack.get('setup_inclusive_median_end_to_end_us')} "
         f"steady_e2e={prepack.get('candidate_median_end_to_end_us')} "
         f"prepack_setup={prepack.get('prepack_setup_us')} "
+        f"prepack_breakdown={_setup_breakdown_text(prepack.get('prepack_setup_breakdown_us'))} "
+        f"prepack_primary={prepack.get('prepack_setup_primary_phase')} "
         f"declared_repeats={prepack.get('declared_repeat_count')} "
         f"setup_amortized={prepack.get('setup_amortized_us')} "
         f"setup_share={prepack.get('setup_share_of_setup_inclusive')} "

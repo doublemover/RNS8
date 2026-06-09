@@ -125,12 +125,19 @@ rocwmma_runtime_b_cache["prepack_reuse_operands"] = ["B"]
 rocwmma_runtime_b_cache["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
 rocwmma_runtime_b_cache["prepack_setup_us"] = 123
 rocwmma_runtime_b_cache["avg_prepack_setup_us"] = 123.0
+rocwmma_runtime_b_cache["prepack_setup_breakdown_us"] = {
+    "pack_a": 0,
+    "pack_b": 100,
+    "runtime_cache": 20,
+    "unclassified": 3,
+}
 rocwmma_runtime_b_cache["timing_metadata"]["pack_mode"] = "prepacked_reuse_b"
 rocwmma_runtime_b_cache["timing_metadata"]["prepack_reuse_operands"] = ["B"]
 rocwmma_runtime_b_cache["timing_metadata"]["prepack_reuse_strategy"] = "rocwmma_reusable_b_cache"
 rocwmma_runtime_b_cache["timing_metadata"]["phase_availability"]["prepack_setup"] = {
     "timed": True,
     "timing_key": "prepack_setup_us",
+    "breakdown_key": "prepack_setup_breakdown_us",
     "scope": "one_time_before_warmups",
     "reason": "B prepack cache created once before warmups and reused for each measured repeat",
 }
@@ -140,6 +147,7 @@ rocwmma_runtime_b_cache["reuse_contract"] = {
     "source_version_inputs": "runtime_prepack_cache.source_version_and_cache_key",
     "setup_scope": "runtime_prepack_cache",
     "setup_cost_us": 123.0,
+    "setup_breakdown_us": rocwmma_runtime_b_cache["prepack_setup_breakdown_us"],
     "setup_amortized_us": 61.5,
     "repeat_median_end_to_end_us": rocwmma_runtime_b_cache["timing_summary_us"]["end_to_end"]["median"],
     "setup_inclusive_median_end_to_end_us": rocwmma_runtime_b_cache["timing_summary_us"]["end_to_end"]["median"]
@@ -188,6 +196,17 @@ rocwmma_runtime_b_cache["reuse_contract"]["runtime_prepack_cache"]["cache_key"] 
     rocwmma_runtime_b_cache["reuse_contract"]["runtime_prepack_cache"],
 )
 validate_capture(rocwmma_runtime_b_cache)
+
+bad_prepack_setup_breakdown = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_prepack_setup_breakdown["prepack_setup_breakdown_us"]["runtime_cache"] = 21
+bad_prepack_setup_breakdown["reuse_contract"]["setup_breakdown_us"] = (
+    bad_prepack_setup_breakdown["prepack_setup_breakdown_us"]
+)
+expect_invalid(bad_prepack_setup_breakdown, "prepack_setup_breakdown_us must sum to prepack setup cost")
+
+bad_reuse_contract_breakdown = copy.deepcopy(rocwmma_runtime_b_cache)
+bad_reuse_contract_breakdown["reuse_contract"]["setup_breakdown_us"]["unclassified"] = 4
+expect_invalid(bad_reuse_contract_breakdown, "reuse_contract.setup_breakdown_us must sum")
 
 bad_runtime_cache_backend = copy.deepcopy(rocwmma_runtime_b_cache)
 bad_runtime_cache_backend["reuse_contract"]["runtime_prepack_cache"]["backend"] = "ck"

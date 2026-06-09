@@ -204,6 +204,9 @@
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"prepack_setup_breakdown_us\": ";
+  print_prepack_setup_breakdown_json(result, "  ");
+  std::cout << ",\n";
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
