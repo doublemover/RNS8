@@ -162,6 +162,7 @@ assert {
 } == {64, 128, 2048}
 assert {item.review_mode_expectation for item in catalog["export-bound-limb-variants"]} == {"release"}
 assert {item.review_mode_expectation for item in catalog["reconstruction-zoo"]} == {"release"}
+assert {item.review_mode_expectation for item in catalog["fused-pack-gemm-small"]} == {"release"}
 
 bounded_rns_chain_release_items = [
     item

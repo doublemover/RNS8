@@ -319,6 +319,7 @@ fused_pack_args.scenario = ["fused-pack-gemm-small"]
 fused_pack_entries = benchmark_sweep.sweep_command_entries(fused_pack_args)
 assert len(fused_pack_entries) == 23
 assert {entry.scenario["family"] for entry in fused_pack_entries} == {"fused-pack-gemm-small"}
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in fused_pack_entries)
 fused_transient_entries = [
     entry
     for entry in fused_pack_entries

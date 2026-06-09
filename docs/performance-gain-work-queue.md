@@ -423,6 +423,9 @@ inspection commands.
   `--transient-uniform-small-inputs` candidate with distinct capture naming and
   backend identity, so VM evidence can compare the fused native-input route
   against the contiguous and widened pack baselines without ad hoc commands.
+  `fused-pack-gemm-small` is now entirely release-mode evidence, so the
+  one-shot bounded/finite and persistent bounded/finite companion rows stay in
+  the same release review as the transient fused native-input candidates.
   Direct-HIP fixed-modulus finite-u8 contiguous single and grouped pack
   launchers now also use four-cell kernels for moduli 251, 255, and 256. The
   generic dynamic-modulus and strided paths stay on the existing one-cell
