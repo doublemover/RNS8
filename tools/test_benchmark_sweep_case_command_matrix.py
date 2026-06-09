@@ -381,6 +381,70 @@ with tempfile.TemporaryDirectory() as temp_dir:
         entry["promotion_eligibility"] for entry in lint_manifest["entries"]
     } == {"release_review_candidate"}
 
+with tempfile.TemporaryDirectory() as temp_dir:
+    dry_root = Path(temp_dir) / "release-dry-run"
+    dry_completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().with_name("benchmark_sweep.py")),
+            "--dry-run",
+            "--scenario",
+            "release-candidates",
+            "--out-root",
+            str(dry_root),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert dry_completed.returncode == 0, dry_completed.stderr
+    dry_output = json.loads(dry_completed.stdout)
+    assert dry_output["dry_run"] is True
+    assert dry_output["planned_captures"] > 0
+    readiness = dry_output["release_readiness"]
+    assert readiness["release_candidate_captures"] == dry_output["planned_captures"]
+    assert readiness["release_ready"] is False
+    assert {warning["code"] for warning in readiness["warnings"]} == {
+        "review_mode_not_release",
+        "warmups_below_release_minimum",
+        "repeats_below_release_minimum",
+    }
+    dry_plan = json.loads((dry_root / "command_plan.json").read_text(encoding="utf-8"))
+    assert dry_plan["release_readiness"] == readiness
+    assert "RELEASE PREFLIGHT WARNINGS" in (dry_root / "command_plan.txt").read_text(encoding="utf-8")
+
+with tempfile.TemporaryDirectory() as temp_dir:
+    dry_root = Path(temp_dir) / "release-ready-dry-run"
+    dry_completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().with_name("benchmark_sweep.py")),
+            "--dry-run",
+            "--scenario",
+            "release-candidates",
+            "--review-mode",
+            "release",
+            "--warmups",
+            "3",
+            "--repeats",
+            "9",
+            "--out-root",
+            str(dry_root),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert dry_completed.returncode == 0, dry_completed.stderr
+    dry_output = json.loads(dry_completed.stdout)
+    readiness = dry_output["release_readiness"]
+    assert readiness["release_candidate_captures"] == dry_output["planned_captures"]
+    assert readiness["release_ready"] is True
+    assert readiness["warnings"] == []
+    assert "RELEASE PREFLIGHT WARNINGS" not in (dry_root / "command_plan.txt").read_text(encoding="utf-8")
+
 reuse_contract_args = copy.copy(scenario_args)
 reuse_contract_args.backends = ["hipblaslt"]
 reuse_contract_args.scenario = ["reuse-contract"]

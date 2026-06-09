@@ -8,6 +8,7 @@ from evidence_database_lib.isa import load_isa_index
 from evidence_database_lib.io import discover_capture_paths, discover_isa_report_paths
 
 from .commands import scenario_names, sweep_command_entries
+from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, SweepCommand
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
@@ -410,7 +411,64 @@ def list_scenarios_payload() -> dict[str, object]:
     }
 
 
-def write_command_plan(entries: list[SweepCommand], out_root: Path) -> dict[str, str]:
+def release_preflight_readiness(args: argparse.Namespace, entries: list[SweepCommand]) -> dict[str, object]:
+    release_candidate_count = sum(
+        1
+        for entry in entries
+        if isinstance(entry.scenario, dict)
+        and entry.scenario.get("promotion_eligibility") == "release_review_candidate"
+    )
+    warnings: list[dict[str, object]] = []
+    if release_candidate_count == 0:
+        return {
+            "release_candidate_captures": 0,
+            "release_ready": True,
+            "warnings": warnings,
+        }
+    if getattr(args, "review_mode", "smoke") != "release":
+        warnings.append(
+            {
+                "code": "review_mode_not_release",
+                "current": getattr(args, "review_mode", "smoke"),
+                "expected": "release",
+                "affected_captures": release_candidate_count,
+                "detail": "release-candidate captures cannot promote unless reviewed with --review-mode release",
+            }
+        )
+    warmups = int(getattr(args, "warmups", 0) or 0)
+    if warmups < RELEASE_MIN_WARMUPS:
+        warnings.append(
+            {
+                "code": "warmups_below_release_minimum",
+                "current": warmups,
+                "minimum": RELEASE_MIN_WARMUPS,
+                "affected_captures": release_candidate_count,
+                "detail": "release-candidate captures need at least the release warmup count",
+            }
+        )
+    repeats = int(getattr(args, "repeats", 0) or 0)
+    if repeats < RELEASE_MIN_REPEATS:
+        warnings.append(
+            {
+                "code": "repeats_below_release_minimum",
+                "current": repeats,
+                "minimum": RELEASE_MIN_REPEATS,
+                "affected_captures": release_candidate_count,
+                "detail": "release-candidate captures need at least the release repeat count",
+            }
+        )
+    return {
+        "release_candidate_captures": release_candidate_count,
+        "release_ready": not warnings,
+        "warnings": warnings,
+    }
+
+
+def write_command_plan(
+    entries: list[SweepCommand],
+    out_root: Path,
+    release_readiness: dict[str, object] | None = None,
+) -> dict[str, str]:
     out_root.mkdir(parents=True, exist_ok=True)
     json_path = out_root / "command_plan.json"
     text_path = out_root / "command_plan.txt"
@@ -428,8 +486,18 @@ def write_command_plan(entries: list[SweepCommand], out_root: Path) -> dict[str,
             for entry in entries
         ],
     }
+    if release_readiness is not None:
+        payload["release_readiness"] = release_readiness
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     lines: list[str] = []
+    if release_readiness is not None and release_readiness.get("warnings"):
+        lines.append("# RELEASE PREFLIGHT WARNINGS")
+        for warning in release_readiness["warnings"]:
+            if isinstance(warning, dict):
+                detail = warning.get("detail", "")
+                code = warning.get("code", "release_warning")
+                lines.append(f"# - {code}: {detail}")
+        lines.append("")
     for entry in entries:
         env = ""
         if entry.env:
@@ -470,11 +538,13 @@ def main() -> int:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
-        command_paths = write_command_plan(entries, args.out_root)
+        release_readiness = release_preflight_readiness(args, entries)
+        command_paths = write_command_plan(entries, args.out_root, release_readiness)
         output = {
             "dry_run": True,
             "planned_captures": len(entries),
             "scenario_request": list(args.scenario or []),
+            "release_readiness": release_readiness,
             **command_paths,
         }
         if scenario_paths is not None:

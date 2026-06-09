@@ -8,6 +8,7 @@ from pathlib import Path
 from benchmark_sweep_lib.cli import (
     list_scenarios_payload,
     load_required_isa_index,
+    release_preflight_readiness,
     review_capture_paths,
     write_command_plan,
 )
@@ -100,6 +101,48 @@ with tempfile.TemporaryDirectory() as tmp_name:
     assert "release-candidates" in scenarios["special_scenarios"]
     assert "skinny-gemv" in scenarios["scenarios"]
     assert scenarios["count"] == len(scenarios["scenarios"])
+
+    release_entry = SweepCommand(
+        name="release-candidate",
+        command=["rns8-bench", "--backend", "hip-direct"],
+        output=tmp / "release-candidate.json",
+        scenario={"promotion_eligibility": "release_review_candidate"},
+    )
+    evidence_only_entry = SweepCommand(
+        name="evidence-only",
+        command=["rns8-bench", "--backend", "hip-direct"],
+        output=tmp / "evidence-only.json",
+        scenario={"promotion_eligibility": "execution_path_evidence"},
+    )
+    smoke_readiness = release_preflight_readiness(
+        argparse.Namespace(review_mode="smoke", warmups=1, repeats=3),
+        [release_entry, evidence_only_entry],
+    )
+    assert smoke_readiness["release_candidate_captures"] == 1
+    assert smoke_readiness["release_ready"] is False
+    assert {warning["code"] for warning in smoke_readiness["warnings"]} == {
+        "review_mode_not_release",
+        "warmups_below_release_minimum",
+        "repeats_below_release_minimum",
+    }
+    release_readiness = release_preflight_readiness(
+        argparse.Namespace(review_mode="release", warmups=3, repeats=9),
+        [release_entry],
+    )
+    assert release_readiness == {
+        "release_candidate_captures": 1,
+        "release_ready": True,
+        "warnings": [],
+    }
+    nonrelease_readiness = release_preflight_readiness(
+        argparse.Namespace(review_mode="smoke", warmups=1, repeats=3),
+        [evidence_only_entry],
+    )
+    assert nonrelease_readiness == {
+        "release_candidate_captures": 0,
+        "release_ready": True,
+        "warnings": [],
+    }
 
     plan_root = tmp / "plan"
     command_paths = write_command_plan(

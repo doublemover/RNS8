@@ -927,6 +927,10 @@ inspection commands.
   `command_plan.json`, `command_plan.txt`, and the scenario manifest without
   executing or reviewing captures. That gives VM work a supported preflight path
   for release-candidate/all-scenario command inspection instead of ad hoc shell
-  expansion or guessed scenario names.
+  expansion or guessed scenario names. Release-candidate dry-runs now include a
+  `release_readiness` block in stdout and `command_plan.json`, plus visible
+  warnings in `command_plan.txt`, whenever the planned candidate captures are
+  still configured as smoke-mode, below the release warmup floor, or below the
+  release repeat floor.
 - Constraint: diagnostics must not change benchmark semantics or promotion
   strictness.
