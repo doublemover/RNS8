@@ -531,7 +531,7 @@ bool vector_alu_gemv_n1_shape(const Args& args) {
 }
 
 bool vector_alu_gemv_small_n_shape(const Args& args) {
-  return bounded_benchmark_semantics(args.semantics) && args.n > 1 && args.n <= 4 && args.k >= 512;
+  return bounded_benchmark_semantics(args.semantics) && args.n > 1 && args.n <= 8 && args.k >= 512;
 }
 
 const char* benchmark_execution_mode_name(const Args& args) {

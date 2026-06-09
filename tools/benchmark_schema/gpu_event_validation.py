@@ -356,7 +356,7 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
         signed = self.data.get("semantics") == "bounded_i64"
         if self.data.get("n") == 1 and self.data.get("k", 0) >= 4096:
             vector_kernel = "vector_alu_i64_gemv_n1_kernel" if signed else "vector_alu_u64_gemv_n1_kernel"
-        elif isinstance(self.data.get("n"), int) and 1 < self.data.get("n") <= 4 and self.data.get("k", 0) >= 512:
+        elif isinstance(self.data.get("n"), int) and 1 < self.data.get("n") <= 8 and self.data.get("k", 0) >= 512:
             vector_kernel = "vector_alu_i64_gemv_small_n_kernel" if signed else "vector_alu_u64_gemv_small_n_kernel"
         else:
             vector_kernel = "vector_alu_i64_kernel" if signed else "vector_alu_u64_kernel"

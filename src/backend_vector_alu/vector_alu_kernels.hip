@@ -13,7 +13,7 @@ struct UInt192 {
 };
 
 constexpr int kGemvN1BlockSize = 256;
-constexpr int kGemvSmallNMaxN = 4;
+constexpr int kGemvSmallNMaxN = 8;
 
 __device__ UInt192 zero192() {
   return UInt192{0, 0, 0};

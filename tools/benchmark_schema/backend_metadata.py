@@ -306,7 +306,7 @@ def validate_backend_metadata(self: Any) -> None:
         gemv_n1 = self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
         gemv_small_n = (
             _is_int(self.data.get("n"))
-            and 1 < self.data.get("n") <= 4
+            and 1 < self.data.get("n") <= 8
             and _is_int(self.data.get("k"))
             and self.data.get("k") >= 512
         )

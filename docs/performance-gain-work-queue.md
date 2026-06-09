@@ -150,7 +150,7 @@ inspection commands.
   `hip_vector_alu_*_gemv_n1_exact_192b_v1` kernels, GEMV-specific GPU event
   labels, native output-domain packing metadata, and local Windows HIP
   signed/unsigned schema-validated smokes. The vector-ALU backend now also has
-  an explicit `2 <= N <= 4,K>=512` native exact small-N route with
+  an explicit `2 <= N <= 8,K>=512` native exact small-N route with
   `hip_vector_alu_*_gemv_small_n_exact_192b_v1`, the
   `public_runtime_vector_alu_gemv_small_n_native_buffers` /
   `benchmark_owned_vector_alu_gemv_small_n_native_buffers` execution modes,

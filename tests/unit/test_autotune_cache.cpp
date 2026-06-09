@@ -395,7 +395,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
         "7.1",
         "bounded_u64",
         512,
-        4,
+        8,
         512,
         "row_major",
         512,
@@ -408,7 +408,7 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.selected_kernel = kVectorU64SmallNGemvKernel;
     item.semantic_contract = "bounded_u64";
     item.m = 512;
-    item.n = 4;
+    item.n = 8;
     item.k = 512;
     item.k_block_size = 512;
     item.epilogue = kVectorEpilogue;

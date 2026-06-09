@@ -42,7 +42,7 @@ validate_capture(vector_gemv)
 
 vector_gemv_small_n = copy.deepcopy(v4_vector_u64)
 vector_gemv_small_n["m"] = 512
-vector_gemv_small_n["n"] = 4
+vector_gemv_small_n["n"] = 8
 vector_gemv_small_n["k"] = 512
 vector_gemv_small_n["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
 vector_gemv_small_n["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
@@ -51,7 +51,7 @@ vector_gemv_small_n["timing_metadata"]["benchmark_execution_mode"] = "benchmark_
 vector_gemv_small_n["backend_metadata"]["autotune_key"] = (
     vector_gemv_small_n["backend_metadata"]["autotune_key"]
     .replace(";m=16;", ";m=512;")
-    .replace(";n=16;", ";n=4;")
+    .replace(";n=16;", ";n=8;")
     .replace(";k=16;", ";k=512;")
     .replace("k_block_size=16;", "k_block_size=512;")
     .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1")

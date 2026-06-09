@@ -59,7 +59,7 @@ bool vector_gemv_n1_shape(int64_t n, int64_t k) {
 }
 
 bool vector_gemv_small_n_shape(int64_t n, int64_t k) {
-  return n > 1 && n <= 4 && k >= 512;
+  return n > 1 && n <= 8 && k >= 512;
 }
 
 const char* vector_i64_event_label(int64_t n, int64_t k) {

@@ -276,7 +276,7 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
 
   {
     const int64_t m = 3;
-    const int64_t n = 4;
+    const int64_t n = 8;
     const int64_t k = 512;
     std::vector<uint64_t> A(static_cast<std::size_t>(m * k));
     std::vector<uint64_t> B(static_cast<std::size_t>(k * n));

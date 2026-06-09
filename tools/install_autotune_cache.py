@@ -167,7 +167,7 @@ def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_
 
 def expected_vector_alu_kernel(semantic_contract: str, m: int, n: int, k: int) -> str | None:
     gemv_n1 = n == 1 and k >= 4096
-    gemv_small_n = 1 < n <= 4 and k >= 512
+    gemv_small_n = 1 < n <= 8 and k >= 512
     if semantic_contract == "bounded_i64":
         return (
             "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
