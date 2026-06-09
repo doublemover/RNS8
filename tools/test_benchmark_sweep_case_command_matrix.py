@@ -694,6 +694,69 @@ assert {
     for entry in native_bridge_entries
 } == {"native_i64_to_rns_kernel", "native_u64_to_rns_kernel"}
 
+exact_export_args = copy.copy(scenario_args)
+exact_export_args.backends = None
+exact_export_args.scenario = ["exact-wide-export"]
+exact_export_entries = benchmark_sweep.sweep_command_entries(exact_export_args)
+release_exact_export_entries = [
+    entry for entry in exact_export_entries if entry.scenario["review_mode_expectation"] == "release"
+]
+assert {entry.scenario["name"] for entry in release_exact_export_entries} == {
+    "signed-limbs4-512",
+    "unsigned-limbs4-512",
+    "signed-limbs4-1024",
+    "unsigned-limbs4-1024",
+}
+assert {entry.scenario["shape"]["m"] for entry in release_exact_export_entries} == {512, 1024}
+assert all(entry.scenario.get("exact_wide_limb_count") == 4 for entry in release_exact_export_entries)
+assert all(
+    entry.scenario.get("export_variant") == "exact-wide-fixed-limb-export"
+    for entry in release_exact_export_entries
+)
+assert {entry.scenario["shape"]["m"] for entry in exact_export_entries if entry.scenario["review_mode_expectation"] == "smoke"} == {
+    64,
+    128,
+    2048,
+}
+
+limb_variant_args = copy.copy(scenario_args)
+limb_variant_args.backends = None
+limb_variant_args.scenario = ["export-bound-limb-variants"]
+limb_variant_entries = benchmark_sweep.sweep_command_entries(limb_variant_args)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in limb_variant_entries)
+assert {entry.scenario["semantics"] for entry in limb_variant_entries} == {
+    "exact-wide-signed",
+    "exact-wide-unsigned",
+}
+assert {entry.scenario.get("exact_wide_limb_count") for entry in limb_variant_entries} == {
+    1,
+    2,
+    3,
+    4,
+    8,
+    16,
+    32,
+}
+assert "fixed_limb_export_zoo" in {entry.scenario.get("export_variant") for entry in limb_variant_entries}
+assert {
+    "compact-d2h-export-candidate",
+    "prefix20-fixed-export-candidate",
+    "status-elided-exact-proof-export-candidate",
+    "tree-crt-export-candidate",
+}.issubset({entry.scenario.get("export_variant") for entry in limb_variant_entries})
+
+reconstruction_args = copy.copy(scenario_args)
+reconstruction_args.backends = None
+reconstruction_args.scenario = ["reconstruction-zoo"]
+reconstruction_entries = benchmark_sweep.sweep_command_entries(reconstruction_args)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in reconstruction_entries)
+assert {
+    entry.scenario.get("reconstruction_variant") for entry in reconstruction_entries
+} == {
+    "experimental:garner_precomputed_constants",
+    "experimental:mixed_radix_fixed_prefix20",
+}
+
 many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
 many_small_args.scenario = ["many-small"]

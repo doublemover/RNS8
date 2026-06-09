@@ -190,7 +190,11 @@ inspection commands.
   remain unchanged. Release review now blocks accelerator final-output
   promotion when bounded/exact-wide captures omit exact-output,
   export-variant, or reconstruction-variant route identity, so raw RNS GEMM
-  wins cannot promote without CRT/export proof.
+  wins cannot promote without CRT/export proof. `exact-wide-export` now exposes
+  the 512 production candidates and 1024 export-bound rows as release evidence
+  while keeping 64/128 selector sanity and 2048 exploratory rows smoke-only;
+  `export-bound-limb-variants` and `reconstruction-zoo` are release-mode
+  evidence families.
 - Required evidence: `exact-wide-export`, `export-bound-limb-variants`, and
   `reconstruction-zoo` release captures with exact CPU parity, Direct HIP,
   hipBLASLt, CK, rocWMMA, and AMDGPU builtin comparators where built.

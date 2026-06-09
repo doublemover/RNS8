@@ -145,6 +145,24 @@ for item in native_bridge_items:
     assert item.native_to_rns_bridge is True
     assert item.metadata and item.metadata["selected_backend_requirement"] == "hip-direct"
 
+exact_export_items = catalog["exact-wide-export"]
+assert {
+    item.name for item in exact_export_items if item.review_mode_expectation == "release"
+} == {
+    "signed-limbs4-512",
+    "unsigned-limbs4-512",
+    "signed-limbs4-1024",
+    "unsigned-limbs4-1024",
+}
+assert {
+    item.case.m for item in exact_export_items if item.review_mode_expectation == "release"
+} == {512, 1024}
+assert {
+    item.case.m for item in exact_export_items if item.review_mode_expectation == "smoke"
+} == {64, 128, 2048}
+assert {item.review_mode_expectation for item in catalog["export-bound-limb-variants"]} == {"release"}
+assert {item.review_mode_expectation for item in catalog["reconstruction-zoo"]} == {"release"}
+
 bounded_rns_chain_release_items = [
     item
     for item in catalog["rns-chain"]
