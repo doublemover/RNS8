@@ -529,19 +529,21 @@ const char* bounded_uniform_small_i8_ab_transient_b_h2d_label() {
   return "bounded_uniform_small_i8_b_h2d";
 }
 
-const char* bounded_native_b_reuse_a_u64_large_colpair_kernel() {
-  return "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1";
+const char* bounded_native_b_reuse_a_large_colpair_kernel(const Args& args) {
+  return args.semantics == BenchSemantics::BoundedI64
+      ? "direct_hip_native_b_i64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
+      : "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1";
 }
 
-const char* bounded_native_b_reuse_a_u64_large_colpair_epilogue() {
+const char* bounded_native_b_reuse_a_large_colpair_epilogue() {
   return "resident_a_native_b_centered_residue_then_crt_export";
 }
 
-const char* bounded_native_b_reuse_a_u64_large_colpair_event_label() {
+const char* bounded_native_b_reuse_a_large_colpair_event_label() {
   return "bounded_native_b_colpair_reuse_a_gemm_kernel_group";
 }
 
-const char* bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label() {
+const char* bounded_native_b_reuse_a_large_colpair_pack_h2d_label() {
   return "bounded_native_b_h2d";
 }
 

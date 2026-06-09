@@ -215,9 +215,10 @@ DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_KERNELS = {
     "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0",
     "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_residue_channel_width3_experimental_v0",
 }
-DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_U64_LARGE_COLPAIR_KERNEL = (
-    "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
-)
+DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_KERNELS = {
+    "bounded_i64": "direct_hip_native_b_i64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
+    "bounded_u64": "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
+}
 DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_KERNELS = {
     "bounded_i64": "direct_hip_prefix9_rns_gemv_n1_i64_v1",
     "bounded_u64": "direct_hip_prefix9_rns_gemv_n1_u64_v1",

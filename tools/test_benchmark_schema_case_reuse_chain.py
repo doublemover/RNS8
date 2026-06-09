@@ -102,12 +102,12 @@ validate_capture(direct_hip_bounded_uniform_small_reuse_a)
 direct_hip_bounded_native_b_reuse_a = as_direct_hip_bounded_native_b_reuse_a_capture(v4_ck_i64)
 validate_capture(direct_hip_bounded_native_b_reuse_a)
 stale_native_b_reuse_a_kernel = copy.deepcopy(direct_hip_bounded_native_b_reuse_a)
-stale_native_b_kernel = "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
+stale_native_b_kernel = "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
 stale_native_b_reuse_a_kernel["selected_kernel"] = stale_native_b_kernel
 stale_native_b_reuse_a_kernel["backend_metadata"]["selected_kernel"] = stale_native_b_kernel
 stale_native_b_reuse_a_kernel["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
     (
-    "backend=hip-direct;semantics=bounded_u64;m=512;n=512;k=512;bound=16384;"
+    "backend=hip-direct;semantics=bounded_i64;m=512;n=512;k=512;bound=16384;"
     "input_profile=adaptive-bands;"
     "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
     "execution=transient_native_b_resident_a_reuse;"

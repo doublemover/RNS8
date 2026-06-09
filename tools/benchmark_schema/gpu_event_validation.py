@@ -223,7 +223,7 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     "direct-HIP bounded uniform-small reuse-A GPU event phase order must match the operation order"
                 )
         return
-    if self._is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture():
+    if self._is_direct_hip_bounded_native_b_reuse_a_large_colpair_capture():
         expected = [
             "pack_h2d",
             "pack_kernel",

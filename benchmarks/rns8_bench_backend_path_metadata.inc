@@ -20,8 +20,8 @@ bool bounded_uniform_small_i8_ab_reuse_a_path(const Args& args, const BenchmarkR
          !result.schedule_info.adaptive_skip_active;
 }
 
-bool bounded_native_b_reuse_a_u64_large_colpair_path(const Args& args, const BenchmarkResult& result) {
-  return bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
+bool bounded_native_b_reuse_a_large_colpair_path(const Args& args, const BenchmarkResult& result) {
+  return bounded_native_b_reuse_a_large_colpair_requested(args) &&
          result.backend_info_available && result.backend_info.backend == RNS8_BACKEND_HIP_DIRECT &&
          result.schedule_info_available &&
          result.schedule_info.min_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
@@ -124,8 +124,8 @@ const char* benchmark_execution_mode_name(const Args& args, const BenchmarkResul
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args) && !bounded_uniform_small_i8_ab_reuse_a_path(args, result)) {
     return "persistent_resident_matrices";
   }
-  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
-      !bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+  if (bounded_native_b_reuse_a_large_colpair_requested(args) &&
+      !bounded_native_b_reuse_a_large_colpair_path(args, result)) {
     return "persistent_resident_matrices";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args) && !bounded_uniform_small_i8_ab_transient_path(args, result)) {
@@ -150,8 +150,8 @@ const char* backend_metadata_source(const Args& args, const BenchmarkResult& res
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args) && !bounded_uniform_small_i8_ab_reuse_a_path(args, result)) {
     return "rns8_get_plan_backend_info";
   }
-  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args) &&
-      !bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+  if (bounded_native_b_reuse_a_large_colpair_requested(args) &&
+      !bounded_native_b_reuse_a_large_colpair_path(args, result)) {
     return "rns8_get_plan_backend_info";
   }
   if (bounded_uniform_small_i8_ab_transient_requested(args) && !bounded_uniform_small_i8_ab_transient_path(args, result)) {
@@ -431,12 +431,12 @@ void apply_bounded_uniform_small_i8_ab_reuse_a_backend_metadata(
 }
 
 void apply_bounded_native_b_reuse_a_backend_metadata(const Args& args, BenchmarkResult& result, uint64_t bound) {
-  if (!bounded_native_b_reuse_a_u64_large_colpair_path(args, result)) {
+  if (!bounded_native_b_reuse_a_large_colpair_path(args, result)) {
     return;
   }
   result.backend_info.performance_validated = 0;
-  const char* kernel = bounded_native_b_reuse_a_u64_large_colpair_kernel();
-  const char* epilogue = bounded_native_b_reuse_a_u64_large_colpair_epilogue();
+  const char* kernel = bounded_native_b_reuse_a_large_colpair_kernel(args);
+  const char* epilogue = bounded_native_b_reuse_a_large_colpair_epilogue();
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(result.backend_info.epilogue_mode, sizeof(result.backend_info.epilogue_mode), epilogue);
   set_backend_text(

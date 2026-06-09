@@ -188,7 +188,7 @@ def validate_backend_metadata(self: Any) -> None:
         else "rns8_bench_uniform_small_i8_ab_reuse_a_path"
         if self._is_direct_hip_bounded_uniform_small_reuse_a_capture()
         else "rns8_bench_native_b_reuse_a_path"
-        if self._is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture()
+        if self._is_direct_hip_bounded_native_b_reuse_a_large_colpair_capture()
         else "rns8_bench_skinny_gemv_small_n_path"
         if self._is_direct_hip_bounded_skinny_gemv_small_n_capture()
         else "rns8_bench_skinny_gemv_n1_path"

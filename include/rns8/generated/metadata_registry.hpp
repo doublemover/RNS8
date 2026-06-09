@@ -160,7 +160,7 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 71> selected_kernels{{
+inline constexpr std::array<std::string_view, 72> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -189,6 +189,7 @@ inline constexpr std::array<std::string_view, 71> selected_kernels{{
     "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
     "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "direct_hip_native_b_i64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
     "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1",
     "direct_hip_native_finite_u8_gemm_mod251_v1",
     "direct_hip_native_finite_u8_gemm_mod255_v1",

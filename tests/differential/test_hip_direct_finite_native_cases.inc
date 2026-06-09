@@ -325,13 +325,17 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
             RNS8_SUCCESS);
 
     rns8_plan* hip_plan = nullptr;
+    rns8_matrix* hip_a = nullptr;
     rns8_matrix* hip_b = nullptr;
     rns8_matrix* hip_c = nullptr;
     REQUIRE(rns8_create_plan(hip, &hip_desc, &hip_plan) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
     auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS);
+    REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_i64(hip, hip_a, A.data(), lda, 1) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_i64(hip, hip_b, B.data(), ldb, 2) == RNS8_SUCCESS);
 
     void* d_a = nullptr;
@@ -371,6 +375,33 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
     CHECK(has_timing_label(uniform_small_events, "bounded_uniform_small_native_a_reuse_b_gemm_kernel_group"));
     CHECK_FALSE(has_timing_label(uniform_small_events, "bounded_native_a_reuse_b_gemm_kernel_group"));
     CHECK(hip_c->source_version == 7);
+
+    REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t col = 0; col < n; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] ==
+              cpu_out[static_cast<std::size_t>(row * ldc + col)]);
+      }
+      for (int64_t col = n; col < ldc; ++col) {
+        CHECK(hip_out[static_cast<std::size_t>(row * ldc + col)] == -999);
+      }
+    }
+
+    void* d_b = nullptr;
+    const std::size_t b_bytes = static_cast<std::size_t>(k * ldb) * sizeof(int64_t);
+    REQUIRE(rns8::detail::hip_direct_allocate(0, b_bytes, &d_b) == RNS8_SUCCESS);
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, d_b, B.data(), b_bytes) == RNS8_SUCCESS);
+
+    std::fill(hip_out.begin(), hip_out.end(), -999);
+    rns8::detail::hip_direct_timing_set_enabled(true);
+    rns8::detail::hip_direct_timing_reset();
+    REQUIRE(rns8::detail::hip_direct_gemm_i64_resident_a_native_b_prefix9_colpair_matrix(
+                0, hip_a, d_b, hip_c, m, n, k, ldb, 17) == RNS8_SUCCESS);
+    const auto hip_native_b_colpair_events = rns8::detail::hip_direct_timing_snapshot();
+    rns8::detail::hip_direct_timing_set_enabled(false);
+    CHECK(has_timing_label(hip_native_b_colpair_events, "bounded_native_b_colpair_reuse_a_gemm_kernel_group"));
+    CHECK_FALSE(has_timing_label(hip_native_b_colpair_events, "bounded_native_a_colpair_reuse_b_gemm_kernel_group"));
+    CHECK(hip_c->source_version == 17);
 
     REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
@@ -511,9 +542,11 @@ TEST_CASE("direct HIP bounded native A resident B path matches CPU") {
 
     CHECK(rns8::detail::hip_direct_free(0, d_b_i8) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a_i8) == RNS8_SUCCESS);
+    CHECK(rns8::detail::hip_direct_free(0, d_b) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_free(0, d_a) == RNS8_SUCCESS);
     rns8_destroy_matrix(hip_c);
     rns8_destroy_matrix(hip_b);
+    rns8_destroy_matrix(hip_a);
     rns8_destroy_plan(hip_plan);
   }
 

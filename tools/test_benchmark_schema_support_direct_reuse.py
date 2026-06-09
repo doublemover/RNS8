@@ -481,12 +481,17 @@ def as_direct_hip_bounded_uniform_small_reuse_a_capture(capture: dict) -> dict:
 def as_direct_hip_bounded_native_b_reuse_a_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
-    kernel = "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
+    semantics = reused["semantics"]
+    signed = semantics == "bounded_i64"
+    kernel = (
+        "direct_hip_native_b_i64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
+        if signed
+        else "direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1"
+    )
     epilogue = "resident_a_native_b_centered_residue_then_crt_export"
     gemm_event = "bounded_native_b_colpair_reuse_a_gemm_kernel_group"
-    reused["semantics"] = "bounded_u64"
-    reused["bound_kind"] = "global_max_unsigned"
-    reused["input_distribution"] = "unsigned_adaptive_bands_0_16"
+    reused["bound_kind"] = "global_max_abs" if signed else "global_max_unsigned"
+    reused["input_distribution"] = "signed_adaptive_bands_-16_16" if signed else "unsigned_adaptive_bands_0_16"
     reused["m"] = 512
     reused["n"] = 512
     reused["k"] = 512
@@ -508,7 +513,7 @@ def as_direct_hip_bounded_native_b_reuse_a_capture(capture: dict) -> dict:
     apply_int32_accumulator_contract(reused)
     reused["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_u64;m=512;n=512;k=512;bound=16384;"
+        f"backend=hip-direct;semantics={semantics};m=512;n=512;k=512;bound=16384;"
         "input_profile=adaptive-bands;"
         "prefix=9;tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
         "execution=transient_native_b_resident_a_reuse;"

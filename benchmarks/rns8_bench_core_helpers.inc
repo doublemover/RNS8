@@ -202,8 +202,8 @@ bool bounded_uniform_small_i8_ab_reuse_a_requested(const Args& args) {
          (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
 }
 
-bool bounded_native_b_reuse_a_u64_large_colpair_requested(const Args& args) {
-  return !args.oneshot && args.semantics == BenchSemantics::BoundedU64 && args.reuse_packed_a &&
+bool bounded_native_b_reuse_a_large_colpair_requested(const Args& args) {
+  return !args.oneshot && bounded_benchmark_semantics(args.semantics) && args.reuse_packed_a &&
          !args.reuse_packed_b && args.backend == RNS8_BACKEND_HIP_DIRECT &&
          args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
          args.input_profile != InputProfile::UniformSmall &&
@@ -286,7 +286,7 @@ const char* backend_metadata_source(const Args& args) {
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
     return "rns8_bench_uniform_small_i8_ab_reuse_a_path";
   }
-  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args)) {
+  if (bounded_native_b_reuse_a_large_colpair_requested(args)) {
     return "rns8_bench_native_b_reuse_a_path";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&
@@ -616,7 +616,7 @@ const char* benchmark_execution_mode_name(const Args& args) {
   if (bounded_uniform_small_i8_ab_reuse_a_requested(args)) {
     return "transient_uniform_small_i8_b_resident_i8_a_reuse";
   }
-  if (bounded_native_b_reuse_a_u64_large_colpair_requested(args)) {
+  if (bounded_native_b_reuse_a_large_colpair_requested(args)) {
     return "transient_native_b_resident_a_reuse";
   }
   if (finite_benchmark_semantics(args.semantics) && args.reuse_packed_b && !args.reuse_packed_a &&

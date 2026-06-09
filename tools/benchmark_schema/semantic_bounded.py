@@ -310,12 +310,12 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
                             "direct-HIP bounded uniform-small transient backend_metadata.autotune_key "
                             f"must include {key}={value}"
                         )
-    if self._is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture():
+    if self._is_direct_hip_bounded_native_b_reuse_a_large_colpair_capture():
         if bound_mode != "global":
             self._error("direct-HIP bounded native-B reuse-A captures must use bound_mode=global")
         if residue_chain_length != 1 or residue_output_mode != "host_export":
             self._error("direct-HIP bounded native-B reuse-A captures must use host_export residue_chain_length=1")
-        expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_U64_LARGE_COLPAIR_KERNEL
+        expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_KERNELS[semantics]
         expected_epilogue = DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(

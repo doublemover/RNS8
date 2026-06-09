@@ -501,12 +501,12 @@ void collect_bounded_uniform_small_i8_ab_transient_gemm_gpu_events(GpuEventSampl
 void collect_bounded_native_b_reuse_a_pack_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
   double h2d = 0.0;
-  if (!sum_event_label_if_present(samples, bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label(), h2d) &&
+  if (!sum_event_label_if_present(samples, bounded_native_b_reuse_a_large_colpair_pack_h2d_label(), h2d) &&
       !sum_event_label_if_present(samples, "residue_h2d_sync", h2d)) {
     add_unavailable_reason(
         events,
         std::string("pack missing backend HIP event label ") +
-            bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label() + " or residue_h2d_sync");
+            bounded_native_b_reuse_a_large_colpair_pack_h2d_label() + " or residue_h2d_sync");
   }
   if (events.complete) {
     push_gpu_event_value(events, "pack_h2d", h2d);
@@ -517,7 +517,7 @@ void collect_bounded_native_b_reuse_a_pack_gpu_events(GpuEventSamples& events) {
 
 void collect_bounded_native_b_reuse_a_gemm_gpu_events(GpuEventSamples& events) {
   const auto samples = rns8::detail::hip_direct_timing_snapshot();
-  const char* label = bounded_native_b_reuse_a_u64_large_colpair_event_label();
+  const char* label = bounded_native_b_reuse_a_large_colpair_event_label();
   const double kernel = sum_event_label(events, samples, "rns_gemm", label);
   if (events.complete) {
     push_gpu_event_value(events, label, kernel);

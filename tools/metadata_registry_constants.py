@@ -550,6 +550,7 @@ SELECTED_KERNELS = {
     'direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1',
     'direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2',
     'direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1',
+    'direct_hip_native_b_i64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1',
     'direct_hip_native_b_u64_colpair_prefix9_reuse_a_grouped_rns_gemm_v1',
     'direct_hip_native_finite_u8_gemm_mod251_v1',
     'direct_hip_native_finite_u8_gemm_mod255_v1',

@@ -282,6 +282,18 @@ extern "C" int rns8_hip_direct_ring_gemm_u64_native_a_resident_b_prefix9_colpair
     int ldc,
     int safe_k_block);
 
+extern "C" int rns8_hip_direct_ring_gemm_i64_resident_a_native_b_prefix9_colpair_device(
+    const int8_t* d_a,
+    const int64_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block);
+
 extern "C" int rns8_hip_direct_ring_gemm_u64_resident_a_native_b_prefix9_colpair_device(
     const int8_t* d_a,
     const uint64_t* d_b,

@@ -43,7 +43,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   const bool use_sparse_a_4_to_2 = rns_sparse_a_4_to_2_path(args, result);
   const bool use_native_a_reuse_b = bounded_native_a_reuse_b_path(args, result);
-  const bool use_native_b_reuse_a = bounded_native_b_reuse_a_u64_large_colpair_path(args, result);
+  const bool use_native_b_reuse_a = bounded_native_b_reuse_a_large_colpair_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_a = bounded_uniform_small_i8_ab_reuse_a_path(args, result);
   const bool use_uniform_small_i8_ab_reuse_b =
       use_native_a_reuse_b && bounded_native_a_reuse_b_uniform_small_a(args);
@@ -301,7 +301,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     } else if (use_native_b_reuse_a) {
       begin_gpu_event_phase(collect_gpu_events);
       const auto pack_b_start = std::chrono::steady_clock::now();
-      status = run_timed_status_operation(bounded_native_b_reuse_a_u64_large_colpair_pack_h2d_label(), [&]() {
+      status = run_timed_status_operation(bounded_native_b_reuse_a_large_colpair_pack_h2d_label(), [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(args.device_id, native_b.ptr, B.data(), native_b_bytes);
       });
       if (status != RNS8_SUCCESS) fail_status("hip_direct_copy_host_to_device(bounded u64 native B)", status);

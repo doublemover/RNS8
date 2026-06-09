@@ -235,10 +235,10 @@ class ValidatorPredicatesMixin:
             and self._benchmark_execution_mode() == "residue_chain_independent_final_host_export"
         )
 
-    def _is_direct_hip_bounded_native_b_reuse_a_u64_large_colpair_capture(self) -> bool:
+    def _is_direct_hip_bounded_native_b_reuse_a_large_colpair_capture(self) -> bool:
         return (
             self.data.get("backend_selected") == "hip-direct"
-            and self.data.get("semantics") == "bounded_u64"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
             and self.data.get("pack_mode") == "prepacked_reuse_a"
             and self.data.get("prepack_reuse_strategy") == "persistent_matrix_residency"
             and self._benchmark_execution_mode() == "transient_native_b_resident_a_reuse"
