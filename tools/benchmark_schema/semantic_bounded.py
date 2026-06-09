@@ -129,8 +129,8 @@ def validate_bounded_contract(self, ctx: dict[str, Any]) -> None:
             if uniform_small
             else DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS[semantics]
         )
-        if self._is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair():
-            expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_U64_LARGE_COLPAIR_KERNEL
+        if self._is_direct_hip_bounded_native_a_reuse_b_large_colpair():
+            expected_kernel = DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_LARGE_COLPAIR_KERNELS[semantics]
         expected_epilogue = (
             DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE
             if uniform_small

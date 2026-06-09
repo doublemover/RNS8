@@ -449,8 +449,10 @@ const char* bounded_native_a_reuse_b_kernel(const Args& args) {
   if (bounded_native_a_reuse_b_uniform_small_a(args)) {
     return "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
   }
-  if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
-    return "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
+  if (bounded_native_a_reuse_b_large_colpair(args)) {
+    return args.semantics == BenchSemantics::BoundedI64
+        ? "direct_hip_native_a_i64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
+        : "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2";
   }
   return args.semantics == BenchSemantics::BoundedI64
       ? "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1"
@@ -467,7 +469,7 @@ const char* bounded_native_a_reuse_b_event_label(const Args& args) {
   if (bounded_native_a_reuse_b_uniform_small_a(args)) {
     return "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group";
   }
-  if (bounded_native_a_reuse_b_u64_large_colpair(args)) {
+  if (bounded_native_a_reuse_b_large_colpair(args)) {
     return "bounded_native_a_colpair_reuse_b_gemm_kernel_group";
   }
   return "bounded_native_a_reuse_b_gemm_kernel_group";

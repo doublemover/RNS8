@@ -188,8 +188,8 @@ bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
   return args.input_profile == InputProfile::UniformSmall;
 }
 
-bool bounded_native_a_reuse_b_u64_large_colpair(const Args& args) {
-  return args.semantics == BenchSemantics::BoundedU64 && !bounded_native_a_reuse_b_uniform_small_a(args) &&
+bool bounded_native_a_reuse_b_large_colpair(const Args& args) {
+  return bounded_benchmark_semantics(args.semantics) && !bounded_native_a_reuse_b_uniform_small_a(args) &&
          args.m >= 512 && args.n >= 512 && args.k >= 512;
 }
 

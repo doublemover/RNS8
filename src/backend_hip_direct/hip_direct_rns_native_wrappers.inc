@@ -664,6 +664,31 @@ extern "C" int rns8_hip_direct_ring_gemm_i64_native_a_resident_b_prefix9_device(
           d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block));
 }
 
+extern "C" int rns8_hip_direct_ring_gemm_i64_native_a_resident_b_prefix9_colpair_device(
+    const int64_t* d_a,
+    const int8_t* d_b,
+    int8_t* d_c,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int safe_k_block) {
+  if (!d_a || !d_b || !d_c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      safe_k_block <= 0 || safe_k_block > kRns8SafeInt32KBlock) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int64_t max_grouped_plane_elements = kRns8MaxInt64 / kRns8DefaultBoundedPrefix;
+  if (static_cast<int64_t>(m) > max_grouped_plane_elements / static_cast<int64_t>(ldc) ||
+      static_cast<int64_t>(k) > max_grouped_plane_elements / static_cast<int64_t>(ldb)) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  return static_cast<int>(
+      launch_native_a_resident_b_prefix9_colpair_grouped_gemm<int64_t, false>(
+          d_a, d_b, d_c, m, n, k, lda, ldb, ldc, safe_k_block));
+}
+
 extern "C" int rns8_hip_direct_ring_gemm_i64_uniform_small_native_a_resident_b_prefix9_device(
     const int64_t* d_a,
     const int8_t* d_b,

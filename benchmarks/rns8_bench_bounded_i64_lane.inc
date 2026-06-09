@@ -402,6 +402,20 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix", status);
         }
+      } else if (use_native_a_reuse_b && bounded_native_a_reuse_b_large_colpair(args)) {
+        status = rns8::detail::hip_direct_gemm_i64_native_a_resident_b_prefix9_colpair_matrix(
+            args.device_id,
+            native_a.ptr,
+            b_matrix,
+            c_matrix,
+            args.m,
+            args.n,
+            args.k,
+            args.k,
+            source_version);
+        if (status != RNS8_SUCCESS) {
+          fail_status("hip_direct_gemm_i64_native_a_resident_b_prefix9_colpair_matrix", status);
+        }
       } else if (use_native_b_reuse_a) {
         status = rns8::detail::hip_direct_gemm_i64_resident_a_native_b_prefix9_colpair_matrix(
             args.device_id,

@@ -127,9 +127,9 @@ class ValidatorPredicatesMixin:
             or (semantics == "bounded_u64" and distribution == "unsigned_uniform_0_16")
         )
 
-    def _is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair(self) -> bool:
+    def _is_direct_hip_bounded_native_a_reuse_b_large_colpair(self) -> bool:
         return (
-            self.data.get("semantics") == "bounded_u64"
+            self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
             and not self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
             and _is_int(self.data.get("m"))
             and _is_int(self.data.get("n"))

@@ -196,9 +196,10 @@ DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "bounded_u64": "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
 }
-DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_U64_LARGE_COLPAIR_KERNEL = (
-    "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2"
-)
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_LARGE_COLPAIR_KERNELS = {
+    "bounded_i64": "direct_hip_native_a_i64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
+    "bounded_u64": "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
+}
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_KERNELS = {
     "bounded_i64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
     "bounded_u64": "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",

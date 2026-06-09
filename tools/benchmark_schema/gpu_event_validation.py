@@ -160,7 +160,7 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             if self._is_direct_hip_bounded_native_a_reuse_b_uniform_small()
             else "bounded_native_a_reuse_b_gemm_kernel_group"
         )
-        if self._is_direct_hip_bounded_native_a_reuse_b_u64_large_colpair():
+        if self._is_direct_hip_bounded_native_a_reuse_b_large_colpair():
             gemm_event = "bounded_native_a_colpair_reuse_b_gemm_kernel_group"
         expected = [
             "pack_h2d",

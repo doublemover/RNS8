@@ -64,6 +64,7 @@
     "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3",
     "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
     "direct_hip_native_a_i64_prefix9_reuse_b_grouped_rns_gemm_v1",
+    "direct_hip_native_a_i64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
     "direct_hip_native_a_u64_prefix9_reuse_b_grouped_rns_gemm_v1",
     "direct_hip_native_a_u64_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
     "direct_hip_uniform_small_i8_ab_colpair_prefix9_reuse_b_grouped_rns_gemm_v2",
