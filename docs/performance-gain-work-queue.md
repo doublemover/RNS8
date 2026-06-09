@@ -323,11 +323,14 @@ inspection commands.
   GEMM, residue reduction/export, status, and D2H on explicit streams where
   safe; reject paths with unstable handles, scratch, or source versions.
 - Local status: benchmark schema validation now requires full-path bounded,
-  finite-u8, and wrap64 graph replay captures to carry ordered pack, GEMM,
-  export, and end-to-end phase metadata. The phase notes must explicitly name
-  the graph-covered pack/GEMM/export/status/D2H work for the relevant semantic
-  path, so a wall-clock graph row cannot pass as full-path evidence while
-  omitting export/status or output-transfer coverage.
+  exact-wide, finite-u8, and wrap64 graph replay captures to carry ordered
+  pack, GEMM, export, and end-to-end phase metadata. The phase notes must
+  explicitly name the graph-covered pack/GEMM/export/status/D2H work for the
+  relevant semantic path, so a wall-clock graph row cannot pass as full-path
+  evidence while omitting export/status or output-transfer coverage. Direct-HIP
+  exact-wide signed/unsigned host-output graph replay now captures native pack,
+  RNS GEMM, fixed-width limb export, status D2H, and output D2H with explicit
+  schema, sweep, review, and graph-report coverage.
 - Required evidence: graph/non-graph same-contract release groups with event
   labels and setup-inclusive break-even analysis.
 - Do not promote: graph-only rows or graph captures without same-contract
