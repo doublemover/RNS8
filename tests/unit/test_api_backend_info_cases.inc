@@ -81,7 +81,7 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
       "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
 }
 
-TEST_CASE("Direct HIP bounded N=1 plans report skinny GEMV route metadata") {
+TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   rns8_plan plan{};
   plan.backend = RNS8_BACKEND_HIP_DIRECT;
   plan.prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -106,6 +106,23 @@ TEST_CASE("Direct HIP bounded N=1 plans report skinny GEMV route metadata") {
       "direct_hip_prefix9_rns_gemv_n1_u64_v1");
 
   plan.desc.n = 2;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_rns_gemv_small_n_u64_v1");
+  CHECK(
+      rns8::detail::api::epilogue_mode_for_plan(plan) ==
+      "resident_rns_gemv_small_n_centered_residue_then_crt_export");
+  CHECK(
+      rns8::detail::api::workspace_mode_for_plan(plan) ==
+      "resident_rns_inputs_skinny_n_le4_output");
+
+  plan.desc.semantics = RNS8_BOUNDED_I64;
+  plan.desc.n = 4;
+  CHECK(
+      rns8::detail::api::selected_kernel_for_plan(plan) ==
+      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
+
+  plan.desc.n = 5;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
       "direct_hip_prefix9_grouped_rns_gemm_v1");

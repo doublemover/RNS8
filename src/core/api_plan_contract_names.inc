@@ -58,6 +58,15 @@ bool direct_hip_bounded_skinny_gemv_n1_plan(const rns8_plan& plan) {
          (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64);
 }
 
+bool direct_hip_bounded_skinny_gemv_small_n_plan(const rns8_plan& plan) {
+  return plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+         plan.tile_schedule.empty() &&
+         plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
+         plan.desc.n > 1 &&
+         plan.desc.n <= 4 &&
+         (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64);
+}
+
 std::string selected_kernel_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return uses_finite_storage(plan.desc.semantics) ? "cpu_reference_finite_u8_gemm_v1"
@@ -85,6 +94,10 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
     if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
       return plan.desc.semantics == RNS8_BOUNDED_I64 ? "direct_hip_prefix9_rns_gemv_n1_i64_v1"
                                                      : "direct_hip_prefix9_rns_gemv_n1_u64_v1";
+    }
+    if (direct_hip_bounded_skinny_gemv_small_n_plan(plan)) {
+      return plan.desc.semantics == RNS8_BOUNDED_I64 ? "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
+                                                     : "direct_hip_prefix9_rns_gemv_small_n_u64_v1";
     }
     if (plan.tile_schedule.empty() && plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
         (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64)) {
@@ -177,6 +190,9 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
   if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
     return "resident_rns_gemv_n1_centered_residue_then_crt_export";
   }
+  if (direct_hip_bounded_skinny_gemv_small_n_plan(plan)) {
+    return "resident_rns_gemv_small_n_centered_residue_then_crt_export";
+  }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     if (uses_finite_storage(plan.desc.semantics)) {
       return "separate_i32_scratch_reduce_then_canonical_u8_export";
@@ -226,6 +242,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
       return "resident_rns_inputs_skinny_n1_output";
+    }
+    if (direct_hip_bounded_skinny_gemv_small_n_plan(plan)) {
+      return "resident_rns_inputs_skinny_n_le4_output";
     }
     return plan.tile_schedule.empty() ? "resident_device_buffers"
                                       : "resident_device_buffers_with_active_prefix_tiled_schedule";
