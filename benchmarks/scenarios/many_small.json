@@ -29,7 +29,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -63,7 +63,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "oneshot": true,
       "metadata": {
@@ -101,7 +101,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 64,
       "metadata": {
@@ -141,7 +141,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251,
@@ -183,7 +183,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
@@ -228,7 +228,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -266,7 +266,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 32,
       "metadata": {
@@ -306,7 +306,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -344,7 +344,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 32,
       "metadata": {
@@ -385,7 +385,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -423,7 +423,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 64,
       "metadata": {
@@ -463,7 +463,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -501,7 +501,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 128,
       "metadata": {
@@ -542,7 +542,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -583,7 +583,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -626,7 +626,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -667,7 +667,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -710,7 +710,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -751,7 +751,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -794,7 +794,7 @@
         "rocwmma",
         "amdgpu-builtins"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -835,7 +835,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4

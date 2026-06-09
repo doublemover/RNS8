@@ -797,7 +797,9 @@ inspection commands.
   smoke-only and now cover bounded signed/unsigned, exact-wide signed/unsigned,
   finite-ring, and finite-field grouped task execution. They remain
   evidence-only until same-contract independent and host-batch baselines prove
-  setup-inclusive wins.
+  setup-inclusive wins. `many-small` and `small-oneshot` release candidates are
+  now release-mode evidence as well, preserving host-batch, one-shot, and
+  persistent small-shape distinctions for the grouped-task review.
 - Required evidence: `grouped-dispatch`, `many-small`, `small-oneshot`, and
   repeated workload release captures.
 - Constraint: grouped APIs must not perform hidden host packing, hidden AUTO

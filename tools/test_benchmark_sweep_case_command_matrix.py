@@ -794,6 +794,7 @@ many_small_args.scenario = ["many-small"]
 many_small_entries = benchmark_sweep.sweep_command_entries(many_small_args)
 assert len(many_small_entries) == 22
 assert all(entry.scenario["family"] == "many-small" for entry in many_small_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in many_small_entries)
 assert {entry.scenario["name"] for entry in many_small_entries} == {
     "bounded-i64-32-proxy",
     "bounded-i64-32-host-batch64",
@@ -842,6 +843,33 @@ assert all(
     for entry in many_small_entries
     if entry.scenario.get("host_api_batch_size", 1) > 1
 )
+
+small_oneshot_args = copy.copy(scenario_args)
+small_oneshot_args.backends = None
+small_oneshot_args.scenario = ["small-oneshot"]
+small_oneshot_entries = benchmark_sweep.sweep_command_entries(small_oneshot_args)
+assert [entry.scenario["name"] for entry in small_oneshot_entries] == [
+    "bounded-i64-64-persistent",
+    "bounded-i64-64-persistent",
+    "bounded-i64-64-persistent",
+    "bounded-i64-64-oneshot",
+    "bounded-i64-64-oneshot",
+    "bounded-u64-128-persistent",
+    "bounded-u64-128-persistent",
+    "bounded-u64-128-persistent",
+    "bounded-u64-128-oneshot",
+    "bounded-u64-128-oneshot",
+]
+assert all(entry.scenario["family"] == "small-oneshot" for entry in small_oneshot_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in small_oneshot_entries)
+assert any("--oneshot" in entry.command for entry in small_oneshot_entries)
+assert any("--oneshot" not in entry.command for entry in small_oneshot_entries)
+assert {
+    entry.scenario["backend"] for entry in small_oneshot_entries if not entry.scenario.get("oneshot")
+} == {"cpu", "hip-direct", "amdgpu-builtins"}
+assert {
+    entry.scenario["backend"] for entry in small_oneshot_entries if entry.scenario.get("oneshot")
+} == {"cpu", "hip-direct"}
 
 grouped_dispatch_args = copy.copy(scenario_args)
 grouped_dispatch_args.backends = ["hip-direct"]

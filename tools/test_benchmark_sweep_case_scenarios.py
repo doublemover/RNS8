@@ -499,6 +499,18 @@ assert {item.review_mode_expectation for item in grouped_items} == {"release"}
 assert {item.promotion_eligibility for item in grouped_items} == {"grouped_dispatch_evidence_only"}
 assert any(item.semantics == "finite-u8-ring" for item in grouped_items)
 assert any(item.semantics == "finite-u8-field" for item in grouped_items)
+many_small_items = catalog["many-small"]
+assert many_small_items
+assert {item.review_mode_expectation for item in many_small_items} == {"release"}
+assert {item.promotion_eligibility for item in many_small_items} == {"release_review_candidate"}
+assert any(item.host_api_batch_size > 1 for item in many_small_items)
+assert any(item.oneshot for item in many_small_items)
+small_oneshot_items = catalog["small-oneshot"]
+assert small_oneshot_items
+assert {item.review_mode_expectation for item in small_oneshot_items} == {"release"}
+assert {item.promotion_eligibility for item in small_oneshot_items} == {"release_review_candidate"}
+assert any(item.oneshot for item in small_oneshot_items)
+assert any(not item.oneshot for item in small_oneshot_items)
 grouped_item = grouped_items[0]
 grouped_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, grouped_item)
 grouped_command = benchmark_sweep.command_for(
