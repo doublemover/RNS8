@@ -97,6 +97,23 @@ for item in repeated_b_items:
     if item.promotion_eligibility == "reuse_contract_evidence_only":
         assert item.metadata and item.metadata["promotion_scope"] == "reuse_contract_evidence_only"
 
+reuse_contract_items = catalog["reuse-contract"]
+assert {item.review_mode_expectation for item in reuse_contract_items} == {"release"}
+assert {item.promotion_eligibility for item in reuse_contract_items} == {
+    "baseline_only",
+    "explicit_reuse_contract_only",
+}
+assert {item.pack_mode for item in reuse_contract_items} == {
+    "per_repeat_repack",
+    "prepacked_reuse_a",
+    "prepacked_reuse_b",
+    "prepacked_reuse",
+}
+assert {item.case.m for item in reuse_contract_items} == {1024, 2048}
+assert {
+    item.metadata["reuse_contract_role"] for item in reuse_contract_items
+} == {"nonreuse_baseline", "stable_a_candidate", "stable_b_candidate", "stable_ab_candidate"}
+
 skinny_items = catalog["skinny-gemv"]
 assert skinny_items
 assert {item.case.n for item in skinny_items} == {1, 4, 8}

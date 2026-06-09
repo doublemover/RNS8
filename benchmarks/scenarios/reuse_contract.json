@@ -28,7 +28,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -64,7 +64,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -101,7 +101,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "prefix_policy": "fixed-requested",
@@ -140,7 +140,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "prefix_policy": "fixed-requested",
@@ -180,7 +180,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
@@ -219,7 +219,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "prefix_policy": "fixed-requested",
@@ -259,7 +259,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "prefix_policy": "fixed-requested",
@@ -298,7 +298,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "prefix_policy": "fixed-requested",
@@ -338,7 +338,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -372,7 +372,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "metadata": {
         "workflow_name": "reuse_contract_release_matrix",
@@ -407,7 +407,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "metadata": {
@@ -444,7 +444,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_a",
       "metadata": {
@@ -482,7 +482,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
@@ -519,7 +519,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse_b",
       "metadata": {
@@ -557,7 +557,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "metadata": {
@@ -594,7 +594,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "explicit_reuse_contract_only",
       "pack_mode": "prepacked_reuse",
       "metadata": {

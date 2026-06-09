@@ -273,7 +273,9 @@ inspection commands.
   The production `repeated-b` scenario family now includes bounded-u64 512 and
   1024 release baselines plus matching rocWMMA prepacked-B candidates, so the
   public B-cache gate exercises both bounded signed and unsigned contracts
-  setup-inclusively.
+  setup-inclusively. The broader `reuse-contract` matrix is now release-mode
+  evidence too, covering non-reuse baselines plus stable-A, stable-B, and
+  stable-A+B explicit reuse contracts at 1024 and 2048.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

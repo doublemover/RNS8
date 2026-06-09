@@ -473,6 +473,7 @@ reuse_contract_args.scenario = ["reuse-contract"]
 reuse_contract_entries = benchmark_sweep.sweep_command_entries(reuse_contract_args)
 assert len(reuse_contract_entries) == 16
 assert {entry.scenario["family"] for entry in reuse_contract_entries} == {"reuse-contract"}
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in reuse_contract_entries)
 assert {entry.scenario["semantics"] for entry in reuse_contract_entries} == {"bounded-i64", "bounded-u64"}
 assert {entry.scenario["shape"]["m"] for entry in reuse_contract_entries} == {1024, 2048}
 assert {entry.scenario["pack_mode"] for entry in reuse_contract_entries} == {
