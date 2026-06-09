@@ -353,6 +353,25 @@ assert all(
     if "--transient-uniform-small-inputs" not in entry.command
 )
 
+multi_modulus_args = copy.copy(scenario_args)
+multi_modulus_args.backends = None
+multi_modulus_args.scenario = ["multi-modulus-pack"]
+multi_modulus_entries = benchmark_sweep.sweep_command_entries(multi_modulus_args)
+assert [entry.scenario["name"] for entry in multi_modulus_entries] == [
+    "bounded-i64-prefix3",
+    "bounded-i64-prefix5",
+    "bounded-i64-prefix9",
+    "exact-wide-prefix20",
+]
+assert all(entry.scenario["family"] == "multi-modulus-pack" for entry in multi_modulus_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in multi_modulus_entries)
+assert all("--prefix-policy" in entry.command and "fixed-requested" in entry.command for entry in multi_modulus_entries)
+assert all("--max-prefix" in entry.command for entry in multi_modulus_entries)
+assert {
+    entry.command[entry.command.index("--max-prefix") + 1] for entry in multi_modulus_entries
+} == {"3", "5", "9", "20"}
+assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in multi_modulus_entries)
+
 with tempfile.TemporaryDirectory() as temp_dir:
     lint_root = Path(temp_dir) / "scenario-lint"
     lint_completed = subprocess.run(

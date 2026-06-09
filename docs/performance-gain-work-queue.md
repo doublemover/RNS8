@@ -436,6 +436,9 @@ inspection commands.
   arithmetic on small and medium strict `mod 2^64` captures. The wrap64 ISA
   checker names the widened pack/export kernels explicitly so the hot-symbol
   no-divide/no-matrix-engine gate still covers the executed code path.
+  `multi-modulus-pack` is now release-mode evidence for fixed bounded prefixes
+  3, 5, and 9 plus exact-wide prefix 20, keeping the fixed-prefix pack pressure
+  lane in the same release review as the fused native-input rows.
 - Remaining work: implement broader fused native-pack plus GEMM routes selected
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.

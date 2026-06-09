@@ -127,6 +127,8 @@ for item in small_n_control_items:
 multi_modulus_items = catalog["multi-modulus-pack"]
 assert multi_modulus_items
 assert {item.promotion_eligibility for item in multi_modulus_items} == {"execution_path_evidence"}
+assert {item.review_mode_expectation for item in multi_modulus_items} == {"release"}
+assert {item.max_prefix for item in multi_modulus_items} == {3, 5, 9, 20}
 for item in multi_modulus_items:
     assert item.metadata and item.metadata["promotion_scope"] == "execution_path_evidence"
     assert (

@@ -23,7 +23,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 3,
@@ -56,7 +56,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 5,
@@ -89,7 +89,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "execution_path_evidence",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -122,7 +122,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "execution_path_evidence",
       "exact_wide_limb_counts": [
         4
