@@ -739,6 +739,7 @@ assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
     "bounded-i64-128-group64",
     "bounded-u64-skinny-n1-group128",
     "finite-ring-64-group32",
+    "finite-field-64-group32",
     "exact-wide-signed-64-group32",
     "exact-wide-unsigned-64-group32",
     "exact-wide-signed-128-group32",
@@ -746,7 +747,7 @@ assert [entry.scenario["name"] for entry in grouped_dispatch_entries] == [
 ]
 assert all(entry.scenario["family"] == "grouped-dispatch" for entry in grouped_dispatch_entries)
 assert {entry.scenario["grouped_dispatch_tasks"] for entry in grouped_dispatch_entries} == {32, 64, 128}
-assert all(entry.scenario["review_mode_expectation"] == "smoke" for entry in grouped_dispatch_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in grouped_dispatch_entries)
 assert all(entry.scenario["promotion_eligibility"] for entry in grouped_dispatch_entries)
 assert all("--grouped-dispatch" in entry.command for entry in grouped_dispatch_entries)
 assert any(entry.scenario.get("exact_wide_limb_count") == 4 for entry in grouped_dispatch_entries)
@@ -784,6 +785,13 @@ assert any(
 )
 assert any(
     entry.scenario["semantics"] == "finite-u8-ring"
+    and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
+    == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H
+    for entry in grouped_dispatch_entries
+)
+assert any(
+    entry.scenario["semantics"] == "finite-u8-field"
+    and entry.scenario.get("modulus") == 251
     and entry.scenario.get("metadata", {}).get("grouped_strategy_expectation")
     == GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H
     for entry in grouped_dispatch_entries

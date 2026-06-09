@@ -778,6 +778,11 @@ inspection commands.
 - Implementation scope: persistent grouped CDNA task descriptors, device task
   queues where justified, same-shape resident inputs, grouped finite and RNS
   paths, exact status/checksum policy, and descriptor reuse validation.
+- Local progress: `grouped-dispatch` rows are release-mode evidence instead of
+  smoke-only and now cover bounded signed/unsigned, exact-wide signed/unsigned,
+  finite-ring, and finite-field grouped task execution. They remain
+  evidence-only until same-contract independent and host-batch baselines prove
+  setup-inclusive wins.
 - Required evidence: `grouped-dispatch`, `many-small`, `small-oneshot`, and
   repeated workload release captures.
 - Constraint: grouped APIs must not perform hidden host packing, hidden AUTO

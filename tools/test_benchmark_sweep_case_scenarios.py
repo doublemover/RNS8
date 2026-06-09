@@ -456,7 +456,12 @@ graph_command = benchmark_sweep.command_for(
     graph_args,
 )
 assert "--hip-graph-replay" in graph_command
-grouped_item = catalog["grouped-dispatch"][0]
+grouped_items = catalog["grouped-dispatch"]
+assert {item.review_mode_expectation for item in grouped_items} == {"release"}
+assert {item.promotion_eligibility for item in grouped_items} == {"grouped_dispatch_evidence_only"}
+assert any(item.semantics == "finite-u8-ring" for item in grouped_items)
+assert any(item.semantics == "finite-u8-field" for item in grouped_items)
+grouped_item = grouped_items[0]
 grouped_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, grouped_item)
 grouped_command = benchmark_sweep.command_for(
     Path("rns8-bench"),
