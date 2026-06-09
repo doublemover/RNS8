@@ -74,6 +74,40 @@ def main() -> int:
         b_direct = _capture("hip-direct", 222, "workflow-b")
         c_cpu = _capture("cpu-reference", 333, "workflow-c")
         c_ck = _capture("ck", 444, "workflow-c")
+        skinny_specialized = _capture("hip-direct", 555, "bounded-i64-n4-512")
+        skinny_specialized["m"] = 512
+        skinny_specialized["n"] = 4
+        skinny_specialized["k"] = 512
+        skinny_specialized["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
+        skinny_specialized["timing_metadata"]["benchmark_execution_mode"] = (
+            "direct_hip_skinny_gemv_small_n_resident_rns"
+        )
+        skinny_specialized["timing_summary_us"] = {"end_to_end": {"median": 80.0}}
+        skinny_specialized["avg_end_to_end_us"] = 80.0
+        skinny_specialized["tile_shape_variant"] = {"name": "default"}
+        skinny_specialized["scenario_metadata"] = {
+            "family": "skinny-gemv",
+            "name": "bounded-i64-n4-512",
+            "promotion_eligibility": "release_review_candidate",
+            "output_domain": "host_export",
+            "metadata": {"workflow_name": "gemv_small_n"},
+        }
+        skinny_tiled = copy.deepcopy(skinny_specialized)
+        skinny_tiled["selected_kernel"] = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
+        skinny_tiled["timing_metadata"]["benchmark_execution_mode"] = "persistent_resident_matrices"
+        skinny_tiled["timing_summary_us"] = {"end_to_end": {"median": 120.0}}
+        skinny_tiled["avg_end_to_end_us"] = 120.0
+        skinny_tiled["tile_shape_variant"] = {"name": "direct-hip-skinny-tiled-control-128x128"}
+        skinny_tiled["scenario_metadata"] = {
+            "family": "skinny-gemv",
+            "name": "bounded-i64-n4-512-tiled-control",
+            "promotion_eligibility": "tile_shape_evidence_only",
+            "output_domain": "host_export",
+            "metadata": {
+                "workflow_name": "skinny_tiled_control",
+                "control_for": "bounded-i64-n4-512",
+            },
+        }
         for name, payload in [
             ("a-cpu.json", a_cpu),
             ("a-direct.json", a_direct),
@@ -81,6 +115,8 @@ def main() -> int:
             ("b-direct.json", b_direct),
             ("c-cpu.json", c_cpu),
             ("c-ck.json", c_ck),
+            ("skinny-specialized.json", skinny_specialized),
+            ("skinny-tiled-control.json", skinny_tiled),
         ]:
             _write(scenarios / name, payload)
 
@@ -471,7 +507,7 @@ def main() -> int:
         text = "\n".join(lines)
         normalized = text.replace("\\", "/")
         assert "FAILED_CAPTURES 1" in text
-        assert "CAPTURE_JSON_COUNT 6" in text
+        assert "CAPTURE_JSON_COUNT 8" in text
         assert "rns8_create_plan: range error" in text
         assert "CHECKSUM_MISMATCH_GROUPS 1" in text
         assert "workflow-c" in text
@@ -555,6 +591,15 @@ def main() -> int:
         assert "pack_mode=per_repeat_repack disposition=local_promote speedup_vs_host_repack=1.4285714285714286" in text
         assert "fused_e2e=70.0 control_e2e=100.0 fused_conversion=8.0 host_repack=30.0" in text
         assert "vector_output_d2h=10.0 consumer_gemm=40.0 blockers=none" in text
+        assert "SKINNY_GEMV_TILED_CONTROLS 1" in text
+        assert "SKINNY_GEMV_TILED_CONTROL_DISPOSITIONS" in text
+        assert "specialized_wins 1" in text
+        assert (
+            "scenario=bounded-i64-n4-512 semantics=bounded_i64 shape=512x4x512 "
+            "disposition=specialized_wins speedup_vs_tiled=1.5 specialized_e2e=80.0 tiled_e2e=120.0"
+        ) in text
+        assert "specialized_kernel=direct_hip_prefix9_rns_gemv_small_n_i64_v1" in text
+        assert "tiled_kernel=direct_hip_grouped_active_prefix_schedule_rns_gemm_v3" in text
         assert "EXPORT_CRT_ROUTE_ROWS 1" in text
         assert "EXPORT_CRT_KERNEL_COUNTS" in text
         assert "hip_direct_export_exact_wide_signed_tree_crt_limbs_device 1" in text
@@ -669,6 +714,7 @@ def main() -> int:
         assert "REVIEW_REPORTS 1" in clean_lines
         assert "MISSING_REQUIRED_BASELINE_GROUPS 0" in clean_lines
         assert "SPARSE_A_ROUTE_ROWS 0" in clean_lines
+        assert "SKINNY_GEMV_TILED_CONTROLS 0" in clean_lines
         assert summary.clean_gate_failures(clean_lines) == []
 
     print("benchmark sweep failure summary self-test: PASS")

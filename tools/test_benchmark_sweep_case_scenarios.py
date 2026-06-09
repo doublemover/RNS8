@@ -87,11 +87,21 @@ skinny_items = catalog["skinny-gemv"]
 assert skinny_items
 assert {item.case.n for item in skinny_items} == {1, 4}
 small_n_items = [item for item in skinny_items if item.case.n == 4]
-assert {item.name for item in small_n_items} == {"bounded-i64-n4-512", "bounded-u64-n4-1024"}
-for item in small_n_items:
+small_n_release_items = [item for item in small_n_items if item.promotion_eligibility == "release_review_candidate"]
+small_n_control_items = [item for item in small_n_items if item.promotion_eligibility == "tile_shape_evidence_only"]
+assert {item.name for item in small_n_release_items} == {"bounded-i64-n4-512", "bounded-u64-n4-1024"}
+assert {item.name for item in small_n_control_items} == {
+    "bounded-i64-n4-512-tiled-control",
+    "bounded-u64-n4-1024-tiled-control",
+}
+for item in small_n_release_items:
     assert item.metadata and item.metadata["workflow_name"] == "gemv_small_n"
     assert item.metadata["optimization_status"] == "needs_measured_small_n_kernel_decision"
     assert "hip-vector-alu-int64" not in item.backends
+for item in small_n_control_items:
+    assert item.metadata and item.metadata["workflow_name"] == "skinny_tiled_control"
+    assert item.backends == ("hip-direct",)
+    assert item.tile_shape_variant == "direct-hip-skinny-tiled-control-128x128"
 
 multi_modulus_items = catalog["multi-modulus-pack"]
 assert multi_modulus_items

@@ -13,7 +13,12 @@ from typing import Any
 
 from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
 
-from benchmark_sweep_lib.capture_metadata import backend_family_id, backend_id, capture_contract_key
+from benchmark_sweep_lib.capture_metadata import (
+    backend_family_id,
+    backend_id,
+    capture_contract_key,
+    capture_execution_mode,
+)
 from benchmark_sweep_lib.review import capture_checksum
 
 
@@ -68,6 +73,136 @@ def _relative_capture(out: Path, value: Any) -> str:
         return str(path.relative_to(out))
     except ValueError:
         return str(path)
+
+
+def _scenario_metadata(capture: dict[str, Any]) -> dict[str, Any]:
+    scenario = capture.get("scenario_metadata")
+    return scenario if isinstance(scenario, dict) else {}
+
+
+def _scenario_metadata_payload(capture: dict[str, Any]) -> dict[str, Any]:
+    scenario = _scenario_metadata(capture)
+    metadata = scenario.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _tile_shape_variant_name(capture: dict[str, Any]) -> str:
+    variant = capture.get("tile_shape_variant")
+    if isinstance(variant, dict):
+        name = variant.get("name")
+        return str(name) if isinstance(name, str) and name else "default"
+    if isinstance(variant, str) and variant:
+        return variant
+    return "default"
+
+
+def _capture_median_end_to_end(capture: dict[str, Any]) -> float | None:
+    summary = capture.get("timing_summary_us")
+    if isinstance(summary, dict):
+        end_to_end = summary.get("end_to_end")
+        if isinstance(end_to_end, dict):
+            median = end_to_end.get("median")
+            if isinstance(median, (int, float)):
+                return float(median)
+    value = capture.get("avg_end_to_end_us")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _skinny_gemv_pair_key(capture: dict[str, Any]) -> tuple[str, str, int, int, int] | None:
+    scenario = _scenario_metadata(capture)
+    if scenario.get("family") != "skinny-gemv" or capture.get("backend_selected") != "hip-direct":
+        return None
+    semantics = capture.get("semantics")
+    m = capture.get("m")
+    n = capture.get("n")
+    k = capture.get("k")
+    if (
+        not isinstance(semantics, str)
+        or not isinstance(m, int)
+        or isinstance(m, bool)
+        or not isinstance(n, int)
+        or isinstance(n, bool)
+        or not isinstance(k, int)
+        or isinstance(k, bool)
+    ):
+        return None
+    metadata = _scenario_metadata_payload(capture)
+    scenario_name = scenario.get("name")
+    control_for = metadata.get("control_for")
+    name = str(control_for) if isinstance(control_for, str) and control_for else str(scenario_name or "unknown")
+    return name, semantics, m, n, k
+
+
+def _skinny_gemv_pair_role(capture: dict[str, Any]) -> str | None:
+    mode = capture_execution_mode(capture)
+    if mode in {
+        "direct_hip_skinny_gemv_n1_resident_rns",
+        "direct_hip_skinny_gemv_small_n_resident_rns",
+    }:
+        return "specialized"
+    if _tile_shape_variant_name(capture) == "direct-hip-skinny-tiled-control-128x128":
+        return "tiled_control"
+    return None
+
+
+def _best_skinny_pair_capture(rows: list[tuple[Path, dict[str, Any]]]) -> tuple[Path, dict[str, Any]] | None:
+    if not rows:
+        return None
+    return min(
+        rows,
+        key=lambda row: (
+            _capture_median_end_to_end(row[1])
+            if _capture_median_end_to_end(row[1]) is not None
+            else float("inf")
+        ),
+    )
+
+
+def _skinny_gemv_tiled_control_line(
+    out: Path,
+    key: tuple[str, str, int, int, int],
+    pair: dict[str, list[tuple[Path, dict[str, Any]]]],
+) -> tuple[str, str]:
+    name, semantics, m, n, k = key
+    specialized = _best_skinny_pair_capture(pair.get("specialized", []))
+    control = _best_skinny_pair_capture(pair.get("tiled_control", []))
+    if specialized is None:
+        disposition = "missing_specialized"
+    elif control is None:
+        disposition = "missing_tiled_control"
+    else:
+        specialized_e2e = _capture_median_end_to_end(specialized[1])
+        control_e2e = _capture_median_end_to_end(control[1])
+        if specialized_e2e is None or control_e2e is None or specialized_e2e <= 0:
+            disposition = "missing_timing"
+        elif specialized_e2e < control_e2e:
+            disposition = "specialized_wins"
+        elif specialized_e2e > control_e2e:
+            disposition = "tiled_control_wins"
+        else:
+            disposition = "tie"
+    specialized_payload = specialized[1] if specialized else {}
+    control_payload = control[1] if control else {}
+    specialized_e2e = _capture_median_end_to_end(specialized_payload)
+    control_e2e = _capture_median_end_to_end(control_payload)
+    speedup = None
+    if isinstance(specialized_e2e, float) and specialized_e2e > 0 and isinstance(control_e2e, float):
+        speedup = control_e2e / specialized_e2e
+    line = (
+        "  "
+        f"scenario={name} "
+        f"semantics={semantics} "
+        f"shape={m}x{n}x{k} "
+        f"disposition={disposition} "
+        f"speedup_vs_tiled={speedup} "
+        f"specialized_e2e={specialized_e2e} "
+        f"tiled_e2e={control_e2e} "
+        f"specialized_kernel={specialized_payload.get('selected_kernel')} "
+        f"tiled_kernel={control_payload.get('selected_kernel')} "
+        f"specialized_capture={specialized[0].relative_to(out) if specialized else 'missing'} "
+        f"tiled_capture={control[0].relative_to(out) if control else 'missing'}"
+    )
+    return line, disposition
 
 
 def _actionable_blockers(candidate: dict[str, Any]) -> list[str]:
@@ -813,9 +948,17 @@ def build_summary(
         lines.append(f"{path.relative_to(out)}: {stderr}")
 
     groups: dict[str, list[tuple[str, Any, Path]]] = defaultdict(list)
+    skinny_pairs: dict[
+        tuple[str, str, int, int, int],
+        dict[str, list[tuple[Path, dict[str, Any]]]],
+    ] = defaultdict(lambda: defaultdict(list))
     for path in capture_paths:
         payload = _load_json(path)
         groups[capture_contract_key(payload)].append((backend_id(payload), capture_checksum(payload), path))
+        skinny_key = _skinny_gemv_pair_key(payload)
+        skinny_role = _skinny_gemv_pair_role(payload) if skinny_key is not None else None
+        if skinny_key is not None and skinny_role is not None:
+            skinny_pairs[skinny_key][skinny_role].append((path, payload))
 
     mismatches: list[tuple[str, str | None, Any, list[tuple[str, Any, Path]]]] = []
     for key, rows in groups.items():
@@ -1151,6 +1294,22 @@ def build_summary(
         lines.append(line)
     if len(native_handoff_pair_lines) > max_detail_rows:
         lines.append(f"  ... {len(native_handoff_pair_lines) - max_detail_rows} more")
+    skinny_pair_lines = [
+        _skinny_gemv_tiled_control_line(out, key, pair)
+        for key, pair in sorted(skinny_pairs.items())
+    ]
+    skinny_pair_dispositions = Counter(disposition for _line, disposition in skinny_pair_lines)
+    lines.append(f"SKINNY_GEMV_TILED_CONTROLS {len(skinny_pair_lines)}")
+    lines.append("SKINNY_GEMV_TILED_CONTROL_DISPOSITIONS")
+    if skinny_pair_dispositions:
+        for disposition, count in skinny_pair_dispositions.most_common():
+            lines.append(f"{disposition} {count}")
+    else:
+        lines.append("none 0")
+    for line, _disposition in skinny_pair_lines[:max_detail_rows]:
+        lines.append(line)
+    if len(skinny_pair_lines) > max_detail_rows:
+        lines.append(f"  ... {len(skinny_pair_lines) - max_detail_rows} more")
     lines.append(f"EXPORT_CRT_ROUTE_ROWS {len(export_route_rows)}")
     lines.append("EXPORT_CRT_KERNEL_COUNTS")
     if export_kernel_counts:

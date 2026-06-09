@@ -33,6 +33,36 @@
       "promotion_eligibility": "release_review_candidate"
     },
     {
+      "name": "bounded-i64-n1-512-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "gemv-n1-512-tiled-control",
+        "m": 512,
+        "n": 1,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=1 bounded i64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "keeps the pre-GEMV generic tiled Direct-HIP route measurable after skinny auto-routing lands",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-i64-n1-512",
+        "phase_label": "generic_tiled_direct_hip_control"
+      }
+    },
+    {
       "name": "bounded-u64-n1-1024",
       "semantics": "bounded-u64",
       "case": {
@@ -60,6 +90,36 @@
       ],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate"
+    },
+    {
+      "name": "bounded-u64-n1-1024-tiled-control",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "gemv-n1-1024-tiled-control",
+        "m": 1024,
+        "n": 1,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=1 bounded u64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "keeps the pre-GEMV generic tiled Direct-HIP route measurable after skinny auto-routing lands",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-u64-n1-1024",
+        "phase_label": "generic_tiled_direct_hip_control"
+      }
     },
     {
       "name": "bounded-i64-n4-512",
@@ -97,6 +157,36 @@
       }
     },
     {
+      "name": "bounded-i64-n4-512-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "gemv-n4-512-tiled-control",
+        "m": 512,
+        "n": 4,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=4 bounded i64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "compares the dedicated small-N GEMV-family kernel against the generic tiled Direct-HIP route",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-i64-n4-512",
+        "phase_label": "generic_tiled_direct_hip_control"
+      }
+    },
+    {
       "name": "bounded-u64-n4-1024",
       "semantics": "bounded-u64",
       "case": {
@@ -128,6 +218,36 @@
         "workflow_name": "gemv_small_n",
         "phase_label": "small_n_generic_vs_specialized_decision",
         "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-u64-n4-1024-tiled-control",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "gemv-n4-1024-tiled-control",
+        "m": 1024,
+        "n": 4,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "skinny N=4 bounded u64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "compares the dedicated small-N GEMV-family kernel against the generic tiled Direct-HIP route",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-u64-n4-1024",
+        "phase_label": "generic_tiled_direct_hip_control"
       }
     },
     {
@@ -164,6 +284,36 @@
         "workflow_name": "gemv_n1_long_k",
         "phase_label": "native_vector_reduction",
         "reuse_profile": "single_rhs_column"
+      }
+    },
+    {
+      "name": "bounded-i64-n1-longk-256-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "gemv-n1-longk-256-tiled-control",
+        "m": 256,
+        "n": 1,
+        "k": 4096,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "long-K N=1 bounded i64 generic tiled Direct-HIP control",
+      "output_domain": "host_export",
+      "rationale": "keeps the long-K generic tiled Direct-HIP route measurable after skinny GEMV auto-routing lands",
+      "backends": [
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control",
+        "control_for": "bounded-i64-n1-longk-256",
+        "phase_label": "generic_tiled_direct_hip_control"
       }
     }
   ]

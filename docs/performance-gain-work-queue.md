@@ -78,6 +78,9 @@ inspection commands.
   SWMMAC candidates so CDNA/RDNA matrix-core evidence is visible without
   digging through review JSON. Runtime prepack-cache summary rows include the
   source version beside production eligibility, scope, hash, and byte counts.
+  Skinny GEMV summaries now pair specialized Direct-HIP rows with explicit
+  generic-tiled control captures and report the local disposition, speedup,
+  selected kernels, and capture paths.
 - Required evidence: Python tests for summary formatting, synthetic review
   fixtures for every blocker family, and one VM refresh proving zero failed
   captures, zero comparable checksum mismatches, and no hidden missing-baseline
@@ -118,7 +121,11 @@ inspection commands.
   cannot be reported as the production skinny route by accident. The
   `skinny-gemv` scenario family includes bounded i64/u64 `N=4` rows to compare
   the specialized small-N route against current tiled Direct HIP and accelerator
-  candidates.
+  candidates. It also includes Direct-HIP-only `tile_shape_evidence_only`
+  tiled-control rows using `direct-hip-skinny-tiled-control-128x128`, which
+  intentionally disables skinny auto-routing through the non-default tile-shape
+  guard so the supported failure-summary tool can print specialized-vs-tiled
+  comparisons without changing release-review grouping.
 - Required evidence: release captures for `512x1x512`, `256x1x4096`, and
   `1024x1x1024`, plus small-N `512x4x512` and `1024x4x1024`, against CPU
   anchor, current tiled Direct HIP, vector-ALU where applicable, and rocWMMA;

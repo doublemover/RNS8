@@ -256,6 +256,7 @@ def scenario_backends_for_item(args: argparse.Namespace, item: ScenarioItem) -> 
         or item.workspace_arena
         or item.adaptive_grouped_scheduler
         or item.streaming_overlap
+        or item.tile_shape_variant != "default"
         or bool(item.resident_redesign_candidate)
         or item.verification_amortization != "none"
         or item.error_detection_policy != "none"
