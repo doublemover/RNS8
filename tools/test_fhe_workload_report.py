@@ -58,15 +58,6 @@ def proxy_capture(backend: str, operation: str, median_us: int = 1000) -> dict:
         capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
         capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
-    kernel = capture.get("selected_kernel",
-                         "cpu_reference_scalar_rns_gemm_v1" if backend == "cpu-reference"
-                         else "direct_hip_tiled_active_prefix_rns_gemm_v2")
-    capture["export_variant"] = {"selected_kernel": kernel}
-    capture["exact_output_contract"] = {"kernel_identity": kernel}
-    capture["reconstruction_variant"] = {"kernel_identity": kernel}
-    if backend != "cpu-reference" and "gpu_event_phase_order" not in capture.get("timing_metadata", {}):
-        capture.setdefault("timing_metadata", {})["gpu_event_phase_order"] = []
-    capture["target_variant"] = capture.get("device", {}).get("gcn_arch", "gfx1100") if backend != "cpu-reference" else "cpu"
     return capture
 
 

@@ -51,15 +51,6 @@ def cache_capture(backend: str = "hip-direct") -> dict:
             capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
             capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(capture)
-    kernel = capture.get("selected_kernel",
-                         "cpu_reference_scalar_rns_gemm_v1" if backend == "cpu-reference"
-                         else "direct_hip_tiled_active_prefix_rns_gemm_v2")
-    capture["export_variant"] = {"selected_kernel": kernel}
-    capture["exact_output_contract"] = {"kernel_identity": kernel}
-    capture["reconstruction_variant"] = {"kernel_identity": kernel}
-    if backend != "cpu-reference" and "gpu_event_phase_order" not in capture.get("timing_metadata", {}):
-        capture.setdefault("timing_metadata", {})["gpu_event_phase_order"] = []
-    capture["target_variant"] = capture.get("device", {}).get("gcn_arch", "gfx1100") if backend != "cpu-reference" else "cpu"
     return capture
 
 
@@ -176,13 +167,6 @@ def main() -> int:
         exact["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
         exact["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
         add_target_variant_fields(exact)
-        # Add required fields for exact capture
-        exact["export_variant"] = {"selected_kernel": exact["selected_kernel"]}
-        exact["exact_output_contract"] = {"kernel_identity": exact["selected_kernel"]}
-        exact["reconstruction_variant"] = {"kernel_identity": exact["selected_kernel"]}
-        if "gpu_event_phase_order" not in exact.get("timing_metadata", {}):
-            exact.setdefault("timing_metadata", {})["gpu_event_phase_order"] = []
-        exact["target_variant"] = exact.get("device", {}).get("gcn_arch", "gfx1100")
         write(exact_dir / "exact.json", exact)
         exact_report = incremental_result_cache_report.build_report([exact_dir])
         assert exact_report["rank75_gate_complete"] is True

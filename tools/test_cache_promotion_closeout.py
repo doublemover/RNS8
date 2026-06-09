@@ -28,14 +28,6 @@ def candidate_capture() -> dict:
     capture["comparison_baseline"]["speedup_vs_baseline_median_end_to_end"] = 1.4
     prefix = int(capture.get("selected_prefix") or capture.get("prefix") or 1)
     capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
-    capture["target_variant"] = capture.get("device", {}).get("gcn_arch", "gfx1100")
-    kernel = capture.get("selected_kernel",
-                         "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3")
-    capture["export_variant"] = {"selected_kernel": kernel}
-    capture["exact_output_contract"] = {"kernel_identity": kernel}
-    capture["reconstruction_variant"] = {"kernel_identity": kernel}
-    if "gpu_event_phase_order" not in capture.get("timing_metadata", {}):
-        capture.setdefault("timing_metadata", {})["gpu_event_phase_order"] = []
     return capture
 
 
