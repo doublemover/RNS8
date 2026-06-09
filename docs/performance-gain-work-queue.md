@@ -388,7 +388,7 @@ inspection commands.
   diagnostics into concrete pack-action rows, including missing split timing,
   A-dominant, B-dominant, balanced pack, missing same-version pack elision, and
   native-input pack-fusion follow-up. Direct-HIP fixed-prefix contiguous i64/u64
-  single and grouped pack launchers now use pair-cell kernels that process two
+  single and grouped pack launchers now use four-cell kernels that process four
   adjacent row-major source cells per thread while preserving the original
   strided fallback and output residue-plane layout. `fused-pack-gemm-small`
   now has fixed-prefix bounded i64/u64 release-review pairs for the existing
@@ -396,12 +396,12 @@ inspection commands.
   ordinary Direct-HIP baselines plus a Direct-HIP
   `--transient-uniform-small-inputs` candidate with distinct capture naming and
   backend identity, so VM evidence can compare the fused native-input route
-  against the contiguous and pair-cell pack baselines without ad hoc commands.
+  against the contiguous and widened pack baselines without ad hoc commands.
   Direct-HIP fixed-modulus finite-u8 contiguous single and grouped pack
-  launchers now also use pair-cell kernels for moduli 251, 255, and 256. The
+  launchers now also use four-cell kernels for moduli 251, 255, and 256. The
   generic dynamic-modulus and strided paths stay on the existing one-cell
-  kernels, while the hot row-major finite release paths avoid half of the launch
-  work-items and keep the same centered-residue output layout.
+  kernels, while the hot row-major finite release paths reduce launch work-items
+  further and keep the same centered-residue output layout.
 - Remaining work: implement broader fused native-pack plus GEMM routes selected
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.

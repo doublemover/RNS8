@@ -145,6 +145,41 @@ __global__ void rns8_pack_i64_fixed_prefix_contiguous_pair_kernel(
 }
 
 template <int Prefix>
+__global__ void rns8_pack_i64_fixed_prefix_contiguous_quad_kernel(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t value0 = src[cell];
+  const bool has1 = cell + 1 < elements;
+  const bool has2 = cell + 2 < elements;
+  const bool has3 = cell + 3 < elements;
+  const int64_t value1 = has1 ? src[cell + 1] : 0;
+  const int64_t value2 = has2 ? src[cell + 2] : 0;
+  const int64_t value3 = has3 ? src[cell + 3] : 0;
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has1) {
+      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+    if (has2) {
+      residues[output + 2] = rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
+    }
+    if (has3) {
+      residues[output + 3] = rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
 __global__ void rns8_pack_u64_fixed_prefix_kernel(
     const uint64_t* src,
     int8_t* residues,
@@ -208,6 +243,41 @@ __global__ void rns8_pack_u64_fixed_prefix_contiguous_pair_kernel(
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
       residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_fixed_prefix_contiguous_quad_kernel(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  if (cell >= elements) {
+    return;
+  }
+  const uint64_t value0 = src[cell];
+  const bool has1 = cell + 1 < elements;
+  const bool has2 = cell + 2 < elements;
+  const bool has3 = cell + 3 < elements;
+  const uint64_t value1 = has1 ? src[cell + 1] : 0;
+  const uint64_t value2 = has2 ? src[cell + 2] : 0;
+  const uint64_t value3 = has3 ? src[cell + 3] : 0;
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has1) {
+      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+    if (has2) {
+      residues[output + 2] = rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
+    }
+    if (has3) {
+      residues[output + 3] = rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
@@ -304,6 +374,49 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_pair_kernel(
 }
 
 template <int Prefix>
+__global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_quad_kernel(
+    const int64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t task_offset = static_cast<int64_t>(task) * src_task_stride;
+  const int64_t value0 = src[task_offset + cell];
+  const bool has1 = cell + 1 < elements;
+  const bool has2 = cell + 2 < elements;
+  const bool has3 = cell + 3 < elements;
+  const int64_t value1 = has1 ? src[task_offset + cell + 1] : 0;
+  const int64_t value2 = has2 ? src[task_offset + cell + 2] : 0;
+  const int64_t value3 = has3 ? src[task_offset + cell + 3] : 0;
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has1) {
+      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+    if (has2) {
+      residues[output + 2] = rns8_center_i64_default_modulus_fixed_device(value2, modulus_index, modulus);
+    }
+    if (has3) {
+      residues[output + 3] = rns8_center_i64_default_modulus_fixed_device(value3, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
 __global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(
     const uint64_t* src,
     int8_t* const* residue_ptrs,
@@ -390,6 +503,49 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_pair_kernel(
     residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
     if (has_second) {
       residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_quad_kernel(
+    const uint64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t task_offset = static_cast<int64_t>(task) * src_task_stride;
+  const uint64_t value0 = src[task_offset + cell];
+  const bool has1 = cell + 1 < elements;
+  const bool has2 = cell + 2 < elements;
+  const bool has3 = cell + 3 < elements;
+  const uint64_t value1 = has1 ? src[task_offset + cell + 1] : 0;
+  const uint64_t value2 = has2 ? src[task_offset + cell + 2] : 0;
+  const uint64_t value3 = has3 ? src[task_offset + cell + 3] : 0;
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has1) {
+      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+    if (has2) {
+      residues[output + 2] = rns8_center_u64_default_modulus_fixed_device(value2, modulus_index, modulus);
+    }
+    if (has3) {
+      residues[output + 3] = rns8_center_u64_default_modulus_fixed_device(value3, modulus_index, modulus);
     }
   }
 }
@@ -615,6 +771,32 @@ __global__ void rns8_pack_u8_fixed_modulus_contiguous_pair_kernel(
 }
 
 template <int Modulus>
+__global__ void rns8_pack_u8_fixed_modulus_contiguous_quad_kernel(
+    const uint8_t* src,
+    int8_t* residues,
+    int rows,
+    int cols) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  if (idx >= elements) {
+    return;
+  }
+  residues[idx] = rns8_center_u8_fixed_modulus_device<Modulus>(src[idx]);
+  const int64_t next1 = idx + 1;
+  const int64_t next2 = idx + 2;
+  const int64_t next3 = idx + 3;
+  if (next1 < elements) {
+    residues[next1] = rns8_center_u8_fixed_modulus_device<Modulus>(src[next1]);
+  }
+  if (next2 < elements) {
+    residues[next2] = rns8_center_u8_fixed_modulus_device<Modulus>(src[next2]);
+  }
+  if (next3 < elements) {
+    residues[next3] = rns8_center_u8_fixed_modulus_device<Modulus>(src[next3]);
+  }
+}
+
+template <int Modulus>
 __global__ void rns8_pack_u8_grouped_fixed_modulus_kernel(
     const uint8_t* src,
     int8_t* const* residue_ptrs,
@@ -674,5 +856,36 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_pair_kernel(
   const int64_t next = idx + 1;
   if (next < elements) {
     residues[next] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + next]);
+  }
+}
+
+template <int Modulus>
+__global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_quad_kernel(
+    const uint8_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  const int64_t idx = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  if (task >= task_count || idx >= elements) {
+    return;
+  }
+  const int64_t task_offset = static_cast<int64_t>(task) * src_task_stride;
+  int8_t* residues = residue_ptrs[task];
+  residues[idx] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + idx]);
+  const int64_t next1 = idx + 1;
+  const int64_t next2 = idx + 2;
+  const int64_t next3 = idx + 3;
+  if (next1 < elements) {
+    residues[next1] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + next1]);
+  }
+  if (next2 < elements) {
+    residues[next2] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + next2]);
+  }
+  if (next3 < elements) {
+    residues[next3] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + next3]);
   }
 }
