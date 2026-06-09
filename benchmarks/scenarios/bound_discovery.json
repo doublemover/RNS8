@@ -28,7 +28,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -64,7 +64,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -99,7 +99,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -135,7 +135,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -170,7 +170,7 @@
         "hipblaslt",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -204,7 +204,7 @@
         "hip-vector-alu-int64",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -241,7 +241,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -277,7 +277,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -312,7 +312,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {

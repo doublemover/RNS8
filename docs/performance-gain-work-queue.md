@@ -917,7 +917,9 @@ inspection commands.
   execution, zero-row/zero-column/output skip, and tile metadata reuse.
 - Local progress: `adaptive-bands` is now release-mode evidence with
   input-scan bound source, per-tile bound mode, and required adaptive execution
-  for signed and unsigned bounded shapes.
+  for signed and unsigned bounded shapes. `bound-discovery` is also release-mode
+  evidence, preserving static-profile baselines, global input-scan candidates,
+  and per-tile proof-mask candidates for the same adaptive-band input family.
 - Required evidence: `adaptive-bands`, `adaptive-grouped-scheduler`,
   `bound-discovery`, and zero-skip scenarios with exact proof metadata.
 - Constraint: no probabilistic early termination in production.

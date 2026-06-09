@@ -1131,6 +1131,7 @@ bound_discovery_args.scenario = ["bound-discovery"]
 bound_discovery_entries = benchmark_sweep.sweep_command_entries(bound_discovery_args)
 assert len(bound_discovery_entries) == 48
 assert {entry.scenario["family"] for entry in bound_discovery_entries} == {"bound-discovery"}
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in bound_discovery_entries)
 assert {entry.scenario["name"] for entry in bound_discovery_entries} == {
     "bounded-i64-256-static-global",
     "bounded-i64-256-input-scan-global",

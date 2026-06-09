@@ -410,6 +410,15 @@ assert {item.review_mode_expectation for item in adaptive_band_items} == {"relea
 assert {item.promotion_eligibility for item in adaptive_band_items} == {"release_review_candidate"}
 assert {item.bound_source for item in adaptive_band_items} == {"input-scan"}
 assert all(item.case.require_adaptive for item in adaptive_band_items)
+bound_discovery_items = catalog["bound-discovery"]
+assert {item.review_mode_expectation for item in bound_discovery_items} == {"release"}
+assert {item.promotion_eligibility for item in bound_discovery_items} == {
+    "baseline_only",
+    "workload_comparison_only",
+}
+assert sum(1 for item in bound_discovery_items if item.bound_source == "static-profile") == 3
+assert sum(1 for item in bound_discovery_items if item.bound_source == "input-scan") == 6
+assert sum(1 for item in bound_discovery_items if item.case.require_adaptive) == 3
 computational_algebra_items = catalog["computational-algebra-proxies"]
 assert {item.review_mode_expectation for item in computational_algebra_items} == {"release"}
 assert {item.promotion_eligibility for item in computational_algebra_items} == {"release_review_candidate"}
