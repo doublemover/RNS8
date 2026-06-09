@@ -550,6 +550,8 @@ def main() -> int:
         assert "PREPACK_REUSE_REVIEWS 1" in text
         assert "PREPACK_REUSE_BLOCKER_COUNTS" in text
         assert "none 0" in text
+        assert "PREPACK_SETUP_PRIMARY_PHASE_COUNTS" in text
+        assert "pack_b 1" in text
         assert (
             "backend=ck semantics=bounded_i64 shape=64x64x64 kernel=ck_kernel "
             "setup_e2e=150.0 steady_e2e=147.0 prepack_setup=27.0 "

@@ -245,8 +245,10 @@ inspection commands.
   plan actually selected rocWMMA, so CPU/Direct-HIP/CK repeated-B controls no
   longer pay an unsupported rocWMMA-cache setup attempt. The standalone
   reuse-contract report now carries the same setup breakdown and primary setup
-  phase counts, so cache selector diagnostics can identify whether a reuse row
-  is B-pack-bound, cache-bound, or dominated by unclassified setup overhead.
+  phase counts, and the compact VM failure summary emits
+  `PREPACK_SETUP_PRIMARY_PHASE_COUNTS`, so cache selector diagnostics can
+  identify whether a reuse row is B-pack-bound, cache-bound, or dominated by
+  unclassified setup overhead.
 - Required evidence: `repeated-b`, `direct-hip-reuse-expansion`, and
   `reuse-contract` release groups comparing CPU anchor, Direct HIP,
   same-backend non-reuse, fastest non-reuse, and prepacked-B reuse.

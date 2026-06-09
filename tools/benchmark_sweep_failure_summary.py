@@ -1017,6 +1017,7 @@ def build_summary(
     next_work_rows: list[tuple[str, dict[str, Any]]] = []
     prepack_reuse_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     prepack_reuse_blockers: Counter[str] = Counter()
+    prepack_setup_primary_phase_counts: Counter[str] = Counter()
     graph_replay_rows: list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     graph_replay_blockers: Counter[str] = Counter()
     pack_diagnostic_rows: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -1068,6 +1069,9 @@ def build_summary(
                 if isinstance(prepack, dict):
                     prepack_reuse_rows.append((str(path.relative_to(out)), group, candidate, prepack))
                     prepack_reuse_blockers.update(str(item) for item in prepack.get("blockers", []) if item)
+                    prepack_setup_primary_phase_counts.update(
+                        [str(prepack.get("prepack_setup_primary_phase") or "unknown")]
+                    )
                 graph = candidate.get("hip_graph_replay_review")
                 if isinstance(graph, dict):
                     graph_replay_rows.append((str(path.relative_to(out)), group, candidate, graph))
@@ -1230,6 +1234,12 @@ def build_summary(
     if prepack_reuse_blockers:
         for blocker, count in prepack_reuse_blockers.most_common():
             lines.append(f"{blocker} {count}")
+    else:
+        lines.append("none 0")
+    lines.append("PREPACK_SETUP_PRIMARY_PHASE_COUNTS")
+    if prepack_setup_primary_phase_counts:
+        for phase, count in prepack_setup_primary_phase_counts.most_common():
+            lines.append(f"{phase} {count}")
     else:
         lines.append("none 0")
     for report_path, group, candidate, prepack in prepack_reuse_rows[:max_detail_rows]:
