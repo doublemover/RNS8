@@ -467,7 +467,10 @@ inspection commands.
   disposition, fused/control end-to-end medians, conversion, host-repack,
   vector-output D2H, consumer-GEMM costs, checksum blockers, and capture paths
   so VM output immediately shows whether the device-current handoff is worth
-  deeper kernel work.
+  deeper kernel work. `native-to-rns-bridge` rows are now release-mode evidence
+  alongside `vector-to-rns-chain`, so the AUTO-forced Direct-HIP
+  materialization path is reviewed with the same release discipline as the
+  producer/consumer chain handoff controls.
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 

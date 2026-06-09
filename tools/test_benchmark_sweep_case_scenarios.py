@@ -134,6 +134,17 @@ for item in multi_modulus_items:
         == "pack_prefix_sweep_requires_same_contract_release_baselines"
     )
 
+native_bridge_items = catalog["native-to-rns-bridge"]
+assert native_bridge_items
+assert {item.review_mode_expectation for item in native_bridge_items} == {"release"}
+assert {item.promotion_eligibility for item in native_bridge_items} == {"execution_path_evidence"}
+assert {item.backends for item in native_bridge_items} == {("auto",)}
+assert {item.semantics for item in native_bridge_items} == {"bounded-i64", "bounded-u64"}
+assert {item.case.m for item in native_bridge_items} == {64, 128}
+for item in native_bridge_items:
+    assert item.native_to_rns_bridge is True
+    assert item.metadata and item.metadata["selected_backend_requirement"] == "hip-direct"
+
 bounded_rns_chain_release_items = [
     item
     for item in catalog["rns-chain"]

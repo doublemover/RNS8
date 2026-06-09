@@ -674,6 +674,26 @@ assert all(
     if entry.scenario["name"].endswith("-tiled-control")
 )
 
+native_bridge_args = copy.copy(scenario_args)
+native_bridge_args.backends = None
+native_bridge_args.scenario = ["native-to-rns-bridge"]
+native_bridge_entries = benchmark_sweep.sweep_command_entries(native_bridge_args)
+assert [entry.scenario["name"] for entry in native_bridge_entries] == [
+    "bounded-i64-64",
+    "bounded-u64-64",
+    "bounded-i64-128",
+    "bounded-u64-128",
+]
+assert all(entry.scenario["family"] == "native-to-rns-bridge" for entry in native_bridge_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in native_bridge_entries)
+assert all(entry.scenario["backend"] == "auto" for entry in native_bridge_entries)
+assert all(entry.scenario["native_to_rns_bridge"] is True for entry in native_bridge_entries)
+assert all("--native-to-rns-bridge" in entry.command for entry in native_bridge_entries)
+assert {
+    entry.scenario.get("metadata", {}).get("conversion_event_required")
+    for entry in native_bridge_entries
+} == {"native_i64_to_rns_kernel", "native_u64_to_rns_kernel"}
+
 many_small_args = copy.copy(scenario_args)
 many_small_args.backends = ["hip-direct"]
 many_small_args.scenario = ["many-small"]
