@@ -468,7 +468,31 @@ grouped_command = benchmark_sweep.command_for(
     grouped_args,
 )
 assert "--grouped-dispatch" in grouped_command and "32" in grouped_command
-resident_item = catalog["resident-lifetime-arena"][0]
+resident_items = catalog["resident-lifetime-arena"]
+assert {item.promotion_eligibility for item in resident_items} == {"resident_lifetime_arena_evidence_only"}
+assert {item.semantics for item in resident_items} == {
+    "bounded-i64",
+    "bounded-u64",
+    "exact-wide-signed",
+    "exact-wide-unsigned",
+}
+assert {
+    item.name for item in resident_items if item.semantics == "bounded-u64"
+} == {
+    "bounded-u64-512-reuse-b-arena",
+    "bounded-u64-1024-reuse-b-arena",
+    "bounded-u64-2048-arena",
+}
+assert {
+    item.name for item in resident_items if item.semantics == "exact-wide-unsigned"
+} == {
+    "exact-wide-unsigned-chain3-arena",
+    "exact-wide-unsigned-chain3-1024-arena",
+}
+for item in resident_items:
+    assert item.resident_lifetime is True
+    assert item.workspace_arena is True
+resident_item = resident_items[0]
 resident_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, resident_item)
 resident_command = benchmark_sweep.command_for(
     Path("rns8-bench"),

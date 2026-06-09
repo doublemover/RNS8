@@ -759,6 +759,11 @@ inspection commands.
   export status, CRT constants, graph buffers, prepack descriptors, and
   resident output buffers; expose allocation counters before warmups and after
   repeats.
+- Local progress: `resident-lifetime-arena` now carries signed and unsigned
+  bounded coverage at 512/1024/2048 plus signed and unsigned exact-wide
+  residue-current chain coverage at 256/1024. These rows remain explicit
+  evidence-only gates until setup-inclusive allocation counters are proven on
+  MI300X.
 - Required evidence: `resident-lifetime-arena`, repeated-B, graph, and chain
   captures with setup-inclusive allocation metadata.
 - Constraint: no hidden global singleton cache; identity and lifetime must be
