@@ -550,12 +550,19 @@ void apply_amdgpu_builtin_dense_variant_backend_metadata(const Args& args, Bench
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 
-const char* finite_sparse_a_4_to_2_kernel(const BenchmarkResult& result) {
+bool sparse_a_cdna3_use_smfmac_32x32x32(const Args& args, const BenchmarkResult& result) {
+  return result.target_id.rfind("gfx942", 0) == 0 && args.m >= 128 && args.n >= 128 && args.k >= 128;
+}
+
+const char* finite_sparse_a_4_to_2_kernel(const Args& args, const BenchmarkResult& result) {
   if (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return "cpu_reference_sparse_a_4_to_2_expand_then_finite_u8_gemm_v1";
   }
   if (result.target_id.rfind("gfx120", 0) == 0) {
     return "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1";
+  }
+  if (sparse_a_cdna3_use_smfmac_32x32x32(args, result)) {
+    return "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1";
   }
   return "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1";
 }
@@ -590,7 +597,7 @@ void apply_finite_sparse_a_4_to_2_backend_metadata(const Args& args, BenchmarkRe
     return;
   }
   result.backend_info.performance_validated = 0;
-  const char* kernel = finite_sparse_a_4_to_2_kernel(result);
+  const char* kernel = finite_sparse_a_4_to_2_kernel(args, result);
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(
       result.backend_info.epilogue_mode,
@@ -612,12 +619,15 @@ void apply_finite_sparse_a_4_to_2_backend_metadata(const Args& args, BenchmarkRe
   set_backend_text(result.backend_info.autotune_key, sizeof(result.backend_info.autotune_key), key.c_str());
 }
 
-const char* rns_sparse_a_4_to_2_kernel(const BenchmarkResult& result) {
+const char* rns_sparse_a_4_to_2_kernel(const Args& args, const BenchmarkResult& result) {
   if (result.backend_info.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return "cpu_reference_sparse_a_4_to_2_expand_then_rns_gemm_v1";
   }
   if (result.target_id.rfind("gfx120", 0) == 0) {
     return "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1";
+  }
+  if (sparse_a_cdna3_use_smfmac_32x32x32(args, result)) {
+    return "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1";
   }
   return "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1";
 }
@@ -665,7 +675,7 @@ void apply_rns_sparse_a_4_to_2_backend_metadata(const Args& args, BenchmarkResul
     return;
   }
   result.backend_info.performance_validated = 0;
-  const char* kernel = rns_sparse_a_4_to_2_kernel(result);
+  const char* kernel = rns_sparse_a_4_to_2_kernel(args, result);
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
   set_backend_text(
       result.backend_info.epilogue_mode,

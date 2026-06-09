@@ -425,6 +425,38 @@ valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
 assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
 assert valid_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_16x16x64_i8"
 
+wide_sparse_amdgpu = copy.deepcopy(sparse_amdgpu)
+wide_sparse_amdgpu["m"] = 128
+wide_sparse_amdgpu["n"] = 128
+wide_sparse_amdgpu["k"] = 128
+wide_sparse_amdgpu["device"]["gcn_arch"] = "gfx942"
+wide_sparse_amdgpu["configured_amdgpu_targets"] = "gfx942"
+wide_sparse_amdgpu["selected_kernel"] = "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1"
+wide_sparse_amdgpu["backend_metadata"]["selected_kernel"] = wide_sparse_amdgpu["selected_kernel"]
+wide_sparse_amdgpu["backend_metadata"]["matrix_instruction_shape"] = "32x32x32"
+wide_sparse_key = (
+    "backend=amdgpu-builtins;target_id=gfx942;semantics=finite_ring_u8;m=128;n=128;k=128;"
+    "finite_modulus=251;prefix=0;tile_m=128;tile_n=128;"
+    "sparse_contract=a_4_to_2_structured_k_v1;sparse_operand=A;sparse_group_size=4;"
+    "sparse_nonzeros_per_group=2;sparse_index_layout=canonical_2bit_k_groups_v1;"
+    "sparse_value_signedness=unsigned_u8;dense_operand=B;"
+    "kernel=amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1;"
+    "epilogue=finite_u8_centered_residue_then_canonical_u8_export"
+)
+wide_sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
+    wide_sparse_key,
+    wide_sparse_amdgpu,
+)
+wide_sparse_report = benchmark_sweep.review_captures(
+    [wide_sparse_amdgpu],
+    review_mode="release",
+    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_32x32x32_i8": 4}}]},
+)
+wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
+assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
+assert "amdgpu_builtin_selected_kernel_semantic_target_mismatch" not in wide_sparse_candidate["promotion_blockers"]
+assert "missing_amdgpu_builtin_matrix_isa_histogram" not in wide_sparse_candidate["promotion_blockers"]
+
 amdgpu_tile = copy.deepcopy(amdgpu)
 amdgpu_tile["selected_kernel"] = "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1"
 amdgpu_tile["backend_metadata"]["selected_kernel"] = amdgpu_tile["selected_kernel"]

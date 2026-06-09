@@ -83,7 +83,10 @@ def _amdgpu_builtin_allowed_selected_kernels(data: dict[str, Any]) -> set[str] |
                 "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
             }
         )
-        return dense | {"amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1"}
+        return dense | {
+            "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
+            "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
+        }
     if target_family == "rdna3":
         return (
             {"amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1"}
