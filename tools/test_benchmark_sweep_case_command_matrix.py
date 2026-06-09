@@ -481,16 +481,24 @@ direct_reuse_args = copy.copy(scenario_args)
 direct_reuse_args.backends = None
 direct_reuse_args.scenario = ["direct-hip-reuse-expansion"]
 direct_reuse_entries = benchmark_sweep.sweep_command_entries(direct_reuse_args)
-assert len(direct_reuse_entries) == 68
+assert len(direct_reuse_entries) == 82
 assert {entry.scenario["family"] for entry in direct_reuse_entries} == {"direct-hip-reuse-expansion"}
 assert {
     entry.scenario["semantics"]
     for entry in direct_reuse_entries
-} == {"bounded-u64", "finite-u8-ring", "finite-u8-field", "exact-wide-signed", "exact-wide-unsigned", "wrap-u64"}
+} == {
+    "bounded-i64",
+    "bounded-u64",
+    "finite-u8-ring",
+    "finite-u8-field",
+    "exact-wide-signed",
+    "exact-wide-unsigned",
+    "wrap-u64",
+}
 assert all(
     entry.scenario["backend"] != "ck"
     for entry in direct_reuse_entries
-    if entry.scenario["semantics"] == "bounded-u64"
+    if entry.scenario["semantics"] in {"bounded-i64", "bounded-u64"}
 )
 assert {
     entry.scenario.get("metadata", {}).get("workflow_name")
