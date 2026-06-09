@@ -566,7 +566,15 @@ adaptive_group_command = benchmark_sweep.command_for(
     adaptive_group_args,
 )
 assert "--adaptive-grouped-scheduler" in adaptive_group_command
-overlap_item = next(item for item in catalog["streaming-overlap"] if item.streaming_overlap)
+overlap_items = catalog["streaming-overlap"]
+assert {item.review_mode_expectation for item in overlap_items} == {"release"}
+assert {item.promotion_eligibility for item in overlap_items} == {"streaming_overlap_evidence_only"}
+assert {item.semantics for item in overlap_items} == {"bounded-i64", "bounded-u64"}
+assert {item.case.m for item in overlap_items} == {512, 1024}
+assert sum(1 for item in overlap_items if item.streaming_overlap) == 4
+assert sum(1 for item in overlap_items if item.backends == ("cpu",)) == 4
+assert sum(1 for item in overlap_items if item.pack_mode == "prepacked_reuse_b") == 8
+overlap_item = next(item for item in overlap_items if item.streaming_overlap)
 overlap_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, overlap_item)
 overlap_command = benchmark_sweep.command_for(
     Path("rns8-bench"),

@@ -797,6 +797,9 @@ inspection commands.
 - Implementation scope: pack-next/GEMM-current/export-previous streams,
   dependency contracts, status synchronization, final checksum synchronization,
   and event attribution.
+- Local progress: `streaming-overlap` release evidence now includes signed and
+  unsigned bounded 512 and 1024 rows, each with CPU correctness anchors, serial
+  Direct-HIP reuse-B controls, and explicit multi-stream overlap candidates.
 - Required evidence: `streaming-overlap` release captures against serial
   same-contract baselines.
 - Constraint: do not overlap across dependencies that affect exactness,

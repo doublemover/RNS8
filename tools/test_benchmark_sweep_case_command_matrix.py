@@ -808,6 +808,30 @@ assert any(
     for entry in grouped_dispatch_entries
 )
 
+streaming_args = copy.copy(scenario_args)
+streaming_args.scenario = ["streaming-overlap"]
+streaming_entries = benchmark_sweep.sweep_command_entries(streaming_args)
+assert [entry.scenario["name"] for entry in streaming_entries] == [
+    "bounded-i64-512-cpu-baseline",
+    "bounded-i64-512-serial-direct-reuse-b-baseline",
+    "bounded-i64-512-reuse-b-streaming-overlap",
+    "bounded-u64-512-cpu-baseline",
+    "bounded-u64-512-serial-direct-reuse-b-baseline",
+    "bounded-u64-512-reuse-b-streaming-overlap",
+    "bounded-i64-1024-cpu-baseline",
+    "bounded-i64-1024-serial-direct-reuse-b-baseline",
+    "bounded-i64-1024-reuse-b-streaming-overlap",
+    "bounded-u64-1024-cpu-baseline",
+    "bounded-u64-1024-serial-direct-reuse-b-baseline",
+    "bounded-u64-1024-reuse-b-streaming-overlap",
+]
+assert all(entry.scenario["family"] == "streaming-overlap" for entry in streaming_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in streaming_entries)
+assert {entry.scenario["shape"]["m"] for entry in streaming_entries} == {512, 1024}
+assert sum(1 for entry in streaming_entries if entry.scenario.get("streaming_overlap")) == 4
+assert all("--streaming-overlap" in entry.command for entry in streaming_entries if entry.scenario.get("streaming_overlap"))
+assert all("--reuse-packed-b" in entry.command for entry in streaming_entries if "reuse-b" in entry.scenario["name"])
+
 rns_chain_args = copy.copy(scenario_args)
 rns_chain_args.backends = ["hip-direct"]
 rns_chain_args.scenario = ["rns-chain"]
