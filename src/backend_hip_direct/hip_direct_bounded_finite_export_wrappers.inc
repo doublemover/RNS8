@@ -13,10 +13,11 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
   const int threads = 256;
   const int elements = rows * cols;
   const int blocks = (elements + threads - 1) / threads;
+  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
   if (modulus == 256) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<256>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<256>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -29,8 +30,8 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
   }
   if (modulus == 255) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<255>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<255>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -43,8 +44,8 @@ extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
   }
   if (modulus == 251) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_kernel<251>),
-        dim3(blocks),
+        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<251>),
+        dim3(quad_blocks),
         dim3(threads),
         0,
         hip_stream,
@@ -94,10 +95,11 @@ extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  const int quad_blocks = static_cast<int>(((total + 3) / 4 + threads - 1) / threads);
   if (modulus == 256) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<256>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<256>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
@@ -110,8 +112,8 @@ extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
   }
   if (modulus == 255) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<255>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<255>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
@@ -124,8 +126,8 @@ extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
   }
   if (modulus == 251) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_kernel<251>),
-        dim3(blocks, task_count),
+        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<251>),
+        dim3(quad_blocks, task_count),
         dim3(threads),
         0,
         nullptr,
