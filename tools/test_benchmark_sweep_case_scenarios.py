@@ -402,10 +402,22 @@ for item in amdgpu_mfma_tile_items:
     assert item.promotion_eligibility == "tile_shape_evidence_only"
     assert item.metadata and item.metadata["resource_report_required"] == "mfma_isa_histogram_and_phase_timings"
 graph_item = next(item for item in catalog["hip-graph-replay"] if item.hip_graph_replay)
-assert len(catalog["hip-graph-replay"]) == 36
+assert len(catalog["hip-graph-replay"]) == 40
 assert {item.review_mode_expectation for item in catalog["hip-graph-replay"]} == {"release"}
 assert {item.promotion_eligibility for item in catalog["hip-graph-replay"]} == {"hip_graph_replay_evidence_only"}
 assert {item.case.m for item in catalog["hip-graph-replay"]} == {512, 1024}
+exact_graph_items = [
+    item
+    for item in catalog["hip-graph-replay"]
+    if item.hip_graph_replay
+    and item.semantics in {"exact-wide-signed", "exact-wide-unsigned"}
+    and "full-pack-export" in item.name
+]
+assert {item.semantics for item in exact_graph_items} == {"exact-wide-signed", "exact-wide-unsigned"}
+for item in exact_graph_items:
+    assert item.output_domain == "host_export"
+    assert item.exact_wide_limb_counts == (4,)
+    assert item.case.m == 512 and item.case.n == 512 and item.case.k == 512
 graph_args = benchmark_sweep.scenario_args_for_item(scenario_base_args, graph_item)
 graph_command = benchmark_sweep.command_for(
     Path("rns8-bench"),

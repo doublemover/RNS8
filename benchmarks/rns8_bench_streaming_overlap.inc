@@ -33,6 +33,24 @@ extern "C" int rns8_hip_direct_export_u64_device_on_stream(
     uint64_t bound,
     int* d_status,
     void* stream);
+extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status,
+    void* stream);
+extern "C" int rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(
+    const int8_t* d_residues,
+    uint64_t* d_dst,
+    int rows,
+    int cols,
+    int prefix,
+    int limb_count,
+    int* d_status,
+    void* stream);
 extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
     const uint8_t* d_src,
     int8_t* d_residues,
@@ -495,6 +513,20 @@ bool hip_graph_replay_full_finite_pack_export_requested(const Args& args) {
          args.bound_source == BoundSource::StaticProfile;
 }
 
+bool hip_graph_replay_full_exact_wide_pack_export_requested(const Args& args) {
+  return hip_graph_replay_requested(args) && exact_wide_benchmark_semantics(args.semantics) &&
+         args.residue_chain_length == 1 && !args.reuse_packed_inputs &&
+         args.next_op_hint != NextOpHint::RnsGemm && !args.oneshot &&
+         !grouped_task_executor_requested(args) && !args.vector_alu_baseline &&
+         args.backend == RNS8_BACKEND_HIP_DIRECT && !args.transient_uniform_small_inputs &&
+         !args.native_to_rns_bridge && !args.vector_to_rns_chain &&
+         !args.wrap64_rocwmma_candidate && !args.residue_channel_fusion &&
+         !args.streaming_overlap && args.bound_mode == BoundMode::Global &&
+         args.bound_source == BoundSource::StaticProfile && args.output_ld_padding == 0 &&
+         args.exact_wide_limb_count == 4 && args.export_variant == "default" &&
+         args.reconstruction_variant == "default_garner" && !args.sparse_a_4_to_2;
+}
+
 bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args) {
   return hip_graph_replay_requested(args) && args.semantics == BenchSemantics::WrapU64Mod2_64 &&
          args.residue_chain_length == 1 && !args.reuse_packed_inputs &&
@@ -510,6 +542,7 @@ bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args) {
 bool hip_graph_replay_full_pack_export_used(const BenchmarkResult& result) {
   return hip_graph_replay_full_bounded_pack_export_used(result) ||
          result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export" ||
+         result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export" ||
          result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export";
 }
 
@@ -672,6 +705,233 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
     const int host_status = *static_cast<int*>(pinned_status.get());
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph bounded pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
+    }
+    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    result.samples.pack_us.push_back(0);
+    result.samples.gemm_us.push_back(elapsed);
+    result.samples.export_us.push_back(0);
+    result.samples.end_to_end_us.push_back(elapsed);
+  }
+  record_allocation_after_repeats(result);
+  std::memcpy(C.data(), pinned_c.get(), output_bytes);
+  latest_output_matrix = c_matrix;
+  result.hip_graph_launch_count = graph_state.launch_count;
+  destroy_hip_graph_replay_state(graph_state);
+}
+
+template <typename HostT>
+void enqueue_exact_wide_graph_export(
+    const Args& args,
+    rns8_matrix* matrix,
+    uint64_t* pinned_dst,
+    int* pinned_status,
+    std::size_t output_bytes,
+    uint32_t prefix,
+    hipStream_t stream) {
+  if (!matrix || !matrix->hip_export_buffer || matrix->hip_export_bytes < output_bytes || !matrix->hip_status_buffer ||
+      matrix->hip_status_bytes < sizeof(int)) {
+    fail_status("hip graph exact-wide export buffers", RNS8_INVALID_ARGUMENT);
+  }
+  fail_streaming_hip(
+      "hip graph exact_wide_export_status_memset",
+      enqueue_timed_stream_operation("exact_wide_export_status_memset", stream, [&]() {
+        return hipMemsetAsync(matrix->hip_status_buffer, 0, sizeof(int), stream);
+      }));
+  fail_streaming_hip(
+      "hip graph exact_wide_export_kernel",
+      enqueue_timed_stream_operation("exact_wide_export_kernel", stream, [&]() {
+        const int code = std::is_same_v<HostT, int64_t>
+                             ? rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(
+                                   static_cast<const int8_t*>(matrix->hip_residues),
+                                   static_cast<uint64_t*>(matrix->hip_export_buffer),
+                                   static_cast<int>(args.m),
+                                   static_cast<int>(args.n),
+                                   static_cast<int>(prefix),
+                                   static_cast<int>(args.exact_wide_limb_count),
+                                   static_cast<int*>(matrix->hip_status_buffer),
+                                   stream)
+                             : rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(
+                                   static_cast<const int8_t*>(matrix->hip_residues),
+                                   static_cast<uint64_t*>(matrix->hip_export_buffer),
+                                   static_cast<int>(args.m),
+                                   static_cast<int>(args.n),
+                                   static_cast<int>(prefix),
+                                   static_cast<int>(args.exact_wide_limb_count),
+                                   static_cast<int*>(matrix->hip_status_buffer),
+                                   stream);
+        return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
+      }));
+  fail_streaming_hip(
+      "hip graph exact_wide_export_status_d2h",
+      enqueue_timed_stream_operation("exact_wide_export_status_d2h", stream, [&]() {
+        return hipMemcpyAsync(pinned_status, matrix->hip_status_buffer, sizeof(int), hipMemcpyDeviceToHost, stream);
+      }));
+  fail_streaming_hip(
+      "hip graph exact_wide_export_d2h",
+      enqueue_timed_stream_operation("exact_wide_export_d2h", stream, [&]() {
+        return hipMemcpyAsync(pinned_dst, matrix->hip_export_buffer, output_bytes, hipMemcpyDeviceToHost, stream);
+      }));
+}
+
+template <typename HostT>
+void run_hip_graph_replay_exact_wide_pack_gemm_export(
+    const Args& args,
+    BenchmarkResult& result,
+    const rns8_plan* plan,
+    rns8_matrix* a_matrix,
+    rns8_matrix* b_matrix,
+    rns8_matrix* c_matrix,
+    const std::vector<HostT>& A,
+    const std::vector<HostT>& B,
+    std::vector<uint64_t>& C,
+    rns8_matrix*& latest_output_matrix) {
+  if (!a_matrix || !b_matrix || !c_matrix || args.exact_wide_limb_count != 4 || args.output_ld_padding != 0) {
+    fail_status("hip graph exact-wide pack/GEMM/export requires contiguous 4-limb A/B/C matrices", RNS8_INVALID_ARGUMENT);
+  }
+
+  result.hip_graph_replay_requested = true;
+  result.hip_graph_replay_scope = "direct_hip_exact_wide_pack_gemm_export";
+  result.hip_graph_replay_caveat =
+      "captures Direct-HIP exact-wide pack, one RNS GEMM, fixed-width exact limb export, status D2H, and output D2H inside the graph";
+
+  const std::size_t a_bytes = checked_bytes(A.size(), sizeof(HostT), "hip graph exact-wide A input");
+  const std::size_t b_bytes = checked_bytes(B.size(), sizeof(HostT), "hip graph exact-wide B input");
+  const std::size_t output_bytes = checked_bytes(
+      checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "hip graph exact-wide C output"),
+      sizeof(uint64_t),
+      "hip graph exact-wide C output");
+
+  rns8::detail::hip_pinned_host_buffer pinned_a;
+  rns8::detail::hip_pinned_host_buffer pinned_b;
+  rns8::detail::hip_pinned_host_buffer pinned_c;
+  rns8::detail::hip_pinned_host_buffer pinned_status;
+  fail_streaming_hip("hipHostMalloc(hip graph exact-wide A)", pinned_a.ensure(args.device_id, a_bytes));
+  fail_streaming_hip("hipHostMalloc(hip graph exact-wide B)", pinned_b.ensure(args.device_id, b_bytes));
+  fail_streaming_hip("hipHostMalloc(hip graph exact-wide C)", pinned_c.ensure(args.device_id, output_bytes));
+  fail_streaming_hip("hipHostMalloc(hip graph exact-wide status)", pinned_status.ensure(args.device_id, sizeof(int)));
+  std::memcpy(pinned_a.get(), A.data(), a_bytes);
+  std::memcpy(pinned_b.get(), B.data(), b_bytes);
+  std::memset(pinned_c.get(), 0, output_bytes);
+  *static_cast<int*>(pinned_status.get()) = 0;
+
+  rns8_status status =
+      rns8::detail::hip_direct_ensure_upload_buffer(args.device_id, a_bytes, &a_matrix->hip_upload_buffer, &a_matrix->hip_upload_bytes);
+  if (status != RNS8_SUCCESS) {
+    fail_status("hip_direct_ensure_upload_buffer(hip graph exact-wide A)", status);
+  }
+  status =
+      rns8::detail::hip_direct_ensure_upload_buffer(args.device_id, b_bytes, &b_matrix->hip_upload_buffer, &b_matrix->hip_upload_bytes);
+  if (status != RNS8_SUCCESS) {
+    fail_status("hip_direct_ensure_upload_buffer(hip graph exact-wide B)", status);
+  }
+  status = rns8::detail::hip_direct_ensure_upload_buffer(
+      args.device_id, output_bytes, &c_matrix->hip_export_buffer, &c_matrix->hip_export_bytes);
+  if (status != RNS8_SUCCESS) {
+    fail_status("hip_direct_ensure_upload_buffer(hip graph exact-wide export)", status);
+  }
+  status = rns8::detail::hip_direct_ensure_upload_buffer(
+      args.device_id, sizeof(int), &c_matrix->hip_status_buffer, &c_matrix->hip_status_bytes);
+  if (status != RNS8_SUCCESS) {
+    fail_status("hip_direct_ensure_upload_buffer(hip graph exact-wide status)", status);
+  }
+
+  const uint32_t prefix = selected_execution_prefix(args, result);
+  HipGraphReplayState graph_state{};
+  std::string graph_error;
+  status = capture_hip_graph_replay(
+      args.device_id,
+      [&](void* stream_ptr) {
+        auto* stream = static_cast<hipStream_t>(stream_ptr);
+        enqueue_streaming_pack(
+            args,
+            a_matrix,
+            static_cast<const HostT*>(pinned_a.get()),
+            a_bytes,
+            args.m,
+            args.k,
+            args.k,
+            prefix,
+            1,
+            stream);
+        enqueue_streaming_pack(
+            args,
+            b_matrix,
+            static_cast<const HostT*>(pinned_b.get()),
+            b_bytes,
+            args.k,
+            args.n,
+            args.n,
+            prefix,
+            1,
+            stream);
+        const rns8_status gemm_status = rns8::detail::hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
+            plan, a_matrix, b_matrix, c_matrix, stream);
+        if (gemm_status != RNS8_SUCCESS) {
+          return gemm_status;
+        }
+        enqueue_exact_wide_graph_export<HostT>(
+            args,
+            c_matrix,
+            static_cast<uint64_t*>(pinned_c.get()),
+            static_cast<int*>(pinned_status.get()),
+            output_bytes,
+            prefix,
+            stream);
+        latest_output_matrix = c_matrix;
+        return RNS8_SUCCESS;
+      },
+      graph_state,
+      result.hip_graph_capture_us,
+      result.hip_graph_instantiate_us,
+      graph_error);
+  if (status != RNS8_SUCCESS) {
+    result.hip_graph_replay_status = "capture_failed";
+    result.hip_graph_replay_caveat = graph_error;
+    destroy_hip_graph_replay_state(graph_state);
+    if (!graph_error.empty()) {
+      std::cerr << graph_error << "\n";
+    }
+    fail_status("hip graph exact-wide pack/GEMM/export capture", status);
+  }
+
+  result.hip_graph_replay_available = true;
+  result.hip_graph_replay_used = true;
+  result.hip_graph_replay_status = "available";
+
+  for (uint32_t r = 0; r < args.warmups; ++r) {
+    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    if (status != RNS8_SUCCESS) {
+      result.hip_graph_replay_status = "warmup_launch_failed";
+      result.hip_graph_replay_caveat = graph_error;
+      destroy_hip_graph_replay_state(graph_state);
+      if (!graph_error.empty()) {
+        std::cerr << graph_error << "\n";
+      }
+      fail_status("hip graph exact-wide pack/GEMM/export warmup launch", status);
+    }
+    const int host_status = *static_cast<int*>(pinned_status.get());
+    if (host_status != static_cast<int>(RNS8_SUCCESS)) {
+      fail_status("hip graph exact-wide pack/GEMM/export warmup export status", static_cast<rns8_status>(host_status));
+    }
+  }
+  record_allocation_after_warmups(result);
+  for (uint32_t r = 0; r < args.repeats; ++r) {
+    *static_cast<int*>(pinned_status.get()) = 0;
+    const auto repeat_start = std::chrono::steady_clock::now();
+    status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
+    const auto repeat_end = std::chrono::steady_clock::now();
+    if (status != RNS8_SUCCESS) {
+      result.hip_graph_replay_status = "measured_launch_failed";
+      result.hip_graph_replay_caveat = graph_error;
+      destroy_hip_graph_replay_state(graph_state);
+      if (!graph_error.empty()) {
+        std::cerr << graph_error << "\n";
+      }
+      fail_status("hip graph exact-wide pack/GEMM/export measured launch", status);
+    }
+    const int host_status = *static_cast<int*>(pinned_status.get());
+    if (host_status != static_cast<int>(RNS8_SUCCESS)) {
+      fail_status("hip graph exact-wide pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
     const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
@@ -1143,6 +1403,12 @@ bool hip_graph_replay_full_finite_pack_export_requested(const Args& args) {
          args.residue_chain_length == 1 && !args.reuse_packed_inputs;
 }
 
+bool hip_graph_replay_full_exact_wide_pack_export_requested(const Args& args) {
+  return hip_graph_replay_requested(args) && exact_wide_benchmark_semantics(args.semantics) &&
+         args.residue_chain_length == 1 && !args.reuse_packed_inputs && args.output_ld_padding == 0 &&
+         args.exact_wide_limb_count == 4;
+}
+
 bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args) {
   return hip_graph_replay_requested(args) && args.semantics == BenchSemantics::WrapU64Mod2_64 &&
          args.residue_chain_length == 1 && !args.reuse_packed_inputs;
@@ -1151,6 +1417,7 @@ bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args) {
 bool hip_graph_replay_full_pack_export_used(const BenchmarkResult& result) {
   return hip_graph_replay_full_bounded_pack_export_used(result) ||
          result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export" ||
+         result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export" ||
          result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export";
 }
 
@@ -1180,6 +1447,21 @@ void run_hip_graph_replay_finite_pack_gemm_export(
     const std::vector<uint8_t>&,
     std::vector<uint8_t>&) {
   fail_status("HIP Graph finite-u8 pack/GEMM/export requires a HIP-enabled benchmark build", RNS8_UNSUPPORTED_BACKEND);
+}
+
+template <typename HostT>
+void run_hip_graph_replay_exact_wide_pack_gemm_export(
+    const Args&,
+    BenchmarkResult&,
+    const rns8_plan*,
+    rns8_matrix*,
+    rns8_matrix*,
+    rns8_matrix*,
+    const std::vector<HostT>&,
+    const std::vector<HostT>&,
+    std::vector<uint64_t>&,
+    rns8_matrix*&) {
+  fail_status("HIP Graph exact-wide pack/GEMM/export requires a HIP-enabled benchmark build", RNS8_UNSUPPORTED_BACKEND);
 }
 
 void run_hip_graph_replay_wrap64_pack_gemm_export(

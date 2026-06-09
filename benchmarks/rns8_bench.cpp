@@ -166,6 +166,7 @@ uint32_t measured_task_count(const Args& args);
 bool hip_graph_replay_requested(const Args& args);
 bool hip_graph_replay_full_bounded_pack_export_requested(const Args& args);
 bool hip_graph_replay_full_finite_pack_export_requested(const Args& args);
+bool hip_graph_replay_full_exact_wide_pack_export_requested(const Args& args);
 bool hip_graph_replay_full_wrap64_pack_export_requested(const Args& args);
 bool hip_graph_replay_full_pack_export_used(const BenchmarkResult& result);
 void record_allocation_after_warmups(BenchmarkResult& result);

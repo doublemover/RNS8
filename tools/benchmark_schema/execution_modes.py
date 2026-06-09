@@ -458,6 +458,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     resident_chain_graph = execution_mode == "hip_graph_replay_resident_rns_chain"
     bounded_full_graph = execution_mode == "hip_graph_replay_bounded_pack_gemm_export"
     finite_full_graph = execution_mode == "hip_graph_replay_finite_u8_pack_gemm_export"
+    exact_wide_full_graph = execution_mode == "hip_graph_replay_exact_wide_pack_gemm_export"
     wrap64_full_graph = execution_mode == "hip_graph_replay_wrap64_pack_gemm_export"
     if resident_chain_graph:
         if self.data.get("benchmark") != "rns8_hip_graph_replay_resident_rns_chain":
@@ -473,6 +474,12 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             self._error(
                 "finite-u8 pack/GEMM/export hip_graph_replay captures must use "
                 "benchmark=rns8_hip_graph_replay_finite_u8_pack_gemm_export"
+            )
+    elif exact_wide_full_graph:
+        if self.data.get("benchmark") != "rns8_hip_graph_replay_exact_wide_pack_gemm_export":
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use "
+                "benchmark=rns8_hip_graph_replay_exact_wide_pack_gemm_export"
             )
     elif wrap64_full_graph:
         if self.data.get("benchmark") != "rns8_hip_graph_replay_wrap64_pack_gemm_export":
@@ -620,6 +627,53 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
                 "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP finite-u8"],
                 "crt_export": ["finite export kernel", "output D2H"],
                 "end_to_end": ["hipGraphLaunch", "finite-u8", "pack", "modular GEMM", "canonical export", "D2H"],
+            },
+        )
+    elif exact_wide_full_graph:
+        if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use exact-wide semantics")
+        if self.data.get("reuse_packed_inputs") is not False:
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+        if self.data.get("pack_mode") != "per_repeat_repack":
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+        if self.data.get("prepack_reuse_operands") != []:
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+        if self.data.get("prepack_reuse_strategy") != "none":
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+        if chain_length != 1 or self._residue_output_mode() != "host_export":
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+        if self.data.get("exact_wide_limb_count") != 4:
+            self._error("exact-wide pack/GEMM/export hip_graph_replay captures currently require exact_wide_limb_count=4")
+        if graph.get("scope") != "direct_hip_exact_wide_pack_gemm_export":
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must set "
+                "hip_graph_replay.scope=direct_hip_exact_wide_pack_gemm_export"
+            )
+        if graph.get("captured_chain_length") != 1:
+            self._error("exact-wide pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+        if (
+            graph.get("timing_policy")
+            != "raw_timings_us.end_to_end_measure_one_full_exact_wide_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+        ):
+            self._error("exact-wide pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+        if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
+            self._error("exact-wide pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
+        if graph.get("final_export_policy") != "exact_wide_limb_export_and_output_d2h_captured_inside_graph_each_repeat":
+            self._error("exact-wide pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+        if (
+            not isinstance(caveat, str)
+            or "exact-wide pack, one RNS GEMM, fixed-width exact limb export" not in caveat
+        ):
+            self._error("exact-wide pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+        _require_graph_full_path_phase_metadata(
+            self,
+            metadata,
+            label="exact-wide pack/GEMM/export",
+            required_notes={
+                "pack": ["captured inside one HIP Graph launch"],
+                "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP exact-wide"],
+                "crt_export": ["exact-wide limb export kernel", "status D2H", "output D2H"],
+                "end_to_end": ["hipGraphLaunch", "exact-wide", "pack", "RNS GEMM", "limb export", "D2H"],
             },
         )
     elif wrap64_full_graph:

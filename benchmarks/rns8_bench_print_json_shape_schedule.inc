@@ -145,10 +145,13 @@
   const bool graph_full_bounded_pack_export = hip_graph_replay_full_bounded_pack_export_used(result);
   const bool graph_full_finite_pack_export =
       result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export";
+  const bool graph_full_exact_wide_pack_export =
+      result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export";
   const bool graph_full_wrap64_pack_export =
       result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export";
   const bool graph_full_pack_export =
-      graph_full_bounded_pack_export || graph_full_finite_pack_export || graph_full_wrap64_pack_export;
+      graph_full_bounded_pack_export || graph_full_finite_pack_export ||
+      graph_full_exact_wide_pack_export || graph_full_wrap64_pack_export;
   std::cout << "    \"captured_chain_length\": "
             << (result.hip_graph_replay_used ? (graph_full_pack_export ? 1 : args.residue_chain_length) : 0)
             << ",\n";
@@ -156,11 +159,13 @@
             << (result.hip_graph_replay_used
                      ? (graph_full_finite_pack_export
                             ? "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
-                            : (graph_full_wrap64_pack_export
-                                   ? "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
-                                   : (graph_full_bounded_pack_export
-                                          ? "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
-                                          : "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync")))
+                            : (graph_full_exact_wide_pack_export
+                                   ? "raw_timings_us.end_to_end_measure_one_full_exact_wide_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                   : (graph_full_wrap64_pack_export
+                                          ? "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                          : (graph_full_bounded_pack_export
+                                                 ? "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+                                                 : "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync"))))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"setup_policy\": \""
@@ -173,11 +178,13 @@
             << (result.hip_graph_replay_used
                      ? (graph_full_finite_pack_export
                             ? "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat"
-                            : (graph_full_wrap64_pack_export
-                                   ? "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat"
-                                   : (graph_full_bounded_pack_export
-                                          ? "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
-                                          : "one_final_logical_export_after_measured_repeats_for_checksum_only")))
+                            : (graph_full_exact_wide_pack_export
+                                   ? "exact_wide_limb_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                   : (graph_full_wrap64_pack_export
+                                          ? "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                          : (graph_full_bounded_pack_export
+                                                 ? "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+                                                 : "one_final_logical_export_after_measured_repeats_for_checksum_only"))))
                     : "not_applicable")
             << "\",\n";
   std::cout << "    \"caveat\": ";

@@ -145,6 +145,9 @@
     if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
       std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with the Direct-HIP finite-u8 pack and canonical export work\",\n";
       std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including finite export kernel and output D2H\",\n";
+    } else if (result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export") {
+      std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with the Direct-HIP exact-wide pack and fixed-width limb export work\",\n";
+      std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including exact-wide limb export kernel, status D2H, and output D2H\",\n";
     } else if (result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export") {
       std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with Direct-HIP wrap64 byte-limb pack and low64 export work\",\n";
       std::cout << "      \"crt_export\": \"captured inside one HIP Graph launch including wrap64 low64 export kernel and output D2H\",\n";
@@ -321,6 +324,8 @@
   if (hip_graph_replay_full_pack_export_used(result)) {
     if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
       std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete finite-u8 pack, modular GEMM, canonical export, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
+    } else if (result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export") {
+      std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete exact-wide pack, RNS GEMM, fixed-width limb export, status D2H, and output D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
     } else if (result.hip_graph_replay_scope == "direct_hip_wrap64_pack_gemm_export") {
       std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete wrap64 byte-limb pack, byte-GEMM36, low64 export, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
     } else {

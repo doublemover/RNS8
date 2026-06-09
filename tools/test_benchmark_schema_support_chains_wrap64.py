@@ -832,6 +832,89 @@ def as_hip_graph_full_finite_capture(capture: dict) -> dict:
     return graph
 
 
+def as_hip_graph_full_exact_wide_capture(capture: dict, semantics: str = "exact_wide_signed") -> dict:
+    graph = as_hip_graph_full_bounded_capture(as_exact_wide_capture(capture))
+    signed = semantics == "exact_wide_signed"
+    kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    epilogue = "native_i64_u64_export"
+    autotune_key = with_accumulator_key_fields(
+        (
+            f"backend=hip-direct;semantics={semantics};m=64;n=64;k=64;prefix=20;tile_m=64;tile_n=64;"
+            f"groups=1;adaptive_prefix=0;adaptive_skip=0;kernel={kernel};epilogue={epilogue}"
+        ),
+        graph,
+    )
+    graph["benchmark"] = "rns8_hip_graph_replay_exact_wide_pack_gemm_export"
+    graph["benchmark_execution_mode"] = "hip_graph_replay_exact_wide_pack_gemm_export"
+    graph["command_line"] = (
+        "rns8-bench --backend hip-direct --semantics "
+        f"{'exact-wide-signed' if signed else 'exact-wide-unsigned'} "
+        "--m 64 --n 64 --k 64 --exact-wide-limbs 4 --hip-graph-replay --warmups 1 --repeats 3 --seed 7"
+    )
+    graph["semantics"] = semantics
+    graph["bound_kind"] = "none"
+    graph["bound"] = 0
+    graph["input_distribution"] = "signed_uniform_-16_16" if signed else "unsigned_uniform_0_16"
+    graph["finite_modulus"] = None
+    graph["prefix"] = 20
+    graph["selected_prefix"] = 20
+    graph["requested_max_prefix"] = 20
+    graph["residue_planes_requested"] = 20
+    graph["residue_planes_selected"] = 20
+    graph["exact_wide_limb_count"] = 4
+    graph["epilogue_type"] = "exact_wide_signed_limb_export" if signed else "exact_wide_unsigned_limb_export"
+    graph["schedule_metadata"]["min_required_prefix"] = 20
+    graph["schedule_metadata"]["max_required_prefix"] = 20
+    graph["schedule_metadata"]["min_selected_prefix"] = 20
+    graph["schedule_metadata"]["max_selected_prefix"] = 20
+    graph["schedule_metadata"]["range_bit_length"] = 192
+    graph["backend_metadata"]["selected_kernel"] = kernel
+    graph["backend_metadata"]["epilogue_mode"] = epilogue
+    graph["backend_metadata"]["autotune_key"] = autotune_key
+    graph["selected_kernel"] = kernel
+    graph["timing_note"] = (
+        "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP exact-wide full "
+        "pack/GEMM/fixed-limb-export path"
+    )
+    metadata = graph["timing_metadata"]
+    metadata["benchmark_execution_mode"] = "hip_graph_replay_exact_wide_pack_gemm_export"
+    metadata["phase_notes"]["rns_gemm"] = (
+        "captured inside one HIP Graph launch with the Direct-HIP exact-wide pack and fixed-width limb export work"
+    )
+    metadata["phase_notes"]["crt_export"] = (
+        "captured inside one HIP Graph launch including exact-wide limb export kernel, status D2H, and output D2H"
+    )
+    metadata["phase_notes"]["end_to_end"] = (
+        "measured duration for one hipGraphLaunch plus stream synchronization containing the complete exact-wide "
+        "pack, RNS GEMM, fixed-width limb export, status D2H, and output D2H path"
+    )
+    metadata["hip_graph_replay_scope"] = "direct_hip_exact_wide_pack_gemm_export"
+    graph["hip_graph_replay"].update(
+        {
+            "scope": "direct_hip_exact_wide_pack_gemm_export",
+            "plan_identity": autotune_key,
+            "setup_scope": "benchmark_hip_graph_replay_exact_wide_pack_gemm_export",
+            "timing_policy": (
+                "raw_timings_us.end_to_end_measure_one_full_exact_wide_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
+            ),
+            "final_export_policy": "exact_wide_limb_export_and_output_d2h_captured_inside_graph_each_repeat",
+            "caveat": (
+                "captures Direct-HIP exact-wide pack, one RNS GEMM, fixed-width exact limb export, "
+                "status D2H, and output D2H inside the graph"
+            ),
+        }
+    )
+    add_target_variant_fields(graph)
+    add_requested_next_op_fields(graph)
+    add_output_policy_fields(
+        graph,
+        status_handling="structurally_elided",
+        per_repeat_export=True,
+        final_checksum_export=False,
+    )
+    return graph
+
+
 def as_hip_graph_full_wrap64_capture(capture: dict) -> dict:
     graph = copy.deepcopy(capture)
     repeats = graph["repeats"]

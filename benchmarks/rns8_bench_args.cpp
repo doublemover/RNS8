@@ -773,6 +773,9 @@ Args parse_args(int argc, char** argv) {
     const bool full_finite_pack_export_graph =
         finite_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
         !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
+    const bool full_exact_wide_pack_export_graph =
+        exact_wide_benchmark_semantics(args.semantics) && args.residue_chain_length == 1 &&
+        !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
     const bool full_wrap64_pack_export_graph =
         args.semantics == BenchSemantics::WrapU64Mod2_64 && args.residue_chain_length == 1 &&
         !args.reuse_packed_inputs && args.next_op_hint != NextOpHint::RnsGemm;
@@ -787,10 +790,16 @@ Args parse_args(int argc, char** argv) {
       usage_error("--hip-graph-replay requires --backend hip-direct");
     }
     if (!resident_chain_graph && !full_bounded_pack_export_graph && !full_finite_pack_export_graph &&
-        !full_wrap64_pack_export_graph) {
+        !full_exact_wide_pack_export_graph && !full_wrap64_pack_export_graph) {
       usage_error(
-          "--hip-graph-replay requires either bounded/finite/wrap64 single-GEMM host-output no-reuse mode or "
+          "--hip-graph-replay requires either bounded/exact-wide/finite/wrap64 single-GEMM host-output no-reuse mode or "
           "--reuse-packed-inputs --residue-chain-length > 1 --next-op-hint rns-gemm");
+    }
+    if (full_exact_wide_pack_export_graph &&
+        (args.output_ld_padding != 0 || args.exact_wide_limb_count != 4 ||
+         args.export_variant != "default" || args.reconstruction_variant != "default_garner")) {
+      usage_error(
+          "--hip-graph-replay exact-wide full pack/GEMM/export mode currently requires contiguous 4-limb default export");
     }
     if (full_wrap64_pack_export_graph && args.output_ld_padding != 0) {
       usage_error("--hip-graph-replay wrap64 full pack/GEMM/export mode currently requires contiguous output");

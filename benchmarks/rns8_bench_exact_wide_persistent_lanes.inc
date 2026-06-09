@@ -295,7 +295,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     }
   };
 
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_exact_wide_pack_export_requested(args)) {
+    run_hip_graph_replay_exact_wide_pack_gemm_export(
+        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, latest_output_matrix);
+  } else if (hip_graph_replay_requested(args)) {
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else {
@@ -644,7 +647,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     }
   };
 
-  if (hip_graph_replay_requested(args)) {
+  if (hip_graph_replay_full_exact_wide_pack_export_requested(args)) {
+    run_hip_graph_replay_exact_wide_pack_gemm_export(
+        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, latest_output_matrix);
+  } else if (hip_graph_replay_requested(args)) {
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else {

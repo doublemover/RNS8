@@ -13,6 +13,7 @@ BENCHMARK_EXECUTION_MODES = {
     'direct_hip_skinny_gemv_n1_resident_rns',
     'direct_hip_skinny_gemv_small_n_resident_rns',
     'hip_graph_replay_bounded_pack_gemm_export',
+    'hip_graph_replay_exact_wide_pack_gemm_export',
     'hip_graph_replay_finite_u8_pack_gemm_export',
     'hip_graph_replay_resident_rns_chain',
     'hip_graph_replay_wrap64_pack_gemm_export',

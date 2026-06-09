@@ -513,12 +513,12 @@ graph_args = copy.copy(scenario_args)
 graph_args.backends = None
 graph_args.scenario = ["hip-graph-replay"]
 graph_entries = benchmark_sweep.sweep_command_entries(graph_args)
-assert len(graph_entries) == 36
+assert len(graph_entries) == 40
 assert {entry.scenario["family"] for entry in graph_entries} == {"hip-graph-replay"}
 assert {entry.scenario["review_mode_expectation"] for entry in graph_entries} == {"release"}
 assert {entry.scenario["promotion_eligibility"] for entry in graph_entries} == {"hip_graph_replay_evidence_only"}
 assert {entry.scenario["shape"]["m"] for entry in graph_entries} == {512, 1024}
-assert sum(1 for entry in graph_entries if "--hip-graph-replay" in entry.command) == 18
+assert sum(1 for entry in graph_entries if "--hip-graph-replay" in entry.command) == 20
 resident_graph_entries = [
     entry
     for entry in graph_entries
@@ -537,6 +537,12 @@ finite_full_path_graph_entries = [
     if "--hip-graph-replay" in entry.command
     and entry.scenario["metadata"].get("phase_label") == "hip_graph_finite_u8_full_pack_gemm_export"
 ]
+exact_wide_full_path_graph_entries = [
+    entry
+    for entry in graph_entries
+    if "--hip-graph-replay" in entry.command
+    and entry.scenario["metadata"].get("phase_label") == "hip_graph_exact_wide_full_pack_gemm_export"
+]
 wrap64_full_path_graph_entries = [
     entry
     for entry in graph_entries
@@ -545,6 +551,7 @@ wrap64_full_path_graph_entries = [
 ]
 assert len(resident_graph_entries) == 8
 assert len(full_path_graph_entries) == 4
+assert len(exact_wide_full_path_graph_entries) == 2
 assert len(finite_full_path_graph_entries) == 4
 assert len(wrap64_full_path_graph_entries) == 2
 assert all("--reuse-packed-inputs" in entry.command for entry in resident_graph_entries)
@@ -553,6 +560,8 @@ assert all("--next-op-hint" in entry.command and "rns-gemm" in entry.command for
 assert all("--reuse-packed-inputs" not in entry.command for entry in full_path_graph_entries)
 assert all("--residue-chain-length" not in entry.command for entry in full_path_graph_entries)
 assert all("--next-op-hint" not in entry.command for entry in full_path_graph_entries)
+assert all("--exact-wide-limbs" in entry.command and "4" in entry.command for entry in exact_wide_full_path_graph_entries)
+assert all("--reuse-packed-inputs" not in entry.command for entry in exact_wide_full_path_graph_entries)
 assert all("--modulus" in entry.command and "251" in entry.command for entry in finite_full_path_graph_entries)
 assert all("--reuse-packed-inputs" not in entry.command for entry in finite_full_path_graph_entries)
 assert all("--semantics" in entry.command and "wrap-u64" in entry.command for entry in wrap64_full_path_graph_entries)

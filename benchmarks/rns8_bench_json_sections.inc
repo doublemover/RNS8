@@ -172,6 +172,9 @@ const char* benchmark_setup_scope(const Args& args) {
   if (hip_graph_replay_full_finite_pack_export_requested(args)) {
     return "benchmark_hip_graph_replay_finite_u8_pack_gemm_export";
   }
+  if (hip_graph_replay_full_exact_wide_pack_export_requested(args)) {
+    return "benchmark_hip_graph_replay_exact_wide_pack_gemm_export";
+  }
   if (hip_graph_replay_full_wrap64_pack_export_requested(args)) {
     return "benchmark_hip_graph_replay_wrap64_pack_gemm_export";
   }

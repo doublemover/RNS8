@@ -172,6 +172,8 @@ def backend_id(capture: dict[str, Any]) -> str:
         return f"{backend}-hipgraph-pack-export"
     if execution_mode == "hip_graph_replay_finite_u8_pack_gemm_export":
         return f"{backend}-hipgraph-finite-pack-export"
+    if execution_mode == "hip_graph_replay_exact_wide_pack_gemm_export":
+        return f"{backend}-hipgraph-exact-wide-pack-export"
     if execution_mode == "hip_graph_replay_wrap64_pack_gemm_export":
         return f"{backend}-hipgraph-wrap64-pack-export"
     return backend

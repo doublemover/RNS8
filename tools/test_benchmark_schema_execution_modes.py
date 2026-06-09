@@ -15,6 +15,7 @@ from metadata_registry_constants import (
 from test_benchmark_schema import (
     as_grouped_dispatch_capture,
     as_hip_graph_full_bounded_capture,
+    as_hip_graph_full_exact_wide_capture,
     as_hip_graph_full_finite_capture,
     as_hip_graph_full_wrap64_capture,
     as_hip_graph_replay_capture,
@@ -216,6 +217,18 @@ def main() -> int:
     expect_invalid(
         bad_finite_graph_phase_note,
         "finite-u8 pack/GEMM/export hip_graph_replay phase note end_to_end must describe",
+    )
+
+    exact_graph = as_hip_graph_full_exact_wide_capture(direct_hip_base)
+    validate_capture(exact_graph)
+
+    bad_exact_graph_policy = copy.deepcopy(exact_graph)
+    bad_exact_graph_policy["hip_graph_replay"][
+        "final_export_policy"
+    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    expect_invalid(
+        bad_exact_graph_policy,
+        "exact-wide pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
     )
 
     wrap64_graph = as_hip_graph_full_wrap64_capture(wrap64_base)

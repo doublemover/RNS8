@@ -54,6 +54,8 @@ class ValidatorPredicatesMixin:
             return "hip_graph_replay_bounded_pack_gemm_export"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_finite_u8_pack_gemm_export":
             return "hip_graph_replay_finite_u8_pack_gemm_export"
+        if self.data.get("benchmark") == "rns8_hip_graph_replay_exact_wide_pack_gemm_export":
+            return "hip_graph_replay_exact_wide_pack_gemm_export"
         if self.data.get("benchmark") == "rns8_hip_graph_replay_wrap64_pack_gemm_export":
             return "hip_graph_replay_wrap64_pack_gemm_export"
         if self.data.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
@@ -203,6 +205,7 @@ class ValidatorPredicatesMixin:
             "hip_graph_replay_resident_rns_chain",
             "hip_graph_replay_bounded_pack_gemm_export",
             "hip_graph_replay_finite_u8_pack_gemm_export",
+            "hip_graph_replay_exact_wide_pack_gemm_export",
             "hip_graph_replay_wrap64_pack_gemm_export",
         }
 

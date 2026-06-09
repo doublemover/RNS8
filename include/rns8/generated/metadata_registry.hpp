@@ -6,7 +6,7 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 32> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 33> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
@@ -18,6 +18,7 @@ inline constexpr std::array<std::string_view, 32> benchmark_execution_modes{{
     "direct_hip_skinny_gemv_n1_resident_rns",
     "direct_hip_skinny_gemv_small_n_resident_rns",
     "hip_graph_replay_bounded_pack_gemm_export",
+    "hip_graph_replay_exact_wide_pack_gemm_export",
     "hip_graph_replay_finite_u8_pack_gemm_export",
     "hip_graph_replay_resident_rns_chain",
     "hip_graph_replay_wrap64_pack_gemm_export",
