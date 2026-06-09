@@ -120,6 +120,31 @@ __global__ void rns8_pack_i64_fixed_prefix_contiguous_kernel(
 }
 
 template <int Prefix>
+__global__ void rns8_pack_i64_fixed_prefix_contiguous_pair_kernel(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t value0 = src[cell];
+  const bool has_second = cell + 1 < elements;
+  const int64_t value1 = has_second ? src[cell + 1] : 0;
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has_second) {
+      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
 __global__ void rns8_pack_u64_fixed_prefix_kernel(
     const uint64_t* src,
     int8_t* residues,
@@ -159,6 +184,31 @@ __global__ void rns8_pack_u64_fixed_prefix_contiguous_kernel(
     const int modulus = rns8_default_moduli_device[modulus_index];
     residues[static_cast<int64_t>(modulus_index) * elements + cell] =
         rns8_center_u64_default_modulus_fixed_device(value, modulus_index, modulus);
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_fixed_prefix_contiguous_pair_kernel(
+    const uint64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  if (cell >= elements) {
+    return;
+  }
+  const uint64_t value0 = src[cell];
+  const bool has_second = cell + 1 < elements;
+  const uint64_t value1 = has_second ? src[cell + 1] : 0;
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has_second) {
+      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
   }
 }
 
@@ -221,6 +271,39 @@ __global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel(
 }
 
 template <int Prefix>
+__global__ void rns8_pack_i64_grouped_fixed_prefix_contiguous_pair_kernel(
+    const int64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t task_offset = static_cast<int64_t>(task) * src_task_stride;
+  const int64_t value0 = src[task_offset + cell];
+  const bool has_second = cell + 1 < elements;
+  const int64_t value1 = has_second ? src[task_offset + cell + 1] : 0;
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_i64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has_second) {
+      residues[output + 1] = rns8_center_i64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
+  }
+}
+
+template <int Prefix>
 __global__ void rns8_pack_u64_grouped_fixed_prefix_kernel(
     const uint64_t* src,
     int8_t* const* residue_ptrs,
@@ -275,6 +358,39 @@ __global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel(
     const int modulus = rns8_default_moduli_device[modulus_index];
     residues[static_cast<int64_t>(modulus_index) * elements + cell] =
         rns8_center_u64_default_modulus_fixed_device(value, modulus_index, modulus);
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_pack_u64_grouped_fixed_prefix_contiguous_pair_kernel(
+    const uint64_t* src,
+    int8_t* const* residue_ptrs,
+    int task_count,
+    int64_t src_task_stride,
+    int rows,
+    int cols) {
+  const int task = blockIdx.y;
+  if (task >= task_count) {
+    return;
+  }
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  if (cell >= elements) {
+    return;
+  }
+  const int64_t task_offset = static_cast<int64_t>(task) * src_task_stride;
+  const uint64_t value0 = src[task_offset + cell];
+  const bool has_second = cell + 1 < elements;
+  const uint64_t value1 = has_second ? src[task_offset + cell + 1] : 0;
+  int8_t* residues = residue_ptrs[task];
+#pragma unroll
+  for (int modulus_index = 0; modulus_index < Prefix; ++modulus_index) {
+    const int modulus = rns8_default_moduli_device[modulus_index];
+    const int64_t output = static_cast<int64_t>(modulus_index) * elements + cell;
+    residues[output] = rns8_center_u64_default_modulus_fixed_device(value0, modulus_index, modulus);
+    if (has_second) {
+      residues[output + 1] = rns8_center_u64_default_modulus_fixed_device(value1, modulus_index, modulus);
+    }
   }
 }
 

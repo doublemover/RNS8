@@ -339,6 +339,18 @@ summary_fixture_group = {
             "speedup_vs_vector_alu": 0.8,
             "primary_loss_phase_vs_direct_hip": "pack",
             "bottleneck": {"class": "pack_bound", "phase": "pack"},
+            "pack_diagnostics": {
+                "pack_median_us": 100.0,
+                "pack_a_median_us": 70.0,
+                "pack_b_median_us": 30.0,
+                "pack_share_of_end_to_end": 100.0 / 140.0,
+                "split_available": True,
+                "dominant_operand": "A",
+                "pack_mode": "per_repeat_repack",
+                "pack_layout": "matrix_engine_transient_pack_layout",
+                "source_versioned_inputs": True,
+                "same_source_version_pack_elision_available": False,
+            },
             "capture": "ck.json",
             "promotion_blockers": [
                 "reuse_not_faster_than_same_backend_setup_inclusive",
@@ -385,6 +397,9 @@ assert summary_fixture["loss_phase_by_backend"] == {"ck": {"pack": 1}}
 assert summary_fixture["loss_phase_by_semantics"] == {"bounded_i64": {"pack": 1}}
 assert summary_fixture["loss_phase_by_shape_family"] == {"small_square": {"pack": 1}}
 assert summary_fixture["loss_phase_by_scenario_family"] == {"repeated-b": {"pack": 1}}
+assert summary_fixture["pack_split_counts"] == {"split_available": 1}
+assert summary_fixture["pack_dominant_operand_counts"] == {"A": 1}
+assert summary_fixture["pack_diagnostics"][0]["dominant_operand"] == "A"
 assert summary_fixture["fastest_production_route_counts"] == {"hip-direct": 1}
 assert summary_fixture["fastest_accelerator_route_counts"] == {"ck": 1}
 assert len(summary_fixture["direct_hip_production_wins"]) == 1
@@ -398,6 +413,8 @@ assert "improve_graph_replay_break_even_or_keep_graph_benchmark_only" in next_wo
 assert "fix_graph_setup_inclusive_timing_metadata" in next_work_items
 assert "optimize_accelerator_loss_phase_or_keep_direct_hip_production_winner" in next_work_items
 assert "specialize_native_vector_or_small_shape_path_before_matrix_engine_promotion" in next_work_items
+assert "optimize_a_side_pack_kernel_or_prepack_a_reuse" in next_work_items
+assert "enable_source_versioned_pack_elision_for_repeated_inputs" in next_work_items
 assert "optimize_pack_phase" in next_work_items
 assert "address_pack_bound" in next_work_items
 assert "treat_direct_hip_as_current_production_winner_and_target_accelerator_loss_phases" in next_work_items

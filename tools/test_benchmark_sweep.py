@@ -12,6 +12,7 @@ _CASE_FRAGMENTS = [
     "test_benchmark_sweep_case_command_matrix.py",
     "test_benchmark_sweep_case_large_resume.py",
     "test_benchmark_sweep_case_chain_adaptive.py",
+    "test_benchmark_sweep_case_cli_review.py",
     "test_benchmark_sweep_case_review_metadata.py",
     "test_benchmark_sweep_case_cache_wrap_exact.py",
 ]

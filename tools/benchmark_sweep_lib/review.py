@@ -525,6 +525,9 @@ def review_next_work(
     actionable_blockers: Counter[str],
     loss_phase_counts: Counter[str],
     bottleneck_counts: Counter[str],
+    pack_split_counts: Counter[str],
+    pack_dominant_operand_counts: Counter[str],
+    pack_diagnostics: list[dict[str, Any]],
     direct_hip_wins: int,
     promotable_count: int,
 ) -> list[dict[str, Any]]:
@@ -596,14 +599,6 @@ def review_next_work(
         count = actionable_blockers.get(blocker, 0)
         if count:
             rows.append({"priority": "P1", "work": work, "reason": f"{blocker}={count}"})
-    for phase, count in loss_phase_counts.most_common(3):
-        rows.append(
-            {
-                "priority": "P1",
-                "work": f"optimize_{phase}_phase",
-                "reason": f"{count} actionable accelerator candidates report {phase} as primary loss phase",
-            }
-        )
     has_unresolved_work = (
         checksum_mismatch_count
         or missing_baseline_count
@@ -612,6 +607,66 @@ def review_next_work(
         or direct_hip_wins
         or promotable_count == 0
     )
+    if has_unresolved_work:
+        split_missing = pack_split_counts.get("split_missing", 0)
+        if split_missing:
+            rows.append(
+                {
+                    "priority": "P1",
+                    "work": "attach_pack_a_b_phase_split_timing_before_pack_kernel_work",
+                    "reason": f"{split_missing} pack-bearing candidates still lack A/B split timing",
+                }
+            )
+        for operand, work in [
+            ("A", "optimize_a_side_pack_kernel_or_prepack_a_reuse"),
+            ("B", "optimize_b_side_pack_kernel_or_prepack_b_reuse"),
+            ("balanced", "optimize_balanced_pack_path_or_fuse_native_pack_gemm"),
+        ]:
+            count = pack_dominant_operand_counts.get(operand, 0)
+            if count:
+                rows.append(
+                    {
+                        "priority": "P1",
+                        "work": work,
+                        "reason": f"pack_dominant_operand:{operand}={count}",
+                    }
+                )
+        missing_elision = sum(
+            1
+            for row in pack_diagnostics
+            if row.get("source_versioned_inputs") is True
+            and row.get("same_source_version_pack_elision_available") is not True
+        )
+        if missing_elision:
+            rows.append(
+                {
+                    "priority": "P1",
+                    "work": "enable_source_versioned_pack_elision_for_repeated_inputs",
+                    "reason": f"{missing_elision} source-versioned pack rows cannot elide same-version repack",
+                }
+            )
+        native_pack_rows = sum(
+            1
+            for row in pack_diagnostics
+            if "native" in str(row.get("pack_layout") or "").lower()
+            or any("native" in str(family).lower() for family in row.get("scenario_families") or [])
+        )
+        if native_pack_rows:
+            rows.append(
+                {
+                    "priority": "P1",
+                    "work": "implement_fused_native_pack_plus_gemm_for_native_input_workloads",
+                    "reason": f"{native_pack_rows} pack-heavy rows involve native input or native-to-RNS layouts",
+                }
+            )
+    for phase, count in loss_phase_counts.most_common(3):
+        rows.append(
+            {
+                "priority": "P1",
+                "work": f"optimize_{phase}_phase",
+                "reason": f"{count} actionable accelerator candidates report {phase} as primary loss phase",
+            }
+        )
     if has_unresolved_work:
         for bottleneck, count in bottleneck_counts.most_common(3):
             if bottleneck == "unknown":
@@ -775,6 +830,9 @@ def build_review_summary(groups: list[dict[str, Any]], promotable_entries: list[
             actionable_blockers=actionable_blockers,
             loss_phase_counts=loss_phase_counts,
             bottleneck_counts=bottleneck_counts,
+            pack_split_counts=pack_split_counts,
+            pack_dominant_operand_counts=pack_dominant_operand_counts,
+            pack_diagnostics=pack_diagnostic_rows,
             direct_hip_wins=len(direct_hip_winners),
             promotable_count=len(promotable_entries),
         ),

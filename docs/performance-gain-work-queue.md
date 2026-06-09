@@ -351,10 +351,16 @@ inspection commands.
   and same-version pack-elision metadata. The supported failure-summary tool
   prints a dedicated `PACK_PHASE_DIAGNOSTICS` section so pack-bound VM results
   identify whether A, B, or missing split timing is the next optimization target
-  without digging through review JSON.
-- Remaining work: implement wider vectorized pack kernels and fused native-pack
-  plus GEMM routes selected by split evidence, then prove setup-inclusive wins
-  against the contiguous-pack baseline.
+  without digging through review JSON. Review `next_work` now promotes those
+  diagnostics into concrete pack-action rows, including missing split timing,
+  A-dominant, B-dominant, balanced pack, missing same-version pack elision, and
+  native-input pack-fusion follow-up. Direct-HIP fixed-prefix contiguous i64/u64
+  single and grouped pack launchers now use pair-cell kernels that process two
+  adjacent row-major source cells per thread while preserving the original
+  strided fallback and output residue-plane layout.
+- Remaining work: implement fused native-pack plus GEMM routes selected by
+  split evidence, then prove setup-inclusive wins against the contiguous and
+  pair-cell pack baselines.
 
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 

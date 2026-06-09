@@ -13,14 +13,15 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const int fixed_pair_blocks = static_cast<int>(((elements + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_PACK_I64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                  \
       if (contiguous) {                                \
         hipLaunchKernelGGL(                            \
-            HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_contiguous_kernel<PrefixValue>), \
-            dim3(fixed_blocks),                        \
+            HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_contiguous_pair_kernel<PrefixValue>), \
+            dim3(fixed_pair_blocks),                   \
             dim3(threads),                             \
             0,                                         \
             hip_stream,                                \
@@ -111,14 +112,15 @@ extern "C" int rns8_hip_direct_pack_u64_device_on_stream(
       static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const int fixed_pair_blocks = static_cast<int>(((elements + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_PACK_U64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                  \
       if (contiguous) {                                \
         hipLaunchKernelGGL(                            \
-            HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_contiguous_kernel<PrefixValue>), \
-            dim3(fixed_blocks),                        \
+            HIP_KERNEL_NAME(rns8_pack_u64_fixed_prefix_contiguous_pair_kernel<PrefixValue>), \
+            dim3(fixed_pair_blocks),                   \
             dim3(threads),                             \
             0,                                         \
             hip_stream,                                \
@@ -212,14 +214,15 @@ extern "C" int rns8_hip_direct_pack_i64_grouped_device(
   const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const int fixed_pair_blocks = static_cast<int>(((elements + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_GROUPED_PACK_I64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                          \
       if (contiguous) {                                        \
         hipLaunchKernelGGL(                                    \
-            HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_contiguous_kernel<PrefixValue>), \
-            dim3(fixed_blocks, task_count),                    \
+            HIP_KERNEL_NAME(rns8_pack_i64_grouped_fixed_prefix_contiguous_pair_kernel<PrefixValue>), \
+            dim3(fixed_pair_blocks, task_count),               \
             dim3(threads),                                     \
             0,                                                 \
             nullptr,                                           \
@@ -311,14 +314,15 @@ extern "C" int rns8_hip_direct_pack_u64_grouped_device(
   const int64_t per_task_total = static_cast<int64_t>(prefix) * elements;
   const int blocks = static_cast<int>((per_task_total + threads - 1) / threads);
   const int fixed_blocks = static_cast<int>((elements + threads - 1) / threads);
+  const int fixed_pair_blocks = static_cast<int>(((elements + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   switch (prefix) {
 #define RNS8_LAUNCH_GROUPED_PACK_U64_FIXED_PREFIX(PrefixValue) \
     case PrefixValue:                                          \
       if (contiguous) {                                        \
         hipLaunchKernelGGL(                                    \
-            HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_contiguous_kernel<PrefixValue>), \
-            dim3(fixed_blocks, task_count),                    \
+            HIP_KERNEL_NAME(rns8_pack_u64_grouped_fixed_prefix_contiguous_pair_kernel<PrefixValue>), \
+            dim3(fixed_pair_blocks, task_count),               \
             dim3(threads),                                     \
             0,                                                 \
             nullptr,                                           \
