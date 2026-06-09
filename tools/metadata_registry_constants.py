@@ -7,6 +7,7 @@ BENCHMARK_EXECUTION_MODES = {
     'benchmark_hip_graph_replay_evidence',
     'benchmark_host_api_batch',
     'benchmark_owned_vector_alu_gemv_n1_native_buffers',
+    'benchmark_owned_vector_alu_gemv_small_n_native_buffers',
     'benchmark_owned_vector_alu_native_buffers',
     'benchmark_streaming_overlap_resident_b_pipeline',
     'direct_hip_skinny_gemv_n1_resident_rns',
@@ -19,6 +20,7 @@ BENCHMARK_EXECUTION_MODES = {
     'persistent_resident_matrices',
     'public_oneshot_transient_native_inputs',
     'public_runtime_vector_alu_gemv_n1_native_buffers',
+    'public_runtime_vector_alu_gemv_small_n_native_buffers',
     'public_runtime_vector_alu_native_buffers',
     'resident_sparse_a_explicit_4_to_2_contract_dense_b_rns',
     'residue_chain_final_host_export',
@@ -357,6 +359,7 @@ GROUPED_DISPATCH_EVENTS = {
 }
 VECTOR_ALU_GPU_EVENT_LABELS = {
     'vector_alu_i64_gemv_n1_kernel',
+    'vector_alu_i64_gemv_small_n_kernel',
     'vector_alu_i64_kernel',
     'vector_alu_output_d2h',
     'vector_alu_pack_a_h2d',
@@ -364,6 +367,7 @@ VECTOR_ALU_GPU_EVENT_LABELS = {
     'vector_alu_status_d2h',
     'vector_alu_status_memset',
     'vector_alu_u64_gemv_n1_kernel',
+    'vector_alu_u64_gemv_small_n_kernel',
     'vector_alu_u64_kernel',
 }
 HIPBLASLT_GPU_EVENT_LABELS = {
@@ -568,8 +572,10 @@ SELECTED_KERNELS = {
     'direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4',
     'hip_vector_alu_i64_exact_192b_v1',
     'hip_vector_alu_i64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_i64_gemv_small_n_exact_192b_v1',
     'hip_vector_alu_u64_exact_192b_v1',
     'hip_vector_alu_u64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_u64_gemv_small_n_exact_192b_v1',
     'hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2',
     'rocwmma_i8_i32_signed_finite_u8_hot_residue_v1',
     'rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2',
@@ -582,8 +588,10 @@ SELECTED_KERNELS = {
 VECTOR_ALU_SELECTED_KERNELS = {
     'hip_vector_alu_i64_exact_192b_v1',
     'hip_vector_alu_i64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_i64_gemv_small_n_exact_192b_v1',
     'hip_vector_alu_u64_exact_192b_v1',
     'hip_vector_alu_u64_gemv_n1_exact_192b_v1',
+    'hip_vector_alu_u64_gemv_small_n_exact_192b_v1',
 }
 CK_SELECTED_KERNELS = {
     'ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2',

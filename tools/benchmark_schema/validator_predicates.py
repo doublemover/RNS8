@@ -26,6 +26,16 @@ class ValidatorPredicatesMixin:
             and self.data.get("k") >= 4096
         )
 
+    def _is_vector_alu_gemv_small_n_capture(self) -> bool:
+        return (
+            self.data.get("backend_selected") == "hip-vector-alu-int64"
+            and self.data.get("semantics") in {"bounded_i64", "bounded_u64"}
+            and _is_int(self.data.get("n"))
+            and 1 < self.data.get("n") <= 4
+            and _is_int(self.data.get("k"))
+            and self.data.get("k") >= 512
+        )
+
     def _benchmark_execution_mode(self) -> str:
         mode = self.data.get("benchmark_execution_mode")
         if mode is None:
@@ -53,6 +63,10 @@ class ValidatorPredicatesMixin:
                 if self._is_vector_alu_runtime_capture():
                     return "public_runtime_vector_alu_gemv_n1_native_buffers"
                 return "benchmark_owned_vector_alu_gemv_n1_native_buffers"
+            if self._is_vector_alu_gemv_small_n_capture():
+                if self._is_vector_alu_runtime_capture():
+                    return "public_runtime_vector_alu_gemv_small_n_native_buffers"
+                return "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
             return "benchmark_owned_vector_alu_native_buffers"
         return "persistent_resident_matrices"
 

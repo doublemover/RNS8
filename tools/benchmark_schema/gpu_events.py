@@ -78,8 +78,12 @@ def rocwmma_deep_gpu_event_phases(
 def vector_gpu_event_phases(semantics: object, selected_kernel: object) -> list[str]:
     if selected_kernel == "hip_vector_alu_i64_gemv_n1_exact_192b_v1":
         kernel = "vector_alu_i64_gemv_n1_kernel"
+    elif selected_kernel == "hip_vector_alu_i64_gemv_small_n_exact_192b_v1":
+        kernel = "vector_alu_i64_gemv_small_n_kernel"
     elif selected_kernel == "hip_vector_alu_u64_gemv_n1_exact_192b_v1":
         kernel = "vector_alu_u64_gemv_n1_kernel"
+    elif selected_kernel == "hip_vector_alu_u64_gemv_small_n_exact_192b_v1":
+        kernel = "vector_alu_u64_gemv_small_n_kernel"
     elif semantics == "bounded_i64" or selected_kernel == "hip_vector_alu_i64_exact_192b_v1":
         kernel = "vector_alu_i64_kernel"
     else:

@@ -19,7 +19,9 @@ constexpr const char* kCkFiniteGenericKernel = "ck_wmma_cshuffle_finite_u8_stati
 constexpr const char* kCkFiniteEpilogue = "ck_fused_i32_to_centered_residue_then_canonical_u8_export";
 constexpr const char* kVectorI64Kernel = "hip_vector_alu_i64_exact_192b_v1";
 constexpr const char* kVectorI64GemvKernel = "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
+constexpr const char* kVectorI64SmallNGemvKernel = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1";
 constexpr const char* kVectorU64Kernel = "hip_vector_alu_u64_exact_192b_v1";
+constexpr const char* kVectorU64SmallNGemvKernel = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
 constexpr const char* kVectorEpilogue = "direct_int64_export";
 constexpr const char* kRocwmmaBoundedKernel = "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2";
 constexpr const char* kRocwmmaBoundedOldKernel = "rocwmma_i8_i32_signed_hot_residue_v1";
@@ -368,6 +370,33 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
         "hip-vector-alu-int64",
         "gfx1100",
         "7.1",
+        "bounded_u64",
+        512,
+        4,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kVectorU64SmallNGemvKernel,
+        kVectorEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "hip-vector-alu-int64";
+    item.selected_kernel = kVectorU64SmallNGemvKernel;
+    item.semantic_contract = "bounded_u64";
+    item.m = 512;
+    item.n = 4;
+    item.k = 512;
+    item.k_block_size = 512;
+    item.epilogue = kVectorEpilogue;
+    item.kernel_family = kVectorU64SmallNGemvKernel;
+    cases.push_back({item.key, item, ""});
+  }
+  {
+    std::string key = reviewed_key(
+        "hip-vector-alu-int64",
+        "gfx1100",
+        "7.1",
         "bounded_i64",
         256,
         1,
@@ -388,6 +417,33 @@ TEST_CASE("autotune cache rejects stale identity fields even with reviewed statu
     item.k_block_size = 4096;
     item.epilogue = kVectorEpilogue;
     item.kernel_family = kVectorI64Kernel;
+    cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
+  }
+  {
+    std::string key = reviewed_key(
+        "hip-vector-alu-int64",
+        "gfx1100",
+        "7.1",
+        "bounded_u64",
+        512,
+        4,
+        512,
+        "row_major",
+        512,
+        128,
+        128,
+        kVectorU64Kernel,
+        kVectorEpilogue);
+    auto item = entry(key);
+    item.selected_backend = "hip-vector-alu-int64";
+    item.selected_kernel = kVectorU64Kernel;
+    item.semantic_contract = "bounded_u64";
+    item.m = 512;
+    item.n = 4;
+    item.k = 512;
+    item.k_block_size = 512;
+    item.epilogue = kVectorEpilogue;
+    item.kernel_family = kVectorU64Kernel;
     cases.push_back({item.key, item, "exact_cache_hit_rejected_identity:unsupported_autotune_kernel_for_contract"});
   }
   {

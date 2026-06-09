@@ -6,12 +6,13 @@
 
 namespace rns8::generated_metadata {
 
-inline constexpr std::array<std::string_view, 30> benchmark_execution_modes{{
+inline constexpr std::array<std::string_view, 32> benchmark_execution_modes{{
     "auto_native_to_rns_bridge",
     "benchmark_grouped_dispatch_evidence",
     "benchmark_hip_graph_replay_evidence",
     "benchmark_host_api_batch",
     "benchmark_owned_vector_alu_gemv_n1_native_buffers",
+    "benchmark_owned_vector_alu_gemv_small_n_native_buffers",
     "benchmark_owned_vector_alu_native_buffers",
     "benchmark_streaming_overlap_resident_b_pipeline",
     "direct_hip_skinny_gemv_n1_resident_rns",
@@ -24,6 +25,7 @@ inline constexpr std::array<std::string_view, 30> benchmark_execution_modes{{
     "persistent_resident_matrices",
     "public_oneshot_transient_native_inputs",
     "public_runtime_vector_alu_gemv_n1_native_buffers",
+    "public_runtime_vector_alu_gemv_small_n_native_buffers",
     "public_runtime_vector_alu_native_buffers",
     "resident_sparse_a_explicit_4_to_2_contract_dense_b_rns",
     "residue_chain_final_host_export",
@@ -157,7 +159,7 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 67> selected_kernels{{
+inline constexpr std::array<std::string_view, 69> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -215,8 +217,10 @@ inline constexpr std::array<std::string_view, 67> selected_kernels{{
     "direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4",
     "hip_vector_alu_i64_exact_192b_v1",
     "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
+    "hip_vector_alu_i64_gemv_small_n_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
     "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
+    "hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
     "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",
     "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2",

@@ -253,13 +253,23 @@ def validate_backend_metadata(self: Any) -> None:
         if metadata.get("selected_kernel") not in VECTOR_ALU_SELECTED_KERNELS:
             self._error("hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel")
         gemv_n1 = self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
+        gemv_small_n = (
+            _is_int(self.data.get("n"))
+            and 1 < self.data.get("n") <= 4
+            and _is_int(self.data.get("k"))
+            and self.data.get("k") >= 512
+        )
         expected_kernel = (
             "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
             if self.data.get("semantics") == "bounded_i64" and gemv_n1
+            else "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+            if self.data.get("semantics") == "bounded_i64" and gemv_small_n
             else "hip_vector_alu_i64_exact_192b_v1"
             if self.data.get("semantics") == "bounded_i64"
             else "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
             if gemv_n1
+            else "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
+            if gemv_small_n
             else "hip_vector_alu_u64_exact_192b_v1"
         )
         if metadata.get("selected_kernel") != expected_kernel:

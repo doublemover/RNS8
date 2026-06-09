@@ -529,6 +529,10 @@ bool vector_alu_gemv_n1_shape(const Args& args) {
   return bounded_benchmark_semantics(args.semantics) && args.n == 1 && args.k >= 4096;
 }
 
+bool vector_alu_gemv_small_n_shape(const Args& args) {
+  return bounded_benchmark_semantics(args.semantics) && args.n > 1 && args.n <= 4 && args.k >= 512;
+}
+
 const char* benchmark_execution_mode_name(const Args& args) {
   if (args.oneshot) {
     return "public_oneshot_transient_native_inputs";
@@ -537,11 +541,17 @@ const char* benchmark_execution_mode_name(const Args& args) {
     if (vector_alu_gemv_n1_shape(args)) {
       return "benchmark_owned_vector_alu_gemv_n1_native_buffers";
     }
+    if (vector_alu_gemv_small_n_shape(args)) {
+      return "benchmark_owned_vector_alu_gemv_small_n_native_buffers";
+    }
     return "benchmark_owned_vector_alu_native_buffers";
   }
   if (runtime_vector_alu_backend(args)) {
     if (vector_alu_gemv_n1_shape(args)) {
       return "public_runtime_vector_alu_gemv_n1_native_buffers";
+    }
+    if (vector_alu_gemv_small_n_shape(args)) {
+      return "public_runtime_vector_alu_gemv_small_n_native_buffers";
     }
     return "public_runtime_vector_alu_native_buffers";
   }

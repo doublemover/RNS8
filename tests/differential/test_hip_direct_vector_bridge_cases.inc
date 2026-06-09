@@ -275,6 +275,60 @@ TEST_CASE("vector ALU backend keeps native bounded storage through persistent GE
   }
 
   {
+    const int64_t m = 3;
+    const int64_t n = 4;
+    const int64_t k = 512;
+    std::vector<uint64_t> A(static_cast<std::size_t>(m * k));
+    std::vector<uint64_t> B(static_cast<std::size_t>(k * n));
+    for (int64_t row = 0; row < m; ++row) {
+      for (int64_t kk = 0; kk < k; ++kk) {
+        A[static_cast<std::size_t>(row * k + kk)] = static_cast<uint64_t>(((row * 3 + kk) % 17) + 1);
+      }
+    }
+    for (int64_t kk = 0; kk < k; ++kk) {
+      for (int64_t col = 0; col < n; ++col) {
+        B[static_cast<std::size_t>(kk * n + col)] = static_cast<uint64_t>(((kk + col * 5) % 19) + 1);
+      }
+    }
+    std::vector<uint64_t> cpu_c(static_cast<std::size_t>(m * n), 0);
+    std::vector<uint64_t> vector_c(static_cast<std::size_t>(m * n), 0);
+
+    auto cpu_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_CPU_REFERENCE);
+    auto vector_desc = unsigned_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
+    REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_c.data(), n) == RNS8_SUCCESS);
+
+    rns8_plan* plan = nullptr;
+    rns8_workspace* workspace = nullptr;
+    rns8_matrix* a_matrix = nullptr;
+    rns8_matrix* b_matrix = nullptr;
+    rns8_matrix* c_matrix = nullptr;
+    REQUIRE(rns8_create_plan(vector, &vector_desc, &plan) == RNS8_SUCCESS);
+    rns8_plan_backend_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
+    CHECK(std::string(info.selected_kernel) == "hip_vector_alu_u64_gemv_small_n_exact_192b_v1");
+    REQUIRE(rns8_create_workspace(vector, plan, &workspace) == RNS8_SUCCESS);
+    auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
+    REQUIRE(rns8_create_matrix(vector, &a_desc, &a_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &b_desc, &b_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_create_matrix(vector, &c_desc, &c_matrix) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, a_matrix, A.data(), k, 41) == RNS8_SUCCESS);
+    REQUIRE(rns8_pack_u64(vector, b_matrix, B.data(), n, 42) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(vector, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_u64(vector, plan, c_matrix, vector_c.data(), n) == RNS8_SUCCESS);
+    CHECK(vector_c == cpu_c);
+
+    rns8_destroy_matrix(c_matrix);
+    rns8_destroy_matrix(b_matrix);
+    rns8_destroy_matrix(a_matrix);
+    rns8_destroy_workspace(workspace);
+    rns8_destroy_plan(plan);
+  }
+
+  {
     rns8_plan* rejected = nullptr;
     auto exact = exact_signed_desc(1, 1, 1, RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
     CHECK(rns8_create_plan(vector, &exact, &rejected) == RNS8_UNSUPPORTED_BACKEND);

@@ -182,9 +182,15 @@ stale_skinny_report = benchmark_sweep.review_captures(
 )
 stale_skinny_group = stale_skinny_report["groups"][0]
 stale_direct_candidate = next(item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct")
+stale_vector_candidate = next(
+    item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-vector-alu-int64"
+)
 assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_direct_candidate["promotion_blockers"]
 assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_direct_candidate["promotion_blockers"]
 assert "missing_skinny_gemv_gpu_event_phase" in stale_direct_candidate["promotion_blockers"]
+assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_vector_candidate["promotion_blockers"]
+assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_vector_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" in stale_vector_candidate["promotion_blockers"]
 stale_skinny_next_work = {row["work"] for row in stale_skinny_report["summary"]["next_work"]}
 assert "select_direct_hip_skinny_gemv_kernel_before_promotion" in stale_skinny_next_work
 
@@ -212,7 +218,8 @@ assert valid_skinny_group["fastest_production_route"]["backend"] == "hip-direct"
 
 skinny_small_n_cpu = bounded_capture("cpu-reference", 5000)
 skinny_small_n_direct = bounded_capture("hip-direct", 280)
-for capture in (skinny_small_n_cpu, skinny_small_n_direct):
+skinny_small_n_vector = bounded_capture("hip-vector-alu-int64", 260)
+for capture in (skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector):
     capture["n"] = 4
     capture["output_logical_ld"] = 4
     capture["scenario_metadata"] = {
@@ -222,15 +229,21 @@ for capture in (skinny_small_n_cpu, skinny_small_n_direct):
         "metadata": {"workflow_name": "skinny_gemv"},
     }
 stale_small_n_report = benchmark_sweep.review_captures(
-    [skinny_small_n_cpu, skinny_small_n_direct],
+    [skinny_small_n_cpu, skinny_small_n_direct, skinny_small_n_vector],
     review_mode="release",
 )
 stale_small_n_candidate = next(
     item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-direct"
 )
+stale_small_n_vector_candidate = next(
+    item for item in stale_small_n_report["groups"][0]["candidates"] if item["backend"] == "hip-vector-alu-int64"
+)
 assert "missing_direct_hip_skinny_gemv_kernel_identity" in stale_small_n_candidate["promotion_blockers"]
 assert "missing_direct_hip_skinny_gemv_execution_mode" in stale_small_n_candidate["promotion_blockers"]
 assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_candidate["promotion_blockers"]
+assert "missing_vector_alu_skinny_gemv_kernel_identity" in stale_small_n_vector_candidate["promotion_blockers"]
+assert "missing_vector_alu_skinny_gemv_execution_mode" in stale_small_n_vector_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" in stale_small_n_vector_candidate["promotion_blockers"]
 
 valid_small_n_direct = copy.deepcopy(skinny_small_n_direct)
 valid_small_n_direct["selected_kernel"] = "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
@@ -244,7 +257,7 @@ valid_small_n_direct["timing_metadata"]["gpu_event_phase_order"] = [
     "direct_hip_bounded_crt_export",
 ]
 valid_small_n_report = benchmark_sweep.review_captures(
-    [skinny_small_n_cpu, valid_small_n_direct],
+    [skinny_small_n_cpu, valid_small_n_direct, skinny_small_n_vector],
     review_mode="release",
 )
 valid_small_n_candidate = next(
@@ -253,6 +266,31 @@ valid_small_n_candidate = next(
 assert "missing_direct_hip_skinny_gemv_kernel_identity" not in valid_small_n_candidate["promotion_blockers"]
 assert "missing_direct_hip_skinny_gemv_execution_mode" not in valid_small_n_candidate["promotion_blockers"]
 assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_candidate["promotion_blockers"]
+
+valid_small_n_vector = copy.deepcopy(skinny_small_n_vector)
+valid_small_n_vector["selected_kernel"] = "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+valid_small_n_vector["backend_metadata"]["selected_kernel"] = valid_small_n_vector["selected_kernel"]
+valid_small_n_vector["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+valid_small_n_vector["timing_metadata"]["benchmark_execution_mode"] = valid_small_n_vector["benchmark_execution_mode"]
+valid_small_n_vector["timing_metadata"]["gpu_event_phase_order"] = [
+    "vector_alu_input_h2d",
+    "vector_alu_status_memset",
+    "vector_alu_i64_gemv_small_n_kernel",
+    "vector_alu_status_d2h",
+    "vector_alu_output_d2h",
+]
+valid_small_n_vector_report = benchmark_sweep.review_captures(
+    [skinny_small_n_cpu, valid_small_n_direct, valid_small_n_vector],
+    review_mode="release",
+)
+valid_small_n_vector_candidate = next(
+    item
+    for item in valid_small_n_vector_report["groups"][0]["candidates"]
+    if item["backend"] == "hip-vector-alu-int64"
+)
+assert "missing_vector_alu_skinny_gemv_kernel_identity" not in valid_small_n_vector_candidate["promotion_blockers"]
+assert "missing_vector_alu_skinny_gemv_execution_mode" not in valid_small_n_vector_candidate["promotion_blockers"]
+assert "missing_skinny_gemv_gpu_event_phase" not in valid_small_n_vector_candidate["promotion_blockers"]
 
 native_bridge = bounded_capture("hip-direct", 220)
 native_bridge["benchmark_execution_mode"] = "auto_native_to_rns_bridge"

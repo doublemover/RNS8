@@ -314,11 +314,24 @@ std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
 
 std::string expected_vector_alu_kernel(const AutotuneCacheEntry& entry) {
   const bool gemv_n1 = entry.n == 1 && entry.k >= 4096;
+  const bool gemv_small_n = entry.n > 1 && entry.n <= 4 && entry.k >= 512;
   if (entry.semantic_contract == "bounded_i64") {
-    return gemv_n1 ? "hip_vector_alu_i64_gemv_n1_exact_192b_v1" : "hip_vector_alu_i64_exact_192b_v1";
+    if (gemv_n1) {
+      return "hip_vector_alu_i64_gemv_n1_exact_192b_v1";
+    }
+    if (gemv_small_n) {
+      return "hip_vector_alu_i64_gemv_small_n_exact_192b_v1";
+    }
+    return "hip_vector_alu_i64_exact_192b_v1";
   }
   if (entry.semantic_contract == "bounded_u64") {
-    return gemv_n1 ? "hip_vector_alu_u64_gemv_n1_exact_192b_v1" : "hip_vector_alu_u64_exact_192b_v1";
+    if (gemv_n1) {
+      return "hip_vector_alu_u64_gemv_n1_exact_192b_v1";
+    }
+    if (gemv_small_n) {
+      return "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
+    }
+    return "hip_vector_alu_u64_exact_192b_v1";
   }
   return {};
 }

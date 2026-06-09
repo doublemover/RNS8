@@ -110,6 +110,10 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
                                                      : "hip_vector_alu_u64_gemv_n1_exact_192b_v1";
     }
+    if (plan.desc.n > 1 && plan.desc.n <= 4 && plan.desc.k >= 512) {
+      return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+                                                     : "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
+    }
     return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_exact_192b_v1"
                                                    : "hip_vector_alu_u64_exact_192b_v1";
   }

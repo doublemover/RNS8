@@ -321,10 +321,16 @@ def skinny_gemv_metadata_blockers(capture: dict[str, Any], *, semantics: Any, ba
             if mode != "direct_hip_skinny_gemv_small_n_resident_rns":
                 blockers.append("missing_direct_hip_skinny_gemv_execution_mode")
     else:
-        if "gemv_n1" not in kernel:
-            blockers.append("missing_vector_alu_skinny_gemv_kernel_identity")
-        if "gemv_n1" not in mode:
-            blockers.append("missing_vector_alu_skinny_gemv_execution_mode")
+        if n == 1:
+            if "gemv_n1" not in kernel:
+                blockers.append("missing_vector_alu_skinny_gemv_kernel_identity")
+            if "gemv_n1" not in mode:
+                blockers.append("missing_vector_alu_skinny_gemv_execution_mode")
+        elif n > 1:
+            if "gemv_small_n" not in kernel:
+                blockers.append("missing_vector_alu_skinny_gemv_kernel_identity")
+            if "gemv_small_n" not in mode:
+                blockers.append("missing_vector_alu_skinny_gemv_execution_mode")
 
     timing = capture_timing_metadata(capture)
     phase_order = timing.get("gpu_event_phase_order")

@@ -76,13 +76,18 @@ def vector_entry(
     target_id = "gfx1100"
     signed = semantics == "bounded_i64"
     gemv_n1 = n == 1 and k >= 4096
+    gemv_small_n = 1 < n <= 4 and k >= 512
     selected_kernel = (
         "hip_vector_alu_i64_gemv_n1_exact_192b_v1"
         if signed and gemv_n1
+        else "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
+        if signed and gemv_small_n
         else "hip_vector_alu_i64_exact_192b_v1"
         if signed
         else "hip_vector_alu_u64_gemv_n1_exact_192b_v1"
         if gemv_n1
+        else "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
+        if gemv_small_n
         else "hip_vector_alu_u64_exact_192b_v1"
     )
     epilogue = "direct_int64_export"

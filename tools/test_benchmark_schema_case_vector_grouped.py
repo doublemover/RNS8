@@ -40,6 +40,36 @@ vector_gemv["gpu_event_timing_summary_us"]["vector_alu_u64_gemv_n1_kernel"] = (
 )
 validate_capture(vector_gemv)
 
+vector_gemv_small_n = copy.deepcopy(v4_vector_u64)
+vector_gemv_small_n["m"] = 512
+vector_gemv_small_n["n"] = 4
+vector_gemv_small_n["k"] = 512
+vector_gemv_small_n["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
+vector_gemv_small_n["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_gemv_small_n_exact_192b_v1"
+vector_gemv_small_n["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+vector_gemv_small_n["timing_metadata"]["benchmark_execution_mode"] = "benchmark_owned_vector_alu_gemv_small_n_native_buffers"
+vector_gemv_small_n["backend_metadata"]["autotune_key"] = (
+    vector_gemv_small_n["backend_metadata"]["autotune_key"]
+    .replace(";m=16;", ";m=512;")
+    .replace(";n=16;", ";n=4;")
+    .replace(";k=16;", ";k=512;")
+    .replace("k_block_size=16;", "k_block_size=512;")
+    .replace("kernel=hip_vector_alu_u64_exact_192b_v1", "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1")
+)
+vector_gemv_small_n["backend_metadata"]["accumulator_safety"]["k_block_size"] = 512
+vector_gemv_small_n["k_block_size"] = 512
+vector_gemv_small_n_phases = vector_gemv_small_n["timing_metadata"]["gpu_event_phase_order"]
+vector_gemv_small_n_phases[
+    vector_gemv_small_n_phases.index("vector_alu_u64_kernel")
+] = "vector_alu_u64_gemv_small_n_kernel"
+vector_gemv_small_n["gpu_event_timings_us"]["vector_alu_u64_gemv_small_n_kernel"] = (
+    vector_gemv_small_n["gpu_event_timings_us"].pop("vector_alu_u64_kernel")
+)
+vector_gemv_small_n["gpu_event_timing_summary_us"]["vector_alu_u64_gemv_small_n_kernel"] = (
+    vector_gemv_small_n["gpu_event_timing_summary_us"].pop("vector_alu_u64_kernel")
+)
+validate_capture(vector_gemv_small_n)
+
 direct_hip_skinny_gemv = as_direct_hip_bounded_skinny_gemv_n1_capture(v4_ck_i64)
 validate_capture(direct_hip_skinny_gemv)
 
@@ -148,6 +178,20 @@ stale_vector_gemv_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv
     "autotune_key"
 ].replace("kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1", "kernel=hip_vector_alu_u64_exact_192b_v1")
 expect_invalid(stale_vector_gemv_kernel, "selected_kernel=hip_vector_alu_u64_gemv_n1_exact_192b_v1")
+
+stale_vector_gemv_small_n_kernel = copy.deepcopy(vector_gemv_small_n)
+stale_vector_gemv_small_n_kernel["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
+stale_vector_gemv_small_n_kernel["backend_metadata"]["selected_kernel"] = "hip_vector_alu_u64_exact_192b_v1"
+stale_vector_gemv_small_n_kernel["backend_metadata"]["autotune_key"] = stale_vector_gemv_small_n_kernel[
+    "backend_metadata"
+]["autotune_key"].replace(
+    "kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
+    "kernel=hip_vector_alu_u64_exact_192b_v1",
+)
+expect_invalid(
+    stale_vector_gemv_small_n_kernel,
+    "selected_kernel=hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
+)
 
 native_to_rns_bridge = as_native_to_rns_bridge_capture(v4_adaptive_i64, "native_i64_to_rns_kernel")
 validate_capture(native_to_rns_bridge)

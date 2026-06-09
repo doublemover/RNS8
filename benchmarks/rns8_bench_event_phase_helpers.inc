@@ -133,6 +133,10 @@ const char* vector_to_rns_chain_kernel_label(const Args& args) {
     return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_gemv_n1_kernel"
                                                         : "vector_alu_u64_gemv_n1_kernel";
   }
+  if (vector_alu_gemv_small_n_shape(args)) {
+    return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_gemv_small_n_kernel"
+                                                        : "vector_alu_u64_gemv_small_n_kernel";
+  }
   return args.semantics == BenchSemantics::BoundedI64 ? "vector_alu_i64_kernel" : "vector_alu_u64_kernel";
 }
 

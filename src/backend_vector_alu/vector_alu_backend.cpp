@@ -58,6 +58,30 @@ bool vector_gemv_n1_shape(int64_t n, int64_t k) {
   return n == 1 && k >= 4096;
 }
 
+bool vector_gemv_small_n_shape(int64_t n, int64_t k) {
+  return n > 1 && n <= 4 && k >= 512;
+}
+
+const char* vector_i64_event_label(int64_t n, int64_t k) {
+  if (vector_gemv_n1_shape(n, k)) {
+    return "vector_alu_i64_gemv_n1_kernel";
+  }
+  if (vector_gemv_small_n_shape(n, k)) {
+    return "vector_alu_i64_gemv_small_n_kernel";
+  }
+  return "vector_alu_i64_kernel";
+}
+
+const char* vector_u64_event_label(int64_t n, int64_t k) {
+  if (vector_gemv_n1_shape(n, k)) {
+    return "vector_alu_u64_gemv_n1_kernel";
+  }
+  if (vector_gemv_small_n_shape(n, k)) {
+    return "vector_alu_u64_gemv_small_n_kernel";
+  }
+  return "vector_alu_u64_kernel";
+}
+
 }  // namespace
 
 rns8_status vector_alu_gemm_i64_device(
@@ -73,8 +97,7 @@ rns8_status vector_alu_gemm_i64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = vector_gemv_n1_shape(n, k) ? "vector_alu_i64_gemv_n1_kernel"
-                                                       : "vector_alu_i64_kernel";
+  const char* event_label = vector_i64_event_label(n, k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_i64_gemm_device(
         device_id,
@@ -113,8 +136,7 @@ rns8_status vector_alu_gemm_u64_device(
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = vector_gemv_n1_shape(n, k) ? "vector_alu_u64_gemv_n1_kernel"
-                                                       : "vector_alu_u64_kernel";
+  const char* event_label = vector_u64_event_label(n, k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_u64_gemm_device(
         device_id,

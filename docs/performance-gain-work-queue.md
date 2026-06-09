@@ -148,9 +148,17 @@ inspection commands.
   `benchmark_owned_vector_alu_gemv_n1_native_buffers`, selected
   `hip_vector_alu_*_gemv_n1_exact_192b_v1` kernels, GEMV-specific GPU event
   labels, native output-domain packing metadata, and local Windows HIP
-  signed/unsigned schema-validated smokes. Release review now also blocks
-  stale vector-ALU `N=1` captures unless their execution mode, selected kernel,
-  and GPU event phases identify the GEMV route explicitly.
+  signed/unsigned schema-validated smokes. The vector-ALU backend now also has
+  an explicit `2 <= N <= 4,K>=512` native exact small-N route with
+  `hip_vector_alu_*_gemv_small_n_exact_192b_v1`, the
+  `public_runtime_vector_alu_gemv_small_n_native_buffers` /
+  `benchmark_owned_vector_alu_gemv_small_n_native_buffers` execution modes,
+  `vector_alu_*_gemv_small_n_kernel` event labels, public plan selected-kernel
+  metadata, C++ autotune-cache rejection for stale generic small-N rows, and a
+  local Windows HIP bounded-u64 `16x4x512` schema-valid smoke whose checksum
+  matched CPU. Release review now blocks stale vector-ALU skinny captures for
+  both `N=1` and small-N unless their execution mode, selected kernel, and GPU
+  event phases identify the matching GEMV route explicitly.
 - Required evidence: `skinny-gemv` release groups with CPU, Direct HIP,
   vector-ALU, and accelerator comparators; vector-ALU rows must not be compared
   against exact-wide, finite-u8, or wrap64 contracts.
