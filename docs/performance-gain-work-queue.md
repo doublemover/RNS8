@@ -397,6 +397,11 @@ inspection commands.
   `--transient-uniform-small-inputs` candidate with distinct capture naming and
   backend identity, so VM evidence can compare the fused native-input route
   against the contiguous and pair-cell pack baselines without ad hoc commands.
+  Direct-HIP fixed-modulus finite-u8 contiguous single and grouped pack
+  launchers now also use pair-cell kernels for moduli 251, 255, and 256. The
+  generic dynamic-modulus and strided paths stay on the existing one-cell
+  kernels, while the hot row-major finite release paths avoid half of the launch
+  work-items and keep the same centered-residue output layout.
 - Remaining work: implement broader fused native-pack plus GEMM routes selected
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.

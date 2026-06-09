@@ -411,13 +411,14 @@ extern "C" int rns8_hip_direct_pack_u8_modulus_device_on_stream(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  const int pair_blocks = static_cast<int>(((total + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   if (modulus == 256) {
 #define RNS8_LAUNCH_PACK_U8_FIXED_MODULUS(ModulusValue) \
     if (contiguous) {                                    \
       hipLaunchKernelGGL(                                \
-          HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_contiguous_kernel<ModulusValue>), \
-          dim3(blocks),                                  \
+          HIP_KERNEL_NAME(rns8_pack_u8_fixed_modulus_contiguous_pair_kernel<ModulusValue>), \
+          dim3(pair_blocks),                             \
           dim3(threads),                                 \
           0,                                             \
           hip_stream,                                    \
@@ -506,13 +507,14 @@ extern "C" int rns8_hip_direct_pack_u8_grouped_modulus_device(
   const int threads = 256;
   const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int blocks = static_cast<int>((total + threads - 1) / threads);
+  const int pair_blocks = static_cast<int>(((total + 1) / 2 + threads - 1) / threads);
   const bool contiguous = ld == cols;
   if (modulus == 256) {
 #define RNS8_LAUNCH_GROUPED_PACK_U8_FIXED_MODULUS(ModulusValue) \
     if (contiguous) {                                           \
       hipLaunchKernelGGL(                                       \
-          HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_contiguous_kernel<ModulusValue>), \
-          dim3(blocks, task_count),                             \
+          HIP_KERNEL_NAME(rns8_pack_u8_grouped_fixed_modulus_contiguous_pair_kernel<ModulusValue>), \
+          dim3(pair_blocks, task_count),                        \
           dim3(threads),                                        \
           0,                                                    \
           nullptr,                                              \
