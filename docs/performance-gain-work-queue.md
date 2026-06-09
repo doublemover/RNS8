@@ -972,7 +972,9 @@ inspection commands.
   candidates appear in the manifest and no review report is written. The CDNA
   first-pass wrapper now runs the lint mode before every rank-scenario sweep and
   records it in `command-plan.txt`, so scenario catalog failures stop before
-  paid benchmark captures start.
+  paid benchmark captures start. The scenario catalog self-test now also
+  rejects any `release_review_candidate` row that is not release-mode evidence,
+  preventing future promotable rows from silently falling out of release review.
 - Constraint: do not make scripts permissive to hide invalid contracts.
 
 ### Rank 113 - GPU Event Coverage Completion

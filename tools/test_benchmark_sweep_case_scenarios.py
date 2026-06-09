@@ -46,6 +46,14 @@ assert release_candidate_items
 assert {
     item.promotion_eligibility for item in release_candidate_items
 } == {"release_review_candidate"}
+assert {item.review_mode_expectation for item in release_candidate_items} == {"release"}
+stranded_release_candidates = [
+    (item.family, item.name)
+    for item in benchmark_sweep.selected_scenario_items(argparse.Namespace(scenario=["all"]))
+    if item.promotion_eligibility == "release_review_candidate"
+    and item.review_mode_expectation != "release"
+]
+assert stranded_release_candidates == []
 all_scenario_items = benchmark_sweep.selected_scenario_items(argparse.Namespace(scenario=["all"]))
 assert len(all_scenario_items) > len(release_candidate_items)
 assert any(item.promotion_eligibility != "release_review_candidate" for item in all_scenario_items)
