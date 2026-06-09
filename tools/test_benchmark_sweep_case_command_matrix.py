@@ -1055,6 +1055,26 @@ assert any(
     for entry in rns_chain_final_entries
 )
 
+exact_output_chain_args = copy.copy(scenario_args)
+exact_output_chain_args.backends = None
+exact_output_chain_args.scenario = ["exact-wide-output-chain"]
+exact_output_chain_entries = benchmark_sweep.sweep_command_entries(exact_output_chain_args)
+assert [entry.scenario["name"] for entry in exact_output_chain_entries] == [
+    "exact-wide-signed-chain3-final-export",
+    "exact-wide-signed-chain3-final-export",
+    "exact-wide-signed-chain3-final-export",
+    "exact-wide-signed-chain3-final-export",
+    "exact-wide-unsigned-chain3-reuse-b",
+    "exact-wide-unsigned-chain3-reuse-b",
+    "exact-wide-unsigned-chain3-reuse-b",
+]
+assert all(entry.scenario["family"] == "exact-wide-output-chain" for entry in exact_output_chain_entries)
+assert all(entry.scenario["review_mode_expectation"] == "release" for entry in exact_output_chain_entries)
+assert {entry.scenario["residue_chain_length"] for entry in exact_output_chain_entries} == {3}
+assert all("--next-op-hint" in entry.command and "rns-gemm" in entry.command for entry in exact_output_chain_entries)
+assert all("--residue-chain-length" in entry.command and "3" in entry.command for entry in exact_output_chain_entries)
+assert any("--reuse-packed-b" in entry.command for entry in exact_output_chain_entries)
+
 adaptive_bands_args = copy.copy(scenario_args)
 adaptive_bands_args.backends = None
 adaptive_bands_args.scenario = ["adaptive-bands"]

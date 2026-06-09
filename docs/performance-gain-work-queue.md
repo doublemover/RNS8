@@ -840,7 +840,9 @@ inspection commands.
   and same-final-output comparisons visible in ordinary release reviews.
   `residue-channel-fusion` is now release-mode Direct-HIP evidence for width-3
   bounded final-export fusion, keeping the fused-residue route comparable to
-  ordinary final-output paths.
+  ordinary final-output paths. The compact `exact-wide-output-chain` family is
+  also release-mode evidence for chain3 residue-current and reusable-B lazy
+  export contracts.
 - Required evidence: `rns-chain`, `rns-chain-final-output`,
   `exact-wide-output-chain`, and vector/native-to-RNS chain captures.
 - Promotion rule: compare against independent export/repack controls.

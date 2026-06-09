@@ -812,6 +812,14 @@ broader_chain_command = benchmark_sweep.command_for(
 assert "--residue-chain-length" in broader_chain_command and "3" in broader_chain_command
 assert "--residue-chain-final-export" in broader_chain_command
 
+compact_output_chain_items = catalog["exact-wide-output-chain"]
+assert len(compact_output_chain_items) == 2
+assert {item.review_mode_expectation for item in compact_output_chain_items} == {"release"}
+assert {
+    item.promotion_eligibility for item in compact_output_chain_items
+} == {"lazy_export_chain_evidence_only", "lazy_export_chain_reuse_evidence_only"}
+assert {item.residue_chain_length for item in compact_output_chain_items} == {3}
+assert all(item.next_op_hint == "rns-gemm" for item in compact_output_chain_items)
 exact_wide_output_chain_items = catalog["exact-wide-output-chain-broader"]
 assert len(exact_wide_output_chain_items) == 12
 assert {
