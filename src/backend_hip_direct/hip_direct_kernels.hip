@@ -46,3 +46,25 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_exact_unsigned_export_wrappers.inc"
 #include "hip_direct_exact_signed_export_wrappers.inc"
 #include "hip_direct_finite_grouped_export_wrappers.inc"
+
+
+// === Phase 1a: Persistent small-shape GEMM wrapper ===
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
+    const int8_t* a_residues,
+    const int8_t* b_residues,
+    int8_t* c_residues,
+    int m,
+    int n,
+    int k,
+    int prefix) {
+  const int total_cells = m * n;
+  const int block_size = 256;
+  const int grid_size = (total_cells + block_size - 1) / block_size;
+  rns8_persistent_small_gemm_rns_kernel<<<grid_size, block_size>>>(
+      a_residues, b_residues, c_residues, m, n, k, prefix);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return static_cast<int>(err);
+  err = hipDeviceSynchronize();
+  return static_cast<int>(err);
+}
+

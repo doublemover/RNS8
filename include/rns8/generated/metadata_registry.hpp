@@ -160,16 +160,20 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 73> selected_kernels{{
+inline constexpr std::array<std::string_view, 82> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_v1",
     "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",
+    "amdgpu_builtin_rdna3_wmma_128t_skinny_v1",
+    "amdgpu_builtin_rdna3_wmma_256t_skinny_v1",
+    "amdgpu_builtin_rdna3_wmma_64t_skinny_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu4_research_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
     "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1",
+    "amdgpu_builtin_rdna3_wmma_native_pack_v1",
     "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu4_sparse_a_research_v1",
     "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_v1",
     "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1",
@@ -181,6 +185,7 @@ inline constexpr std::array<std::string_view, 73> selected_kernels{{
     "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
     "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
     "cpu_reference",
+    "direct_hip_fused_gemm_export_i64_v1",
     "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_native_a_finite_u8_gemm_mod251_v1",
     "direct_hip_native_a_finite_u8_gemm_mod255_v1",
@@ -196,6 +201,10 @@ inline constexpr std::array<std::string_view, 73> selected_kernels{{
     "direct_hip_native_finite_u8_gemm_mod255_v1",
     "direct_hip_native_finite_u8_gemm_mod256_v1",
     "direct_hip_native_finite_u8_gemm_v1",
+    "direct_hip_pack_i64_4wide_coalesced_v1",
+    "direct_hip_persistent_small_gemm_rns_v1",
+    "direct_hip_persistent_small_native_gemm_v1",
+    "direct_hip_persistent_small_pack_i64_v1",
     "direct_hip_prefix20_grouped_rns_gemm_v1",
     "direct_hip_prefix9_grouped_rns_gemm_v1",
     "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",

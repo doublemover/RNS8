@@ -229,6 +229,7 @@ rns8_status hip_direct_export_i64_tiled_device(
         device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(int64_t));
     return copy_err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
+  const bool status_elided = true; /* scheduled export: per-tile status always required for range checking */
   status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
   if (status != RNS8_SUCCESS) {
     return status;

@@ -642,3 +642,40 @@ int rns8_hip_direct_ring_gemm_i8_on_stream(
   return static_cast<int>(err);
 }
 
+
+
+// === Phase 1c/1d: Persistent small pack + Coalesced pack wrappers ===
+extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int total = rows * cols * prefix;
+  const int block = 256;
+  rns8_persistent_small_pack_i64_kernel<<<(total + block - 1) / block, block>>>(
+      src, residues, rows, cols, ld, prefix);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return static_cast<int>(err);
+  err = hipDeviceSynchronize();
+  return static_cast<int>(err);
+}
+
+extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
+    const int64_t* src,
+    int8_t* residues,
+    int rows,
+    int cols,
+    int prefix) {
+  const int block = 256;
+  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols) * static_cast<int64_t>(prefix);
+  const int cells_per_block = block * 4;
+  rns8_pack_i64_4wide_coalesced_kernel<<<static_cast<int>((total + cells_per_block - 1) / cells_per_block), block>>>(
+      src, residues, rows, cols, prefix);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return static_cast<int>(err);
+  err = hipDeviceSynchronize();
+  return static_cast<int>(err);
+}
+
