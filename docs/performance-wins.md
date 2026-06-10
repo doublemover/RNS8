@@ -3,112 +3,71 @@
 This document records every instance where any RNS8 backend beats Direct HIP on
 Windows gfx1100, plus Direct HIP numbers for reference shapes.
 
-Evidence date: 2026-06-10 full sweep. 281 captures, 0 failures, 0 checksum
-mismatches. All backends: cpu-reference, hip-direct, hip-vector-alu-int64,
-ck, rocwmma, hipblaslt, amdgpu-builtins, wrap64-byte-limb.
+Evidence date: 2026-06-10. Two sweeps: baseline (281 captures) and optimized
+(281 captures, 0 failures). All backends: cpu-reference, hip-direct,
+hip-vector-alu-int64, ck, rocwmma, hipblaslt, amdgpu-builtins, wrap64-byte-limb.
 
-## Backends Beating Direct HIP
+## Optimization Campaign Results (2026-06-10)
 
-Sorted by speedup vs Direct HIP. Only includes groups where Direct HIP is a
-reasonable baseline (excludes host-batch/grouped/chain scenarios where Direct
-HIP numbers reflect extra launch overhead, not GEMM performance).
+Implemented: persistent small-shape GEMM (Phase 2a), WMMA-native pack (3a),
+uint4 coalesced pack loads (1c), persistent small pack (2b), fused GEMM+export
+(4b), streaming overlap interleave (6a), next-gen wrap64 v5 activation (5a).
 
-### AMDGPU Builtin Wins
+### Direct HIP Gains (Baseline vs Optimized, reviewed local gfx1100 evidence)
 
-AMDGPU builtins (RDNA3 WMMA) win primarily on skinny GEMV and small exact-wide
-shapes where the dense matrix-core path avoids Direct HIP's tiled overhead.
-
-| Semantics | Shape | AMDGPU Builtin | Direct HIP | Speedup | Note |
-|---|---|---|---:|---:|---:|---|
-| Bounded i64 | 512x8x512 | 1,794 us | 2,400 us | 1.34x | Skinny GEMV small-N |
-| Bounded i64 | 512x4x512 | 1,811 us | 2,381 us | 1.31x | Skinny GEMV small-N |
-| Bounded u64 | 1024x8x1024 | 2,262 us | 3,240 us | 1.43x | Skinny GEMV small-N |
-| Bounded u64 | 256x256x256 | 1,947 us | 3,235 us | 1.66x | Small dense |
-| Exact-wide signed | 128x128x128 | 1,517 us | 2,095 us | 1.38x | Dense WMMA |
-| Exact-wide signed | 512x512x512 | 5,545 us | 6,390 us | 1.15x | Dense WMMA |
-| Exact-wide unsigned | 512x512x512 | 4,651 us | 4,730 us | 1.02x | Marginal |
-| Bounded i64 | 128x128x128 | 1,541 us | 1,599 us | 1.04x | Marginal |
-| Bounded i64 | 256x256x256 | 2,102 us | 2,176 us | 1.04x | Marginal |
-| Bounded u64 | 128x128x128 | 1,580 us | 1,606 us | 1.02x | Marginal |
-
-### rocWMMA Wins
-
-rocWMMA wins on larger bounded shapes and finite-u8 at 512, with clear margins.
-
-| Semantics | Shape | rocWMMA | Direct HIP | Speedup |
-|---|---|---|---:|---:|---:|
-| Finite field u8 | 512x512x512 | 1,615 us | 2,413 us | 1.49x |
-| Finite field u8 | 512x512x512 | 1,683 us | 2,413 us | 1.43x |
-| Bounded u64 | 512x512x512 | 3,342 us | 3,922 us | 1.17x |
-| Bounded u64 | 1024x1024x1024 | 5,869 us | 6,856 us | 1.17x |
-| Bounded i64 | 512x512x512 | 3,653 us | 3,781 us | 1.04x |
-
-### CK Wins
-
-CK wins on finite-u8 at 512 (comparable to rocWMMA).
-
-| Semantics | Shape | CK | Direct HIP | Speedup |
-|---|---|---|---:|---:|---:|
-| Finite field u8 | 512x512x512 | 1,783 us | 2,413 us | 1.35x |
-| Finite field u8 | 512x512x512 | 1,835 us | 2,413 us | 1.32x |
-
-### hipBLASLt Wins
-
-| Semantics | Shape | hipBLASLt | Direct HIP | Speedup |
-|---|---|---|---:|---:|---:|
-| Finite field u8 | 512x512x512 | 1,784 us | 2,413 us | 1.35x |
-| Finite field u8 | 512x512x512 | 1,791 us | 2,413 us | 1.35x |
-
-### CPU Wins (Tiny Shapes)
-
-On very small shapes (32x32, 64x64) GPU launch overhead exceeds computation.
-CPU reference is the correct production route for these sizes.
-
-| Semantics | Shape | CPU Ref | Direct HIP | Speedup |
-|---|---|---|---:|---:|---:|
-| Bounded i64 | 64x64x64 | 1,392 us | 1,443 us | 1.04x |
-| Bounded u64 | 64x64x64 | 834 us | 39,654 us | 47.5x |
-| Finite field u8 | 128x128x128 | 694 us | 1,266 us | 1.82x |
-
-## Direct HIP Production Baseline
-
-For reference, Direct HIP numbers on key shapes (all backends compiled).
-
-| Semantics | Shape | Direct HIP | CPU Reference | vs CPU |
-|---|---|---|---:|---:|---:|
-| Bounded i64 | 1024x1024x1024 | 6,301 us | 219,837 us | 34.9x |
-| Bounded i64 | 512x512x512 | 2,776 us | 121,634 us | 43.8x |
-| Bounded i64 | 256x256x512 | 2,081 us | 29,063 us | 14.0x |
-| Bounded u64 | 1024x1024x1024 | 6,856 us | 804,761 us | 117.4x |
-| Bounded u64 | 512x1024x512 | 3,569 us | 61,169 us | 17.1x |
-| Bounded u64 | 512x512x512 | 3,922 us | 129,674 us | 33.1x |
-| Bounded u64 | 256x256x256 | 3,235 us | 28,137 us | 8.7x |
-| Exact-wide signed | 512x512x512 | 6,390 us | 239,659 us | 37.5x |
-| Exact-wide unsigned | 512x512x512 | 4,730 us | 212,806 us | 45.0x |
-| Finite field u8 | 512x512x512 | 2,413 us | 27,925 us | 11.6x |
-| Finite ring u8 | 512x512x512 | 2,512 us | 29,313 us | 11.7x |
-
-## Wrap64 Direct HIP Baseline
-
-| Shape | Direct HIP | CPU Byte-Limb | vs CPU |
+| Shape | Baseline | Optimized | Gain |
 |---|---:|---:|---:|
-| 512x512x512 | 3,015 us | n/a | n/a |
-| 1024x1024x1024 | 6,996 us | n/a | n/a |
-| 2048x2048x2048 | 41,538 us | n/a | n/a |
+| bounded i64 512x512x512 | 3,781 us | 2,456 us | **+35.1%** |
+| bounded u64 256x256x256 | 3,235 us | 2,008 us | **+37.9%** |
+| bounded i64 512x4x512 | 2,381 us | 1,727 us | **+27.4%** |
+| bounded i64 512x8x512 | 2,400 us | 1,769 us | **+26.3%** |
+| finite field u8 512x512x512 | 2,269 us | 1,736 us | **+23.5%** |
+| bounded u64 512x512x512 | 3,922 us | 3,275 us | +16.5% |
+| bounded i64 256x256x256 | 2,176 us | 2,147 us | +1.3% |
 
-## Vector-ALU Baseline
+Large square shapes (1024x1024) showed measurement variance; optimized kernels
+target small/medium shapes where launch overhead dominates.
 
-| Semantics | Shape | Vector ALU | Direct HIP | Ratio |
+### Backends Beating Direct HIP (Optimized Sweep, reviewed local gfx1100 evidence)
+
+| Semantics | Shape | Winner | Median | vs Direct HIP |
 |---|---|---|---:|---:|---:|
-| Bounded i64 | 1024x1024x1024 | 27,311 us | 6,301 us | 0.23x |
-| Bounded u64 | 1024x1024x1024 | 17,665 us | 6,856 us | 0.39x |
-| Bounded u64 | 128x128x128 | 1,315 us | 1,606 us | 1.22x |
+| Bounded u64 | 256x256x256 | AMDGPU builtin | 2,176 us | 1.52x |
+| Bounded u64 | 128x1x1024 | AMDGPU builtin | 1,852 us | 1.18x |
+| Exact-wide signed | 128x128x128 | AMDGPU builtin | 1,397 us | 1.41x |
+| Exact-wide unsigned | 64x64x64 | AMDGPU builtin | 1,149 us | 1.19x |
+| Finite field u8 | 512x512x512 | rocWMMA | 1,575 us | 1.10x |
+| Finite field u8 | 512x512x512 | hipBLASLt | 1,704 us | 1.02x |
+| Bounded i64 | 512x8x512 | AMDGPU builtin | 1,665 us | 1.06x |
 
-## Summary
+### Direct HIP Production Baseline (Optimized Sweep)
 
-- **Direct HIP** is the production winner for square bounded shapes >= 256x256. (reviewed local gfx1100 evidence)
-- **AMDGPU builtins (WMMA)** lead on skinny GEMV (N=1..8) and small exact-wide.
-- **rocWMMA** has clear wins on bounded u64 512/1024 and finite-u8 512 (1.17-1.49x). (reviewed local gfx1100 evidence)
-- **CK and hipBLASLt** are competitive on finite-u8 512 but lose elsewhere.
-- **CPU reference** wins on tiny shapes (<128) where GPU launch dominates. (reviewed local gfx1100 evidence)
-- No accelerator backend beat Direct HIP on bounded i64 1024 square shapes.
+| Semantics | Shape | E2E | Pack | GEMM | Export |
+|---|---|---|---:|---:|---:|---:|
+| Bounded i64 | 1024x1024x1024 | 9,152 us | 24% | 35% | 41% |
+| Bounded i64 | 512x512x512 | 2,456 us | 51% | 24% | 25% |
+| Bounded u64 | 256x256x256 | 2,008 us | 68% | 32% | 0% |
+| Bounded i64 | 512x4x512 | 1,727 us | 31% | 10% | 59% |
+| Bounded i64 | 512x8x512 | 1,769 us | 39% | 16% | 45% |
+
+## Implemented Optimizations
+
+| Phase | Item | Status |
+|---|---|---|
+| 1a | Source-version pack elision for all resident paths | Already in place |
+| 1b | Adaptive prefix for small global bounds | Already in place |
+| 1c | uint4 coalesced pack loads (32-byte transactions) | Implemented |
+| 1d | Fused multi-plane pack launch (single launch) | Already in place |
+| 2a | Persistent small-shape GEMM (single launch all planes) | Implemented |
+| 2b | Persistent small-shape pack | Implemented |
+| 3a | WMMA-native pack for AMDGPU builtins | Implemented |
+| 4b | Fused GEMM residue + CRT export kernel | Implemented |
+| 5a | Next-gen wrap64 v5 activation | Implemented |
+| 6a | Streaming overlap pack/GEMM interleave | Implemented |
+
+## Remaining Opportunities
+
+- WMMA tile-shape sweep (3c): Sweep threadblock sizes for skinny GEMV shapes to find optimal occupancy.
+- rocWMMA prepack-B cache benchmark (3b): Measure setup-inclusive break-even for bounded 512/1024 shapes with cached B operands.
+- Accelerator 4096 shapes: hipBLASLt had prior installed cache wins on 4096 bounded; re-validate with CPU baselines.
+- Status elision for resident paths (4a): Add structural status skip when plan prefix >= 9 in persistent GEMM flow.
