@@ -23,10 +23,10 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
-      "max_prefix": 1,
+      "max_prefix": 3,
       "next_op_hint": "final-export",
       "metadata": {
         "workflow_name": "multi_modulus_pack",
@@ -54,7 +54,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
       "max_prefix": 3,
@@ -85,7 +85,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
       "max_prefix": 5,
@@ -116,7 +116,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -147,7 +147,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4

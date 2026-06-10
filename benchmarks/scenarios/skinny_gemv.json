@@ -28,7 +28,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate"
     },
     {
@@ -57,7 +57,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate"
     },
     {
@@ -86,7 +86,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "shape_signature": "tall_skinny_long_k",
