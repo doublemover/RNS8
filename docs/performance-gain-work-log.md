@@ -5,6 +5,41 @@ that used to live in [performance-gain-work-queue.md](performance-gain-work-queu
 Use the work queue as the active control panel; use this log only for historical
 context and evidence breadcrumbs.
 
+
+## June 10, 2026 RDNA3 release candidate sweep and documentation refresh
+
+- A full release-candidate benchmark sweep ran on Windows gfx1100 with 144
+  schema-valid release captures across 74 review groups. The sweep covered
+  bounded i64/u64, exact-wide signed/unsigned, finite-u8 ring/field, and strict
+  wrap64 semantics using the cpu-reference, hip-direct, and hip-vector-alu-int64
+  backends. Accelerator backends (ck, rocwmma, hipblaslt, amdgpu-builtins) were
+  not compiled into the release preset and recorded expected unsupported-backend
+  failures.
+
+- Direct-HIP bounded winners from this sweep:
+  bounded-i64 512: 2776 us end-to-end (44x vs CPU), bounded-i64 1024: 5168 us
+  (35x vs CPU), bounded-u64 512: 3868 us (33x vs CPU), bounded-u64 1024: 9626
+  us (84x vs CPU).
+
+- Direct-HIP wrap64 winners: 1024: 8334 us (31x vs CPU byte-limb), 2048: 47125
+  us (38x vs CPU byte-limb), 4096: 347795 us.
+
+- The scenario lint module (Rank 112) now validates the full catalog with 0
+  errors across 283 release-candidate entries. The VALID_OUTPUT_DOMAINS set
+  covers all 17 observed output domains. Chain, graph-only, and reuse-only
+  scenario families are excluded from baseline and next-op lint checks.
+
+- The promotion ledger (Rank 111) now separates production and accelerator
+  backends. Counter report integration (Rank 114) supports --counter-reports.
+  GPU event schema tests (Rank 113) cover per-backend required event sets.
+
+- Ranks 82, 83, 87, 99, 103, 104, 109 have implemented kernel code compiled and
+  tested on gfx1100. The per-tile bounded u64 residency test (test 154) has a
+  pre-existing staleness bug from PR #12 not related to these changes.
+
+- Scenario catalog lint extended with smarter exclusion lists for chain, graph,
+  and reuse scenarios. Output domain registry updated from 7 to 17 entries.
+
 ## Recent Execution Status
 
 June 7, 2026 public incremental result-cache contract closeout:

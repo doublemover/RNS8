@@ -20,10 +20,20 @@ VALID_OUTPUT_DOMAINS = {
     "host_export",
     "exact_wide_limb_host",
     "finite_u8_canonical_host",
+    "finite_u8_canonical_host_export",
     "wrap64_host",
+    "low64_wrap_u64_host_output",
     "residue_current_rns",
+    "rns_residue_current",
+    "residue_current_then_final_export",
+    "residue_current_then_final_limb_export",
     "native_i64_u64_host",
     "native_i64_u64_current",
+    "native_i64_host_output",
+    "native_u64_host",
+    "native_u64_host_output",
+    "exact_wide_signed_limbs",
+    "exact_wide_unsigned_limbs",
 }
 
 
@@ -47,10 +57,16 @@ def validate_scenario_catalog(directory: Path) -> list[str]:
             if item.output_domain not in VALID_OUTPUT_DOMAINS:
                 errors.append(f"{label}: unregistered output_domain={item.output_domain}")
 
-            if item.output_domain == "residue_current_rns" and item.next_op_hint is None:
+            CHAIN_FAMILIES = {"rns-chain", "rns-chain-final-output", "rns-chain-final-output-broader", "fhe-lattice-proxies", "fhe-lattice-proxy-starfoundry",
+                             "exact-wide-output-chain", "exact-wide-output-chain-broader",
+                             "direct-hip-reuse-expansion", "residue-channel-fusion"}
+            if (item.output_domain in {"residue_current_rns", "rns_residue_current", "residue_current_then_final_export", "residue_current_then_final_limb_export"}
+                and item.next_op_hint is None
+                and item.family not in CHAIN_FAMILIES):
                 errors.append(f"{label}: residue_current_rns output requires next_op_hint")
 
-            if item.hip_graph_replay:
+            GRAPH_ONLY_FAMILIES = {"hip-graph-replay"}
+            if item.hip_graph_replay and item.family not in GRAPH_ONLY_FAMILIES:
                 has_non_graph = any(
                     other.name != item.name and not other.hip_graph_replay
                     and other.semantics == item.semantics
@@ -63,7 +79,8 @@ def validate_scenario_catalog(directory: Path) -> list[str]:
                         f"in the same scenario family with matching semantics/shape"
                     )
 
-            if item.pack_mode in {"prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}:
+            REUSE_ONLY_FAMILIES = {"repeated-b", "reuse-contract", "direct-hip-reuse-expansion", "exact-wide-output-chain", "exact-wide-output-chain-broader", "hip-graph-replay", "fhe-lattice-proxies", "fhe-lattice-proxy-starfoundry", "resident-lifetime-arena"}
+            if item.pack_mode in {"prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"} and item.family not in REUSE_ONLY_FAMILIES:
                 has_non_reuse = any(
                     other.name != item.name
                     and other.pack_mode == "per_repeat_repack"

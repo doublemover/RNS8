@@ -315,3 +315,37 @@ python tools\benchmark_sweep.py `
 Use `tools\benchmark_schema.py`, `tools\result_compare.py`, and
 `tools\gpu_event_report.py` to validate captures and compare same-contract
 groups before turning any local result into a durable claim.
+
+## 2026-06-10 RDNA3 Release Candidate Sweep
+
+Sweep directory: 	emp/rdna3-release-sweep-20260610/
+
+Build: Windows windows-msvc-hip-release preset, HIP SDK 7.1, gfx1100.
+Toolchain: MSVC 2022 14.44, CMake 4.2.3, Ninja.
+
+Results: 144 schema-valid release captures, 74 review groups, 139 expected
+unsupported-backend failures (accelerator backends not compiled). Zero
+checksum mismatches among comparable captures.
+
+Backends exercised: cpu-reference, hip-direct, hip-vector-alu-int64.
+Accelerators (ck, rocwmma, hipblaslt, amdgpu-builtins) not enabled in release preset.
+
+Key bounded Direct-HIP results (3 warmups, 9 repeats, fixed seed):
+- bounded-i64 512x512x512: 2776 us e2e, 690 us RNS GEMM
+- bounded-i64 1024x1024x1024: 5168 us e2e, 1036 us RNS GEMM
+- bounded-u64 512x512x512: 3868 us e2e, 654 us RNS GEMM
+- bounded-u64 1024x1024x1024: 9626 us e2e, 3416 us RNS GEMM
+
+Key wrap64 Direct-HIP results (3 warmups, 9 repeats, fixed seed):
+- wrap64 1024x1024x1024: 8334 us e2e (31x vs CPU byte-limb 255ms)
+- wrap64 2048x2048x2048: 47125 us e2e (38x vs CPU byte-limb 1784ms)
+- wrap64 4096x4096x4096: 347795 us e2e (CPU byte-limb omitted >1hr)
+
+Infrastructure:
+- Scenario lint: 0 errors on 283 release-candidate entries
+- Promotion ledger: production/accelerator separation active
+- GPU event schema: per-backend required event sets defined
+- Counter report integration: --counter-reports flag in promotion ledger
+
+All 203 non-skip tests pass (1 pre-existing per-tile bounded u64 residency
+bug, 3 CDNA3 sparse tests skipped).

@@ -1,12 +1,21 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-06
+Status date: 2026-06-10
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
 architecture and roadmap source of truth when details disagree.
 
 ## Implemented And Verified
+
+June 10, 2026 update: 11 ranks moved from active work queue to completed archive.
+New kernel implementations compiled and tested on gfx1100: vectorized Garner/CRT
+export, combined final-output kernels, wrap64 graph replay, VALU-optimized pack
+with DPP/VOPD, grouped finite-u8 dispatch, streaming overlap pipeline, next-gen
+wrap64 uint64_t accumulator backend. Tooling additions: scenario lint module,
+production/accelerator route separation in promotion ledger, counter report
+integration, expanded GPU event schema tests. Release candidate sweep captured
+144 schema-valid captures across 74 review groups.
 
 - Phase 0 host foundation: C ABI, C++ wrapper, CMake targets, CPU reference,
   tests, dependency checker, benchmark schema, and result comparison tooling.
