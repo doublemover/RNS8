@@ -45,7 +45,17 @@ The former detailed backlog/research-notes material lives in
 dated execution updates and non-active disposition tables live in
 [performance-gain-work-log.md](performance-gain-work-log.md) and
 [performance-gain-queue-dispositions.md](performance-gain-queue-dispositions.md).
-The active table below now contains 38 ranks. Rank IDs are historical/stable
+The active table below previously contained 38 ranks.
+Ranks 82, 83, 87, 99, 103, 104, 109, 111, 112, 113, 114 were closed on
+June 10, 2026 after implementation completion, gfx1100 compilation, and
+measured sweep evidence. See
+[performance-gain-completed-work.md](performance-gain-completed-work.md).
+
+The queue below retains 27 active ranks (79-81, 84-86, 88-98, 100-102,
+105-108, 110, 115-116) plus 14 new ranks (117-130) opened June 10, 2026
+for creative optimization work and deferred research.
+
+The active table below now contains 41 ranks (27 active + 14 new). Rank IDs are historical/stable
 references; row order is the current execution priority. Non-active material
 lives outside this file so the control panel stays execution-focused.
 
@@ -57,6 +67,7 @@ setup-inclusively, graph replay has no production win, and accelerator rows
 need clearer loss-phase, setup, and ISA evidence. The latest summary surface is
 `tools/benchmark_sweep_failure_summary.py`; do not replace it with ad hoc JSON
 inspection commands.
+
 
 ### Rank 79 - CDNA Review Integrity And Loss-Phase Summaries
 
@@ -91,6 +102,7 @@ inspection commands.
   runs only scenario rows whose promotion scope is `release_review_candidate`;
   use `--scenario all` only when deliberately collecting exhaustive evidence
   and accepting evidence-only blocker noise.
+
 
 ### Rank 80 - CDNA Skinny GEMV Direct-HIP Route
 
@@ -136,6 +148,7 @@ inspection commands.
 - Promotion rule: promote only if setup-inclusive end-to-end beats the current
   Direct-HIP production route for the same contract.
 
+
 ### Rank 81 - Vector-ALU GEMV And Native Exact Small-N Baseline
 
 - Priority: P1.
@@ -168,70 +181,6 @@ inspection commands.
 - Promotion rule: vector-ALU may win production only for bounded native-output
   contracts with exact same-contract baselines.
 
-### Rank 82 - Exact-Wide Fused Device CRT Export
-
-- Priority: P1.
-- Target: exact-wide signed/unsigned final host-output captures.
-- Problem: accelerator GEMM often loses because final CRT/export dominates
-  after GEMM acceleration. MI300X exact-wide 512 still picks Direct HIP as
-  production winner.
-- Implementation scope: add fused or immediately chained device CRT/export
-  routes for exact-wide signed/unsigned, vectorized Garner/CRT constants,
-  fixed-prefix specialization, per-cell limb export, deterministic first-error
-  reporting, and selected export-kernel metadata.
-- Local implementation status: exact-wide Direct HIP device export routes and
-  fixed-prefix18/fixed-prefix20 selector kernels are implemented. Export kernel
-  identities are now registry-backed through `metadata/kernels.yaml`, generated
-  into Python/C++ metadata constants, and schema-checked across
-  `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
-  and `reconstruction_variant.kernel_identity`. Local Windows HIP fixed-prefix18
-  signed/unsigned smokes selected the matching device export kernels and passed
-  schema validation. Direct-HIP exact-wide fixed-prefix fixed-limb export now
-  has four-cell kernels for signed/unsigned prefix18 and prefix20, including
-  tree-CRT and grouped fixed-limb export routes; dynamic variable-limb fallbacks
-  remain unchanged. Release review now blocks accelerator final-output
-  promotion when bounded/exact-wide captures omit exact-output,
-  export-variant, or reconstruction-variant route identity, so raw RNS GEMM
-  wins cannot promote without CRT/export proof. `exact-wide-export` now exposes
-  the 512 production candidates and 1024 export-bound rows as release evidence
-  while keeping 64/128 selector sanity and 2048 exploratory rows smoke-only;
-  `export-bound-limb-variants` and `reconstruction-zoo` are release-mode
-  evidence families.
-- Required evidence: `exact-wide-export`, `export-bound-limb-variants`, and
-  `reconstruction-zoo` release captures with exact CPU parity, Direct HIP,
-  hipBLASLt, CK, rocWMMA, and AMDGPU builtin comparators where built.
-- Constraints: keep signed prefix18 tree-CRT route where it wins; do not flip
-  unsigned tree-CRT by default until end-to-end CDNA evidence beats fixed-prefix
-  Garner, because prior evidence showed unsigned tree improves the export event
-  but loses end-to-end.
-
-### Rank 83 - Bounded i64/u64 Fused CRT Export
-
-- Priority: P1.
-- Target: bounded signed/unsigned final host-output captures.
-- Problem: bounded accelerators can win raw RNS GEMM but lose once CRT export,
-  status, and D2H are included.
-- Implementation scope: add final-output kernels that combine residue
-  reconstruction, range/status handling, and compact host-output staging for
-  bounded i64/u64; preserve exact range checks and deterministic status.
-- Local implementation status: Direct HIP bounded device export already runs
-  final-output device CRT reconstruction, range-status handling, device output
-  staging, status D2H, and output D2H. Export kernel identities are now
-  registry-backed for bounded i64/u64, schema-checked across
-  `export_variant.selected_kernel`, `exact_output_contract.kernel_identity`,
-  and `reconstruction_variant.kernel_identity`, and grouped bounded captures now
-  report the actual grouped export kernels plus `compact_contiguous` D2H policy.
-  Direct-HIP fixed-prefix bounded i64/u64 single and grouped export launchers
-  now use four-cell CRT/export kernels for the default and max supported prefix
-  routes, keeping dynamic-prefix and scheduled/tiled fallbacks unchanged. Local
-  Windows HIP bounded i64/u64 normal and grouped smokes passed schema
-  validation. Release review requires those route-identity objects for
-  accelerator bounded final-output candidates before promotion.
-- Required evidence: repeated-B, large-release-validation, and export-bound
-  scenarios with per-phase event labels for GEMM, CRT kernel, status memset,
-  status D2H, output D2H, and end-to-end timing.
-- Promotion rule: accelerator route must beat Direct HIP setup-inclusively for
-  the final-output contract, not only residue-current GEMM.
 
 ### Rank 84 - Prepacked-B Setup Cost Reduction
 
@@ -282,6 +231,7 @@ inspection commands.
 - Promotion rule: setup-inclusive reuse must beat both same-backend non-reuse
   and fastest same-contract non-reuse at the declared reuse count.
 
+
 ### Rank 85 - Production Persistent Packed Operand Caches
 
 - Priority: P1.
@@ -314,6 +264,7 @@ inspection commands.
 - Deferred: finite-u8, wrap64, sparse, and exact-wide cache promotion until
   each has its own same-contract setup-inclusive evidence.
 
+
 ### Rank 86 - HIP Graph Replay Break-Even Gate
 
 - Priority: P1.
@@ -340,28 +291,6 @@ inspection commands.
 - Deferred: public async/graph API. Keep graph replay internal to benchmark and
   autotune until a production contract is justified.
 
-### Rank 87 - Full-Path Graph Replay For Pack/GEMM/Export
-
-- Priority: P1.
-- Target: bounded, finite-u8, exact-wide, and wrap64 full-path captures.
-- Problem: earlier graph wins were workload-specific and not CDNA production
-  evidence; accelerator graph safety for library handles/scratch is not solved.
-- Implementation scope: make full-path graph capture cover H2D, pack kernels,
-  GEMM, residue reduction/export, status, and D2H on explicit streams where
-  safe; reject paths with unstable handles, scratch, or source versions.
-- Local status: benchmark schema validation now requires full-path bounded,
-  exact-wide, finite-u8, and wrap64 graph replay captures to carry ordered
-  pack, GEMM, export, and end-to-end phase metadata. The phase notes must
-  explicitly name the graph-covered pack/GEMM/export/status/D2H work for the
-  relevant semantic path, so a wall-clock graph row cannot pass as full-path
-  evidence while omitting export/status or output-transfer coverage. Direct-HIP
-  exact-wide signed/unsigned host-output graph replay now captures native pack,
-  RNS GEMM, fixed-width limb export, status D2H, and output D2H with explicit
-  schema, sweep, review, and graph-report coverage.
-- Required evidence: graph/non-graph same-contract release groups with event
-  labels and setup-inclusive break-even analysis.
-- Do not promote: graph-only rows or graph captures without same-contract
-  non-graph release baselines.
 
 ### Rank 88 - Direct-HIP Pack Kernel Reduction
 
@@ -450,6 +379,7 @@ inspection commands.
   by split evidence, then prove setup-inclusive wins beyond the current
   uniform-small fixed-prefix Direct-HIP candidate lane.
 
+
 ### Rank 89 - Native-To-RNS And Vector-To-RNS Device Handoff
 
 - Priority: P1.
@@ -488,6 +418,7 @@ inspection commands.
   alongside `vector-to-rns-chain`, so the AUTO-forced Direct-HIP
   materialization path is reviewed with the same release discipline as the
   producer/consumer chain handoff controls.
+
 
 ### Rank 90 - CDNA3 AMDGPU Builtin Dense MFMA Backend
 
@@ -542,6 +473,7 @@ inspection commands.
 - Promotion rule: builtin wins only when exact CPU parity and setup-inclusive
   release review beat Direct HIP.
 
+
 ### Rank 91 - CDNA3 MFMA Tile, LDS, And K-Block Tuning
 
 - Priority: P1.
@@ -567,6 +499,7 @@ inspection commands.
 - Promotion rule: no tile variant promotes without same-contract default
   baseline, ISA/resource evidence, and end-to-end improvement.
 
+
 ### Rank 92 - CK CDNA Pack/Epilogue Tuning
 
 - Priority: P1.
@@ -578,6 +511,7 @@ inspection commands.
 - Required evidence: CK deep event labels, CK ISA histograms, same-contract
   release review against Direct HIP and rocWMMA.
 - Constraint: CK remains optional; do not make it required for correctness.
+
 
 ### Rank 93 - rocWMMA CDNA Pack, Reuse, And Shape Tuning
 
@@ -593,6 +527,7 @@ inspection commands.
 - Promotion rule: rocWMMA can promote only per contract; a 1024 win does not
   justify 512, skinny, exact-wide, or reuse promotion.
 
+
 ### Rank 94 - hipBLASLt Exact-Wide And Chain Tuning
 
 - Priority: P1.
@@ -606,6 +541,7 @@ inspection commands.
   captures with CPU/direct baselines and checksum parity.
 - Constraint: hipBLASLt remains an optional baseline accelerator, not a
   correctness dependency.
+
 
 ### Rank 95 - Sparse-A 4:2 Packing And CPU Reference
 
@@ -652,6 +588,7 @@ inspection commands.
 - Constraint: no automatic pruning, no B-side sparsity, no unstructured sparse
   path, and no sampled correctness.
 
+
 ### Rank 96 - CDNA3 Sparse SMFMAC Runtime
 
 - Priority: P1.
@@ -692,6 +629,7 @@ inspection commands.
 - Promotion rule: sparse ships only if end-to-end sparse-A execution beats the
   dense path for the same expanded mathematical input.
 
+
 ### Rank 97 - RDNA4 Sparse SWMMAC Runtime Readiness
 
 - Priority: P1.
@@ -709,6 +647,7 @@ inspection commands.
   evidence.
 - Constraint: RDNA3 has no sparse runtime backend because it has WMMA, not
   SWMMAC.
+
 
 ### Rank 98 - RDNA3 Dense WMMA Backend
 
@@ -731,18 +670,6 @@ inspection commands.
   current signed-centered operand use in runtime builtins.
 - Constraint: no sparse RDNA3 runtime claim.
 
-### Rank 99 - RDNA3 VALU Optimization Lane
-
-- Priority: P1.
-- Target: non-matrix hot code on `gfx1100`.
-- Problem: pack, export, reduction, byte-limb wrap64, zero-mask handling, and
-  small/skinny work can be VALU-bound rather than matrix-core-bound.
-- Implementation scope: VOPD-friendly instruction selection, DPP/cross-lane
-  reductions, vectorized pack/export, wrap64 byte-limb improvements, and
-  compiled ISA proof for useful dual-issue or lane operations.
-- Required evidence: Direct-HIP/vector-ALU event reports and ISA reports
-  proving the intended instruction families appear in hot objects.
-- Promotion rule: end-to-end same-contract improvement only.
 
 ### Rank 100 - RDNA4 Dense WMMA Readiness
 
@@ -756,6 +683,7 @@ inspection commands.
   runtime evidence is a separate future gate.
 - Constraint: no README or cache performance claim without real RDNA4 captures.
 
+
 ### Rank 101 - CDNA4 Readiness
 
 - Priority: P2.
@@ -768,6 +696,7 @@ inspection commands.
 - Required evidence: compile/schema readiness first; real hardware release
   validation later.
 - Constraint: no CDNA4 performance claim from CDNA3 data.
+
 
 ### Rank 102 - Resident Lifetime And Workspace Arena Reduction
 
@@ -789,43 +718,6 @@ inspection commands.
 - Constraint: no hidden global singleton cache; identity and lifetime must be
   explicit.
 
-### Rank 103 - Persistent Grouped Task Execution
-
-- Priority: P2.
-- Target: many small, repeated, and batched same-shape workloads.
-- Problem: launch/API overhead dominates many-small work and graph replay is
-  not always the right answer.
-- Implementation scope: persistent grouped CDNA task descriptors, device task
-  queues where justified, same-shape resident inputs, grouped finite and RNS
-  paths, exact status/checksum policy, and descriptor reuse validation.
-- Local progress: `grouped-dispatch` rows are release-mode evidence instead of
-  smoke-only and now cover bounded signed/unsigned, exact-wide signed/unsigned,
-  finite-ring, and finite-field grouped task execution. They remain
-  evidence-only until same-contract independent and host-batch baselines prove
-  setup-inclusive wins. `many-small` and `small-oneshot` release candidates are
-  now release-mode evidence as well, preserving host-batch, one-shot, and
-  persistent small-shape distinctions for the grouped-task review.
-- Required evidence: `grouped-dispatch`, `many-small`, `small-oneshot`, and
-  repeated workload release captures.
-- Constraint: grouped APIs must not perform hidden host packing, hidden AUTO
-  routing, or host final export unless explicitly contracted.
-
-### Rank 104 - Streaming Overlap Pipeline
-
-- Priority: P2.
-- Target: repeated or batched pack/GEMM/export pipelines.
-- Problem: serial pack, GEMM, export, and D2H leave overlap opportunities when
-  dependencies are independent across tasks or repeats.
-- Implementation scope: pack-next/GEMM-current/export-previous streams,
-  dependency contracts, status synchronization, final checksum synchronization,
-  and event attribution.
-- Local progress: `streaming-overlap` release evidence now includes signed and
-  unsigned bounded 512 and 1024 rows, each with CPU correctness anchors, serial
-  Direct-HIP reuse-B controls, and explicit multi-stream overlap candidates.
-- Required evidence: `streaming-overlap` release captures against serial
-  same-contract baselines.
-- Constraint: do not overlap across dependencies that affect exactness,
-  source-version visibility, or first-error ordering.
 
 ### Rank 105 - Residue-Current And Lazy Final Export
 
@@ -849,6 +741,7 @@ inspection commands.
   `exact-wide-output-chain`, and vector/native-to-RNS chain captures.
 - Promotion rule: compare against independent export/repack controls.
 
+
 ### Rank 106 - Verification Amortization Without Correctness Weakening
 
 - Priority: P2.
@@ -864,6 +757,7 @@ inspection commands.
 - Constraint: no sampled or probabilistic CPU reference as a substitute for
   exact anchors.
 
+
 ### Rank 107 - Error-Detection And Status Fast Paths
 
 - Priority: P2.
@@ -876,6 +770,7 @@ inspection commands.
 - Required evidence: range-bound edge tests, exact-wide limb coverage tests,
   schema fixtures, and event reports showing status overhead reduction.
 - Constraint: never weaken exact range checks to make an accelerator pass.
+
 
 ### Rank 108 - Finite-u8 Modulus-Family Tuning
 
@@ -899,19 +794,6 @@ inspection commands.
   `finite-generic-moduli`, and large finite release captures.
 - Constraint: modulus-specific wins must not be generalized to other moduli.
 
-### Rank 109 - Strict Wrap64 Next-Generation Backend
-
-- Priority: P2.
-- Target: strict `mod 2^64` byte-limb workloads.
-- Problem: Direct HIP v4 is strong; the current rocWMMA wrap64 candidate loses
-  and remains internal.
-- Implementation scope: only pursue a materially different byte-limb
-  matrix-engine or VALU strategy, such as better byte-diagonal accumulation,
-  carry handling, or low64 export; do not polish the losing candidate.
-- Required evidence: CPU byte-limb oracle, Direct-HIP v4 baseline, full output
-  differentials, ISA proof, and release review.
-- Constraint: wrap64 must stay byte-limb based, not odd-modulus CRT, unless a
-  valid exact bound is supplied.
 
 ### Rank 110 - Adaptive Prefix And Zero-Skip Expansion
 
@@ -930,84 +812,6 @@ inspection commands.
   `bound-discovery`, and zero-skip scenarios with exact proof metadata.
 - Constraint: no probabilistic early termination in production.
 
-### Rank 111 - Autotune Cache Production Route Semantics
-
-- Priority: P2.
-- Target: AUTO routing and cache entries.
-- Problem: Direct HIP production wins must be represented clearly, while
-  accelerator promotion remains strict.
-- Implementation scope: separate fastest production route from fastest
-  accelerator route in cache/review tooling, exact-key matching, shape-family
-  advisory-only recommendations, target/toolchain/source identity gates, and
-  cache stale rejection.
-- Required evidence: review tests for Direct-HIP winners, accelerator winners,
-  duplicate backend captures, missing baselines, source mismatch, and target
-  mismatch.
-- Local progress: the supported compact failure summary now emits
-  `TOP_ACTIONABLE_ACCELERATOR_BLOCKERS`, sorted by setup-sensitive blockers,
-  setup-inclusive reuse/graph gaps, direct/vector underperformance, and the
-  worst phase ratio. Each row includes backend, shape, selected kernel, primary
-  loss phase, bottleneck, pack split, route score, blocker set, capture path,
-  and contract key, so one VM summary identifies the exact accelerator rows to
-  optimize after Direct HIP is the current production winner.
-- Constraint: no approximate family promotion without a real family contract.
-
-### Rank 112 - Scenario Catalog Cleanup And Pre-VM Linting
-
-- Priority: P2.
-- Target: all benchmark scenario JSON files.
-- Problem: VM time is wasted when scenarios are invalid, evidence-only rows are
-  mislabeled as promotable, or required baselines are omitted.
-- Implementation scope: stricter scenario linting for fixed-prefix range
-  validity, promotion eligibility, required baselines, output domain,
-  checksum policy, graph/reuse evidence scopes, and backend support.
-- Required evidence: Python scenario-catalog tests and a dry planning command
-  or equivalent manifest generation that fails before paid VM work.
-- Local progress: `benchmark_sweep.py --lint-scenarios` now performs a
-  no-execute catalog lint that defaults to `--scenario all`, generates the same
-  scenario command entries and manifest as real sweeps using a placeholder
-  `rns8-bench` path when none is supplied, prints a compact JSON summary, and
-  exits before capture execution or review. The command-matrix test invokes the
-  real CLI for `--scenario release-candidates` and verifies that only release
-  candidates appear in the manifest and no review report is written. The CDNA
-  first-pass wrapper now runs the lint mode before every rank-scenario sweep and
-  records it in `command-plan.txt`, so scenario catalog failures stop before
-  paid benchmark captures start. The scenario catalog self-test now also
-  rejects any `release_review_candidate` row that is not release-mode evidence,
-  preventing future promotable rows from silently falling out of release review.
-- Constraint: do not make scripts permissive to hide invalid contracts.
-
-### Rank 113 - GPU Event Coverage Completion
-
-- Priority: P2.
-- Target: all HIP-resident backends.
-- Problem: promotion needs phase attribution, but some paths still have coarse
-  or missing event labels.
-- Implementation scope: complete event hooks for Direct HIP, hipBLASLt, CK,
-  rocWMMA, AMDGPU builtins, graph replay, reuse/prepack, exact-wide export,
-  finite-u8, wrap64, and sparse paths.
-- Required evidence: schema tests for every required event set and VM captures
-  showing required events available for promotable rows.
-- Constraint: nullable events are allowed for unsupported paths, but missing
-  required events must block promotion.
-- Local progress: AMDGPU builtins are now event-capable in `rns8-bench`; dense
-  bounded/exact and finite-u8 captures use deep accelerator source scope and
-  selected MFMA/WMMA/SMFMAC/SWMMAC event labels derived from the public selected
-  kernel.
-
-### Rank 114 - Counter And Resource Evidence Gate
-
-- Priority: P2.
-- Target: CDNA/RDNA optimizer decisions.
-- Problem: timing alone does not tell whether a route is memory-bound,
-  occupancy-bound, launch-bound, register-bound, or instruction-bound.
-- Implementation scope: integrate `gpu_counter_report.py`, ISA resource fields,
-  VGPR/SGPR/LDS/scratch occupancy, wait-state signals, global memory traffic,
-  and matrix-instruction histograms into review artifacts.
-- Required evidence: counter/resource reports attached to tile/MFMA/WMMA/pack
-  tuning decisions.
-- Constraint: counters guide optimization; they do not replace exact CPU parity
-  or same-contract release timing.
 
 ### Rank 115 - Large Release Validation Refresh
 
@@ -1022,6 +826,7 @@ inspection commands.
   no invalid missing baselines, reviewed promotable entries only from valid
   release scopes, and summary artifact saved under `temp/`.
 - Constraint: do not call broad all-runs "done" when targeted blockers remain.
+
 
 ### Rank 116 - Benchmark Ergonomics And Progress Discipline
 
@@ -1050,3 +855,289 @@ inspection commands.
   release repeat floor.
 - Constraint: diagnostics must not change benchmark semantics or promotion
   strictness.
+
+
+### Rank 117 - Fix Persistent Small GEMM And Pack Kernel Dispatch
+
+- Priority: P0.
+- Target: all small-shape Direct HIP workflows.
+- Problem: persistent small GEMM and coalesced/persistent pack kernels are
+  compiled and have extern wrappers, but wiring them into the dispatch path
+  causes one-shot test regressions (all-zero output for persistent GEMM,
+  wrong output for coalesced pack). The kernels themselves have correctness
+  bugs that need debugging before dispatch can be enabled.
+- Implementation scope: write targeted differential tests for each kernel at
+  minimal shapes (16x16 for GEMM, 64x64 for pack). Compare cell-by-cell
+  against CPU reference. Fix kernel bugs. Then wire dispatch with minimal
+  threshold (m*n <= 64 for GEMM, m*n <= 256 for pack). Incrementally expand
+  the threshold as correctness is proven.
+- Required evidence: differential tests passing for all three kernel families.
+  One-shot and persistent bounded tests must pass with dispatch enabled.
+  Sweep must show 0 new failures.
+- Unlocks: all other dispatch wiring (coalesced pack, persistent GEMM, fused
+  GEMM+export). This is the single highest-priority item.
+
+### Rank 118 - RDNA3 Async Multi-Stream GEMM Plane Parallelism
+
+- Priority: P0.
+- Target: prefix >= 6 Direct HIP GEMM.
+- Problem: per-modulus GEMM planes are independent but execute serially on
+  one HIP stream. RDNA3 has 2 Shader Engines capable of concurrent execution.
+  Launching plane groups on separate streams can overlap GEMM computation,
+  reducing GEMM time by up to 50% for prefix >= 6.
+- Implementation scope: partition modulus planes into 2 groups. Launch each
+  group on a separate HIP stream. Use HIP events for synchronization between
+  groups and before export. Select between 2-way and serial based on
+  hipGetDeviceProperties.multiProcessorCount >= 48 (RDNA3 has 48 WGP CU).
+- Required evidence: differential test comparing multi-stream output vs
+  single-stream output for prefix-6 and prefix-9 bounded shapes. Phase
+  timing showing GEMM reduction. No correctness regression.
+- Expected win: 30-50% GEMM reduction for prefix >= 6 shapes.
+
+### Rank 119 - Zero-Copy Host I/O Via ReBAR Mapped Memory
+
+- Priority: P0.
+- Target: pack H2D and export D2H phases.
+- Problem: pack H2D is 38-66% of end-to-end time on bounded shapes. Export
+  D2H is 10-20%. With ReBAR (Resizable BAR), the GPU can directly access
+  host memory via hipHostRegister + hipHostGetDevicePointer. This
+  eliminates the explicit hipMemcpy for pack and export, replacing it with
+  zero-copy kernel accesses.
+- Implementation scope: probe ReBAR availability via hipDeviceGetAttribute
+  with hipDeviceAttributeCanAccessPeer and hipDeviceAttributeDirectManagedMemAccessFromHost.
+  If available, register host matrices with hipHostRegister and pass device
+  pointers to pack/export kernels. Kernels read/write directly.
+- Required evidence: differential test with zero-copy vs explicit copy paths.
+  Timing comparison showing H2D and D2H reduction. Must not regress on
+  systems without ReBAR.
+- Expected win: eliminate 80-100% of explicit pack H2D and export D2H time.
+
+### Rank 120 - Kernel Fusion HIP Graph Auto-Capture
+
+- Priority: P0.
+- Target: repeated workloads.
+- Problem: every resident GEMM call incurs pack, GEMM, and export kernel
+  launch overhead. HIP graphs can capture the entire pipeline on first call
+  and replay with a single hipGraphLaunch on subsequent calls. Graph
+  infrastructure exists (Ranks 86-87) but isn't auto-triggered.
+- Implementation scope: on first GEMM call for a plan+workspace combination,
+  wrap the entire pack/GEMM/export sequence in hipStreamBeginCapture /
+  hipStreamEndCapture. Store the graph in the workspace. On subsequent
+  calls, hipGraphLaunch instead of individual kernel launches. Invalidate
+  the graph on source-version change.
+- Required evidence: differential test with graph vs non-graph paths.
+  Benchmark comparing per-call overhead. Must preserve exact correctness
+  and source-version semantics.
+- Expected win: 20-40% end-to-end reduction for repeated workloads on small
+  shapes; 5-15% on large shapes (amortized over GEMM time).
+
+### Rank 121 - Auto-Tuning Kernel Scheduler
+
+- Priority: P1.
+- Target: replacing manual dispatch heuristics with data-driven selection.
+- Problem: current kernel dispatch uses hardcoded thresholds (if m*n <= X
+  use kernel A else kernel B). An auto-tuning scheduler can sweep
+  threadblock sizes, K-block policies, LDS configs, and register budgets
+  per shape family, then store winners in the autotune cache for production
+  selection.
+- Implementation scope: extend 	ile-shape-sweeps scenario infrastructure
+  to cover all kernel dispatch parameters. Run sweep on CI. Store winners
+  in utotune.json. At plan creation, query autotune cache for the best
+  kernel identity. Fall back to default on cache miss.
+- Required evidence: auto-tuned kernel selection producing >= same performance
+  as manual heuristics on all swept shapes. No correctness regression.
+- Promotion rule: auto-tuned selection must never regress vs manual.
+
+### Rank 122 - Occupancy-Driven Kernel Dispatch
+
+- Priority: P1.
+- Target: optimal kernel selection per GPU.
+- Problem: kernel performance depends on occupancy (waves per CU), which
+  depends on VGPR/SGPR/LDS usage. Different GPUs have different resource
+  limits. At plan creation, the scheduler should select the kernel variant
+  with the highest theoretical occupancy for the target GPU.
+- Implementation scope: query gpu_isa_report.py output for VGPR/SGPR/LDS
+  per kernel variant. Compute occupancy from GPU specs. Select kernel with
+  max occupancy. Cache selection in autotune key.
+- Required evidence: occupancy computation matches hipOccupancyMaxActiveBlocksPerMultiprocessor output.
+  Selected kernels maintain correctness.
+- Promotion rule: must not regress vs manual selection.
+
+### Rank 123 - Zero-Copy Accelerator Paths
+
+- Priority: P1.
+- Target: rocWMMA and hipBLASLt backends.
+- Problem: accelerator backends copy data to their internal layouts, adding
+  conversion overhead. With ReBAR zero-copy, host data can be accessed
+  directly by accelerator pack kernels, eliminating intermediate copies.
+- Implementation scope: after Rank 119 proves zero-copy for Direct HIP,
+  extend the pattern to rocWMMA and hipBLASLt pack paths. Native B-cache
+  constructors (Rank 84) should write directly to ReBAR-mapped memory.
+- Required evidence: differential test with zero-copy accelerator pack.
+  Timing comparison vs explicit copy path.
+
+### Rank 124 - rocWMMA HIP Event Labels
+
+- Priority: P1.
+- Target: rocWMMA backend benchmarking.
+- Problem: rocWMMA captures lack GPU event timings, preventing phase
+  attribution and blocking the repeated-b benchmark. Event scopes are
+  registered in the schema; recording calls need to be added to the backend.
+- Implementation scope: add 	imed_hip_operation calls with rocWMMA-specific
+  event labels (
+ocwmma_pack_kernel, 
+ocwmma_gemm_kernel_group,
+  
+ocwmma_epilogue_kernel) in 
+ocwmma_backend.cpp and
+  
+ocwmma_backend_rns_wrappers.inc. Ensure event labels survive through
+  the xtern "C" kernel call boundary.
+- Required evidence: GPU event report showing rocWMMA event labels available.
+  Repeated-b benchmark passing schema validation with events.
+
+### Rank 125 - rocWMMA Prepack-B Cache Benchmark
+
+- Priority: P1.
+- Target: bounded i64/u64 512 and 1024 shapes.
+- Problem: rocWMMA has existing wins on bounded u64 512 (1.17x) and 1024
+  (1.17x) without prepack caching. With cached B operands, pack-A overhead
+  drops from ~50% to ~10% of e2e. The native B-cache constructors exist
+  (Rank 84). This rank measures setup-inclusive break-even.
+- Implementation scope: run enchmark_sweep.py --scenario repeated-b after
+  Rank 124 completes. Measure rocWMMA with --reuse-packed-b against
+  same-backend non-reuse and fastest non-reuse baseline. Compute break-even
+  repeat count.
+- Required evidence: schema-valid captures with GPU events. Setup-inclusive
+  break-even analysis. Promotion only if beats both same-backend non-reuse
+  and fastest contract non-reuse.
+- Promotion rule: promoted cache entries must carry setup-inclusive evidence
+  and explicit reuse contract metadata.
+
+### Rank 126 - WMMA Tile-Sweep Variant Dispatch
+
+- Priority: P1.
+- Target: AMDGPU builtin skinny GEMV paths.
+- Problem: three WMMA tile-sweep kernel variants (64t, 128t, 256t) are
+  compiled but not selected by the scheduler. Each targets different occupancy
+  profiles (N=1, N=4, N=8). Wiring them into the AMDGPU builtin dispatch
+  with shape-based selection could improve skinny GEMV wins by 5-15%.
+- Implementation scope: in mdgpu_builtins_backend.cpp, add shape-based
+  kernel selection. When N==1 select 64t, N<=4 select 128t, N<=8 select 256t.
+  Record selected variant in backend metadata. Add schema fixtures for new
+  kernel identities.
+- Required evidence: ISA report showing correct kernel selected per shape.
+  Differential tests for each variant. Sweep showing improved skinny GEMV.
+
+### Rank 127 - INT4/IU4 Matrix Engine Proof-Of-Concept
+
+- Priority: P2 (Research).
+- Target: RDNA3 WMMA iu4 operations.
+- Problem: RDNA3 WMMA supports 4-bit integer matrix multiplication. At half
+  the memory bandwidth of INT8, IU4 could win on memory-bound large shapes.
+  Research infrastructure exists (semantics enum, pack kernel).
+- Implementation scope: add 
+ns8_amdgpu_builtin_wmma_iu4_gemm_research
+  kernel using __builtin_amdgcn_wmma_i32_16x16x16_iu4. Schema-gate behind
+  _research_ prefix in selected_kernel. Add ISA histogram proving IU4
+  instructions. Do not route to default paths.
+- Required evidence: ISA report showing v_wmma_iu4 instructions. Differential
+  test comparing IU4 path against INT8 path. Benchmark on 2048/4096 shapes.
+- Constraint: research only. No default routing, no cache promotion.
+
+### Rank 128 - Python Kernel Generator
+
+- Priority: P2 (Infrastructure).
+- Target: eliminating hand-written per-modulus specialization.
+- Problem: the default modulus ladder has 28 values. Each specialized reducer,
+  pack variant, and CRT constant table is hand-written. A code generator can
+  produce specialized kernels for each modulus family (hot 251/255/256,
+  prime-only, composite-only) with known reductions at compile time.
+- Implementation scope: 	ools/generate_modulus_kernels.py reads the modulus
+  ladder from metadata, generates specialized .cuh files with
+  __device__ constexpr modulus constants and precomputed Garner weights.
+  Output goes to src/generated/. Integrate into CMake build.
+- Required evidence: generated kernels produce identical output to generic
+  kernels. ISA report shows eliminated runtime modulus lookups.
+- Constraint: generated files must not be committed; they are build artifacts.
+
+### Rank 129 - Interactive Performance Dashboard
+
+- Priority: P2 (Infrastructure).
+- Target: benchmark data exploration.
+- Problem: sweep results are in JSON files under 	emp/. Comparing shapes,
+  backends, and phases requires ad hoc Python scripts. An interactive HTML
+  dashboard makes the data explorable.
+- Implementation scope: 	ools/generate_performance_dashboard.py reads sweep
+  captures, generates a single docs/dashboard.html with sortable tables,
+  phase breakdown charts, backend comparison bar charts, and shape × backend
+  heatmap. Host on GitHub Pages. Update on every sweep commit.
+- Required evidence: regenerated dashboard matches sweep data. All links and
+  charts render correctly.
+- Constraint: static HTML only. No server required.
+
+### Rank 130 - Continuous Benchmark Performance CI
+
+- Priority: P2 (Infrastructure).
+- Target: automated regression detection.
+- Problem: performance regressions are discovered manually during sweeps.
+  Automated CI that runs a lightweight benchmark matrix on each push can
+  catch regressions before they reach the sweep.
+- Implementation scope: add .github/workflows/perf-regression.yml that
+  builds HIP debug, runs 10 key shapes × 3 backends, compares against
+  stored baseline JSON, and fails if any shape regresses >5%. Baseline
+  updates require manual approval.
+- Required evidence: CI workflow completes successfully. Regression detection
+  correctly identifies intentional slowdown in test fixture.
+- Constraint: CI runs on self-hosted runner with gfx1100 GPU.
+
+### Rank 131 - Adversarial Input Detection
+
+- Priority: P3 (Research).
+- Target: worst-case input patterns.
+- Problem: some signed input distributions cause alternating large
+  positive/negative accumulation that can overflow the INT32 accumulator
+  within the standard K-block size. Detecting these patterns and adjusting
+  prefix or K-block prevents silent overflow.
+- Implementation scope: input scanner in plan creation that checks for
+  alternating large-magnitude sign patterns. If detected, increase
+  min_required_prefix by 1 or halve K-block size. Record in metadata.
+- Required evidence: adversarial input fixture that triggers overflow with
+  default prefix. Adjusted prefix prevents overflow. Exact CPU parity.
+- Constraint: must not trigger false positives on normal inputs.
+
+### Rank 132 - Power-Aware Scheduling
+
+- Priority: P3 (Research).
+- Target: sustained throughput under thermal limits.
+- Problem: gfx1100 throttles GPU frequency under sustained load. A scheduler
+  that monitors temperature/frequency and adjusts launch rate can maintain
+  peak frequency for longer, improving sustained throughput.
+- Implementation scope: query GPU frequency via 
+smi_dev_gpu_clk_freq_get
+  or 
+ocm-smi. If frequency drops below sustained threshold, insert
+  hipDeviceSynchronize + brief sleep between launches. Record power
+  metadata in captures.
+- Required evidence: sustained sweep showing higher average frequency and
+  improved throughput vs unthrottled baseline.
+- Constraint: power data collection requires Radeon Developer Tools or
+  Linux ROCm profiling tools. Windows gfx1100 support may be limited.
+
+### Rank 133 - Mixed-Precision Modulus Family Scheduler
+
+- Priority: P3 (Research).
+- Target: routing modulus families to their fastest backend.
+- Problem: hot moduli (251, 255, 256) have specialized CK/rocWMMA kernels
+  that are 2-3x faster than generic. The default ladder interleaves hot and
+  cold moduli. A scheduler that groups tiles by modulus family and routes
+  each group to the optimal backend can improve overall GEMM time.
+- Implementation scope: at schedule creation, classify modulus planes into
+  families. Route hot-modulus groups to CK/rocWMMA, cold-modulus groups to
+  Direct HIP. Launch groups on separate streams if available.
+- Required evidence: mixed-backend GEMM produces same output as single-backend.
+  Phase timing shows GEMM improvement. No correctness regression from
+  backend mixing.
+- Constraint: must not mix backends across tiles that depend on each other's
+  CRT reconstruction state.
+

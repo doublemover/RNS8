@@ -1,3 +1,10 @@
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
+    const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
+    int m, int n, int k, int prefix);
+#endif
+
 rns8_status hip_direct_ring_gemm_i8_device(
     int device_id,
     const void* device_a_residues,
@@ -105,11 +112,20 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    const hipError_t launch_status =
-        launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
-    return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
-  });
+  const bool use_persistent_small = (static_cast<int64_t>(m) * static_cast<int64_t>(n) <= 64) && (prefix >= 1) && (lda == k) && (ldb == n);
+  hipError_t err;
+  if (use_persistent_small) {
+    err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
+      return static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_device(
+          a_base, b_base, c_base, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(prefix)));
+    });
+  } else {
+    err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
+      const hipError_t launch_status =
+          launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
+      return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
+    });
+  }
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
