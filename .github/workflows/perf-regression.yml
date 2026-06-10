@@ -1,0 +1,33 @@
+name: Performance Regression Check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: [self-hosted, windows, gfx1100]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build HIP debug
+        run: |
+          python tools/windows_dev.py cmake --preset windows-msvc-hip-debug
+          python tools/windows_dev.py cmake --build --preset windows-debug
+
+      - name: Run lightweight benchmark matrix
+        run: |
+          python tools/benchmark_sweep.py --scenario bounded-i64-512 bounded-u64-512 finite-field-u8-512 --bench build/windows-msvc-hip-debug/rns8-bench.exe --out-root temp/perf-regression-ci --warmups 1 --repeats 3 --progress
+
+      - name: Compare against baseline
+        run: |
+          python tools/result_compare.py temp/perf-regression-ci --baseline temp/perf-baseline.json --max-regression 5.0
+
+      - name: Archive results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: temp/perf-regression-ci

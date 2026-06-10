@@ -257,8 +257,12 @@ def execute_sweep_entries(
     max_new = getattr(args, "max_new_captures", None)
     timeout_seconds = getattr(args, "capture_timeout_seconds", None)
     progress = bool(getattr(args, "progress", False))
+    total_entries = len(entries)
+    start_time = time.perf_counter()
     completed_cpu_captures: dict[tuple[Any, ...], Path] = {}
+    entry_index = 0
     for entry in entries:
+        entry_index += 1
         dedupe_key = _cpu_reference_dedupe_key(entry)
         if getattr(args, "skip_existing", False) and existing_capture_valid(entry.output):
             annotate_scenario_metadata(entry.output, entry.scenario)
@@ -289,6 +293,13 @@ def execute_sweep_entries(
             stats["new_captures_completed"] += 1
             if dedupe_key is not None:
                 completed_cpu_captures[dedupe_key] = entry.output
+        if progress and entry_index % 10 == 0:
+            elapsed = time.perf_counter() - start_time
+            rate = entry_index / elapsed if elapsed > 0 else 0
+            remaining = total_entries - entry_index
+            eta = remaining / rate if rate > 0 else 0
+            sys.stderr.write(f"[benchmark_sweep] progress: {entry_index}/{total_entries} ({entry_index*100//total_entries}%) elapsed={elapsed:.0f}s eta={eta:.0f}s remaining={remaining}\n")
+            sys.stderr.flush()
     return stats
 
 
