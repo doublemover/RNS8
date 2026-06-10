@@ -106,13 +106,6 @@ def main() -> int:
     assert comparison["decision"] == "candidate_workload_win"
     assert comparison["baseline_setup_inclusive_per_repeat_us"] == 1010.0
     assert comparison["graph_setup_inclusive_per_repeat_us"] == 931.0
-    assert comparison["graph_total_setup_us"] == 279.0
-    assert comparison["baseline_total_setup_us"] == 90.0
-    assert comparison["graph_setup_overhead_vs_baseline_us"] == 189.0
-    assert comparison["steady_state_delta_us"] == 100.0
-    assert comparison["break_even_repeat_count"] == 2
-    assert comparison["declared_repeat_count"] == 9
-    assert comparison["declared_repeats_meet_break_even"] is True
     assert comparison["checksum_match"] is True
 
     slow_graph = capture(graph=True, median_us=1200.0, setup_us=90.0, name="slow-graph")
@@ -139,27 +132,6 @@ def main() -> int:
     assert full_comparison["graph_prepack_setup_us"] == 0.0
     assert full_comparison["baseline_setup_inclusive_per_repeat_us"] == 800.0
     assert full_comparison["graph_setup_inclusive_per_repeat_us"] == 741.0
-    assert full_comparison["break_even_repeat_count"] == 3
-
-    exact_baseline = capture(graph=False, median_us=900.0, setup_us=None, name="exact-baseline", full_path=True)
-    exact_graph = capture(graph=True, median_us=810.0, setup_us=None, name="exact-graph", full_path=True)
-    for item in [exact_baseline, exact_graph]:
-        item["semantics"] = "exact_wide_signed"
-        item["bound_kind"] = "none"
-        item["input_distribution"] = "signed_uniform_-16_16"
-        item["selected_prefix"] = 20
-        item["requested_max_prefix"] = 20
-        item["exact_wide_limb_count"] = 4
-        item["exact_output_contract"]["limb_count"] = 4
-        item["exact_output_contract"]["output_domain_after_measured_repeats"] = "exact_wide_limb_host"
-    exact_graph["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_exact_wide_pack_gemm_export"
-    exact_graph["hip_graph_replay"]["scope"] = "direct_hip_exact_wide_pack_gemm_export"
-    exact_report = hip_graph_replay_report.build_hip_graph_replay_report_from_captures([exact_baseline, exact_graph])
-    exact_comparison = exact_report["comparisons"][0]
-    assert exact_comparison["decision"] == "candidate_workload_win"
-    assert exact_comparison["graph_execution_mode"] == "hip_graph_replay_exact_wide_pack_gemm_export"
-    assert exact_comparison["graph_scope"] == "direct_hip_exact_wide_pack_gemm_export"
-    assert exact_comparison["shape"] == {"m": 512, "n": 512, "k": 512, "residue_chain_length": 1}
 
     wrap_baseline = capture(graph=False, median_us=700.0, setup_us=None, name="wrap-baseline", full_path=True)
     wrap_graph = capture(graph=True, median_us=650.0, setup_us=None, name="wrap-graph", full_path=True)

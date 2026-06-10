@@ -234,19 +234,11 @@ Implemented correctness coverage:
   export into compact device byte-limb storage with reusable helper buffers. The
   public and unit-level HIP wrap64 tests are correctness coverage for the tiled
   byte-limb kernel, not optimized matrix-engine byte-GEMM performance evidence.
-- CTest coverage asserts that non-enabled accelerator configurations report
-  unsupported status rather than silently selecting another backend. CK and
+- CTest configure-negative coverage asserts that AMDGPU builtins and
+  non-enabled accelerator configurations fail fast with the evidence-only
+  policy message while no correctness backend is selected for that flag. CK and
   rocWMMA additionally have opt-in exact CPU/direct-HIP differential coverage
-  under their Windows `gfx1100` presets. AMDGPU builtins have opt-in compiled
-  MFMA/WMMA dense runtime coverage and explicit sparse-A SMFMAC/SWMMAC dispatch
-  where the target supports it.
-- Sparse-A v1 correctness starts from explicit descriptor validation:
-  A-side only, 4:2 K groups, dense B, K divisible by four, exactly two nonzero
-  values per group, canonical ascending indices, explicit byte signedness, and
-  semantic identity. The current sparse CPU GEMM expands sparse A into dense
-  CPU reference storage before running exact GEMM; sparse accelerator dispatch
-  remains explicit sparse-A only and still requires SMFMAC/SWMMAC target parity
-  evidence before any performance claim.
+  under their Windows `gfx1100` presets.
 
 Not yet implemented:
 

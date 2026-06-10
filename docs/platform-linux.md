@@ -8,10 +8,8 @@ CDNA, profiling, power, or cluster production gates.
 `tools/check_dependencies.py` reports Linux readiness separately from Windows
 readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platform
 matrix gates are reported as not applicable rather than as Windows blockers.
-On Linux, `hipcc`, `rocminfo`, and either `rocm-smi` or `amd-smi`
-are treated as the hard ROCm capability-inspection command set. `hipconfig`
-is captured as diagnostic evidence when present, but it does not block the
-single-device CDNA build/smoke path.
+On Linux, `hipcc`, `hipconfig`, `rocminfo`, and either `rocm-smi` or `amd-smi`
+are treated as the ROCm capability-inspection command set.
 `rocprofv3` and `rocprofv3-avail` are required for the counter/resource audit
 lane, but not for a basic build-only smoke. `numactl` and `lstopo` provide
 topology evidence. RCCL and `rccl-tests` are future multi-GPU platform
@@ -42,35 +40,12 @@ cmake --build --preset linux-debug
 ctest --preset linux-debug --output-on-failure
 ```
 
-For Ubuntu hosts with AMD ROCm package repositories already configured, the
-intended native-package install surface is:
+For Ubuntu 24.04 hosts with AMD ROCm package repositories already configured,
+the intended native-package install surface is:
 
 ```bash
 sudo apt install cmake ninja-build g++ python3 python3-venv python3-pip catch2 nlohmann-json3-dev libboost-all-dev rocm rocm-hip-sdk rocm-developer-tools rocminfo rocm-smi-lib amd-smi-lib rocprofiler-sdk rocprofiler-compute rocm-bandwidth-test rccl-dev rocwmma-dev hipblaslt-dev composablekernel-dev
 ```
-
-RNS8 requires CMake 3.22 or newer, matching Ubuntu 22.04's distro CMake. The
-CDNA wrappers still resolve a usable CMake before running presets and, when
-necessary on older images, bootstrap a private Python-package CMake under
-ignored `temp/cdna-tools/`. For system-wide CMake, install any package at or
-above the project minimum and verify:
-
-```bash
-cmake --version
-```
-
-If multiple CMake installations are present, point the wrappers at the intended
-one explicitly:
-
-```bash
-CDNA_CMAKE=/path/to/cmake CDNA_CTEST=/path/to/ctest bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
-```
-
-Ubuntu 22.04's `catch2` package is Catch2 v2, while RNS8 tests require the
-Catch2 v3 CMake package. The CDNA wrappers probe for Catch2 v3 and, when the
-native package is too old or missing, bootstrap a private pinned Catch2 source
-install under ignored `temp/cdna-tools/`. Override the pinned tag with
-`CDNA_CATCH2_VERSION` only for a deliberate dependency experiment.
 
 AMD's relevant readiness surfaces are the ROCm package-manager install flow,
 HIP visibility variables, `rocprofv3`/`rocprofv3-avail`, AMD SMI,
@@ -105,10 +80,6 @@ before any benchmark evidence:
 ```bash
 bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
 ```
-
-The dependency report inside that first pass is evidence only. A not-ready
-dependency report is written to `check-dependencies.json`, but it does not stop
-the configure/build/CTest/HIP-smoke/benchmark sequence from running.
 
 Optional CDNA follow-up scenario groups can be queued after the first smoke
 without making them default smoke blockers. The current CDNA-prep closeout
@@ -157,37 +128,14 @@ bash scripts/cdna_smoke.sh --devices 0 --out-dir temp/cdna-smoke-real
 ```
 
 Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
-`--bench-args`, `--rank-scenarios`, `--sweep-args`, `--skip-build`, and
-`--dry-run`. `--bench-args` appends extra `rns8-bench` arguments to the first
-64x64 smoke capture. `--sweep-args` appends extra `benchmark_sweep.py`
-arguments to each queued `--rank-scenarios` release sweep, for example CPU
-correctness-anchor and progress controls. `--accelerators` selects the clean
-`linux-cdna-accelerators-release` preset unless `--preset` is supplied. That
-preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a real
-Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
-`RNS8_HIP_ROOT=/opt/rocm`, an active `RNS8_AMDGPU_TARGETS` value matching the
-detected validation GPU such as `gfx942`, and no Windows vcpkg or local
-workstation paths. Wider CDNA family intent belongs in
-`RNS8_ROCM_COVERAGE_TARGETS`, not the active offload list for a single-GPU
-validation host. It is a configure/build surface only; CDNA performance
-readiness still requires target-validation and release-review captures. The
-preset leaves `RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=OFF` because that
-internal byte-limb wrap64 candidate is not a public backend or AUTO-selected
-accelerator; public rocWMMA bounded, exact-wide, and finite-u8 tests remain
-enabled when `RNS8_ENABLE_ROCWMMA=ON`.
-
-The dedicated accelerator first-pass command is:
-
-```bash
-bash scripts/cdna_accelerators.sh --devices 0 --out-dir temp/cdna-accelerators-real
-```
-
-For a built accelerator tree, a CDNA release scenario can be queued through the
-same wrapper without spelling GPU visibility environment variables manually:
-
-```bash
-bash scripts/cdna_accelerators.sh --out-dir temp/cdna-accelerators-large-release --skip-build --rank-scenarios large-release-validation --sweep-args "--cpu-reference-mode correctness-anchor --cpu-threads 4 --cpu-parallel-threshold 0 --progress"
-```
+`--bench-args`, `--skip-build`, and `--dry-run`. `--accelerators` selects the
+clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
+That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
+real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
+`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx90a;gfx942;gfx950`, and no
+Windows vcpkg or local workstation paths. It is a configure/build surface only;
+CDNA performance readiness still requires target-validation and release-review
+captures.
 
 GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`
 internals on some optimization levels. Treat those as non-blocking compiler

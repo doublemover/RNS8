@@ -65,8 +65,8 @@
       "evidence_scope": "signed exact-wide host limb export with selector metadata",
       "output_domain": "exact_wide_signed_limbs",
       "rationale": "profiles exact-wide export before expanding exact-wide GEMM variants",
-      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"],
-      "review_mode_expectation": "release",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [4],
       "export_variant": "exact-wide-fixed-limb-export"
@@ -78,8 +78,8 @@
       "evidence_scope": "unsigned exact-wide default four-limb export",
       "output_domain": "exact_wide_unsigned_limbs",
       "rationale": "keeps compact-output claims anchored to the current default-width baseline",
-      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"],
-      "review_mode_expectation": "release",
+      "backends": ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma"],
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [4],
       "export_variant": "exact-wide-fixed-limb-export"
@@ -92,7 +92,7 @@
       "output_domain": "exact_wide_signed_limbs",
       "rationale": "tests whether export is launch-bound or throughput-bound at a CDNA-relevant size",
       "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "export_variant_evidence_only",
       "exact_wide_limb_counts": [4],
       "export_variant": "exact-wide-fixed-limb-export"
@@ -105,7 +105,7 @@
       "output_domain": "exact_wide_unsigned_limbs",
       "rationale": "tests unsigned export pressure at a CDNA-relevant size",
       "backends": ["cpu", "hip-direct", "ck", "rocwmma"],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "export_variant_evidence_only",
       "exact_wide_limb_counts": [4],
       "export_variant": "exact-wide-fixed-limb-export"

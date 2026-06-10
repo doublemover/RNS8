@@ -20,7 +20,6 @@ SCRIPTS = [
     "scripts/cdna_env_probe.sh",
     "scripts/cdna_smoke.sh",
     "scripts/cdna_first_pass.sh",
-    "scripts/cdna_accelerators.sh",
     "scripts/cdna_multigpu_smoke.sh",
 ]
 
@@ -124,7 +123,6 @@ def main() -> int:
 
     out_root = Path("temp") / "cdna-script-regression"
     first_pass = out_root / "first-pass"
-    accelerators = out_root / "accelerators"
     multi4 = out_root / "multigpu-4"
     multi8 = out_root / "multigpu-8"
     partial = out_root / "multigpu-4-5-6-7"
@@ -147,66 +145,10 @@ def main() -> int:
     )
     first_status = json.loads((REPO_ROOT / first_pass / "target-status.json").read_text(encoding="utf-8"))
     assert first_status["records"][0]["device_index"] == 0
-    assert first_status["records"][0]["validation"]["dependency_check"] == "planned"
-    assert first_status["records"][0]["dependency_check"]["status"] == "planned"
-    assert "required_gate_failures" in first_status["records"][0]["dependency_check"]
     assert (REPO_ROOT / first_pass / "env" / "cdna-env-summary.json").exists()
     first_plan = (REPO_ROOT / first_pass / "command-plan.txt").read_text(encoding="utf-8")
-    assert "rank_scenario_vector-to-rns-chain_lint" in first_plan
-    assert "--lint-scenarios" in first_plan
     assert "--scenario vector-to-rns-chain" in first_plan
-    assert (REPO_ROOT / first_pass / "rank-scenarios" / "vector-to-rns-chain" / "rank-scenario-lint-plan.log").exists()
     assert (REPO_ROOT / first_pass / "rank-scenarios" / "vector-to-rns-chain" / "rank-scenario-plan.log").exists()
-
-    _require_ok(
-        _run(
-            [
-                "bash",
-                "scripts/cdna_accelerators.sh",
-                "--dry-run",
-                "--devices",
-                "0",
-                "--out-dir",
-                str(accelerators),
-                "--rank-scenarios",
-                "vector-to-rns-chain",
-            ]
-        ),
-        "accelerators dry-run",
-    )
-    accelerator_status = json.loads((REPO_ROOT / accelerators / "target-status.json").read_text(encoding="utf-8"))
-    assert accelerator_status["records"][0]["preset"] == "linux-cdna-accelerators-release"
-    accelerator_plan = (REPO_ROOT / accelerators / "command-plan.txt").read_text(encoding="utf-8")
-    assert "linux-cdna-accelerators-release" in accelerator_plan
-    assert "--accelerators" in accelerator_plan
-    assert "gpu_isa_report" in accelerator_plan
-    assert "--backend all" in accelerator_plan
-    assert "--isa-report" in accelerator_plan
-    assert "rank_scenario_vector-to-rns-chain" in accelerator_plan
-    assert (REPO_ROOT / accelerators / "benchmark-schema.log").exists()
-    assert (REPO_ROOT / accelerators / "target-validation" / "target-validation-report.md").exists()
-
-    skip_rank = out_root / "first-pass-skip-rank"
-    _require_ok(
-        _run(
-            [
-                "bash",
-                "scripts/cdna_first_pass.sh",
-                "--dry-run",
-                "--devices",
-                "0",
-                "--out-dir",
-                str(skip_rank),
-                "--rank-scenarios",
-                "vector-to-rns-chain",
-                "--skip-rank-scenarios",
-            ]
-        ),
-        "first-pass dry-run skip rank scenarios",
-    )
-    skip_rank_plan = (REPO_ROOT / skip_rank / "command-plan.txt").read_text(encoding="utf-8")
-    assert "rank_scenario_" not in skip_rank_plan
-    assert not (REPO_ROOT / skip_rank / "rank-scenarios").exists()
 
     for devices, out_dir, expected_world in [
         ("0,1,2,3", multi4, 4),

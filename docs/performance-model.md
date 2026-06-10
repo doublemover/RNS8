@@ -591,10 +591,10 @@ and includes per-repeat packing of the other operand in `pack` and
 Eligible rocWMMA non-tiled RNS `--reuse-packed-b` captures use
 `rns8_create_prepack_cache` plus `rns8_gemm_rns_prepacked_b` and stamp
 `prepack_reuse_strategy: "rocwmma_reusable_b_cache"`; other current reuse
-captures stamp `persistent_matrix_residency`. Release review keeps broad reuse
-captures evidence-only, but explicit repeated-B production candidates may be
-promoted only when setup-inclusive timing beats the same backend's non-reuse
-path and the fastest same-contract non-reuse baseline.
+captures stamp `persistent_matrix_residency`. This mode family is for pack
+amortization evidence and does not imply a production prepack cache exists.
+Release review marks all prepacked-reuse captures ineligible for normal AUTO
+autotune-cache promotion.
 
 ## GPU event timing status
 
@@ -824,11 +824,8 @@ transient A workspace and, for eligible non-tiled RNS B operands with
 `K <= 65536`, a reusable `rns_i8_tile_swizzled_b_v1` B prepack cache path. The
 cache is a measured-runtime surface, not a performance claim by itself: it must
 still be benchmarked as one-time B setup plus repeated GEMM, and
-`production_prepack_cache_available` is true only for qualified bounded i64/u64
-rocWMMA B-cache plans. Exact-wide rocWMMA B caches are reusable/evidence-only
-until their own setup-inclusive release evidence exists. CPU, direct-HIP, and
-wrap64 reference plans report resident layouts without transient pack
-workspaces.
+`production_prepack_cache_available` remains false. CPU, direct-HIP, and wrap64
+reference plans report resident layouts without transient pack workspaces.
 For autotune exact-hit inspection, `rns8-inspect` also reports an internal
 `plan_lowering` object derived from backend, packing, and schedule metadata so
 review can distinguish final export, residue-chain continuation, native-chain
@@ -848,14 +845,10 @@ id, selected kernel, B prepack kernel variant, semantic, prefix-schedule hash,
 tile shape, K-block, operand role, source version, finite modulus, device id,
 matrix layout, and operand layout, and it rejects incompatible role, shape,
 backend, semantic, layout, device id, currentness, source-version, and
-finite-modulus inputs before returning a key. Operands with `source_version=0`
-can still report diagnostic key material, but they do not advertise reusable or
-production runtime-cache eligibility and `rns8_create_prepack_cache` rejects
-them. `rns8_get_prepack_cache_info`
+finite-modulus inputs before returning a key. `rns8_get_prepack_cache_info`
 reports the created runtime cache's matching key/hash material, device id, and
-allocation byte contract. The created rocWMMA B cache reports production
-eligibility only when the same key material, source version, device, shape,
-prefix, backend, and layout identity remain valid.
+allocation byte contract. No current backend reports a reusable production
+prepack cache.
 
 INT4/IU4, AMDGPU builtins, FP8/Ozaki, and wrap64 matrix-engine paths are
 retired per semantic/target if they fail to beat the tuned INT8 or current
@@ -968,7 +961,6 @@ called out explicitly below.
 Direct-HIP generated/fixed reducer captures use declared identities such as
 `direct_hip_fixed_prefix_1_generated_reducer_v1` through
 `direct_hip_fixed_prefix_9_generated_reducer_v1` and
-`direct_hip_fixed_prefix_18_generated_reducer_v1` or
 `direct_hip_fixed_prefix_20_generated_reducer_v1`; stale generic reducer names
 are rejected for generated captures. The corresponding ISA gate is explanatory:
 generated reducers should avoid integer divide instructions and expose the

@@ -23,7 +23,7 @@
       "backends": [
         "auto"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "execution_path_evidence",
       "native_to_rns_bridge": true,
       "metadata": {
@@ -55,7 +55,7 @@
       "backends": [
         "auto"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "execution_path_evidence",
       "native_to_rns_bridge": true,
       "metadata": {
@@ -87,7 +87,7 @@
       "backends": [
         "auto"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "execution_path_evidence",
       "native_to_rns_bridge": true,
       "metadata": {
@@ -119,7 +119,7 @@
       "backends": [
         "auto"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "execution_path_evidence",
       "native_to_rns_bridge": true,
       "metadata": {

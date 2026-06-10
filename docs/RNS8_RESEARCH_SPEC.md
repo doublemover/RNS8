@@ -82,9 +82,6 @@ semantic interpretation, or hidden compatibility mode.
 - Exact-wide integer GEMM with RNS output.
 - Strict wraparound `mod 2^64` GEMM through a separate byte-limb backend.
 - Persistent RNS matrix storage and reuse.
-- Explicit A-side 4:2 structured sparse input/storage contract for future
-  SMFMAC/SWMMAC acceleration. This is a caller-supplied sparse-A contract, not
-  automatic pruning or general sparse matrix multiplication.
 - Per-tile adaptive modulus counts using deterministic bounds.
 - Grouped and persistent scheduling across `(modulus, tile)` work.
 - Fused modulo reduction in CK, rocWMMA, AMDGPU builtin, or direct HIP kernels.
@@ -96,8 +93,6 @@ semantic interpretation, or hidden compatibility mode.
 - Drop-in BLAS interception.
 - Approximate integer output.
 - General sparse matrix multiplication as a primary product.
-- Automatic dense-to-sparse pruning, B-side sparsity, unstructured sparsity,
-  and sampled sparse correctness.
 - Compiler integration.
 - Automatic proof of user-provided numerical bounds.
 - Default probabilistic correctness.
@@ -142,7 +137,7 @@ requirements.
 Required everywhere:
 
 - C++17 compiler.
-- CMake 3.22 or newer.
+- CMake 3.28 or newer.
 - Ninja or another explicitly supported generator.
 - Python 3.11 or newer for benchmarks, plotting, and result analysis.
 - Git.
@@ -225,18 +220,17 @@ The dependency checker reports:
   enablement status.
 - rocWMMA shallow discovery, optional compile/run probe evidence, and backend
   enablement status.
-- AMDGPU builtin readiness status. This has no shallow discovery-only
-  correctness pass: the public backend identity is opt-in and runtime contexts
-  require `RNS8_ENABLE_AMDGPU_BUILTINS`, compiled target-specific kernels, exact
-  CPU differentials, and ISA evidence.
+- AMDGPU builtin readiness status. This has no shallow discovery-only pass:
+  it remains disabled until target-specific exact kernels and ISA evidence
+  exist.
 - Accelerator enablement policy as a first-class readiness object. hipBLASLt
   must report as an explicit opt-in baseline backend only after the dedicated
   build/test preset validates exact CPU/direct-HIP differentials; dependency
   discovery alone remains evidence-only. CK and rocWMMA may report explicit
   opt-in correctness backends only after real compiled kernels, semantic
   coverage, exact CPU/direct-HIP differentials, schema fixtures, and ISA
-  evidence exist for the target. AMDGPU builtin enablement must continue to
-  report disabled runtime capability with
+  evidence exist for the target. AMDGPU builtin enable flags must continue to
+  report fail-fast with `backend_enablement=disabled` and
   `correctness_backend=not_implemented` until real target-specific exact
   correctness kernels exist.
 - Correctness-backend validation as a separate readiness object. Candidate
@@ -924,18 +918,9 @@ The original plan-only pack sketch was replaced during the Phase 0 scaffold:
 packing needs an explicit matrix descriptor because A, B, and C have different
 dimensions. Hidden pack-role inference is not allowed in the ABI.
 For bounded RNS matrices, `source_version` is caller-supplied pack metadata.
-For HIP-resident direct-input storage, repeating a successful pack with the
-same nonzero `source_version`, matching semantic storage, and already-current
-device data is an idempotent no-op; a changed source must use a changed source
-version so the backend performs a new H2D pack. `rns8_get_plan_packing_info`
-reports this capability through source-versioned input and same-version pack
-elision flags.
 Successful bounded persistent GEMM writes an internal deterministic output
 version to C from the packed A/B source versions, and rejected GEMM dispatch
 must not mutate C's existing version.
-Native-to-RNS device handoff requires a nonzero native producer source version
-and copies that version onto the materialized Direct-HIP RNS input; zero-version
-native outputs are treated as stale/unidentified producers and rejected.
 
 Exact-wide limb export layout is row-major by element. `ld` is a leading
 dimension in matrix elements, not in limbs. For element `(row, col)`, limb
@@ -1113,9 +1098,10 @@ exact-match guarded at configure time, emitted as build-tree include overlays,
 and tracked as source dependencies for the compiled HIP object they affect. If
 the expected upstream or patched header block is not present, the CK enable
 flag must fail fast instead of compiling an untested CK variant.
-Accelerator runtime enablement must continue to fail explicitly while only
-evidence probes exist. The test suite should include coverage so discovery
-probes cannot become placeholder correctness backends.
+Configure-time enable flags for accelerator backends must continue to fail fast
+while only evidence probes exist. The test suite should include
+configure-negative coverage so discovery probes cannot become placeholder
+correctness backends.
 
 ### 12.2 Backend Selection Policy
 
@@ -1523,13 +1509,6 @@ time by at least 1.15x at N >= 16384 with memory overhead <= 2.2x.
 Decision: support only when the input workload already satisfies the hardware
 structured sparsity pattern.
 
-RNS8 sparse v1 is an explicit A-side 4:2 K-structured byte contract for future
-SMFMAC/SWMMAC experiments. Dense GEMM calls never route to sparse matrix-core
-instructions implicitly. Callers must provide or derive canonical A compression
-metadata, with two nonzero values per group of four K entries, ascending 2-bit
-indices, dense B, and explicit signedness. RNS8 validates and can round-trip
-this packed form before any accelerator kernel may claim sparse evidence.
-
 Ship rule: sparse path ships only if it improves end-to-end exact GEMM by at
 least 1.5x after packing overhead.
 
@@ -1592,18 +1571,12 @@ public contracts. Created cache handles must expose matching key/hash material,
 device id, and allocation byte contract through `rns8_get_prepack_cache_info`
 instead of remaining opaque after creation. The first validated reusable cache
 slice is intentionally narrow:
-rocWMMA may cache non-tiled bounded i64/u64 B operands for `K <= 65536`, then
-run GEMM with only A repacked per dispatch. The first public setup surfaces are
-the ordinary resident-matrix cache constructor and explicit host-native
-row-major B constructors. The native constructors are repeated-B setup routes:
-they accept a nonzero caller source version, convert directly into the rocWMMA
-column-major B cache layout, expose a native matrix-layout identity in cache
-metadata, and do not imply dense GEMM should silently prepack, sparsify, or
-change semantics. This does not satisfy the broader production cache ship rule
-for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt, or
-cross-platform production policy. Until that broader source-versioned cache
-policy exists and is validated, every other production plan must report no
-production prepack cache.
+rocWMMA may cache non-tiled RNS B operands for `K <= 65536`, then run GEMM with
+only A repacked per dispatch. It does not satisfy the broader production cache
+ship rule for tiled schedules, finite/wrap64 semantics, A caches, CK/hipBLASLt,
+or cross-platform production policy. Until that broader source-versioned cache
+policy exists and is validated, every production plan must report no production
+prepack cache.
 
 ### 17.9 FP8, Ozaki, And Exact-Arithmetic Research
 
@@ -1654,8 +1627,8 @@ E005 through E008 require more than file discovery. Shallow headers, libraries,
 tools, opt-in tiny compile/run probes, and builtin availability notes are
 evidence only until a backend also has target-supported capability checks and
 exact CPU differential validation. E008 has no discovery-only readiness path:
-AMDGPU builtin kernels are enabled only by the explicit builtin build/test path
-with target-specific exact kernels and ISA evidence.
+AMDGPU builtin kernels are not enabled until real target-specific exact kernels
+exist.
 
 ### 18.2 Core Correctness
 

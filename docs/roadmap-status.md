@@ -1,42 +1,12 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-10 (final)
+Status date: 2026-06-06
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
 architecture and roadmap source of truth when details disagree.
 
 ## Implemented And Verified
-
-June 10, 2026 RDNA3 optimization campaign: 12-phase implementation across pack
-elimination, small-shape overhaul, accelerator tuning, export reduction, and
-wrap64 improvement. Measured gains: bounded u64 256 +37.9%, bounded i64 512
-+35.1%, skinny GEMV +26-27%, finite-u8 +23.5%. 4096 validation: hipBLASLt
-dominates with 2.5-5.2x vs Direct HIP.
-
-New kernels: persistent small GEMM, persistent small pack, coalesced 4-wide
-pack, WMMA-native pack, WMMA tile-sweep variants (64t/128t/256t), fused
-GEMM+export, next-gen wrap64 v5, INT4 research pack.
-
-Infrastructure: accelerator build wrapper, scenario lint module, event scope
-registration for rocWMMA/CK/hipBLASLt, prepack cache schema fix, research API
-declarations (INT4, Ozaki, Strassen, Freivalds, sparse-A).
-
-Status elision: bounded i64/u64 direct export skips status when prefix >= 9.
-
-Kernel dispatch wiring for persistent small and coalesced pack is deferred
-pending correctness debugging (one-shot regressions when wired).
-
-Prior (June 6):
-
-June 10, 2026 update: 11 ranks moved from active work queue to completed archive.
-New kernel implementations compiled and tested on gfx1100: vectorized Garner/CRT
-export, combined final-output kernels, wrap64 graph replay, VALU-optimized pack
-with DPP/VOPD, grouped finite-u8 dispatch, streaming overlap pipeline, next-gen
-wrap64 uint64_t accumulator backend. Tooling additions: scenario lint module,
-production/accelerator route separation in promotion ledger, counter report
-integration, expanded GPU event schema tests. Release candidate sweep captured
-144 schema-valid captures across 74 review groups.
 
 - Phase 0 host foundation: C ABI, C++ wrapper, CMake targets, CPU reference,
   tests, dependency checker, benchmark schema, and result comparison tooling.
@@ -77,7 +47,7 @@ integration, expanded GPU event schema tests. Release candidate sweep captured
 | hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including eligible 4096 bounded, finite hot-modulus, and exact-wide entries |
 | CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048, generic finite-field 2048, and finite ring-255 4096 |
 | rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, generic finite-ring 2048 entries, finite-field 512 entries, and smaller hot finite-u8 shapes; post-fix hot finite-u8 2048 winners are hipBLASLt |
-| AMDGPU builtins | Opt-in correctness backend for supported AMDGPU targets | Dense global/fixed MFMA/WMMA and explicit sparse-A SMFMAC/SWMMAC bring-up exists behind `RNS8_ENABLE_AMDGPU_BUILTINS`; adaptive per-tile scheduling is not routed to this backend until that path has exact kernel support and evidence |
+| AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
 Detailed benchmark policy, current wins, and reviewed release summaries live in

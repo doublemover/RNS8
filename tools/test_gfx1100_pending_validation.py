@@ -67,7 +67,7 @@ def _write_review_report(path: Path, capture_path: Path, *, promotable: bool) ->
                         "contract_key": "test-contract",
                         "fastest_promotable": {
                             "backend": "ck",
-                            "selected_kernel": "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+                            "selected_kernel": "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
                         }
                         if promotable
                         else None,
@@ -81,7 +81,7 @@ def _write_review_report(path: Path, capture_path: Path, *, promotable: bool) ->
                                 "promotion_blockers": blockers,
                                 "promotion_reason": "beats_required_same_contract_gpu_baselines" if promotable else "blocked",
                                 "release_review_capture": True,
-                                "selected_kernel": "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
+                                "selected_kernel": "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2",
                                 "speedup_vs_direct_hip": 1.2 if promotable else 0.9,
                             }
                         ],

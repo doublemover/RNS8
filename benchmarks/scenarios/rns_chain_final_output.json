@@ -26,7 +26,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_evidence_only",
       "residue_chain_length": 3,
       "residue_chain_final_export": true,
@@ -62,7 +62,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "independent_export_repack_control_only",
       "residue_chain_length": 3,
       "residue_chain_final_export": true,
@@ -98,7 +98,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_reuse_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "residue_chain_length": 3,
@@ -136,9 +136,10 @@
       "backends": [
         "cpu",
         "hip-direct",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_evidence_only",
       "residue_chain_length": 3,
       "residue_chain_final_export": true,
@@ -174,7 +175,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "independent_export_repack_control_only",
       "residue_chain_length": 3,
       "residue_chain_final_export": true,
@@ -214,7 +215,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -254,7 +255,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "independent_export_repack_control_only",
       "exact_wide_limb_counts": [
         4
@@ -294,7 +295,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_reuse_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "exact_wide_limb_counts": [
@@ -340,7 +341,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "final_output_chain_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -380,7 +381,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "independent_export_repack_control_only",
       "exact_wide_limb_counts": [
         4
@@ -420,7 +421,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "larger_final_output_chain_evidence_only",
       "exact_wide_limb_counts": [
         4

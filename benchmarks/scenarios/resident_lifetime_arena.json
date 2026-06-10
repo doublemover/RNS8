@@ -73,76 +73,6 @@
       }
     },
     {
-      "name": "bounded-u64-512-reuse-b-arena",
-      "semantics": "bounded-u64",
-      "case": {
-        "name": "layout-u64-512",
-        "m": 512,
-        "n": 512,
-        "k": 512,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
-      "evidence_scope": "Direct-HIP unsigned resident lifetime plus workspace arena reuse evidence",
-      "output_domain": "host_export",
-      "rationale": "keeps unsigned bounded arena source-version and allocation metadata paired with signed bounded coverage",
-      "backends": [
-        "cpu",
-        "hip-vector-alu-int64",
-        "hip-direct"
-      ],
-      "review_mode_expectation": "smoke",
-      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
-      "pack_mode": "prepacked_reuse_b",
-      "resident_lifetime": true,
-      "workspace_arena": true,
-      "metadata": {
-        "promotion_scope": "resident_lifetime_arena_evidence_only",
-        "stale_source_policy": "source_descriptor_semantic_prefix_target_workspace_mismatch_rejects",
-        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
-      }
-    },
-    {
-      "name": "exact-wide-unsigned-chain3-arena",
-      "semantics": "exact-wide-unsigned",
-      "case": {
-        "name": "chain-u64-256",
-        "m": 256,
-        "n": 256,
-        "k": 256,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
-      "evidence_scope": "exact-wide unsigned residue-current chain resident lifetime evidence",
-      "output_domain": "residue_current_then_final_limb_export",
-      "rationale": "ties unsigned lazy exact-wide output to explicit resident currentness and workspace identity",
-      "backends": [
-        "cpu",
-        "hip-direct"
-      ],
-      "review_mode_expectation": "smoke",
-      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
-      "exact_wide_limb_counts": [
-        4
-      ],
-      "residue_chain_length": 3,
-      "next_op_hint": "rns-gemm",
-      "resident_lifetime": true,
-      "workspace_arena": true,
-      "metadata": {
-        "promotion_scope": "resident_lifetime_arena_evidence_only",
-        "output_domain_requirement": "rns_then_final_export"
-      }
-    },
-    {
       "name": "bounded-i64-1024-reuse-b-arena",
       "semantics": "bounded-i64",
       "case": {
@@ -160,35 +90,6 @@
       "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 1024",
       "output_domain": "host_export",
       "rationale": "checks that workspace arena identity and allocation counters scale beyond 512",
-      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
-      "review_mode_expectation": "smoke",
-      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
-      "pack_mode": "prepacked_reuse_b",
-      "resident_lifetime": true,
-      "workspace_arena": true,
-      "metadata": {
-        "promotion_scope": "resident_lifetime_arena_evidence_only",
-        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
-      }
-    },
-    {
-      "name": "bounded-u64-1024-reuse-b-arena",
-      "semantics": "bounded-u64",
-      "case": {
-        "name": "arena-u64-1024",
-        "m": 1024,
-        "n": 1024,
-        "k": 1024,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": false
-      },
-      "evidence_scope": "Direct-HIP unsigned CDNA-prep arena allocation-free repeat evidence at 1024",
-      "output_domain": "host_export",
-      "rationale": "checks unsigned workspace arena identity and allocation counters scale beyond 512",
       "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "resident_lifetime_arena_evidence_only",
@@ -232,37 +133,6 @@
       }
     },
     {
-      "name": "exact-wide-unsigned-chain3-1024-arena",
-      "semantics": "exact-wide-unsigned",
-      "case": {
-        "name": "arena-exact-unsigned-chain-1024",
-        "m": 1024,
-        "n": 1024,
-        "k": 1024,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": false
-      },
-      "evidence_scope": "exact-wide unsigned CDNA-prep arena evidence with residue-current chain at 1024",
-      "output_domain": "residue_current_then_final_limb_export",
-      "rationale": "ties unsigned exact-wide lazy-output arena identity to a larger review shape",
-      "backends": ["cpu", "hip-direct"],
-      "review_mode_expectation": "smoke",
-      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
-      "exact_wide_limb_counts": [4],
-      "residue_chain_length": 3,
-      "next_op_hint": "rns-gemm",
-      "resident_lifetime": true,
-      "workspace_arena": true,
-      "metadata": {
-        "promotion_scope": "resident_lifetime_arena_evidence_only",
-        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
-      }
-    },
-    {
       "name": "bounded-i64-2048-arena",
       "semantics": "bounded-i64",
       "case": {
@@ -280,34 +150,6 @@
       "evidence_scope": "Direct-HIP CDNA-prep arena allocation-free repeat evidence at 2048",
       "output_domain": "host_export",
       "rationale": "large-shape arena allocation counter gate before CDNA validation",
-      "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
-      "review_mode_expectation": "smoke",
-      "promotion_eligibility": "resident_lifetime_arena_evidence_only",
-      "resident_lifetime": true,
-      "workspace_arena": true,
-      "metadata": {
-        "promotion_scope": "resident_lifetime_arena_evidence_only",
-        "allocation_policy": "zero_measured_repeat_allocation_required_for_promotion"
-      }
-    },
-    {
-      "name": "bounded-u64-2048-arena",
-      "semantics": "bounded-u64",
-      "case": {
-        "name": "arena-u64-2048",
-        "m": 2048,
-        "n": 2048,
-        "k": 2048,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": false
-      },
-      "evidence_scope": "Direct-HIP unsigned CDNA-prep arena allocation-free repeat evidence at 2048",
-      "output_domain": "host_export",
-      "rationale": "large unsigned arena allocation counter gate before CDNA validation",
       "backends": ["cpu", "hip-vector-alu-int64", "hip-direct"],
       "review_mode_expectation": "smoke",
       "promotion_eligibility": "resident_lifetime_arena_evidence_only",

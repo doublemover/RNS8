@@ -34,16 +34,8 @@ Current backend boundary:
 - hipBLASLt is implemented as an opt-in baseline backend under
   `RNS8_ENABLE_HIPBLASLT=ON`; it is not a correctness requirement and is not
   performance-validated.
-- CK and rocWMMA are implemented as opt-in correctness backends under their
-  explicit presets. CK selects WMMA on RDNA and XDL on CDNA. They are not
-  correctness requirements and are not performance-validated.
-- `RNS8_BACKEND_AMDGPU_BUILTINS` is an opt-in backend identity for
-  target-specific MFMA, WMMA, SMFMAC, and SWMMAC kernels. Its capability,
-  runtime contexts, GEMM dispatch, and plan metadata are wired into
-  schema/review tooling; promotion still requires exact CPU parity plus ISA
-  gates.
-- Sparse-A v1 is explicit A-side 4:2 structured storage with separate sparse
-  handles and sparse GEMM entrypoints. The current implementation provides
-  pack/expand helpers, resident source-versioned sparse-A storage, and CPU
-  sparse GEMM by expanding A into the exact dense CPU reference path. It does
-  not route dense GEMM to sparse hardware implicitly.
+- CK and rocWMMA are implemented as opt-in Windows `gfx1100` correctness
+  backends under their explicit presets. They are not correctness requirements
+  and are not performance-validated.
+- AMDGPU builtin paths remain feature-detected evidence-only accelerators.
+  Their enable flags must fail fast until real correctness backends exist.

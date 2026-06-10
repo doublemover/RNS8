@@ -41,9 +41,6 @@ def capture(*, backend: str, mode: str, median_us: float) -> dict:
         "plan_packing": {
             "output_device_current": residue_current,
             "output_host_current": not residue_current,
-            "source_versioned_inputs": backend != "cpu-reference",
-            "same_source_version_pack_elision_available": backend in {"hip-direct", "amdgpu-builtins"},
-            "flags": 3 if backend in {"hip-direct", "amdgpu-builtins"} else 0,
         },
         "plan_lowering": {
             "rns_continuation_available": True,

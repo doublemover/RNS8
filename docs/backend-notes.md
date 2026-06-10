@@ -20,42 +20,14 @@ shims or hidden fallback semantics.
   residue-reduction kernel. Fixed-prefix single-K-block RNS work can reuse
   workspace-local repeated-A and repeated-B transposed operands when identity
   matches, but this is not a public production prepack cache.
-- CK: opt-in fused matrix-engine backend for bounded, adaptive bounded,
-  exact-wide RNS output, and finite u8. It selects CK WMMA on RDNA targets and
-  CK XDL on CDNA targets.
-- rocWMMA: opt-in fused matrix-engine backend for bounded,
+- CK: opt-in Windows `gfx1100` fused matrix-engine backend for bounded,
+  adaptive bounded, exact-wide RNS output, and finite u8.
+- rocWMMA: opt-in Windows `gfx1100` fused matrix-engine backend for bounded,
   adaptive bounded, exact-wide RNS output, and finite u8. It also contains an
   internal wrap64 candidate harness that is not public or AUTO-selected.
-- AMDGPU builtins: opt-in target-specific backend for MFMA, WMMA, SMFMAC, and
-  SWMMAC kernels. The enum, capability surface, schemas, reviews, autotune
-  metadata, runtime contexts, and GEMM dispatch name the path honestly; release
-  promotion still requires exact CPU parity, timing, and ISA evidence gates.
 
-## Sparse-A v1
-
-Sparse support is an explicit A-side 4:2 structured contract, not automatic
-dense pruning and not a general sparse GEMM API. A valid sparse-A v1 descriptor
-requires dense B, expanded K divisible by four, exactly two nonzero A values in
-each four-lane K group, ascending canonical two-bit indices, explicit signed or
-unsigned byte interpretation, and semantic identity for either RNS prefix
-planes or one finite-u8 modulus plane.
-
-Sparse handles are separate from dense `rns8_matrix` handles. Dense GEMM APIs
-cannot consume sparse A, sparse GEMM APIs reject dense A, and accelerator
-sparse paths require an explicit sparse-A handle on CDNA3 SMFMAC or RDNA4
-SWMMAC targets. The CPU sparse path expands resident sparse A into the existing
-exact dense CPU reference before GEMM; this remains the correctness anchor for
-CDNA3 SMFMAC and RDNA4 SWMMAC claims.
-
-Benchmark sparse evidence separates the input distribution from the execution
-route. `rns8-bench --sparse-a-4-to-2` generates the same canonical structured
-A input for CPU, Direct HIP, and accelerator rows. CPU reference and AMDGPU
-builtins use the explicit sparse runtime unless
-`--sparse-a-4-to-2-dense-baseline` is also present; dense baseline rows then
-pack and execute the expanded sparse input through the normal dense finite-u8
-backend. Review backend ids distinguish sparse runtime rows from dense
-sparse-input rows so sparse SMFMAC/SWMMAC can be compared against Direct HIP
-and dense AMDGPU builtin baselines for the same mathematical input.
+AMDGPU builtin kernels are intentionally fail-fast until target-specific exact
+correctness kernels, CPU/direct-HIP differentials, and ISA evidence exist.
 
 ## Selection Policy
 
@@ -68,8 +40,8 @@ are accepted only for bounded i64/u64 final/native-output plans. Without that
 exact hit, AUTO remains on the configured correctness path.
 
 Dependency discovery, header probes, CMake probes, and tiny compile probes are
-candidate evidence only. They do not enable CK, rocWMMA, hipBLASLt, AMDGPU
-builtins, or sparse matrix-core paths by themselves.
+candidate evidence only. They do not enable CK, rocWMMA, hipBLASLt, or AMDGPU
+builtins by themselves.
 
 ## Public Metadata
 
@@ -83,16 +55,8 @@ ISA evidence, and autotune key.
 accelerator pack workspace bytes. It also reports the selected input/output
 domain, whether a successful GEMM leaves host or device output current, and
 next-operation flags for final export, RNS continuation, native continuation,
-native-to-RNS conversion eligibility, and reusable B prepack availability.
-The `flags` field records source-versioned resident input contracts; Direct-HIP
-and AMDGPU builtin plans set same-source-version pack elision when a repeated
-nonzero source version can reuse already-current device-resident RNS or byte-limb
-storage without another host-to-device copy or pack kernel launch.
-rocWMMA reports production B-side prepack-cache availability only for bounded
-i64/u64 non-tiled RNS plans. Exact-wide rocWMMA plans can still expose reusable
-B-cache keying and correctness evidence, but remain evidence-only until their
-own setup-inclusive promotion captures exist. Other accelerator backends still
-report transient per-dispatch packing or resident direct input layouts.
+native-to-RNS conversion eligibility, and reusable B prepack availability. No
+current backend reports a reusable production prepack cache.
 
 `rns8_get_grouped_dispatch_contract_info` reports the current Direct-HIP
 same-shape grouped descriptor contract for a created plan: task count,
@@ -139,10 +103,7 @@ Raw `rns8-bench` captures cannot write production autotune entries.
 `tools/benchmark_sweep.py --review-mode release --write-autotune-cache` is the
 promotion boundary: it validates schema, groups same-contract captures, checks
 required baselines, requires release repeat counts, and writes only fastest
-reviewed accelerator winners. Review output separately reports the fastest
-production route, which may be Direct HIP, and the fastest accelerator route,
-which excludes correctness baselines. This prevents a correct Direct-HIP win
-from being misread as "no wins."
+reviewed accelerator winners.
 
 `tools/gpu_event_report.py`, `tools/gpu_isa_report.py`, and
 `tools/gpu_counter_report.py` are attribution tools for optimizer work. Their

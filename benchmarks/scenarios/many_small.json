@@ -26,10 +26,9 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -63,7 +62,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "oneshot": true,
       "metadata": {
@@ -101,7 +100,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 64,
       "metadata": {
@@ -138,10 +137,9 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251,
@@ -183,7 +181,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
@@ -225,10 +223,9 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -266,7 +263,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 32,
       "metadata": {
@@ -303,10 +300,10 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "rocwmma",
-        "amdgpu-builtins"
+        "ck",
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -342,9 +339,10 @@
         "cpu",
         "hip-direct",
         "hipblaslt",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 32,
       "metadata": {
@@ -382,10 +380,9 @@
         "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -423,7 +420,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 64,
       "metadata": {
@@ -460,10 +457,10 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
-        "rocwmma",
-        "amdgpu-builtins"
+        "ck",
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "metadata": {
         "evidence_role": "proxy_single_shape_repeat",
@@ -499,9 +496,10 @@
         "cpu",
         "hip-direct",
         "hipblaslt",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "host_api_batch_size": 128,
       "metadata": {
@@ -539,10 +537,9 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -583,7 +580,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -623,10 +620,9 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -667,7 +663,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -707,10 +703,9 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -751,7 +746,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -791,10 +786,9 @@
         "hip-direct",
         "hipblaslt",
         "ck",
-        "rocwmma",
-        "amdgpu-builtins"
+        "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4
@@ -835,7 +829,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "exact_wide_limb_counts": [
         4

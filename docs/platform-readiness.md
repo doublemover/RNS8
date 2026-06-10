@@ -47,7 +47,7 @@ This file describes readiness policy, not a fresh validation record.
 | Public export ABI | `ld` is an element stride, `limb_count` must be in `[1, 32]`, null `ctx`, `plan`, `matrix`, or `dst` arguments are invalid API calls, and range-error exports preserve the caller's destination. |
 | Public storage rejection | Exact-wide exports reject stale-prefix RNS matrices, bounded RNS matrices, wrap64 byte-limb matrices, and signed/unsigned cross-export calls. None of those handles are alternate routes into exact-wide limbs. |
 | Direct HIP currentness | Exact-wide direct-HIP export requires device-current resident RNS output. Host-current stale device residues are rejected; export does not perform an implicit hot-path upload. |
-| Accelerator enablement | hipBLASLt, CK, rocWMMA, and AMDGPU builtins have opt-in correctness backends under dedicated enable flags and presets. Probes collect candidate evidence only and do not enable those backends by themselves. AMDGPU builtins compile target-specific dense MFMA/WMMA kernels and explicit sparse-A SMFMAC/SWMMAC dispatch where supported; release promotion still requires exact CPU parity, timings, and ISA evidence. CTest coverage pins unsupported status for accelerators when they are not enabled by a dedicated preset. |
+| Accelerator enablement | hipBLASLt, CK, and rocWMMA have opt-in Windows `gfx1100` correctness backends under their dedicated enable flags and presets. Probes collect candidate evidence only and do not enable those backends by themselves. AMDGPU builtin enablement intentionally fails fast until real correctness kernels exist. CTest negative configure cases pin the fail-fast message for still-disabled accelerators and for accelerators when they are not enabled by a dedicated preset. |
 | Linux ROCm and Instinct | Linux ROCm, Radeon Linux, and Instinct CDNA gates are represented by presets, target metadata, and dependency reports. Windows evidence does not validate them; they require a real Linux ROCm host with supported hardware. |
 
 ## Readiness Output Classes
@@ -76,23 +76,24 @@ This file describes readiness policy, not a fresh validation record.
 - `RNS8_ENABLE_CK` and `RNS8_ENABLE_ROCWMMA` build opt-in correctness backends
   only in presets where the backend is explicitly enabled and validated. They
   are not enabled from discovery evidence alone.
-- `RNS8_ENABLE_AMDGPU_BUILTINS` builds the opt-in target-specific builtin
-  kernels and enables AMDGPU builtin runtime contexts and GEMM dispatch. Sparse
-  hardware dispatch remains explicit sparse-A only and requires CDNA3 SMFMAC or
-  RDNA4 SWMMAC hardware.
-- The CTest suite registers unsupported-backend and configure-negative tests
-  for still-disabled accelerator paths. Each check must fail before any
-  placeholder backend is generated and must direct users to evidence-only
-  probes instead.
+- `RNS8_ENABLE_AMDGPU_BUILTINS` intentionally fails fast until real
+  target-specific correctness kernels exist.
+- The CTest suite registers configure-negative tests for still-disabled
+  accelerator flags, and for hipBLASLt in presets where it is not explicitly
+  enabled. Each scratch configure must fail before any placeholder backend is
+  generated and must direct users to evidence-only probes instead.
 - `RNS8_PROBE_ACCELERATORS=ON` and
   `tools/check_dependencies.py --accelerator-probes` collect evidence only.
   They never enable backends and never satisfy correctness.
 - The dependency checker's JSON readiness object includes
   `accelerator_enablement`, whose probe records are evidence only. CK,
-  rocWMMA, and AMDGPU builtin records point at explicit build/test presets and
-  keep `validated_correctness_backend=false` because dependency discovery is not
-  correctness validation. hipBLASLt backend validation is represented by the
-  dedicated build/test preset, not by dependency discovery.
+  rocWMMA, and AMDGPU builtin records keep `backend_enablement=disabled`,
+  `correctness_backend=not_implemented`,
+  `validated_correctness_backend=false`, `can_enable_correctness_backend=false`,
+  `candidate_evidence_is_correctness_validation=false`, and
+  `enable_flags_fail_fast=true` until a real exact correctness backend exists.
+  hipBLASLt backend validation is represented by the dedicated build/test
+  preset, not by dependency discovery.
 - The same JSON readiness object includes
   `exact_wide_platform_validation`. On this Windows bring-up host it records
   Windows `gfx1100` exact-wide evidence scope only, sets
@@ -104,6 +105,6 @@ This file describes readiness policy, not a fresh validation record.
   compile/run probe status. Only the hipBLASLt backend preset currently turns
   that evidence into a compiled correctness baseline. None of these records is
   an optimized GPU performance claim.
-- AMDGPU builtins have no discovery-only correctness path; dependency checks
-  can discover the in-repo source, but readiness comes from the explicit
-  builtin-enabled build/test preset plus CPU differentials and ISA evidence.
+- AMDGPU builtins have no discovery-only readiness path; they remain not ready
+  until target-specific exact kernels, CPU differentials, and ISA evidence
+  exist.

@@ -23,7 +23,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 32,
       "metadata": {
@@ -53,7 +53,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 32,
       "metadata": {
@@ -83,7 +83,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 64,
       "metadata": {
@@ -114,7 +114,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "grouped_dispatch_tasks": 128,
       "metadata": {
@@ -145,40 +145,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
-      "promotion_eligibility": "grouped_dispatch_evidence_only",
-      "finite_moduli": [
-        251
-      ],
-      "grouped_dispatch_tasks": 32,
-      "metadata": {
-        "promotion_scope": "grouped_dispatch_evidence_only",
-        "grouping_role": "same_shape_grouped_descriptor",
-        "grouped_strategy_expectation": "device_grouped_pack_gemm_and_finite_export_kernel_batched_d2h"
-      }
-    },
-    {
-      "name": "finite-field-64-group32",
-      "semantics": "finite-u8-field",
-      "case": {
-        "name": "many-small-64",
-        "m": 64,
-        "n": 64,
-        "k": 64,
-        "tile_m": 128,
-        "tile_n": 128,
-        "bound_mode": "global",
-        "input_profile": "uniform-small",
-        "require_adaptive": false,
-        "promotable": true
-      },
-      "evidence_scope": "many-small finite-field grouped pack+GEMM+export with one compact output D2H",
-      "output_domain": "finite_u8_canonical_host_export",
-      "rationale": "keeps field-u8 grouped-dispatch evidence paired with finite-ring grouped coverage",
-      "backends": [
-        "hip-direct"
-      ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "finite_moduli": [
         251
@@ -211,7 +178,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -245,7 +212,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -279,7 +246,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -312,7 +279,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "grouped_dispatch_evidence_only",
       "exact_wide_limb_counts": [
         4
