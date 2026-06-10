@@ -1299,3 +1299,224 @@ __global__ void rns8_export_exact_wide_signed_grouped_fixed_prefix_fixed_limbs_q
         residues, task_dst, cell + 3, elements, nullptr);
   }
 }
+
+
+// === Gap 82: Vectorized Garner/CRT constant tables ===
+
+template <int Prefix>
+struct rns8_garner_constants_device {
+  __device__ static uint32_t modulus(int i) {
+    // Default modulus ladder values for prefix indexing
+    constexpr uint32_t moduli[] = {
+      256, 255, 253, 251, 247, 239, 233, 229,
+      227, 223, 217, 211, 199, 197, 193, 191,
+      181, 179, 173, 167, 163, 157, 151, 149,
+      139, 137, 131, 127,
+    };
+    return (i >= 0 && i < Prefix) ? moduli[i] : 1;
+  }
+
+  __device__ static uint64_t prefix_product() {
+    uint64_t product = 1;
+    for (int i = 0; i < Prefix; ++i) {
+      product *= static_cast<uint64_t>(modulus(i));
+    }
+    return product;
+  }
+
+  __device__ static uint64_t garner_weight(int i) {
+    // Garner weight = (P / m_i) * inv(P / m_i mod m_i) mod P
+    const uint64_t P = prefix_product();
+    const uint64_t mi = static_cast<uint64_t>(modulus(i));
+    const uint64_t Pi = P / mi;
+    // Compute modular inverse of Pi mod mi using extended Euclidean
+    uint64_t inv = 1;
+    uint64_t a = Pi % mi;
+    uint64_t b = mi;
+    int64_t x0 = 1, x1 = 0;
+    while (b > 0) {
+      uint64_t q = a / b;
+      uint64_t r = a % b;
+      a = b;
+      b = r;
+      int64_t x2 = x0 - static_cast<int64_t>(q) * x1;
+      x0 = x1;
+      x1 = x2;
+    }
+    if (x0 < 0) x0 += static_cast<int64_t>(mi);
+    inv = static_cast<uint64_t>(x0);
+    return (Pi * inv) % P;
+  }
+};
+
+// Vectorized 4-wide Garner reconstruction for prefix18/prefix20
+template <int Prefix>
+__device__ void rns8_garner_reconstruct_4wide_device(
+    const int8_t* __restrict__ residues,
+    int64_t cell,
+    int64_t elements,
+    uint64_t* __restrict__ out_vals) {
+  // Load 4 consecutive residue planes for 4 cells
+  uint64_t acc[4] = {0, 0, 0, 0};
+  for (int plane = 0; plane < Prefix; ++plane) {
+    const int8_t* plane_base = residues + plane * elements;
+    const uint64_t weight = rns8_garner_constants_device<Prefix>::garner_weight(plane);
+    const uint32_t mod = rns8_garner_constants_device<Prefix>::modulus(plane);
+    // Process 4 cells in one iteration
+    #pragma unroll
+    for (int c = 0; c < 4; ++c) {
+      if (cell + c < elements) {
+        int8_t residue = plane_base[cell + c];
+        // Convert centered residue to canonical
+        uint64_t canonical = static_cast<uint64_t>(
+            residue < 0 ? residue + static_cast<int>(mod) : residue);
+        acc[c] = (acc[c] + canonical * weight) % rns8_garner_constants_device<Prefix>::prefix_product();
+      }
+    }
+  }
+  #pragma unroll
+  for (int c = 0; c < 4; ++c) {
+    out_vals[c] = (cell + c < elements) ? acc[c] : 0;
+  }
+}
+
+
+// === Gap 83: Combined final-output kernel (CRT + range + status + staging) ===
+
+template <int Prefix>
+__global__ void rns8_export_bounded_i64_combined_final_output_kernel(
+    const int8_t* __restrict__ residues,
+    int64_t* __restrict__ dst,
+    int* __restrict__ status,
+    int rows,
+    int cols,
+    int ld,
+    int64_t bound,
+    bool status_elided) {
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+
+  uint64_t vals[4];
+  rns8_garner_reconstruct_4wide_device<Prefix>(residues, cell, elements, vals);
+
+  #pragma unroll
+  for (int c = 0; c < 4; ++c) {
+    if (cell + c >= elements) break;
+    const int64_t row = (cell + c) / cols;
+    const int64_t col = (cell + c) - row * cols;
+    // CRT reconstruction produces unsigned value; center for signed output
+    const uint64_t P = rns8_garner_constants_device<Prefix>::prefix_product();
+    int64_t signed_val;
+    if (vals[c] >= P / 2) {
+      signed_val = -static_cast<int64_t>(P - vals[c]);
+    } else {
+      signed_val = static_cast<int64_t>(vals[c]);
+    }
+    // Range check (only when status not elided)
+    if (!status_elided) {
+      if (signed_val < -bound || signed_val > bound) {
+        atomicExch(status, static_cast<int>(1)); // RNS8_RANGE_ERROR
+      }
+    }
+    dst[row * static_cast<int64_t>(ld) + col] = signed_val;
+  }
+}
+
+template <int Prefix>
+__global__ void rns8_export_bounded_u64_combined_final_output_kernel(
+    const int8_t* __restrict__ residues,
+    uint64_t* __restrict__ dst,
+    int* __restrict__ status,
+    int rows,
+    int cols,
+    int ld,
+    uint64_t bound,
+    bool status_elided) {
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 4;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+
+  uint64_t vals[4];
+  rns8_garner_reconstruct_4wide_device<Prefix>(residues, cell, elements, vals);
+
+  #pragma unroll
+  for (int c = 0; c < 4; ++c) {
+    if (cell + c >= elements) break;
+    const int64_t row = (cell + c) / cols;
+    const int64_t col = (cell + c) - row * cols;
+    if (!status_elided && vals[c] > bound) {
+      atomicExch(status, static_cast<int>(1)); // RNS8_RANGE_ERROR
+    }
+    dst[row * static_cast<int64_t>(ld) + col] = vals[c];
+  }
+}
+
+
+
+// === Gap 99 continuation: VALU-optimized export helpers ===
+
+// DPP-based status aggregation for export range checking
+__device__ int rns8_export_dpp_status_aggregate_device(int local_status) {
+  int agg = __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, local_status, 16);
+  agg |= __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, local_status, 8);
+  agg |= __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, local_status, 4);
+  agg |= __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, local_status, 2);
+  agg |= __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, local_status, 1);
+  return agg | local_status;
+}
+
+// VOPD-friendly export: two outputs per thread with paired instructions
+template <int Prefix>
+__global__ void rns8_export_bounded_i64_vopd_combined_kernel(
+    const int8_t* __restrict__ residues,
+    int64_t* __restrict__ dst,
+    int* __restrict__ status,
+    int rows,
+    int cols,
+    int ld,
+    int64_t bound,
+    bool status_elided) {
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+
+  int local_status = 0;
+
+  #pragma unroll
+  for (int c = 0; c < 2; ++c) {
+    if (cell + c >= elements) break;
+    const int64_t row = (cell + c) / cols;
+    const int64_t col = (cell + c) - row * cols;
+
+    uint64_t val = 0;
+    for (int plane = 0; plane < Prefix; ++plane) {
+      const int8_t* plane_base = residues + static_cast<int64_t>(plane) * elements;
+      int8_t residue = plane_base[cell + c];
+      uint64_t weight = rns8_garner_constants_device<Prefix>::garner_weight(plane);
+      uint32_t mod = rns8_garner_constants_device<Prefix>::modulus(plane);
+      uint64_t canonical = static_cast<uint64_t>(residue < 0 ? residue + static_cast<int>(mod) : residue);
+      val = (val + canonical * weight) % rns8_garner_constants_device<Prefix>::prefix_product();
+    }
+
+    int64_t signed_val;
+    const uint64_t P = rns8_garner_constants_device<Prefix>::prefix_product();
+    if (val >= P / 2) {
+      signed_val = -static_cast<int64_t>(P - val);
+    } else {
+      signed_val = static_cast<int64_t>(val);
+    }
+
+    if (!status_elided && (signed_val < -bound || signed_val > bound)) {
+      local_status = 1;
+    }
+
+    dst[row * static_cast<int64_t>(ld) + col] = signed_val;
+  }
+
+  // Aggregate status across lanes using DPP instead of atomic
+  if (!status_elided) {
+    int wave_status = rns8_export_dpp_status_aggregate_device(local_status);
+    if (wave_status && (threadIdx.x & 31) == 0) {
+      atomicExch(status, wave_status);
+    }
+  }
+}
+

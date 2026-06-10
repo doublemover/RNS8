@@ -17,6 +17,19 @@ DEFAULT_OUT_DIR = Path("temp") / "promotion-ledgers"
 MIN_SPEEDUP_MARGIN = 1.02
 
 
+
+PRODUCTION_BACKENDS = {"cpu-reference", "hip-direct", "hip-vector-alu-int64"}
+ACCELERATOR_BACKENDS = {"ck", "rocwmma", "hipblaslt", "amdgpu-builtins"}
+
+
+def _is_production_backend(backend: str | None) -> bool:
+    return backend in PRODUCTION_BACKENDS
+
+
+def _is_accelerator_backend(backend: str | None) -> bool:
+    return backend in ACCELERATOR_BACKENDS
+
+
 def path_key(path: str | Path) -> str:
     return str(Path(path).resolve())
 
@@ -68,6 +81,37 @@ def load_variance_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
                 entries[path_key(capture_path)] = entry
     return entries
 
+
+
+
+def load_counter_entries(paths: list[Path]) -> dict[str, dict[str, Any]]:
+    counted: dict[str, dict[str, Any]] = {}
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            continue
+        for entry in data.get("entries", []):
+            if not isinstance(entry, dict):
+                continue
+            capture_path = str(entry.get("capture") or entry.get("source_capture") or "")
+            if capture_path:
+                counted[path_key(capture_path)] = entry
+    return counted
+
+
+def counter_resource_summary(entry: dict[str, Any] | None) -> dict[str, Any] | None:
+    if entry is None:
+        return None
+    return {
+        "vgpr": entry.get("vgpr"),
+        "sgpr": entry.get("sgpr"),
+        "lds_bytes": entry.get("lds_bytes"),
+        "scratch_bytes": entry.get("scratch_bytes"),
+        "occupancy": entry.get("occupancy"),
+        "matrix_instruction_histogram": entry.get("matrix_instruction_histogram"),
+        "wait_state_signals": entry.get("wait_state_signals"),
+        "global_memory_traffic_bytes": entry.get("global_memory_traffic_bytes"),
+    }
 
 def load_target_validation_groups(paths: list[Path]) -> dict[str, dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
@@ -324,6 +368,7 @@ def capture_entry(
     return {
         "path": str(path),
         "autotune_key": key,
+        "backend_class": "production" if _is_production_backend(capture.get("backend_selected")) else "accelerator" if _is_accelerator_backend(capture.get("backend_selected")) else "unknown",
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "semantic_contract": capture.get("semantics"),
@@ -438,6 +483,7 @@ def build_ledger(
     variance_reports: list[Path] | None = None,
     target_validation_reports: list[Path] | None = None,
     shape_family_shadow_reports: list[Path] | None = None,
+    counter_reports: list[Path] | None = None,
     *,
     require_variance_gate: bool = False,
 ) -> dict[str, Any]:
@@ -445,6 +491,7 @@ def build_ledger(
     variance = load_variance_entries(variance_reports or [])
     target_groups = load_target_validation_groups(target_validation_reports or [])
     shape_reports = load_shape_family_shadow_reports(shape_family_shadow_reports or [])
+    counter = load_counter_entries(counter_reports or [])
     shape_recommendations = shape_family_recommendation_index(shape_reports)
     shape_recommendations_by_path: dict[str, list[dict[str, Any]]] = {}
     for path in captures:
@@ -478,6 +525,10 @@ def build_ledger(
         if key and key not in cache_keys:
             entry["promotion_blockers"].append("missing_installed_cache_entry")
         entry["stale_invalidation_reasons"] = stale_invalidation_reasons(entry)
+        counter_entry = counter.get(path_key(path))
+        entry["counter_resource_summary"] = counter_resource_summary(counter_entry)
+        if counter_entry is None and counter_reports:
+            entry.setdefault("promotion_blockers", []).append("missing_counter_evidence")
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",
@@ -487,11 +538,16 @@ def build_ledger(
         "require_variance_gate": require_variance_gate,
         "target_validation_report_count": len(target_validation_reports or []),
         "shape_family_shadow_report_count": len(shape_family_shadow_reports or []),
+        "counter_report_count": len(counter_reports or []),
         "shape_family_shadow_summary": shape_family_shadow_summary(shape_reports),
         "cache_entry_count": len(cache_entries),
         "entries": entries,
         "cache_coverage": cache_coverage(entries),
         "blocked_count": sum(1 for entry in entries if entry["promotion_blockers"]),
+        "production_route_count": sum(1 for e in entries if e["backend_class"] == "production"),
+        "accelerator_route_count": sum(1 for e in entries if e["backend_class"] == "accelerator"),
+        "production_promotable_count": sum(1 for e in entries if e["backend_class"] == "production" and not e["promotion_blockers"]),
+        "accelerator_promotable_count": sum(1 for e in entries if e["backend_class"] == "accelerator" and not e["promotion_blockers"]),
     }
 
 

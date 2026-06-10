@@ -45,3 +45,4 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_bounded_finite_export_wrappers.inc"
 #include "hip_direct_exact_unsigned_export_wrappers.inc"
 #include "hip_direct_exact_signed_export_wrappers.inc"
+#include "hip_direct_finite_grouped_export_wrappers.inc"

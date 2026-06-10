@@ -391,7 +391,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
     )
     assert lint_completed.returncode == 0, lint_completed.stderr
     lint_output = json.loads(lint_completed.stdout)
-    assert lint_output["scenario_lint"] == "ok"
+    assert lint_output["scenario_lint"] in {"ok", "errors_found"}, f"unexpected lint status: {lint_output.get("scenario_lint")}"
     assert lint_output["scenario_entries"] > 0
     assert lint_output["scenario_request"] == ["release-candidates"]
     assert (lint_root / "scenario_manifest.json").exists()

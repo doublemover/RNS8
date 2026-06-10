@@ -328,6 +328,65 @@ rns8_status wrap64_hip_export_u64_device(
   (void)destination_bytes;
   (void)compact_layout;
   return RNS8_UNSUPPORTED_BACKEND;
+
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+
+struct wrap64_graph_resources {
+  hip_unique_stream pack_stream;
+  hip_unique_stream compute_stream;
+  hip_unique_stream export_stream;
+  hipGraphExec_t graph_exec = nullptr;
+  bool graph_captured = false;
+};
+
+std::unique_ptr<wrap64_graph_resources> g_wrap64_graph;
+
+rns8_status wrap64_graph_capture_begin() {
+  if (!g_wrap64_graph) {
+    g_wrap64_graph = std::make_unique<wrap64_graph_resources>();
+    HIP_CHECK(hipStreamCreateWithFlags(&g_wrap64_graph->pack_stream, hipStreamNonBlocking));
+    HIP_CHECK(hipStreamCreateWithFlags(&g_wrap64_graph->compute_stream, hipStreamNonBlocking));
+    HIP_CHECK(hipStreamCreateWithFlags(&g_wrap64_graph->export_stream, hipStreamNonBlocking));
+  }
+  HIP_CHECK(hipStreamBeginCapture(g_wrap64_graph->compute_stream, hipStreamCaptureModeGlobal));
+  return RNS8_SUCCESS;
+}
+
+rns8_status wrap64_graph_capture_end() {
+  if (!g_wrap64_graph || g_wrap64_graph->graph_captured) {
+    return RNS8_BACKEND_FAILURE;
+  }
+  hipGraph_t graph = nullptr;
+  HIP_CHECK(hipStreamEndCapture(g_wrap64_graph->compute_stream, &graph));
+  hipGraphInstantiate(&g_wrap64_graph->graph_exec, graph, nullptr, nullptr, 0);
+  hipGraphDestroy(graph);
+  g_wrap64_graph->graph_captured = true;
+  return RNS8_SUCCESS;
+}
+
+rns8_status wrap64_graph_launch() {
+  if (!g_wrap64_graph || !g_wrap64_graph->graph_exec) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  HIP_CHECK(hipGraphLaunch(g_wrap64_graph->graph_exec, g_wrap64_graph->compute_stream));
+  return RNS8_SUCCESS;
+}
+
+void wrap64_graph_destroy() {
+  if (g_wrap64_graph) {
+    if (g_wrap64_graph->graph_exec) {
+      hipGraphExecDestroy(g_wrap64_graph->graph_exec);
+      g_wrap64_graph->graph_exec = nullptr;
+    }
+    g_wrap64_graph.reset();
+  }
+}
+
+}  // namespace
+#endif  // RNS8_ENABLE_HIP
+
 #endif
 }
 

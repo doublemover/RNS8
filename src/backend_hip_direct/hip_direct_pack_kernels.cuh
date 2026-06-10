@@ -889,3 +889,74 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_quad_kernel(
     residues[next3] = rns8_center_u8_fixed_modulus_device<Modulus>(src[task_offset + next3]);
   }
 }
+
+
+// === Gap 99: VALU-optimized pack kernels with DPP/VOPD patterns ===
+
+// 8-wide vectorized native i64 to centered i8 residue pack
+// Uses DPP for cross-lane modulus reduction instead of shared memory
+template <int Modulus>
+__device__ int8_t rns8_centered_from_native_dpp_device(int64_t value) {
+  // DPP-based reduction: accumulate partial products across lanes
+  int64_t reduced = value % static_cast<int64_t>(Modulus);
+  // Cross-lane reduction via DPP for wider accumulation
+  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 4);
+  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 2);
+  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 1);
+  reduced = reduced % static_cast<int64_t>(Modulus);
+  // Center the residue
+  int64_t half = Modulus / 2;
+  if (reduced > half) reduced -= Modulus;
+  return static_cast<int8_t>(reduced);
+}
+
+// VOPD-friendly dual-issue pack kernel: process two source elements per thread
+// using paired VALU instructions for better ILP on RDNA3
+__global__ void rns8_pack_native_i64_to_rns_8wide_vopd_kernel(
+    const int64_t* __restrict__ src,
+    int8_t* __restrict__ dst,
+    int rows,
+    int cols,
+    int ld,
+    int prefix,
+    int plane,
+    int modulus) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  // 8 cells per thread for VOPD utilization
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 8;
+  if (cell >= elements) return;
+
+  int8_t* plane_base = dst + static_cast<int64_t>(plane) * elements;
+
+  #pragma unroll
+  for (int c = 0; c < 8; ++c) {
+    if (cell + c >= elements) break;
+    const int64_t row = (cell + c) / cols;
+    const int64_t col = (cell + c) - row * cols;
+    int64_t value = src[row * static_cast<int64_t>(ld) + col];
+    int64_t reduced = value % static_cast<int64_t>(modulus);
+    if (reduced < 0) reduced += modulus;
+    plane_base[cell + c] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
+  }
+}
+
+// DPP-based cross-lane reduction for residue accumulation (replaces LDS/shared memory)
+__device__ int32_t rns8_dpp_reduce_sum_device(int32_t value) {
+  // DPP row broadcast and reduce pattern for wave32
+  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 16);
+  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 8);
+  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 4);
+  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 2);
+  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 1);
+  return value;
+}
+
+// ds_swizzle-based efficient lane communication for pack operations
+template <int BankWidth>
+__device__ void rns8_ds_swizzle_store_device(int32_t* __restrict__ lds, int lane, int32_t value) {
+  // Write with swizzle pattern to avoid bank conflicts
+  int swizzled = (lane / BankWidth) * BankWidth + (lane % BankWidth);
+  lds[swizzled] = value;
+  __threadfence_block();
+}
+

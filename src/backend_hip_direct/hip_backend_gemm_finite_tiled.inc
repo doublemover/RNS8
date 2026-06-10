@@ -668,3 +668,113 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
 #endif
 }
 
+
+
+// === Gap 103: Grouped finite-u8 GEMM dispatch ===
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_export_u8_grouped_device(
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus);
+#endif
+
+rns8_status hip_direct_gemm_finite_u8_grouped(
+    int device_id,
+    const int8_t* const* residue_ptrs,
+    uint8_t* dst,
+    int task_count,
+    int rows,
+    int cols,
+    int modulus) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!dst || !residue_ptrs || residue_ptrs == nullptr || task_count <= 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  rns8_status status = set_hip_device(device_id);
+  if (status != RNS8_SUCCESS) return status;
+
+  // Same-shape grouped finite GEMM: all tasks share dimensions and modulus
+  dim3 block(256);
+  dim3 grid(
+      (static_cast<unsigned int>(rows) * static_cast<unsigned int>(cols) + block.x - 1) / block.x,
+      static_cast<unsigned int>(task_count));
+
+  // Allocate device-side residue pointer table
+  int8_t** d_residue_ptrs = nullptr;
+  hipError_t err = hipMalloc(&d_residue_ptrs, sizeof(int8_t*) * task_count);
+  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
+  err = hipMemcpy(d_residue_ptrs, residue_ptrs, sizeof(int8_t*) * task_count, hipMemcpyHostToDevice);
+  if (err != hipSuccess) { hipFree(d_residue_ptrs); return RNS8_BACKEND_FAILURE; }
+
+  err = timed_hip_operation("finite_rns_gemm_kernel_group", [&]() {
+    int code = rns8_hip_direct_export_u8_grouped_device(d_residue_ptrs, dst, task_count, rows, cols, modulus);
+    if (code != static_cast<int>(hipSuccess)) {
+      return static_cast<hipError_t>(code);
+    }
+    return hipDeviceSynchronize();
+  });
+
+  hipFree(d_residue_ptrs);
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)residue_ptrs; (void)dst;
+  (void)task_count; (void)rows; (void)cols; (void)modulus;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+
+// === Gap 87: Finite-u8 full-path graph replay ===
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+namespace {
+
+struct finite_graph_capture_state {
+  hipGraphExec_t graph_exec = nullptr;
+  bool captured = false;
+  hipStream_t capture_stream = nullptr;
+};
+
+thread_local finite_graph_capture_state g_finite_graph;
+
+}  // namespace
+
+rns8_status hip_direct_finite_graph_capture_begin(hipStream_t stream) {
+  g_finite_graph.capture_stream = stream;
+  hipError_t err = hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal);
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+}
+
+rns8_status hip_direct_finite_graph_capture_end() {
+  if (!g_finite_graph.capture_stream) return RNS8_BACKEND_FAILURE;
+  hipGraph_t graph = nullptr;
+  hipError_t err = hipStreamEndCapture(g_finite_graph.capture_stream, &graph);
+  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
+  err = hipGraphInstantiate(&g_finite_graph.graph_exec, graph, nullptr, nullptr, 0);
+  hipGraphDestroy(graph);
+  g_finite_graph.captured = (err == hipSuccess);
+  return g_finite_graph.captured ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+}
+
+rns8_status hip_direct_finite_graph_launch() {
+  if (!g_finite_graph.captured || !g_finite_graph.graph_exec) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+  hipError_t err = hipGraphLaunch(g_finite_graph.graph_exec, g_finite_graph.capture_stream);
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+}
+
+void hip_direct_finite_graph_destroy() {
+  if (g_finite_graph.graph_exec) {
+    hipGraphExecDestroy(g_finite_graph.graph_exec);
+    g_finite_graph.graph_exec = nullptr;
+  }
+  g_finite_graph.captured = false;
+  g_finite_graph.capture_stream = nullptr;
+}
+#endif  // RNS8_ENABLE_HIP
+
