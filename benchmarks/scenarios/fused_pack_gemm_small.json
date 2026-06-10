@@ -24,7 +24,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "oneshot": true,
       "next_op_hint": "final-export"
@@ -54,9 +54,10 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
-      "next_op_hint": "final-export"
+      "next_op_hint": "final-export",
+      "metadata": {}
     },
     {
       "name": "finite-ring-u8-oneshot64",
@@ -80,7 +81,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251,
@@ -114,12 +115,13 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "finite_moduli": [
         251
       ],
-      "next_op_hint": "final-export"
+      "next_op_hint": "final-export",
+      "metadata": {}
     }
   ]
 }
