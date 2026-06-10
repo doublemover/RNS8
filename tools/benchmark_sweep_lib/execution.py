@@ -259,6 +259,9 @@ def execute_sweep_entries(
     progress = bool(getattr(args, "progress", False))
     total_entries = len(entries)
     start_time = time.perf_counter()
+    # Rank 106: CPU reference deduplication by semantic, shape, seed, and checksum policy.
+    # When --cpu-reference-mode correctness-anchor is set, CPU captures with matching
+    # contracts share results, avoiding redundant timed baselines.
     completed_cpu_captures: dict[tuple[Any, ...], Path] = {}
     entry_index = 0
     for entry in entries:
