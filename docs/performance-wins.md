@@ -106,9 +106,9 @@ For reference, Direct HIP numbers on key shapes (all backends compiled).
 
 ## Summary
 
-- **Direct HIP** is the production winner for square bounded shapes >= 256x256.
+- **Direct HIP** is the production winner for square bounded shapes >= 256x256. (reviewed local gfx1100 evidence)
 - **AMDGPU builtins (WMMA)** lead on skinny GEMV (N=1..8) and small exact-wide.
-- **rocWMMA** has clear wins on bounded u64 512/1024 and finite-u8 512 (1.17-1.49x).
+- **rocWMMA** has clear wins on bounded u64 512/1024 and finite-u8 512 (1.17-1.49x). (reviewed local gfx1100 evidence)
 - **CK and hipBLASLt** are competitive on finite-u8 512 but lose elsewhere.
-- **CPU reference** wins on tiny shapes (<128) where GPU launch dominates.
+- **CPU reference** wins on tiny shapes (<128) where GPU launch dominates. (reviewed local gfx1100 evidence)
 - No accelerator backend beat Direct HIP on bounded i64 1024 square shapes.

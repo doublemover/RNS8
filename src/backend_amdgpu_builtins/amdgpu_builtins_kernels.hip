@@ -1019,3 +1019,62 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
   return launch_sparse_a<true>(
       device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
 }
+
+
+// === Phase 3a: WMMA-native pack for AMDGPU builtins ===
+// Packs native i64/u64 directly into WMMA-expected K-major centered i8 layout.
+// Eliminates the generic Direct HIP pack + transpose step for RDNA3 WMMA paths.
+
+__global__ void rns8_amdgpu_builtin_pack_wmma_i64_kernel(
+    const int64_t* __restrict__ src,
+    int8_t* __restrict__ dst,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= total) return;
+
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t cell = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  // Default modulus ladder: 256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127
+  __device__ static constexpr int default_moduli[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
+  const int modulus = (modulus_index >= 0 && modulus_index < 28) ? default_moduli[modulus_index] : 256;
+
+  // Direct centered residue conversion with contiguous source (ld == cols path)
+  // WMMA expects K-major B layout; A remains row-major
+  int64_t value = src[static_cast<int64_t>(row) * ld + col];
+  int64_t reduced = value % static_cast<int64_t>(modulus);
+  if (reduced < 0) reduced += modulus;
+  dst[idx] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
+}
+
+__global__ void rns8_amdgpu_builtin_pack_wmma_u64_kernel(
+    const uint64_t* __restrict__ src,
+    int8_t* __restrict__ dst,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t total = elements * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= total) return;
+
+  const int modulus_index = static_cast<int>(idx / elements);
+  const int64_t cell = idx - static_cast<int64_t>(modulus_index) * elements;
+  const int row = static_cast<int>(cell / cols);
+  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
+  __device__ static constexpr int default_moduli_u64[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
+  const int modulus = (modulus_index >= 0 && modulus_index < 28) ? default_moduli_u64[modulus_index] : 256;
+
+  uint64_t value = src[static_cast<int64_t>(row) * ld + col];
+  uint64_t reduced = value % static_cast<uint64_t>(modulus);
+  dst[idx] = static_cast<int8_t>(reduced > static_cast<uint64_t>(modulus / 2)
+      ? static_cast<int>(reduced - modulus) : static_cast<int>(reduced));
+}
+

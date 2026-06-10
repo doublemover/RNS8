@@ -264,7 +264,7 @@ bad_runtime_cache_key_layout["reuse_contract"]["runtime_prepack_cache"]["cache_k
 )
 expect_invalid(
     bad_runtime_cache_key_layout,
-    "runtime prepack cache cache_key must include operand_layout=rns_i8_tile_swizzled_b_v1",
+    "runtime prepack cache cache_key operand_layout=stale_layout",
 )
 
 bad_runtime_cache_key_plan = copy.deepcopy(rocwmma_runtime_b_cache)
@@ -276,7 +276,7 @@ bad_runtime_cache_key_plan["reuse_contract"]["runtime_prepack_cache"]["cache_key
 )
 expect_invalid(
     bad_runtime_cache_key_plan,
-    "runtime prepack cache cache_key must include plan_fingerprint=123",
+    "runtime prepack cache cache_key plan_fingerprint=999",
 )
 
 bad_runtime_cache_hash = copy.deepcopy(rocwmma_runtime_b_cache)
