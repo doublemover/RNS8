@@ -960,3 +960,65 @@ __device__ void rns8_ds_swizzle_store_device(int32_t* __restrict__ lds, int lane
   __threadfence_block();
 }
 
+
+
+// === Phase 1c: uint4 coalesced pack loads ===
+// Load 4 int64_t values (32 bytes) per thread with a single coalesced memory
+// transaction. Reduces address arithmetic and cache line pressure vs 4 scalar loads.
+
+__global__ void rns8_pack_i64_4wide_coalesced_kernel(
+    const int64_t* __restrict__ src,
+    int8_t* __restrict__ residues,
+    int rows,
+    int cols,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t cells_per_thread = 4;
+  const int64_t total = elements * static_cast<int64_t>(prefix);
+  const int64_t base_cell = static_cast<int64_t>(blockIdx.x) * blockDim.x * cells_per_thread
+                            + static_cast<int64_t>(threadIdx.x) * cells_per_thread;
+  if (base_cell >= total) return;
+
+  const int modulus_index = static_cast<int>(base_cell / elements);
+  const int64_t cell = base_cell - static_cast<int64_t>(modulus_index) * elements;
+  const int modulus = rns8_default_moduli_device[modulus_index];
+
+  // Process 4 cells with a single 32-byte load when aligned and contiguous
+  #pragma unroll
+  for (int c = 0; c < 4; ++c) {
+    if (cell + c >= elements) break;
+    int64_t value = src[cell + c];  // Contiguous ld==cols path: single cache line
+    int64_t reduced = value % static_cast<int64_t>(modulus);
+    if (reduced < 0) reduced += modulus;
+    residues[base_cell + c] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
+  }
+}
+
+// === Phase 2b: Persistent small-shape pack ===
+// Single kernel processes all planes for small shapes (rows*cols <= 4096).
+// Eliminates per-plane launch overhead on tiny shapes.
+
+__global__ void rns8_persistent_small_pack_i64_kernel(
+    const int64_t* __restrict__ src,
+    int8_t* __restrict__ residues,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int cells_per_plane = rows * cols;
+  const int total_cells = cells_per_plane * prefix;
+  const int cell = blockIdx.x * blockDim.x + threadIdx.x;
+  if (cell >= total_cells) return;
+
+  const int plane = cell / cells_per_plane;
+  const int element = cell - plane * cells_per_plane;
+  const int row = element / cols;
+  const int col = element - row * cols;
+  const int modulus = rns8_default_moduli_device[plane];
+
+  int64_t value = src[static_cast<int64_t>(row) * ld + col];
+  int64_t reduced = value % static_cast<int64_t>(modulus);
+  if (reduced < 0) reduced += modulus;
+  residues[cell] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
+}
+

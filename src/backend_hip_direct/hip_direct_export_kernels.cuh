@@ -1520,3 +1520,82 @@ __global__ void rns8_export_bounded_i64_vopd_combined_kernel(
   }
 }
 
+
+
+// === Phase 4b: Fused GEMM residue accumulation + CRT export ===
+// Computes INT32 GEMM accumulators then immediately applies Garner CRT
+// reconstruction, writing final i64/u64 output directly. Eliminates the
+// intermediate centered i8 residue store/load between GEMM and export.
+
+__global__ void rns8_fused_gemm_export_i64_kernel(
+    const int8_t* __restrict__ a_residues,
+    const int8_t* __restrict__ b_residues,
+    int64_t* __restrict__ dst,
+    int m,
+    int n,
+    int k,
+    int lda,
+    int ldb,
+    int ldc,
+    int prefix,
+    int64_t bound,
+    int* __restrict__ status) {
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  const int64_t elements = static_cast<int64_t>(m) * static_cast<int64_t>(n);
+  if (cell >= elements) return;
+
+  // Garner CRT reconstruction accumulators (64-bit per output cell)
+  uint64_t garner_acc[2] = {0, 0};
+  const uint64_t M = rns8_garner_constants_device<9>::prefix_product();
+
+  for (int plane = 0; plane < prefix; ++plane) {
+    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
+    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
+    const uint64_t weight = rns8_garner_constants_device<9>::garner_weight(plane);
+    const uint32_t mod = rns8_garner_constants_device<9>::modulus(plane);
+
+    #pragma unroll
+    for (int c = 0; c < 2; ++c) {
+      if (cell + c >= elements) continue;
+      const int64_t row = (cell + c) / n;
+      const int64_t col = (cell + c) - row * n;
+
+      // INT32 GEMM accumulation for one output cell
+      int32_t acc = 0;
+      for (int ki = 0; ki < k; ki += 65536) {
+        int k_end = (ki + 65536 < k) ? ki + 65536 : k;
+        for (int kii = ki; kii < k_end; ++kii) {
+          acc += static_cast<int32_t>(a_plane[row * k + kii])
+               * static_cast<int32_t>(b_plane[kii * n + col]);
+        }
+      }
+
+      // Reduce INT32 to canonical, apply Garner weight
+      int32_t reduced = acc % static_cast<int32_t>(mod);
+      if (reduced < 0) reduced += static_cast<int32_t>(mod);
+      garner_acc[c] = (garner_acc[c] + static_cast<uint64_t>(reduced) * weight) % M;
+    }
+  }
+
+  // Convert Garner result to signed i64 and write output
+  #pragma unroll
+  for (int c = 0; c < 2; ++c) {
+    if (cell + c >= elements) continue;
+    const int64_t row = (cell + c) / n;
+    const int64_t col = (cell + c) - row * n;
+
+    int64_t signed_val;
+    if (garner_acc[c] >= M / 2) {
+      signed_val = -static_cast<int64_t>(M - garner_acc[c]);
+    } else {
+      signed_val = static_cast<int64_t>(garner_acc[c]);
+    }
+
+    if (status && (signed_val < -bound || signed_val > bound)) {
+      atomicExch(status, static_cast<int>(1));
+    }
+
+    dst[row * ldc + col] = signed_val;
+  }
+}
+
