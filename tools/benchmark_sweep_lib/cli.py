@@ -8,7 +8,8 @@ from evidence_database_lib.isa import load_isa_index
 from evidence_database_lib.io import discover_capture_paths, discover_isa_report_paths
 
 from .commands import scenario_names, sweep_command_entries
-from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, SweepCommand
+from .scenario_lint import validate_scenario_catalog
+from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, SCENARIO_DATA_DIR, SweepCommand
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
@@ -523,8 +524,10 @@ def main() -> int:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
+        lint_errors = validate_scenario_catalog(SCENARIO_DATA_DIR)
         output = {
-            "scenario_lint": "ok",
+            "scenario_lint": "ok" if not lint_errors else "errors_found",
+            "scenario_lint_errors": lint_errors,
             "scenario_entries": len(entries),
             "scenario_request": list(args.scenario or []),
         }
