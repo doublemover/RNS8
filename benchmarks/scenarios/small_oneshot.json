@@ -24,7 +24,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate"
     },
     {
@@ -49,7 +49,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "oneshot": true
     },
@@ -75,7 +75,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate"
     },
     {
@@ -100,7 +100,7 @@
         "cpu",
         "hip-direct"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "release_review_candidate",
       "oneshot": true
     }

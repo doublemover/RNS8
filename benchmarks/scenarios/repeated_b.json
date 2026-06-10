@@ -3,10 +3,10 @@
   "family": "repeated-b",
   "items": [
     {
-      "name": "bounded-i64-512",
+      "name": "bounded-i64-512-production-baselines",
       "semantics": "bounded-i64",
       "case": {
-        "name": "bounded-i64-512",
+        "name": "ci-bounded-64-128-64",
         "m": 512,
         "n": 512,
         "k": 512,
@@ -14,30 +14,26 @@
         "tile_n": 128,
         "bound_mode": "global",
         "input_profile": "uniform-small",
-        "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "same B operand reused across measured repeats",
+      "evidence_scope": "release_review_candidate",
       "output_domain": "host_export",
-      "rationale": "measures whether setup cost amortizes for the current repeated-B implementation surfaces",
-      "backends": [
-        "hip-direct",
-        "hip-vector-alu-int64",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
-      ],
+      "rationale": "bounded-i64 512x512x512 production baseline with CPU, Direct HIP, vector ALU, and rocWMMA comparators",
       "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
-      "pack_mode": "prepacked_reuse_b",
-      "prefix_policy": "fixed-requested",
-      "max_prefix": 9
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "pack_mode": "per_repeat_repack"
     },
     {
-      "name": "bounded-i64-1024",
+      "name": "bounded-i64-1024-production-baselines",
       "semantics": "bounded-i64",
       "case": {
-        "name": "bounded-i64-1024",
+        "name": "ci-bounded-64-128-64",
         "m": 1024,
         "n": 1024,
         "k": 1024,
@@ -45,24 +41,209 @@
         "tile_n": 128,
         "bound_mode": "global",
         "input_profile": "uniform-small",
-        "require_adaptive": false,
         "promotable": true
       },
-      "evidence_scope": "same B operand reused across measured repeats",
+      "evidence_scope": "release_review_candidate",
       "output_domain": "host_export",
-      "rationale": "keeps hipBLASLt and rocWMMA repeated-B evidence tied to the current 1024 winner split",
-      "backends": [
-        "hip-direct",
-        "hip-vector-alu-int64",
-        "hipblaslt",
-        "ck",
-        "rocwmma"
-      ],
+      "rationale": "bounded-i64 1024x1024x1024 production baseline with CPU, Direct HIP, vector ALU, and rocWMMA comparators",
       "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "pack_mode": "per_repeat_repack"
+    },
+    {
+      "name": "bounded-u64-512-production-baselines",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-u64 512x512x512 production baseline with CPU, Direct HIP, vector ALU, and rocWMMA comparators",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "pack_mode": "per_repeat_repack"
+    },
+    {
+      "name": "bounded-u64-1024-production-baselines",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-u64 1024x1024x1024 production baseline with CPU, Direct HIP, vector ALU, and rocWMMA comparators",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hip-vector-alu-int64",
+        "rocwmma"
+      ],
+      "pack_mode": "per_repeat_repack"
+    },
+    {
+      "name": "bounded-i64-512-production-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-i64 512x512x512 rocWMMA stable-B production candidate",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "rocwmma"
+      ],
       "pack_mode": "prepacked_reuse_b",
-      "prefix_policy": "fixed-requested",
-      "max_prefix": 9
+      "metadata": {
+        "reuse_contract_role": "stable_b_production_candidate"
+      }
+    },
+    {
+      "name": "bounded-i64-1024-production-reuse-b",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-i64 1024x1024x1024 rocWMMA stable-B production candidate",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "reuse_contract_role": "stable_b_production_candidate"
+      }
+    },
+    {
+      "name": "bounded-u64-512-production-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-u64 512x512x512 rocWMMA stable-B production candidate",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "reuse_contract_role": "stable_b_production_candidate"
+      }
+    },
+    {
+      "name": "bounded-u64-1024-production-reuse-b",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded-u64 1024x1024x1024 rocWMMA stable-B production candidate",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "reuse_contract_role": "stable_b_production_candidate"
+      }
+    },
+    {
+      "name": "bounded-bounded-i64-512-reuse-contract-evidence",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-bounded-64-128-64",
+        "m": 64,
+        "n": 128,
+        "k": 64,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "reuse_contract_evidence_only",
+      "output_domain": "host_export",
+      "rationale": "reuse contract evidence",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "reuse_contract_evidence_only",
+      "backends": [
+        "rocwmma"
+      ],
+      "pack_mode": "prepacked_reuse_b",
+      "metadata": {
+        "promotion_scope": "reuse_contract_evidence_only"
+      }
     }
   ]
 }

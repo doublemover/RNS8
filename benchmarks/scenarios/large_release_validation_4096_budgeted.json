@@ -63,6 +63,7 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
+        "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "release",

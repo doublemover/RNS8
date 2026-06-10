@@ -23,13 +23,13 @@
       "backends": [
         "cpu",
         "hip-direct",
-        "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "release",
-      "promotion_eligibility": "release_review_candidate"
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {}
     },
     {
       "name": "bounded-u64-n1-1024",
@@ -52,13 +52,13 @@
       "backends": [
         "cpu",
         "hip-direct",
-        "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
         "rocwmma"
       ],
       "review_mode_expectation": "release",
-      "promotion_eligibility": "release_review_candidate"
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {}
     },
     {
       "name": "bounded-i64-n1-longk-256",
@@ -81,7 +81,6 @@
       "backends": [
         "cpu",
         "hip-direct",
-        "hip-vector-alu-int64",
         "hipblaslt",
         "ck",
         "rocwmma"
@@ -93,6 +92,238 @@
         "workflow_name": "gemv_n1_long_k",
         "phase_label": "native_vector_reduction",
         "reuse_profile": "single_rhs_column"
+      }
+    },
+    {
+      "name": "bounded-i64-n4-512",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-skinny-512x4x512",
+        "m": 512,
+        "n": 4,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "skinny N=1 bounded i64 GEMV-like workload",
+      "output_domain": "host_export",
+      "rationale": "exposes vector/native paths that square GEMM review can hide",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {
+        "workflow_name": "gemv_small_n",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-i64-n8-512",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-skinny-512x8x512",
+        "m": 512,
+        "n": 8,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": true
+      },
+      "evidence_scope": "skinny N=1 bounded i64 GEMV-like workload",
+      "output_domain": "host_export",
+      "rationale": "exposes vector/native paths that square GEMM review can hide",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "hipblaslt",
+        "ck",
+        "rocwmma"
+      ],
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "metadata": {
+        "workflow_name": "gemv_small_n",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-i64-n4-512-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-tiled-control-512x4x512",
+        "m": 512,
+        "n": 4,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": false
+      },
+      "evidence_scope": "tile_shape_evidence_only",
+      "output_domain": "host_export",
+      "rationale": "tiled control for skinny GEMV comparison",
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control"
+      }
+    },
+    {
+      "name": "bounded-u64-n4-1024-tiled-control",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-tiled-control-1024x4x1024",
+        "m": 1024,
+        "n": 4,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": false
+      },
+      "evidence_scope": "tile_shape_evidence_only",
+      "output_domain": "host_export",
+      "rationale": "tiled control for skinny GEMV comparison",
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control"
+      }
+    },
+    {
+      "name": "bounded-i64-n8-512-tiled-control",
+      "semantics": "bounded-i64",
+      "case": {
+        "name": "ci-tiled-control-512x8x512",
+        "m": 512,
+        "n": 8,
+        "k": 512,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": false
+      },
+      "evidence_scope": "tile_shape_evidence_only",
+      "output_domain": "host_export",
+      "rationale": "tiled control for skinny GEMV comparison",
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control"
+      }
+    },
+    {
+      "name": "bounded-u64-n8-1024-tiled-control",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-tiled-control-1024x8x1024",
+        "m": 1024,
+        "n": 8,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": false
+      },
+      "evidence_scope": "tile_shape_evidence_only",
+      "output_domain": "host_export",
+      "rationale": "tiled control for skinny GEMV comparison",
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "tile_shape_evidence_only",
+      "backends": [
+        "hip-direct"
+      ],
+      "tile_shape_variant": "direct-hip-skinny-tiled-control-128x128",
+      "metadata": {
+        "workflow_name": "skinny_tiled_control"
+      }
+    },
+    {
+      "name": "bounded-u64-n4-1024",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-skinny-u64-1024x4x1024",
+        "m": 1024,
+        "n": 4,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded u64 skinny GEMV small-N test",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "amdgpu-builtins",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "gemv_small_n",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
+      }
+    },
+    {
+      "name": "bounded-u64-n8-1024",
+      "semantics": "bounded-u64",
+      "case": {
+        "name": "ci-skinny-u64-1024x8x1024",
+        "m": 1024,
+        "n": 8,
+        "k": 1024,
+        "tile_m": 128,
+        "tile_n": 128,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "promotable": true
+      },
+      "evidence_scope": "release_review_candidate",
+      "output_domain": "host_export",
+      "rationale": "bounded u64 skinny GEMV small-N test",
+      "review_mode_expectation": "release",
+      "promotion_eligibility": "release_review_candidate",
+      "backends": [
+        "cpu",
+        "hip-direct",
+        "amdgpu-builtins",
+        "rocwmma"
+      ],
+      "metadata": {
+        "workflow_name": "gemv_small_n",
+        "optimization_status": "needs_measured_small_n_kernel_decision"
       }
     }
   ]

@@ -26,7 +26,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "lazy_export_chain_evidence_only",
       "exact_wide_limb_counts": [
         4
@@ -61,7 +61,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "lazy_export_chain_reuse_evidence_only",
       "pack_mode": "prepacked_reuse_b",
       "exact_wide_limb_counts": [

@@ -28,7 +28,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -64,7 +64,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -99,7 +99,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -133,9 +133,10 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -168,9 +169,10 @@
         "hip-direct",
         "hip-vector-alu-int64",
         "hipblaslt",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -202,9 +204,10 @@
         "cpu",
         "hip-direct",
         "hip-vector-alu-int64",
+        "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -241,7 +244,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "baseline_only",
       "bound_source": "static-profile",
       "metadata": {
@@ -277,7 +280,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
@@ -312,7 +315,7 @@
         "ck",
         "rocwmma"
       ],
-      "review_mode_expectation": "release",
+      "review_mode_expectation": "smoke",
       "promotion_eligibility": "workload_comparison_only",
       "bound_source": "input-scan",
       "metadata": {
