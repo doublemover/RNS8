@@ -16,7 +16,8 @@ Windows HIP SDK / gfx1100 is the primary validated platform.
 
 RNS8 is an open-source HPC codebase built entirely through AI-directed
 development workflows. The architecture, constraints, performance goals,
-and correctness requirements are human defined. Codex does the typing.
+and correctness requirements are human defined. Codex & Deepseek V4 Pro do 
+the typing.
 
 ## What Works Now
 
