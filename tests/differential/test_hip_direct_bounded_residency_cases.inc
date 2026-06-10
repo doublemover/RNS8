@@ -425,8 +425,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 reuses resident storage ac
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
   REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
-  REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
-  REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   compare_outputs();
