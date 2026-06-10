@@ -5,6 +5,13 @@ extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
     int m, int n, int k, int prefix);
 #endif
 
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
+    const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
+    int m, int n, int k, int prefix);
+#endif
+
 rns8_status hip_direct_ring_gemm_i8_device(
     int device_id,
     const void* device_a_residues,
