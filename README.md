@@ -133,8 +133,18 @@ Current local Windows `gfx1100` release-reviewed cache snapshot:
 | Finite u8 | ring-256 4096 | hipBLASLt | 6.9 ms | 4.73x | 680.9x | Installed cache key |
 | Exact-wide | signed 4096 | hipBLASLt | 176.9 ms | 3.61x | 639.1x | Installed cache key |
 | Exact-wide | unsigned 4096 | hipBLASLt | 162.4 ms | 3.78x | 649.5x | Installed cache key |
-| Strict wrap64 | 2048 | Direct HIP | 58.3 ms | n/a | 230.1x | Correctness path |
-| Strict wrap64 | 4096 | Direct HIP | 295.7 ms | n/a | 348.1x | Correctness path |
+| Strict wrap64 | 512 | Direct HIP | 3.0 ms | n/a | n/a | Correctness path |
+| Strict wrap64 | 1024 | Direct HIP | 7.0 ms | n/a | n/a | Correctness path |
+| Strict wrap64 | 2048 | Direct HIP | 41.5 ms | n/a | n/a | Correctness path |
+
+AMDGPU builtin wins (2026-06-10 sweep):
+
+| Family | Shape | Winner | Median | vs CPU/ref | Note |
+|---|---|---|---|---|---|
+| Bounded i64 | 512x4x512 | AMDGPU builtin | 1.8 ms | 8.5x | Skinny GEMV WMMA |
+| Bounded i64 | 512x8x512 | AMDGPU builtin | 1.9 ms | 9.1x | Small-N WMMA |
+| Exact-wide signed | 512 | AMDGPU builtin | 5.5 ms | 43.2x | Dense WMMA |
+| Finite field u8 | 512 | AMDGPU builtin | 1.7 ms | 16.6x | Dense WMMA |
 
 Explicit workload and implementation wins:
 
@@ -150,7 +160,7 @@ Explicit workload and implementation wins:
 | Shape-specialized | one-shot i64 512 | Direct HIP colpair | n/a | 3.07x vs old path | 3.02x API event | Active explicit route |
 | Planner/prepass | bounded-u64 adaptive scan | Direct HIP setup | 414.4 ms | 1.35x vs old scan | n/a | Not promoted |
 
-The installed reviewed cache currently contains 39 validated exact-key entries.
+The installed reviewed cache currently contains 39 validated exact-key entries (prior sweeps); 2026-06-10 sweep found no new promotable accelerator entries.
 The table above is intentionally compact; long kernel identities, per-row
 baselines, checksums, event status, caveats, and reproduction commands live in
 [docs/performance-wins.md](docs/performance-wins.md) and
