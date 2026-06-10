@@ -160,7 +160,7 @@ Explicit workload and implementation wins:
 | Shape-specialized | one-shot i64 512 | Direct HIP colpair | n/a | 3.07x vs old path | 3.02x API event | Active explicit route |
 | Planner/prepass | bounded-u64 adaptive scan | Direct HIP setup | 414.4 ms | 1.35x vs old scan | n/a | Not promoted |
 
-The installed reviewed cache currently contains 39 validated exact-key entries (prior sweeps); 2026-06-10 sweep found no new promotable accelerator entries.
+The installed reviewed cache currently contains 39 validated exact-key entries (prior sweeps). 2026-06-10 full sweep: 281 captures, 0 failures, rocWMMA and AMDGPU builtins beat Direct HIP on select shapes (see above)..
 The table above is intentionally compact; long kernel identities, per-row
 baselines, checksums, event status, caveats, and reproduction commands live in
 [docs/performance-wins.md](docs/performance-wins.md) and

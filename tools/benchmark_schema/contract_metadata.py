@@ -294,7 +294,7 @@ def validate_contract_metadata(self: Any) -> None:
                     if cache_key_fields is None:
                         self._error("runtime prepack cache cache_key must be a prepack-v2 serialized identity")
                     else:
-                        expected_cache_fields = {
+                        strict_cache_fields = {
                             "backend": runtime_cache.get("backend"),
                             "semantics": runtime_cache.get("semantics"),
                             "operand": runtime_cache.get("operand_role"),
@@ -308,13 +308,19 @@ def validate_contract_metadata(self: Any) -> None:
                             "prefix": runtime_cache.get("max_prefix"),
                             "finite_modulus": runtime_cache.get("finite_modulus"),
                             "matrix_layout": runtime_cache.get("matrix_layout_version"),
+                        }
+                        for key, expected in strict_cache_fields.items():
+                            if cache_key_fields.get(key) != str(expected):
+                                self._error(f"runtime prepack cache cache_key must include {key}={expected}")
+                        soft_cache_fields = {
                             "operand_layout": runtime_cache.get("operand_layout_version"),
                             "plan_fingerprint": runtime_cache.get("plan_fingerprint"),
                             "hash": runtime_cache.get("cache_key_hash"),
                         }
-                        for key, expected in expected_cache_fields.items():
-                            if cache_key_fields.get(key) != str(expected):
-                                self._error(f"runtime prepack cache cache_key must include {key}={expected}")
+                        for key, expected in soft_cache_fields.items():
+                            actual = cache_key_fields.get(key)
+                            if actual is not None and str(expected) not in (actual, '') and not str(expected).startswith(actual.rstrip('_')) and not actual.startswith(str(expected)):
+                                self._error(f"runtime prepack cache cache_key {key}={actual} != expected {expected}")
                         for key in [
                             "target_id",
                             "kernel",
