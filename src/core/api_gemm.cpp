@@ -1459,3 +1459,48 @@ rns8_status rns8_gemm_wrap_u64(
     return RNS8_UNSUPPORTED_BACKEND;
   });
 }
+
+
+// === Phase 8: Deferred research API stubs ===
+
+RNS8_API rns8_status rns8_ozaki_decompose_i64(
+    rns8_context* ctx,
+    const int64_t* src,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    int8_t** out_components,
+    int64_t* out_component_ld,
+    int* out_split_count) {
+  (void)ctx; (void)src; (void)rows; (void)cols; (void)ld;
+  (void)out_components; (void)out_component_ld; (void)out_split_count;
+  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+}
+
+RNS8_API rns8_status rns8_strassen_gemm_research(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    int strassen_level,
+    double* out_memory_overhead_ratio) {
+  (void)ctx; (void)plan; (void)A; (void)B; (void)C; (void)workspace;
+  (void)strassen_level; (void)out_memory_overhead_ratio;
+  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+}
+
+RNS8_API rns8_status rns8_freivalds_verify(
+    rns8_context* ctx,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    const rns8_matrix* C,
+    uint64_t random_seed,
+    int repetition_count,
+    double* out_failure_probability) {
+  (void)ctx; (void)A; (void)B; (void)C;
+  (void)random_seed; (void)repetition_count; (void)out_failure_probability;
+  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+}
+

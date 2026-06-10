@@ -1226,6 +1226,65 @@ RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
     uint8_t* C,
     int64_t ldc);
 
+
+
+/*
+ * Research-only APIs. Gated behind explicit RNS8_ENABLE_*_RESEARCH flags.
+ * These are not production paths and carry explicit verification metadata.
+ */
+
+/* Phase 8b: Ozaki FP8 decomposition.
+ * Splits i64 matrices into FP8-representable components using Ozaki scheme.
+ * Returns component count in out_split_count. Caller owns the output arrays.
+ * Not a default exact API path. Requires RNS8_ENABLE_OZAKI_RESEARCH. */
+RNS8_API rns8_status rns8_ozaki_decompose_i64(
+    rns8_context* ctx,
+    const int64_t* src,
+    int64_t rows,
+    int64_t cols,
+    int64_t ld,
+    int8_t** out_components,
+    int64_t* out_component_ld,
+    int* out_split_count);
+
+/* Phase 8c: Strassen one-level matrix multiply (research).
+ * Splits square matrices into quadrants, uses 7 multiplies instead of 8.
+ * Gated behind RNS8_ENABLE_STRASSEN_RESEARCH.
+ * Ship rule: >=1.15x at N>=16384, memory overhead <=2.2x. */
+RNS8_API rns8_status rns8_strassen_gemm_research(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    int strassen_level,
+    double* out_memory_overhead_ratio);
+
+/* Phase 8d: Freivalds probabilistic product verification (research).
+ * Returns RNS8_PROBABILISTIC_VERIFIED with probability bound in metadata.
+ * Not a replacement for deterministic exact APIs. */
+RNS8_API rns8_status rns8_freivalds_verify(
+    rns8_context* ctx,
+    const rns8_matrix* A,
+    const rns8_matrix* B,
+    const rns8_matrix* C,
+    uint64_t random_seed,
+    int repetition_count,
+    double* out_failure_probability);
+
+/* Phase 8e: Public sparse-A GEMM entrypoint (opt-in).
+ * Requires explicit sparse-A 4:2 structured contract on A.
+ * Dense GEMM calls never route to sparse hardware implicitly. */
+RNS8_API rns8_status rns8_gemm_rns_sparse_a(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    const rns8_sparse_matrix* A,
+    const rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace);
+
+
 #ifdef __cplusplus
 }
 #endif

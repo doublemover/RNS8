@@ -1022,3 +1022,44 @@ __global__ void rns8_persistent_small_pack_i64_kernel(
   residues[cell] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
 }
 
+
+
+// === Phase 8a: INT4/IU4 research pack kernel ===
+// Packs 2 signed 4-bit values per byte. Research-only, not production.
+// Gated behind _research_ selected_kernel prefix in schema validation.
+
+__global__ void rns8_pack_i4_research_kernel(
+    const int8_t* __restrict__ src,
+    int8_t* __restrict__ dst,
+    int rows,
+    int cols,
+    int ld,
+    int prefix) {
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const int64_t pairs = (elements + 1) / 2;
+  const int64_t total = pairs * static_cast<int64_t>(prefix);
+  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (idx >= total) return;
+
+  const int modulus_index = static_cast<int>(idx / pairs);
+  const int64_t pair = idx - static_cast<int64_t>(modulus_index) * pairs;
+  const int modulus = rns8_default_moduli_device[modulus_index];
+
+  // Pack 2 INT4 values per byte: low nibble = first, high nibble = second
+  const int64_t cell0 = pair * 2;
+  const int64_t cell1 = cell0 + 1;
+  const int row0 = static_cast<int>(cell0 / cols);
+  const int col0 = static_cast<int>(cell0 - static_cast<int64_t>(row0) * cols);
+
+  int8_t v0 = (cell0 < elements) ? src[static_cast<int64_t>(row0) * ld + col0] : 0;
+  int8_t v1 = (cell1 < elements) ? src[static_cast<int64_t>(row0) * ld + (col0 + 1)] : 0;
+
+  // Center to INT4 range [-8, 7]
+  v0 = (v0 % 16 + 16) % 16;
+  v1 = (v1 % 16 + 16) % 16;
+  if (v0 > 7) v0 -= 16;
+  if (v1 > 7) v1 -= 16;
+
+  dst[idx] = static_cast<int8_t>(((v1 & 0x0F) << 4) | (v0 & 0x0F));
+}
+
