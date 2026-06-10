@@ -53,6 +53,7 @@ def _mark_reuse_b(capture: dict) -> dict:
         "scope": "one_time_before_warmups",
         "reason": "one-time persistent B packing before warmups",
     }
+    add_target_variant_fields(reused)
     return reused
 
 

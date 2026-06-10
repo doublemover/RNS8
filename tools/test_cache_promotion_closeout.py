@@ -12,6 +12,7 @@ import cache_promotion_closeout
 import install_autotune_cache
 import promotion_ledger
 from benchmark_schema import validate_capture
+from test_benchmark_schema_support_metadata import add_target_variant_fields
 from test_benchmark_sweep_support import bounded_capture
 
 
@@ -28,6 +29,7 @@ def candidate_capture() -> dict:
     capture["comparison_baseline"]["speedup_vs_baseline_median_end_to_end"] = 1.4
     prefix = int(capture.get("selected_prefix") or capture.get("prefix") or 1)
     capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
+    add_target_variant_fields(capture)
     return capture
 
 

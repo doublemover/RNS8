@@ -205,9 +205,36 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
     return capture
 
 
+
+
+def _export_kernel_for_capture(capture: dict, semantics: str) -> str:
+    backend = capture.get("backend_selected")
+    if backend == "cpu-reference":
+        if semantics == "bounded_i64":
+            return "cpu_reference_export_i64"
+        if semantics == "bounded_u64":
+            return "cpu_reference_export_u64"
+        if semantics == "exact_wide_signed":
+            return "cpu_reference_export_exact_wide_signed_limbs"
+        if semantics == "exact_wide_unsigned":
+            return "cpu_reference_export_exact_wide_unsigned_limbs"
+        return capture.get("selected_kernel", "")
+    if backend == "hip-vector-alu-int64":
+        return "vector_alu_output_d2h"
+    if semantics == "bounded_i64":
+        return "hip_direct_export_i64_device"
+    if semantics == "bounded_u64":
+        return "hip_direct_export_u64_device"
+    if semantics == "exact_wide_signed":
+        return "hip_direct_export_exact_wide_signed_limbs_device"
+    if semantics == "exact_wide_unsigned":
+        return "hip_direct_export_exact_wide_unsigned_limbs_device"
+    return capture.get("selected_kernel", "")
+
 def attach_final_output_metadata(capture: dict) -> None:
     semantics = capture.get("semantics")
     selected_kernel = capture.get("selected_kernel") or capture.get("backend_metadata", {}).get("selected_kernel")
+    export_kernel = _export_kernel_for_capture(capture, semantics)
     output_ld = capture.get("output_logical_ld", capture.get("n", 0))
     exact_wide = semantics in {"exact_wide_signed", "exact_wide_unsigned"}
     output_domain = "exact_wide_limb_host" if exact_wide else "native_i64_u64_host"
@@ -219,7 +246,7 @@ def attach_final_output_metadata(capture: dict) -> None:
         "limb_count": limb_count,
         "output_logical_ld": output_ld,
         "status_policy": status_policy,
-        "kernel_identity": selected_kernel,
+        "kernel_identity": export_kernel,
         "output_domain_after_measured_repeats": output_domain,
         "final_checksum_export_after_repeats": False,
     }
@@ -229,7 +256,7 @@ def attach_final_output_metadata(capture: dict) -> None:
         "selector_source": "test_fixture_selected_kernel",
         "selector_key": (
             f"backend={capture.get('backend_selected')};semantics={semantics};m={capture.get('m')};"
-            f"n={capture.get('n')};k={capture.get('k')};selected_kernel={selected_kernel}"
+            f"n={capture.get('n')};k={capture.get('k')};selected_kernel={export_kernel}"
         ),
         "selector_policy": "fixture_final_output_export",
         "semantic_contract": semantics,
@@ -244,11 +271,11 @@ def attach_final_output_metadata(capture: dict) -> None:
         "d2h_policy": "host_ld_padded",
         "final_output_mode": "final_host_output",
         "cache_visibility": "fixture_release_review",
-        "stale_entry_reason": None,
+        "stale_entry_reason": "fixture_release_review",
         "status_elision_reason": "full_width_limb_export" if exact_wide else None,
         "requires_tile_metadata": False,
         "all_zero_tiled_output": False,
-        "selected_kernel": selected_kernel,
+        "selected_kernel": export_kernel,
         "constants_placement": "backend_default",
         "promotion_eligible": True,
         "promotion_blocker": None,
@@ -257,7 +284,7 @@ def attach_final_output_metadata(capture: dict) -> None:
         "name": "default_garner",
         "family": "garner_fixed_prefix",
         "prefix_count": capture.get("prefix", 0),
-        "kernel_identity": selected_kernel,
+        "kernel_identity": export_kernel,
         "controller": "public_export_api",
         "promotion_eligible": True,
         "promotion_blocker": None,
