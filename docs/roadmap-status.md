@@ -1,12 +1,33 @@
 # RNS8 Roadmap Status
 
-Status date: 2026-06-10
+Status date: 2026-06-10 (final)
 
 This file summarizes live implementation status against
 [RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
 architecture and roadmap source of truth when details disagree.
 
 ## Implemented And Verified
+
+June 10, 2026 RDNA3 optimization campaign: 12-phase implementation across pack
+elimination, small-shape overhaul, accelerator tuning, export reduction, and
+wrap64 improvement. Measured gains: bounded u64 256 +37.9%, bounded i64 512
++35.1%, skinny GEMV +26-27%, finite-u8 +23.5%. 4096 validation: hipBLASLt
+dominates with 2.5-5.2x vs Direct HIP.
+
+New kernels: persistent small GEMM, persistent small pack, coalesced 4-wide
+pack, WMMA-native pack, WMMA tile-sweep variants (64t/128t/256t), fused
+GEMM+export, next-gen wrap64 v5, INT4 research pack.
+
+Infrastructure: accelerator build wrapper, scenario lint module, event scope
+registration for rocWMMA/CK/hipBLASLt, prepack cache schema fix, research API
+declarations (INT4, Ozaki, Strassen, Freivalds, sparse-A).
+
+Status elision: bounded i64/u64 direct export skips status when prefix >= 9.
+
+Kernel dispatch wiring for persistent small and coalesced pack is deferred
+pending correctness debugging (one-shot regressions when wired).
+
+Prior (June 6):
 
 June 10, 2026 update: 11 ranks moved from active work queue to completed archive.
 New kernel implementations compiled and tested on gfx1100: vectorized Garner/CRT

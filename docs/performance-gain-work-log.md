@@ -6,6 +6,31 @@ Use the work queue as the active control panel; use this log only for historical
 context and evidence breadcrumbs.
 
 
+
+## June 10, 2026 RDNA3 optimization campaign closeout
+
+- Full accelerator sweep: 281 captures, 0 failures across all 8 backends.
+  Measured Direct HIP gains: bounded u64 256 +37.9%, bounded i64 512 +35.1%,
+  skinny GEMV +26-27%, finite-u8 512 +23.5%, bounded u64 512 +16.5%.
+
+- 4096 validation: hipBLASLt dominates all groups with 2.5-5.2x vs Direct HIP.
+  Bounded i64 4096: hipBLASLt 46,825us vs Direct HIP 129,734us (2.77x).
+  Exact-wide signed 4096: hipBLASLt 125,862us vs Direct HIP 577,811us (4.59x).
+
+- Ranks 82,83,87,99,103,104,109,111-114 moved to completed archive.
+  Kernel dispatch for persistent small GEMM/pack deferred pending correctness
+  debugging (one-shot test regressions).
+
+- 10 new kernel identities registered in metadata/kernels.yaml.
+  Research API declarations added for INT4, Ozaki FP8, Strassen, Freivalds,
+  and public sparse-A GEMM.
+
+- Accelerator event scopes registered for rocWMMA, CK, and hipBLASLt.
+  Required event sets defined in GPU event schema tests.
+
+- Scenario lint: 0 errors on 283 release-candidate entries.
+  Prepack cache schema: soft-matched operand_layout/plan_fingerprint/hash fields.
+
 ## June 10, 2026 RDNA3 release candidate sweep and documentation refresh
 
 - A full release-candidate benchmark sweep ran on Windows gfx1100 with 144

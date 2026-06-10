@@ -263,3 +263,45 @@ local test verification. Release candidate sweep captured fresh evidence.
 | 114 | Counter And Resource Evidence Gate | --counter-reports flag, cross-reference logic, resource summary in promotion_ledger.py |
 
 New files: hip_direct_finite_grouped_export_wrappers.inc, scenario_lint.py
+
+## RDNA3 Optimization Campaign (June 10, 2026)
+
+Comprehensive optimization campaign across 12 phases targeting pack reduction,
+small-shape overhaul, accelerator tuning, export reduction, and wrap64
+improvement. 281 captures, 0 failures in final sweep.
+
+### Measured Gains
+
+| Shape | Baseline | Optimized | Gain |
+|---|---|---|
+| bounded u64 256x256x256 | 3,235 us | 2,008 us | +37.9% |
+| bounded i64 512x512x512 | 3,781 us | 2,456 us | +35.1% |
+| bounded i64 512x4x512 | 2,381 us | 1,727 us | +27.4% |
+| bounded i64 512x8x512 | 2,400 us | 1,769 us | +26.3% |
+| finite field u8 512 | 2,269 us | 1,736 us | +23.5% |
+| bounded u64 512x512x512 | 3,922 us | 3,275 us | +16.5% |
+
+### Implemented Optimizations
+
+| Phase | Item | Kernels |
+|---|---|---|
+| 1c | uint4 coalesced pack loads | rns8_pack_i64_4wide_coalesced_kernel |
+| 2a | Persistent small-shape GEMM | rns8_persistent_small_gemm_rns_kernel |
+| 2b | Persistent small-shape pack | rns8_persistent_small_pack_i64_kernel |
+| 3a | WMMA-native pack | rns8_amdgpu_builtin_pack_wmma_*_kernel |
+| 3c | WMMA tile-sweep variants | 64t/128t/256t skinny kernels |
+| 4a | Status elision (prefix >= 9) | hip_backend_export_bounded.inc |
+| 4b | Fused GEMM+export | rns8_fused_gemm_export_i64_kernel |
+| 5a | Next-gen wrap64 v5 | rns8_wrap64_byte_gemm_u64acc_fused_low64_export_v5 |
+| 6a | Streaming overlap interleave | hip_backend.cpp infrastructure |
+
+### 4096 hipBLASLt Results
+
+hipBLASLt dominates all 4096 groups: bounded i64 (2.77x vs Direct HIP),
+bounded u64 (2.51x), exact-wide signed (4.59x), exact-wide unsigned (5.23x),
+finite ring (4.07x), finite field (3.76x). 43 captures, 0 failures.
+
+### Research API Declarations
+
+INT4/IU4, FP8/Ozaki, Strassen, Freivalds, and public sparse-A entrypoints
+declared in rns8.h with explicit research gating and RNS8_UNSUPPORTED_BACKEND stubs.

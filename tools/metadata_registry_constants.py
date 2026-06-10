@@ -434,6 +434,9 @@ HIPBLASLT_GPU_EVENT_SCOPES = {
 ACCELERATOR_GPU_EVENT_SCOPES = {
     'accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export',
     'accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export',
+    'ck_default_stream_backend_operation_groups',
+    'hipblaslt_baseline_default_stream_backend_operation_groups',
+    'rocwmma_default_stream_backend_operation_groups',
     'rocwmma_wrap64_byte_gemm36_candidate_default_stream_operation_groups',
 }
 VECTOR_ALU_GPU_EVENT_SCOPES = {
