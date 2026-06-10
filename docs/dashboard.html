@@ -1,175 +1,1164 @@
-<html><head><meta charset=UTF-8><title>RNS8 Dashboard</title>
-<style>body{font-family:sans-serif;margin:20px;background:#1a1a2e;color:#e0e0e0}
-table{border-collapse:collapse;width:100%}th,td{padding:6px 10px;text-align:right;border:1px solid #333}
-th{background:#2d2d44;cursor:pointer}tr:nth-child(even){background:#222240}
-.win{color:#4caf50;font-weight:bold}.dir{color:#ff9800}.amd{color:#2196f3}.roc{color:#e91e63}
-.bar{height:16px;margin:1px 0;border-radius:2px;display:inline-block}
-.bp{background:#ff9800}.bg{background:#4caf50}.be{background:#2196f3}
-</style></head><body><h1>RNS8 Performance Dashboard</h1>
-<p>Sweep: C:\Users\sneak\Development\RNS8\temp\rdna3-optimized-sweep-20260610 | Captures: 283</p>
-<table><tr><th>Semantics</th><th>Shape</th><th>Winner</th><th>E2E(us)</th><th>Pack</th><th>GEMM</th><th>Export</th></tr>
-<tr><td>bounded_i64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>5198</td><td>2030</td><td>1542</td><td>1625</td></tr>
-<tr><td>bounded_i64</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1338</td><td>628</td><td>191</td><td>518</td></tr>
-<tr><td>bounded_i64</td><td>256x1x4096</td><td class="win amd">amdgpu-builtins</td><td>2848</td><td>1350</td><td>963</td><td>534</td></tr>
-<tr><td>bounded_i64</td><td>256x256x256</td><td class="win amd">amdgpu-builtins</td><td>1988</td><td>844</td><td>1144</td><td>0</td></tr>
-<tr><td>bounded_i64</td><td>256x256x512</td><td class="win dir">hip-direct</td><td>2635</td><td>1736</td><td>295</td><td>603</td></tr>
-<tr><td>bounded_i64</td><td>32x32x32</td><td class="win ">cpu-reference</td><td>313</td><td>39</td><td>41</td><td>232</td></tr>
-<tr><td>bounded_i64</td><td>512x1x512</td><td class="win dir">hip-direct</td><td>1684</td><td>916</td><td>225</td><td>541</td></tr>
-<tr><td>bounded_i64</td><td>512x4x512</td><td class="win dir">hip-direct</td><td>1727</td><td>960</td><td>228</td><td>537</td></tr>
-<tr><td>bounded_i64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>2456</td><td>1063</td><td>646</td><td>746</td></tr>
-<tr><td>bounded_i64</td><td>512x8x512</td><td class="win dir">hip-direct</td><td>1769</td><td>944</td><td>240</td><td>583</td></tr>
-<tr><td>bounded_i64</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>1381</td><td>179</td><td>269</td><td>932</td></tr>
-<tr><td>bounded_u64</td><td>1024x1024x1024</td><td class="win roc">rocwmma</td><td>7137</td><td>1098</td><td>3701</td><td>2338</td></tr>
-<tr><td>bounded_u64</td><td>1024x1x1024</td><td class="win dir">hip-direct</td><td>2108</td><td>1336</td><td>265</td><td>506</td></tr>
-<tr><td>bounded_u64</td><td>1024x4x1024</td><td class="win amd">amdgpu-builtins</td><td>2455</td><td>1446</td><td>457</td><td>551</td></tr>
-<tr><td>bounded_u64</td><td>1024x8x1024</td><td class="win dir">hip-direct</td><td>2236</td><td>1358</td><td>272</td><td>605</td></tr>
-<tr><td>bounded_u64</td><td>128x128x128</td><td class="win ">hip-vector-alu-int64</td><td>1426</td><td>628</td><td>495</td><td>301</td></tr>
-<tr><td>bounded_u64</td><td>128x1x1024</td><td class="win dir">hip-direct</td><td>1701</td><td>892</td><td>242</td><td>566</td></tr>
-<tr><td>bounded_u64</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2008</td><td>1084</td><td>923</td><td>0</td></tr>
-<tr><td>bounded_u64</td><td>512x1024x512</td><td class="win dir">hip-direct</td><td>3676</td><td>1241</td><td>1202</td><td>1232</td></tr>
-<tr><td>bounded_u64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>3275</td><td>1207</td><td>1177</td><td>890</td></tr>
-<tr><td>bounded_u64</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>836</td><td>96</td><td>262</td><td>477</td></tr>
-<tr><td>exact_wide_signed</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1120</td><td>527</td><td>593</td><td>0</td></tr>
-<tr><td>exact_wide_signed</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>4564</td><td>1282</td><td>1199</td><td>2082</td></tr>
-<tr><td>exact_wide_signed</td><td>64x64x64</td><td class="win amd">amdgpu-builtins</td><td>1804</td><td>804</td><td>250</td><td>749</td></tr>
-<tr><td>exact_wide_unsigned</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1708</td><td>862</td><td>242</td><td>603</td></tr>
-<tr><td>exact_wide_unsigned</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2018</td><td>595</td><td>1423</td><td>0</td></tr>
-<tr><td>exact_wide_unsigned</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>4892</td><td>1185</td><td>2259</td><td>1447</td></tr>
-<tr><td>exact_wide_unsigned</td><td>64x64x64</td><td class="win dir">hip-direct</td><td>1297</td><td>745</td><td>220</td><td>331</td></tr>
-<tr><td>finite_field_u8</td><td>128x128x128</td><td class="win ">cpu-reference</td><td>714</td><td>360</td><td>270</td><td>83</td></tr>
-<tr><td>finite_field_u8</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>1296</td><td>747</td><td>219</td><td>330</td></tr>
-<tr><td>finite_field_u8</td><td>512x512x128</td><td class="win amd">amdgpu-builtins</td><td>1512</td><td>815</td><td>266</td><td>430</td></tr>
-<tr><td>finite_field_u8</td><td>512x512x512</td><td class="win roc">rocwmma</td><td>1730</td><td>937</td><td>395</td><td>397</td></tr>
-<tr><td>finite_ring_u8</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>194</td><td>48</td><td>132</td><td>12</td></tr>
-<tr><td>wrap_u64_mod_2_64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>9983</td><td>4243</td><td>4331</td><td>1409</td></tr>
-<tr><td>wrap_u64_mod_2_64</td><td>2048x2048x2048</td><td class="win dir">hip-direct</td><td>43219</td><td>5272</td><td>33129</td><td>4817</td></tr>
-<tr><td>wrap_u64_mod_2_64</td><td>4096x4096x4096</td><td class="win dir">hip-direct</td><td>324400</td><td>19576</td><td>286884</td><td>17939</td></tr>
-<tr><td>wrap_u64_mod_2_64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>3146</td><td>1868</td><td>667</td><td>611</td></tr>
-</table>
-<h2>Phase Breakdowns</h2>
-<div style="margin:4px 0"><b>bounded_i64_1024x1024x1024</b> (hip-direct) 5198us<br>
-<span class="bar bp" style="width:39%"></span> Pack 39% 
-<span class="bar bg" style="width:30%"></span> GEMM 30% 
-<span class="bar be" style="width:31%"></span> Export 31% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_256x1x4096</b> (amdgpu-builtins) 2848us<br>
-<span class="bar bp" style="width:47%"></span> Pack 47% 
-<span class="bar bg" style="width:34%"></span> GEMM 34% 
-<span class="bar be" style="width:19%"></span> Export 19% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_256x256x256</b> (amdgpu-builtins) 1988us<br>
-<span class="bar bp" style="width:42%"></span> Pack 42% 
-<span class="bar bg" style="width:58%"></span> GEMM 58% 
-<span class="bar be" style="width:0%"></span> Export 0% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_256x256x512</b> (hip-direct) 2635us<br>
-<span class="bar bp" style="width:66%"></span> Pack 66% 
-<span class="bar bg" style="width:11%"></span> GEMM 11% 
-<span class="bar be" style="width:23%"></span> Export 23% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_512x1x512</b> (hip-direct) 1684us<br>
-<span class="bar bp" style="width:54%"></span> Pack 54% 
-<span class="bar bg" style="width:13%"></span> GEMM 13% 
-<span class="bar be" style="width:32%"></span> Export 32% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_512x4x512</b> (hip-direct) 1727us<br>
-<span class="bar bp" style="width:56%"></span> Pack 56% 
-<span class="bar bg" style="width:13%"></span> GEMM 13% 
-<span class="bar be" style="width:31%"></span> Export 31% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_512x512x512</b> (hip-direct) 2456us<br>
-<span class="bar bp" style="width:43%"></span> Pack 43% 
-<span class="bar bg" style="width:26%"></span> GEMM 26% 
-<span class="bar be" style="width:30%"></span> Export 30% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_i64_512x8x512</b> (hip-direct) 1769us<br>
-<span class="bar bp" style="width:53%"></span> Pack 53% 
-<span class="bar bg" style="width:14%"></span> GEMM 14% 
-<span class="bar be" style="width:33%"></span> Export 33% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_1024x1024x1024</b> (rocwmma) 7137us<br>
-<span class="bar bp" style="width:15%"></span> Pack 15% 
-<span class="bar bg" style="width:52%"></span> GEMM 52% 
-<span class="bar be" style="width:33%"></span> Export 33% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_1024x1x1024</b> (hip-direct) 2108us<br>
-<span class="bar bp" style="width:63%"></span> Pack 63% 
-<span class="bar bg" style="width:13%"></span> GEMM 13% 
-<span class="bar be" style="width:24%"></span> Export 24% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_1024x4x1024</b> (amdgpu-builtins) 2455us<br>
-<span class="bar bp" style="width:59%"></span> Pack 59% 
-<span class="bar bg" style="width:19%"></span> GEMM 19% 
-<span class="bar be" style="width:22%"></span> Export 22% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_1024x8x1024</b> (hip-direct) 2236us<br>
-<span class="bar bp" style="width:61%"></span> Pack 61% 
-<span class="bar bg" style="width:12%"></span> GEMM 12% 
-<span class="bar be" style="width:27%"></span> Export 27% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_256x256x256</b> (hip-direct) 2008us<br>
-<span class="bar bp" style="width:54%"></span> Pack 54% 
-<span class="bar bg" style="width:46%"></span> GEMM 46% 
-<span class="bar be" style="width:0%"></span> Export 0% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_512x1024x512</b> (hip-direct) 3676us<br>
-<span class="bar bp" style="width:34%"></span> Pack 34% 
-<span class="bar bg" style="width:33%"></span> GEMM 33% 
-<span class="bar be" style="width:34%"></span> Export 34% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>bounded_u64_512x512x512</b> (hip-direct) 3275us<br>
-<span class="bar bp" style="width:37%"></span> Pack 37% 
-<span class="bar bg" style="width:36%"></span> GEMM 36% 
-<span class="bar be" style="width:27%"></span> Export 27% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>exact_wide_signed_512x512x512</b> (hip-direct) 4564us<br>
-<span class="bar bp" style="width:28%"></span> Pack 28% 
-<span class="bar bg" style="width:26%"></span> GEMM 26% 
-<span class="bar be" style="width:46%"></span> Export 46% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>exact_wide_unsigned_256x256x256</b> (hip-direct) 2018us<br>
-<span class="bar bp" style="width:29%"></span> Pack 29% 
-<span class="bar bg" style="width:71%"></span> GEMM 71% 
-<span class="bar be" style="width:0%"></span> Export 0% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>exact_wide_unsigned_512x512x512</b> (hip-direct) 4892us<br>
-<span class="bar bp" style="width:24%"></span> Pack 24% 
-<span class="bar bg" style="width:46%"></span> GEMM 46% 
-<span class="bar be" style="width:30%"></span> Export 30% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>finite_field_u8_256x256x256</b> (hip-direct) 1296us<br>
-<span class="bar bp" style="width:58%"></span> Pack 58% 
-<span class="bar bg" style="width:17%"></span> GEMM 17% 
-<span class="bar be" style="width:25%"></span> Export 25% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>finite_field_u8_512x512x128</b> (amdgpu-builtins) 1512us<br>
-<span class="bar bp" style="width:54%"></span> Pack 54% 
-<span class="bar bg" style="width:18%"></span> GEMM 18% 
-<span class="bar be" style="width:28%"></span> Export 28% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>finite_field_u8_512x512x512</b> (rocwmma) 1730us<br>
-<span class="bar bp" style="width:54%"></span> Pack 54% 
-<span class="bar bg" style="width:23%"></span> GEMM 23% 
-<span class="bar be" style="width:23%"></span> Export 23% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>wrap_u64_mod_2_64_1024x1024x1024</b> (hip-direct) 9983us<br>
-<span class="bar bp" style="width:42%"></span> Pack 42% 
-<span class="bar bg" style="width:43%"></span> GEMM 43% 
-<span class="bar be" style="width:14%"></span> Export 14% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>wrap_u64_mod_2_64_2048x2048x2048</b> (hip-direct) 43219us<br>
-<span class="bar bp" style="width:12%"></span> Pack 12% 
-<span class="bar bg" style="width:77%"></span> GEMM 77% 
-<span class="bar be" style="width:11%"></span> Export 11% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>wrap_u64_mod_2_64_4096x4096x4096</b> (hip-direct) 324400us<br>
-<span class="bar bp" style="width:6%"></span> Pack 6% 
-<span class="bar bg" style="width:88%"></span> GEMM 88% 
-<span class="bar be" style="width:6%"></span> Export 6% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-<div style="margin:4px 0"><b>wrap_u64_mod_2_64_512x512x512</b> (hip-direct) 3146us<br>
-<span class="bar bp" style="width:59%"></span> Pack 59% 
-<span class="bar bg" style="width:21%"></span> GEMM 21% 
-<span class="bar be" style="width:19%"></span> Export 19% 
-<span class="bar" style="width:0%"></span> Other 0%<br></div>
-</body></html>
+<!DOCTYPE html><html lang=en><head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>RNS8 Performance Dashboard</title><style>
+body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:20px;background:#0d1117;color:#c9d1d9}
+h1{color:#58a6ff;border-bottom:1px solid#30363d;padding-bottom:10px}
+h2{color:#f0883e;margin-top:30px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+th,td{padding:6px 10px;text-align:right;border:1px solid#30363d}
+th{background:#161b22;cursor:pointer;position:sticky;top:0;z-index:1}
+th:hover{background:#1f2937}
+tr:nth-child(even){background:#0d1117}
+tr:nth-child(odd){background:#161b22}
+tr:hover{background:#1f2937}
+.win{color:#3fb950;font-weight:bold}.dir{color:#d2991d}.amd{color:#58a6ff}.roc{color:#f778ba}.hip{color:#a371f7}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0}
+.card{background:#161b22;border:1px solid#30363d;border-radius:8px;padding:16px}
+.card h3{color:#8b949e;font-size:11px;text-transform:uppercase;margin:0 0 8px 0}
+.card .val{font-size:28px;font-weight:700;color:#c9d1d9}
+.card .sub{font-size:12px;color:#8b949e}
+.bar-row{display:flex;align-items:center;margin:2px 0;font-size:11px}
+.bar-row span{min-width:50px}
+.bar-bg{flex:1;height:14px;background:#21262d;border-radius:7px;margin:0 8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:7px;transition:width.3s}
+.bp{background:#d2991d}.bg{background:#3fb950}.be{background:#58a6ff}.bo{background:#484f58}
+.tabs{display:flex;gap:4px;margin:12px 0}
+.tab{padding:6px 16px;background:#21262d;border:1px solid#30363d;border-radius:6px 6px 0 0;cursor:pointer;color:#8b949e;font-size:13px}
+.tab.active{background:#0d1117;color:#c9d1d9;border-bottom-color:#0d1117}
+#search{padding:6px 12px;width:280px;background:#21262d;color:#c9d1d9;border:1px solid#30363d;border-radius:6px;font-size:13px;margin-right:8px}
+#search:focus{outline:none;border-color:#58a6ff}
+.heatmap{display:flex;flex-wrap:wrap;gap:1px;margin:8px 0}
+.hcell{width:18px;height:18px;border-radius:2px;font-size:8px}
+.speedup-bar{display:inline-block;height:8px;border-radius:4px;margin:0 4px;vertical-align:middle}
+
+</style></head><body>
+<h1>RNS8 Performance Dashboard</h1>
+<div class=summary>
+<div class=card><h3>Captures</h3><div class=val>259</div><div class=sub>schema-valid</div></div>
+<div class=card><h3>Direct HIP Wins</h3><div class=val style=color:#d2991d>23</div><div class=sub>67% of groups</div></div>
+<div class=card><h3>AMDGPU Builtin Wins</h3><div class=val style=color:#58a6ff>5</div><div class=sub>14% of groups</div></div>
+<div class=card><h3>rocWMMA Wins</h3><div class=val style=color:#f778ba>0</div><div class=sub>0% of groups</div></div>
+<div class=card><h3>hipBLASLt Wins</h3><div class=val style=color:#a371f7>0</div><div class=sub>0% of groups</div></div>
+<div class=card><h3>CPU Wins</h3><div class=val>4</div><div class=sub>tiny shapes</div></div>
+</div>
+<div style="margin:8px 0"><input id=search placeholder="Filter..." onkeyup=filterTable()></div>
+<div class=tabs>
+<div class="tab active" id=btn-winners onclick=showTab("winners")>Winners</div>
+<div class=tab id=btn-shapes onclick=showTab("shapes")>Shapes</div>
+<div class=tab id=btn-phases onclick=showTab("phases")>Phases</div>
+</div>
+<div class=tab-content id=tab-winners>
+<table id=t-winners><thead><tr><th onclick=sortTable(0,"winners")>Semantics</th><th onclick=sortTable(1,"winners")>Shape</th><th onclick=sortTable(2,"winners")>Winner</th><th onclick=sortTable(3,"winners")>E2E(us)</th><th onclick=sortTable(4,"winners")>Pack</th><th onclick=sortTable(5,"winners")>GEMM</th><th onclick=sortTable(6,"winners")>Export</th></tr></thead><tbody>
+<tr><td>bounded_i64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>5360</td><td>1819</td><td>822</td><td>2718</td></tr>
+<tr><td>bounded_i64</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1291</td><td>664</td><td>174</td><td>451</td></tr>
+<tr><td>bounded_i64</td><td>256x1x4096</td><td class="win dir">hip-direct</td><td>2094</td><td>1239</td><td>379</td><td>475</td></tr>
+<tr><td>bounded_i64</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2850</td><td>1718</td><td>1131</td><td>0</td></tr>
+<tr><td>bounded_i64</td><td>256x256x512</td><td class="win dir">hip-vector-alu-int64</td><td>2842</td><td>1122</td><td>1023</td><td>696</td></tr>
+<tr><td>bounded_i64</td><td>32x32x32</td><td class="win ">cpu-reference</td><td>309</td><td>39</td><td>40</td><td>229</td></tr>
+<tr><td>bounded_i64</td><td>512x1x512</td><td class="win dir">hip-direct</td><td>1477</td><td>828</td><td>182</td><td>465</td></tr>
+<tr><td>bounded_i64</td><td>512x4x512</td><td class="win amd">amdgpu-builtins</td><td>1637</td><td>920</td><td>243</td><td>473</td></tr>
+<tr><td>bounded_i64</td><td>512x8x512</td><td class="win amd">amdgpu-builtins</td><td>1798</td><td>950</td><td>284</td><td>563</td></tr>
+<tr><td>bounded_i64</td><td>64x64x64</td><td class="win dir">hip-direct</td><td>1121</td><td>0</td><td>1121</td><td>0</td></tr>
+<tr><td>bounded_u64</td><td>1024x1x1024</td><td class="win amd">amdgpu-builtins</td><td>2288</td><td>1345</td><td>406</td><td>536</td></tr>
+<tr><td>bounded_u64</td><td>1024x4x1024</td><td class="win dir">hip-direct</td><td>2051</td><td>1336</td><td>253</td><td>461</td></tr>
+<tr><td>bounded_u64</td><td>1024x8x1024</td><td class="win dir">hip-direct</td><td>2159</td><td>1297</td><td>262</td><td>598</td></tr>
+<tr><td>bounded_u64</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1388</td><td>672</td><td>182</td><td>533</td></tr>
+<tr><td>bounded_u64</td><td>128x1x1024</td><td class="win dir">hip-vector-alu-int64</td><td>1855</td><td>888</td><td>730</td><td>236</td></tr>
+<tr><td>bounded_u64</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>1831</td><td>957</td><td>874</td><td>0</td></tr>
+<tr><td>bounded_u64</td><td>512x1024x512</td><td class="win dir">hip-direct</td><td>3189</td><td>1077</td><td>443</td><td>1667</td></tr>
+<tr><td>bounded_u64</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>834</td><td>97</td><td>265</td><td>472</td></tr>
+<tr><td>exact_wide_signed</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>839</td><td>407</td><td>432</td><td>0</td></tr>
+<tr><td>exact_wide_signed</td><td>512x512x512</td><td class="win amd">amdgpu-builtins</td><td>4960</td><td>1283</td><td>1431</td><td>2246</td></tr>
+<tr><td>exact_wide_signed</td><td>64x64x64</td><td class="win dir">hip-direct</td><td>1752</td><td>759</td><td>239</td><td>754</td></tr>
+<tr><td>exact_wide_unsigned</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>2434</td><td>1629</td><td>235</td><td>569</td></tr>
+<tr><td>exact_wide_unsigned</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2016</td><td>654</td><td>1362</td><td>0</td></tr>
+<tr><td>exact_wide_unsigned</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>5311</td><td>1847</td><td>1989</td><td>1474</td></tr>
+<tr><td>exact_wide_unsigned</td><td>64x64x64</td><td class="win amd">amdgpu-builtins</td><td>2024</td><td>1540</td><td>172</td><td>312</td></tr>
+<tr><td>finite_field_u8</td><td>128x128x128</td><td class="win ">cpu-reference</td><td>789</td><td>361</td><td>328</td><td>99</td></tr>
+<tr><td>finite_field_u8</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>1199</td><td>715</td><td>184</td><td>299</td></tr>
+<tr><td>finite_field_u8</td><td>512x512x128</td><td class="win dir">hip-direct</td><td>1048</td><td>587</td><td>168</td><td>291</td></tr>
+<tr><td>finite_field_u8</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>1381</td><td>766</td><td>320</td><td>294</td></tr>
+<tr><td>finite_ring_u8</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>192</td><td>47</td><td>132</td><td>12</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>6790</td><td>1875</td><td>3583</td><td>1332</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>2048x2048x2048</td><td class="win dir">hip-direct</td><td>45392</td><td>5477</td><td>33313</td><td>6602</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>4096x4096x4096</td><td class="win dir">hip-direct</td><td>289349</td><td>18951</td><td>247159</td><td>23238</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>3023</td><td>1181</td><td>1247</td><td>593</td></tr>
+</tbody></table></div>
+<div class=tab-content id=tab-shapes style=display:none>
+<table id=t-shapes><thead><tr><th onclick=sortTable(0,"shapes")>Semantics</th><th onclick=sortTable(1,"shapes")>M</th><th onclick=sortTable(2,"shapes")>N</th><th onclick=sortTable(3,"shapes")>K</th><th onclick=sortTable(4,"shapes")>Best Backend</th><th onclick=sortTable(5,"shapes")>E2E</th><th>vs Direct HIP</th></tr></thead><tbody>
+<tr><td>bounded_i64</td><td>1024</td><td>1024</td><td>1024</td><td class="win dir">hip-direct</td><td>5360</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_i64</td><td>128</td><td>128</td><td>128</td><td class="win dir">hip-direct</td><td>1291</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_i64</td><td>256</td><td>1</td><td>4096</td><td class="win dir">hip-direct</td><td>2094</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_i64</td><td>256</td><td>256</td><td>256</td><td class="win dir">hip-direct</td><td>2850</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_i64</td><td>256</td><td>256</td><td>512</td><td class="win dir">hip-vector-alu-int64</td><td>2842</td><td><span class=speedup-bar style="width:25.06976531405828px;background:#d2991d"></span>1.25x</td></tr>
+<tr><td>bounded_i64</td><td>32</td><td>32</td><td>32</td><td class="win dir">cpu-reference</td><td>309</td><td><span class=speedup-bar style="width:94.11669624643991px;background:#d2991d"></span>4.71x</td></tr>
+<tr><td>bounded_i64</td><td>512</td><td>1</td><td>512</td><td class="win dir">hip-direct</td><td>1477</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_i64</td><td>512</td><td>4</td><td>512</td><td class="win amd">amdgpu-builtins</td><td>1637</td><td><span class=speedup-bar style="width:25.58641202445445px;background:#58a6ff"></span>1.28x</td></tr>
+<tr><td>bounded_i64</td><td>512</td><td>8</td><td>512</td><td class="win amd">amdgpu-builtins</td><td>1798</td><td><span class=speedup-bar style="width:33.69793085807388px;background:#58a6ff"></span>1.68x</td></tr>
+<tr><td>bounded_i64</td><td>64</td><td>64</td><td>64</td><td class="win dir">hip-direct</td><td>1121</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>1024</td><td>1</td><td>1024</td><td class="win amd">amdgpu-builtins</td><td>2288</td><td><span class=speedup-bar style="width:30.03784965034965px;background:#58a6ff"></span>1.50x</td></tr>
+<tr><td>bounded_u64</td><td>1024</td><td>4</td><td>1024</td><td class="win dir">hip-direct</td><td>2051</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>1024</td><td>8</td><td>1024</td><td class="win dir">hip-direct</td><td>2159</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>128</td><td>128</td><td>128</td><td class="win dir">hip-direct</td><td>1388</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>128</td><td>1</td><td>1024</td><td class="win dir">hip-vector-alu-int64</td><td>1855</td><td><span class=speedup-bar style="width:43.04355559388357px;background:#d2991d"></span>2.15x</td></tr>
+<tr><td>bounded_u64</td><td>256</td><td>256</td><td>256</td><td class="win dir">hip-direct</td><td>1831</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>512</td><td>1024</td><td>512</td><td class="win dir">hip-direct</td><td>3189</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>bounded_u64</td><td>64</td><td>64</td><td>64</td><td class="win dir">cpu-reference</td><td>834</td><td><span class=speedup-bar style="width:33.71962993193365px;background:#d2991d"></span>1.69x</td></tr>
+<tr><td>exact_wide_signed</td><td>128</td><td>128</td><td>128</td><td class="win dir">hip-direct</td><td>839</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>exact_wide_signed</td><td>512</td><td>512</td><td>512</td><td class="win amd">amdgpu-builtins</td><td>4960</td><td><span class=speedup-bar style="width:22.45818322571281px;background:#58a6ff"></span>1.12x</td></tr>
+<tr><td>exact_wide_signed</td><td>64</td><td>64</td><td>64</td><td class="win dir">hip-direct</td><td>1752</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>exact_wide_unsigned</td><td>128</td><td>128</td><td>128</td><td class="win dir">hip-direct</td><td>2434</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>exact_wide_unsigned</td><td>256</td><td>256</td><td>256</td><td class="win dir">hip-direct</td><td>2016</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>exact_wide_unsigned</td><td>512</td><td>512</td><td>512</td><td class="win dir">hip-direct</td><td>5311</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>exact_wide_unsigned</td><td>64</td><td>64</td><td>64</td><td class="win amd">amdgpu-builtins</td><td>2024</td><td><span class=speedup-bar style="width:20.780505154791953px;background:#58a6ff"></span>1.04x</td></tr>
+<tr><td>finite_field_u8</td><td>128</td><td>128</td><td>128</td><td class="win dir">cpu-reference</td><td>789</td><td><span class=speedup-bar style="width:35.139545587681496px;background:#d2991d"></span>1.76x</td></tr>
+<tr><td>finite_field_u8</td><td>256</td><td>256</td><td>256</td><td class="win dir">hip-direct</td><td>1199</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>finite_field_u8</td><td>512</td><td>512</td><td>128</td><td class="win dir">hip-direct</td><td>1048</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>finite_field_u8</td><td>512</td><td>512</td><td>512</td><td class="win dir">hip-direct</td><td>1381</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>finite_ring_u8</td><td>64</td><td>64</td><td>64</td><td class="win dir">cpu-reference</td><td>192</td><td><span class=speedup-bar style="width:100px;background:#d2991d"></span>5.97x</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>1024</td><td>1024</td><td>1024</td><td class="win dir">hip-direct</td><td>6790</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>2048</td><td>2048</td><td>2048</td><td class="win dir">hip-direct</td><td>45392</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>4096</td><td>4096</td><td>4096</td><td class="win dir">hip-direct</td><td>289349</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>512</td><td>512</td><td>512</td><td class="win dir">hip-direct</td><td>3023</td><td><span class=speedup-bar style="width:20.0px;background:#d2991d"></span>1.00x</td></tr>
+</tbody></table></div>
+<div class=tab-content id=tab-phases style=display:none>
+<div style="margin:12px 0"><b>bounded_i64|1024x1024x1024</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>5360us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:33.9%" title="Pack 1819us"></span>
+<span class="bar-fill bg" style="width:15.3%" title="GEMM 822us"></span>
+<span class="bar-fill be" style="width:50.7%" title="Export 2718us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>22168us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:28.3%" title="Pack 6276us"></span>
+<span class="bar-fill bg" style="width:38.4%" title="GEMM 8501us"></span>
+<span class="bar-fill be" style="width:33.3%" title="Export 7389us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>48974us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:5.2%" title="Pack 2546us"></span>
+<span class="bar-fill bg" style="width:91.6%" title="GEMM 44868us"></span>
+<span class="bar-fill be" style="width:3.2%" title="Export 1560us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>52637us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:4.5%" title="Pack 2382us"></span>
+<span class="bar-fill bg" style="width:89.8%" title="GEMM 47279us"></span>
+<span class="bar-fill be" style="width:5.7%" title="Export 2975us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>241815us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:4.4%" title="Pack 10720us"></span>
+<span class="bar-fill bg" style="width:79.0%" title="GEMM 190935us"></span>
+<span class="bar-fill be" style="width:16.6%" title="Export 40159us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|128x128x128</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1291us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:51.4%" title="Pack 664us"></span>
+<span class="bar-fill bg" style="width:13.5%" title="GEMM 174us"></span>
+<span class="bar-fill be" style="width:34.9%" title="Export 451us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1437us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:60.6%" title="Pack 870us"></span>
+<span class="bar-fill bg" style="width:39.4%" title="GEMM 566us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1545us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:54.5%" title="Pack 842us"></span>
+<span class="bar-fill bg" style="width:45.5%" title="GEMM 702us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1721us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:50.3%" title="Pack 866us"></span>
+<span class="bar-fill bg" style="width:12.9%" title="GEMM 222us"></span>
+<span class="bar-fill be" style="width:36.8%" title="Export 633us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1767us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.9%" title="Pack 882us"></span>
+<span class="bar-fill bg" style="width:14.2%" title="GEMM 250us"></span>
+<span class="bar-fill be" style="width:35.8%" title="Export 633us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1795us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.9%" title="Pack 896us"></span>
+<span class="bar-fill bg" style="width:15.8%" title="GEMM 284us"></span>
+<span class="bar-fill be" style="width:34.2%" title="Export 614us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|256x1x4096</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2094us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:59.2%" title="Pack 1239us"></span>
+<span class="bar-fill bg" style="width:18.1%" title="GEMM 379us"></span>
+<span class="bar-fill be" style="width:22.7%" title="Export 475us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>3034us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:45.2%" title="Pack 1371us"></span>
+<span class="bar-fill bg" style="width:38.1%" title="GEMM 1157us"></span>
+<span class="bar-fill be" style="width:16.6%" title="Export 504us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>3358us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.5%" title="Pack 1193us"></span>
+<span class="bar-fill bg" style="width:50.3%" title="GEMM 1688us"></span>
+<span class="bar-fill be" style="width:14.2%" title="Export 476us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>4002us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:50.7%" title="Pack 2030us"></span>
+<span class="bar-fill bg" style="width:36.5%" title="GEMM 1459us"></span>
+<span class="bar-fill be" style="width:12.8%" title="Export 512us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>6114us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:25.9%" title="Pack 1585us"></span>
+<span class="bar-fill bg" style="width:64.7%" title="GEMM 3957us"></span>
+<span class="bar-fill be" style="width:9.3%" title="Export 571us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>7190us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:82.1%" title="Pack 5903us"></span>
+<span class="bar-fill bg" style="width:15.9%" title="GEMM 1144us"></span>
+<span class="bar-fill be" style="width:2.0%" title="Export 141us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|256x256x256</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2850us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:60.3%" title="Pack 1718us"></span>
+<span class="bar-fill bg" style="width:39.7%" title="GEMM 1131us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>3418us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.1%" title="Pack 1677us"></span>
+<span class="bar-fill bg" style="width:50.9%" title="GEMM 1740us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>12443us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:12.6%" title="Pack 1566us"></span>
+<span class="bar-fill bg" style="width:87.4%" title="GEMM 10877us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>13694us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:6.2%" title="Pack 847us"></span>
+<span class="bar-fill bg" style="width:93.8%" title="GEMM 12847us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>14794us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:6.3%" title="Pack 937us"></span>
+<span class="bar-fill bg" style="width:93.7%" title="GEMM 13856us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>88278us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:22.8%" title="Pack 20116us"></span>
+<span class="bar-fill bg" style="width:77.2%" title="GEMM 68161us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|256x256x512</b>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>2842us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:39.5%" title="Pack 1122us"></span>
+<span class="bar-fill bg" style="width:36.0%" title="GEMM 1023us"></span>
+<span class="bar-fill be" style="width:24.5%" title="Export 696us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3562us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:67.6%" title="Pack 2406us"></span>
+<span class="bar-fill bg" style="width:13.5%" title="GEMM 482us"></span>
+<span class="bar-fill be" style="width:18.9%" title="Export 673us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>11403us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:9.8%" title="Pack 1113us"></span>
+<span class="bar-fill bg" style="width:84.1%" title="GEMM 9586us"></span>
+<span class="bar-fill be" style="width:6.2%" title="Export 704us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>13882us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:10.9%" title="Pack 1517us"></span>
+<span class="bar-fill bg" style="width:74.0%" title="GEMM 10276us"></span>
+<span class="bar-fill be" style="width:15.0%" title="Export 2088us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>29543us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:25.9%" title="Pack 7648us"></span>
+<span class="bar-fill bg" style="width:11.7%" title="GEMM 3449us"></span>
+<span class="bar-fill be" style="width:62.4%" title="Export 18446us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|512x1x512</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1477us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.1%" title="Pack 828us"></span>
+<span class="bar-fill bg" style="width:12.3%" title="GEMM 182us"></span>
+<span class="bar-fill be" style="width:31.5%" title="Export 465us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1844us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:55.1%" title="Pack 1015us"></span>
+<span class="bar-fill bg" style="width:17.0%" title="GEMM 313us"></span>
+<span class="bar-fill be" style="width:27.9%" title="Export 515us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>2046us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:51.4%" title="Pack 1052us"></span>
+<span class="bar-fill bg" style="width:36.1%" title="GEMM 739us"></span>
+<span class="bar-fill be" style="width:12.4%" title="Export 254us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2399us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:36.4%" title="Pack 872us"></span>
+<span class="bar-fill bg" style="width:41.0%" title="GEMM 984us"></span>
+<span class="bar-fill be" style="width:22.6%" title="Export 542us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>2571us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:32.8%" title="Pack 844us"></span>
+<span class="bar-fill bg" style="width:47.2%" title="GEMM 1213us"></span>
+<span class="bar-fill be" style="width:19.9%" title="Export 512us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>2873us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:33.3%" title="Pack 956us"></span>
+<span class="bar-fill bg" style="width:47.3%" title="GEMM 1359us"></span>
+<span class="bar-fill be" style="width:19.4%" title="Export 557us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|512x4x512</b>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1637us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.2%" title="Pack 920us"></span>
+<span class="bar-fill bg" style="width:14.8%" title="GEMM 243us"></span>
+<span class="bar-fill be" style="width:28.9%" title="Export 473us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2095us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:36.5%" title="Pack 764us"></span>
+<span class="bar-fill bg" style="width:39.8%" title="GEMM 834us"></span>
+<span class="bar-fill be" style="width:23.7%" title="Export 496us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2192us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:48.7%" title="Pack 1068us"></span>
+<span class="bar-fill bg" style="width:31.7%" title="GEMM 694us"></span>
+<span class="bar-fill be" style="width:19.6%" title="Export 430us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>3187us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:26.2%" title="Pack 835us"></span>
+<span class="bar-fill bg" style="width:35.3%" title="GEMM 1126us"></span>
+<span class="bar-fill be" style="width:38.4%" title="Export 1225us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>3540us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:41.7%" title="Pack 1476us"></span>
+<span class="bar-fill bg" style="width:42.8%" title="GEMM 1517us"></span>
+<span class="bar-fill be" style="width:15.4%" title="Export 546us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>13804us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:89.9%" title="Pack 12411us"></span>
+<span class="bar-fill bg" style="width:3.6%" title="GEMM 503us"></span>
+<span class="bar-fill be" style="width:6.4%" title="Export 890us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_i64|512x8x512</b>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1798us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:52.8%" title="Pack 950us"></span>
+<span class="bar-fill bg" style="width:15.8%" title="GEMM 284us"></span>
+<span class="bar-fill be" style="width:31.3%" title="Export 563us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2915us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:26.6%" title="Pack 775us"></span>
+<span class="bar-fill bg" style="width:54.5%" title="GEMM 1589us"></span>
+<span class="bar-fill be" style="width:18.9%" title="Export 551us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3030us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:51.9%" title="Pack 1573us"></span>
+<span class="bar-fill bg" style="width:6.3%" title="GEMM 190us"></span>
+<span class="bar-fill be" style="width:41.8%" title="Export 1266us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>3094us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:32.3%" title="Pack 1001us"></span>
+<span class="bar-fill bg" style="width:48.6%" title="GEMM 1504us"></span>
+<span class="bar-fill be" style="width:19.0%" title="Export 589us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>4029us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:22.7%" title="Pack 914us"></span>
+<span class="bar-fill bg" style="width:45.9%" title="GEMM 1849us"></span>
+<span class="bar-fill be" style="width:31.4%" title="Export 1265us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>15470us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:81.6%" title="Pack 12618us"></span>
+<span class="bar-fill bg" style="width:6.7%" title="GEMM 1039us"></span>
+<span class="bar-fill be" style="width:11.7%" title="Export 1812us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|1024x1x1024</b>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2288us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:58.8%" title="Pack 1345us"></span>
+<span class="bar-fill bg" style="width:17.7%" title="GEMM 406us"></span>
+<span class="bar-fill be" style="width:23.4%" title="Export 536us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2743us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:46.6%" title="Pack 1278us"></span>
+<span class="bar-fill bg" style="width:35.1%" title="GEMM 963us"></span>
+<span class="bar-fill be" style="width:18.2%" title="Export 500us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3436us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:58.7%" title="Pack 2016us"></span>
+<span class="bar-fill bg" style="width:6.6%" title="GEMM 225us"></span>
+<span class="bar-fill be" style="width:34.7%" title="Export 1194us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>3533us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:73.3%" title="Pack 2591us"></span>
+<span class="bar-fill bg" style="width:19.7%" title="GEMM 698us"></span>
+<span class="bar-fill be" style="width:6.9%" title="Export 243us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>4586us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:30.2%" title="Pack 1384us"></span>
+<span class="bar-fill bg" style="width:28.8%" title="GEMM 1321us"></span>
+<span class="bar-fill be" style="width:41.0%" title="Export 1879us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>5972us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:75.0%" title="Pack 4481us"></span>
+<span class="bar-fill bg" style="width:20.1%" title="GEMM 1198us"></span>
+<span class="bar-fill be" style="width:4.9%" title="Export 292us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|1024x4x1024</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2051us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:65.1%" title="Pack 1336us"></span>
+<span class="bar-fill bg" style="width:12.3%" title="GEMM 253us"></span>
+<span class="bar-fill be" style="width:22.5%" title="Export 461us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2273us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:61.0%" title="Pack 1386us"></span>
+<span class="bar-fill bg" style="width:18.0%" title="GEMM 410us"></span>
+<span class="bar-fill be" style="width:21.0%" title="Export 477us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2894us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:46.2%" title="Pack 1336us"></span>
+<span class="bar-fill bg" style="width:36.4%" title="GEMM 1053us"></span>
+<span class="bar-fill be" style="width:17.4%" title="Export 504us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>6475us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:45.9%" title="Pack 2975us"></span>
+<span class="bar-fill bg" style="width:35.8%" title="GEMM 2316us"></span>
+<span class="bar-fill be" style="width:18.3%" title="Export 1183us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>7870us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.9%" title="Pack 4478us"></span>
+<span class="bar-fill bg" style="width:28.9%" title="GEMM 2271us"></span>
+<span class="bar-fill be" style="width:14.2%" title="Export 1120us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|1024x8x1024</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2159us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:60.1%" title="Pack 1297us"></span>
+<span class="bar-fill bg" style="width:12.2%" title="GEMM 262us"></span>
+<span class="bar-fill be" style="width:27.7%" title="Export 598us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2298us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.9%" title="Pack 1307us"></span>
+<span class="bar-fill bg" style="width:18.2%" title="GEMM 418us"></span>
+<span class="bar-fill be" style="width:24.9%" title="Export 572us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>4021us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.2%" title="Pack 1980us"></span>
+<span class="bar-fill bg" style="width:38.6%" title="GEMM 1552us"></span>
+<span class="bar-fill be" style="width:12.1%" title="Export 488us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>4123us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:34.9%" title="Pack 1440us"></span>
+<span class="bar-fill bg" style="width:51.9%" title="GEMM 2138us"></span>
+<span class="bar-fill be" style="width:13.2%" title="Export 545us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>10622us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:45.4%" title="Pack 4824us"></span>
+<span class="bar-fill bg" style="width:31.6%" title="GEMM 3353us"></span>
+<span class="bar-fill be" style="width:23.0%" title="Export 2443us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|128x128x128</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1388us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:48.4%" title="Pack 672us"></span>
+<span class="bar-fill bg" style="width:13.1%" title="GEMM 182us"></span>
+<span class="bar-fill be" style="width:38.4%" title="Export 533us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1401us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:43.0%" title="Pack 602us"></span>
+<span class="bar-fill bg" style="width:14.6%" title="GEMM 205us"></span>
+<span class="bar-fill be" style="width:42.3%" title="Export 592us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1578us</span>
+<div class=bar-bg>
+<span class="bar-fill bg" style="width:100.0%" title="GEMM 1578us"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1597us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:51.9%" title="Pack 830us"></span>
+<span class="bar-fill bg" style="width:13.6%" title="GEMM 218us"></span>
+<span class="bar-fill be" style="width:34.4%" title="Export 549us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1676us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.4%" title="Pack 828us"></span>
+<span class="bar-fill bg" style="width:15.3%" title="GEMM 256us"></span>
+<span class="bar-fill be" style="width:35.2%" title="Export 591us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1703us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.4%" title="Pack 841us"></span>
+<span class="bar-fill bg" style="width:13.0%" title="GEMM 222us"></span>
+<span class="bar-fill be" style="width:37.5%" title="Export 639us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|128x1x1024</b>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>1855us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:47.9%" title="Pack 888us"></span>
+<span class="bar-fill bg" style="width:39.3%" title="GEMM 730us"></span>
+<span class="bar-fill be" style="width:12.7%" title="Export 236us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2559us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:34.7%" title="Pack 887us"></span>
+<span class="bar-fill bg" style="width:42.9%" title="GEMM 1099us"></span>
+<span class="bar-fill be" style="width:22.4%" title="Export 573us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2664us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.9%" title="Pack 956us"></span>
+<span class="bar-fill bg" style="width:43.9%" title="GEMM 1169us"></span>
+<span class="bar-fill be" style="width:20.2%" title="Export 538us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>2937us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:80.0%" title="Pack 2349us"></span>
+<span class="bar-fill bg" style="width:19.2%" title="GEMM 563us"></span>
+<span class="bar-fill be" style="width:0.8%" title="Export 24us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>3616us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:23.0%" title="Pack 832us"></span>
+<span class="bar-fill bg" style="width:61.8%" title="GEMM 2235us"></span>
+<span class="bar-fill be" style="width:15.2%" title="Export 548us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3993us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:41.5%" title="Pack 1655us"></span>
+<span class="bar-fill bg" style="width:24.6%" title="GEMM 981us"></span>
+<span class="bar-fill be" style="width:34.0%" title="Export 1356us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|256x256x256</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1831us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:52.3%" title="Pack 957us"></span>
+<span class="bar-fill bg" style="width:47.7%" title="GEMM 874us"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1837us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:55.3%" title="Pack 1015us"></span>
+<span class="bar-fill bg" style="width:44.7%" title="GEMM 821us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>8633us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:11.8%" title="Pack 1019us"></span>
+<span class="bar-fill bg" style="width:88.2%" title="GEMM 7614us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>14856us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:6.8%" title="Pack 1009us"></span>
+<span class="bar-fill bg" style="width:93.2%" title="GEMM 13847us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>49692us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:25.8%" title="Pack 12820us"></span>
+<span class="bar-fill bg" style="width:74.2%" title="GEMM 36872us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>bounded_u64|512x1024x512</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3189us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:33.8%" title="Pack 1077us"></span>
+<span class="bar-fill bg" style="width:13.9%" title="GEMM 443us"></span>
+<span class="bar-fill be" style="width:52.3%" title="Export 1667us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-vector-alu-int64</span><span style=color:#8b949e;font-size:10px;min-width:55px>7600us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:28.2%" title="Pack 2144us"></span>
+<span class="bar-fill bg" style="width:30.2%" title="GEMM 2294us"></span>
+<span class="bar-fill be" style="width:41.6%" title="Export 3162us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>25133us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:7.7%" title="Pack 1932us"></span>
+<span class="bar-fill bg" style="width:87.8%" title="GEMM 22062us"></span>
+<span class="bar-fill be" style="width:4.5%" title="Export 1139us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>70114us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:10.6%" title="Pack 7455us"></span>
+<span class="bar-fill bg" style="width:66.0%" title="GEMM 46287us"></span>
+<span class="bar-fill be" style="width:23.3%" title="Export 16371us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>exact_wide_signed|128x128x128</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>839us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:48.5%" title="Pack 407us"></span>
+<span class="bar-fill bg" style="width:51.5%" title="GEMM 432us"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1444us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:55.4%" title="Pack 800us"></span>
+<span class="bar-fill bg" style="width:44.6%" title="GEMM 644us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1573us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:46.0%" title="Pack 723us"></span>
+<span class="bar-fill bg" style="width:15.8%" title="GEMM 248us"></span>
+<span class="bar-fill be" style="width:38.2%" title="Export 601us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1595us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:55.7%" title="Pack 888us"></span>
+<span class="bar-fill bg" style="width:44.3%" title="GEMM 707us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2075us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:39.6%" title="Pack 821us"></span>
+<span class="bar-fill bg" style="width:10.7%" title="GEMM 222us"></span>
+<span class="bar-fill be" style="width:49.7%" title="Export 1030us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2521us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.0%" title="Pack 883us"></span>
+<span class="bar-fill bg" style="width:10.1%" title="GEMM 254us"></span>
+<span class="bar-fill be" style="width:54.8%" title="Export 1382us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>exact_wide_signed|512x512x512</b>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>4960us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:25.9%" title="Pack 1283us"></span>
+<span class="bar-fill bg" style="width:28.8%" title="GEMM 1431us"></span>
+<span class="bar-fill be" style="width:45.3%" title="Export 2246us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>5570us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:22.6%" title="Pack 1259us"></span>
+<span class="bar-fill bg" style="width:31.5%" title="GEMM 1757us"></span>
+<span class="bar-fill be" style="width:45.8%" title="Export 2553us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>6412us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:17.4%" title="Pack 1116us"></span>
+<span class="bar-fill bg" style="width:33.8%" title="GEMM 2169us"></span>
+<span class="bar-fill be" style="width:48.8%" title="Export 3126us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>6834us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:26.4%" title="Pack 1806us"></span>
+<span class="bar-fill bg" style="width:25.3%" title="GEMM 1726us"></span>
+<span class="bar-fill be" style="width:48.3%" title="Export 3301us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>8613us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:13.9%" title="Pack 1199us"></span>
+<span class="bar-fill bg" style="width:61.2%" title="GEMM 5275us"></span>
+<span class="bar-fill be" style="width:24.8%" title="Export 2138us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>9453us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:13.1%" title="Pack 1241us"></span>
+<span class="bar-fill bg" style="width:56.2%" title="GEMM 5310us"></span>
+<span class="bar-fill be" style="width:30.7%" title="Export 2901us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>exact_wide_unsigned|128x128x128</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2434us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:66.9%" title="Pack 1629us"></span>
+<span class="bar-fill bg" style="width:9.7%" title="GEMM 235us"></span>
+<span class="bar-fill be" style="width:23.4%" title="Export 569us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2464us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.7%" title="Pack 881us"></span>
+<span class="bar-fill bg" style="width:13.0%" title="GEMM 319us"></span>
+<span class="bar-fill be" style="width:51.2%" title="Export 1263us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>7001us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:9.2%" title="Pack 647us"></span>
+<span class="bar-fill bg" style="width:84.5%" title="GEMM 5916us"></span>
+<span class="bar-fill be" style="width:6.2%" title="Export 436us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>9001us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:9.1%" title="Pack 822us"></span>
+<span class="bar-fill bg" style="width:84.7%" title="GEMM 7621us"></span>
+<span class="bar-fill be" style="width:6.2%" title="Export 558us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>9036us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:17.1%" title="Pack 1544us"></span>
+<span class="bar-fill bg" style="width:69.7%" title="GEMM 6297us"></span>
+<span class="bar-fill be" style="width:13.2%" title="Export 1194us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>14365us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:44.6%" title="Pack 6408us"></span>
+<span class="bar-fill bg" style="width:32.9%" title="GEMM 4729us"></span>
+<span class="bar-fill be" style="width:22.5%" title="Export 3226us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>exact_wide_unsigned|256x256x256</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2016us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:32.4%" title="Pack 654us"></span>
+<span class="bar-fill bg" style="width:67.5%" title="GEMM 1362us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>2246us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:40.4%" title="Pack 908us"></span>
+<span class="bar-fill bg" style="width:59.6%" title="GEMM 1338us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>2732us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:34.3%" title="Pack 937us"></span>
+<span class="bar-fill bg" style="width:65.7%" title="GEMM 1794us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>15729us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:7.3%" title="Pack 1149us"></span>
+<span class="bar-fill bg" style="width:92.7%" title="GEMM 14580us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>17803us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:6.0%" title="Pack 1072us"></span>
+<span class="bar-fill bg" style="width:94.0%" title="GEMM 16731us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>25933us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:4.3%" title="Pack 1107us"></span>
+<span class="bar-fill bg" style="width:95.7%" title="GEMM 24825us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>exact_wide_unsigned|512x512x512</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>5311us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:34.8%" title="Pack 1847us"></span>
+<span class="bar-fill bg" style="width:37.5%" title="GEMM 1989us"></span>
+<span class="bar-fill be" style="width:27.8%" title="Export 1474us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>6400us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:31.5%" title="Pack 2018us"></span>
+<span class="bar-fill bg" style="width:32.1%" title="GEMM 2057us"></span>
+<span class="bar-fill be" style="width:36.3%" title="Export 2324us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>8092us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:15.4%" title="Pack 1245us"></span>
+<span class="bar-fill bg" style="width:64.8%" title="GEMM 5241us"></span>
+<span class="bar-fill be" style="width:19.8%" title="Export 1604us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>9934us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:25.5%" title="Pack 2534us"></span>
+<span class="bar-fill bg" style="width:60.0%" title="GEMM 5962us"></span>
+<span class="bar-fill be" style="width:14.5%" title="Export 1437us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>12266us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:15.4%" title="Pack 1887us"></span>
+<span class="bar-fill bg" style="width:73.2%" title="GEMM 8978us"></span>
+<span class="bar-fill be" style="width:11.4%" title="Export 1400us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>320661us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:7.0%" title="Pack 22519us"></span>
+<span class="bar-fill bg" style="width:80.3%" title="GEMM 257419us"></span>
+<span class="bar-fill be" style="width:12.7%" title="Export 40722us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>finite_field_u8|128x128x128</b>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>789us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:45.8%" title="Pack 361us"></span>
+<span class="bar-fill bg" style="width:41.6%" title="GEMM 328us"></span>
+<span class="bar-fill be" style="width:12.5%" title="Export 99us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1386us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:61.2%" title="Pack 848us"></span>
+<span class="bar-fill bg" style="width:14.1%" title="GEMM 196us"></span>
+<span class="bar-fill be" style="width:24.6%" title="Export 341us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>1487us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.5%" title="Pack 737us"></span>
+<span class="bar-fill bg" style="width:25.7%" title="GEMM 382us"></span>
+<span class="bar-fill be" style="width:24.7%" title="Export 368us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>1696us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:46.7%" title="Pack 791us"></span>
+<span class="bar-fill bg" style="width:31.2%" title="GEMM 529us"></span>
+<span class="bar-fill be" style="width:22.1%" title="Export 375us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>2376us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.6%" title="Pack 845us"></span>
+<span class="bar-fill bg" style="width:49.4%" title="GEMM 1174us"></span>
+<span class="bar-fill be" style="width:15.0%" title="Export 357us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>3393us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:43.1%" title="Pack 1461us"></span>
+<span class="bar-fill bg" style="width:6.8%" title="GEMM 232us"></span>
+<span class="bar-fill be" style="width:50.1%" title="Export 1699us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>finite_field_u8|256x256x256</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1199us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:59.6%" title="Pack 715us"></span>
+<span class="bar-fill bg" style="width:15.3%" title="GEMM 184us"></span>
+<span class="bar-fill be" style="width:24.9%" title="Export 299us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1373us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:53.0%" title="Pack 727us"></span>
+<span class="bar-fill bg" style="width:22.0%" title="GEMM 302us"></span>
+<span class="bar-fill be" style="width:24.9%" title="Export 342us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>1575us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:50.6%" title="Pack 797us"></span>
+<span class="bar-fill bg" style="width:24.1%" title="GEMM 380us"></span>
+<span class="bar-fill be" style="width:25.2%" title="Export 398us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>1796us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:51.7%" title="Pack 928us"></span>
+<span class="bar-fill bg" style="width:23.0%" title="GEMM 414us"></span>
+<span class="bar-fill be" style="width:25.2%" title="Export 453us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>3392us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:49.1%" title="Pack 1664us"></span>
+<span class="bar-fill bg" style="width:17.2%" title="GEMM 582us"></span>
+<span class="bar-fill be" style="width:33.7%" title="Export 1145us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>4078us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:45.9%" title="Pack 1871us"></span>
+<span class="bar-fill bg" style="width:44.2%" title="GEMM 1802us"></span>
+<span class="bar-fill be" style="width:9.9%" title="Export 404us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>finite_field_u8|512x512x128</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1048us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.1%" title="Pack 587us"></span>
+<span class="bar-fill bg" style="width:16.1%" title="GEMM 168us"></span>
+<span class="bar-fill be" style="width:27.7%" title="Export 291us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1165us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.6%" title="Pack 659us"></span>
+<span class="bar-fill bg" style="width:17.8%" title="GEMM 207us"></span>
+<span class="bar-fill be" style="width:25.6%" title="Export 298us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hipblaslt</span><span style=color:#8b949e;font-size:10px;min-width:55px>1678us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:47.8%" title="Pack 803us"></span>
+<span class="bar-fill bg" style="width:29.9%" title="GEMM 501us"></span>
+<span class="bar-fill be" style="width:22.3%" title="Export 374us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>1728us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:50.3%" title="Pack 869us"></span>
+<span class="bar-fill bg" style="width:27.4%" title="GEMM 473us"></span>
+<span class="bar-fill be" style="width:22.3%" title="Export 385us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>2320us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:35.0%" title="Pack 812us"></span>
+<span class="bar-fill bg" style="width:17.3%" title="GEMM 401us"></span>
+<span class="bar-fill be" style="width:47.7%" title="Export 1106us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>cpu-reference</span><span style=color:#8b949e;font-size:10px;min-width:55px>6069us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:24.3%" title="Pack 1475us"></span>
+<span class="bar-fill bg" style="width:51.9%" title="GEMM 3151us"></span>
+<span class="bar-fill be" style="width:23.8%" title="Export 1441us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>finite_field_u8|512x512x512</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1381us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:55.5%" title="Pack 766us"></span>
+<span class="bar-fill bg" style="width:23.1%" title="GEMM 320us"></span>
+<span class="bar-fill be" style="width:21.3%" title="Export 294us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>1404us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.1%" title="Pack 787us"></span>
+<span class="bar-fill bg" style="width:22.0%" title="GEMM 309us"></span>
+<span class="bar-fill be" style="width:21.9%" title="Export 307us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>amdgpu-builtins</span><span style=color:#8b949e;font-size:10px;min-width:55px>1518us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:57.6%" title="Pack 875us"></span>
+<span class="bar-fill bg" style="width:21.6%" title="GEMM 327us"></span>
+<span class="bar-fill be" style="width:20.7%" title="Export 315us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>rocwmma</span><span style=color:#8b949e;font-size:10px;min-width:55px>1733us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:54.7%" title="Pack 948us"></span>
+<span class="bar-fill bg" style="width:24.1%" title="GEMM 417us"></span>
+<span class="bar-fill be" style="width:21.2%" title="Export 367us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>1778us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:56.8%" title="Pack 1010us"></span>
+<span class="bar-fill bg" style="width:23.5%" title="GEMM 418us"></span>
+<span class="bar-fill be" style="width:19.6%" title="Export 349us"></span>
+<span class="bar-fill bo" style="width:0.1%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>ck</span><span style=color:#8b949e;font-size:10px;min-width:55px>1788us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:53.0%" title="Pack 947us"></span>
+<span class="bar-fill bg" style="width:24.4%" title="GEMM 436us"></span>
+<span class="bar-fill be" style="width:22.6%" title="Export 404us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>wrap_u64_mod_2_64|1024x1024x1024</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>6790us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:27.6%" title="Pack 1875us"></span>
+<span class="bar-fill bg" style="width:52.8%" title="GEMM 3583us"></span>
+<span class="bar-fill be" style="width:19.6%" title="Export 1332us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>wrap64-byte-limb</span><span style=color:#8b949e;font-size:10px;min-width:55px>253831us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:1.9%" title="Pack 4713us"></span>
+<span class="bar-fill bg" style="width:97.6%" title="GEMM 247808us"></span>
+<span class="bar-fill be" style="width:0.5%" title="Export 1308us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>wrap_u64_mod_2_64|2048x2048x2048</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>45392us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:12.1%" title="Pack 5477us"></span>
+<span class="bar-fill bg" style="width:73.4%" title="GEMM 33313us"></span>
+<span class="bar-fill be" style="width:14.5%" title="Export 6602us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>wrap64-byte-limb</span><span style=color:#8b949e;font-size:10px;min-width:55px>1819150us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:0.5%" title="Pack 9108us"></span>
+<span class="bar-fill bg" style="width:99.3%" title="GEMM 1806800us"></span>
+<span class="bar-fill be" style="width:0.2%" title="Export 3244us"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>wrap_u64_mod_2_64|4096x4096x4096</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>289349us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:6.5%" title="Pack 18951us"></span>
+<span class="bar-fill bg" style="width:85.4%" title="GEMM 247159us"></span>
+<span class="bar-fill be" style="width:8.0%" title="Export 23238us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+<div style="margin:12px 0"><b>wrap_u64_mod_2_64|512x512x512</b>
+<div class=bar-row><span>hip-direct</span><span style=color:#8b949e;font-size:10px;min-width:55px>3023us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:39.1%" title="Pack 1181us"></span>
+<span class="bar-fill bg" style="width:41.3%" title="GEMM 1247us"></span>
+<span class="bar-fill be" style="width:19.6%" title="Export 593us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+<div class=bar-row><span>wrap64-byte-limb</span><span style=color:#8b949e;font-size:10px;min-width:55px>41510us</span>
+<div class=bar-bg>
+<span class="bar-fill bp" style="width:9.5%" title="Pack 3932us"></span>
+<span class="bar-fill bg" style="width:87.8%" title="GEMM 36448us"></span>
+<span class="bar-fill be" style="width:2.7%" title="Export 1129us"></span>
+<span class="bar-fill bo" style="width:0.0%" title="Other 0%"></span>
+</div></div>
+</div>
+</div>
+<script>function sortTable(n,t){const r=document.getElementById("t-"+t);if(!r)return;const o=Array.from(r.rows).slice(1);const a=r.getAttribute("data-sort")!==n.toString();r.setAttribute("data-sort",a?n.toString():"");o.sort((e,d)=>{const s=e.cells[n].textContent,l=d.cells[n].textContent,v=parseFloat(s),u=parseFloat(l);return!isNaN(v)&&!isNaN(u)?a?v-u:u-v:a?s.localeCompare(l):l.localeCompare(s)});o.forEach(e=>r.appendChild(e))}
+function filterTable(){const q=document.getElementById("search").value.toLowerCase();["winners","shapes","phases"].forEach(t=>{const r=document.getElementById("t-"+t);if(!r)return;Array.from(r.rows).slice(1).forEach(e=>e.style.display=e.textContent.toLowerCase().includes(q)?"":"none")})}
+function showTab(t){document.querySelectorAll(".tab").forEach(e=>e.classList.remove("active"));document.querySelectorAll(".tab-content").forEach(e=>e.style.display="none");const el=document.getElementById("tab-"+t);const btn=document.getElementById("btn-"+t);if(el)el.style.display="block";if(btn)btn.classList.add("active")}
+</script></body></html>

@@ -19,6 +19,17 @@ bool is_prime_modulus(uint32_t modulus) {
          modulus == 157 || modulus == 151 || modulus == 149 || modulus == 139 ||
          modulus == 137 || modulus == 131 || modulus == 127;
 }
+// Rank 133: Modulus-family routing recommendation
+// Returns the recommended backend family for a given modulus plane.
+// Used by the plan schedule to group tiles by optimal backend.
+enum class modulus_backend_family { direct_hip, accelerator_hot, accelerator_prime, accelerator_generic };
+
+static modulus_backend_family classify_modulus(uint32_t modulus) {
+  if (is_hot_modulus(modulus)) return modulus_backend_family::accelerator_hot;
+  if (is_prime_modulus(modulus)) return modulus_backend_family::accelerator_prime;
+  return modulus_backend_family::direct_hip;
+}
+
 }  // namespace
 
 bool is_per_tile_bound_kind(rns8_bound_kind bound_kind) {

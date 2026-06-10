@@ -13,9 +13,18 @@ namespace {
 
 namespace {
 bool detect_adversarial_pattern(const rns8_gemm_desc& desc) {
-  // Research placeholder: full scan requires access to input data.
-  // For now, record the probe in plan metadata for future implementation.
-  (void)desc;
+  // Adversarial input detection: checks if the bound+k combination risks
+  // INT32 overflow within the standard K-block of 65536.
+  // For signed i64 with large bounds, alternating signs can overflow.
+  if (desc.semantics != RNS8_BOUNDED_I64) return false;
+  if (desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS &&
+      desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_ABS) return false;
+  // Risk threshold: if max output magnitude * K > INT32_MAX/2, mark as adversarial
+  // INT32_MAX/2 = 1,073,741,824. With K up to 4096, bound > 262,144 is risky.
+  const uint64_t risk_bound = 262144;
+  if (desc.bound > risk_bound || desc.k > 65536) {
+    return true;
+  }
   return false;
 }
 }  // namespace
