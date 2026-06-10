@@ -1,0 +1,175 @@
+<html><head><meta charset=UTF-8><title>RNS8 Dashboard</title>
+<style>body{font-family:sans-serif;margin:20px;background:#1a1a2e;color:#e0e0e0}
+table{border-collapse:collapse;width:100%}th,td{padding:6px 10px;text-align:right;border:1px solid #333}
+th{background:#2d2d44;cursor:pointer}tr:nth-child(even){background:#222240}
+.win{color:#4caf50;font-weight:bold}.dir{color:#ff9800}.amd{color:#2196f3}.roc{color:#e91e63}
+.bar{height:16px;margin:1px 0;border-radius:2px;display:inline-block}
+.bp{background:#ff9800}.bg{background:#4caf50}.be{background:#2196f3}
+</style></head><body><h1>RNS8 Performance Dashboard</h1>
+<p>Sweep: C:\Users\sneak\Development\RNS8\temp\rdna3-optimized-sweep-20260610 | Captures: 283</p>
+<table><tr><th>Semantics</th><th>Shape</th><th>Winner</th><th>E2E(us)</th><th>Pack</th><th>GEMM</th><th>Export</th></tr>
+<tr><td>bounded_i64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>5198</td><td>2030</td><td>1542</td><td>1625</td></tr>
+<tr><td>bounded_i64</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1338</td><td>628</td><td>191</td><td>518</td></tr>
+<tr><td>bounded_i64</td><td>256x1x4096</td><td class="win amd">amdgpu-builtins</td><td>2848</td><td>1350</td><td>963</td><td>534</td></tr>
+<tr><td>bounded_i64</td><td>256x256x256</td><td class="win amd">amdgpu-builtins</td><td>1988</td><td>844</td><td>1144</td><td>0</td></tr>
+<tr><td>bounded_i64</td><td>256x256x512</td><td class="win dir">hip-direct</td><td>2635</td><td>1736</td><td>295</td><td>603</td></tr>
+<tr><td>bounded_i64</td><td>32x32x32</td><td class="win ">cpu-reference</td><td>313</td><td>39</td><td>41</td><td>232</td></tr>
+<tr><td>bounded_i64</td><td>512x1x512</td><td class="win dir">hip-direct</td><td>1684</td><td>916</td><td>225</td><td>541</td></tr>
+<tr><td>bounded_i64</td><td>512x4x512</td><td class="win dir">hip-direct</td><td>1727</td><td>960</td><td>228</td><td>537</td></tr>
+<tr><td>bounded_i64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>2456</td><td>1063</td><td>646</td><td>746</td></tr>
+<tr><td>bounded_i64</td><td>512x8x512</td><td class="win dir">hip-direct</td><td>1769</td><td>944</td><td>240</td><td>583</td></tr>
+<tr><td>bounded_i64</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>1381</td><td>179</td><td>269</td><td>932</td></tr>
+<tr><td>bounded_u64</td><td>1024x1024x1024</td><td class="win roc">rocwmma</td><td>7137</td><td>1098</td><td>3701</td><td>2338</td></tr>
+<tr><td>bounded_u64</td><td>1024x1x1024</td><td class="win dir">hip-direct</td><td>2108</td><td>1336</td><td>265</td><td>506</td></tr>
+<tr><td>bounded_u64</td><td>1024x4x1024</td><td class="win amd">amdgpu-builtins</td><td>2455</td><td>1446</td><td>457</td><td>551</td></tr>
+<tr><td>bounded_u64</td><td>1024x8x1024</td><td class="win dir">hip-direct</td><td>2236</td><td>1358</td><td>272</td><td>605</td></tr>
+<tr><td>bounded_u64</td><td>128x128x128</td><td class="win ">hip-vector-alu-int64</td><td>1426</td><td>628</td><td>495</td><td>301</td></tr>
+<tr><td>bounded_u64</td><td>128x1x1024</td><td class="win dir">hip-direct</td><td>1701</td><td>892</td><td>242</td><td>566</td></tr>
+<tr><td>bounded_u64</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2008</td><td>1084</td><td>923</td><td>0</td></tr>
+<tr><td>bounded_u64</td><td>512x1024x512</td><td class="win dir">hip-direct</td><td>3676</td><td>1241</td><td>1202</td><td>1232</td></tr>
+<tr><td>bounded_u64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>3275</td><td>1207</td><td>1177</td><td>890</td></tr>
+<tr><td>bounded_u64</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>836</td><td>96</td><td>262</td><td>477</td></tr>
+<tr><td>exact_wide_signed</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1120</td><td>527</td><td>593</td><td>0</td></tr>
+<tr><td>exact_wide_signed</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>4564</td><td>1282</td><td>1199</td><td>2082</td></tr>
+<tr><td>exact_wide_signed</td><td>64x64x64</td><td class="win amd">amdgpu-builtins</td><td>1804</td><td>804</td><td>250</td><td>749</td></tr>
+<tr><td>exact_wide_unsigned</td><td>128x128x128</td><td class="win dir">hip-direct</td><td>1708</td><td>862</td><td>242</td><td>603</td></tr>
+<tr><td>exact_wide_unsigned</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>2018</td><td>595</td><td>1423</td><td>0</td></tr>
+<tr><td>exact_wide_unsigned</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>4892</td><td>1185</td><td>2259</td><td>1447</td></tr>
+<tr><td>exact_wide_unsigned</td><td>64x64x64</td><td class="win dir">hip-direct</td><td>1297</td><td>745</td><td>220</td><td>331</td></tr>
+<tr><td>finite_field_u8</td><td>128x128x128</td><td class="win ">cpu-reference</td><td>714</td><td>360</td><td>270</td><td>83</td></tr>
+<tr><td>finite_field_u8</td><td>256x256x256</td><td class="win dir">hip-direct</td><td>1296</td><td>747</td><td>219</td><td>330</td></tr>
+<tr><td>finite_field_u8</td><td>512x512x128</td><td class="win amd">amdgpu-builtins</td><td>1512</td><td>815</td><td>266</td><td>430</td></tr>
+<tr><td>finite_field_u8</td><td>512x512x512</td><td class="win roc">rocwmma</td><td>1730</td><td>937</td><td>395</td><td>397</td></tr>
+<tr><td>finite_ring_u8</td><td>64x64x64</td><td class="win ">cpu-reference</td><td>194</td><td>48</td><td>132</td><td>12</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>1024x1024x1024</td><td class="win dir">hip-direct</td><td>9983</td><td>4243</td><td>4331</td><td>1409</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>2048x2048x2048</td><td class="win dir">hip-direct</td><td>43219</td><td>5272</td><td>33129</td><td>4817</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>4096x4096x4096</td><td class="win dir">hip-direct</td><td>324400</td><td>19576</td><td>286884</td><td>17939</td></tr>
+<tr><td>wrap_u64_mod_2_64</td><td>512x512x512</td><td class="win dir">hip-direct</td><td>3146</td><td>1868</td><td>667</td><td>611</td></tr>
+</table>
+<h2>Phase Breakdowns</h2>
+<div style="margin:4px 0"><b>bounded_i64_1024x1024x1024</b> (hip-direct) 5198us<br>
+<span class="bar bp" style="width:39%"></span> Pack 39% 
+<span class="bar bg" style="width:30%"></span> GEMM 30% 
+<span class="bar be" style="width:31%"></span> Export 31% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_256x1x4096</b> (amdgpu-builtins) 2848us<br>
+<span class="bar bp" style="width:47%"></span> Pack 47% 
+<span class="bar bg" style="width:34%"></span> GEMM 34% 
+<span class="bar be" style="width:19%"></span> Export 19% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_256x256x256</b> (amdgpu-builtins) 1988us<br>
+<span class="bar bp" style="width:42%"></span> Pack 42% 
+<span class="bar bg" style="width:58%"></span> GEMM 58% 
+<span class="bar be" style="width:0%"></span> Export 0% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_256x256x512</b> (hip-direct) 2635us<br>
+<span class="bar bp" style="width:66%"></span> Pack 66% 
+<span class="bar bg" style="width:11%"></span> GEMM 11% 
+<span class="bar be" style="width:23%"></span> Export 23% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_512x1x512</b> (hip-direct) 1684us<br>
+<span class="bar bp" style="width:54%"></span> Pack 54% 
+<span class="bar bg" style="width:13%"></span> GEMM 13% 
+<span class="bar be" style="width:32%"></span> Export 32% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_512x4x512</b> (hip-direct) 1727us<br>
+<span class="bar bp" style="width:56%"></span> Pack 56% 
+<span class="bar bg" style="width:13%"></span> GEMM 13% 
+<span class="bar be" style="width:31%"></span> Export 31% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_512x512x512</b> (hip-direct) 2456us<br>
+<span class="bar bp" style="width:43%"></span> Pack 43% 
+<span class="bar bg" style="width:26%"></span> GEMM 26% 
+<span class="bar be" style="width:30%"></span> Export 30% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_i64_512x8x512</b> (hip-direct) 1769us<br>
+<span class="bar bp" style="width:53%"></span> Pack 53% 
+<span class="bar bg" style="width:14%"></span> GEMM 14% 
+<span class="bar be" style="width:33%"></span> Export 33% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_1024x1024x1024</b> (rocwmma) 7137us<br>
+<span class="bar bp" style="width:15%"></span> Pack 15% 
+<span class="bar bg" style="width:52%"></span> GEMM 52% 
+<span class="bar be" style="width:33%"></span> Export 33% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_1024x1x1024</b> (hip-direct) 2108us<br>
+<span class="bar bp" style="width:63%"></span> Pack 63% 
+<span class="bar bg" style="width:13%"></span> GEMM 13% 
+<span class="bar be" style="width:24%"></span> Export 24% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_1024x4x1024</b> (amdgpu-builtins) 2455us<br>
+<span class="bar bp" style="width:59%"></span> Pack 59% 
+<span class="bar bg" style="width:19%"></span> GEMM 19% 
+<span class="bar be" style="width:22%"></span> Export 22% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_1024x8x1024</b> (hip-direct) 2236us<br>
+<span class="bar bp" style="width:61%"></span> Pack 61% 
+<span class="bar bg" style="width:12%"></span> GEMM 12% 
+<span class="bar be" style="width:27%"></span> Export 27% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_256x256x256</b> (hip-direct) 2008us<br>
+<span class="bar bp" style="width:54%"></span> Pack 54% 
+<span class="bar bg" style="width:46%"></span> GEMM 46% 
+<span class="bar be" style="width:0%"></span> Export 0% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_512x1024x512</b> (hip-direct) 3676us<br>
+<span class="bar bp" style="width:34%"></span> Pack 34% 
+<span class="bar bg" style="width:33%"></span> GEMM 33% 
+<span class="bar be" style="width:34%"></span> Export 34% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>bounded_u64_512x512x512</b> (hip-direct) 3275us<br>
+<span class="bar bp" style="width:37%"></span> Pack 37% 
+<span class="bar bg" style="width:36%"></span> GEMM 36% 
+<span class="bar be" style="width:27%"></span> Export 27% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>exact_wide_signed_512x512x512</b> (hip-direct) 4564us<br>
+<span class="bar bp" style="width:28%"></span> Pack 28% 
+<span class="bar bg" style="width:26%"></span> GEMM 26% 
+<span class="bar be" style="width:46%"></span> Export 46% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>exact_wide_unsigned_256x256x256</b> (hip-direct) 2018us<br>
+<span class="bar bp" style="width:29%"></span> Pack 29% 
+<span class="bar bg" style="width:71%"></span> GEMM 71% 
+<span class="bar be" style="width:0%"></span> Export 0% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>exact_wide_unsigned_512x512x512</b> (hip-direct) 4892us<br>
+<span class="bar bp" style="width:24%"></span> Pack 24% 
+<span class="bar bg" style="width:46%"></span> GEMM 46% 
+<span class="bar be" style="width:30%"></span> Export 30% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>finite_field_u8_256x256x256</b> (hip-direct) 1296us<br>
+<span class="bar bp" style="width:58%"></span> Pack 58% 
+<span class="bar bg" style="width:17%"></span> GEMM 17% 
+<span class="bar be" style="width:25%"></span> Export 25% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>finite_field_u8_512x512x128</b> (amdgpu-builtins) 1512us<br>
+<span class="bar bp" style="width:54%"></span> Pack 54% 
+<span class="bar bg" style="width:18%"></span> GEMM 18% 
+<span class="bar be" style="width:28%"></span> Export 28% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>finite_field_u8_512x512x512</b> (rocwmma) 1730us<br>
+<span class="bar bp" style="width:54%"></span> Pack 54% 
+<span class="bar bg" style="width:23%"></span> GEMM 23% 
+<span class="bar be" style="width:23%"></span> Export 23% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>wrap_u64_mod_2_64_1024x1024x1024</b> (hip-direct) 9983us<br>
+<span class="bar bp" style="width:42%"></span> Pack 42% 
+<span class="bar bg" style="width:43%"></span> GEMM 43% 
+<span class="bar be" style="width:14%"></span> Export 14% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>wrap_u64_mod_2_64_2048x2048x2048</b> (hip-direct) 43219us<br>
+<span class="bar bp" style="width:12%"></span> Pack 12% 
+<span class="bar bg" style="width:77%"></span> GEMM 77% 
+<span class="bar be" style="width:11%"></span> Export 11% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>wrap_u64_mod_2_64_4096x4096x4096</b> (hip-direct) 324400us<br>
+<span class="bar bp" style="width:6%"></span> Pack 6% 
+<span class="bar bg" style="width:88%"></span> GEMM 88% 
+<span class="bar be" style="width:6%"></span> Export 6% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+<div style="margin:4px 0"><b>wrap_u64_mod_2_64_512x512x512</b> (hip-direct) 3146us<br>
+<span class="bar bp" style="width:59%"></span> Pack 59% 
+<span class="bar bg" style="width:21%"></span> GEMM 21% 
+<span class="bar be" style="width:19%"></span> Export 19% 
+<span class="bar" style="width:0%"></span> Other 0%<br></div>
+</body></html>

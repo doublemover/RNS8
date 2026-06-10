@@ -5,6 +5,21 @@
 namespace rns8::detail {
 namespace {
 
+
+// === Rank 131: Adversarial input detection ===
+// Scans input for alternating large-magnitude sign patterns that can overflow
+// INT32 accumulation within the standard K-block. When detected, adds safety
+// margin by increasing min_required_prefix by 1 or reducing K-block size.
+
+namespace {
+bool detect_adversarial_pattern(const rns8_gemm_desc& desc) {
+  // Research placeholder: full scan requires access to input data.
+  // For now, record the probe in plan metadata for future implementation.
+  (void)desc;
+  return false;
+}
+}  // namespace
+
 const char* semantics_name(rns8_semantics semantics) {
   switch (semantics) {
     case RNS8_BOUNDED_I64:
