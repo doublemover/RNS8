@@ -1078,3 +1078,137 @@ __global__ void rns8_amdgpu_builtin_pack_wmma_u64_kernel(
       ? static_cast<int>(reduced - modulus) : static_cast<int>(reduced));
 }
 
+
+
+// === Phase 3c: WMMA tile-shape sweep for skinny GEMV ===
+// Variant threadblock sizes for different occupancy profiles on RDNA3.
+// - 64 threads (2 wave32): higher occupancy, better for N=1 GEMV
+// - 128 threads (4 wave32): balanced, good for N=4 small-N
+// - 256 threads (8 wave32): more work per block, better for N=8
+
+__global__ void rns8_amdgpu_builtin_wmma_gemm_64t_skinny_kernel(
+    const int8_t* __restrict__ a_residues,
+    const int8_t* __restrict__ b_residues,
+    int8_t* __restrict__ c_residues,
+    int m,
+    int n,
+    int k,
+    int prefix) {
+  // 64-thread variant: 2 wave32, higher occupancy for N=1
+  const int tid = threadIdx.x;
+  const int row = blockIdx.x;
+  const int col = blockIdx.y;
+  if (row >= m || col >= n) return;
+
+  for (int plane = 0; plane < prefix; ++plane) {
+    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
+    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
+    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
+
+    int32_t acc = 0;
+    for (int ki = tid; ki < k; ki += 64) {
+      acc += static_cast<int32_t>(a_plane[row * k + ki])
+           * static_cast<int32_t>(b_plane[ki * n + col]);
+    }
+    // Cross-lane reduction via DPP
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
+
+    if (tid == 0) {
+      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
+      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
+      int32_t reduced = acc % mod;
+      if (reduced < 0) reduced += mod;
+      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
+    }
+  }
+}
+
+__global__ void rns8_amdgpu_builtin_wmma_gemm_128t_skinny_kernel(
+    const int8_t* __restrict__ a_residues,
+    const int8_t* __restrict__ b_residues,
+    int8_t* __restrict__ c_residues,
+    int m,
+    int n,
+    int k,
+    int prefix) {
+  // 128-thread variant: 4 wave32, balanced for N=4 small-N
+  const int tid = threadIdx.x;
+  const int row = blockIdx.x * 2 + tid / 64;
+  const int col = blockIdx.y;
+  if (row >= m) return;
+
+  const int half_wave = tid & 63;
+  for (int plane = 0; plane < prefix; ++plane) {
+    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
+    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
+    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
+
+    int32_t acc = 0;
+    for (int ki = half_wave; ki < k; ki += 64) {
+      acc += static_cast<int32_t>(a_plane[row * k + ki])
+           * static_cast<int32_t>(b_plane[ki * n + col]);
+    }
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
+
+    if (half_wave == 0) {
+      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
+      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
+      int32_t reduced = acc % mod;
+      if (reduced < 0) reduced += mod;
+      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
+    }
+  }
+}
+
+__global__ void rns8_amdgpu_builtin_wmma_gemm_256t_skinny_kernel(
+    const int8_t* __restrict__ a_residues,
+    const int8_t* __restrict__ b_residues,
+    int8_t* __restrict__ c_residues,
+    int m,
+    int n,
+    int k,
+    int prefix) {
+  // 256-thread variant: 8 wave32, more work per block for N=8
+  const int tid = threadIdx.x;
+  const int row = blockIdx.x * 4 + tid / 64;
+  const int col = blockIdx.y + (tid & 63) / 16;
+  if (row >= m || col >= n) return;
+
+  const int half_wave = tid & 63;
+  for (int plane = 0; plane < prefix; ++plane) {
+    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
+    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
+    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
+
+    int32_t acc = 0;
+    for (int ki = half_wave; ki < k; ki += 64) {
+      acc += static_cast<int32_t>(a_plane[row * k + ki])
+           * static_cast<int32_t>(b_plane[ki * n + col]);
+    }
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
+    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
+
+    if (half_wave == 0) {
+      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
+      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
+      int32_t reduced = acc % mod;
+      if (reduced < 0) reduced += mod;
+      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
+    }
+  }
+}
+

@@ -20,20 +20,26 @@ rns8_status hip_direct_export_i64_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  const bool status_structurally_elided = (prefix >= 9);
   const std::size_t output_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols) * sizeof(int64_t);
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
+  if (!status_structurally_elided) {
+    status = hip_direct_ensure_upload_buffer(device_id, sizeof(int), status_buffer, status_bytes);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
   }
-  hipError_t err = timed_hip_operation("crt_export_status_memset", [&]() {
-    return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
+  hipError_t err = hipSuccess;
+  if (!status_structurally_elided) {
+    err = timed_hip_operation("crt_export_status_memset", [&]() {
+      return hipMemsetAsync(*status_buffer, 0, sizeof(int), nullptr);
+    });
+    if (err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
   }
   err = timed_hip_operation("crt_export_kernel", [&]() {
     const int code = rns8_hip_direct_export_i64_device(
@@ -43,7 +49,7 @@ rns8_status hip_direct_export_i64_device(
         static_cast<int>(cols),
         static_cast<int>(prefix),
         bound,
-        static_cast<int*>(*status_buffer));
+        status_structurally_elided ? nullptr : static_cast<int*>(*status_buffer));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -52,15 +58,17 @@ rns8_status hip_direct_export_i64_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  int host_status = 0;
-  err = timed_hip_operation("crt_export_status_d2h", [&]() {
-    return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
-  });
-  if (err != hipSuccess) {
-    return RNS8_BACKEND_FAILURE;
-  }
-  if (host_status != static_cast<int>(RNS8_SUCCESS)) {
-    return static_cast<rns8_status>(host_status);
+  if (!status_structurally_elided) {
+    int host_status = 0;
+    err = timed_hip_operation("crt_export_status_d2h", [&]() {
+      return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
+    });
+    if (err != hipSuccess) {
+      return RNS8_BACKEND_FAILURE;
+    }
+    if (host_status != static_cast<int>(RNS8_SUCCESS)) {
+      return static_cast<rns8_status>(host_status);
+    }
   }
   err = copy_compact_matrix_device_to_host(
       device_id, "crt_export_d2h", dst, ld, *export_buffer, rows, cols, sizeof(int64_t));

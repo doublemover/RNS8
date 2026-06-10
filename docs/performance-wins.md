@@ -71,3 +71,20 @@ target small/medium shapes where launch overhead dominates.
 - rocWMMA prepack-B cache benchmark (3b): Measure setup-inclusive break-even for bounded 512/1024 shapes with cached B operands.
 - Accelerator 4096 shapes: hipBLASLt had prior installed cache wins on 4096 bounded; re-validate with CPU baselines.
 - Status elision for resident paths (4a): Add structural status skip when plan prefix >= 9 in persistent GEMM flow.
+
+## hipBLASLt 4096 Wins (2026-06-10 Sweep, reviewed local gfx1100 evidence)
+
+hipBLASLt is the dominant backend for 4096x4096 shapes with 2.5-5.2x wins vs
+Direct HIP. All captures: 3 warmups, 9 repeats, CPU reference baselines.
+
+| Semantics | hipBLASLt | Direct HIP | vs Direct HIP | vs CPU |
+|---|---|---|---:|---:|---:|
+| Bounded i64 | 46,825 us | 129,734 us | **2.77x** | 316x |
+| Bounded u64 | 51,239 us | 128,598 us | **2.51x** | 275x |
+| Exact-wide signed | 125,862 us | 577,811 us | **4.59x** | 675x |
+| Exact-wide unsigned | 120,893 us | 632,243 us | **5.23x** | 711x |
+| Finite ring u8 | 8,443 us | 34,397 us | **4.07x** | 539x |
+| Finite field u8 | 9,369 us | 35,225 us | **3.76x** | 484x |
+
+CK and rocWMMA are competitive at 4096 (2.0-3.4x vs Direct HIP for bounded,
+1.5-2.6x for exact-wide) but lose to hipBLASLt in all groups.
