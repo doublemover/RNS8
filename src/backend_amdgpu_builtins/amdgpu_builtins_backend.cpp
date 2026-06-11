@@ -467,4 +467,52 @@ rns8_status amdgpu_builtins_gemm_finite_u8_sparse_a_device(
 #endif
 }
 
+
+
+// === WMMA-native pack: route bounded i64/u64 through WMMA-optimized pack ===
+// These kernels write directly in WMMA-expected K-major layout, eliminating
+// the separate transpose step that the generic pack path requires.
+rns8_status amdgpu_builtins_pack_i64_device(
+    int device_id,
+    const int64_t* src,
+    int64_t rows, int64_t cols, int64_t ld,
+    void* device_residues,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS
+  if (!src || !device_residues || rows <= 0 || cols <= 0 || ld < cols || prefix == 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  // Upload source to device and call WMMA-native pack kernel
+  const int code = rns8_amdgpu_builtin_pack_wmma_i64_device(
+      src, static_cast<int8_t*>(device_residues),
+      static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
+  return code == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)src; (void)rows; (void)cols; (void)ld;
+  (void)device_residues; (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status amdgpu_builtins_pack_u64_device(
+    int device_id,
+    const uint64_t* src,
+    int64_t rows, int64_t cols, int64_t ld,
+    void* device_residues,
+    uint32_t prefix) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS
+  if (!src || !device_residues || rows <= 0 || cols <= 0 || ld < cols || prefix == 0) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const int code = rns8_amdgpu_builtin_pack_wmma_u64_device(
+      src, static_cast<int8_t*>(device_residues),
+      static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
+  return code == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)src; (void)rows; (void)cols; (void)ld;
+  (void)device_residues; (void)prefix;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 }  // namespace rns8::detail

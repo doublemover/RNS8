@@ -872,8 +872,22 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     __syncthreads();
 
     if (output_active) {
-      for (int kk = 0; kk < tile_extent; ++kk) {
-        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
+      const bool use_dp4a = (modulus == 256 || modulus == 255 || modulus == 251);
+      if (use_dp4a) {
+        for (int kk = 0; kk < tile_extent; kk += 4) {
+          const uint32_t a_packed = *reinterpret_cast<const uint32_t*>(&a_tile[thread_row][kk]);
+          uint32_t b_packed = 0;
+          b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk][thread_col]));
+          if (kk + 1 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 1][thread_col])) << 8;
+          if (kk + 2 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 2][thread_col])) << 16;
+          if (kk + 3 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 3][thread_col])) << 24;
+          asm volatile("v_dot4_i32_iu8 %0, %1, %2, %0 neg_lo:[1,1,0]"
+                       : "+v"(acc) : "v"(a_packed), "v"(b_packed));
+        }
+      } else {
+        for (int kk = 0; kk < tile_extent; ++kk) {
+          acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
+        }
       }
     }
 

@@ -3,6 +3,10 @@
 extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
     const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
     int m, int n, int k, int prefix);
+extern "C" int rns8_hip_direct_fused_gemm_export_i64_device(
+    const int8_t* a_residues, const int8_t* b_residues, int64_t* dst,
+    int m, int n, int k, int lda, int ldb, int ldc,
+    int prefix, int64_t bound, int* status);
 #endif
 
 
@@ -10,6 +14,10 @@ extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
 extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
     const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
     int m, int n, int k, int prefix);
+extern "C" int rns8_hip_direct_fused_gemm_export_i64_device(
+    const int8_t* a_residues, const int8_t* b_residues, int64_t* dst,
+    int m, int n, int k, int lda, int ldb, int ldc,
+    int prefix, int64_t bound, int* status);
 #endif
 
 rns8_status hip_direct_ring_gemm_i8_device(
@@ -682,3 +690,44 @@ rns8_status hip_direct_gemm_rns_graph_capture_launch(
   return RNS8_SUCCESS;
 }
 #endif  // RNS8_ENABLE_HIP
+
+
+// === Fused GEMM+export: computes GEMM + Garner CRT in one kernel ===
+// Active for prefix <= 8 where precomputed __constant__ weights accelerate
+// the Garner reconstruction. Outputs final i64/i64 directly, eliminating
+// the intermediate centered i8 residue store/load between GEMM and export.
+rns8_status hip_direct_gemm_rns_fused_export_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    int64_t* dst,
+    int64_t m, int64_t n, int64_t k,
+    int64_t lda, int64_t ldb, int64_t ldc,
+    uint32_t prefix, int64_t bound) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!device_a_residues || !device_b_residues || !dst || m <= 0 || n <= 0 || k <= 0 ||
+      prefix == 0 || prefix > 8 || lda < k || ldb < n || ldc < n) {
+    return RNS8_INVALID_ARGUMENT;
+  }
+  const rns8_status device_status = set_hip_device(device_id);
+  if (device_status != RNS8_SUCCESS) return device_status;
+  hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
+    // Fused kernel: GEMM per plane + Garner CRT -> final i64 output
+    const int code = rns8_hip_direct_fused_gemm_export_i64_device(
+        static_cast<const int8_t*>(device_a_residues),
+        static_cast<const int8_t*>(device_b_residues),
+        dst,
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
+        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
+        static_cast<int>(prefix), bound, nullptr);
+    return static_cast<hipError_t>(code);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)device_a_residues; (void)device_b_residues;
+  (void)dst; (void)m; (void)n; (void)k; (void)lda; (void)ldb; (void)ldc;
+  (void)prefix; (void)bound;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
