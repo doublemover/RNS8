@@ -12,7 +12,14 @@ typedef enum rns8_semantics {
   RNS8_EXACT_WIDE_UNSIGNED = 4,
   RNS8_WRAP_U64_MOD_2_64 = 5,
   RNS8_FINITE_RING_U8 = 6,
-  RNS8_FINITE_FIELD_U8 = 7
+  RNS8_FINITE_FIELD_U8 = 7,
+
+  // === Research semantics (schema-gated, not in default builds) ===
+  RNS8_INT4_RESEARCH = 100,
+  RNS8_IU4_RESEARCH = 101,
+  RNS8_OZAKI_FP8_RESEARCH = 200,
+  RNS8_STRASSEN_RESEARCH = 201,
+  RNS8_FREIVALDS_RESEARCH = 202
 } rns8_semantics;
 
 typedef enum rns8_layout {
