@@ -201,3 +201,47 @@ extern "C" int rns8_hip_direct_export_i64_combined_final_device(
   e = hipDeviceSynchronize(); return (int)e;
 }
 
+
+
+// === u64 VOPD + Combined final-output export selectors ===
+extern "C" int rns8_hip_direct_export_u64_vopd_garner_device(
+    const int8_t* residues, uint64_t* dst, int rows, int cols, int ld,
+    uint64_t bound, int* status, int prefix) {
+  const int block = 256; const int cp2 = 2;
+  const int64_t el = (int64_t)rows * cols;
+  const int grid = (int)((el + cp2 * block - 1) / (cp2 * block));
+  switch (prefix) {
+    case 1: rns8_export_bounded_u64_vopd_combined_kernel<1><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 2: rns8_export_bounded_u64_vopd_combined_kernel<2><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 3: rns8_export_bounded_u64_vopd_combined_kernel<3><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 4: rns8_export_bounded_u64_vopd_combined_kernel<4><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 5: rns8_export_bounded_u64_vopd_combined_kernel<5><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 6: rns8_export_bounded_u64_vopd_combined_kernel<6><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 7: rns8_export_bounded_u64_vopd_combined_kernel<7><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    case 8: rns8_export_bounded_u64_vopd_combined_kernel<8><<<grid, block>>>(residues, dst, status, rows, cols, ld, bound, false); break;
+    default: return (int)hipErrorInvalidValue;
+  }
+  hipError_t e = hipGetLastError(); if (e != hipSuccess) return (int)e;
+  e = hipDeviceSynchronize(); return (int)e;
+}
+
+extern "C" int rns8_hip_direct_export_u64_combined_final_device(
+    const int8_t* residues, uint64_t* dst, int rows, int cols, int ld,
+    uint64_t bound, int prefix) {
+  const int block = 256; const int cp2 = 2;
+  const int64_t el = (int64_t)rows * cols;
+  const int grid = (int)((el + cp2 * block - 1) / (cp2 * block));
+  switch (prefix) {
+    case 1: rns8_export_bounded_u64_combined_final_output_kernel<1><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 2: rns8_export_bounded_u64_combined_final_output_kernel<2><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 3: rns8_export_bounded_u64_combined_final_output_kernel<3><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 4: rns8_export_bounded_u64_combined_final_output_kernel<4><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 5: rns8_export_bounded_u64_combined_final_output_kernel<5><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 6: rns8_export_bounded_u64_combined_final_output_kernel<6><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 7: rns8_export_bounded_u64_combined_final_output_kernel<7><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    case 8: rns8_export_bounded_u64_combined_final_output_kernel<8><<<grid, block>>>(residues, dst, nullptr, rows, cols, ld, bound, true); break;
+    default: return (int)hipErrorInvalidValue;
+  }
+  hipError_t e = hipGetLastError(); if (e != hipSuccess) return (int)e;
+  e = hipDeviceSynchronize(); return (int)e;
+}

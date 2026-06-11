@@ -1510,6 +1510,44 @@ __global__ void rns8_export_bounded_i64_vopd_combined_kernel(
 
 
 
+
+// VOPD-friendly u64 export: two outputs per thread with DPP status aggregation
+template <int Prefix>
+__global__ void rns8_export_bounded_u64_vopd_combined_kernel(
+    const int8_t* __restrict__ residues,
+    uint64_t* __restrict__ dst,
+    int* __restrict__ status,
+    int rows,
+    int cols,
+    int ld,
+    uint64_t bound,
+    bool status_elided) {
+  const int64_t cell = (static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x) * 2;
+  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+
+  const uint64_t* w = nullptr; uint64_t M = 0;
+  rns8_get_garner_weights_and_product<Prefix>(&w, &M);
+  int local_status = 0;
+
+  #pragma unroll
+  for (int c = 0; c < 2; ++c) {
+    if (cell + c >= elements) break;
+    const int64_t row = (cell + c) / cols;
+    const int64_t col = (cell + c) - row * cols;
+    uint64_t val;
+    rns8_garner_reconstruct_cell_device<Prefix>(residues, static_cast<int>(cell + c), static_cast<int>(elements), w, M, &val);
+    if (!status_elided && val > bound) local_status = 5;
+    dst[row * static_cast<int64_t>(ld) + col] = val;
+  }
+
+  if (!status_elided) {
+    int wave_status = rns8_export_dpp_status_aggregate_device(local_status);
+    if (wave_status && (threadIdx.x & 31) == 0) {
+      atomicExch(status, wave_status);
+    }
+  }
+}
+
 // === Phase 4b: Fused GEMM residue accumulation + CRT export ===
 // Computes INT32 GEMM accumulators then immediately applies Garner CRT
 // reconstruction, writing final i64/u64 output directly. Eliminates the

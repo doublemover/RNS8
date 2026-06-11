@@ -6,6 +6,10 @@ extern "C" int rns8_hip_direct_export_i64_combined_final_device(
     const int8_t* residues, int64_t* dst, int rows, int cols, int ld, int64_t bound, int prefix);
 extern "C" int rns8_hip_direct_export_u64_garner_select_device(
     const int8_t* residues, uint64_t* dst, int rows, int cols, int ld, uint64_t bound, int* status, int prefix);
+extern "C" int rns8_hip_direct_export_u64_vopd_garner_device(
+    const int8_t* residues, uint64_t* dst, int rows, int cols, int ld, uint64_t bound, int* status, int prefix);
+extern "C" int rns8_hip_direct_export_u64_combined_final_device(
+    const int8_t* residues, uint64_t* dst, int rows, int cols, int ld, uint64_t bound, int prefix);
 rns8_status hip_direct_export_i64_device(
     int device_id,
     const void* device_residues,
