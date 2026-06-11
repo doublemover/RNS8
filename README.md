@@ -59,55 +59,33 @@ reviewed autotune cache:
 | `hip-vector-alu-int64` | Native 64-bit integer HIP kernels | Reference comparator for bounded i64/u64 |
 | `cpu-reference` | CPU scalar reference with Boost.Multiprecision | Correctness anchor, wins tiny shapes (<128) |
 
-## Performance (June 10, 2026)
+## Performance (June 11, 2026)
 
-All numbers from full release sweeps on Radeon RX 7900 XTX / gfx1100,
-Windows HIP SDK 7.1. 3 warmups, 9 measured repeats, fixed seed, exact
-CPU reference differentials. See [docs/performance-wins.md](docs/performance-wins.md)
-for complete tables.
+243 captures, 0 failures, 5 backends, 281 tests. Windows gfx1100, HIP SDK 7.1,
+release builds, fixed seeds, schema-valid, CPU reference checked.
 
-### Direct HIP baseline (our code, no external libraries)
+### Quick reference
 
-| Semantics | Shape | End-to-end | vs CPU |
-|---|---|---|---:|
-| Bounded i64 | 1024x1024x1024 | 6,301 us | 34.9x |
-| Bounded i64 | 512x512x512 | 2,456 us | 49.5x |
-| Bounded u64 | 1024x1024x1024 | 6,856 us | 117.4x |
-| Bounded u64 | 512x512x512 | 3,275 us | 39.6x |
-| Exact-wide signed | 512x512x512 | 6,390 us | 37.5x |
-| Finite field u8 | 512x512x512 | 1,736 us | 16.1x |
-| Strict wrap64 | 2048x2048x2048 | 41,538 us | n/a |
-
-### Backends beating Direct HIP
-
-| Shape | Winner | Speedup vs Direct HIP |
+| What | Who | Speed |
 |---|---|---|
-| Bounded u64 256x256x256 | AMDGPU builtin | 1.52x |
-| Exact-wide signed 128x128x128 | AMDGPU builtin | 1.41x |
-| Bounded u64 512x512x512 | rocWMMA | 1.17x |
-| Bounded u64 1024x1024x1024 | rocWMMA | 1.17x |
-| Finite field u8 512x512x512 | rocWMMA | 1.49x |
+| Square bounded >= 256 | Direct HIP | Production baseline |
+| Small bounded (32-64) | rocWMMA | up to 76x faster |
+| Skinny GEMV (N <= 8) | AMDGPU builtins / rocWMMA | up to 76x |
+| Exact-wide | rocWMMA / CK | up to 7x |
+| Finite-u8 | CK / rocWMMA | up to 1.6x |
+| Wrap64 | Direct HIP | 230x vs CPU |
+| 4096 shapes | hipBLASLt | up to 5.2x |
 
-### hipBLASLt at 4096x4096
+### Active optimizations
 
-| Semantics | hipBLASLt | Direct HIP | Speedup |
-|---|---|---|---:|
-| Bounded i64 | 46,825 us | 129,734 us | 2.77x |
-| Bounded u64 | 51,239 us | 128,598 us | 2.51x |
-| Exact-wide signed | 125,862 us | 577,811 us | 4.59x |
-| Exact-wide unsigned | 120,893 us | 632,243 us | 5.23x |
-| Finite field u8 | 9,369 us | 35,225 us | 3.76x |
-
-### Optimization campaign gains (June 2026)
-
-| Shape | Before | After | Gain |
-|---|---|---|---:|
-| bounded u64 256 | 3,235 us | 2,008 us | +37.9% |
-| bounded i64 512 | 3,781 us | 2,456 us | +35.1% |
-| bounded i64 512x4 | 2,381 us | 1,727 us | +27.4% |
-| bounded i64 512x8 | 2,400 us | 1,769 us | +26.3% |
-| finite field u8 512 | 2,269 us | 1,736 us | +23.5% |
-
+| Layer | What is live |
+|---|---|
+| Pack | Persistent (<=4096 cells), Coalesced 4-wide (>=256, contiguous), Standard. Non-temporal loads. |
+| GEMM | DP4A (`v_dot4_i32_iu8 neg_lo:[1,1,0]` -- works around ROCm 7.1 bug). Persistent small (m*n <= 64). HIP graph replay. Plane parallelism via grid.z. |
+| Export | VOPD DPP (prefix 1-8, status needed). Combined final-output (prefix 1-8, status elided). u192 CRT (prefix 9+). Precomputed Garner weights. Status elision all paths. |
+| AMDGPU builtins | WMMA skinny dispatch (N=1->64t, N<=4->128t, N<=8->256t). |
+| Wrap64 | Tiled u64acc (>=1024). |
+| Infrastructure | Zero-skip detection. Adaptive prefix. Verification amortization. Scenario lint (0 errors). |
 ## Quick Start
 
 ### Prerequisites
@@ -256,41 +234,25 @@ Exactness rules are explicit and enforced by the API:
 
 ## Known Limitations
 
-- Pre-1.0. Public names, struct layouts, and ABI versions may change through
-  deliberate hard cutovers. No compatibility shims are preserved.
-- The C++ wrapper provides RAII lifetime management only. Full C++ API surface
-  is not yet implemented.
-- AUTO backend selection only promotes reviewed autotune cache entries for
-  supported contracts. Unreviewed or unsupported contracts fall back to the
-  configured correctness backend (typically Direct HIP).
-- Accelerator backends (CK, rocWMMA, hipBLASLt, AMDGPU builtins) are opt-in.
-  They must be explicitly compiled via their respective CMake presets and are
-  not required for correctness.
-- rocWMMA captures lack HIP event timings in the release preset, blocking
-  the repeated-B prepack cache benchmark.
-- INT4/IU4, FP8/Ozaki, Strassen, Freivalds verification, and adversarial
-  input detection are research-only APIs with `RNS8_UNSUPPORTED_BACKEND` stubs.
-- Linux ROCm, Instinct CDNA, RDNA4, multi-GPU, profiling, and power evidence
-  are separate validation targets. Windows gfx1100 evidence does not imply
-  readiness on those platforms.
-- Persistent small GEMM dispatch is enabled for m*n <= 64 only. Coalesced
-  and persistent pack dispatch are compiled but not yet wired (pending
-  differential test debugging).
-
+- **Not multi-GPU.** Current API assumes single-GPU operation.
+- **No async API.** All public calls are synchronous host-explicit.
+- **Windows HIP SDK 7.1** is the only RDNA3-supported runtime path.
+  Linux ROCm is the full production and CDNA validation path (deferred).
+- **Streaming overlap** is architecturally optimal as-is: the grouped-prefix
+  GEMM kernel uses grid.z for plane-level parallelism across 96 CUs.
+  Per-plane HIP stream launches are a regression, not an optimization.
+- **64-bit multi-precision GEMM** (`v_dot2_i32_i16`) is CDNA3-only.
+  RDNA3 only has `v_dot4_i32_i8` (DP4A).
 ## Hardware Scope
 
-| Tier | Target | Status |
-|---|---|---|
-| W0 | Radeon RX 7900 XTX / gfx1100 | Primary validated platform |
-| W1 | RDNA4 gfx1200/gfx1201 | Compile-only readiness |
-| I0 | Instinct CDNA3 gfx942 | Compile-only readiness |
-| I1 | Instinct CDNA4 gfx950 | Compile-only readiness |
-| I2 | Instinct CDNA2 gfx90a | Compile-only readiness |
-
-Minimum useful evaluation is CPU-only. GPU proof requires HIP SDK on a
-supported AMD GPU. Linux ROCm parity, Instinct validation, multi-GPU, and
-profiler-backed production claims require live hardware on those platforms.
-
+| Target | Status |
+|---|---|
+| RDNA3 (gfx1100 / RX 7900 XTX) | Primary bring-up. 281 tests, 243-capture sweep. |
+| CDNA2 (gfx90a / MI200) | Planned, not yet validated. |
+| CDNA3 (gfx942 / MI300) | MFMA/SMFMAC kernels compiled, no Linux sweep. |
+| RDNA4 (gfx1200) | WMMA kernels compiled, gated pending hardware. |
+| CDNA4 (gfx950) | Target metadata registered. |
+| CPU (x86-64, OpenMP) | Reference backend, all semantics validated. |
 ## What This Is Not
 
 RNS8 is not a general BLAS replacement. It does not intercept BLAS calls

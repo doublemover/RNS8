@@ -2,7 +2,7 @@
 ## RDNA3 Complete -- June 11, 2026
 
 All RDNA3 (gfx1100) active performance ranks verified complete.
-200-capture sweep with 4 backends, 0 failures, 281 tests pass.
+243-capture sweep with 5 backends, 0 failures, 281 tests pass.
 
 Live optimizations: DP4A finite-u8, Garner i64/u64 export, VOPD DPP export,
 WMMA skinny dispatch, status elision, persistent/coalesced pack, non-temporal
