@@ -23,7 +23,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
@@ -55,7 +55,7 @@
       "backends": [
         "hip-direct"
       ],
-      "review_mode_expectation": "smoke",
+      "review_mode_expectation": "release",
       "promotion_eligibility": "release_review_candidate",
       "prefix_policy": "fixed-requested",
       "max_prefix": 9,
