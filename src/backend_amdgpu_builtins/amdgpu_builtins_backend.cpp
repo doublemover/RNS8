@@ -13,6 +13,11 @@
     RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
 #  include <hip/hip_runtime_api.h>
 
+
+extern "C" int rns8_amdgpu_builtin_pack_wmma_i64_device(
+    const int64_t* src, int8_t* dst, int rows, int cols, int prefix);
+extern "C" int rns8_amdgpu_builtin_pack_wmma_u64_device(
+    const uint64_t* src, int8_t* dst, int rows, int cols, int prefix);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
