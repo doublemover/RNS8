@@ -232,7 +232,7 @@ bad_runtime_cache_prefix = copy.deepcopy(rocwmma_runtime_b_cache)
 bad_runtime_cache_prefix["reuse_contract"]["runtime_prepack_cache"]["max_prefix"] = (
     rocwmma_runtime_b_cache["prefix"] - 1
 )
-expect_invalid(bad_runtime_cache_prefix, "runtime prepack cache max_prefix must match capture prefix")
+expect_invalid(bad_runtime_cache_prefix, "runtime prepack cache max_prefix must be >= selected prefix")
 
 bad_runtime_cache_key = copy.deepcopy(rocwmma_runtime_b_cache)
 bad_runtime_cache_key["reuse_contract"]["runtime_prepack_cache"]["cache_key"] = (

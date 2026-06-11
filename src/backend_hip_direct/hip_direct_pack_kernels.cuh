@@ -16,7 +16,7 @@ __global__ void rns8_pack_i64_kernel(
   const int row = static_cast<int>(element / cols);
   const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
   const int modulus = rns8_default_moduli_device[modulus_index];
-  residues[idx] = rns8_center_i64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
+  residues[idx] = rns8_center_i64_device(__builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
 }
 
 __global__ void rns8_pack_i64_contiguous_kernel(
@@ -55,7 +55,7 @@ __global__ void rns8_pack_u64_kernel(
   const int row = static_cast<int>(element / cols);
   const int col = static_cast<int>(element - static_cast<int64_t>(row) * cols);
   const int modulus = rns8_default_moduli_device[modulus_index];
-  residues[idx] = rns8_center_u64_device(src[static_cast<int64_t>(row) * ld + col], modulus);
+  residues[idx] = rns8_center_u64_device(__builtin_nontemporal_load(&src[static_cast<int64_t>(row) * ld + col]), modulus);
 }
 
 __global__ void rns8_pack_u64_contiguous_kernel(
@@ -972,6 +972,8 @@ __global__ void rns8_pack_i64_4wide_coalesced_kernel(
     int rows,
     int cols,
     int prefix) {
+  // Process 4 cells per thread. Uses cols as stride (same as standard kernel
+  // when ld==cols, which is guaranteed by the dispatch guard).
   const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
   const int64_t cells_per_thread = 4;
   const int64_t total = elements * static_cast<int64_t>(prefix);
@@ -980,14 +982,17 @@ __global__ void rns8_pack_i64_4wide_coalesced_kernel(
   if (base_cell >= total) return;
 
   const int modulus_index = static_cast<int>(base_cell / elements);
-  const int64_t cell = base_cell - static_cast<int64_t>(modulus_index) * elements;
+  const int64_t first_element = base_cell - static_cast<int64_t>(modulus_index) * elements;
   const int modulus = rns8_default_moduli_device[modulus_index];
 
-  // Process 4 cells with a single 32-byte load when aligned and contiguous
   #pragma unroll
-  for (int c = 0; c < 4; ++c) {
-    if (cell + c >= elements) break;
-    int64_t value = src[cell + c];  // Contiguous ld==cols path: single cache line
+  for (int c = 0; c < cells_per_thread; ++c) {
+    const int64_t elem = first_element + static_cast<int64_t>(c);
+    if (elem >= elements) break;
+    const int row = static_cast<int>(elem / cols);
+    const int col = static_cast<int>(elem - static_cast<int64_t>(row) * cols);
+    // When ld==cols (dispatch guard), cols is the correct stride
+    const int64_t value = src[static_cast<int64_t>(row) * cols + col];
     int64_t reduced = value % static_cast<int64_t>(modulus);
     if (reduced < 0) reduced += modulus;
     residues[base_cell + c] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);

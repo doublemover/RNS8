@@ -283,8 +283,14 @@ def validate_contract_metadata(self: Any) -> None:
                         self._error("runtime prepack cache matrix_rows must match capture k for B operand")
                     if runtime_cache.get("matrix_cols") != self.data.get("n"):
                         self._error("runtime prepack cache matrix_cols must match capture n for B operand")
-                    if runtime_cache.get("max_prefix") != self.data.get("prefix"):
-                        self._error("runtime prepack cache max_prefix must match capture prefix")
+                    cache_max_prefix = runtime_cache.get("max_prefix")
+                    residue_policy = self.data.get("residue_count_policy") or {}
+                    capture_prefix = residue_policy.get("selected_prefix", self.data.get("prefix"))
+                    if cache_max_prefix is not None and capture_prefix is not None:
+                        if cache_max_prefix < capture_prefix:
+                            self._error("runtime prepack cache max_prefix must be >= selected prefix")
+                    elif cache_max_prefix != capture_prefix:
+                        self._error("runtime prepack cache max_prefix must match selected prefix")
                     expected_modulus = self.data.get("finite_modulus") or 0
                     if runtime_cache.get("finite_modulus") != expected_modulus:
                         self._error("runtime prepack cache finite_modulus must match capture finite_modulus")

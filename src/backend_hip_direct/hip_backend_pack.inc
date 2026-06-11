@@ -1,5 +1,11 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+
+#if defined(RNS8_ENABLE_INT4_RESEARCH)
+extern "C" int rns8_hip_direct_pack_i4_research_device(
+    const int64_t* src, int8_t* residues, int rows, int cols, int prefix);
+#endif
+
 extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
     const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix);
 extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(

@@ -893,6 +893,42 @@ rns8_status rns8_gemm_rns(
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       rns8_status status = RNS8_SUCCESS;
       if (!plan->tile_schedule.empty()) {
+        // Zero-skip detection: scan host residues for all-zero rows/cols.
+        // Build a local schedule copy with updated flags for active-schedule filtering.
+        auto local_schedule = plan->tile_schedule;
+        std::vector<uint8_t> zero_a(static_cast<std::size_t>(plan->desc.m), 1);
+        std::vector<uint8_t> zero_b(static_cast<std::size_t>(plan->desc.n), 1);
+        bool has_zero_detection = false;
+        if (A->host_residues_current && !A->residues.empty()) {
+          const auto* r = A->residues.data();
+          const int64_t a_k = plan->desc.k;
+          for (int64_t row = 0; row < plan->desc.m; ++row) {
+            for (int64_t col = 0; col < a_k && zero_a[static_cast<std::size_t>(row)]; ++col)
+              if (r[row * a_k + col] != 0) zero_a[static_cast<std::size_t>(row)] = 0;
+          }
+          has_zero_detection = true;
+        }
+        if (B->host_residues_current && !B->residues.empty()) {
+          const auto* r = B->residues.data();
+          const int64_t b_n = plan->desc.n;
+          for (int64_t col = 0; col < b_n; ++col) {
+            for (int64_t row = 0; row < plan->desc.k && zero_b[static_cast<std::size_t>(col)]; ++row)
+              if (r[row * b_n + col] != 0) zero_b[static_cast<std::size_t>(col)] = 0;
+          }
+          has_zero_detection = true;
+        }
+        if (has_zero_detection) {
+          for (auto& entry : local_schedule) {
+            bool tile_zero = false;
+            for (int64_t r = entry.row_offset;
+                 r < entry.row_offset + entry.row_extent && !tile_zero; ++r)
+              if (zero_a[static_cast<std::size_t>(r)]) tile_zero = true;
+            for (int64_t c = entry.col_offset;
+                 c < entry.col_offset + entry.col_extent && !tile_zero; ++c)
+              if (zero_b[static_cast<std::size_t>(c)]) tile_zero = true;
+            if (tile_zero) entry.flags |= (RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
+          }
+        }
         status = rns8::detail::hip_direct_gemm_rns_tiled_device_schedule(
             ctx->device_id,
             A->hip_residues,
@@ -904,7 +940,7 @@ rns8_status rns8_gemm_rns(
             A->desc.cols,
             B->desc.cols,
             C->desc.cols,
-            plan->tile_schedule.data(),
+            local_schedule.data(),
             workspace->hip_tile_schedule,
             workspace->hip_tile_schedule_active_entries,
             workspace->hip_zero_a_rows,

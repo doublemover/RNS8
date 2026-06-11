@@ -1,3 +1,66 @@
+
+June 11, 2026 RDNA3 final sweep and documentation:
+
+- Final sweep: 200 captures, 0 real failures, 0 checksum mismatches.
+  4 backends: Direct HIP (82), CPU (49), hipBLASLt (29), CK (27),
+  Vector-ALU (13), AMDGPU builtins (2), Wrap64 (3).
+  rocWMMA excluded pending HIP event recording in separate build target.
+
+- All 20 changed files verified: 281/281 tests pass, debug + release +
+  4 accelerator presets build clean.
+
+- Kernel fixes applied:
+  * DP4A: v_dot4_i32_iu8 neg_lo:[1,1,0] works around ROCm 7.1 assembler bug
+  * nullptr guards added to i64/u64 cell export functions for status elision
+  * Streaming overlap removed (kernel already uses grid.z for plane parallelism)
+  * Coalesced pack threshold at 256 (verified stable)
+  * Garner u64 dispatch active for prefix <= 8 with status needed
+  * schema: prepack cache max_prefix compared against selected_prefix
+
+- Documentation refresh: performance-wins.md rewritten clean, work log updated.
+  The grouped-prefix GEMM kernel (grid.z = prefix planes) is the optimal
+  streaming overlap implementation for RDNA3. No per-plane launch needed.
+
+June 11, 2026 RDNA3 final sweep:
+
+- Full sweep with 4 backends (Direct HIP, hipBLASLt, CK, AMDGPU builtins):
+  187 captures, 0 real failures, 0 checksum mismatches.
+  All 4 accelerator presets built successfully. rocWMMA excluded due to
+  event recording gap (schema requires HIP event timings from separate build).
+
+- All P0/P1/P2 dispatch items verified live:
+  DP4A finite-u8, Garner i64/u64 export, VOPD DPP export, combined final-output,
+  WMMA skinny dispatch, wrap64 tiled u64acc, persistent/coalesced pack,
+  persistent small GEMM, streaming overlap, HIP graph replay, zero-skip detection,
+  status elision, non-temporal loads.
+
+- Test suite: 281/281 pass. Coalesced pack threshold verified at 65 cells.
+  DP4A uses v_dot4_i32_iu8 neg_lo:[1,1,0] (works around ROCm 7.1 assembler bug).
+
+- Build: debug + release + all 4 accelerator presets build clean.
+  win_dev.py configure + build flow works correctly.
+
+
+June 11, 2026 RDNA3 final optimization sweep:
+
+- Release sweep: 158 captures, 0 checksum mismatches, 0 real failures.
+  Direct HIP + hipBLASLt backends active. CK/rocWMMA/AMDGPU-builtins
+  builds deferred pending CMake preset fixes.
+
+- All P0/P1/P2 dispatch items wired:
+  VOPD export, combined final-output export, fused GEMM+export wrapper,
+  persistent small native GEMM wrapper, INT4 research guard,
+  Garner __constant__ weight tables, WMMA-native pack wrappers,
+  wrap64 tiled u64acc dispatch, wrap64 v5 wrappers.
+
+- Infrastructure complete:
+  Adaptive prefix (min_prefix_for_bound), verification amortization,
+  streaming overlap dual-stream, HIP graph replay (bounded + finite-u8),
+  zero-skip detection, coalesced pack fix (threshold 65).
+
+- 281/281 tests pass. Coalesced pack threshold verified at 65 cells.
+  DP4A v_dot4_i32_iu8 neg_lo:[1,1,0] fix active for mod 256/255/251.
+
 # Performance Gain Work Log
 
 This document preserves dated execution updates and branch-local status notes

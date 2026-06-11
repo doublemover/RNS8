@@ -146,6 +146,24 @@ std::string lowering_path(const rns8_plan_packing_info& packing) {
 
 }  // namespace
 
+
+// Compute minimum prefix for a given global bound.
+// Reduces GEMM plane count for small-bound workloads.
+// For uint64_t bound: computes the smallest prefix where the CRT product
+// exceeds 2 * bound (for signed) or bound (for unsigned), ensuring the
+// reconstructed value fits without overflow.
+uint32_t min_prefix_for_bound(uint64_t bound, bool is_signed, uint32_t max_prefix) {
+  if (bound == 0) return 1;
+  constexpr uint32_t moduli[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167};
+  uint64_t required = is_signed ? (2 * bound) : bound;
+  uint64_t product = 1;
+  for (uint32_t p = 0; p < max_prefix && p < 20; ++p) {
+    product *= moduli[p];
+    if (product > required) return p + 1;
+  }
+  return max_prefix;
+}
+
 PlanLoweringDescription describe_plan_lowering(
     const rns8_plan_backend_info& backend,
     const rns8_plan_packing_info& packing,

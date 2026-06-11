@@ -22,20 +22,9 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
     long long ldc,
     unsigned int prefix);
 
-// === Rank 124: rocWMMA HIP event recording ===
-// Adds event labels for rocWMMA pack, GEMM, and epilogue phases.
-// Uses the Direct HIP timing infrastructure (timed_hip_operation).
-#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA && defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-namespace {
-int rocwmma_timed_gemm(const char* label, std::function<int()> fn) {
-  hipError_t err = rns8::detail::timed_hip_operation(label, [&]() {
-    int code = fn();
-    return code == 0 ? hipDeviceSynchronize() : hipErrorUnknown;
-  });
-  return err == hipSuccess ? 0 : static_cast<int>(RNS8_BACKEND_FAILURE);
-}
-}  // namespace
-#endif
+// Event recording uses run_timed_device_code in the dispatch functions below.
+// The rocWMMA backend is a separate build target that cannot reference
+// Direct HIP internal helpers (timed_hip_operation).
 
 
 

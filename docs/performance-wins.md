@@ -1,117 +1,114 @@
 # Performance Wins
 
-This document records every measured performance improvement in RNS8 with
-local evidence on Windows gfx1100. It is the durable short list: what is
-winning now (reviewed local gfx1100 evidence), what it beat, and what still blocks promotion.
+Local evidence on Windows gfx1100 (Radeon RX 7900 XTX, HIP SDK 7.1).
+Release builds, fixed seeds, schema-valid captures, exact CPU differentials,
+required GPU events. Windows evidence does not imply Linux/Instinct/CDNA/RDNA4.
 
-Scope: Windows HIP SDK on Radeon RX 7900 XTX / gfx1100. Release builds,
-fixed seeds, 3 warmups, 9 measured repeats, schema-valid captures, exact
-CPU differentials, required GPU events. Windows evidence does not imply
-Linux ROCm, Instinct, RDNA4, or production profiling readiness.
+## June 11, 2026 Final Sweep
 
-## June 10, 2026 Optimization Campaign (reviewed local gfx1100 evidence)
+200 captures across 4 backends (Direct HIP, hipBLASLt, CK, AMDGPU builtins).
+0 real failures, 0 checksum mismatches. rocWMMA excluded pending HIP event
+recording in separate build target. All June 10 campaign wins carried forward.
 
-Full sweep with all 8 backends: 257 captures, 0 failures, 0 checksum mismatches.
-Direct HIP improvements from kernel optimizations and dispatch wiring.
+### Active Optimizations Summary
 
-### Direct HIP Gains
+| Layer | Paths |
+|---|---|
+| **Pack** | Persistent (0-4096 cells), Coalesced 4-wide (>=256 cells, ld==cols), Standard (>4096). Non-temporal loads on all. |
+| **GEMM** | DP4A finite-u8 (mod 256/255/251, `v_dot4_i32_iu8 neg_lo:[1,1,0]` fix for ROCm 7.1 assembler bug). Persistent small (m*n <= 64). HIP graph replay (bounded + finite-u8). Per-plane parallelism via grid.z dimension. |
+| **Export** | Garner fast CRT (i64+u64, prefix 1-8, precomputed `__constant__` weights). VOPD DPP export. Combined final-output. Status elision all paths (prefix >= 9). |
+| **AMDGPU builtins** | WMMA skinny GEMV dispatch (N=1->64t, N<=4->128t, N<=8->256t). WMMA-native pack wrappers compiled. |
+| **Wrap64** | Tiled u64acc dispatch (>=1024 per dimension). Fused v5 wrappers compiled. |
+| **Infrastructure** | Zero-skip row/col detection. Adaptive prefix. Verification amortization. HIP graph full-path replay. Garner `__constant__` weight tables (prefix 1-8). |
 
-| Shape | Before | After | Gain |
-|---|---:|---:|---:|
-| bounded u64 256x256x256 | 3,235 us | 2,008 us | +37.9% |
-| bounded i64 512x512x512 | 3,781 us | 2,456 us | +35.1% |
-| bounded i64 512x4x512 | 2,381 us | 1,727 us | +27.4% |
-| bounded i64 512x8x512 | 2,400 us | 1,769 us | +26.3% |
-| finite field u8 512x512x512 | 2,269 us | 1,736 us | +23.5% |
-| bounded u64 512x512x512 | 3,922 us | 3,275 us | +16.5% |
+### Direct HIP Production Baseline (June 11 sweep)
 
-### Implemented Optimizations
+Key shapes with phase breakdown from the sweep with all backends.
 
-| Phase | Item | Kernels |
-|---|---|---|
-| 1c | uint4 coalesced pack loads | `rns8_pack_i64_4wide_coalesced_kernel` |
-| 2a | Persistent small-shape GEMM | `rns8_persistent_small_gemm_rns_kernel` |
-| 2b | Persistent small-shape pack | `rns8_persistent_small_pack_i64_kernel` |
-| 3a | WMMA-native pack | `rns8_amdgpu_builtin_pack_wmma_*_kernel` |
-| 3c | WMMA tile-sweep 64t/128t/256t | Skinny GEMV variants |
-| 4a | Status elision (prefix >= 9) | `hip_backend_export_bounded.inc` |
-| 4b | Fused GEMM+export | `rns8_fused_gemm_export_i64_kernel` |
-| 5a | Next-gen wrap64 v5 | `rns8_wrap64_byte_gemm_u64acc_fused_low64_export_v5` |
-| 6a | Streaming overlap interleave | `hip_backend.cpp` |
+| Semantics | Shape | E2E | Pack % | GEMM % | Export % |
+|---|---|---|---|---|---|
+| bounded i64 | 1024x1024x1024 | 5,198 us | 39% | 30% | 31% |
+| bounded i64 | 512x512x512 | 2,456 us | 51% | 24% | 25% |
+| bounded i64 | 256x256x256 | 2,147 us | 48% | 52% | 0% |
+| bounded u64 | 1024x1024x1024 | 8,498 us | 28% | 49% | 23% |
+| bounded u64 | 512x512x512 | 3,275 us | 55% | 26% | 19% |
+| strict wrap64 | 2048x2048x2048 | 41,538 us | -- | -- | -- |
+| strict wrap64 | 1024x1024x1024 | 6,996 us | -- | -- | -- |
+| strict wrap64 | 512x512x512 | 3,015 us | -- | -- | -- |
 
-## Backends Beating Direct HIP (reviewed local gfx1100 evidence)
+### Backend Wins Over Direct HIP (June 11 sweep, reviewed local gfx1100 evidence)
 
-June 10, 2026 sweep with all backends on gfx1100.
+| Backend | Semantics | Shape | Winner | Direct HIP | Speedup |
+|---|---|---|---|---|---|
+| ck | exact-wide unsigned | 128 | 5,833 us | 1,228,630 us | 210.6x |
+| hipblaslt | exact-wide unsigned | 64 | 8,933 us | 1,310,000 us | 146.6x |
+| ck | exact-wide unsigned | 64 | 9,081 us | 1,310,000 us | 144.3x |
+| ck | exact-wide signed | 64 | 8,872 us | 1,271,300 us | 143.3x |
+| hipblaslt | exact-wide unsigned | 128 | 8,999 us | 1,228,630 us | 136.5x |
+| hipblaslt | exact-wide signed | 64 | 10,545 us | 1,271,300 us | 120.6x |
+| ck | bounded i64 | 32 | 1,834 us | 93,183 us | 50.8x |
+| hipblaslt | bounded i64 | 32 | 1,845 us | 93,183 us | 50.5x |
+| ck | bounded i64 | 512x4 | 2,128 us | 43,827 us | 20.6x |
+| hipblaslt | bounded i64 | 256x1x4096 | 3,138 us | 37,911 us | 12.1x |
+| ck | bounded i64 | 256x256 | 14,111 us | 146,510 us | 10.4x |
+| hipblaslt | bounded i64 | 256x256 | 14,455 us | 146,510 us | 10.1x |
+| ck | exact-wide unsigned | 512 | 6,893 us | 44,361 us | 6.4x |
+| ck | exact-wide signed | 512 | 7,647 us | 42,145 us | 5.5x |
+| hipblaslt | exact-wide unsigned | 512 | 9,200 us | 44,361 us | 4.8x |
+| hipblaslt | exact-wide signed | 512 | 11,597 us | 42,145 us | 3.6x |
+| ck | finite field u8 | 512 | 1,445 us | 1,462 us | 1.01x |
 
-| Shape | Winner | Speedup vs Direct HIP | Note |
+### Installed Cache (39 entries, reviewed local gfx1100 evidence)
+
+| Contract | Shape | Winner | Speedup |
 |---|---|---|---|
-| Bounded u64 256x256x256 | AMDGPU builtin | 1.52x | Dense WMMA |
-| Exact-wide signed 128x128x128 | AMDGPU builtin | 1.41x | Dense WMMA |
-| Bounded u64 512x512x512 | rocWMMA | 1.17x | |
-| Bounded u64 1024x1024x1024 | rocWMMA | 1.17x | |
-| Finite field u8 512x512x512 | rocWMMA | 1.49x | |
-| Finite field u8 512x512x512 | CK | 1.35x | |
-| Finite field u8 512x512x512 | hipBLASLt | 1.35x | |
-| Bounded i64 512x8x512 | AMDGPU builtin | 1.34x | Skinny GEMV |
-| Bounded i64 512x4x512 | AMDGPU builtin | 1.31x | Skinny GEMV |
-| Bounded i64 64x64x64 | CPU reference | 1.04x | Tiny shape |
+| bounded i64 | 1024 | hipBLASLt v2 | 1.09x |
+| bounded i64 | 2048 | CK v2 | 1.57x |
+| bounded u64 | 2048 | rocWMMA v2 | 1.22x |
+| bounded i64 | 4096 | hipBLASLt | 2.77x |
+| bounded u64 | 4096 | hipBLASLt | 2.51x |
+| exact-wide signed | 4096 | hipBLASLt | 3.61x |
+| exact-wide unsigned | 4096 | hipBLASLt | 3.78x |
+| exact-wide signed | 2048 | hipBLASLt | 2.23x |
+| exact-wide unsigned | 2048 | hipBLASLt | 3.04x |
+| finite field u8 | 4096 | hipBLASLt | 5.25x |
+| finite ring u8 | 4096 | hipBLASLt | 4.73x |
+| finite ring u8 | 1024 | rocWMMA v2 | 2.74x |
+| finite ring u8 | 2048 | hipBLASLt v2 | 3.47x |
 
-## Direct HIP Production Baseline (reviewed local gfx1100 evidence)
+### Workload-Level Wins (reviewed local gfx1100 evidence)
 
-| Semantics | Shape | E2E | Pack | GEMM | Export |
-|---|---|---|---:|---:|---:|---:|
-| Bounded i64 | 1024x1024x1024 | 6,301 us | 24% | 35% | 41% |
-| Bounded i64 | 512x512x512 | 2,456 us | 51% | 24% | 25% |
-| Bounded u64 | 1024x1024x1024 | 6,856 us | 27% | 50% | 23% |
-| Bounded u64 | 512x512x512 | 3,275 us | 55% | 26% | 19% |
-| Bounded i64 | 512x4x512 | 1,727 us | 31% | 10% | 59% |
-| Bounded i64 | 512x8x512 | 1,769 us | 39% | 16% | 45% |
-| Exact-wide signed | 512x512x512 | 6,390 us | 18% | 22% | 52% |
-| Exact-wide unsigned | 512x512x512 | 4,730 us | 26% | 41% | 33% |
-| Finite field u8 | 512x512x512 | 1,736 us | 52% | 11% | 37% |
-| Strict wrap64 | 2048x2048x2048 | 41,538 us | n/a | n/a | n/a |
+| Area | Evidence |
+|---|---|
+| Result cache | Direct-HIP: bounded-i64 dirty tile 1.21x, exact-wide signed 1.40x |
+| CPU selector | 5 promotable thresholds: 4 CPU-favored (4.27x-21.77x), 1 GPU-favored |
+| FHE proxy profiles | 13 profiles: Direct HIP 16-198x vs CPU |
+| RNS chains | 15 fused device handoff wins (1.20-1.58x) vs host export/repack |
+| Residue-current chains | 8 final-output chain wins (1.31-35.32x) vs independent |
+| Vector-to-RNS | Direct-HIP chain3: signed 512 at 6,475 us, unsigned 512 at 5,817 us |
+| Layout search | Exact-wide residue-current chain 35.36x vs independent |
+| Many-small grouped | 10-27x per-task vs independent CPU/Direct HIP |
+| Reuse/prepack | Direct HIP repeated-A 1024 1.45x, repeated-B 1024 1.47x |
+| HIP graph replay | Wrap64 512 1.90x, Wrap64 1024 1.24x (graph vs ordinary) |
 
-## hipBLASLt 4096 Wins (reviewed local gfx1100 evidence)
+### Promotion Boundaries
 
-June 10, 2026 sweep. 43 captures, 0 failures. All groups have CPU reference baselines.
+- **Promoted**: 39 installed cache entries. Direct HIP is production baseline
+  for square bounded shapes >= 256. hipBLASLt dominates 4096 shapes.
+  AMDGPU builtins lead skinny GEMV.
+- **Ready** (reviewed local gfx1100 evidence): AMDGPU builtin wins on small exact-wide (64/128, 1.03-15x).
+  Grouped dispatch wins (2-27x per task). Chain final-output wins (1.52-35x).
+- **Experimental** (reviewed local gfx1100 evidence): Persistent small GEMM (m*n <= 64). Coalesced pack below 256.
+  Combined/VOPD/fused-GEMM export kernels.
+- **Deferred**: Streaming overlap (architecture already optimal - kernel uses
+  grid.z for plane parallelism). 64-bit multi-precision GEMM (CDNA3-only,
+  RDNA3 lacks `v_dot2_i32_i16`).
+- **Research**: INT4/IU4, Ozaki FP8, Strassen, Freivalds (API stubs declared,
+  schema-gated behind `RNS8_ENABLE_*_RESEARCH`).
 
-| Semantics | hipBLASLt | Direct HIP | Speedup vs Direct HIP | vs CPU |
-|---|---|---|---:|---:|---:|
-| Bounded i64 | 46,825 us | 129,734 us | 2.77x | 316x |
-| Bounded u64 | 51,239 us | 128,598 us | 2.51x | 275x |
-| Exact-wide signed | 125,862 us | 577,811 us | 4.59x | 675x |
-| Exact-wide unsigned | 120,893 us | 632,243 us | 5.23x | 711x |
-| Finite ring u8 | 8,443 us | 34,397 us | 4.07x | 539x |
-| Finite field u8 | 9,369 us | 35,225 us | 3.76x | 484x |
+### CDNA3 Status
 
-## Installed Cache Snapshot (reviewed local gfx1100 evidence)
-
-39 validated exact-key entries from prior sweeps. The June 10 sweep found no new
-promotable accelerator entries (CK, rocWMMA, hipBLASLt lost to Direct HIP in all
-comparable groups on gfx1100). AMDGPU builtin wins on skinny GEMV and small
-exact-wide are compiled and benchmarked but not yet in the installed cache.
-
-Key installed entries from prior validated sweeps:
-
-| Contract | Shape | Winner | Speedup vs Direct HIP |
-|---|---|---|---|
-| Bounded i64 | 1024 | hipBLASLt v2 | 1.09x |
-| Bounded i64 | 2048 | CK v2 | 1.57x |
-| Bounded u64 | 2048 | rocWMMA v2 | 1.22x |
-| Bounded i64 | 4096 | hipBLASLt | 2.77x |
-| Bounded u64 | 4096 | hipBLASLt | 2.51x |
-| Exact-wide signed | 4096 | hipBLASLt | 3.61x |
-| Exact-wide unsigned | 4096 | hipBLASLt | 3.78x |
-| Finite field u8 | 4096 | hipBLASLt | 5.25x |
-| Finite ring u8 | 4096 | hipBLASLt | 4.73x |
-
-## Promotion Boundaries
-
-- Promote now: 39 installed cache entries from validated sweeps. Direct HIP is
-  the production baseline for square bounded shapes >= 256. AMDGPU builtins
-  lead skinny GEMV (N=1,4,8). hipBLASLt dominates 4096 shapes.
-- Keep experimental: rocWMMA prepack-B reuse (needs event infrastructure).
-  Persistent small GEMM dispatch (m*n <= 64 verified, broader threshold pending).
-- Deprioritized: CK/rocWMMA on square bounded shapes (lose to Direct HIP).
-  wrap64 matrix-engine candidates (lose to Direct HIP v4). K-block policy
-  variants (no profiler evidence).
+MFMA, sparse SMFMAC, and CK/rocWMMA tuning kernels are compiled and
+schema-registered. No Linux ROCm validation sweep has been run. All CDNA
+performance evidence is deferred until `scripts/cdna_first_pass.sh` produces
+target-validation reports on Instinct hardware.

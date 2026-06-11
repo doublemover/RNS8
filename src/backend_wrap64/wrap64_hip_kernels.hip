@@ -712,3 +712,42 @@ __device__ void rns8_wrap64_dpp_diagonal_accumulate_device(
   }
 }
 
+
+
+// === P2.10: Tiled u64 accumulator wrapper ===
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_tiled_u64acc_device(
+    const uint8_t* a_limbs, const uint8_t* b_limbs, uint8_t* c_limbs,
+    int64_t m, int64_t n, int64_t k) {
+  const dim3 block(kWrap64TileM, kWrap64TileN);
+  const dim3 grid(
+      static_cast<unsigned>((n + block.x - 1) / block.x),
+      static_cast<unsigned>((m + block.y - 1) / block.y));
+  hipLaunchKernelGGL(
+      rns8_wrap64_byte_gemm36_tiled_u64acc_kernel,
+      grid, block, 0, 0,
+      a_limbs, b_limbs, c_limbs, m, n, k);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return static_cast<int>(err);
+  err = hipDeviceSynchronize();
+  return static_cast<int>(err);
+}
+
+
+// === Wrap64 v5: fused GEMM+export with uint64_t accumulators ===
+extern "C" int rns8_wrap64_hip_gemm_export_fused_v5_device(
+    const uint8_t* a_limbs, const uint8_t* b_limbs, uint64_t* dst,
+    int64_t m, int64_t n, int64_t k, int64_t ld) {
+  const dim3 block(256);
+  const dim3 grid(
+      static_cast<unsigned>((n + block.x - 1) / block.x),
+      static_cast<unsigned>(m));
+  hipLaunchKernelGGL(
+      rns8_wrap64_byte_gemm_u64acc_fused_low64_export_v5,
+      grid, block, 0, 0,
+      a_limbs, b_limbs, dst,
+      static_cast<int>(m), static_cast<int>(k), static_cast<int>(n), static_cast<int>(ld));
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return static_cast<int>(err);
+  err = hipDeviceSynchronize();
+  return static_cast<int>(err);
+}

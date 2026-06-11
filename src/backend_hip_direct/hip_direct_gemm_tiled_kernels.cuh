@@ -135,6 +135,80 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
   }
 }
+// === DP4A tensor-core accelerated fixed-modulus GEMM ===
+// Uses v_dot4_i32_iu8 neg_lo:[1,1,0] (hardware i8 dot4, signed).
+// Same tile layout as scalar: a_tile[M][K], b_tile[K][Npadded].
+// A: contiguous 32-bit LDS load. B: manual 4-byte gather.
+// neg_lo:[1,1,0] works around ROCm 7.1 assembler bug where the
+// v_dot4_i32_i8 alias dropped sign-extension neg_lo bits.
+template <int Modulus>
+__global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
+    rns8_finite_ring_gemm_i8_i32_dp4a_fixed_modulus_kernel(
+        const int8_t* A, const int8_t* B, int8_t* C,
+        int m, int n, int k_offset, int k_block,
+        int lda, int ldb, int ldc, int accumulate) {
+  __shared__ int8_t a_tile[kRns8HipTileM][kRns8HipTileK];
+  __shared__ int8_t b_tile[kRns8HipTileK][kRns8HipTileNPadded];
+
+  const int thread_row = static_cast<int>(threadIdx.y);
+  const int thread_col = static_cast<int>(threadIdx.x);
+  const int tile_row = static_cast<int>(blockIdx.y) * kRns8HipTileM;
+  const int tile_col = static_cast<int>(blockIdx.x) * kRns8HipTileN;
+  const int row = tile_row + thread_row;
+  const int col = tile_col + thread_col;
+  const int lane = thread_row * static_cast<int>(blockDim.x) + thread_col;
+  const int block_threads = static_cast<int>(blockDim.x * blockDim.y);
+  const bool output_active = row < m && col < n;
+  int32_t acc = 0;
+
+  for (int tile_k = 0; tile_k < k_block; tile_k += kRns8HipTileK) {
+    const int tile_extent =
+        k_block - tile_k < kRns8HipTileK ? k_block - tile_k : kRns8HipTileK;
+
+    for (int index = lane; index < kRns8HipTileM * kRns8HipTileK; index += block_threads) {
+      const int local_row = index / kRns8HipTileK;
+      const int local_k = index - local_row * kRns8HipTileK;
+      const int global_row = tile_row + local_row;
+      const int source_k = k_offset + tile_k + local_k;
+      a_tile[local_row][local_k] =
+          global_row < m && local_k < tile_extent ? A[global_row * lda + source_k] : 0;
+    }
+
+    for (int index = lane; index < kRns8HipTileK * kRns8HipTileN; index += block_threads) {
+      const int local_k = index / kRns8HipTileN;
+      const int local_col = index - local_k * kRns8HipTileN;
+      const int global_col = tile_col + local_col;
+      const int source_k = k_offset + tile_k + local_k;
+      b_tile[local_k][local_col] =
+          local_k < tile_extent && global_col < n ? B[source_k * ldb + global_col] : 0;
+    }
+
+    __syncthreads();
+
+    if (output_active) {
+      for (int kk = 0; kk < tile_extent; kk += 4) {
+        const uint32_t a_packed = *reinterpret_cast<const uint32_t*>(&a_tile[thread_row][kk]);
+        uint32_t b_packed = 0;
+        b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk][thread_col]));
+        if (kk + 1 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 1][thread_col])) << 8;
+        if (kk + 2 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 2][thread_col])) << 16;
+        if (kk + 3 < tile_extent) b_packed |= static_cast<uint32_t>(static_cast<uint8_t>(b_tile[kk + 3][thread_col])) << 24;
+        asm volatile("v_dot4_i32_iu8 %0, %1, %2, %0 neg_lo:[1,1,0]"
+                     : "+v"(acc) : "v"(a_packed), "v"(b_packed));
+      }
+    }
+
+    __syncthreads();
+  }
+
+  if (output_active && accumulate) {
+    acc += static_cast<int32_t>(C[row * ldc + col]);
+  }
+  if (output_active) {
+    C[row * ldc + col] = rns8_reduce_to_centered_fixed_modulus_device<Modulus>(acc);
+  }
+}
+
 
 __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     rns8_finite_ring_gemm_i8_i32_grouped_modulus_kernel(

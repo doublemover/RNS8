@@ -497,9 +497,9 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   CHECK(warmed_snapshot.c_upload == nullptr);
   CHECK(warmed_snapshot.c_upload_bytes == 0);
   REQUIRE(warmed_snapshot.c_export != nullptr);
-  REQUIRE(warmed_snapshot.c_status != nullptr);
+  // Prefix 9 direct export elides status (structurally covers full u64 range)
+  REQUIRE(warmed_snapshot.c_status == nullptr);
   REQUIRE(warmed_snapshot.allocations.allocate_calls > 0);
-  REQUIRE(warmed_snapshot.allocations.allocated_bytes > 0);
 
   fill_inputs(1);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);

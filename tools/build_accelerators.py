@@ -62,18 +62,33 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
     print(f"Configuring {configure_preset}...")
     config_args = ["cmake", "-S", str(repo_root), "--preset", configure_preset]
     cmd, _wrapped = command_in_msvc_environment(config_args)
-    config_result = subprocess.run(cmd, check=False, cwd=str(repo_root))
+    config_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
+                                      capture_output=True, text=True)
     if config_result.returncode != 0:
         print(f"ERROR: configure failed for {configure_preset}")
+        if config_result.stdout:
+            print(f"  STDOUT: {config_result.stdout[-500:]}")
+        if config_result.stderr:
+            print(f"  STDERR: {config_result.stderr[-500:]}")
         return False
 
     # Build
     print(f"Building {build_preset}...")
     build_args = ["cmake", "--build", "--preset", build_preset]
     cmd, _wrapped = command_in_msvc_environment(build_args)
-    build_result = subprocess.run(cmd, check=False, cwd=str(repo_root))
+    build_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
+                                    capture_output=True, text=True)
     if build_result.returncode != 0:
         print(f"ERROR: build failed for {build_preset}")
+        # Print the last relevant lines from the build output
+        error_lines = []
+        for line in (build_result.stdout + build_result.stderr).split("\n"):
+            if "error" in line.lower() or "ninja: build stopped" in line.lower():
+                error_lines.append(line)
+        if error_lines:
+            print("  Build errors:")
+            for line in error_lines[-15:]:
+                print(f"    {line}")
         return False
 
     print(f"SUCCESS: {configure_preset}")

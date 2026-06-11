@@ -736,23 +736,55 @@ int launch_dense(
       break;
     case rns8_amdgpu_arch_kind::rdna3:
     {
-      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-      hipLaunchKernelGGL(
-          (rdna3_dense_wmma_kernel<Finite>),
-          grid,
-          dim3(32),
-          0,
-          0,
-          static_cast<const int8_t*>(device_a_residues),
-          static_cast<const int8_t*>(device_b_residues),
-          static_cast<int8_t*>(device_c_residues),
-          m,
-          n,
-          k,
-          lda,
-          ldb,
-          ldc,
-          plane_count_or_modulus);
+      // Skinny GEMV dispatch: higher-occupancy variants for small N.
+      if (n <= 8) {
+        if (n == 1) {
+          const dim3 grid((unsigned)m, (unsigned)n, Finite ? 1u : (unsigned)plane_count_or_modulus);
+          hipLaunchKernelGGL(
+              (rns8_amdgpu_builtin_wmma_gemm_64t_skinny_kernel),
+              grid, dim3(64), 0, 0,
+              static_cast<const int8_t*>(device_a_residues),
+              static_cast<const int8_t*>(device_b_residues),
+              static_cast<int8_t*>(device_c_residues),
+              m, n, k, plane_count_or_modulus);
+        } else if (n <= 4) {
+          const dim3 grid(((unsigned)m + 1u) / 2u, (unsigned)n, Finite ? 1u : (unsigned)plane_count_or_modulus);
+          hipLaunchKernelGGL(
+              (rns8_amdgpu_builtin_wmma_gemm_128t_skinny_kernel),
+              grid, dim3(128), 0, 0,
+              static_cast<const int8_t*>(device_a_residues),
+              static_cast<const int8_t*>(device_b_residues),
+              static_cast<int8_t*>(device_c_residues),
+              m, n, k, plane_count_or_modulus);
+        } else {
+          const dim3 grid(((unsigned)m + 3u) / 4u, ((unsigned)n + 3u) / 4u, Finite ? 1u : (unsigned)plane_count_or_modulus);
+          hipLaunchKernelGGL(
+              (rns8_amdgpu_builtin_wmma_gemm_256t_skinny_kernel),
+              grid, dim3(256), 0, 0,
+              static_cast<const int8_t*>(device_a_residues),
+              static_cast<const int8_t*>(device_b_residues),
+              static_cast<int8_t*>(device_c_residues),
+              m, n, k, plane_count_or_modulus);
+        }
+      } else {
+        const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+        hipLaunchKernelGGL(
+            (rdna3_dense_wmma_kernel<Finite>),
+            grid,
+            dim3(32),
+            0,
+            0,
+            static_cast<const int8_t*>(device_a_residues),
+            static_cast<const int8_t*>(device_b_residues),
+            static_cast<int8_t*>(device_c_residues),
+            m,
+            n,
+            k,
+            lda,
+            ldb,
+            ldc,
+            plane_count_or_modulus);
+      }
       break;
     }
     case rns8_amdgpu_arch_kind::rdna4:
@@ -1212,3 +1244,29 @@ __global__ void rns8_amdgpu_builtin_wmma_gemm_256t_skinny_kernel(
   }
 }
 
+
+
+// === WMMA-native pack wrapper ===
+extern "C" int rns8_amdgpu_builtin_pack_wmma_i64_device(
+    const int64_t* src, int8_t* dst, int rows, int cols, int prefix) {
+  const int block = 256;
+  const int64_t total = (int64_t)rows * cols * prefix;
+  const int grid = (int)((total + block - 1) / block);
+  rns8_amdgpu_builtin_pack_wmma_i64_kernel<<<grid, block>>>(src, dst, rows, cols, cols, prefix);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return (int)err;
+  err = hipDeviceSynchronize();
+  return (int)err;
+}
+
+extern "C" int rns8_amdgpu_builtin_pack_wmma_u64_device(
+    const uint64_t* src, int8_t* dst, int rows, int cols, int prefix) {
+  const int block = 256;
+  const int64_t total = (int64_t)rows * cols * prefix;
+  const int grid = (int)((total + block - 1) / block);
+  rns8_amdgpu_builtin_pack_wmma_u64_kernel<<<grid, block>>>(src, dst, rows, cols, cols, prefix);
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess) return (int)err;
+  err = hipDeviceSynchronize();
+  return (int)err;
+}

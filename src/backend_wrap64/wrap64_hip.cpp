@@ -30,6 +30,12 @@ extern "C" int rns8_wrap64_hip_export_u64_device(
     uint64_t* dst,
     int64_t rows,
     int64_t cols);
+extern "C" int rns8_wrap64_hip_gemm_export_fused_v5_device(
+    const uint8_t* a_limbs, const uint8_t* b_limbs, uint64_t* dst,
+    int64_t m, int64_t n, int64_t k, int64_t ld);
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_tiled_u64acc_device(
+    const uint8_t* a_limbs, const uint8_t* b_limbs, uint8_t* c_limbs,
+    int64_t m, int64_t n, int64_t k);
 #endif
 
 namespace rns8::detail {
@@ -254,13 +260,21 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   }
   const char* event_label = wrap64_hip_gemm_event_label_for_shape(m, n, k);
   const hipError_t err = timed_hip_operation(event_label, [&]() {
-    const int code = rns8_wrap64_hip_gemm_byte_limbs_device(
+    const bool use_tiled = (m >= 1024 || n >= 1024);
+    int code;
+    if (use_tiled) {
+      code = rns8_wrap64_hip_gemm_byte_limbs_tiled_u64acc_device(
         static_cast<const uint8_t*>(device_a_limbs),
         static_cast<const uint8_t*>(device_b_limbs),
         static_cast<uint8_t*>(device_c_limbs),
-        m,
-        n,
-        k);
+        m, n, k);
+    } else {
+      code = rns8_wrap64_hip_gemm_byte_limbs_device(
+        static_cast<const uint8_t*>(device_a_limbs),
+        static_cast<const uint8_t*>(device_b_limbs),
+        static_cast<uint8_t*>(device_c_limbs),
+        m, n, k);
+    }
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
     }
@@ -387,6 +401,35 @@ void wrap64_graph_destroy() {
 }  // namespace
 #endif  // RNS8_ENABLE_HIP
 
+#endif
+}
+
+
+
+rns8_status wrap64_hip_gemm_export_fused_v5_device(
+    int device_id,
+    const void* device_a_limbs,
+    const void* device_b_limbs,
+    uint64_t* dst,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    int64_t ld) {
+#if RNS8_ENABLE_HIP
+  rns8_status status = set_hip_device(device_id);
+  if (status != RNS8_SUCCESS) return status;
+  const hipError_t err = timed_hip_operation("wrap64_gemm_export_fused_v5", [&]() {
+    const int code = rns8_wrap64_hip_gemm_export_fused_v5_device(
+        static_cast<const uint8_t*>(device_a_limbs),
+        static_cast<const uint8_t*>(device_b_limbs),
+        dst, m, n, k, ld);
+    return code == static_cast<int>(hipSuccess) ? hipSuccess : static_cast<hipError_t>(code);
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)device_a_limbs; (void)device_b_limbs;
+  (void)dst; (void)m; (void)n; (void)k; (void)ld;
+  return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 

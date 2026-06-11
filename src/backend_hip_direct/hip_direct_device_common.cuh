@@ -2,6 +2,31 @@ __device__ __constant__ int rns8_default_moduli_device[kRns8DefaultModulusCount]
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
+// === Garner CRT precomputed constants (prefixes 1-8, 64-bit product) ===
+// Weights are precomputed at repo-build time via Python.
+// w_i = (M / m_i) * inv(M / m_i mod m_i) mod M
+
+__device__ __constant__ uint64_t garner_weights_prefix1[1] = {1ULL};
+__device__ __constant__ uint64_t garner_weights_prefix2[2] = {65025ULL, 256ULL};
+__device__ __constant__ uint64_t garner_weights_prefix3[3] = {11032065ULL, 8225536ULL, 13774080ULL};
+__device__ __constant__ uint64_t garner_weights_prefix4[4] = {275285505ULL, 520216576ULL, 344090880ULL, 3005882880ULL};
+__device__ __constant__ uint64_t garner_weights_prefix5[5] = {219985505025ULL, 1007870845696ULL, 497801191680ULL, 326352998400ULL, 1019787056640ULL};
+__device__ __constant__ uint64_t garner_weights_prefix6[6] = {54488409726465ULL, 61419890262016ULL, 183781724505600ULL, 75073427869440ULL, 30713830498560ULL, 83962467663360ULL};
+__device__ __constant__ uint64_t garner_weights_prefix7[7] = {46551264709643265ULL, 25267567042322176ULL, 26368808377616640ULL, 40209132970955520ULL, 19853023726778880ULL, 15746034484477440ULL, 54083092433061120ULL};
+__device__ __constant__ uint64_t garner_weights_prefix8[8] = {6375741398629370625ULL, 9319483709645165056ULL, 4644967014210931200ULL, 2549077294164360960ULL, 5550766924539513600ULL, 4862423164062647040ULL, 168122554305488640ULL, 5701973093621376000ULL};
+
+__device__ __constant__ uint64_t garner_prefix_product1 = 256ULL;
+__device__ __constant__ uint64_t garner_prefix_product2 = 65280ULL;
+__device__ __constant__ uint64_t garner_prefix_product3 = 16515840ULL;
+__device__ __constant__ uint64_t garner_prefix_product4 = 4145475840ULL;
+__device__ __constant__ uint64_t garner_prefix_product5 = 1023932532480ULL;
+__device__ __constant__ uint64_t garner_prefix_product6 = 244719875262720ULL;
+__device__ __constant__ uint64_t garner_prefix_product7 = 57019730936213760ULL;
+__device__ __constant__ uint64_t garner_prefix_product8 = 13057518384392951040ULL;
+
+// Prefixes 9+ exceed 64-bit product; use u192 CRT path for those.
+
+
 constexpr int kRns8HipTileM = 16;
 constexpr int kRns8HipTileN = 16;
 constexpr int kRns8HipTileK = 64;
