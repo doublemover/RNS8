@@ -4,7 +4,7 @@ Local evidence on Windows gfx1100 (Radeon RX 7900 XTX, HIP SDK 7.1).
 Release builds, fixed seeds, schema-valid captures, exact CPU differentials,
 required GPU events. Windows evidence does not imply Linux/Instinct/CDNA/RDNA4.
 
-## June 11, 2026 Final Sweep (reviewed local gfx1100 evidence)
+## June 11, 2026 Final Sweep (with DP4A merge + VOPD pack) (reviewed local gfx1100 evidence)
 
 243 captures, 0 failures across 5 backends (Direct HIP, rocWMMA, hipBLASLt, CK,
 AMDGPU builtins). All accelerator presets build clean. All 281 tests pass.
