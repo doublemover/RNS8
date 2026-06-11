@@ -245,3 +245,42 @@ extern "C" int rns8_hip_direct_export_u64_combined_final_device(
   hipError_t e = hipGetLastError(); if (e != hipSuccess) return (int)e;
   e = hipDeviceSynchronize(); return (int)e;
 }
+
+
+// === Native-to-RNS VOPD 8-wide pack wrapper (Item F) ===
+// Launches one kernel per plane for VOPD-friendly 8-wide processing.
+extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
+    const int64_t* src, int8_t* dst, int rows, int cols, int ld, int prefix,
+    const int* moduli) {
+  const int64_t elements = (int64_t)rows * cols;
+  const int block = 256;
+  const int64_t cells_per_block = (int64_t)block * 8;  // 8 cells per thread
+  const int grid = (int)((elements + cells_per_block - 1) / cells_per_block);
+  int code = 0;
+  for (int plane = 0; plane < prefix && code == 0; ++plane) {
+    rns8_pack_native_i64_to_rns_8wide_vopd_kernel<<<grid, block>>>(
+        src, dst, rows, cols, ld, prefix, plane, moduli[plane]);
+    hipError_t e = hipGetLastError();
+    if (e != hipSuccess) code = (int)e;
+  }
+  if (code != 0) return code;
+  hipError_t e = hipDeviceSynchronize();
+  return e == hipSuccess ? 0 : (int)e;
+}
+
+// === INT4 research pack wrapper (Item G) ===
+// Packs pairs of int8 values into 4-bit each, halving storage.
+// Schema-gated behind RNS8_ENABLE_INT4_RESEARCH.
+extern "C" int rns8_hip_direct_pack_i4_research_device(
+    const int8_t* src, int8_t* dst, int rows, int cols, int ld, int prefix) {
+  const int block = 256;
+  const int64_t elements = (int64_t)rows * cols;
+  const int64_t pairs = (elements + 1) / 2;
+  const int64_t total = pairs * (int64_t)prefix;
+  const int grid = (int)((total + block - 1) / block);
+  rns8_pack_i4_research_kernel<<<grid, block>>>(src, dst, rows, cols, ld, prefix);
+  hipError_t e = hipGetLastError();
+  if (e != hipSuccess) return (int)e;
+  e = hipDeviceSynchronize();
+  return (int)e;
+}

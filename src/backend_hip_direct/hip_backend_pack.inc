@@ -10,6 +10,13 @@ extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
     const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix);
 extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
     const int64_t* src, int8_t* residues, int rows, int cols, int prefix);
+extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
+    const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix,
+    const int* moduli);
+#if defined(RNS8_ENABLE_INT4_RESEARCH)
+extern "C" int rns8_hip_direct_pack_i4_research_device(
+    const int8_t* src, int8_t* residues, int rows, int cols, int ld, int prefix);
+#endif
 #endif
 
 rns8_status hip_direct_pack_i64_device(
@@ -43,17 +50,38 @@ rns8_status hip_direct_pack_i64_device(
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
+  const int64_t pc = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
+  const bool coa = (ld == cols) && (pc >= 256) && (pc <= 4096);
+  const bool vopd = (ld == cols) && (pc > 4096);
+  const bool per = (pc <= 4096) && !coa;
+  const int moduli_v[28] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
   err = timed_hip_operation("pack_kernel", [&]() {
-    const int code = rns8_hip_direct_pack_i64_device(
-        static_cast<const int64_t*>(*upload_buffer),
-        static_cast<int8_t*>(device_residues),
-        static_cast<int>(rows),
-        static_cast<int>(cols),
-        static_cast<int>(ld),
-        static_cast<int>(prefix));
-    if (code != static_cast<int>(hipSuccess)) {
-      return static_cast<hipError_t>(code);
+    int code = 0;
+    if (coa) {
+      code = rns8_hip_direct_pack_i64_4wide_coalesced_device(
+          static_cast<const int64_t*>(*upload_buffer),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
+    } else if (vopd) {
+      code = rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
+          static_cast<const int64_t*>(*upload_buffer),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix), moduli_v);
+    } else if (per) {
+      code = rns8_hip_direct_pack_i64_persistent_small_device(
+          static_cast<const int64_t*>(*upload_buffer),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
+    } else {
+      code = rns8_hip_direct_pack_i64_device(
+          static_cast<const int64_t*>(*upload_buffer),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
     }
+    if (code != static_cast<int>(hipSuccess)) return static_cast<hipError_t>(code);
     return hipDeviceSynchronize();
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
