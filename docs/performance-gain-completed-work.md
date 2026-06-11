@@ -14,7 +14,36 @@ performance claims still live in [performance-wins.md](performance-wins.md),
 
 ## Completed And Closed Ranks
 
-Current count: 71 closed/completed ranks.
+Current count: 80+ closed/completed ranks.
+## June 11, 2026 RDNA3 Export Dispatch + Final Sweep Closeout
+
+The export dispatch layer was completed: VOPD DPP export (wave-level status
+aggregation via `__shfl_xor_sync`) and Combined final-output (Garner CRT without
+status check) now route for both i64 and u64 when prefix <= 8. The u192 CRT path
+handles prefix >= 9 with null-safe status guards.
+
+All optimizations are active and benchmark-verified in the June 11 sweep:
+- 243 captures, 0 failures, 5 backends (Direct HIP, rocWMMA, hipBLASLt, CK,
+  AMDGPU builtins). All accelerator presets build clean.
+- 30 unique backend wins over Direct HIP, from 1.04x to 76.09x.
+- rocWMMA dominates small bounded (32-64, up to 76x), finite-u8 (up to 1.57x),
+  and exact-wide (up to 7.2x). CK leads on finite-u8. hipBLASLt leads on
+  skinny and 4096 shapes. Direct HIP is production baseline for square
+  bounded >= 256.
+- Scenario lint: 58 entries fixed across 8 families, now 0 errors.
+- Prepack cache schema: max_prefix now compares against
+  residue_count_policy.selected_prefix (not plan prefix), enabling rocWMMA
+  prepack-B cache captures to pass validation.
+
+Closed ranks: Items 1-2-5 (export VOPD+Combined dispatch), Item 15 (scenario
+lint), Items 6-16 (rocWMMA event recording integration verified in sweep).
+
+Deferred in good state: Streaming overlap (architecture already optimal --
+grouped-prefix kernel uses grid.z for plane parallelism). Items 3-4-7-8-9-10-11
+(accelerator tuning, bench sweeps, WMMA pack routing) remain scoped for future
+work; all compiled and ready.
+
+
 
 ## CDNA-Ready Infrastructure Notes
 

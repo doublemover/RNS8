@@ -47,7 +47,7 @@ architecture and roadmap source of truth when details disagree.
 | hipBLASLt | Opt-in correctness baseline | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including eligible 4096 bounded, finite hot-modulus, and exact-wide entries |
 | CK | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-i64, finite-u8, and exact-wide shapes, including bounded-i64 2048, generic finite-field 2048, and finite ring-255 4096 |
 | rocWMMA | Opt-in correctness backend | Reviewed Windows `gfx1100` cache wins exist for selected bounded-u64, finite-u8, and exact-wide shapes, including bounded-u64 2048, generic finite-ring 2048 entries, finite-field 512 entries, and smaller hot finite-u8 shapes; post-fix hot finite-u8 2048 winners are hipBLASLt |
-| AMDGPU builtins | Not implemented | Fail-fast until real exact kernels exist |
+| AMDGPU builtins | Compiled, WMMA skinny dispatch active | 2 captures in June 11 sweep; WMMA-native pack wrappers compiled |
 | Wrap64 matrix-engine candidate | Internal rocWMMA harness only | Not public, not AUTO-selected, and not faster than direct HIP in current reviewed shapes |
 
 Detailed benchmark policy, current wins, and reviewed release summaries live in
