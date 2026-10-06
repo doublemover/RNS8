@@ -19,6 +19,7 @@ def main():
             assert sum('inspect_target' in item for item in plan) == len(q.BACKENDS)
             assert sum('junit' in item for item in plan) == len(q.BACKENDS)
             assert any('hip-direct-graph' == item['name'] for item in plan)
+            assert all(sys.executable not in item['argv'] for item in plan)
             for item in plan:
                 assert all(isinstance(arg, str) for arg in item['argv'])
         good = {'returncode': 0, 'timed_out': False, 'stdout': json.dumps({'gcn_arch': 'gfx942:sramecc+:xnack-', 'backend': 'hip-direct'})}

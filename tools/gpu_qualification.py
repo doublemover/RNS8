@@ -39,7 +39,8 @@ def kernel_inventory(root: Path = ROOT) -> list[dict]:
 def command_plan(target: str, backends: list[str], out: Path, jobs: int) -> list[dict]:
     arch, system, preset = TARGETS[target]
     extension = ".exe" if system == "Windows" else ""
-    wrapper = [sys.executable, "tools/windows_dev.py"] if system == "Windows" else []
+    python = "python" if system == "Windows" else "python3"
+    wrapper = [python, "tools/windows_dev.py"] if system == "Windows" else []
     commands = []
 
     def add(name, argv, **checks):
@@ -75,7 +76,7 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int) -> list
             add(name, [binary("rns8-bench"), "--backend", backend, "--semantics", semantics,
                 "--m", "32", "--n", "32", "--k", "64", "--warmups", "1", "--repeats", "3",
                 "--seed", "20261006", "--cpu-threads", "1", "--progress", *extra], capture=str(capture))
-            add(name + "-schema", [sys.executable, "tools/benchmark_schema.py", str(capture)])
+            add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
         if backend == "hip-direct":
             # Existing graph capture, not the removed dead global graph helpers.
             name = "hip-direct-graph"
@@ -83,7 +84,7 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int) -> list
             add(name, [binary("rns8-bench"), "--backend", "hip-direct", "--semantics", "bounded-i64",
                 "--m", "32", "--n", "32", "--k", "64", "--hip-graph-replay",
                 "--warmups", "1", "--repeats", "3", "--seed", "20261006", "--progress"], capture=str(capture))
-            add(name + "-schema", [sys.executable, "tools/benchmark_schema.py", str(capture)])
+            add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
     return commands
 
 
@@ -102,7 +103,7 @@ def validate_result(item: dict, result: dict) -> list[str]:
             errors.append("invalid device inspection JSON")
     if "junit" in item:
         try:
-            root = ET.parse(item["junit"]).getroot()
+            root = ET.parse(ROOT / item["junit"]).getroot()
             cases = list(root.iter("testcase"))
             if not any(case.get("name") == item["require_test"] for case in cases):
                 errors.append("required hardware regression missing (possibly a CPU-only build)")
@@ -132,14 +133,16 @@ def main() -> int:
     if args.execute and (out / "results.json").exists():
         parser.error("results.json already exists; choose a fresh --out-dir")
     backends = list(dict.fromkeys(args.backend or BACKENDS))
-    commands = command_plan(args.target, backends, out, args.jobs)
+    command_out = Path(os.path.relpath(out, ROOT))
+    commands = command_plan(args.target, backends, command_out, args.jobs)
     revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True).stdout.strip()
     diff = subprocess.run(["git", "diff", "HEAD"], cwd=ROOT, capture_output=True, check=True).stdout
     manifest = {"schema_version": 1, "generated_utc": datetime.now(timezone.utc).isoformat(),
                 "target": args.target, "architecture": TARGETS[args.target][0], "git_revision": revision,
                 "tracked_diff_sha256": hashlib.sha256(diff).hexdigest(), "backends": backends,
                 "status": "planned_not_executed", "promotion_allowed": False,
-                "environment": {"RNS8_AUTOTUNE_CACHE": str(out / "isolated-empty-cache.json")},
+                "command_working_directory": "repository_root",
+                "environment": {"RNS8_AUTOTUNE_CACHE": str(command_out / "isolated-empty-cache.json")},
                 "commands": commands, "kernels": kernel_inventory(),
                 "remaining_gates": ["HIP compile and hardware execution for every selected backend",
                     "full correctness and backend-specific ISA checks", "large/padded/K-boundary and sparse target coverage",
@@ -149,7 +152,7 @@ def main() -> int:
     if not args.execute:
         print("Plan only. No build, GPU work, benchmark, or cache promotion was executed.", flush=True)
         return 0
-    cache = Path(manifest["environment"]["RNS8_AUTOTUNE_CACHE"])
+    cache = ROOT / manifest["environment"]["RNS8_AUTOTUNE_CACHE"]
     if cache.exists():
         parser.error("isolated cache path exists; choose a fresh output directory")
     environment = dict(os.environ, **manifest["environment"])
@@ -161,7 +164,7 @@ def main() -> int:
         (out / f"{item['name']}.stderr.log").write_text(result["stderr"], encoding="utf-8")
         errors = validate_result(item, result)
         if "capture" in item and not errors:
-            Path(item["capture"]).write_text(result["stdout"], encoding="utf-8")
+            (ROOT / item["capture"]).write_text(result["stdout"], encoding="utf-8")
         results.append({"name": item["name"], **result, "validation_errors": errors})
         report = {"status": "blocked" if errors else "in_progress", "promotion_allowed": False,
                   "completed": len(results), "planned": len(commands), "results": results}
