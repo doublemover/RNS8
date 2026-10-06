@@ -1,4 +1,5 @@
 set(RNS8_PUBLIC_HEADERS
+  include/rns8/abi.h
   include/rns8/status.h
   include/rns8/semantics.h
   include/rns8/bounds.h

@@ -1,6 +1,8 @@
 #ifndef RNS8_STATUS_H
 #define RNS8_STATUS_H
 
+#include "rns8/abi.h"
+
 #include <stdint.h>
 
 #define RNS8_ABI_VERSION 1u
@@ -21,7 +23,7 @@
 extern "C" {
 #endif
 
-typedef enum rns8_status {
+typedef enum rns8_status RNS8_ENUM_BASE {
   RNS8_SUCCESS = 0,
   RNS8_INVALID_ARGUMENT = 1,
   RNS8_UNSUPPORTED_OS = 2,

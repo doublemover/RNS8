@@ -1,6 +1,8 @@
 #ifndef RNS8_RNS8_H
 #define RNS8_RNS8_H
 
+#include "rns8/abi.h"
+
 #include <stdint.h>
 
 #include "rns8/bounds.h"
@@ -126,21 +128,21 @@ typedef struct rns8_matrix_desc {
   uint32_t flags;
 } rns8_matrix_desc;
 
-typedef enum rns8_sparse_contract {
+typedef enum rns8_sparse_contract RNS8_ENUM_BASE {
   RNS8_SPARSE_NONE = 0,
   RNS8_SPARSE_A_4_TO_2_STRUCTURED_K = 1
 } rns8_sparse_contract;
 
-typedef enum rns8_sparse_operand {
+typedef enum rns8_sparse_operand RNS8_ENUM_BASE {
   RNS8_SPARSE_OPERAND_A = 1
 } rns8_sparse_operand;
 
-typedef enum rns8_sparse_index_layout {
+typedef enum rns8_sparse_index_layout RNS8_ENUM_BASE {
   RNS8_SPARSE_INDEX_LAYOUT_NONE = 0,
   RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1 = 1
 } rns8_sparse_index_layout;
 
-typedef enum rns8_sparse_value_signedness {
+typedef enum rns8_sparse_value_signedness RNS8_ENUM_BASE {
   RNS8_SPARSE_VALUE_SIGNEDNESS_UNSPECIFIED = 0,
   RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8 = 1,
   RNS8_SPARSE_VALUE_SIGNEDNESS_UNSIGNED_U8 = 2
@@ -314,14 +316,14 @@ typedef struct rns8_plan_backend_info {
   char accumulator_safety_status[128];
 } rns8_plan_backend_info;
 
-typedef enum rns8_output_domain {
+typedef enum rns8_output_domain RNS8_ENUM_BASE {
   RNS8_OUTPUT_DOMAIN_RNS_RESIDUE = 1,
   RNS8_OUTPUT_DOMAIN_NATIVE_I64_U64 = 2,
   RNS8_OUTPUT_DOMAIN_FINITE_U8 = 3,
   RNS8_OUTPUT_DOMAIN_WRAP64_BYTE_LIMB = 4
 } rns8_output_domain;
 
-typedef enum rns8_next_op_flags {
+typedef enum rns8_next_op_flags RNS8_ENUM_BASE {
   RNS8_NEXT_OP_FINAL_EXPORT = 1u << 0,
   RNS8_NEXT_OP_RNS_GEMM = 1u << 1,
   RNS8_NEXT_OP_NATIVE_GEMM = 1u << 2,
@@ -538,7 +540,7 @@ typedef struct rns8_result_cache_info {
   char detail[256];
 } rns8_result_cache_info;
 
-typedef enum rns8_resident_matrix_role {
+typedef enum rns8_resident_matrix_role RNS8_ENUM_BASE {
   RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN = 0,
   RNS8_RESIDENT_MATRIX_ROLE_A = 1,
   RNS8_RESIDENT_MATRIX_ROLE_B = 2,
@@ -589,7 +591,7 @@ typedef struct rns8_resident_lifetime_info {
   char detail[256];
 } rns8_resident_lifetime_info;
 
-typedef enum rns8_operand_role {
+typedef enum rns8_operand_role RNS8_ENUM_BASE {
   RNS8_OPERAND_A = 1,
   RNS8_OPERAND_B = 2
 } rns8_operand_role;
@@ -1229,14 +1231,11 @@ RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
 
 
 /*
- * Research-only APIs. Gated behind explicit RNS8_ENABLE_*_RESEARCH flags.
- * These are not production paths and carry explicit verification metadata.
+ * Reserved research entrypoints. All three currently return
+ * RNS8_UNSUPPORTED_BACKEND without modifying outputs. No build option enables
+ * Ozaki decomposition, Strassen multiplication, or Freivalds verification.
+ * These declarations do not establish an allocation or verification contract.
  */
-
-/* Phase 8b: Ozaki FP8 decomposition.
- * Splits i64 matrices into FP8-representable components using Ozaki scheme.
- * Returns component count in out_split_count. Caller owns the output arrays.
- * Not a default exact API path. Requires RNS8_ENABLE_OZAKI_RESEARCH. */
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
     rns8_context* ctx,
     const int64_t* src,
@@ -1247,10 +1246,6 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
     int64_t* out_component_ld,
     int* out_split_count);
 
-/* Phase 8c: Strassen one-level matrix multiply (research).
- * Splits square matrices into quadrants, uses 7 multiplies instead of 8.
- * Gated behind RNS8_ENABLE_STRASSEN_RESEARCH.
- * Ship rule: >=1.15x at N>=16384, memory overhead <=2.2x. */
 RNS8_API rns8_status rns8_strassen_gemm_research(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -1261,9 +1256,6 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
     int strassen_level,
     double* out_memory_overhead_ratio);
 
-/* Phase 8d: Freivalds probabilistic product verification (research).
- * Returns RNS8_PROBABILISTIC_VERIFIED with probability bound in metadata.
- * Not a replacement for deterministic exact APIs. */
 RNS8_API rns8_status rns8_freivalds_verify(
     rns8_context* ctx,
     const rns8_matrix* A,

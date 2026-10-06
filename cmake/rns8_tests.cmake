@@ -2,6 +2,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
   add_test(
+    NAME performance_dashboard_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_performance_dashboard.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(performance_dashboard_self_test PROPERTIES LABELS "tools;schema")
+  add_test(
+    NAME gpu_qualification_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_gpu_qualification.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  )
+  set_tests_properties(gpu_qualification_self_test PROPERTIES LABELS "tools;qualification")
+  add_test(
     NAME benchmark_schema_self_test
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_schema.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -323,6 +335,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
 
   if(NOT RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" RNS8_SMOKE_BUILD_TYPE)
     add_test(
       NAME install_downstream_cmake_smoke
       COMMAND
@@ -331,8 +344,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
         "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
         "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
         "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-        "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/temp/install-rns8/${CMAKE_BUILD_TYPE}"
-        "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_SOURCE_DIR}/temp/downstream-rns8/${CMAKE_BUILD_TYPE}"
+        "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/install-smoke/prefix"
+        "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/install-smoke/consumer"
+        "-DRNS8_DOWNSTREAM_COMPILER=${CMAKE_CXX_COMPILER}"
+        "-DRNS8_DOWNSTREAM_CXX_FLAGS=${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${RNS8_SMOKE_BUILD_TYPE}}"
+        "-DRNS8_DOWNSTREAM_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS_${RNS8_SMOKE_BUILD_TYPE}}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
@@ -588,9 +604,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2WithMain)
   set(
     RNS8_TEST_SOURCES
+    tests/unit/test_public_abi.cpp
     tests/unit/test_moduli.cpp
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
+    tests/unit/test_residue_dot.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp
@@ -600,6 +618,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp
   )
+  # Host-only execution of scalar HIP arithmetic; this is not a GPU test.
+  if(NOT MSVC)
+    list(APPEND RNS8_TEST_SOURCES tests/unit/test_hip_arithmetic_host.cpp)
+  endif()
   if(RNS8_ENABLE_HIP)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_hip_direct.cpp)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_hip_direct_persistent_kernels.cpp)

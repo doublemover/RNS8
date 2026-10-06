@@ -644,7 +644,7 @@ int rns8_hip_direct_ring_gemm_i8_on_stream(
 
 
 
-// === Phase 1c/1d: Persistent small pack + Coalesced pack wrappers ===
+// Small and four-cell pack wrappers
 extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
     const int64_t* src,
     int8_t* residues,

@@ -41,3 +41,5 @@ namespace {
 #include "test_hip_direct_bounded_oneshot_cases.inc"
 #include "test_hip_direct_per_tile_cases.inc"
 #include "test_hip_direct_result_cache_cases.inc"
+
+#include "test_hip_direct_qualification_cases.inc"

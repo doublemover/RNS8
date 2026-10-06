@@ -1,37 +1,3 @@
-
-// === Rank 133: Mixed-precision modulus family classification ===
-// Classifies modulus planes into families for optimal backend routing:
-//   Hot moduli (251,255,256): specialized CK/rocWMMA kernels
-//   Prime moduli: generic CK/rocWMMA
-//   Composite moduli: Direct HIP (fastest generic path)
-// Research placeholder. Full scheduler implementation deferred.
-
-namespace {
-bool is_hot_modulus(uint32_t modulus) {
-  return modulus == 251 || modulus == 255 || modulus == 256;
-}
-bool is_prime_modulus(uint32_t modulus) {
-  // Simplified: known primes from the default ladder
-  return modulus == 251 || modulus == 239 || modulus == 233 || modulus == 229 ||
-         modulus == 227 || modulus == 223 || modulus == 211 || modulus == 199 ||
-         modulus == 197 || modulus == 193 || modulus == 191 || modulus == 181 ||
-         modulus == 179 || modulus == 173 || modulus == 167 || modulus == 163 ||
-         modulus == 157 || modulus == 151 || modulus == 149 || modulus == 139 ||
-         modulus == 137 || modulus == 131 || modulus == 127;
-}
-// Rank 133: Modulus-family routing recommendation
-// Returns the recommended backend family for a given modulus plane.
-// Used by the plan schedule to group tiles by optimal backend.
-enum class modulus_backend_family { direct_hip, accelerator_hot, accelerator_prime, accelerator_generic };
-
-static modulus_backend_family classify_modulus(uint32_t modulus) {
-  if (is_hot_modulus(modulus)) return modulus_backend_family::accelerator_hot;
-  if (is_prime_modulus(modulus)) return modulus_backend_family::accelerator_prime;
-  return modulus_backend_family::direct_hip;
-}
-
-}  // namespace
-
 bool is_per_tile_bound_kind(rns8_bound_kind bound_kind) {
   return bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS || bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
 }

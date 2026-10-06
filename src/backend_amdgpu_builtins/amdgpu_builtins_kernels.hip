@@ -48,8 +48,8 @@ __device__ __forceinline__ int8_t load_centered_i8(
   if (row < 0 || col < 0 || row >= rows || col >= cols) {
     return 0;
   }
-  const int plane_stride = rows * ld;
-  return data[plane * plane_stride + row * ld + col];
+  const int64_t plane_stride = static_cast<int64_t>(rows) * ld;
+  return data[static_cast<int64_t>(plane) * plane_stride + static_cast<int64_t>(row) * ld + col];
 }
 
 __device__ __forceinline__ uint32_t pack4_centered_i8(
@@ -143,7 +143,7 @@ __device__ __forceinline__ void store_rns_accumulator(
     int col) {
   if (row < m && col < n) {
     const int modulus = rns8_amdgpu_default_moduli[plane];
-    c[plane * m * ldc + row * ldc + col] = reduce_centered(acc, modulus);
+    c[(static_cast<int64_t>(plane) * m + row) * ldc + col] = reduce_centered(acc, modulus);
   }
 }
 
@@ -157,7 +157,7 @@ __device__ __forceinline__ void store_finite_accumulator(
     int row,
     int col) {
   if (row < m && col < n) {
-    c[row * ldc + col] = reduce_centered(acc, modulus);
+    c[static_cast<int64_t>(row) * ldc + col] = reduce_centered(acc, modulus);
   }
 }
 
@@ -736,60 +736,37 @@ int launch_dense(
       break;
     case rns8_amdgpu_arch_kind::rdna3:
     {
-      // Skinny GEMV dispatch: higher-occupancy variants for small N.
-      if (n <= 8) {
-        if (n == 1) {
-          const dim3 grid((unsigned)m, (unsigned)n, Finite ? 1u : (unsigned)plane_count_or_modulus);
-          hipLaunchKernelGGL(
-              (rns8_amdgpu_builtin_wmma_gemm_64t_skinny_kernel),
-              grid, dim3(64), 0, 0,
-              static_cast<const int8_t*>(device_a_residues),
-              static_cast<const int8_t*>(device_b_residues),
-              static_cast<int8_t*>(device_c_residues),
-              m, n, k, plane_count_or_modulus);
-        } else if (n <= 4) {
-          const dim3 grid(((unsigned)m + 1u) / 2u, (unsigned)n, Finite ? 1u : (unsigned)plane_count_or_modulus);
-          hipLaunchKernelGGL(
-              (rns8_amdgpu_builtin_wmma_gemm_128t_skinny_kernel),
-              grid, dim3(128), 0, 0,
-              static_cast<const int8_t*>(device_a_residues),
-              static_cast<const int8_t*>(device_b_residues),
-              static_cast<int8_t*>(device_c_residues),
-              m, n, k, plane_count_or_modulus);
-        } else {
-          const dim3 grid(((unsigned)m + 3u) / 4u, ((unsigned)n + 3u) / 4u, Finite ? 1u : (unsigned)plane_count_or_modulus);
-          hipLaunchKernelGGL(
-              (rns8_amdgpu_builtin_wmma_gemm_256t_skinny_kernel),
-              grid, dim3(256), 0, 0,
-              static_cast<const int8_t*>(device_a_residues),
-              static_cast<const int8_t*>(device_b_residues),
-              static_cast<int8_t*>(device_c_residues),
-              m, n, k, plane_count_or_modulus);
-        }
-      } else {
-        const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-        hipLaunchKernelGGL(
-            (rdna3_dense_wmma_kernel<Finite>),
-            grid,
-            dim3(32),
-            0,
-            0,
-            static_cast<const int8_t*>(device_a_residues),
-            static_cast<const int8_t*>(device_b_residues),
-            static_cast<int8_t*>(device_c_residues),
-            m,
-            n,
-            k,
-            lda,
-            ldb,
-            ldc,
-            plane_count_or_modulus);
-      }
+      // The same true WMMA kernel handles skinny and tiled shapes. Scalar
+      // shuffle candidates must not masquerade as matrix instructions or
+      // interpret a finite modulus as an RNS plane count.
+      const dim3 grid(
+          (static_cast<unsigned>(n) + 15u) / 16u,
+          (static_cast<unsigned>(m) + 15u) / 16u,
+          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+      hipLaunchKernelGGL(
+          (rdna3_dense_wmma_kernel<Finite>),
+          grid,
+          dim3(32),
+          0,
+          0,
+          static_cast<const int8_t*>(device_a_residues),
+          static_cast<const int8_t*>(device_b_residues),
+          static_cast<int8_t*>(device_c_residues),
+          m,
+          n,
+          k,
+          lda,
+          ldb,
+          ldc,
+          plane_count_or_modulus);
       break;
     }
     case rns8_amdgpu_arch_kind::rdna4:
     {
-      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u, Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+      const dim3 grid(
+          (static_cast<unsigned>(n) + 15u) / 16u,
+          (static_cast<unsigned>(m) + 15u) / 16u,
+          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
       hipLaunchKernelGGL(
           (rdna4_dense_wmma_kernel<Finite>),
           grid,
@@ -1050,223 +1027,4 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
   }
   return launch_sparse_a<true>(
       device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
-}
-
-
-// === Phase 3a: WMMA-native pack for AMDGPU builtins ===
-// Packs native i64/u64 directly into WMMA-expected K-major centered i8 layout.
-// Eliminates the generic Direct HIP pack + transpose step for RDNA3 WMMA paths.
-
-__global__ void rns8_amdgpu_builtin_pack_wmma_i64_kernel(
-    const int64_t* __restrict__ src,
-    int8_t* __restrict__ dst,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int64_t total = elements * static_cast<int64_t>(prefix);
-  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (idx >= total) return;
-
-  const int modulus_index = static_cast<int>(idx / elements);
-  const int64_t cell = idx - static_cast<int64_t>(modulus_index) * elements;
-  const int row = static_cast<int>(cell / cols);
-  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
-  // Default modulus ladder: 256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127
-  __device__ static constexpr int default_moduli[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
-  const int modulus = (modulus_index >= 0 && modulus_index < 28) ? default_moduli[modulus_index] : 256;
-
-  // Direct centered residue conversion with contiguous source (ld == cols path)
-  // WMMA expects K-major B layout; A remains row-major
-  int64_t value = src[static_cast<int64_t>(row) * ld + col];
-  int64_t reduced = value % static_cast<int64_t>(modulus);
-  if (reduced < 0) reduced += modulus;
-  dst[idx] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
-}
-
-__global__ void rns8_amdgpu_builtin_pack_wmma_u64_kernel(
-    const uint64_t* __restrict__ src,
-    int8_t* __restrict__ dst,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int64_t total = elements * static_cast<int64_t>(prefix);
-  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (idx >= total) return;
-
-  const int modulus_index = static_cast<int>(idx / elements);
-  const int64_t cell = idx - static_cast<int64_t>(modulus_index) * elements;
-  const int row = static_cast<int>(cell / cols);
-  const int col = static_cast<int>(cell - static_cast<int64_t>(row) * cols);
-  __device__ static constexpr int default_moduli_u64[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197, 193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
-  const int modulus = (modulus_index >= 0 && modulus_index < 28) ? default_moduli_u64[modulus_index] : 256;
-
-  uint64_t value = src[static_cast<int64_t>(row) * ld + col];
-  uint64_t reduced = value % static_cast<uint64_t>(modulus);
-  dst[idx] = static_cast<int8_t>(reduced > static_cast<uint64_t>(modulus / 2)
-      ? static_cast<int>(reduced - modulus) : static_cast<int>(reduced));
-}
-
-
-
-// === Phase 3c: WMMA tile-shape sweep for skinny GEMV ===
-// Variant threadblock sizes for different occupancy profiles on RDNA3.
-// - 64 threads (2 wave32): higher occupancy, better for N=1 GEMV
-// - 128 threads (4 wave32): balanced, good for N=4 small-N
-// - 256 threads (8 wave32): more work per block, better for N=8
-
-__global__ void rns8_amdgpu_builtin_wmma_gemm_64t_skinny_kernel(
-    const int8_t* __restrict__ a_residues,
-    const int8_t* __restrict__ b_residues,
-    int8_t* __restrict__ c_residues,
-    int m,
-    int n,
-    int k,
-    int prefix) {
-  // 64-thread variant: 2 wave32, higher occupancy for N=1
-  const int tid = threadIdx.x;
-  const int row = blockIdx.x;
-  const int col = blockIdx.y;
-  if (row >= m || col >= n) return;
-
-  for (int plane = 0; plane < prefix; ++plane) {
-    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
-    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
-    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
-
-    int32_t acc = 0;
-    for (int ki = tid; ki < k; ki += 64) {
-      acc += static_cast<int32_t>(a_plane[row * k + ki])
-           * static_cast<int32_t>(b_plane[ki * n + col]);
-    }
-    // Cross-lane reduction via DPP
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
-
-    if (tid == 0) {
-      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
-      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
-      int32_t reduced = acc % mod;
-      if (reduced < 0) reduced += mod;
-      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
-    }
-  }
-}
-
-__global__ void rns8_amdgpu_builtin_wmma_gemm_128t_skinny_kernel(
-    const int8_t* __restrict__ a_residues,
-    const int8_t* __restrict__ b_residues,
-    int8_t* __restrict__ c_residues,
-    int m,
-    int n,
-    int k,
-    int prefix) {
-  // 128-thread variant: 4 wave32, balanced for N=4 small-N
-  const int tid = threadIdx.x;
-  const int row = blockIdx.x * 2 + tid / 64;
-  const int col = blockIdx.y;
-  if (row >= m) return;
-
-  const int half_wave = tid & 63;
-  for (int plane = 0; plane < prefix; ++plane) {
-    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
-    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
-    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
-
-    int32_t acc = 0;
-    for (int ki = half_wave; ki < k; ki += 64) {
-      acc += static_cast<int32_t>(a_plane[row * k + ki])
-           * static_cast<int32_t>(b_plane[ki * n + col]);
-    }
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
-
-    if (half_wave == 0) {
-      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
-      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
-      int32_t reduced = acc % mod;
-      if (reduced < 0) reduced += mod;
-      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
-    }
-  }
-}
-
-__global__ void rns8_amdgpu_builtin_wmma_gemm_256t_skinny_kernel(
-    const int8_t* __restrict__ a_residues,
-    const int8_t* __restrict__ b_residues,
-    int8_t* __restrict__ c_residues,
-    int m,
-    int n,
-    int k,
-    int prefix) {
-  // 256-thread variant: 8 wave32, more work per block for N=8
-  const int tid = threadIdx.x;
-  const int row = blockIdx.x * 4 + tid / 64;
-  const int col = blockIdx.y + (tid & 63) / 16;
-  if (row >= m || col >= n) return;
-
-  const int half_wave = tid & 63;
-  for (int plane = 0; plane < prefix; ++plane) {
-    const int8_t* a_plane = a_residues + static_cast<int64_t>(plane) * m * k;
-    const int8_t* b_plane = b_residues + static_cast<int64_t>(plane) * k * n;
-    int8_t* c_plane = c_residues + static_cast<int64_t>(plane) * m * n;
-
-    int32_t acc = 0;
-    for (int ki = half_wave; ki < k; ki += 64) {
-      acc += static_cast<int32_t>(a_plane[row * k + ki])
-           * static_cast<int32_t>(b_plane[ki * n + col]);
-    }
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 32);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 16);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 8);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 4);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 2);
-    acc += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, acc, 1);
-
-    if (half_wave == 0) {
-      constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
-      const int mod = (plane >= 0 && plane < 28) ? mods[plane] : 256;
-      int32_t reduced = acc % mod;
-      if (reduced < 0) reduced += mod;
-      c_plane[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
-    }
-  }
-}
-
-
-
-// === WMMA-native pack wrapper ===
-extern "C" int rns8_amdgpu_builtin_pack_wmma_i64_device(
-    const int64_t* src, int8_t* dst, int rows, int cols, int prefix) {
-  const int block = 256;
-  const int64_t total = (int64_t)rows * cols * prefix;
-  const int grid = (int)((total + block - 1) / block);
-  rns8_amdgpu_builtin_pack_wmma_i64_kernel<<<grid, block>>>(src, dst, rows, cols, cols, prefix);
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess) return (int)err;
-  err = hipDeviceSynchronize();
-  return (int)err;
-}
-
-extern "C" int rns8_amdgpu_builtin_pack_wmma_u64_device(
-    const uint64_t* src, int8_t* dst, int rows, int cols, int prefix) {
-  const int block = 256;
-  const int64_t total = (int64_t)rows * cols * prefix;
-  const int grid = (int)((total + block - 1) / block);
-  rns8_amdgpu_builtin_pack_wmma_u64_kernel<<<grid, block>>>(src, dst, rows, cols, cols, prefix);
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess) return (int)err;
-  err = hipDeviceSynchronize();
-  return (int)err;
 }

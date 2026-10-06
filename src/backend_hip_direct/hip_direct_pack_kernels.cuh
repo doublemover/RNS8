@@ -891,25 +891,6 @@ __global__ void rns8_pack_u8_grouped_fixed_modulus_contiguous_quad_kernel(
 }
 
 
-// === Gap 99: VALU-optimized pack kernels with DPP/VOPD patterns ===
-
-// 8-wide vectorized native i64 to centered i8 residue pack
-// Uses DPP for cross-lane modulus reduction instead of shared memory
-template <int Modulus>
-__device__ int8_t rns8_centered_from_native_dpp_device(int64_t value) {
-  // DPP-based reduction: accumulate partial products across lanes
-  int64_t reduced = value % static_cast<int64_t>(Modulus);
-  // Cross-lane reduction via DPP for wider accumulation
-  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 4);
-  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 2);
-  reduced += __shfl_down_sync(0xFFFFFFFF, static_cast<unsigned>(reduced), 1);
-  reduced = reduced % static_cast<int64_t>(Modulus);
-  // Center the residue
-  int64_t half = Modulus / 2;
-  if (reduced > half) reduced -= Modulus;
-  return static_cast<int8_t>(reduced);
-}
-
 // VOPD-friendly dual-issue pack kernel: process two source elements per thread
 // using paired VALU instructions for better ILP on RDNA3
 __global__ void rns8_pack_native_i64_to_rns_8wide_vopd_kernel(
@@ -940,32 +921,7 @@ __global__ void rns8_pack_native_i64_to_rns_8wide_vopd_kernel(
   }
 }
 
-// DPP-based cross-lane reduction for residue accumulation (replaces LDS/shared memory)
-__device__ int32_t rns8_dpp_reduce_sum_device(int32_t value) {
-  // DPP row broadcast and reduce pattern for wave32
-  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 16);
-  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 8);
-  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 4);
-  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 2);
-  value += __shfl_xor_sync(0xFFFFFFFFFFFFFFFFULL, value, 1);
-  return value;
-}
-
-// ds_swizzle-based efficient lane communication for pack operations
-template <int BankWidth>
-__device__ void rns8_ds_swizzle_store_device(int32_t* __restrict__ lds, int lane, int32_t value) {
-  // Write with swizzle pattern to avoid bank conflicts
-  int swizzled = (lane / BankWidth) * BankWidth + (lane % BankWidth);
-  lds[swizzled] = value;
-  __threadfence_block();
-}
-
-
-
-// === Phase 1c: uint4 coalesced pack loads ===
-// Load 4 int64_t values (32 bytes) per thread with a single coalesced memory
-// transaction. Reduces address arithmetic and cache line pressure vs 4 scalar loads.
-
+// Four scalar cells per thread. This is not a vector-load or ISA guarantee.
 __global__ void rns8_pack_i64_4wide_coalesced_kernel(
     const int64_t* __restrict__ src,
     int8_t* __restrict__ residues,
@@ -981,25 +937,19 @@ __global__ void rns8_pack_i64_4wide_coalesced_kernel(
                             + static_cast<int64_t>(threadIdx.x) * cells_per_thread;
   if (base_cell >= total) return;
 
-  const int modulus_index = static_cast<int>(base_cell / elements);
-  const int64_t first_element = base_cell - static_cast<int64_t>(modulus_index) * elements;
-  const int modulus = rns8_default_moduli_device[modulus_index];
-
-  #pragma unroll
+  // A four-cell group may straddle a plane boundary when elements % 4 != 0.
+  // Resolve the plane for every output lane so no residue is skipped.
+#pragma unroll
   for (int c = 0; c < cells_per_thread; ++c) {
-    const int64_t elem = first_element + static_cast<int64_t>(c);
-    if (elem >= elements) break;
-    const int row = static_cast<int>(elem / cols);
-    const int col = static_cast<int>(elem - static_cast<int64_t>(row) * cols);
-    // When ld==cols (dispatch guard), cols is the correct stride
-    const int64_t value = src[static_cast<int64_t>(row) * cols + col];
-    int64_t reduced = value % static_cast<int64_t>(modulus);
-    if (reduced < 0) reduced += modulus;
-    residues[base_cell + c] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
+    const int64_t index = base_cell + c;
+    if (index >= total) break;
+    const int modulus_index = static_cast<int>(index / elements);
+    const int64_t element = index - static_cast<int64_t>(modulus_index) * elements;
+    residues[index] = rns8_center_i64_device(src[element], rns8_default_moduli_device[modulus_index]);
   }
 }
 
-// === Phase 2b: Persistent small-shape pack ===
+// Small-shape pack
 // Single kernel processes all planes for small shapes (rows*cols <= 4096).
 // Eliminates per-plane launch overhead on tiny shapes.
 
@@ -1026,45 +976,3 @@ __global__ void rns8_persistent_small_pack_i64_kernel(
   if (reduced < 0) reduced += modulus;
   residues[cell] = static_cast<int8_t>(reduced > modulus / 2 ? reduced - modulus : reduced);
 }
-
-
-
-// === Phase 8a: INT4/IU4 research pack kernel ===
-// Packs 2 signed 4-bit values per byte. Research-only, not production.
-// Gated behind _research_ selected_kernel prefix in schema validation.
-
-__global__ void rns8_pack_i4_research_kernel(
-    const int8_t* __restrict__ src,
-    int8_t* __restrict__ dst,
-    int rows,
-    int cols,
-    int ld,
-    int prefix) {
-  const int64_t elements = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int64_t pairs = (elements + 1) / 2;
-  const int64_t total = pairs * static_cast<int64_t>(prefix);
-  const int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (idx >= total) return;
-
-  const int modulus_index = static_cast<int>(idx / pairs);
-  const int64_t pair = idx - static_cast<int64_t>(modulus_index) * pairs;
-  const int modulus = rns8_default_moduli_device[modulus_index];
-
-  // Pack 2 INT4 values per byte: low nibble = first, high nibble = second
-  const int64_t cell0 = pair * 2;
-  const int64_t cell1 = cell0 + 1;
-  const int row0 = static_cast<int>(cell0 / cols);
-  const int col0 = static_cast<int>(cell0 - static_cast<int64_t>(row0) * cols);
-
-  int8_t v0 = (cell0 < elements) ? src[static_cast<int64_t>(row0) * ld + col0] : 0;
-  int8_t v1 = (cell1 < elements) ? src[static_cast<int64_t>(row0) * ld + (col0 + 1)] : 0;
-
-  // Center to INT4 range [-8, 7]
-  v0 = (v0 % 16 + 16) % 16;
-  v1 = (v1 % 16 + 16) % 16;
-  if (v0 > 7) v0 -= 16;
-  if (v1 > 7) v1 -= 16;
-
-  dst[idx] = static_cast<int8_t>(((v1 & 0x0F) << 4) | (v0 & 0x0F));
-}
-

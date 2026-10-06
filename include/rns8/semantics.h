@@ -1,11 +1,13 @@
 #ifndef RNS8_SEMANTICS_H
 #define RNS8_SEMANTICS_H
 
+#include "rns8/abi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum rns8_semantics {
+typedef enum rns8_semantics RNS8_ENUM_BASE {
   RNS8_BOUNDED_I64 = 1,
   RNS8_BOUNDED_U64 = 2,
   RNS8_EXACT_WIDE_SIGNED = 3,
@@ -14,7 +16,8 @@ typedef enum rns8_semantics {
   RNS8_FINITE_RING_U8 = 6,
   RNS8_FINITE_FIELD_U8 = 7,
 
-  // === Research semantics (schema-gated, not in default builds) ===
+  /* Reserved research values. Plan/matrix creation rejects these values;
+   * no INT4, Ozaki, Strassen, or Freivalds execution backend is implemented. */
   RNS8_INT4_RESEARCH = 100,
   RNS8_IU4_RESEARCH = 101,
   RNS8_OZAKI_FP8_RESEARCH = 200,
@@ -22,12 +25,12 @@ typedef enum rns8_semantics {
   RNS8_FREIVALDS_RESEARCH = 202
 } rns8_semantics;
 
-typedef enum rns8_layout {
+typedef enum rns8_layout RNS8_ENUM_BASE {
   RNS8_LAYOUT_ROW_MAJOR = 1,
   RNS8_LAYOUT_COLUMN_MAJOR = 2
 } rns8_layout;
 
-typedef enum rns8_backend_kind {
+typedef enum rns8_backend_kind RNS8_ENUM_BASE {
   RNS8_BACKEND_AUTO = 0,
   RNS8_BACKEND_CPU_REFERENCE = 1,
   RNS8_BACKEND_HIP_DIRECT = 2,

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <cstdint>
 #include <string>
@@ -546,7 +547,7 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend matches CPU") {
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails") {
+TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails", "[qualification][hip]") {
   if (!amdgpu_builtins_available()) {
     SKIP("AMDGPU builtin backend is not available on this device");
   }
@@ -554,7 +555,7 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails") {
   rns8_context* cpu = require_context(RNS8_BACKEND_CPU_REFERENCE);
   rns8_context* amdgpu = require_context(RNS8_BACKEND_AMDGPU_BUILTINS);
   constexpr int64_t m = 17;
-  constexpr int64_t n = 19;
+  const int64_t n = GENERATE(1, 2, 4, 5, 8, 19);
   constexpr int64_t k = 35;
   std::vector<uint8_t> A(static_cast<std::size_t>(m * k));
   std::vector<uint8_t> B(static_cast<std::size_t>(k * n));

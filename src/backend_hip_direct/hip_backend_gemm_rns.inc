@@ -1,23 +1,7 @@
-
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
     const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
     int m, int n, int k, int prefix);
-extern "C" int rns8_hip_direct_fused_gemm_export_i64_device(
-    const int8_t* a_residues, const int8_t* b_residues, int64_t* dst,
-    int m, int n, int k, int lda, int ldb, int ldc,
-    int prefix, int64_t bound, int* status);
-#endif
-
-
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
-    const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
-    int m, int n, int k, int prefix);
-extern "C" int rns8_hip_direct_fused_gemm_export_i64_device(
-    const int8_t* a_residues, const int8_t* b_residues, int64_t* dst,
-    int m, int n, int k, int lda, int ldb, int ldc,
-    int prefix, int64_t bound, int* status);
 #endif
 
 rns8_status hip_direct_ring_gemm_i8_device(
@@ -127,7 +111,7 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const bool use_persistent_small = (static_cast<int64_t>(m) * static_cast<int64_t>(n) <= 64) && (prefix >= 1) && (lda == k) && (ldb == n);
+  const bool use_persistent_small = (static_cast<int64_t>(m) * static_cast<int64_t>(n) <= 64) && (prefix >= 1) && (lda == k) && (ldb == n) && (ldc == n);
   hipError_t err;
   if (use_persistent_small) {
     err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
@@ -604,130 +588,3 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-
-
-// === HIP graph full-path replay for bounded RNS GEMM ===
-// Captures per-plane GEMM as a HIP graph, replays for repeated workloads.
-
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-namespace {
-struct bounded_graph_state {
-  hipGraphExec_t graph_exec = nullptr;
-  bool captured = false;
-  hipStream_t capture_stream = nullptr;
-  int captured_prefix = 0;
-  int64_t captured_m = 0;
-  int64_t captured_n = 0;
-  int64_t captured_k = 0;
-};
-thread_local bounded_graph_state g_bounded_graph;
-}  // namespace
-
-rns8_status hip_direct_bounded_graph_begin(hipStream_t stream) {
-  g_bounded_graph.capture_stream = stream;
-  hipError_t err = hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal);
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-}
-
-rns8_status hip_direct_bounded_graph_end() {
-  if (!g_bounded_graph.capture_stream) return RNS8_BACKEND_FAILURE;
-  hipGraph_t graph = nullptr;
-  hipError_t err = hipStreamEndCapture(g_bounded_graph.capture_stream, &graph);
-  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
-  if (g_bounded_graph.graph_exec) {
-    hipGraphExecDestroy(g_bounded_graph.graph_exec);
-  }
-  err = hipGraphInstantiate(&g_bounded_graph.graph_exec, graph, nullptr, nullptr, 0);
-  hipGraphDestroy(graph);
-  g_bounded_graph.captured = (err == hipSuccess);
-  return g_bounded_graph.captured ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-}
-
-rns8_status hip_direct_bounded_graph_launch() {
-  if (!g_bounded_graph.captured || !g_bounded_graph.graph_exec)
-    return RNS8_UNSUPPORTED_BACKEND;
-  hipError_t err = hipGraphLaunch(g_bounded_graph.graph_exec, g_bounded_graph.capture_stream);
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-}
-
-void hip_direct_bounded_graph_reset() {
-  if (g_bounded_graph.graph_exec) {
-    hipGraphExecDestroy(g_bounded_graph.graph_exec);
-    g_bounded_graph.graph_exec = nullptr;
-  }
-  g_bounded_graph.captured = false;
-  g_bounded_graph.capture_stream = nullptr;
-}
-
-// Graph-safe GEMM: launches per-plane GEMM on capture_stream without sync.
-// Called during graph capture to record all plane launches into the graph.
-rns8_status hip_direct_gemm_rns_graph_capture_launch(
-    const void* device_a_residues, const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m, int64_t n, int64_t k,
-    int64_t lda, int64_t ldb, int64_t ldc,
-    uint32_t prefix) {
-  if (!g_bounded_graph.capture_stream) return RNS8_BACKEND_FAILURE;
-  const auto* a = static_cast<const int8_t*>(device_a_residues);
-  const auto* b = static_cast<const int8_t*>(device_b_residues);
-  auto* c = static_cast<int8_t*>(device_c_residues);
-  const int safe_k = 65536;
-  for (uint32_t p = 0; p < prefix; ++p) {
-    const int ps_mk = static_cast<int>(p * m * k);
-    const int ps_kn = static_cast<int>(p * k * n);
-    const int ps_mn = static_cast<int>(p * m * n);
-    int code = rns8_hip_direct_ring_gemm_i8_grouped_prefix_device_on_stream(
-        a + ps_mk, b + ps_kn, c + ps_mn,
-        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
-        1, safe_k, g_bounded_graph.capture_stream);
-    if (code != static_cast<int>(hipSuccess)) return RNS8_BACKEND_FAILURE;
-  }
-  g_bounded_graph.captured_prefix = static_cast<int>(prefix);
-  g_bounded_graph.captured_m = m;
-  g_bounded_graph.captured_n = n;
-  g_bounded_graph.captured_k = k;
-  return RNS8_SUCCESS;
-}
-#endif  // RNS8_ENABLE_HIP
-
-
-// === Fused GEMM+export: computes GEMM + Garner CRT in one kernel ===
-// Active for prefix <= 8 where precomputed __constant__ weights accelerate
-// the Garner reconstruction. Outputs final i64/i64 directly, eliminating
-// the intermediate centered i8 residue store/load between GEMM and export.
-rns8_status hip_direct_gemm_rns_fused_export_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    int64_t* dst,
-    int64_t m, int64_t n, int64_t k,
-    int64_t lda, int64_t ldb, int64_t ldc,
-    uint32_t prefix, int64_t bound) {
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !dst || m <= 0 || n <= 0 || k <= 0 ||
-      prefix == 0 || prefix > 8 || lda < k || ldb < n || ldc < n) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  const rns8_status device_status = set_hip_device(device_id);
-  if (device_status != RNS8_SUCCESS) return device_status;
-  hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    // Fused kernel: GEMM per plane + Garner CRT -> final i64 output
-    const int code = rns8_hip_direct_fused_gemm_export_i64_device(
-        static_cast<const int8_t*>(device_a_residues),
-        static_cast<const int8_t*>(device_b_residues),
-        dst,
-        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
-        static_cast<int>(prefix), bound, nullptr);
-    return static_cast<hipError_t>(code);
-  });
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-#else
-  (void)device_id; (void)device_a_residues; (void)device_b_residues;
-  (void)dst; (void)m; (void)n; (void)k; (void)lda; (void)ldb; (void)ldc;
-  (void)prefix; (void)bound;
-  return RNS8_UNSUPPORTED_BACKEND;
-#endif
-}
-

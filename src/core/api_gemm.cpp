@@ -1497,7 +1497,7 @@ rns8_status rns8_gemm_wrap_u64(
 }
 
 
-// === Phase 8: Deferred research API stubs ===
+// Reserved research entrypoints. No backend implements these operations.
 
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
     rns8_context* ctx,

@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from process_progress import run_capture
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +26,8 @@ class SuiteCase:
 
 
 DEFAULT_CASES = [
+    SuiteCase("gpu_qualification", "target_readiness", [sys.executable, "tools/test_gpu_qualification.py"]),
+    SuiteCase("performance_dashboard", "documentation_claims", [sys.executable, "tools/test_performance_dashboard.py"]),
     SuiteCase("metadata_registry", "metadata_drift", [sys.executable, "tools/test_metadata_registry.py"]),
     SuiteCase(
         "benchmark_schema_semantic_contracts",
@@ -188,15 +191,15 @@ DEFAULT_CASES = [
 
 
 def run_case(case: SuiteCase) -> dict[str, Any]:
-    result = subprocess.run(case.command, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = run_capture(case.command, cwd=REPO_ROOT, label=case.name)
     return {
         "name": case.name,
         "category": case.category,
-        "command": case.command,
-        "returncode": result.returncode,
-        "passed": result.returncode == 0,
-        "output": result.stdout,
+        **result,
+        "passed": result["returncode"] == 0 and not result["timed_out"],
+        "output": result["stdout"] + result["stderr"],
     }
+
 
 
 def write_report(results: list[dict[str, Any]], out_dir: Path) -> Path:
@@ -231,7 +234,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     args = parser.parse_args()
-    results = [run_case(case) for case in DEFAULT_CASES]
+    results = []
+    for index, case in enumerate(DEFAULT_CASES, 1):
+        print(f"golden regression {index}/{len(DEFAULT_CASES)}: {case.name}", flush=True)
+        results.append(run_case(case))
     report_path = write_report(results, args.out_dir)
     for item in results:
         result = "PASS" if item["passed"] else f"FAIL ({item['returncode']})"

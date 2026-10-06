@@ -19,8 +19,7 @@ def write_capture(path: Path, capture: dict) -> None:
 
 def reviewable_fixed_limb_capture() -> dict:
     capture = add_helper_lane_fields(as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json")))
-    selected_kernel = "ck_wmma_cshuffle_i8_i32_mod251_255_256_centered_epilogue_v2"
-    capture["selected_kernel"] = selected_kernel
+    selected_kernel = "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device"
     capture["backend_selected"] = "ck"
     capture["backend_requested"] = "ck"
     capture["target_id"] = "gfx1100"
@@ -29,6 +28,7 @@ def reviewable_fixed_limb_capture() -> dict:
     capture["exact_output_contract"] = {
         "requested_final_output": "exact_wide_limb_host",
         "limb_count": 4,
+        "kernel_identity": selected_kernel,
         "status_policy": "structurally_elided",
         "output_domain_after_measured_repeats": "exact_wide_limb_host",
         "final_checksum_export_after_repeats": False,
@@ -38,7 +38,7 @@ def reviewable_fixed_limb_capture() -> dict:
         "source": "reviewable_exact_wide_fixed_limb_selector",
         "selector_source": "rns8_internal_export_plan",
         "selector_key": (
-            "semantics=exact_wide_signed;backend=ck;target_id=gfx1100;prefix=9;"
+            "semantics=exact_wide_signed;backend=ck;target_id=gfx1100;prefix=20;"
             "limb_count=4;signedness=signed;output_layout=fixed_u64_limbs;"
             "status_policy=none;d2h_policy=host_ld_padded;"
             f"final_output_mode=final_host_output;selected_kernel={selected_kernel}"
@@ -47,7 +47,7 @@ def reviewable_fixed_limb_capture() -> dict:
         "semantic_contract": "exact_wide_signed",
         "backend": "ck",
         "target_id": "gfx1100",
-        "prefix_contract": "prefix=9;min_selected=9;max_selected=9;groups=1",
+        "prefix_contract": "prefix=20;min_selected=20;max_selected=20;groups=1",
         "signedness": "signed",
         "output_layout": "fixed_u64_limbs",
         "limb_count": 4,

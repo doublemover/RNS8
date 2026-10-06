@@ -1,11 +1,13 @@
 #ifndef RNS8_BOUNDS_H
 #define RNS8_BOUNDS_H
 
+#include "rns8/abi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum rns8_bound_kind {
+typedef enum rns8_bound_kind RNS8_ENUM_BASE {
   RNS8_BOUND_NONE = 0,
   RNS8_BOUND_GLOBAL_MAX_ABS = 1,
   RNS8_BOUND_GLOBAL_MAX_UNSIGNED = 2,

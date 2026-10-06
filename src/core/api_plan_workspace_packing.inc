@@ -301,6 +301,7 @@ bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& byte
 std::string build_autotune_key(const rns8_plan& plan) {
   std::string key = "backend=";
   key += backend_name(plan.backend);
+  key += ";implementation_revision=2";
   key += ";target_id=";
   key += target_id_for_plan_key(plan);
   key += ";semantics=";
