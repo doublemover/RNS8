@@ -1,3 +1,5 @@
+> Historical record from the pre-audit tree (80791bd). Implementation and performance claims below are not current qualification evidence. See [the audit](../audit-2026-10-06.md), [current gates](../roadmap.md), and [performance policy](../performance.md).
+
 # Performance Gain Completed Work
 
 This archive holds Performance Gain Work Queue ranks that are no longer active
@@ -10,7 +12,7 @@ Active and partially advanced work remains in
 performance claims still live in [performance-wins.md](performance-wins.md),
 [reviewed-local-evidence.md](reviewed-local-evidence.md),
 [roadmap-status.md](roadmap-status.md), and the README
-[current local performance snapshot](../README.md#exactness-and-performance).
+[current local performance snapshot](../../README.md#exactness-and-performance).
 
 ## Completed And Closed Ranks
 

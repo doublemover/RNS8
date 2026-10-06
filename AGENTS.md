@@ -12,7 +12,9 @@ reference comparisons.
 
 - `docs/RNS8_RESEARCH_SPEC.md` is the architecture and roadmap source of
   truth.
-- `README.md` is the Windows development setup source of truth.
+- `README.md` is the development setup source of truth.
+- `docs/roadmap.md` contains current validation/release gates; `docs/archive/`
+  preserves historical records and must not be treated as current qualification.
 - If implementation and docs disagree, do not silently choose one. Reconcile
   the discrepancy or call it out.
 - This is a greenfield project. Prefer clean, direct implementation over

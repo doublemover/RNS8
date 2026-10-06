@@ -16,13 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DEFAULT_PATHS = [
     REPO_ROOT / "README.md",
-    REPO_ROOT / "docs" / "backend-notes.md",
-    REPO_ROOT / "docs" / "performance-wins.md",
-    REPO_ROOT / "docs" / "performance-model.md",
-    REPO_ROOT / "docs" / "platform-linux.md",
-    REPO_ROOT / "docs" / "platform-readiness.md",
-    REPO_ROOT / "docs" / "reviewed-local-evidence.md",
-    REPO_ROOT / "docs" / "roadmap-status.md",
+    *[REPO_ROOT / "docs" / name for name in (
+        "backend-notes.md", "performance.md", "platform-linux.md",
+        "platform-readiness.md", "roadmap.md", "gpu-qualification.md",
+    )],
 ]
 
 TARGET_RE = re.compile(r"\b(linux|rocm|instinct|cdna[0-9]*|rdna4)\b", re.IGNORECASE)

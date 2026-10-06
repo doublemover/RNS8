@@ -1,9 +1,11 @@
+> Historical record from the pre-audit tree (80791bd). Implementation and performance claims below are not current qualification evidence. See [the audit](../audit-2026-10-06.md), [current gates](../roadmap.md), and [performance policy](../performance.md).
+
 # RNS8 Roadmap Status
 
 Status date: 2026-06-06
 
 This file summarizes live implementation status against
-[RNS8_RESEARCH_SPEC.md](RNS8_RESEARCH_SPEC.md). The research spec remains the
+[RNS8_RESEARCH_SPEC.md](../RNS8_RESEARCH_SPEC.md). The research spec remains the
 architecture and roadmap source of truth when details disagree.
 
 ## Implemented And Verified

@@ -1,3 +1,8 @@
+> This specification includes intended and research behavior. For the current
+> implementation and verified limits, read the [October 2026 audit](audit-2026-10-06.md)
+> and [release gates](roadmap.md). Source registration and historical completion
+> labels do not establish hardware qualification.
+
 # RNS8 Technical Specification
 
 Exact integer matrix multiplication on AMD GPU matrix engines with HIP, RNS,

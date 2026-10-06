@@ -1,3 +1,5 @@
+> Historical record from the pre-audit tree (80791bd). Implementation and performance claims below are not current qualification evidence. See [the audit](../audit-2026-10-06.md), [current gates](../roadmap.md), and [performance policy](../performance.md).
+
 # Performance Gain Imported Research Notes
 
 This document preserves imported maximum-performance roadmap triage notes that

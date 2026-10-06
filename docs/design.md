@@ -1,41 +1,72 @@
-# RNS8 Design Notes
+# Implemented design
 
-`docs/RNS8_RESEARCH_SPEC.md` remains the architecture source of truth. This
-file records the implemented scaffold state.
+The [research specification](RNS8_RESEARCH_SPEC.md) defines intended architecture;
+this page describes the source structure and API boundaries.
 
-Current core design:
+## Arithmetic layers
 
-- Public ABI is C with explicit `struct_size` and `abi_version` fields.
-- Semantics are explicit through `rns8_semantics`; bounded signed and unsigned
-  64-bit, exact-wide signed/unsigned limb export, and strict wrap64 byte-limb
-  contracts remain separate ABI surfaces.
-- Persistent RNS matrices are created from `rns8_matrix_desc` and store
-  modulus-major centered `int8_t` residues.
-- Packing writes into an explicit matrix object. The ABI does not infer whether
-  an input is A, B, or C from a plan call order.
-- CPU reference GEMM runs one scalar ring GEMM per selected modulus and splits
-  K into blocks no larger than 65536 before residue reduction.
-- CRT reconstruction uses Boost.Multiprecision incremental Garner/CRT logic
-  and checks signed/unsigned range contracts before export.
-- Exact-wide export writes fixed-width little-endian limbs. Signed export uses
-  the centered CRT representative with the same `x >= ceil(P / 2)` negative
-  threshold as centered residue packing; unsigned export uses canonical
-  magnitude limbs. Both use `ld` as an element stride, require `limb_count` in
-  `[1, 32]`, and report destination-preserving range errors rather than
-  truncating. Exact-wide remains separate from bounded i64/u64 export and
-  strict wrap64 byte-limb export.
+- `src/core/moduli.cpp`: descriptor validation, exact prefix products, bounds,
+  and supported semantic contracts
+- `src/cpu/`: residue packing and blocked ring multiplication; Boost.Multiprecision
+  provides independent full-integer cells and CRT reference behavior
+- `src/reconstruct/crt.cpp`: incremental Garner reconstruction and checked limb
+  conversion on the CPU
+- `src/backend_common/`: host/device finite-modulus reduction and the blocked
+  scalar residue dot product used by the small persistent HIP path
+- `src/backend_hip_direct/`: packing, RNS/finite GEMM, grouped and scheduled work,
+  checked 192-bit reconstruction, and host/device transfers
+- `src/backend_wrap64/`: separate strict-wrap storage, CPU oracle, and HIP kernels
+- `src/backend_{hipblaslt,ck,rocwmma,amdgpu_builtins,vector_alu}/`: optional
+  accelerators or native exact comparators
 
-Current backend boundary:
+The default ladder has 28 moduli; execution supports prefixes through 20.
+Direct-HIP wide reconstruction uses three unsigned 64-bit limbs, sufficient for
+the supported prefix range. Export uses that implementation for every bounded
+prefix. A short-prefix weighted sum in uint64 is not safe merely because the
+modulus product fits uint64: each weighted term may still overflow.
 
-- `RNS8_BACKEND_CPU_REFERENCE` is the deterministic correctness backend.
-- `RNS8_BACKEND_HIP_DIRECT` is a real Windows HIP bring-up path with device
-  inspection, GPU residue conversion, one-modulus ring-GEMM smoke coverage,
-  K-block splitting, and bounded API smoke coverage.
-- hipBLASLt is implemented as an opt-in baseline backend under
-  `RNS8_ENABLE_HIPBLASLT=ON`; it is not a correctness requirement and is not
-  performance-validated.
-- CK and rocWMMA are implemented as opt-in Windows `gfx1100` correctness
-  backends under their explicit presets. They are not correctness requirements
-  and are not performance-validated.
-- AMDGPU builtin paths remain feature-detected evidence-only accelerators.
-  Their enable flags must fail fast until real correctness backends exist.
+## Handles and ownership
+
+`rns8_context` binds the device/backend. A `rns8_plan` owns a validated contract,
+selected prefix/tile schedule, lowering metadata, and backend selection. A
+`rns8_workspace` is bound to the plan's full contract, not just its shape.
+`rns8_matrix` owns its storage; source versions and currentness distinguish native
+values, RNS residues, and wrap64 limbs on host and device.
+
+A successful pack establishes current input storage. Reusing the same source
+version is the caller's assertion that the input has not changed. A successful
+GEMM establishes the backend-specific output domain. Export requires matching
+semantics, shape, layout, schedule, and currentness. Stale or incompatible
+handles must be rejected rather than silently reinterpreted.
+
+For bounded/exact-wide work, device residues use modulus-major compact row-major
+planes. Finite storage has one explicit modulus. Wrap storage uses eight bytes
+per element. Packed host inputs may have padded leading dimensions.
+
+## Reuse and grouping
+
+Persistent matrices avoid repeated conversion when values are unchanged.
+Prepack caches add backend-specific operand identity and lifetime constraints.
+Result caches track source versions and explicitly dirty output regions; they
+are not general automatic incremental computation.
+
+The public grouped GEMM calls accept compatible already-resident tasks with
+independent matrices/workspaces. Grouped host packing, final export, graph
+capture, streaming experiments, and many benchmark workload combinations have
+narrower benchmark-owned contracts. Do not infer a public asynchronous or graph
+API from a benchmark flag.
+
+Actual graph replay lives in `benchmarks/rns8_bench_hip_graph_buffers.inc` and
+uses graph-safe internal launch helpers. The audit removed unused process-global
+and thread-local graph prototypes from backend implementation fragments.
+
+## Files and generated metadata
+
+Several C++ translation units include `.inc` fragments to keep related APIs or
+kernel wrappers in one compilation context. The fragments are not independent
+libraries. New helpers should be small, testable, and shared only when their
+contracts genuinely match.
+
+`metadata/*.yaml` are JSON-compatible registry files. Generate Python/C++
+constants with `python tools/metadata_registry.py --write-generated` and check
+with `--check`. Registration is metadata validation, not an execution proof.

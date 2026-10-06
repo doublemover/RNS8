@@ -131,8 +131,8 @@ Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
 `--bench-args`, `--skip-build`, and `--dry-run`. `--accelerators` selects the
 clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
 That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
-real Instinct host while keeping `RNS8_ENABLE_AMDGPU_BUILTINS=OFF`,
-`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx90a;gfx942;gfx950`, and no
+real Instinct host with `RNS8_ENABLE_AMDGPU_BUILTINS=ON`,
+`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx942`, and no
 Windows vcpkg or local workstation paths. It is a configure/build surface only;
 CDNA performance readiness still requires target-validation and release-review
 captures.

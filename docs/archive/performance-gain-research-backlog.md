@@ -1,3 +1,5 @@
+> Historical record from the pre-audit tree (80791bd). Implementation and performance claims below are not current qualification evidence. See [the audit](../audit-2026-10-06.md), [current gates](../roadmap.md), and [performance policy](../performance.md).
+
 # Performance Gain Research Backlog
 
 This document preserves the former detailed backlog and research-notes material
@@ -1507,8 +1509,8 @@ Relation to existing queue:
 ### 23. Native Vector-ALU Production Backend
 
 Status: runtime backend implemented in
-[src/backend_vector_alu](../src/backend_vector_alu). The benchmark harness in
-[benchmarks/hip_vector_alu_baseline_kernels.hip](../benchmarks/hip_vector_alu_baseline_kernels.hip)
+[src/backend_vector_alu](../../src/backend_vector_alu). The benchmark harness in
+[benchmarks/hip_vector_alu_baseline_kernels.hip](../../benchmarks/hip_vector_alu_baseline_kernels.hip)
 still exists for same-contract release comparisons.
 
 Technical direction:
