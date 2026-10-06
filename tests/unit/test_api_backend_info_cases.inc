@@ -408,7 +408,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.accumulator_type) == "int32");
     CHECK(std::string(info.accumulator_modulus_policy) == "selected_rns_modulus_ladder");
     CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
-    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;implementation_revision=2;target_id=cpu;semantics=bounded_u64") == 0);
+    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;implementation_revision=3;target_id=cpu;semantics=bounded_u64") == 0);
     CHECK(std::string(info.autotune_key).find(";accumulator_type=int32;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_size=4;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_cap=65536;") != std::string::npos);

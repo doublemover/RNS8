@@ -124,3 +124,60 @@ TEST_CASE("qualification persistent GEMM spans multiple safe K blocks", "[qualif
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
+
+TEST_CASE("qualification tiled GEMM never infers tile zero from host mirrors", "[qualification][hip]") {
+  if (!hip_available()) SKIP("HIP device required for qualification");
+  auto* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
+  auto* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
+  // One tile, with either a genuinely zero row/column or values whose first
+  // residue is zero but whose integer value is nonzero. One-sided host mirrors
+  // also cover the old unscanned operand's accidentally all-zero mask.
+  for (const bool multiple_of_256 : {false, true}) {
+    for (const unsigned host_mirrors : {0u, 1u, 2u, 3u}) {
+      INFO("multiple_of_256=" << multiple_of_256 << " mirrors=" << host_mirrors);
+      const std::vector<int64_t> a = multiple_of_256 ? std::vector<int64_t>{256, 512}
+                                                   : std::vector<int64_t>{0, 7};
+      const std::vector<int64_t> b = multiple_of_256 ? std::vector<int64_t>{3, 5}
+                                                   : std::vector<int64_t>{0, 11};
+      const std::vector<uint64_t> bounds = {2560};
+      auto cd = per_tile_signed_desc(2, 2, 1, bounds, RNS8_BACKEND_CPU_REFERENCE);
+      auto hd = per_tile_signed_desc(2, 2, 1, bounds, RNS8_BACKEND_HIP_DIRECT);
+      rns8_plan* hp = nullptr;
+      rns8_workspace* hw = nullptr;
+      rns8_matrix *ha = nullptr, *hb = nullptr, *hc = nullptr;
+      REQUIRE(rns8_create_plan(hip, &hd, &hp) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_workspace(hip, hp, &hw) == RNS8_SUCCESS);
+      auto ad = matrix_desc(2, 1, hd.semantics, hd.bound_kind);
+      auto bd = matrix_desc(1, 2, hd.semantics, hd.bound_kind);
+      auto od = matrix_desc(2, 2, hd.semantics, hd.bound_kind);
+      ad.tile_m = bd.tile_m = od.tile_m = hd.tile_m;
+      ad.tile_n = bd.tile_n = od.tile_n = hd.tile_n;
+      REQUIRE(rns8_create_matrix(hip, &ad, &ha) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(hip, &bd, &hb) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(hip, &od, &hc) == RNS8_SUCCESS);
+      REQUIRE(rns8_pack_i64(hip, ha, a.data(), 1, 1) == RNS8_SUCCESS);
+      REQUIRE(rns8_pack_i64(hip, hb, b.data(), 2, 1) == RNS8_SUCCESS);
+      for (unsigned operand = 0; operand < 2; ++operand) {
+        if ((host_mirrors & (1u << operand)) == 0) continue;
+        auto* matrix = operand == 0 ? ha : hb;
+        REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
+                    hip->device_id, matrix->residues.data(), matrix->hip_residues,
+                    matrix->hip_residue_bytes) == RNS8_SUCCESS);
+        matrix->host_residues_current = true;  // Coherent optional host mirror.
+      }
+      std::vector<int64_t> expected(4, -777), actual(4, -777);
+      REQUIRE(rns8_gemm_i64_oneshot(cpu, &cd, a.data(), 1, b.data(), 2,
+                                  expected.data(), 2) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(hip, hp, ha, hb, hc, hw) == RNS8_SUCCESS);
+      REQUIRE(rns8_export_i64(hip, hp, hc, actual.data(), 2) == RNS8_SUCCESS);
+      CHECK(actual == expected);
+      CHECK(actual[3] == a[1] * b[1]);
+      CHECK(actual[3] != 0);
+      for (auto* matrix : {ha, hb, hc}) rns8_destroy_matrix(matrix);
+      rns8_destroy_workspace(hw);
+      rns8_destroy_plan(hp);
+    }
+  }
+  rns8_destroy_context(hip);
+  rns8_destroy_context(cpu);
+}
