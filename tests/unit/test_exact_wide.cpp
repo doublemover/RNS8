@@ -14,3 +14,5 @@ namespace {
 #include "test_exact_wide_rns_contract_cases.inc"
 #include "test_exact_wide_padded_export_cases.inc"
 #include "test_exact_wide_error_cases.inc"
+
+#include "test_exact_wide_chain_cases.inc"

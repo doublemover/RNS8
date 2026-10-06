@@ -76,6 +76,10 @@ struct rns8_matrix {
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   uint16_t finite_modulus = 0;
   uint64_t source_version = 0;
+  // Proof for public exact-wide pack/GEMM chains. Zero prefix means unknown.
+  boost::multiprecision::cpp_int exact_max_magnitude = 0;
+  uint32_t exact_range_prefix = 0;
+
   std::vector<int8_t> residues;
   std::vector<uint8_t> byte_limbs;
   std::vector<int64_t> native_i64;
@@ -121,6 +125,9 @@ struct rns8_sparse_matrix {
   uint64_t matrix_instance_id = 0;
   uint32_t value_plane_count = 0;
   uint64_t source_version = 0;
+  boost::multiprecision::cpp_int exact_max_magnitude = 0;
+  uint32_t exact_range_prefix = 0;
+
   uint64_t group_count = 0;
   uint64_t packed_value_count = 0;
   std::vector<uint8_t> packed_values;
@@ -240,6 +247,9 @@ struct rns8_prepack_cache {
   uint64_t k_block_size = 0;
   uint64_t k_block_cap = 0;
   uint64_t source_version = 0;
+  boost::multiprecision::cpp_int exact_max_magnitude = 0;
+  uint32_t exact_range_prefix = 0;
+
   uint64_t plan_fingerprint = 0;
   uint64_t cache_key_hash = 0;
   std::string cache_key;

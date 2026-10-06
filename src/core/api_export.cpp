@@ -39,6 +39,11 @@ rns8_status validate_export_matrix(
        !rns_residue_state_current_for_backend(C, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (rns8::detail::exact_wide_semantics(semantics) && C.exact_range_prefix != 0 &&
+      (C.exact_range_prefix < prefix ||
+       !rns8::detail::exact_range_fits(semantics, C.exact_max_magnitude, plan.modulus_product))) {
+    return RNS8_RANGE_ERROR;
+  }
   if (semantics == RNS8_WRAP_U64_MOD_2_64 &&
       (!wrap_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n) ||
        !wrap_byte_limb_state_current_for_backend(C, plan.backend))) {

@@ -170,6 +170,8 @@ rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse, co
   dense.matrix_instance_id = sparse.matrix_instance_id;
   dense.prefix = sparse.desc.max_prefix;
   dense.source_version = sparse.source_version;
+  dense.exact_max_magnitude = sparse.exact_max_magnitude;
+  dense.exact_range_prefix = sparse.exact_range_prefix;
   dense.host_residues_current = true;
   dense.device_residues_current = false;
   dense.residues.resize(
@@ -619,15 +621,44 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
     if (!ctx || !matrix || !dense_a_planes || ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // A malformed later group must not partially overwrite a current matrix
+    // while leaving its old source version and range proof usable.
+    std::vector<uint8_t> staged_values(matrix->packed_values.size());
+    std::vector<uint8_t> staged_indices(matrix->packed_indices.size());
     const rns8_status status = rns8_pack_sparse_a_4_to_2_u8(
         &matrix->desc,
         dense_a_planes,
         dense_ld,
-        matrix->packed_values.data(),
-        matrix->packed_indices.data());
+        staged_values.data(),
+        staged_indices.data());
     if (status != RNS8_SUCCESS) {
       return status;
     }
+    uint32_t range_prefix = 0;
+    boost::multiprecision::cpp_int maximum = 0;
+    if (rns8::detail::exact_wide_semantics(matrix->desc.semantics)) {
+      const uint32_t prefix = matrix->desc.max_prefix;
+      const auto product = rns8::detail::modulus_product(prefix);
+      std::vector<int8_t> residues(prefix);
+      for (int64_t row = 0; row < matrix->desc.rows; ++row) {
+        for (int64_t col = 0; col < matrix->desc.expanded_k; ++col) {
+          for (uint32_t p = 0; p < prefix; ++p) {
+            residues[p] = static_cast<int8_t>(dense_a_planes[
+                static_cast<std::size_t>(p) * matrix->desc.rows * dense_ld + row * dense_ld + col]);
+          }
+          auto value = rns8::detail::reconstruct_canonical(residues, prefix);
+          if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED && value >= (product + 1) / 2)
+            value -= product;
+          if (value < 0) value = -value;
+          if (value > maximum) maximum = value;
+        }
+      }
+      range_prefix = prefix;
+    }
+    matrix->packed_values.swap(staged_values);
+    matrix->packed_indices.swap(staged_indices);
+    matrix->exact_max_magnitude.swap(maximum);
+    matrix->exact_range_prefix = range_prefix;
     matrix->source_version = source_version;
     matrix->host_current = true;
     matrix->device_current = false;
@@ -677,6 +708,15 @@ rns8_status rns8_gemm_rns_sparse_a(
     if (!sparse_rns_matches_plan(*A, *plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
+    boost::multiprecision::cpp_int exact_bound;
+    if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) {
+      if (B == C) return RNS8_INVALID_ARGUMENT;
+      if (A->exact_range_prefix < plan->prefix || B->exact_range_prefix < plan->prefix)
+        return RNS8_RANGE_ERROR;
+      exact_bound = boost::multiprecision::cpp_int(plan->desc.k) * A->exact_max_magnitude * B->exact_max_magnitude;
+      if (!rns8::detail::exact_range_fits(plan->desc.semantics, exact_bound, plan->modulus_product))
+        return RNS8_RANGE_ERROR;
+    }
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE && A->backend == RNS8_BACKEND_CPU_REFERENCE) {
       if (!A->host_current) {
         return RNS8_INVALID_ARGUMENT;
@@ -690,10 +730,13 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
+      if (rns8::detail::exact_wide_semantics(plan->desc.semantics))
+        rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
       if (status == RNS8_SUCCESS) {
         rns8::detail::api::mark_output_host_residues_current(*C);
         C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+        rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       }
       return status;
     }
@@ -707,6 +750,8 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
+      if (rns8::detail::exact_wide_semantics(plan->desc.semantics))
+        rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_sparse_a_device(
           ctx->device_id,
           A->hip_packed_values,
@@ -724,6 +769,7 @@ rns8_status rns8_gemm_rns_sparse_a(
       }
       rns8::detail::api::mark_output_device_residues_current(*C);
       C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
     }
 #endif

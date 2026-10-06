@@ -89,6 +89,10 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         return RNS8_RANGE_ERROR;
       }
       matrix->residues.assign(elements, 0);
+      if (rns8::detail::exact_wide_semantics(matrix->desc.semantics) &&
+          ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+        matrix->exact_range_prefix = prefix;  // The freshly created host matrix is zero.
+      }
       clear_byte_limb_current(*matrix);
     }
     if (hip_resident_rns_backend(ctx->backend)) {

@@ -181,3 +181,61 @@ TEST_CASE("qualification tiled GEMM never infers tile zero from host mirrors", "
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
+
+TEST_CASE("qualification exact-wide chain rejects range exhaustion without output mutation", "[qualification][hip]") {
+  if (!hip_available()) SKIP("HIP device required for qualification");
+  for (const auto backend : {RNS8_BACKEND_CPU_REFERENCE, RNS8_BACKEND_HIP_DIRECT}) {
+    auto* ctx = create_context(backend);
+    for (const auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+      auto desc = signed_desc(1, 1, 1, 0, backend);
+      desc.semantics = semantics;
+      desc.bound_kind = RNS8_BOUND_NONE;
+      desc.max_prefix = 20;
+      desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
+      rns8_plan* plan = nullptr;
+      rns8_workspace* workspace = nullptr;
+      REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+      auto md = matrix_desc(1, 1, semantics, RNS8_BOUND_NONE);
+      md.max_prefix = 20;
+      rns8_matrix *a = nullptr, *b = nullptr, *c = nullptr, *d = nullptr;
+      for (auto** matrix : {&a, &b, &c, &d})
+        REQUIRE(rns8_create_matrix(ctx, &md, matrix) == RNS8_SUCCESS);
+      auto pack = [&](rns8_matrix* matrix, bool small, uint64_t version) {
+        const int64_t signed_value = small ? 7 : INT64_MIN;
+        const uint64_t unsigned_value = small ? 7 : UINT64_MAX;
+        return semantics == RNS8_EXACT_WIDE_SIGNED
+                   ? rns8_pack_i64(ctx, matrix, &signed_value, 1, version)
+                   : rns8_pack_u64(ctx, matrix, &unsigned_value, 1, version);
+      };
+      auto export_value = [&](rns8_matrix* matrix, uint64_t* output) {
+        return semantics == RNS8_EXACT_WIDE_SIGNED
+                   ? rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, output, 1, 3)
+                   : rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, output, 1, 3);
+      };
+      REQUIRE(pack(a, false, 1) == RNS8_SUCCESS);
+      REQUIRE(pack(b, false, 2) == RNS8_SUCCESS);
+      REQUIRE(pack(d, true, 3) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
+      uint64_t before[3] = {}, after[3] = {};
+      REQUIRE(export_value(d, before) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(ctx, plan, c, b, d, workspace) == RNS8_RANGE_ERROR);
+      REQUIRE(export_value(d, after) == RNS8_SUCCESS);
+      CHECK(std::vector<uint64_t>(after, after + 3) == std::vector<uint64_t>(before, before + 3));
+      CHECK(d->source_version == 3);
+      REQUIRE(pack(b, true, 4) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(ctx, plan, c, b, d, workspace) == RNS8_SUCCESS);
+      const auto native = semantics == RNS8_EXACT_WIDE_SIGNED
+                              ? boost::multiprecision::cpp_int(INT64_MIN)
+                              : boost::multiprecision::cpp_int(UINT64_MAX);
+      const auto expected = native * native * 7;
+      REQUIRE(export_value(d, after) == RNS8_SUCCESS);
+      for (unsigned limb = 0; limb < 3; ++limb)
+        CHECK(after[limb] == static_cast<uint64_t>((expected >> (64 * limb)) & UINT64_MAX));
+      for (auto* matrix : {a, b, c, d}) rns8_destroy_matrix(matrix);
+      rns8_destroy_workspace(workspace);
+      rns8_destroy_plan(plan);
+    }
+    rns8_destroy_context(ctx);
+  }
+}

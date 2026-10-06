@@ -27,6 +27,8 @@ for this revision. Start with the [audit](docs/audit-2026-10-06.md) and
 These contracts are separate APIs. A C++ type does not select the semantics.
 `EXACT_WIDE` is not unlimited-precision storage: the current implementation
 supports at most 20 of the 28 default moduli, about 154.84 bits of CRT range.
+Resident exact-wide operations propagate conservative magnitude bounds and reject
+chains that exceed the selected prefix; prefixes do not grow automatically.
 Export accepts 1–32 little-endian 64-bit limbs, which does not increase the
 information represented by the selected prefix. Signed export is two's complement.
 

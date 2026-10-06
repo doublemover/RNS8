@@ -44,6 +44,22 @@ rns8_status rns8_pack_i64(
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    boost::multiprecision::cpp_int exact_bound = 0;
+    if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
+      if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
+          (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      // Stable source versions preserve the original packed value and proof.
+      exact_bound = same_source_device_residue_pack_current(*ctx, *matrix, source_version)
+                        ? matrix->exact_max_magnitude
+                        : boost::multiprecision::cpp_int(rns8::detail::native_max_magnitude(
+                              src, matrix->desc.rows, matrix->desc.cols, ld));
+      if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
+                                        rns8::detail::modulus_product(matrix->prefix))) {
+        return RNS8_RANGE_ERROR;
+      }
+    }
     if (native_vector_backend(ctx->backend)) {
       if (matrix->desc.semantics != RNS8_BOUNDED_I64 ||
           !bounded_native_storage_matches(*matrix, RNS8_BOUNDED_I64, matrix->desc.rows, matrix->desc.cols)) {
@@ -68,6 +84,7 @@ rns8_status rns8_pack_i64(
       if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
         return RNS8_SUCCESS;
       }
+      if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) invalidate_output_currentness(*matrix);
       const rns8_status status = rns8::detail::hip_direct_pack_i64_device(
           ctx->device_id,
           src,
@@ -94,6 +111,10 @@ rns8_status rns8_pack_i64(
     } else {
       clear_native_current(*matrix);
     }
+    if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
+      matrix->exact_max_magnitude.swap(exact_bound);
+      matrix->exact_range_prefix = matrix->prefix;
+    }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;
   });
@@ -115,6 +136,22 @@ rns8_status rns8_pack_u64(
     }
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    boost::multiprecision::cpp_int exact_bound = 0;
+    if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+      if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
+          (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
+        return RNS8_INVALID_ARGUMENT;
+      }
+      // Stable source versions preserve the original packed value and proof.
+      exact_bound = same_source_device_residue_pack_current(*ctx, *matrix, source_version)
+                        ? matrix->exact_max_magnitude
+                        : boost::multiprecision::cpp_int(rns8::detail::native_max_magnitude(
+                              src, matrix->desc.rows, matrix->desc.cols, ld));
+      if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
+                                        rns8::detail::modulus_product(matrix->prefix))) {
+        return RNS8_RANGE_ERROR;
+      }
     }
     if (native_vector_backend(ctx->backend)) {
       if (matrix->desc.semantics != RNS8_BOUNDED_U64 ||
@@ -169,6 +206,7 @@ rns8_status rns8_pack_u64(
       if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
         return RNS8_SUCCESS;
       }
+      if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) invalidate_output_currentness(*matrix);
       const rns8_status status = rns8::detail::hip_direct_pack_u64_device(
           ctx->device_id,
           src,
@@ -194,6 +232,10 @@ rns8_status rns8_pack_u64(
       }
     } else if (matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
       clear_native_current(*matrix);
+    }
+    if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
+      matrix->exact_max_magnitude.swap(exact_bound);
+      matrix->exact_range_prefix = matrix->prefix;
     }
     matrix->source_version = source_version;
     return RNS8_SUCCESS;

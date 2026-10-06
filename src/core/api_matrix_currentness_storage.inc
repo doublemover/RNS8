@@ -209,6 +209,7 @@ void clear_device_native_current(rns8_matrix& matrix) {
 }
 
 void clear_residue_current(rns8_matrix& matrix) {
+  matrix.exact_range_prefix = 0;
   matrix.host_residues_current = false;
   matrix.device_residues_current = false;
 }
@@ -264,11 +265,13 @@ void mark_device_native_current(rns8_matrix& matrix) {
 }
 
 void mark_output_host_residues_current(rns8_matrix& matrix) {
+  matrix.exact_range_prefix = 0;
   mark_host_residues_current(matrix);
   clear_native_current(matrix);
 }
 
 void mark_output_device_residues_current(rns8_matrix& matrix) {
+  matrix.exact_range_prefix = 0;
   mark_device_residues_current(matrix);
   clear_native_current(matrix);
 }

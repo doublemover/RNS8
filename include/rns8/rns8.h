@@ -944,6 +944,13 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
     rns8_matrix* C,
     rns8_workspace* workspace);
 
+/*
+ * Exact-wide inputs carry magnitude and initialized-prefix proofs from native
+ * packing or successful GEMM. The conservative K*max_abs(A)*max_abs(B) bound
+ * must fit the selected CRT range (twice the bound for signed semantics).
+ * Insufficient range/unwritten planes return RNS8_RANGE_ERROR before changing C.
+ * Exact-wide C must not alias A or B. No dynamic prefix growth is performed.
+ */
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,
     const rns8_plan* plan,

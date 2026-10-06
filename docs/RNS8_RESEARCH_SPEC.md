@@ -355,6 +355,15 @@ reconstruction remains the reference path. Direct HIP reconstructs fixed-width
 limbs on device for the supported prefix range and copies only the requested
 host limb layout.
 
+Public exact-wide chains additionally track the packed magnitudes and initialized
+prefixes of resident operands. Each operation proves the conservative bound
+`K * max_abs(A) * max_abs(B)` against its selected CRT product, with a factor of
+two for signed reconstruction. Insufficient range or unwritten input planes
+return `RNS8_RANGE_ERROR` before output mutation; no automatic prefix growth or
+cancellation-based tightening is performed. Repacking replaces the proof.
+Exact-wide output aliases are rejected. See `docs/correctness.md` for grouped,
+prepacked, incremental and raw-sparse interpretation boundaries.
+
 ### 6.4 Strict Wraparound `mod 2^64`
 
 Contract:

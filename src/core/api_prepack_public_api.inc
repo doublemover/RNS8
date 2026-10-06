@@ -100,6 +100,9 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_INVALID_ARGUMENT;
     }
 
+    if (rns8::detail::exact_wide_semantics(plan->desc.semantics) &&
+        matrix->exact_range_prefix < plan->prefix) return RNS8_RANGE_ERROR;
+
     std::size_t b_pack_bytes = 0;
     std::size_t total_cache_bytes = 0;
     if (!rocwmma_b_prepack_bytes_for_plan(*plan, b_pack_bytes, total_cache_bytes)) {
@@ -124,6 +127,8 @@ rns8_status rns8_create_prepack_cache(
     cache->k_block_size = rocwmma_b_prepack_k_block_size(*plan);
     cache->k_block_cap = rocwmma_b_prepack_k_block_cap();
     cache->source_version = matrix->source_version;
+    cache->exact_max_magnitude = matrix->exact_max_magnitude;
+    cache->exact_range_prefix = matrix->exact_range_prefix;
     cache->plan_fingerprint = plan_workspace_fingerprint(*plan);
     cache->target_id = prepack_target_id_for_device(matrix->hip_device_id);
     cache->selected_kernel = plan->backend_selected_kernel;

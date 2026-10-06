@@ -2,6 +2,7 @@
 #define RNS8_CORE_API_INTERNAL_HPP
 
 #include "core/internal.hpp"
+#include "core/exact_range.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 

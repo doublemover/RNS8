@@ -102,6 +102,11 @@ rns8_status validate_rns_gemm_operands(
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (rns8::detail::exact_wide_semantics(plan.desc.semantics)) {
+    if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
+    boost::multiprecision::cpp_int output_bound;
+    return rns8::detail::exact_gemm_range(plan, A, B, output_bound);
+  }
   return RNS8_SUCCESS;
 }
 
@@ -287,6 +292,22 @@ rns8_status execute_public_grouped_gemm(
     return status;
   }
 
+  std::vector<boost::multiprecision::cpp_int> exact_bounds;
+  if (rns8::detail::exact_wide_semantics(plan.desc.semantics)) {
+    exact_bounds.resize(task_count);
+    for (uint32_t i = 0; i < task_count; ++i) {
+      status = validate_rns_gemm_operands(ctx, plan, *tasks[i].a, *tasks[i].b, *tasks[i].c);
+      if (status != RNS8_SUCCESS) return status;
+      status = rns8::detail::exact_gemm_range(plan, *tasks[i].a, *tasks[i].b, exact_bounds[i]);
+      if (status != RNS8_SUCCESS) return status;
+      // Parallel grouped outputs must not race with any input or other output.
+      for (uint32_t j = 0; j < task_count; ++j) {
+        if (tasks[i].c == tasks[j].a || tasks[i].c == tasks[j].b ||
+            (i != j && tasks[i].c == tasks[j].c)) return RNS8_INVALID_ARGUMENT;
+      }
+    }
+  }
+
   rns8::detail::hip_direct_grouped_device_resources resources;
   status = rns8::detail::hip_direct_allocate_grouped_task_device_resources(*descriptor, 0, 0, 0, 0, &resources);
   if (status != RNS8_SUCCESS) {
@@ -294,6 +315,7 @@ rns8_status execute_public_grouped_gemm(
   }
   status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
   if (status == RNS8_SUCCESS) {
+    for (uint32_t i = 0; i < exact_bounds.size(); ++i) invalidate_output_currentness(*tasks[i].c);
     status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
                              *descriptor,
                              resources,
@@ -302,6 +324,17 @@ rns8_status execute_public_grouped_gemm(
   }
   if (status == RNS8_SUCCESS) {
     status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(*descriptor);
+  }
+  if (status == RNS8_SUCCESS) {
+    for (uint32_t i = 0; i < exact_bounds.size(); ++i) {
+      rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i]);
+      tasks[i].c->source_version = gemm_output_source_version(*tasks[i].a, *tasks[i].b);
+    }
+  }
+  if (status != RNS8_SUCCESS) {
+    for (uint32_t i = 0; i < exact_bounds.size(); ++i) {
+      if (tasks[i].c->exact_range_prefix == 0) invalidate_output_currentness(*tasks[i].c);
+    }
   }
   const rns8_status reset_status = resources.reset();
   return status != RNS8_SUCCESS ? status : reset_status;
@@ -410,6 +443,7 @@ rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache&
   if (!cache.initialized || !cache.hip_snapshot_residues || cache.hip_snapshot_residue_bytes != C.hip_residue_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (rns8::detail::exact_wide_semantics(C.desc.semantics)) invalidate_output_currentness(C);
   const rns8_status status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, C.hip_residues, cache.hip_snapshot_residues, C.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
@@ -830,6 +864,10 @@ rns8_status rns8_gemm_rns(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
+    boost::multiprecision::cpp_int exact_bound;
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound);
+    if (range_status != RNS8_SUCCESS) return range_status;
+    if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       auto* mutable_c = C;
       rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
@@ -887,6 +925,7 @@ rns8_status rns8_gemm_rns(
       if (status == RNS8_SUCCESS) {
         mark_output_host_residues_current(*C);
         C->source_version = gemm_output_source_version(*A, *B);
+        rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       }
       return status;
     }
@@ -935,6 +974,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
@@ -967,6 +1007,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1012,6 +1053,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1057,6 +1099,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1085,6 +1128,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1124,7 +1168,10 @@ rns8_status rns8_gemm_rns_incremental(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
-    return execute_incremental_gemm(
+    boost::multiprecision::cpp_int exact_bound;
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound);
+    if (range_status != RNS8_SUCCESS) return range_status;
+    const auto status = execute_incremental_gemm(
         *ctx,
         *plan,
         0,
@@ -1136,6 +1183,10 @@ rns8_status rns8_gemm_rns_incremental(
         dirty_regions,
         dirty_region_count,
         false);
+    if (status == RNS8_SUCCESS) rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+    else if (rns8::detail::exact_wide_semantics(plan->desc.semantics) && C->exact_range_prefix == 0)
+      invalidate_output_currentness(*C);
+    return status;
   });
 }
 
@@ -1174,6 +1225,16 @@ rns8_status rns8_gemm_rns_prepacked_b(
     if (plan->backend != RNS8_BACKEND_ROCWMMA) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
+    boost::multiprecision::cpp_int exact_bound;
+    if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) {
+      if (A == C) return RNS8_INVALID_ARGUMENT;
+      if (A->exact_range_prefix < plan->prefix || B->exact_range_prefix < plan->prefix)
+        return RNS8_RANGE_ERROR;
+      exact_bound = boost::multiprecision::cpp_int(plan->desc.k) * A->exact_max_magnitude * B->exact_max_magnitude;
+      if (!rns8::detail::exact_range_fits(plan->desc.semantics, exact_bound, plan->modulus_product))
+        return RNS8_RANGE_ERROR;
+      invalidate_output_currentness(*C);
+    }
     const rns8_status status = rns8::detail::rocwmma_gemm_rns_prepacked_b_device(
         ctx->device_id,
         A->hip_residues,
@@ -1192,6 +1253,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     }
     mark_output_device_residues_current(*C);
     C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
+    rns8::detail::commit_exact_range(*C, *plan, exact_bound);
     return RNS8_SUCCESS;
   });
 }

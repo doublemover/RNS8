@@ -32,10 +32,34 @@ GPU store residues; they do not grow the ladder dynamically.
 Exports use 1–32 little-endian uint64 limbs per element. Signed output is a
 fixed-width two's-complement value; unsigned output is a magnitude. `ld` counts
 elements, not limbs. Too few limbs produce `RNS8_RANGE_ERROR`, not truncation.
-Providing more limbs does not enlarge the represented CRT range. After a chain
-of residue operations, callers must preserve a valid range interpretation for
-that chain; a per-GEMM native-input range argument is not an arbitrary-depth
-symbolic arithmetic proof.
+Providing more limbs does not enlarge the represented CRT range.
+
+Public exact-wide native packing records the maximum logical input magnitude
+(padding is ignored and `INT64_MIN` is handled without signed overflow). Each
+resident GEMM propagates `K × max_abs(A) × max_abs(B)` using multiprecision and
+requires `P > 2 × bound` for signed or `P > bound` for unsigned output. Failure
+returns `RNS8_RANGE_ERROR` before changing the destination. This admits safe
+multi-operation chains and rejects chains that can alias modulo P. It is a
+conservative proof: cancellation is not used to tighten bounds, so some actually
+small products are rejected. Repacking replaces the old proof. Stable nonzero
+source versions retain the packed value and its proof under the existing caller
+currentness contract.
+
+Proofs also record the prefix actually written, separately from allocated
+storage capacity. A later operation/export cannot treat unwritten higher planes
+as current. There is no dynamic prefix growth; choose an adequate fixed-prefix
+plan before producing values that need it. Exact-wide output/input handle aliases
+are rejected. Grouped exact-wide tasks also reject cross-task input/output or
+output/output aliases. Prepacked B retains its immutable input proof; incremental
+output reuse keeps the existing exact identity and dirty-output-region contract.
+Sparse raw-plane packing interprets the supplied residues as canonical unsigned
+or centered signed integers and records those magnitudes; it cannot recover an
+integer value that was already aliased before the caller supplied the residues.
+
+The admission/proof bookkeeping is shared host code. CPU acceptance does not
+qualify the HIP grouped, incremental, prepacked, sparse or ordinary kernels.
+Private backend-only raw-residue helpers used by benchmark/CRT fixtures are not
+public chain admission routes and must not be used to manufacture public proofs.
 
 ## INT8 accumulation
 
