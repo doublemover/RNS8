@@ -36,12 +36,25 @@ Providing more limbs does not enlarge the represented CRT range.
 
 Public exact-wide native packing records the maximum logical input magnitude
 (padding is ignored and `INT64_MIN` is handled without signed overflow). Each
-resident GEMM propagates `K × max_abs(A) × max_abs(B)` using multiprecision and
-requires `P > 2 × bound` for signed or `P > bound` for unsigned output. Failure
-returns `RNS8_RANGE_ERROR` before changing the destination. This admits safe
-multi-operation chains and rejects chains that can alias modulo P. It is a
-conservative proof: cancellation is not used to tighten bounds, so some actually
-small products are rejected. Repacking replaces the old proof. Stable nonzero
+resident GEMM requires `P > 2 x bound` for signed or `P > bound` for unsigned
+output. Dense, grouped and incremental admission use the minimum of
+`K x row_max x col_max`, `row_abs_sum x col_max`, and
+`row_max x col_abs_sum`, with multiprecision throughout. Native-packed axes
+add exact sums and midpoint deviations: for centers a and b, the dot product is
+`a x sum(B) + b x sum(A) - K x a x b + dot(A-a, B-b)`. Its remainder is bounded
+by the same absolute-sum/max inequalities. This can admit constant-axis balanced
+signed products that the old global bound rejected, including later zero chains.
+No exact host GEMM or probabilistic test is used for admission.
+
+Output row/column magnitude maxima and absolute-sum bounds are staged before
+execution and committed on success; they never masquerade as exact signed sums.
+Missing summaries use the scalar `K x max_abs(A) x max_abs(B)` proof. Prepacked
+and sparse routes keep that conservative scalar admission and clear older axis
+summaries when producing output. Failure returns `RNS8_RANGE_ERROR` before
+changing the destination. Some cancellation-safe products remain unprovable.
+Native summary storage is O(rows + columns); two logical input scans build it,
+and pairwise admission/output-summary propagation is O(M x N). These are
+correctness bounds, with no performance qualification. Repacking replaces the old proof. Stable nonzero
 source versions retain the packed value and its proof under the existing caller
 currentness contract.
 

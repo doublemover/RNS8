@@ -45,16 +45,19 @@ rns8_status rns8_pack_i64(
       return RNS8_INVALID_ARGUMENT;
     }
     boost::multiprecision::cpp_int exact_bound = 0;
+    rns8_exact_matrix_ranges exact_ranges;
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
       if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
           (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
         return RNS8_INVALID_ARGUMENT;
       }
       // Stable source versions preserve the original packed value and proof.
-      exact_bound = same_source_device_residue_pack_current(*ctx, *matrix, source_version)
-                        ? matrix->exact_max_magnitude
-                        : boost::multiprecision::cpp_int(rns8::detail::native_max_magnitude(
-                              src, matrix->desc.rows, matrix->desc.cols, ld));
+      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
+        exact_bound = matrix->exact_max_magnitude;
+      } else {
+        exact_ranges =
+            rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols, ld, exact_bound);
+      }
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                         rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -113,6 +116,8 @@ rns8_status rns8_pack_i64(
     }
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
       matrix->exact_max_magnitude.swap(exact_bound);
+      matrix->exact_axis_ranges.rows.swap(exact_ranges.rows);
+      matrix->exact_axis_ranges.cols.swap(exact_ranges.cols);
       matrix->exact_range_prefix = matrix->prefix;
     }
     matrix->source_version = source_version;
@@ -138,16 +143,19 @@ rns8_status rns8_pack_u64(
       return RNS8_INVALID_ARGUMENT;
     }
     boost::multiprecision::cpp_int exact_bound = 0;
+    rns8_exact_matrix_ranges exact_ranges;
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       if (!rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
           (hip_resident_rns_backend(ctx->backend) && matrix->hip_device_id != ctx->device_id)) {
         return RNS8_INVALID_ARGUMENT;
       }
       // Stable source versions preserve the original packed value and proof.
-      exact_bound = same_source_device_residue_pack_current(*ctx, *matrix, source_version)
-                        ? matrix->exact_max_magnitude
-                        : boost::multiprecision::cpp_int(rns8::detail::native_max_magnitude(
-                              src, matrix->desc.rows, matrix->desc.cols, ld));
+      if (same_source_device_residue_pack_current(*ctx, *matrix, source_version)) {
+        exact_bound = matrix->exact_max_magnitude;
+      } else {
+        exact_ranges =
+            rns8::detail::native_exact_ranges(src, matrix->desc.rows, matrix->desc.cols, ld, exact_bound);
+      }
       if (!rns8::detail::exact_range_fits(matrix->desc.semantics, exact_bound,
                                         rns8::detail::modulus_product(matrix->prefix))) {
         return RNS8_RANGE_ERROR;
@@ -235,6 +243,8 @@ rns8_status rns8_pack_u64(
     }
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
       matrix->exact_max_magnitude.swap(exact_bound);
+      matrix->exact_axis_ranges.rows.swap(exact_ranges.rows);
+      matrix->exact_axis_ranges.cols.swap(exact_ranges.cols);
       matrix->exact_range_prefix = matrix->prefix;
     }
     matrix->source_version = source_version;

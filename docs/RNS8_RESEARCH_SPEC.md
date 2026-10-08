@@ -356,11 +356,17 @@ limbs on device for the supported prefix range and copies only the requested
 host limb layout.
 
 Public exact-wide chains additionally track the packed magnitudes and initialized
-prefixes of resident operands. Each operation proves the conservative bound
-`K * max_abs(A) * max_abs(B)` against its selected CRT product, with a factor of
-two for signed reconstruction. Insufficient range or unwritten input planes
-return `RNS8_RANGE_ERROR` before output mutation; no automatic prefix growth or
-cancellation-based tightening is performed. Repacking replaces the proof.
+prefixes of resident operands. Dense, grouped and incremental GEMM tighten the
+`K * max_abs(A) * max_abs(B)` bound using per-row/per-column absolute sums and
+maxima. Native packing also records exact axis sums and midpoint deviations;
+an algebraic centered-dot-product bound can prove cancellation, without
+computing a reference GEMM. Accepted output axis summaries contain conservative
+magnitude bounds, not exact signed sums, and propagate through later dense
+operations. Each bound must fit the selected CRT product, with a factor of two
+for signed reconstruction. Missing summaries retain the scalar proof; prepacked
+and sparse routes currently use it. Insufficient range or unwritten input planes
+return `RNS8_RANGE_ERROR` before output mutation. No automatic prefix growth is
+performed. Repacking replaces the proof.
 Exact-wide output aliases are rejected. See `docs/correctness.md` for grouped,
 prepacked, incremental and raw-sparse interpretation boundaries.
 

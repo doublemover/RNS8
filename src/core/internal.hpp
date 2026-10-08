@@ -69,6 +69,23 @@ struct rns8_plan {
   std::vector<uint8_t> zero_b_cols;
 };
 
+// Private proofs derived from logical packed cells, or conservative GEMM bounds.
+// Only packed summaries have exact sums and can use centered cancellation.
+struct rns8_exact_axis_range {
+  boost::multiprecision::cpp_int max_magnitude = 0;
+  boost::multiprecision::cpp_int absolute_sum = 0;
+  boost::multiprecision::cpp_int sum = 0;
+  boost::multiprecision::cpp_int minimum = 0;
+  boost::multiprecision::cpp_int maximum = 0;
+  boost::multiprecision::cpp_int deviation_sum = 0;
+  bool sum_known = false;
+};
+
+struct rns8_exact_matrix_ranges {
+  std::vector<rns8_exact_axis_range> rows;
+  std::vector<rns8_exact_axis_range> cols;
+};
+
 struct rns8_matrix {
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
@@ -79,6 +96,7 @@ struct rns8_matrix {
   // Proof for public exact-wide pack/GEMM chains. Zero prefix means unknown.
   boost::multiprecision::cpp_int exact_max_magnitude = 0;
   uint32_t exact_range_prefix = 0;
+  rns8_exact_matrix_ranges exact_axis_ranges;
 
   std::vector<int8_t> residues;
   std::vector<uint8_t> byte_limbs;

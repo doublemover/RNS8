@@ -293,12 +293,15 @@ rns8_status execute_public_grouped_gemm(
   }
 
   std::vector<boost::multiprecision::cpp_int> exact_bounds;
+  std::vector<rns8_exact_matrix_ranges> exact_ranges;
   if (rns8::detail::exact_wide_semantics(plan.desc.semantics)) {
     exact_bounds.resize(task_count);
+    exact_ranges.resize(task_count);
     for (uint32_t i = 0; i < task_count; ++i) {
       status = validate_rns_gemm_operands(ctx, plan, *tasks[i].a, *tasks[i].b, *tasks[i].c);
       if (status != RNS8_SUCCESS) return status;
-      status = rns8::detail::exact_gemm_range(plan, *tasks[i].a, *tasks[i].b, exact_bounds[i]);
+      status =
+          rns8::detail::exact_gemm_range(plan, *tasks[i].a, *tasks[i].b, exact_bounds[i], &exact_ranges[i]);
       if (status != RNS8_SUCCESS) return status;
       // Parallel grouped outputs must not race with any input or other output.
       for (uint32_t j = 0; j < task_count; ++j) {
@@ -327,7 +330,7 @@ rns8_status execute_public_grouped_gemm(
   }
   if (status == RNS8_SUCCESS) {
     for (uint32_t i = 0; i < exact_bounds.size(); ++i) {
-      rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i]);
+      rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
       tasks[i].c->source_version = gemm_output_source_version(*tasks[i].a, *tasks[i].b);
     }
   }
@@ -865,7 +868,8 @@ rns8_status rns8_gemm_rns(
       return operand_status;
     }
     boost::multiprecision::cpp_int exact_bound;
-    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound);
+    rns8_exact_matrix_ranges exact_ranges;
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
     if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -925,7 +929,7 @@ rns8_status rns8_gemm_rns(
       if (status == RNS8_SUCCESS) {
         mark_output_host_residues_current(*C);
         C->source_version = gemm_output_source_version(*A, *B);
-        rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+        rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       }
       return status;
     }
@@ -974,7 +978,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
@@ -1007,7 +1011,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1053,7 +1057,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1099,7 +1103,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1128,7 +1132,7 @@ rns8_status rns8_gemm_rns(
       }
       mark_output_device_residues_current(*C);
       C->source_version = gemm_output_source_version(*A, *B);
-      rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1169,7 +1173,8 @@ rns8_status rns8_gemm_rns_incremental(
       return operand_status;
     }
     boost::multiprecision::cpp_int exact_bound;
-    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound);
+    rns8_exact_matrix_ranges exact_ranges;
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
     const auto status = execute_incremental_gemm(
         *ctx,
@@ -1183,7 +1188,8 @@ rns8_status rns8_gemm_rns_incremental(
         dirty_regions,
         dirty_region_count,
         false);
-    if (status == RNS8_SUCCESS) rns8::detail::commit_exact_range(*C, *plan, exact_bound);
+    if (status == RNS8_SUCCESS)
+      rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
     else if (rns8::detail::exact_wide_semantics(plan->desc.semantics) && C->exact_range_prefix == 0)
       invalidate_output_currentness(*C);
     return status;

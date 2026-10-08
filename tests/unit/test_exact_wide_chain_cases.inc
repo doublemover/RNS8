@@ -4,14 +4,17 @@ struct ExactChainFixture {
   rns8_plan* plan = nullptr;
   rns8_workspace* workspace = nullptr;
   std::vector<rns8_matrix*> matrices;
-  explicit ExactChainFixture(rns8_semantics semantics, int64_t size = 1, uint32_t prefix = 20) {
-    auto desc = exact_desc(semantics, size, size, size);
+  explicit ExactChainFixture(rns8_semantics semantics, int64_t size = 1, uint32_t prefix = 20)
+      : ExactChainFixture(semantics, size, size, size, prefix) {}
+  ExactChainFixture(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t prefix) {
+    auto desc = exact_desc(semantics, m, n, k);
     desc.max_prefix = prefix;
     desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
-    auto md = exact_matrix_desc(size, size, semantics);
+    const int64_t shapes[4][2] = {{m, k}, {k, n}, {m, n}, {m, n}};
     for (unsigned i = 0; i < 4; ++i) {
+      auto md = exact_matrix_desc(shapes[i][0], shapes[i][1], semantics);
       rns8_matrix* matrix = nullptr;
       REQUIRE(rns8_create_matrix(ctx, &md, &matrix) == RNS8_SUCCESS);
       matrices.push_back(matrix);
@@ -98,9 +101,11 @@ TEST_CASE("exact-wide range proof includes K and ignores host padding", "[exact-
   CHECK(f.matrices[0]->exact_max_magnitude == 4);
   CHECK(f.matrices[1]->exact_max_magnitude == 8);
   REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
-  CHECK(f.matrices[2]->exact_max_magnitude == 64);
+  CHECK(f.matrices[2]->exact_max_magnitude <= 64);
+  CHECK(f.matrices[2]->exact_max_magnitude >= 26);
   REQUIRE(f.multiply(2, 1, 3) == RNS8_SUCCESS);
-  CHECK(f.matrices[3]->exact_max_magnitude == 1024);
+  CHECK(f.matrices[3]->exact_max_magnitude <= 1024);
+  CHECK(f.matrices[3]->exact_max_magnitude >= 70);
   std::vector<uint64_t> limbs(8);
   REQUIRE(rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[3], limbs.data(), 2, 2) == RNS8_SUCCESS);
   const int64_t expected[] = {29, -30, -67, 70};
