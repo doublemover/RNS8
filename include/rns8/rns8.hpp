@@ -157,6 +157,10 @@ class Matrix final {
 
   rns8_matrix* get() const noexcept { return handle_; }
 
+  void lift_exact_wide_cpu(Context& context, uint32_t target_prefix, uint64_t max_staged_residue_bytes) {
+    check(rns8_lift_exact_wide_cpu(context.get(), handle_, target_prefix, max_staged_residue_bytes));
+  }
+
   rns8_matrix_storage_info storage_info() const {
     rns8_matrix_storage_info info{};
     info.struct_size = sizeof(info);

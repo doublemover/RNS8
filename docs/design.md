@@ -43,6 +43,21 @@ For bounded/exact-wide work, device residues use modulus-major compact row-major
 planes. Finite storage has one explicit modulus. Wrap storage uses eight bytes
 per element. Packed host inputs may have padded leading dimensions.
 
+## Explicit CPU exact-wide lifting
+
+`src/core/api_exact_lift.cpp` implements `rns8_lift_exact_wide_cpu`; the C++
+`Matrix::lift_exact_wide_cpu` wrapper forwards the same contract. Matrix capacity
+and initialized planes remain distinct. The operation stages only the missing
+modulus-major suffix within existing capacity, with an explicit byte budget.
+It reconstructs one cell at a time from a proven source prefix and commits only
+after all cells pass. Signed values use the centered full-integer representative,
+not a reinterpretation of unsigned CRT output. Range and axis proofs describe
+the same integer after lifting and remain intact.
+
+This additive symbol changes no enum, descriptor layout, ABI version, existing
+call behavior, plan/workspace ownership, or backend routing. Backend-owned
+device lifting and automatic admission-driven selection remain future work.
+
 ## Reuse and grouping
 
 Persistent matrices avoid repeated conversion when values are unchanged.

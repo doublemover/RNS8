@@ -27,7 +27,7 @@ so pairwise coprimality, rather than individual primality, is the CRT requiremen
 Exact-wide plan validation requires enough range for arbitrary native 64-bit
 inputs of the declared K: `P > K × 2^127` for signed and `P > K × 2^128` for
 unsigned. It rejects a prefix that cannot establish that contract. The CPU and
-GPU store residues; they do not grow the ladder dynamically.
+GPU store residues; GEMM does not grow the ladder dynamically.
 
 Exports use 1–32 little-endian uint64 limbs per element. Signed output is a
 fixed-width two's-complement value; unsigned output is a magnitude. `ld` counts
@@ -60,8 +60,33 @@ currentness contract.
 
 Proofs also record the prefix actually written, separately from allocated
 storage capacity. A later operation/export cannot treat unwritten higher planes
-as current. There is no dynamic prefix growth; choose an adequate fixed-prefix
-plan before producing values that need it. Exact-wide output/input handle aliases
+as current. `rns8_lift_exact_wide_cpu` explicitly initializes missing planes
+within a CPU matrix's already allocated capacity. It requires current host
+residues and a known source proof satisfying the strict range inequality at the
+initialized prefix. A larger target product cannot repair earlier CRT aliasing.
+For each cell, it checks centered source bytes, reconstructs using only those
+initialized planes, centers signed integers, checks the retained magnitude proof,
+then computes the suffix residues. It never derives a proof from an unknown
+representative or weakens the existing row/column admission proof.
+
+The caller supplies a maximum suffix staging payload in bytes. The required
+payload is `rows x cols x (target_prefix - initialized_prefix)`; a smaller limit
+returns `RNS8_WORKSPACE_TOO_SMALL`. Size arithmetic is checked before allocation.
+Allocator bookkeeping and bounded per-cell CRT scratch are excluded; no array of
+full reconstructed integers is retained. Every missing plane is staged before
+the nonthrowing resident copy and final prefix update. Any failure preserves
+all resident bytes, metadata, proofs, and source version. A target already
+initialized is a no-op after structural/currentness/proof validation, without
+reconstructing cells. Other backends return `RNS8_UNSUPPORTED_BACKEND`; no device
+transfer or automatic backend fallback occurs. Unknown proofs, nonunique ranges,
+or a reconstructed cell exceeding its proof return `RNS8_RANGE_ERROR`.
+
+Lifting preserves the integer, matrix identity, source version, range summaries,
+storage allocation, and currentness. It changes only the suffix bytes and
+initialized-prefix proof. Plans, workspaces, storage ceilings, and existing
+GEMM/export admission remain unchanged. Choose an adequate fixed-prefix plan
+before producing values outside the current output range; explicitly lift inputs
+before using higher planes. Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental
 output reuse keeps the existing exact identity and dirty-output-region contract.

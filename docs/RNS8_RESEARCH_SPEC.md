@@ -367,6 +367,15 @@ for signed reconstruction. Missing summaries retain the scalar proof; prepacked
 and sparse routes currently use it. Insufficient range or unwritten input planes
 return `RNS8_RANGE_ERROR` before output mutation. No automatic prefix growth is
 performed. Repacking replaces the proof.
+An explicit `rns8_lift_exact_wide_cpu` operation now stages missing CPU residue
+planes within an existing matrix's allocated prefix ceiling. The source proof
+must already identify the integer uniquely; centered source reconstruction cannot
+repair earlier aliasing. A caller-supplied byte budget bounds the temporary
+suffix payload. All cells must pass before committing suffix bytes and the new
+initialized prefix, preserving the logical value, source version, identity,
+currentness, and row/column proofs. It does not alter plan selection or ordinary
+GEMM/export behavior, resize storage, or download device values. Unsupported
+backends fail explicitly. See `docs/correctness.md` for resource/status details.
 Exact-wide output aliases are rejected. See `docs/correctness.md` for grouped,
 prepacked, incremental and raw-sparse interpretation boundaries.
 
