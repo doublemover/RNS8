@@ -63,7 +63,8 @@ selects a sufficient prefix above that plan's selected floor, and computes each
 plane from a view of initialized input planes plus staged suffixes. It stages
 complete output as well, so no first-input commit or partial output can survive
 a second-input failure. Shared inputs are deduplicated. The CPU route serializes
-the existing blocked ring primitive internally; ordinary CPU calls retain their
+a private blocked ring primitive internally, reusing one `4 * N` byte row
+accumulator across all selected modulus planes; ordinary CPU calls retain their
 parallel policy. Caller serialization of the involved handles remains required.
 The returned prefix supports an explicit fixed-prefix export plan without
 rewriting the original plan/workspace. Device-owned lifting remains unimplemented.

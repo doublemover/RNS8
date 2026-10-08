@@ -1,8 +1,9 @@
-#include "core/internal.hpp"
-
 #include <algorithm>
+#include <cassert>
 #include <limits>
 #include <vector>
+
+#include "core/internal.hpp"
 
 namespace rns8::detail {
 
@@ -151,49 +152,57 @@ void export_finite_u8_matrix(const rns8_matrix& matrix, uint8_t* dst, int64_t ld
   }
 }
 
-void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
-                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
-                       [[maybe_unused]] bool allow_parallel) {
-  const auto compute_row = [&](int64_t row, std::vector<int32_t>& block_acc) {
-    int8_t* c_row = C + row * ldc;
-    std::fill(c_row, c_row + n, int8_t{0});
-    int64_t offset = 0;
-    while (offset < k) {
-      const int64_t block = std::min<int64_t>(RNS8_SAFE_INT32_K_BLOCK, k - offset);
-      std::fill(block_acc.begin(), block_acc.end(), 0);
-      for (int64_t kk = 0; kk < block; ++kk) {
-        const int av = static_cast<int>(A[row * lda + offset + kk]);
-        const int8_t* b_row = B + (offset + kk) * ldb;
-        for (int64_t col = 0; col < n; ++col) {
-          block_acc[static_cast<std::size_t>(col)] += av * static_cast<int>(b_row[col]);
-        }
-      }
+namespace {
+void ring_gemm_row(const int8_t* A, const int8_t* B, int8_t* C, int64_t n, int64_t k, int64_t lda,
+                   int64_t ldb, int64_t ldc, uint16_t modulus, int64_t row, std::vector<int32_t>& block_acc) {
+  int8_t* c_row = C + row * ldc;
+  std::fill(c_row, c_row + n, int8_t{0});
+  int64_t offset = 0;
+  while (offset < k) {
+    const int64_t block = std::min<int64_t>(RNS8_SAFE_INT32_K_BLOCK, k - offset);
+    std::fill(block_acc.begin(), block_acc.end(), 0);
+    for (int64_t kk = 0; kk < block; ++kk) {
+      const int av = static_cast<int>(A[row * lda + offset + kk]);
+      const int8_t* b_row = B + (offset + kk) * ldb;
       for (int64_t col = 0; col < n; ++col) {
-        c_row[col] =
-            reduce_to_centered(static_cast<int64_t>(c_row[col]) + block_acc[static_cast<std::size_t>(col)], modulus);
+        block_acc[static_cast<std::size_t>(col)] += av * static_cast<int>(b_row[col]);
       }
-      offset += block;
     }
-  };
-  const uint64_t work =
-      cpu_parallel_saturating_mul3(static_cast<uint64_t>(m), static_cast<uint64_t>(n), static_cast<uint64_t>(k));
+    for (int64_t col = 0; col < n; ++col) {
+      c_row[col] = reduce_to_centered(
+          static_cast<int64_t>(c_row[col]) + block_acc[static_cast<std::size_t>(col)], modulus);
+    }
+    offset += block;
+  }
+}
+}  // namespace
+
+void ring_gemm_modulus_serial(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                              int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
+                              std::vector<int32_t>& row_accumulator) {
+  assert(row_accumulator.size() == static_cast<std::size_t>(n));
+  for (int64_t row = 0; row < m; ++row)
+    ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, row_accumulator);
+}
+
+void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus) {
+  [[maybe_unused]] const uint64_t work = cpu_parallel_saturating_mul3(
+      static_cast<uint64_t>(m), static_cast<uint64_t>(n), static_cast<uint64_t>(k));
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-  if (allow_parallel && cpu_parallel_should_use(work)) {
+  if (cpu_parallel_should_use(work)) {
 #  pragma omp parallel
     {
       std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
 #  pragma omp for schedule(static)
-      for (int64_t row = 0; row < m; ++row) {
-        compute_row(row, block_acc);
-      }
+      for (int64_t row = 0; row < m; ++row)
+        ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, block_acc);
     }
     return;
   }
 #endif
   std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
-  for (int64_t row = 0; row < m; ++row) {
-    compute_row(row, block_acc);
-  }
+  ring_gemm_modulus_serial(A, B, C, m, n, k, lda, ldb, ldc, modulus, block_acc);
 }
 
 void fill_tile_modulus(int8_t* C, int64_t row_extent, int64_t col_extent, int64_t ldc, int8_t value) {

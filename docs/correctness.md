@@ -103,8 +103,10 @@ output/input aliases are invalid. The payload is the sum of missing input bytes
 and `M x N x selected_prefix` output bytes. Size and combined-budget arithmetic
 are checked before staging. Range-summary metadata, allocator bookkeeping,
 bounded per-cell CRT scratch and the serial blocked kernel's `4 x N` byte row
-accumulator are excluded from this payload budget. The route forces serial
-blocked ring execution so allocation failures stay inside the public guard.
+accumulator are excluded from this payload budget. One accumulator is allocated
+before computation and reused across all selected planes, rows and K blocks.
+The route uses serial blocked ring execution and allocates its row buffer
+inside the public exception guard.
 Ordinary CPU GEMM retains its existing parallel policy.
 
 Only after both input lifts and all output planes finish does the operation
@@ -119,6 +121,26 @@ When a result exceeds the original plan's CRT range, create a matching
 inadequate original prefix correctly remains a range error. Repeated opt-in
 calls can continue within the existing twenty-plane ceiling; insufficient proof,
 capacity, or byte budget fails conservatively.
+
+The isolated `rns8_exact_cpu_allocation_faults` test executable replaces global
+C++ allocators only in that executable. It faults every observed allocation
+point in six bounded public CPU lifting/auto-GEMM scenarios, checks error/status,
+resident proof/content/storage rollback and live temporary allocation counts,
+then verifies a successful retry against direct full-integer results. Its serial
+primitive checks also cover dirty scratch reuse, padded strides and multiple
+65536-element K blocks with a separate INT64 dot-product oracle.
+
+Full fault sweeps require `_ITERATOR_DEBUG_LEVEL=0`. MSVC Debug STL can allocate
+iterator proxies inside `noexcept` constructors/moves; a proxy allocation failure
+terminates before the API exception guard. Debug fault sweeps return CTest skip
+code 77, while `--profile-only` still verifies successful controls. MSVC
+RelWithDebInfo and clang-cl ASan qualify the six complete sweeps locally; this
+does not qualify Debug-STL OOM behavior, C allocation failures, real OS OOM,
+cross-thread/DLL allocation, OpenMP, or LeakSanitizer. Both test entrypoints route
+Windows CRT/assertion errors to captured stderr with process-local settings;
+assertions remain enabled according to the selected build configuration and
+terminating tests remain failures. See
+[the local allocation checkpoint](local-cpu-allocation-20261008.md) for evidence.
 
 Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
@@ -186,7 +208,7 @@ probabilistic verification as a substitute for reconstruction correctness.
 | Area | Tests |
 | --- | --- |
 | Ladder, strict prefix boundaries | `tests/unit/test_moduli.cpp`, `test_crt.cpp` |
-| Explicit CPU lifting and opt-in selection transactions | `test_exact_wide_lift_cases.inc`, `test_exact_wide_auto_cases.inc` |
+| Explicit CPU lifting and opt-in selection transactions | `test_exact_wide_lift_cases.inc`, `test_exact_wide_auto_cases.inc`, isolated `test_exact_cpu_allocation_faults.cpp` |
 | Pack, finite reduction, blocked dot | `test_residues.cpp`, `test_ring_gemm.cpp`, `test_residue_dot.cpp` |
 | Full native boundaries and padded layouts | `test_bounded_gemm.cpp`, `test_bounded_reference_sweeps.cpp` |
 | Wide limb width/sign/currentness | `test_exact_wide.cpp` and included cases |

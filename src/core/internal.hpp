@@ -379,7 +379,12 @@ uint64_t wrap_u64_matrix_cell(const rns8_matrix& matrix, int64_t row, int64_t co
 void set_wrap_u64_matrix_cell(rns8_matrix& matrix, int64_t row, int64_t col, uint64_t value);
 
 void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
-                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus, bool allow_parallel = true);
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus);
+// Private serial primitive; caller provides exactly n INT32 elements. Reuse
+// across rows, K blocks and modulus planes performs no internal allocation.
+void ring_gemm_modulus_serial(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                              int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
+                              std::vector<int32_t>& row_accumulator);
 
 rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
 rns8_status cpu_gemm_finite_u8(

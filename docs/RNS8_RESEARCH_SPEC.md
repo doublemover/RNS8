@@ -385,7 +385,10 @@ Input logical values and proofs remain intact. Identical A/B storage is staged
 once; output/input aliases are rejected. Existing calls retain their behavior,
 and wider output uses a matching fixed-prefix plan for existing exports. This
 completes the bounded CPU range/lifting/opt-in continuation within twenty planes;
-device variants and broader qualification remain separate gates.
+device variants and broader qualification remain separate gates. The opt-in CPU
+route reuses a single row accumulator across modulus planes. An isolated test
+qualifies allocation-failure rollback for bounded Release/ASan scenarios; Debug
+STL proxy-allocation termination remains an explicit qualification limit.
 See `docs/correctness.md` for resource/status details.
 Exact-wide output aliases are rejected. See `docs/correctness.md` for grouped,
 prepacked, incremental and raw-sparse interpretation boundaries.

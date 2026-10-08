@@ -599,9 +599,24 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     set_tests_properties(inspect_cli_hard_cut_diagnostics PROPERTIES LABELS "tools;cli;hard-cut")
   endif()
 
+  # Isolate replacement global allocators from normal tests and shipping libraries.
+  add_executable(rns8_exact_cpu_allocation_faults
+    tests/unit/test_exact_cpu_allocation_faults.cpp
+    tests/support/allocation_fault.cpp)
+  target_include_directories(rns8_exact_cpu_allocation_faults PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
+  target_link_libraries(rns8_exact_cpu_allocation_faults PRIVATE rns8_static)
+  if(MSVC)
+    target_compile_options(rns8_exact_cpu_allocation_faults PRIVATE /W4 /WX /permissive-)
+  else()
+    target_compile_options(rns8_exact_cpu_allocation_faults PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+  rns8_copy_windows_clang_asan_runtime(rns8_exact_cpu_allocation_faults)
+  add_test(NAME exact_cpu_allocation_faults COMMAND rns8_exact_cpu_allocation_faults)
+  set_tests_properties(exact_cpu_allocation_faults PROPERTIES LABELS "cpu;exact;allocation;transaction" TIMEOUT 60 SKIP_RETURN_CODE 77)
+
   find_package(Catch2 3 CONFIG REQUIRED)
   rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2)
-  rns8_assert_no_linux_windows_vcpkg_target(Catch2::Catch2WithMain)
   set(
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
@@ -638,7 +653,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(RNS8_ENABLE_AMDGPU_BUILTINS)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_amdgpu_builtins.cpp)
   endif()
-  add_executable(rns8_tests ${RNS8_TEST_SOURCES})
+  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES})
   target_include_directories(
     rns8_tests
     PRIVATE
@@ -665,7 +680,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     target_link_libraries(rns8_tests PRIVATE ${RNS8_HIP_LIBRARIES})
     target_compile_definitions(rns8_tests PRIVATE __HIP_PLATFORM_AMD__=1)
   endif()
-  target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2WithMain)
+  target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2)
   rns8_copy_windows_clang_asan_runtime(rns8_tests)
   include(Catch)
   catch_discover_tests(rns8_tests)

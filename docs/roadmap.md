@@ -15,7 +15,10 @@ retain earlier decisions without asserting they are satisfied by current code.
 - Record exact validation failures, unavailable tools, and source revision
 
 The [audit](audit-2026-10-06.md) records completion evidence for this preparation
-slice. No source-only gate establishes hardware qualification.
+slice. The [CPU allocation checkpoint](local-cpu-allocation-20261008.md) adds
+bounded Release/ASan allocation-failure rollback qualification and reuses the
+opt-in route's row scratch. Debug-STL fault sweeps remain explicitly skipped.
+No source-only gate establishes hardware qualification.
 
 ## 2. RX 7900 XTX / gfx1100 gate
 

@@ -179,12 +179,13 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
     if (output_count > output.max_size()) return RNS8_RANGE_ERROR;
     output.resize(output_count);
     const auto& b_stage = A == B ? a_lift : b_lift;
+    // One guarded row buffer serves every plane; each row/K block clears it.
+    std::vector<int32_t> row_accumulator(static_cast<std::size_t>(plan->desc.n));
     for (uint32_t p = 0; p < selected; ++p) {
-      // Serial execution keeps row-accumulator allocations inside guard_api,
-      // even in libraries whose ordinary CPU GEMM enables OpenMP.
-      rns8::detail::ring_gemm_modulus(a_lift.plane(*A, p), b_stage.plane(*B, p), output.data() + c_cells * p,
-                                      plan->desc.m, plan->desc.n, plan->desc.k, A->desc.cols, B->desc.cols,
-                                      C->desc.cols, rns8::detail::kDefaultModuli[p], false);
+      rns8::detail::ring_gemm_modulus_serial(a_lift.plane(*A, p), b_stage.plane(*B, p),
+                                             output.data() + c_cells * p, plan->desc.m, plan->desc.n,
+                                             plan->desc.k, A->desc.cols, B->desc.cols, C->desc.cols,
+                                             rns8::detail::kDefaultModuli[p], row_accumulator);
     }
     const uint64_t output_version = gemm_output_source_version(*A, *B);
     // All allocation, validation and arithmetic precede the first resident
