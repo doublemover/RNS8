@@ -61,8 +61,9 @@ This source audit does not satisfy that release decision.
 - Matrix-engine small-N improvements that genuinely preserve lane/stride/finite
   semantics; a scalar shuffle kernel is not WMMA evidence
 - Persistent graph/API lifetime design, asynchronous execution, and multi-GPU GEMM
-- Automatic admission-driven exact-wide prefix selection and device lifting;
-  explicit transactional CPU lifting within allocated capacity is implemented
+- Device-owned exact-wide lifting and execution qualification; explicit CPU
+  lifting and opt-in admission-driven CPU selection with transactional operand/
+  output staging are implemented within allocated twenty-plane ceilings
 - Stronger correlation-aware range proofs; scalar and per-axis conservative
   chain propagation are implemented
 - Broader target qualification (RDNA2/4, CDNA2/4) under supported toolchains

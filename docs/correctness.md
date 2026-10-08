@@ -86,7 +86,41 @@ storage allocation, and currentness. It changes only the suffix bytes and
 initialized-prefix proof. Plans, workspaces, storage ceilings, and existing
 GEMM/export admission remain unchanged. Choose an adequate fixed-prefix plan
 before producing values outside the current output range; explicitly lift inputs
-before using higher planes. Exact-wide output/input handle aliases
+before using higher planes.
+
+`rns8_gemm_exact_wide_cpu_auto` is an explicit opt-in CPU dense GEMM route. It
+validates the original plan/workspace binding, then selects the smallest output
+prefix at or above the plan's selected prefix and within the plan/A/B/C ceilings.
+Fixed-prefix plans retain their fixed prefix. Selection uses the same scalar,
+per-axis and centered cancellation bounds as ordinary admission. Each input must
+already have a unique proof at its own initialized prefix; even a zero output
+bound does not authorize an unknown input. No probabilistic or reference GEMM
+result is used to admit missing range.
+
+Both required input suffixes and the entire selected output are staged under one
+explicit residue-byte payload limit. Shared `A == B` input storage counts once;
+output/input aliases are invalid. The payload is the sum of missing input bytes
+and `M x N x selected_prefix` output bytes. Size and combined-budget arithmetic
+are checked before staging. Range-summary metadata, allocator bookkeeping,
+bounded per-cell CRT scratch and the serial blocked kernel's `4 x N` byte row
+accumulator are excluded from this payload budget. The route forces serial
+blocked ring execution so allocation failures stay inside the public guard.
+Ordinary CPU GEMM retains its existing parallel policy.
+
+Only after both input lifts and all output planes finish does the operation
+commit their bytes, updated initialized prefixes, and output proof/currentness.
+Any rejection or caught allocation/arithmetic exception leaves A, B, C, the
+plan/workspace and the caller's selected-prefix output unchanged. Existing input
+proofs, logical values, identities, source versions and storage allocations are
+preserved. Output uses the existing GEMM source-version/currentness conventions.
+Successful selection reports its prefix without modifying plan/workspace state.
+When a result exceeds the original plan's CRT range, create a matching
+`RNS8_PLAN_FORCE_FIXED_PREFIX` plan for existing export APIs. Export through the
+inadequate original prefix correctly remains a range error. Repeated opt-in
+calls can continue within the existing twenty-plane ceiling; insufficient proof,
+capacity, or byte budget fails conservatively.
+
+Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental
 output reuse keeps the existing exact identity and dirty-output-region contract.
@@ -152,6 +186,7 @@ probabilistic verification as a substitute for reconstruction correctness.
 | Area | Tests |
 | --- | --- |
 | Ladder, strict prefix boundaries | `tests/unit/test_moduli.cpp`, `test_crt.cpp` |
+| Explicit CPU lifting and opt-in selection transactions | `test_exact_wide_lift_cases.inc`, `test_exact_wide_auto_cases.inc` |
 | Pack, finite reduction, blocked dot | `test_residues.cpp`, `test_ring_gemm.cpp`, `test_residue_dot.cpp` |
 | Full native boundaries and padded layouts | `test_bounded_gemm.cpp`, `test_bounded_reference_sweeps.cpp` |
 | Wide limb width/sign/currentness | `test_exact_wide.cpp` and included cases |

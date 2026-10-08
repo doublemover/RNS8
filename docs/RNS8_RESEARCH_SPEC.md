@@ -375,7 +375,18 @@ suffix payload. All cells must pass before committing suffix bytes and the new
 initialized prefix, preserving the logical value, source version, identity,
 currentness, and row/column proofs. It does not alter plan selection or ordinary
 GEMM/export behavior, resize storage, or download device values. Unsupported
-backends fail explicitly. See `docs/correctness.md` for resource/status details.
+backends fail explicitly.
+The opt-in `rns8_gemm_exact_wide_cpu_auto` dense route now selects a sufficient
+prefix between the original selected prefix and plan/input/output ceilings. It
+validates the original workspace without rewriting either handle, stages both
+missing operand suffixes and complete output under a combined residue-byte
+budget, and commits only after all preparation and blocked computation succeed.
+Input logical values and proofs remain intact. Identical A/B storage is staged
+once; output/input aliases are rejected. Existing calls retain their behavior,
+and wider output uses a matching fixed-prefix plan for existing exports. This
+completes the bounded CPU range/lifting/opt-in continuation within twenty planes;
+device variants and broader qualification remain separate gates.
+See `docs/correctness.md` for resource/status details.
 Exact-wide output aliases are rejected. See `docs/correctness.md` for grouped,
 prepacked, incremental and raw-sparse interpretation boundaries.
 

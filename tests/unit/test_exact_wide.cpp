@@ -19,4 +19,5 @@ namespace {
 #include "test_exact_wide_chain_cases.inc"
 #include "test_exact_wide_axis_cases.inc"
 #include "test_exact_wide_lift_cases.inc"
+#include "test_exact_wide_auto_cases.inc"
 // clang-format on

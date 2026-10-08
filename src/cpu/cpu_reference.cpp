@@ -151,17 +151,9 @@ void export_finite_u8_matrix(const rns8_matrix& matrix, uint8_t* dst, int64_t ld
   }
 }
 
-void ring_gemm_modulus(
-    const int8_t* A,
-    const int8_t* B,
-    int8_t* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus) {
+void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
+                       [[maybe_unused]] bool allow_parallel) {
   const auto compute_row = [&](int64_t row, std::vector<int32_t>& block_acc) {
     int8_t* c_row = C + row * ldc;
     std::fill(c_row, c_row + n, int8_t{0});
@@ -186,7 +178,7 @@ void ring_gemm_modulus(
   const uint64_t work =
       cpu_parallel_saturating_mul3(static_cast<uint64_t>(m), static_cast<uint64_t>(n), static_cast<uint64_t>(k));
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-  if (cpu_parallel_should_use(work)) {
+  if (allow_parallel && cpu_parallel_should_use(work)) {
 #  pragma omp parallel
     {
       std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);

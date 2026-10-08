@@ -378,17 +378,8 @@ void pack_wrap_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld);
 uint64_t wrap_u64_matrix_cell(const rns8_matrix& matrix, int64_t row, int64_t col);
 void set_wrap_u64_matrix_cell(rns8_matrix& matrix, int64_t row, int64_t col, uint64_t value);
 
-void ring_gemm_modulus(
-    const int8_t* A,
-    const int8_t* B,
-    int8_t* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus);
+void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus, bool allow_parallel = true);
 
 rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B, rns8_matrix& C);
 rns8_status cpu_gemm_finite_u8(

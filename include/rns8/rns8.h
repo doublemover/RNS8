@@ -991,6 +991,46 @@ RNS8_API rns8_status rns8_gemm_rns(
     rns8_workspace* workspace);
 
 /*
+ * Opt-in CPU exact-wide GEMM with automatic, deterministic prefix selection.
+ * Select the smallest sufficient prefix from the plan's selected prefix through
+ * its max_prefix, within A/B/C allocated ceilings. FORCE_FIXED_PREFIX is honored.
+ * The original CPU plan/workspace binding is validated and never changed.
+ * A and B are mutable because missing planes may be initialized on success;
+ * their integer values, source versions, identities and range proofs stay intact.
+ * Each input needs a known unique proof at its own initialized prefix, even when
+ * the output bound is zero. Output/input aliases are invalid; A == B is allowed
+ * when shapes match and is staged once.
+ *
+ * max_staged_residue_bytes covers both missing input suffixes plus the entire
+ * selected output payload: sum(input_cells * max(selected-input_prefix, 0)) +
+ * output_cells * selected. Identical inputs count once. Insufficient budget
+ * returns WORKSPACE_TOO_SMALL; missing/nonunique proofs or insufficient range
+ * return RANGE_ERROR. Invalid shapes/storage/ownership/aliases are rejected.
+ * Allocator overhead, O(rows+cols) range summaries, per-cell CRT scratch and the
+ * serial blocked kernel's 4*n-byte row accumulator are excluded from this payload
+ * limit. All size/sum arithmetic is checked. Allocation failure is INTERNAL_ERROR.
+ *
+ * Input lifting and GEMM output are staged before any resident commit. On failure
+ * A, B, C, plan, workspace and *out_selected_prefix remain unchanged. Success
+ * initializes selected planes in C and any missing input planes, retaining all
+ * storage allocations. The required out_selected_prefix is written on success.
+ * A larger result may require a matching FORCE_FIXED_PREFIX plan for existing
+ * export APIs; export through an inadequate original prefix still returns RANGE_ERROR.
+ * Existing GEMM/export calls never enable this behavior implicitly. CPU_REFERENCE
+ * and exact-wide signed/unsigned semantics only; no backend fallback or transfer.
+ * Callers must serialize all access to the involved resident matrices.
+ */
+RNS8_API rns8_status rns8_gemm_exact_wide_cpu_auto(
+    rns8_context* ctx,
+    const rns8_plan* plan,
+    rns8_matrix* A,
+    rns8_matrix* B,
+    rns8_matrix* C,
+    rns8_workspace* workspace,
+    uint64_t max_staged_residue_bytes,
+    uint32_t* out_selected_prefix);
+
+/*
  * Explicit incremental resident RNS GEMM. Dirty regions are output rectangles
  * recomputed over the full K dimension. A first call initializes the cache
  * with a full Direct-HIP GEMM. Later calls either reuse the cached full output

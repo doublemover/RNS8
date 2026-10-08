@@ -284,6 +284,14 @@ inline rns8_resident_lifetime_info resident_lifetime_info(
   return info;
 }
 
+inline uint32_t gemm_exact_wide_cpu_auto(Context& context, const Plan& plan, Matrix& a, Matrix& b, Matrix& c,
+                                         Workspace& workspace, uint64_t max_staged_residue_bytes) {
+  uint32_t selected = 0;
+  check(rns8_gemm_exact_wide_cpu_auto(context.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get(),
+                                      max_staged_residue_bytes, &selected));
+  return selected;
+}
+
 inline rns8_grouped_gemm_task grouped_gemm_task(
     const Matrix& a,
     const Matrix& b,

@@ -55,8 +55,18 @@ not a reinterpretation of unsigned CRT output. Range and axis proofs describe
 the same integer after lifting and remain intact.
 
 This additive symbol changes no enum, descriptor layout, ABI version, existing
-call behavior, plan/workspace ownership, or backend routing. Backend-owned
-device lifting and automatic admission-driven selection remain future work.
+call behavior, plan/workspace ownership, or backend routing.
+
+`rns8_gemm_exact_wide_cpu_auto` shares the validated lift preparation/staging and
+pure range-bound builder. It operates within the original plan/workspace contract,
+selects a sufficient prefix above that plan's selected floor, and computes each
+plane from a view of initialized input planes plus staged suffixes. It stages
+complete output as well, so no first-input commit or partial output can survive
+a second-input failure. Shared inputs are deduplicated. The CPU route serializes
+the existing blocked ring primitive internally; ordinary CPU calls retain their
+parallel policy. Caller serialization of the involved handles remains required.
+The returned prefix supports an explicit fixed-prefix export plan without
+rewriting the original plan/workspace. Device-owned lifting remains unimplemented.
 
 ## Reuse and grouping
 

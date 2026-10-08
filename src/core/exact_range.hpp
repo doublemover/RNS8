@@ -104,11 +104,10 @@ inline rns8_exact_axis_range uniform_exact_axis(const cpp_int& maximum, int64_t 
   return axis;
 }
 
-inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
-                                    cpp_int& output_bound,
-                                    rns8_exact_matrix_ranges* output_ranges = nullptr) {
-  if (!exact_wide_semantics(plan.desc.semantics)) return RNS8_SUCCESS;
-  if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+// Pure bound construction shared by ordinary admission and the explicit CPU
+// selection route. It does not authorize using any unwritten residue plane.
+inline void exact_gemm_bound(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+                             cpp_int& output_bound, rns8_exact_matrix_ranges* output_ranges = nullptr) {
   const bool a_rows = A.exact_axis_ranges.rows.size() == static_cast<std::size_t>(plan.desc.m);
   const bool b_cols = B.exact_axis_ranges.cols.size() == static_cast<std::size_t>(plan.desc.n);
   output_bound = cpp_int(plan.desc.k) * A.exact_max_magnitude * B.exact_max_magnitude;
@@ -142,6 +141,14 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A,
     }
     tighten_exact_bound(output_bound, maximum);
   }
+}
+
+inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A, const rns8_matrix& B,
+                                    cpp_int& output_bound,
+                                    rns8_exact_matrix_ranges* output_ranges = nullptr) {
+  if (!exact_wide_semantics(plan.desc.semantics)) return RNS8_SUCCESS;
+  if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+  exact_gemm_bound(plan, A, B, output_bound, output_ranges);
   return exact_range_fits(plan.desc.semantics, output_bound, plan.modulus_product) ? RNS8_SUCCESS
                                                                                    : RNS8_RANGE_ERROR;
 }
