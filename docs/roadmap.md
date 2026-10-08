@@ -20,6 +20,9 @@ bounded Release/ASan allocation-failure rollback qualification and reuses the
 opt-in route's row scratch. Debug-STL fault sweeps remain explicitly skipped.
 The [package continuation checkpoint](local-cpu-package-20261008.md) adds a
 shipped public example and narrow MSVC static/DLL consumer evidence.
+The [full-lineage review](local-lineage-review-20261008.md) adds MSVC x64
+RelWithDebInfo DLL package consumers, public-layout comparison and the
+proposed complete-lineage integration route.
 No source-only gate establishes hardware qualification.
 
 ## 2. RX 7900 XTX / gfx1100 gate

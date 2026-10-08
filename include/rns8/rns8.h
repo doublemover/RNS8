@@ -871,18 +871,20 @@ RNS8_API rns8_status rns8_pack_u64(
  * retained magnitude proof return RANGE_ERROR.
  *
  * max_staged_residue_bytes limits the temporary suffix payload:
- * rows * cols * (target_prefix - initialized_prefix) bytes. A smaller limit
- * returns WORKSPACE_TOO_SMALL. A budget of rows * cols * target_prefix is a
- * sufficient upper bound; compute it without overflow. Allocator overhead and
- * bounded per-cell CRT scratch (at most 20 residues / 155 range bits) are not
- * counted. This does not resize matrix storage, plans or workspaces.
+ * rows * cols * missing_prefix_planes bytes (zero for an initialized target).
+ * A smaller limit returns WORKSPACE_TOO_SMALL. A budget of
+ * rows * cols * target_prefix is a sufficient upper bound; compute it without
+ * overflow. Allocator overhead and bounded per-cell CRT scratch
+ * (at most 20 residues / 155 range bits) are not counted. This does not resize
+ * matrix storage, plans or workspaces.
  *
  * All missing planes are staged before committing. Every failure preserves
  * residues, proofs, source version, identity and currentness. Success preserves
  * the integer and axis proofs, updating only the initialized prefix and suffix
  * bytes. A target already initialized is a successful no-op after structural
- * and proof validation. Existing GEMM/export calls never invoke this implicitly.
- * The caller must serialize access to this matrix, as for packing/GEMM.
+ * and proof validation. Existing GEMM/export calls never invoke this
+ * implicitly. The caller must serialize access to this matrix, as for
+ * packing/GEMM.
  */
 RNS8_API rns8_status rns8_lift_exact_wide_cpu(
     rns8_context* ctx,
@@ -977,10 +979,11 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
 
 /*
  * Exact-wide inputs carry magnitude and initialized-prefix proofs from native
- * packing or successful GEMM. The conservative K*max_abs(A)*max_abs(B) bound
- * must fit the selected CRT range (twice the bound for signed semantics).
- * Insufficient range/unwritten planes return RNS8_RANGE_ERROR before changing C.
- * Exact-wide C must not alias A or B. No dynamic prefix growth is performed.
+ * packing or successful GEMM. A conservative output bound must fit the
+ * selected CRT range (twice the bound for signed semantics). The global
+ * K*max_abs(A)*max_abs(B) bound is tightened by available row/column proofs.
+ * Insufficient range/unwritten planes return RNS8_RANGE_ERROR before changing
+ * C. Exact-wide C must not alias A or B. No dynamic prefix growth is performed.
  */
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,
