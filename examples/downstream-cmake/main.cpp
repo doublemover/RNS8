@@ -1,10 +1,13 @@
+#include <rns8/rns8.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 
-#include <rns8/rns8.h>
+#include "noninteractive_errors.hpp"
 
 int main() {
+  rns8_example::configure_noninteractive_errors();
   rns8_context_options options{};
   options.struct_size = sizeof(options);
   options.abi_version = RNS8_ABI_VERSION;

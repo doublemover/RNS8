@@ -18,6 +18,8 @@ The [audit](audit-2026-10-06.md) records completion evidence for this preparatio
 slice. The [CPU allocation checkpoint](local-cpu-allocation-20261008.md) adds
 bounded Release/ASan allocation-failure rollback qualification and reuses the
 opt-in route's row scratch. Debug-STL fault sweeps remain explicitly skipped.
+The [package continuation checkpoint](local-cpu-package-20261008.md) adds a
+shipped public example and narrow MSVC static/DLL consumer evidence.
 No source-only gate establishes hardware qualification.
 
 ## 2. RX 7900 XTX / gfx1100 gate

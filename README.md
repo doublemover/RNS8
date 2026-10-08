@@ -157,6 +157,7 @@ The simplest complete programs are the checked-in examples:
 - [Finite-ring GEMM](examples/finite_ring_u8_oneshot.cpp)
 - [Strict wrap64 GEMM](examples/wrap64_u64_oneshot.cpp)
 - [Exact-wide limb export](examples/exact_wide_limb_export.cpp)
+- [Opt-in CPU exact-wide continuation](examples/downstream-cmake/exact_wide_cpu_continuation.cpp)
 
 Initialize descriptor `struct_size` and `abi_version`, choose a semantic contract
 and backend, check every returned status, and destroy handles after use. For
@@ -165,19 +166,33 @@ Keep source versions accurate: reusing a version asserts that the input has not
 changed. Public operations are synchronous and row-major; column-major execution
 is unsupported. The [public header](include/rns8/rns8.h) documents individual calls.
 
+The continuation example demonstrates combined residue-budget rollback,
+selection above the original plan floor, matching-prefix export and input-plane
+reuse for signed and unsigned values. Its [consumer guide](examples/downstream-cmake/README.md)
+explains the payload formula and complete workflow. With examples enabled, its
+target is `rns8-example-exact-wide-cpu-continuation`.
+
 Install and consume with CMake:
 
 ```sh
 cmake --install build/linux-cpu-debug --prefix "$PWD/temp/install-rns8"
-cmake -S examples/downstream-cmake -B temp/downstream-rns8 -G Ninja \
-  -DCMAKE_PREFIX_PATH="$PWD/temp/install-rns8"
-cmake --build temp/downstream-rns8
+cmake -S "$PWD/temp/install-rns8/share/RNS8/examples/downstream-cmake" -B temp/downstream-rns8 -G Ninja \
+  -DCMAKE_PREFIX_PATH="$PWD/temp/install-rns8" -DCMAKE_BUILD_TYPE=Debug
+cmake --build temp/downstream-rns8 --parallel 2
+ctest --test-dir temp/downstream-rns8 --output-on-failure
 ```
 
 In PowerShell, use an absolute prefix such as
 `"$PWD/temp/install-rns8"` and the `build/cpu-debug` build directory.
+Use the VS developer environment or `python tools/windows_dev.py cmake ...`
+for consumer configure/build commands, and match the installed build configuration
+and MSVC runtime. The development package includes the self-contained consumer
+sources/guide under `share/RNS8/examples/downstream-cmake` by default; a consumer
+needs only that package, with no repository-private or Boost include paths.
 The exported targets are `rns8::rns8` (when the shared library is built) and
-`rns8::rns8_static`.
+`rns8::rns8_static`. Configure the consumer with
+`-DRNS8_DOWNSTREAM_USE_SHARED=ON` to exercise the shared target and copy its DLL
+next to the programs on Windows.
 
 ## Test and qualify
 

@@ -142,6 +142,15 @@ assertions remain enabled according to the selected build configuration and
 terminating tests remain failures. See
 [the local allocation checkpoint](local-cpu-allocation-20261008.md) for evidence.
 
+The development package ships a self-contained
+[continuation consumer](../examples/downstream-cmake/README.md). It checks signed/
+unsigned scalar native-to-wide products, repeated budget rejection, unchanged
+public input/output state, matching-prefix limb export and input-plane reuse.
+The install smoke builds copied installed sources against exported package
+headers/targets, with static and available shared variants. This is a narrow
+usability/package check; see [the local package receipt](local-cpu-package-20261008.md)
+for tested configurations and remaining platform gates.
+
 Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental

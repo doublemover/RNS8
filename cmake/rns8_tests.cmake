@@ -340,19 +340,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       NAME install_downstream_cmake_smoke
       COMMAND
         "${CMAKE_COMMAND}"
-        "-DRNS8_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
         "-DRNS8_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
         "-DRNS8_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
         "-DRNS8_DOWNSTREAM_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+        "-DRNS8_DOWNSTREAM_TEST_SHARED=${RNS8_BUILD_SHARED}"
+        "-DRNS8_DOWNSTREAM_EXAMPLE_RELATIVE_DIR=${CMAKE_INSTALL_DATADIR}/RNS8/examples/downstream-cmake"
         "-DRNS8_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/install-smoke/prefix"
-        "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/install-smoke/consumer"
+        "-DRNS8_DOWNSTREAM_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/install-smoke/packaged-consumer"
         "-DRNS8_DOWNSTREAM_COMPILER=${CMAKE_CXX_COMPILER}"
         "-DRNS8_DOWNSTREAM_CXX_FLAGS=${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${RNS8_SMOKE_BUILD_TYPE}}"
         "-DRNS8_DOWNSTREAM_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS_${RNS8_SMOKE_BUILD_TYPE}}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/install_downstream_smoke.cmake"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
-    set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu")
+    set_tests_properties(install_downstream_cmake_smoke PROPERTIES LABELS "install;package;examples;cpu" TIMEOUT 120)
   endif()
 
   add_test(

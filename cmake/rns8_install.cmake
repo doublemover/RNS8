@@ -45,3 +45,15 @@ install(
   DESTINATION "${RNS8_INSTALL_CONFIG_DIR}"
   COMPONENT Development
 )
+
+# Ship a self-contained public consumer alongside the development package.
+install(
+  FILES
+    examples/downstream-cmake/CMakeLists.txt
+    examples/downstream-cmake/README.md
+    examples/downstream-cmake/main.cpp
+    examples/downstream-cmake/exact_wide_cpu_continuation.cpp
+    examples/downstream-cmake/noninteractive_errors.hpp
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/downstream-cmake"
+  COMPONENT Development
+)
