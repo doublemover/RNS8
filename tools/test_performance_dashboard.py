@@ -13,12 +13,15 @@ def main():
     fixture = ROOT / 'tests/fixtures/benchmark_schema/v4_bounded_i64_ck.json'
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        source = root / '<capture>.json'
-        source.write_text(fixture.read_text(), encoding='utf-8')
+        source = root / "capture & 'sample'.json"
+        capture = json.loads(fixture.read_text(encoding='utf-8'))
+        capture['device']['name'] = '<script>alert("capture")</script>'
+        source.write_text(json.dumps(capture), encoding='utf-8')
         output = root / 'new' / 'report.html'
         assert build(root, output) == 1
         text = output.read_text()
-        assert '&lt;capture&gt;.json' in text and '<capture>.json' not in text
+        assert 'capture &amp; &#x27;sample&#x27;.json' in text and source.name not in text
+        assert '&lt;script&gt;' in text and '&lt;/script&gt;' in text and '<script>' not in text
         assert 'not a release review' in text
         capture = json.loads(source.read_text())
         capture['selected_kernel'] = 'invalid_kernel'
