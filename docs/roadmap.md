@@ -30,6 +30,11 @@ exact-wide proofs, CPU/ASan rollback coverage and scoped RX 7900 XTX direct-HIP
 differential/ISA evidence. Its repaired tooling tests close the observed Windows
 CPU gate failure; it does not complete the full hardware/release gates below.
 
+The [runtime cache continuation](local-runtime-cache-20261011.md) adds strict
+AUTO cache admission, failure-safe persistence and resident-cache invalidation.
+It records final CPU/package, ASan and scoped gfx1100 recovery evidence, plus
+the approved moment PR and the separate unpublished continuation boundary.
+
 ## 2. RX 7900 XTX / gfx1100 gate
 
 - Compile direct HIP and each optional backend with the actual Windows HIP SDK
