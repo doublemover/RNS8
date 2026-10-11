@@ -6,6 +6,9 @@
 #include "rns8/moduli.h"
 
 #include <cstdlib>
+#include <atomic>
+#include <chrono>
+#include <cmath>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -13,11 +16,103 @@
 #include <sstream>
 #include <vector>
 #include <utility>
+#include <set>
+#include <stdexcept>
+#include <type_traits>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace rns8::detail {
 namespace {
 
 using json = nlohmann::ordered_json;
+
+// JSON numeric conversion is deliberately stricter than get<T>(): floats and
+// out-of-range integers must never alias a reviewed plan's shape or workspace.
+template <typename T>
+T integer_field(const json& object, const char* name) {
+  const auto field = object.find(name);
+  if (field == object.end()) return T{0};
+  if (field->is_number_unsigned()) {
+    const auto value = field->get<uint64_t>();
+    if (value <= static_cast<uint64_t>(std::numeric_limits<T>::max())) return static_cast<T>(value);
+  } else if (field->is_number_integer()) {
+    const auto value = field->get<int64_t>();
+    if constexpr (std::is_signed_v<T>) {
+      if (value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max())
+        return static_cast<T>(value);
+    } else {
+      if (value >= 0 && static_cast<uint64_t>(value) <= std::numeric_limits<T>::max())
+        return static_cast<T>(value);
+    }
+  }
+  throw std::runtime_error(std::string("invalid integer field: ") + name);
+}
+
+bool valid_timings(const AutotuneCacheEntry& entry) {
+  for (double value : {entry.measured_median_pack_us, entry.measured_median_pack_a_us,
+                       entry.measured_median_pack_b_us, entry.measured_median_gemm_us,
+                       entry.measured_median_export_us, entry.measured_median_end_to_end_us}) {
+    if (!std::isfinite(value) || value < 0) return false;
+  }
+  return true;
+}
+
+// A uniquely owned sibling directory avoids sharing or truncating a staging
+// file with another writer. Replacement is atomic; read-modify-write merging
+// across concurrent writers and power-loss durability are not promised.
+bool replace_cache_file(const std::filesystem::path& path, const std::string& contents,
+                        std::string& error) {
+  struct Staging {
+    std::filesystem::path directory;
+    std::filesystem::path file;
+    ~Staging() {
+      std::error_code ignored;
+      if (!file.empty()) std::filesystem::remove(file, ignored);
+      if (!directory.empty()) std::filesystem::remove(directory, ignored);
+    }
+  } staging;
+  std::error_code ec;
+  if (!path.parent_path().empty()) {
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) { error = ec.message(); return false; }
+  }
+  static std::atomic<uint64_t> sequence{0};
+  for (unsigned attempt = 0; attempt < 100; ++attempt) {
+    auto candidate = path;
+    candidate += ".stage-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+                 "-" + std::to_string(sequence.fetch_add(1, std::memory_order_relaxed));
+    if (std::filesystem::create_directory(candidate, ec)) {
+      staging.directory = std::move(candidate);
+      break;
+    }
+    if (ec && ec != std::errc::file_exists) { error = ec.message(); return false; }
+    ec.clear();
+  }
+  if (staging.directory.empty()) { error = "failed to reserve cache staging directory"; return false; }
+  staging.file = staging.directory / "cache.json";
+  std::ofstream output(staging.file, std::ios::binary | std::ios::trunc);
+  output << contents;
+  output.flush();
+  if (!output) { error = "failed to write autotune cache staging file"; return false; }
+  output.close();
+  if (!output) { error = "failed to close autotune cache staging file"; return false; }
+#if defined(_WIN32)
+  if (!MoveFileExW(staging.file.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+    error = std::system_category().message(static_cast<int>(GetLastError()));
+    return false;
+  }
+#else
+  std::filesystem::rename(staging.file, path, ec);
+  if (ec) { error = ec.message(); return false; }
+#endif
+  return true;
+}
 
 std::string env_value(const char* name) {
 #if defined(_WIN32)
@@ -120,20 +215,22 @@ AutotuneCacheEntry entry_from_json(const json& item) {
   entry.target_id = item.value("target_id", "");
   entry.hip_sdk_or_library_version = item.value("hip_sdk_or_library_version", "");
   entry.semantic_contract = item.value("semantic_contract", "");
-  entry.finite_modulus = explicit_u32_field_or_zero(item, "finite_modulus");
+  entry.finite_modulus = integer_field<uint32_t>(item, "finite_modulus");
   if (const auto shape = item.find("shape"); shape != item.end() && shape->is_object()) {
-    entry.m = shape->value("m", int64_t{0});
-    entry.n = shape->value("n", int64_t{0});
-    entry.k = shape->value("k", int64_t{0});
+    entry.m = integer_field<int64_t>(*shape, "m");
+    entry.n = integer_field<int64_t>(*shape, "n");
+    entry.k = integer_field<int64_t>(*shape, "k");
+  } else if (shape != item.end()) {
+    throw std::runtime_error("autotune shape must be an object");
   }
   entry.layout = item.value("layout", "row_major");
   entry.prefix_schedule_hash = item.value("prefix_schedule_hash", "");
-  entry.k_block_size = item.value("k_block_size", int64_t{0});
-  entry.tile_m = item.value("tile_m", uint32_t{0});
-  entry.tile_n = item.value("tile_n", uint32_t{0});
+  entry.k_block_size = integer_field<int64_t>(item, "k_block_size");
+  entry.tile_m = integer_field<uint32_t>(item, "tile_m");
+  entry.tile_n = integer_field<uint32_t>(item, "tile_n");
   entry.epilogue = item.value("epilogue", "");
   entry.kernel_family = item.value("kernel_family", "");
-  entry.workspace_bytes = item.value("workspace_bytes", uint64_t{0});
+  entry.workspace_bytes = integer_field<uint64_t>(item, "workspace_bytes");
   if (const auto medians = item.find("measured_medians_us"); medians != item.end() && medians->is_object()) {
     entry.measured_median_pack_us = medians->value("pack", 0.0);
     entry.measured_median_pack_a_us = medians->value("pack_a", 0.0);
@@ -141,7 +238,10 @@ AutotuneCacheEntry entry_from_json(const json& item) {
     entry.measured_median_gemm_us = medians->value("rns_gemm", 0.0);
     entry.measured_median_export_us = medians->value("crt_export", 0.0);
     entry.measured_median_end_to_end_us = medians->value("end_to_end", 0.0);
+  } else if (medians != item.end()) {
+    throw std::runtime_error("autotune measured_medians_us must be an object");
   }
+  if (!valid_timings(entry)) throw std::runtime_error("invalid autotune timing");
   entry.performance_validated = item.value("performance_validated", false);
   entry.validation_status = item.value("validation_status", "");
   entry.schema_version = explicit_u32_field_or_zero(item, "schema_version");
@@ -151,6 +251,7 @@ AutotuneCacheEntry entry_from_json(const json& item) {
 
 std::vector<std::pair<std::string, std::string>> parse_key_fields(const std::string& key) {
   std::vector<std::pair<std::string, std::string>> fields;
+  std::set<std::string> names;
   std::size_t begin = 0;
   while (begin <= key.size()) {
     const std::size_t end = key.find(';', begin);
@@ -158,7 +259,10 @@ std::vector<std::pair<std::string, std::string>> parse_key_fields(const std::str
     if (!part.empty()) {
       const std::size_t equals = part.find('=');
       if (equals != std::string::npos && equals != 0) {
+        if (!names.insert(part.substr(0, equals)).second) return {};
         fields.emplace_back(part.substr(0, equals), part.substr(equals + 1));
+      } else {
+        return {};
       }
     }
     if (end == std::string::npos) {
@@ -533,6 +637,9 @@ int64_t expected_accumulator_k_block_cap_for_entry(const AutotuneCacheEntry& ent
 }
 
 std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
+  if (!valid_timings(entry) || entry.measured_median_end_to_end_us <= 0) {
+    return "invalid_entry_timings";
+  }
   if (entry.key.empty() || entry.selected_backend.empty() || entry.selected_kernel.empty() ||
       entry.target_id.empty() || entry.hip_sdk_or_library_version.empty() ||
       entry.semantic_contract.empty() || entry.layout.empty() || entry.prefix_schedule_hash.empty() ||
@@ -548,6 +655,7 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   }
 
   const auto fields = parse_key_fields(entry.key);
+  if (fields.empty()) return "invalid_or_duplicate_key_fields";
   if (std::string failure = required_key_field(fields, "backend"); !failure.empty()) return failure;
   if (std::string failure = required_key_field(fields, "semantics"); !failure.empty()) return failure;
   if (std::string failure = required_key_field(fields, "kernel"); !failure.empty()) return failure;
@@ -711,25 +819,42 @@ AutotuneCacheSnapshot read_autotune_cache() {
       snapshot.error = "failed to open autotune cache";
       return snapshot;
     }
-    json root = json::parse(input);
+    // The JSON DOM otherwise retains only the last spelling of a duplicate
+    // member. Reject it before identity checks lose that ambiguity.
+    std::vector<std::set<std::string>> object_keys;
+    json root = json::parse(input, [&](int, json::parse_event_t event, json& value) {
+      if (event == json::parse_event_t::object_start) object_keys.emplace_back();
+      if (event == json::parse_event_t::key && !object_keys.back().insert(value.get<std::string>()).second)
+        throw std::runtime_error("duplicate autotune JSON member");
+      if (event == json::parse_event_t::object_end) object_keys.pop_back();
+      return true;
+    });
+    if (input.bad()) throw std::runtime_error("failed to read autotune cache");
     if (!root.is_object()) {
       snapshot.error = "autotune cache root must be an object";
       return snapshot;
     }
     snapshot.schema_version = explicit_u32_field_or_zero(root, "schema_version");
+    std::set<std::string> entry_keys;
     if (const auto entries = root.find("entries"); entries != root.end() && entries->is_array()) {
       for (const auto& item : *entries) {
         if (!item.is_object()) {
-          continue;
+          throw std::runtime_error("autotune entry must be an object");
         }
         AutotuneCacheEntry entry = entry_from_json(item);
         if (!entry.key.empty()) {
+          if (!entry_keys.insert(entry.key).second) throw std::runtime_error("duplicate autotune entry key");
           snapshot.entries.push_back(std::move(entry));
+        } else {
+          throw std::runtime_error("autotune entry key is empty");
         }
       }
+    } else {
+      throw std::runtime_error("autotune entries must be an array");
     }
     snapshot.loaded = true;
   } catch (const std::exception& error) {
+    snapshot.entries.clear();
     snapshot.error = error.what();
   }
   return snapshot;
@@ -738,7 +863,7 @@ AutotuneCacheSnapshot read_autotune_cache() {
 const AutotuneCacheEntry* find_exact_autotune_entry(
     const AutotuneCacheSnapshot& snapshot,
     const std::string& key) {
-  if (key.empty()) {
+  if (!snapshot.loaded || key.empty()) {
     return nullptr;
   }
   for (const auto& entry : snapshot.entries) {
@@ -783,13 +908,23 @@ const AutotuneCacheEntry* find_validated_autotune_entry_for_runtime(
 }
 
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error) {
+  error.clear();
+  try {
   if (entry.key.empty()) {
     error = "autotune cache entry key is empty";
     return false;
   }
   AutotuneCacheSnapshot snapshot = read_autotune_cache();
-  if (!snapshot.loaded && snapshot.exists) {
+  if (!snapshot.loaded) {
     error = snapshot.error.empty() ? "failed to read existing autotune cache" : snapshot.error;
+    return false;
+  }
+  if ((snapshot.exists && snapshot.schema_version != 1) || entry.schema_version != 1) {
+    error = "unsupported autotune cache schema version";
+    return false;
+  }
+  if (!valid_timings(entry)) {
+    error = "invalid autotune timing";
     return false;
   }
   bool replaced = false;
@@ -811,23 +946,13 @@ bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& er
     root["entries"].push_back(entry_to_json(cached));
   }
 
-  const std::filesystem::path path = autotune_cache_path();
-  std::error_code ec;
-  const std::filesystem::path parent = path.parent_path();
-  if (!parent.empty()) {
-    std::filesystem::create_directories(parent, ec);
-    if (ec) {
-      error = ec.message();
-      return false;
-    }
-  }
-  std::ofstream output(path, std::ios::trunc);
-  if (!output) {
-    error = "failed to open autotune cache for write";
+  // Serialization can fail (for example, invalid UTF-8). Finish it before
+  // touching even the staging file, and preserve the path used for the read.
+  return replace_cache_file(snapshot.path, root.dump(2) + "\n", error);
+  } catch (const std::exception& failure) {
+    error = failure.what();
     return false;
   }
-  output << std::setw(2) << root << "\n";
-  return true;
 }
 
 std::string autotune_selection_rationale(

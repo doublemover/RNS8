@@ -1481,6 +1481,16 @@ The reviewed-cache installer must reject stale or non-reviewed destination
 entries during normal merges and require an explicit replacement operation
 before discarding them.
 
+Runtime cache admission rejects duplicate JSON members/entry keys, fractional
+or out-of-range integer metadata, malformed records, and negative/non-finite
+timings. Reviewed AUTO candidates additionally require a positive end-to-end
+median and unambiguous plan-key fields. Failed reads expose no partial entries.
+The C++ cache writer serializes and checks a uniquely staged sibling file before
+atomically replacing the destination; failed writes preserve the prior file.
+It refuses to overwrite an unreadable or unsupported-schema cache. This is
+failure-safe single-writer persistence, not concurrent read-modify-write merging
+or a power-loss durability guarantee. These checks do not qualify performance.
+
 Benchmark outputs include:
 
 - command line,
