@@ -119,6 +119,41 @@ TEST_CASE("AUTO plan consumes reviewed vector ALU cache entry for final native b
     CHECK(value == static_cast<uint64_t>(k));
   }
 
+  // Reviewed labels cannot make malformed measurements or numeric identity
+  // aliases eligible. Exercise actual AUTO fallback and native-to-RNS reuse.
+  std::ifstream cache_input(cache_path);
+  const std::string valid_cache((std::istreambuf_iterator<char>(cache_input)),
+                                std::istreambuf_iterator<char>());
+  cache_input.close();
+  for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+           {"\"end_to_end\":4.0", "\"end_to_end\":-1.0"},
+           {"\"end_to_end\":4.0", "\"end_to_end\":0.0"},
+           {"\"tile_m\":128", "\"tile_m\":4294967424"},
+           {"\"m\":32", "\"m\":32.5"},
+           {"\"schema_version\":1", "\"schema_version\":1,\"schema_version\":1"}}) {
+    INFO(replacement.second);
+    auto malformed = valid_cache;
+    const auto offset = malformed.find(replacement.first);
+    REQUIRE(offset != std::string::npos);
+    malformed.replace(offset, replacement.first.size(), replacement.second);
+    { std::ofstream cache(cache_path); cache << malformed; }
+    rns8_plan* fallback = nullptr;
+    REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &fallback) == RNS8_SUCCESS);
+    rns8_plan_backend_info fallback_info{};
+    fallback_info.struct_size = sizeof(fallback_info);
+    fallback_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(fallback, &fallback_info) == RNS8_SUCCESS);
+    CHECK(fallback_info.backend == RNS8_BACKEND_HIP_DIRECT);
+    CHECK(fallback_info.performance_validated == 0);
+    rns8_workspace* fallback_workspace = nullptr;
+    REQUIRE(rns8_create_workspace(auto_ctx, fallback, &fallback_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(auto_ctx, fallback, A, B, C, fallback_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_u64(auto_ctx, fallback, C, c.data(), n) == RNS8_SUCCESS);
+    for (const auto value : c) CHECK(value == static_cast<uint64_t>(k));
+    rns8_destroy_workspace(fallback_workspace);
+    rns8_destroy_plan(fallback);
+  }
+
   rns8_destroy_workspace(workspace);
   rns8_destroy_matrix(C);
   rns8_destroy_matrix(B);

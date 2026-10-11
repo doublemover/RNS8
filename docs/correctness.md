@@ -167,6 +167,12 @@ Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental
 output reuse keeps the existing exact identity and dirty-output-region contract.
+Resident result-cache snapshot preparation invalidates cache eligibility before
+allocation or copying; only a completed compute/snapshot/binding publishes a
+new hit. Cache restore invalidates all output representations before device
+copying for bounded, finite and exact-wide contracts. A failed restore therefore
+cannot expose a partly copied result as current. These are fail-closed state
+transitions, not a promise to preserve device bytes after a hardware failure.
 Sparse raw-plane packing interprets the supplied residues as canonical unsigned
 or centered signed integers and records those magnitudes; it cannot recover an
 integer value that was already aliased before the caller supplied the residues.

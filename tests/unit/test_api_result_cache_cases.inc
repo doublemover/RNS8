@@ -57,3 +57,19 @@ TEST_CASE("result cache info rejects invalid ABI structs", "[api][result-cache]"
   CHECK(rns8_invalidate_result_cache(nullptr) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_destroy_result_cache(nullptr) == RNS8_SUCCESS);
 }
+
+TEST_CASE("result cache failed snapshot preparation cannot remain initialized", "[api][result-cache]") {
+  rns8_context ctx{};
+  rns8_result_cache cache{};
+  rns8_matrix output{};
+  cache.initialized = true;
+  // Zero-sized preparation is rejected before any backend operation. This
+  // verifies the host publication invariant without claiming GPU fault coverage.
+  CHECK(rns8::detail::api::snapshot_result_cache_from_output(ctx, cache, output) == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(cache.initialized);
+  cache.initialized = true;
+  CHECK(rns8::detail::api::free_result_cache_snapshot(cache) == RNS8_SUCCESS);
+  CHECK_FALSE(cache.initialized);
+  CHECK(cache.hip_snapshot_residues == nullptr);
+  CHECK(cache.cache_allocation_bytes == 0);
+}
