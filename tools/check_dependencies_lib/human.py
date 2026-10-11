@@ -15,6 +15,7 @@ from pathlib import Path
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
 from .config import *
+from .readiness import vcpkg_package_role
 
 def print_human(report: dict[str, object]) -> None:
     print("RNS8 dependency check")

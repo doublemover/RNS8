@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 import tempfile
+import contextlib
+import io
 from pathlib import Path
 from unittest.mock import patch
 
 import check_dependencies as deps
 import check_dependencies_lib.discovery as discovery_mod
+import check_dependencies_lib.report as report_mod
 
 
 def expect(condition: bool, message: str) -> None:
@@ -173,6 +176,26 @@ Agent 2:
             "hipBLASLt primitive probe applicability changed",
         )
 
+    # Exercise the complete human renderer, including manifest package roles.
+    # No installed tool or optional accelerator probe is executed by this fixture.
+    with (
+        patch.object(report_mod, "find_command", return_value=None),
+        patch.object(report_mod, "find_msvc", return_value=None),
+        patch.object(report_mod, "installed_vcpkg_packages", return_value={}),
+        patch.object(discovery_mod, "find_command", return_value=None),
+        patch.object(report_mod, "command_version", side_effect=AssertionError("unexpected tool probe")),
+    ):
+        report, ready = report_mod.build_report()
+    expect(not ready, "missing-tool fixture must not report host readiness")
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        deps.print_human(report)
+    rendered = output.getvalue()
+    for package in report["vcpkg_manifest"]["packages"]:
+        role = report["vcpkg_package_roles"][package]
+        expect(f"[MISSING] {package} ({role}): not installed" in rendered,
+               "human renderer must preserve manifest package role and missing status")
+    expect("Project tools" in rendered, "human report must render through its final section")
     print("dependency checker self-test: PASS")
     return 0
 

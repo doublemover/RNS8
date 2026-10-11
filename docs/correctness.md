@@ -44,10 +44,22 @@ add exact sums and midpoint deviations: for centers a and b, the dot product is
 `a x sum(B) + b x sum(A) - K x a x b + dot(A-a, B-b)`. Its remainder is bounded
 by the same absolute-sum/max inequalities. This can admit constant-axis balanced
 signed products that the old global bound rejected, including later zero chains.
+Native packing also records exact squared sums Q on each logical axis. The
+integer Cauchy-Schwarz bound `floor(sqrt(Q_A * Q_B))` tightens magnitude-only
+bounds. When both signed sums S are exact, admission additionally uses
+`floor((abs(S_A * S_B) + floor(sqrt(V_A * V_B))) / K)`, where
+`V_X = K * Q_X - S_X * S_X`. These variance numerators are nonnegative; the
+identity `K * dot(A,B) - S_A * S_B` and Cauchy-Schwarz prove the bound. Both
+square roots are multiprecision integer roots, with no floating-point rounding.
 No exact host GEMM or probabilistic test is used for admission.
 
-Output row/column magnitude maxima and absolute-sum bounds are staged before
+Output row/column magnitude maxima, absolute sums and squared-sum bounds are staged before
 execution and committed on success; they never masquerade as exact signed sums.
+For each output axis, the squared-sum proof is the sum of squared cell bounds.
+It remains usable by the uncentered norm inequality in subsequent products;
+the covariance inequality is disabled without exact signed sums. The new proof
+fields are private handle metadata and do not change the public ABI or prefix
+capacity. They follow existing repack, lifting and transactional rollback rules.
 Missing summaries use the scalar `K x max_abs(A) x max_abs(B)` proof. Prepacked
 and sparse routes keep that conservative scalar admission and clear older axis
 summaries when producing output. Failure returns `RNS8_RANGE_ERROR` before
@@ -92,7 +104,7 @@ before using higher planes.
 validates the original plan/workspace binding, then selects the smallest output
 prefix at or above the plan's selected prefix and within the plan/A/B/C ceilings.
 Fixed-prefix plans retain their fixed prefix. Selection uses the same scalar,
-per-axis and centered cancellation bounds as ordinary admission. Each input must
+per-axis, moment and centered cancellation bounds as ordinary admission. Each input must
 already have a unique proof at its own initialized prefix; even a zero output
 bound does not authorize an unknown input. No probabilistic or reference GEMM
 result is used to admit missing range.

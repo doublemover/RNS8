@@ -25,6 +25,11 @@ RelWithDebInfo DLL package consumers, public-layout comparison and the
 proposed complete-lineage integration route.
 No source-only gate establishes hardware qualification.
 
+The [integer moment checkpoint](local-moment-range-20261011.md) adds stronger
+exact-wide proofs, CPU/ASan rollback coverage and scoped RX 7900 XTX direct-HIP
+differential/ISA evidence. Its repaired tooling tests close the observed Windows
+CPU gate failure; it does not complete the full hardware/release gates below.
+
 ## 2. RX 7900 XTX / gfx1100 gate
 
 - Compile direct HIP and each optional backend with the actual Windows HIP SDK
@@ -72,8 +77,10 @@ This source audit does not satisfy that release decision.
 - Device-owned exact-wide lifting and execution qualification; explicit CPU
   lifting and opt-in admission-driven CPU selection with transactional operand/
   output staging are implemented within allocated twenty-plane ceilings
-- Stronger correlation-aware range proofs; scalar and per-axis conservative
-  chain propagation are implemented
+- Stronger correlation-aware range proofs; scalar, per-axis and integer
+  second-moment/Cauchy-Schwarz chain propagation are implemented. Native exact
+  sums also enable a centered covariance bound; full cross-axis correlations
+  remain unrepresented
 - Broader target qualification (RDNA2/4, CDNA2/4) under supported toolchains
 - INT4/IU4, Ozaki/FP8, Strassen/Winograd, and probabilistic verification, each
   behind the specification's explicit correctness, measurement, and retirement
