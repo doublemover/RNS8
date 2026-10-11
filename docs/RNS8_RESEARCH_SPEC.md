@@ -358,10 +358,12 @@ host limb layout.
 Public exact-wide chains additionally track the packed magnitudes and initialized
 prefixes of resident operands. Dense, grouped and incremental GEMM tighten the
 `K * max_abs(A) * max_abs(B)` bound using per-row/per-column absolute sums and
-maxima. Native packing also records exact axis sums and midpoint deviations;
-an algebraic centered-dot-product bound can prove cancellation, without
-computing a reference GEMM. Accepted output axis summaries contain conservative
-magnitude bounds, not exact signed sums, and propagate through later dense
+maxima. Native packing also records exact axis sums, squared sums and midpoint
+deviations. Integer Cauchy-Schwarz and centered covariance bounds tighten these
+proofs without floating-point arithmetic or computing a reference GEMM; see the
+formulas in [the correctness contract](correctness.md). Accepted output axis
+summaries contain conservative magnitude and squared-sum bounds, not exact
+signed sums, and propagate through later dense
 operations. Each bound must fit the selected CRT product, with a factor of two
 for signed reconstruction. Missing summaries retain the scalar proof; prepacked
 and sparse routes currently use it. Insufficient range or unwritten input planes

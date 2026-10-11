@@ -45,6 +45,8 @@ TEST_CASE("exact-wide axis summaries use wide sums and ignore logical padding", 
     CHECK(axes.rows[1].absolute_sum == (semantics == RNS8_EXACT_WIDE_SIGNED ? 2 : 1));
     CHECK(axes.rows[1].sum == (semantics == RNS8_EXACT_WIDE_SIGNED ? 0 : 1));
     CHECK(axes.rows[0].sum_known);
+    CHECK(axes.rows[0].squared_sum_known);
+    CHECK(axes.rows[0].squared_sum == 2 * maximum * maximum);
   }
 }
 
@@ -148,6 +150,7 @@ TEST_CASE("exact-wide axis bounds cover deterministic signed and unsigned differ
                                                            2)) == RNS8_SUCCESS);
       for (int64_t row = 0; row < 3; ++row) {
         boost::multiprecision::cpp_int row_sum = 0;
+        boost::multiprecision::cpp_int row_squared_sum = 0;
         for (int64_t col = 0; col < 3; ++col) {
           const auto exact = semantics == RNS8_EXACT_WIDE_SIGNED
                                  ? rns8::detail::exact_i64_gemm_cell(a, 3, b, 3, row, col, 3)
@@ -157,12 +160,15 @@ TEST_CASE("exact-wide axis bounds cover deterministic signed and unsigned differ
           CHECK(magnitude <= f.matrices[2]->exact_axis_ranges.rows[row].max_magnitude);
           CHECK(magnitude <= f.matrices[2]->exact_axis_ranges.cols[col].max_magnitude);
           row_sum += magnitude;
+          row_squared_sum += exact * exact;
           const auto expected = semantics == RNS8_EXACT_WIDE_SIGNED ? signed_twos_complement_limbs(exact, 2)
                                                                     : unsigned_limbs(exact, 2);
           CHECK(limbs[2 * (row * 3 + col)] == expected[0]);
           CHECK(limbs[2 * (row * 3 + col) + 1] == expected[1]);
         }
         CHECK(row_sum <= f.matrices[2]->exact_axis_ranges.rows[row].absolute_sum);
+        CHECK(f.matrices[2]->exact_axis_ranges.rows[row].squared_sum_known);
+        CHECK(row_squared_sum <= f.matrices[2]->exact_axis_ranges.rows[row].squared_sum);
       }
     }
   }

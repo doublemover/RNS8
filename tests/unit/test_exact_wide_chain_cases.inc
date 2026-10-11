@@ -1,13 +1,20 @@
 namespace {
 struct ExactChainFixture {
-  rns8_context* ctx = create_cpu();
+  rns8_context* ctx = nullptr;
   rns8_plan* plan = nullptr;
   rns8_workspace* workspace = nullptr;
   std::vector<rns8_matrix*> matrices;
   explicit ExactChainFixture(rns8_semantics semantics, int64_t size = 1, uint32_t prefix = 20)
       : ExactChainFixture(semantics, size, size, size, prefix) {}
-  ExactChainFixture(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t prefix) {
+  ExactChainFixture(rns8_semantics semantics, int64_t m, int64_t n, int64_t k, uint32_t prefix,
+                    rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE) {
+    rns8_context_options options{};
+    options.struct_size = sizeof(options);
+    options.abi_version = RNS8_ABI_VERSION;
+    options.requested_backend = backend;
+    REQUIRE(rns8_create_context(backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : 0, &options, &ctx) == RNS8_SUCCESS);
     auto desc = exact_desc(semantics, m, n, k);
+    desc.requested_backend = backend;
     desc.max_prefix = prefix;
     desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
     REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);

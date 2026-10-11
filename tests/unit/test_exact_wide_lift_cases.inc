@@ -25,6 +25,8 @@ void check_lift_metadata(const rns8_matrix& matrix, const rns8_matrix& before) {
     CHECK(after.maximum == saved.maximum);
     CHECK(after.deviation_sum == saved.deviation_sum);
     CHECK(after.sum_known == saved.sum_known);
+    CHECK(after.squared_sum == saved.squared_sum);
+    CHECK(after.squared_sum_known == saved.squared_sum_known);
   };
   for (std::size_t i = 0; i < before.exact_axis_ranges.rows.size(); ++i)
     check_axis(matrix.exact_axis_ranges.rows[i], before.exact_axis_ranges.rows[i]);
