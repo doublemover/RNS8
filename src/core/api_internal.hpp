@@ -363,6 +363,12 @@ void clear_device_byte_limb_current(rns8_matrix& matrix);
 
 void invalidate_output_currentness(rns8_matrix& matrix);
 
+// Internal resident-cache state transitions; success is published by the
+// incremental dispatcher only after the snapshot and binding are complete.
+rns8_status free_result_cache_snapshot(rns8_result_cache& cache);
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C);
+rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C);
+
 void mark_host_residues_current(rns8_matrix& matrix);
 
 void mark_device_residues_current(rns8_matrix& matrix);

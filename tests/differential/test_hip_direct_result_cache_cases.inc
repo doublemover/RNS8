@@ -54,6 +54,33 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", 
   REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) ==
           RNS8_SUCCESS);
 
+  // Safely force the backend's null-pointer precondition failure without
+  // submitting an invalid device access. Failed snapshot publication must
+  // invalidate the cache, and the public call must rebuild it successfully.
+  auto* saved_output = hip_c->hip_residues;
+  hip_c->hip_residues = nullptr;
+  const auto snapshot_failure = rns8::detail::api::snapshot_result_cache_from_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(snapshot_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(cache->initialized);
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) ==
+          RNS8_SUCCESS);
+  CHECK(cache->initialized);
+  CHECK(cache->last_cache_miss);
+
+  hip_c->hip_residues = nullptr;
+  const auto restore_failure = rns8::detail::api::restore_result_cache_to_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(restore_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(hip_c->device_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  std::vector<int64_t> rejected_output(static_cast<std::size_t>(m * n), -999);
+  CHECK(rns8_export_i64(hip, hip_plan, hip_c, rejected_output.data(), n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_output == std::vector<int64_t>(static_cast<std::size_t>(m * n), -999));
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) ==
+          RNS8_SUCCESS);
+  CHECK(cache->last_cache_hit);
+
   A[static_cast<std::size_t>(1 * k + 0)] = -7;
   A[static_cast<std::size_t>(1 * k + 1)] = 8;
   A[static_cast<std::size_t>(1 * k + 2)] = 2;
@@ -167,6 +194,20 @@ TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles"
   REQUIRE(rns8_create_result_cache(hip, hip_plan, &cache_desc, &cache) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_finite_u8_incremental(
               hip, hip_plan, modulus, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) == RNS8_SUCCESS);
+
+  auto* saved_output = hip_c->hip_residues;
+  hip_c->hip_residues = nullptr;
+  const auto restore_failure = rns8::detail::api::restore_result_cache_to_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(restore_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(hip_c->device_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  std::vector<uint8_t> rejected_output(static_cast<std::size_t>(m * n), 199);
+  CHECK(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c, rejected_output.data(), n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_output == std::vector<uint8_t>(static_cast<std::size_t>(m * n), 199));
+  REQUIRE(rns8_gemm_finite_u8_incremental(
+              hip, hip_plan, modulus, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) == RNS8_SUCCESS);
+  CHECK(cache->last_cache_hit);
 
   A[static_cast<std::size_t>(2 * k + 0)] = 41;
   A[static_cast<std::size_t>(2 * k + 1)] = 42;

@@ -15,6 +15,7 @@
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/internal.hpp"
+#include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 

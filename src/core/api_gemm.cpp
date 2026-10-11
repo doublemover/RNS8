@@ -403,6 +403,7 @@ void reset_result_cache_last_call(rns8_result_cache& cache) {
 }
 
 rns8_status free_result_cache_snapshot(rns8_result_cache& cache) {
+  cache.initialized = false;
   rns8_status status = RNS8_SUCCESS;
   if (cache.hip_snapshot_residues) {
     status = rns8::detail::hip_direct_free(cache.hip_device_id, cache.hip_snapshot_residues);
@@ -434,6 +435,9 @@ rns8_status ensure_result_cache_snapshot(rns8_context& ctx, rns8_result_cache& c
 }
 
 rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C) {
+  // Allocation or an in-place copy may fail after destroying the previous
+  // snapshot. Only bind_result_cache_after_compute can publish a new hit.
+  cache.initialized = false;
   const rns8_status status = ensure_result_cache_snapshot(ctx, cache, C.hip_residue_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -446,7 +450,8 @@ rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache&
   if (!cache.initialized || !cache.hip_snapshot_residues || cache.hip_snapshot_residue_bytes != C.hip_residue_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (rns8::detail::exact_wide_semantics(C.desc.semantics)) invalidate_output_currentness(C);
+  // A failed device copy may have partially changed C for any contract.
+  invalidate_output_currentness(C);
   const rns8_status status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, C.hip_residues, cache.hip_snapshot_residues, C.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
@@ -724,7 +729,7 @@ rns8_status rns8_create_result_cache(
     if ((flags & kRequiredFlags) != kRequiredFlags) {
       return RNS8_INVALID_ARGUMENT;
     }
-    auto* cache = new (std::nothrow) rns8_result_cache();
+    auto cache = std::unique_ptr<rns8_result_cache>(new (std::nothrow) rns8_result_cache());
     if (!cache) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -743,7 +748,7 @@ rns8_status rns8_create_result_cache(
     cache->selected_kernel = plan->backend_selected_kernel;
     cache->hip_device_id = ctx->device_id;
     cache->detail = "explicit_result_cache_contract_v1";
-    *out = cache;
+    *out = cache.release();
     return RNS8_SUCCESS;
   });
 }
