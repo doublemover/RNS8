@@ -25,6 +25,11 @@ RelWithDebInfo DLL package consumers, public-layout comparison and the
 proposed complete-lineage integration route.
 No source-only gate establishes hardware qualification.
 
+The [integer moment checkpoint](local-moment-range-20261011.md) adds stronger
+exact-wide proofs, CPU/ASan rollback coverage and scoped RX 7900 XTX direct-HIP
+differential/ISA evidence. Its repaired tooling tests close the observed Windows
+CPU gate failure; it does not complete the full hardware/release gates below.
+
 ## 2. RX 7900 XTX / gfx1100 gate
 
 - Compile direct HIP and each optional backend with the actual Windows HIP SDK
