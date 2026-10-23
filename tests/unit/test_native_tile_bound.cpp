@@ -3,6 +3,24 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <random>
+#include "backend_common/native_narrow.hpp"
+
+TEST_CASE("native partial sum admission agrees with arbitrary precision at caps") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  for (uint64_t limit : {uint64_t{INT32_MAX}, uint64_t{INT64_MAX}, UINT64_MAX})
+    for (uint64_t a : {uint64_t{0}, uint64_t{1}, uint64_t{128}, uint64_t{255}, uint64_t{1} << 63, UINT64_MAX})
+      for (uint64_t b : {uint64_t{0}, uint64_t{1}, uint64_t{127}, uint64_t{255}, UINT64_MAX})
+        for (uint64_t k : {uint64_t{1}, uint64_t{33025}, uint64_t{33026}, uint64_t{131071}, uint64_t{131072}, UINT64_MAX}) {
+          const cpp_int expected = cpp_int(a) * b * k;
+          uint64_t bound = 41;
+          REQUIRE(native_partial_sum_bound(a, b, k, limit, bound) == (expected <= limit));
+          REQUIRE(cpp_int(bound) == (expected <= limit ? expected : cpp_int(41)));
+        }
+  uint64_t bound = 41;
+  REQUIRE_FALSE(native_partial_sum_bound(0, 0, 0, 0, bound));
+  REQUIRE(bound == 41);
+}
 
 TEST_CASE("native L1 bounds retain all carry bits through full-width products") {
   using namespace rns8::detail;

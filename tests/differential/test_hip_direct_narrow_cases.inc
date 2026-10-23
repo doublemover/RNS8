@@ -1,3 +1,4 @@
+#include "test_hip_direct_native_byte_cases.inc"
 TEST_CASE("direct HIP native narrow admission proves partial sums from actual device inputs") {
   if (!hip_available()) SKIP("no HIP device for native narrow differential");
   using namespace rns8::detail;

@@ -36,12 +36,8 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
   if (status != RNS8_SUCCESS) return status;
   constexpr uint64_t limit = INT64_MAX;
   uint64_t sum_bound = 0;
-  if (bounds[0] && bounds[1]) {
-    if (bounds[0] > limit / bounds[1]) return RNS8_RANGE_ERROR;
-    const uint64_t product = bounds[0] * bounds[1];
-    if (static_cast<uint64_t>(k) > limit / product) return RNS8_RANGE_ERROR;
-    sum_bound = static_cast<uint64_t>(k) * product;
-  }
+  if (!native_partial_sum_bound(bounds[0], bounds[1], static_cast<uint64_t>(k), limit, sum_bound))
+    return RNS8_RANGE_ERROR;
   const auto error = timed_hip_operation("narrow_native_i64_gemm_kernel", [&]() {
     const auto launched = static_cast<hipError_t>(rns8_hip_native_i64_narrow_gemm(
         a, b, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),

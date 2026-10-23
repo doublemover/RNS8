@@ -13,6 +13,7 @@
 #include "backend_common/ragged_residues.hpp"
 #include "backend_common/block_sparse.hpp"
 #include "backend_common/integrity_identity.hpp"
+#include "backend_common/native_narrow.hpp"
 
 namespace rns8::detail {
 // Private synchronous heterogeneous native-input queue. Caller owns integer
@@ -83,6 +84,15 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
     int device_id, const int64_t* a, const int64_t* b, int64_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint64_t* out_abs_sum_bound);
+
+// Explicit raw-byte WMMA candidate with native i64/u64 storage and output.
+// Scan actual operands for signed [-128,127] or unsigned [0,255] membership,
+// then prove all INT32 partials. No residue interpretation, cached proof or AUTO
+// dispatch. Caller must keep inputs stable and invalidate C after launch failure.
+rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
+    int device_id, const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    bool unsigned_inputs, uint64_t* out_abs_sum_bound);
 
 // Explicit modular expression baseline. Callers must separately prove bounded
 // integer semantics and own publication; D/C must not alias. No default routing.

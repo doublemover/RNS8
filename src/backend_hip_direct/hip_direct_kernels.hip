@@ -1,6 +1,7 @@
 #include <hip/hip_runtime.h>
 
 #include <cstdint>
+#include <type_traits>
 #include "../backend_common/garner_constants.hpp"
 
 #include "../backend_common/finite_u8_reducer.hpp"
@@ -50,6 +51,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_split_k_kernels.cuh"
 #include "hip_direct_epilogue_kernels.cuh"
 #include "hip_direct_narrow_kernels.cuh"
+#include "hip_direct_native_byte_kernels.cuh"
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_balanced_crt_kernels.cuh"
@@ -62,6 +64,33 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_native_byte_domain(const void* source, int rows, int cols,
+    int ld, uint64_t* maximum, uint64_t* invalid, bool unsigned_inputs) {
+  const dim3 grid((static_cast<uint64_t>(rows) * cols + 255) / 256);
+  if (unsigned_inputs) {
+    hipLaunchKernelGGL((rns8_native_byte_domain_kernel<uint64_t>), grid, dim3(256), 0, nullptr,
+        static_cast<const uint64_t*>(source), rows, cols, ld,
+        reinterpret_cast<unsigned long long*>(maximum), reinterpret_cast<unsigned long long*>(invalid));
+  } else {
+    hipLaunchKernelGGL((rns8_native_byte_domain_kernel<int64_t>), grid, dim3(256), 0, nullptr,
+        static_cast<const int64_t*>(source), rows, cols, ld,
+        reinterpret_cast<unsigned long long*>(maximum), reinterpret_cast<unsigned long long*>(invalid));
+  }
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_native_byte_wmma(const void* a, const void* b, void* c,
+    int m, int n, int k, int lda, int ldb, int ldc, bool unsigned_inputs) {
+  const dim3 grid((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16);
+  if (unsigned_inputs) {
+    hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t>), grid, dim3(32), 0, nullptr,
+        static_cast<const uint64_t*>(a), static_cast<const uint64_t*>(b), static_cast<uint64_t*>(c), m, n, k, lda, ldb, ldc);
+  } else {
+    hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t>), grid, dim3(32), 0, nullptr,
+        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), static_cast<int64_t*>(c), m, n, k, lda, ldb, ldc);
+  }
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_integrity_check(const void* a,const void* b,const int8_t* candidate,
     int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures) {
