@@ -259,3 +259,18 @@ API requires an existing uniqueness proof and allocated capacity, and does not
 provide device-owned bound discovery or graph-safe/asynchronous execution.
 Every source/destination prefix pair has a Boost differential fixture, including
 signed boundaries and suffix canaries. Actual GPU validation is still pending.
+
+
+Offline search/model additions remain non-promoting:
+`modulus_scheme_optimizer.py` performs bounded exact subset/form search under an
+explicit additive picosecond objective and same-cohort costs. It reports the
+finite search domain, strict CRT range products, incumbent, and search exhaustion;
+its lower bound becomes the incumbent only after complete search. Unknown costs
+are rejected. The default offline ladder now matches the runtime ladder,
+including modulus 193, with a source-alignment regression.
+`analytical_planner.py` schedules concrete named stages with dependencies,
+exclusive resource reservations, conversion/matrix/reconstruction rate terms,
+wave quantization, uncertainty intervals and live workspace accounting. All
+current tests use synthetic calibration; no measured target model, winner regret,
+runtime shortlist or promotion is claimed. Hardware calibration and held-out
+validation remain required by #30/#31.

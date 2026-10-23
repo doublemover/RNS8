@@ -4,9 +4,16 @@
 from __future__ import annotations
 
 import modulus_set_search
+import re
+from pathlib import Path
 
 
 def main() -> int:
+    source = (Path(__file__).resolve().parents[1] / "src/core/internal.hpp").read_text(encoding="utf-8")
+    ladder = re.search(r"kDefaultModuli\[[^]]+\]\s*=\s*\{([^}]+)\}", source)
+    assert ladder
+    actual = [int(value) for value in re.findall(r"\d+", ladder.group(1))]
+    assert modulus_set_search.DEFAULT_MODULI == actual
     report = modulus_set_search.build_report(
         [
             ("default-prefix9", modulus_set_search.DEFAULT_MODULI[:9]),

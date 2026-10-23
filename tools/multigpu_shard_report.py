@@ -224,6 +224,8 @@ def _row_for_capture(
         blockers.append("schema_log_failed")
     if not record:
         blockers.append("target_status_missing")
+    elif (record.get("validation") or {}).get("smoke") not in {"pass", "planned"}:
+        blockers.append("failed_shards")
     if row["checksum_u64"] is None and schema_status == "pass":
         blockers.append("checksum_missing")
     if record.get("rocprofv3_ready") is False:
@@ -264,9 +266,13 @@ def _launch_coverage(summary, status_paths, rows, records):
     if isinstance(requested, list) and requested:
         inventories.append([str(device) for device in requested])
     expected_cases = set()
+    declared_worlds = []
+    if "world_size" in summary:
+        declared_worlds.append(_as_int(summary["world_size"]))
     for path in status_paths:
         inventory = _load_json(path).get("launch_inventory")
         if isinstance(inventory, dict):
+            declared_worlds.append(_as_int(inventory.get("world_size")))
             devices = inventory.get("requested_devices")
             if isinstance(devices, list) and devices:
                 inventories.append([str(device) for device in devices])
@@ -279,7 +285,7 @@ def _launch_coverage(summary, status_paths, rows, records):
     if len(set(devices)) != len(devices) or any(value != devices for value in inventories):
         blockers.add("launch_inventory_invalid")
     expected = set(range(len(devices)))
-    worlds = [_as_int(item.get("world_size")) for item in records + rows]
+    worlds = declared_worlds + [_as_int(item.get("world_size")) for item in records + rows]
     if any(world != len(devices) for world in worlds):
         blockers.add("world_size_mismatch")
     status_ranks = set()

@@ -219,16 +219,22 @@ def build_report(
     group_stats: dict[str, dict[str, Any]] = {}
     for key, items in by_group.items():
         runs = {}
+        conflicting_runs = set()
         for _, capture in items:
             run = execution_id(capture)
             if run is not None and execution_cohort(capture) is not None:
+                if run in runs and capture_digest(runs[run]) != capture_digest(capture):
+                    conflicting_runs.add(run)
                 runs.setdefault(run, capture)
+        for run in conflicting_runs:
+            runs.pop(run, None)
         medians = [value for capture in runs.values()
                    if (value := median_phase(capture, "end_to_end")) is not None and value > 0.0]
         group_stats[key] = {
             "capture_count": len(items),
             "unique_capture_count": len({capture_digest(capture) for _, capture in items}),
             "distinct_run_count": len(runs),
+            "conflicting_execution_ids": sorted(conflicting_runs),
             "median_end_to_end_us": statistics.median(medians) if medians else None,
             "run_to_run_rel_spread": _relative_spread(medians),
         }
@@ -248,6 +254,10 @@ def build_report(
         )
         for path, capture in loaded
     ]
+    for entry in entries:
+        if entry["execution_id"] in group_stats[entry["group_key"]]["conflicting_execution_ids"]:
+            entry["blockers"].append("conflicting_execution_identity")
+            entry["promotion_ready"] = False
     return {
         "schema": "rns8_perf_variance_report_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),

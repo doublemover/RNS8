@@ -203,6 +203,19 @@ TEST_CASE("Garner pair constants prove both inverse levels", "[crt][value-lifecy
   }
 }
 
+namespace {
+struct RestoreCpuParallel {
+  uint32_t requested = rns8::detail::cpu_parallel_requested_threads();
+  uint32_t maximum = rns8::detail::cpu_parallel_max_threads();
+  uint64_t threshold = rns8::detail::cpu_parallel_threshold_ops();
+  bool progress = rns8::detail::cpu_parallel_progress_enabled();
+  ~RestoreCpuParallel() {
+    rns8::detail::configure_cpu_parallel(maximum, threshold, progress);
+    rns8::detail::configure_cpu_parallel(requested, threshold, progress);
+  }
+};
+}
+
 TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
   using namespace rns8::detail;
   constexpr int64_t rows = 3, cols = 257, ld = cols + 7;
@@ -223,28 +236,33 @@ TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
   unsigned_values[0] = std::numeric_limits<uint64_t>::max();
   unsigned_values[1] = uint64_t{1} << 63;
   unsigned_values[2] = 0;
-  for (uint32_t prefix = 1; prefix <= RNS8_DEFAULT_MODULUS_COUNT; ++prefix) {
-    rns8_matrix matrix{};
-    matrix.desc.rows = rows;
-    matrix.desc.cols = cols;
-    matrix.prefix = prefix;
-    matrix.residues.resize(prefix * rows * cols + 1, 77);
-    pack_i64_matrix(matrix, signed_values.data(), ld);
-    for (uint32_t p = 0; p < prefix; ++p)
-      for (int64_t row = 0; row < rows; ++row)
-        for (int64_t col = 0; col < cols; ++col)
-          REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
-                  centered_residue(cpp_int(signed_values[row * ld + col]), kDefaultModuli[p]));
-    CHECK(matrix.residues.back() == 77);
-    pack_u64_matrix(matrix, unsigned_values.data(), ld);
-    for (uint32_t p = 0; p < prefix; ++p)
-      for (int64_t row = 0; row < rows; ++row)
-        for (int64_t col = 0; col < cols; ++col)
-          REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
-                  centered_residue(cpp_int(unsigned_values[row * ld + col]), kDefaultModuli[p]));
-    CHECK(matrix.residues.back() == 77);
+  RestoreCpuParallel restore;
+  for (uint32_t threads : {1u, 2u, 5u}) {
+    configure_cpu_parallel(threads, 1, false);
+    for (uint32_t prefix = 1; prefix <= RNS8_DEFAULT_MODULUS_COUNT; ++prefix) {
+      rns8_matrix matrix{};
+      matrix.desc.rows = rows;
+      matrix.desc.cols = cols;
+      matrix.prefix = prefix;
+      matrix.residues.resize(prefix * rows * cols + 1, 77);
+      pack_i64_matrix(matrix, signed_values.data(), ld);
+      for (uint32_t p = 0; p < prefix; ++p)
+        for (int64_t row = 0; row < rows; ++row)
+          for (int64_t col = 0; col < cols; ++col)
+            REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
+                    centered_residue(cpp_int(signed_values[row * ld + col]), kDefaultModuli[p]));
+      CHECK(matrix.residues.back() == 77);
+      pack_u64_matrix(matrix, unsigned_values.data(), ld);
+      for (uint32_t p = 0; p < prefix; ++p)
+        for (int64_t row = 0; row < rows; ++row)
+          for (int64_t col = 0; col < cols; ++col)
+            REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
+                    centered_residue(cpp_int(unsigned_values[row * ld + col]), kDefaultModuli[p]));
+      CHECK(matrix.residues.back() == 77);
+    }
   }
 }
+
 
 TEST_CASE("Finite native CPU packing exhausts every byte and modulus") {
   using namespace rns8::detail;
