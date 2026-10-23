@@ -13,6 +13,11 @@
 #include "backend_common/block_sparse.hpp"
 
 namespace rns8::detail {
+// Private one-level modular Strassen. Caller owns integer range admission and
+// invalidation after a failed final commit; earlier failures preserve C.
+rns8_status hip_direct_gemm_strassen_device(
+    int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
 // Private modular block-sparse producer; public bounded/exact range admission
 // and output transaction ownership remain the caller's responsibility.
 rns8_status hip_direct_gemm_block_sparse_device(

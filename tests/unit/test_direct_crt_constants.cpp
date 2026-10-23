@@ -1,8 +1,26 @@
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/direct_crt_constants.hpp"
+#include "backend_common/strassen_program.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <random>
+
+TEST_CASE("Strassen coefficient identity rejects mutations") {
+  using namespace rns8::detail::strassen;
+  REQUIRE(verified(program()));
+  for (int p = 0; p < 7; ++p)
+    for (int term = 0; term < 4; ++term) {
+      auto changed = program();
+      ++changed.products[p].a[term];
+      REQUIRE_FALSE(verified(changed));
+      changed = program();
+      ++changed.products[p].b[term];
+      REQUIRE_FALSE(verified(changed));
+      changed = program();
+      ++changed.products[p].c[term];
+      REQUIRE_FALSE(verified(changed));
+    }
+}
 #include <vector>
 
 TEST_CASE("direct CRT constants and unreduced widths match exact integer "

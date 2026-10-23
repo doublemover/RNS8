@@ -637,6 +637,7 @@ namespace rns8::detail {
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"
+#include "hip_backend_strassen.inc"
 
 rns8_status hip_direct_synchronize(int device_id) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

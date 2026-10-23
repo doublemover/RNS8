@@ -520,3 +520,10 @@ public linear epilogue now admits the complete alpha*AB+beta*D bound before
 writes, rejects output aliases and publishes through the existing write guard.
 See [exact epilogues](exact-epilogues.md). CPU/HIP API fixtures are authored;
 compilation, execution and performance qualification of this addition are pending.
+
+The public exact epilogue HIP test executable compiled at `0717c19`; runtime
+validation remains pending. The #48 private GPU baseline now performs one-level
+Strassen transforms, existing direct-HIP subproducts and staged recombination,
+with scratch reuse and compile-time coefficient verification. See
+[device Strassen](strassen-device.md) for width/lifetime bounds and remaining
+retirement gates. This addition is not yet compiled or executed.

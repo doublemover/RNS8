@@ -57,3 +57,4 @@ namespace {
 #include "test_hip_direct_block_sparse_cases.inc"
 #include "test_hip_direct_layout_cases.inc"
 #include "test_hip_direct_direct_crt_cases.inc"
+#include "test_hip_direct_strassen_cases.inc"

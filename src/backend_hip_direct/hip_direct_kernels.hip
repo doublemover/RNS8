@@ -9,6 +9,7 @@
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
 #include "../backend_common/balanced_crt.hpp"
+#include "../backend_common/strassen_program.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/ragged_residues.hpp"
@@ -51,6 +52,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_balanced_crt_kernels.cuh"
+#include "hip_direct_strassen_kernels.cuh"
 #include "hip_direct_int4_kernels.cuh"
 #include "hip_direct_native_wmma_kernels.cuh"
 #include "hip_direct_bound_kernels.cuh"
@@ -58,6 +60,23 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
+    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs) {
+  hipLaunchKernelGGL(rns8_strassen_transform_kernel,dim3((static_cast<uint64_t>(hr)*hc+255)/256,prefix),dim3(256),0,nullptr,
+      source,output,rows,cols,ld,hr,hc,product,lhs);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index) {
+  hipLaunchKernelGGL(rns8_strassen_combine_kernel,dim3((static_cast<uint64_t>(m)*n+255)/256,prefix),dim3(256),0,nullptr,
+      product,stage,m,n,hm,hn,index);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_strassen_commit(const int8_t* stage,int8_t* output,int m,int n,int ldc,int prefix) {
+  hipLaunchKernelGGL(rns8_strassen_commit_kernel,dim3((static_cast<uint64_t>(m)*n+255)/256,prefix),dim3(256),0,nullptr,
+      stage,output,m,n,ldc);
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_export_canonical_balanced_crt(
     const int8_t* residues,uint64_t* limbs,int cells,const rns8::detail::balanced_crt::Plan* plan) {
