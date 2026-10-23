@@ -564,3 +564,16 @@ workspace reuse with structural equality before retaining the new identity.
 See [plan validation](plan-validation.md). Diagnostic mutation tests retain full
 revalidation; high-tile-count traversal counters and collision fixtures are
 authored. Compilation, execution and latency measurements remain pending.
+
+Fresh issue-comment repairs are implemented for #24's sparse host dense-plane
+stride domain, #29's exact integer certificate schema, #30's interval-liveness
+workspace bound and #39's pre-reduction direct-CRT width certificate. These
+changes have authored adversarial fixtures and await combined execution.
+Sparse conversions prove accessed bytes against SIZE_MAX/PTRDIFF_MAX before
+access; unused single-row/plane pitch remains legal. Malformed certificate
+endpoints receive no proof hash, and CLI input rejects non-finite JSON constants.
+Planner workspace admission now bounds all lifetimes between earliest launch
+and latest last-consumer completion; it is explicitly conservative and includes
+equal-time boundaries. CRT certificates distinguish inverse multiply, weighted
+multiply, ordered sum and final reduction widths; an optional temporary-width
+check rejects a uniformly narrow lowering of an otherwise adequate sum.

@@ -66,10 +66,16 @@ def _canonical_residues(plan: CrtPlan, residues: tuple[int, ...]) -> None:
         raise ValueError("residues must be canonical")
 
 
-def direct(plan: CrtPlan, residues: tuple[int, ...], accumulator_bits: int | None = None) -> int:
+def direct(plan: CrtPlan, residues: tuple[int, ...], accumulator_bits: int | None = None,
+           temporary_bits: int | None = None) -> int:
+    """accumulator_bits covers the sum only; None temporaries use exact Python integers."""
     _canonical_residues(plan, residues)
-    if accumulator_bits is not None and accumulator_bits < plan.direct_accumulator_bits:
+    if accumulator_bits is not None and (type(accumulator_bits) is not int or accumulator_bits < plan.direct_accumulator_bits):
         raise ValueError("direct CRT accumulator cannot hold its unreduced weighted sum")
+    required_temporary = max(max((m - 1) * inv, (m - 1) * weight).bit_length()
+                             for m, inv, weight in zip(plan.moduli, plan.inverses, plan.weights))
+    if temporary_bits is not None and (type(temporary_bits) is not int or temporary_bits < required_temporary):
+        raise ValueError("direct CRT temporary cannot hold pre-reduction or weighted multiplication")
     value = sum(((r * inv) % m) * weight
                 for r, inv, m, weight in zip(residues, plan.inverses, plan.moduli, plan.weights))
     assert 0 <= value <= plan.direct_sum_max
@@ -91,6 +97,20 @@ def balanced(plan: CrtPlan, residues: tuple[int, ...]) -> int:
 
 
 def width_certificate(plan: CrtPlan) -> dict:
+    direct_stages = []
+    running = 0
+    for index, (modulus, inverse, weight) in enumerate(zip(plan.moduli, plan.inverses, plan.weights)):
+        multiply = (modulus - 1) * inverse
+        weighted = (modulus - 1) * weight
+        running += weighted
+        direct_stages.append({"plane": index, "input_normalization": "canonical_unsigned_required",
+                              "input_max": modulus - 1, "inverse_multiply_max": multiply,
+                              "inverse_multiply_unsigned_bits": max(1, multiply.bit_length()),
+                              "reduced_coefficient_max": modulus - 1,
+                              "weighted_multiply_max": weighted,
+                              "weighted_multiply_unsigned_bits": max(1, weighted.bit_length()),
+                              "ordered_sum_max": running,
+                              "ordered_sum_unsigned_bits": max(1, running.bit_length())})
     merges = []
     for index, node in enumerate(plan.nodes):
         if node.left is None:
@@ -102,6 +122,9 @@ def width_certificate(plan: CrtPlan) -> dict:
                        "product_plus_left_max": pa * pb - 1,
                        "result_bits": (node.product - 1).bit_length()})
     return {"direct_sum_max": plan.direct_sum_max,
-            "direct_accumulator_bits": plan.direct_accumulator_bits,
+            "direct_sum_accumulator_unsigned_bits": plan.direct_accumulator_bits,
+            "direct_stages": direct_stages,
+            "direct_final_reduction_input_max": plan.direct_sum_max,
+            "direct_final_reduction_output_max": plan.product - 1,
             "product_bits": plan.product.bit_length(), "merges": merges,
             "hardware_qualified": False, "quotient_hint_qualified": False}
