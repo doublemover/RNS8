@@ -355,7 +355,7 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
 
   // Exhausted generations cannot admit a cache hit, even on the same handle.
   b_matrix->content_generation = UINT64_MAX;
-  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B0.data(), n, 11) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B0.data(), n, 12) == RNS8_SUCCESS);
   REQUIRE(b_matrix->generation_exhausted);
   REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B1.data(), n, 11) == RNS8_SUCCESS);
