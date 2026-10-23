@@ -2,6 +2,7 @@
 #include <atomic>
 #include <memory>
 #include <unordered_set>
+#include <unordered_map>
 #include "core/hip_resources.hpp"
 
 using namespace rns8::detail::api;
@@ -284,6 +285,7 @@ rns8_status rns8_execute_prepared_group(
 rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group) {
   if (!group) return RNS8_SUCCESS;
   if (group->running) return RNS8_BUSY;
+  for (auto* e : group->executions) if (e->running) return RNS8_BUSY;
   for (auto* e : group->executions) --e->group_references;
   delete group;
   return RNS8_SUCCESS;

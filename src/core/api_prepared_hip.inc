@@ -3,7 +3,8 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   --e.a->in_flight_readers;
   if (e.a != e.b)
     --e.b->in_flight_readers;
-  if (e.d && e.d != e.a && e.d != e.b) --e.d->in_flight_readers;
+  if (e.d && e.d != e.a && e.d != e.b)
+    --e.d->in_flight_readers;
   e.c->in_flight_writer = false;
   e.workspace->in_flight = false;
   if (operation == RNS8_SUCCESS) {
@@ -84,87 +85,116 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
 #endif
   });
 }
+struct PreparedHipProof {
+  boost::multiprecision::cpp_int bound;
+  rns8_exact_matrix_ranges ranges;
+};
+static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
+                                             void *stream, bool graph,
+                                             PreparedHipProof &proof) {
+  if (!e || !stream)
+    return RNS8_INVALID_ARGUMENT;
+  if (e->running)
+    return RNS8_BUSY;
+  if (!e->hip_submission_prepared)
+    return RNS8_UNSUPPORTED_BACKEND;
+  if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
+      e->b->in_flight_readers == UINT64_MAX ||
+      (e->d && e->d->in_flight_readers == UINT64_MAX))
+    return RNS8_RANGE_ERROR;
+  auto status = validate_prepared(*e);
+  if (status != RNS8_SUCCESS)
+    return status;
+  if (!inputs_match(*e))
+    return RNS8_INVALID_ARGUMENT;
+  status = prepared_range(*e, proof.bound, proof.ranges);
+  if (status != RNS8_SUCCESS)
+    return status;
+  if (!rns8::detail::qualified_i32_gemm_address(
+          e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
+          e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
+    return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (graph &&
+      (!e->graph_executable || e->graph_a != e->a->hip_residues ||
+       e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues ||
+       (e->d && e->graph_d != e->d->hip_residues)))
+    return RNS8_UNSUPPORTED_BACKEND;
+  if (hipSetDevice(e->ctx->device_id) != hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  hipDevice_t stream_device = -1;
+  if (hipStreamGetDevice(static_cast<hipStream_t>(stream), &stream_device) !=
+          hipSuccess ||
+      stream_device != e->ctx->device_id)
+    return RNS8_INVALID_ARGUMENT;
+  hipStreamCaptureStatus capture = hipStreamCaptureStatusNone;
+  if (hipStreamIsCapturing(static_cast<hipStream_t>(stream), &capture) !=
+      hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  if (capture != hipStreamCaptureStatusNone)
+    return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_SUCCESS;
+#else
+  (void)graph;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+static rns8_status start_prepared_submission(rns8_prepared_execution *e,
+                                             void *stream,
+                                             rns8_completion_token *token,
+                                             bool graph,
+                                             PreparedHipProof &proof) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  e->pending_bound.swap(proof.bound);
+  e->pending_ranges = std::move(proof.ranges);
+  invalidate_output_currentness(*e->c);
+  ++e->a->in_flight_readers;
+  if (e->a != e->b)
+    ++e->b->in_flight_readers;
+  if (e->d && e->d != e->a && e->d != e->b)
+    ++e->d->in_flight_readers;
+  e->c->in_flight_writer = true;
+  e->workspace->in_flight = true;
+  e->running = true;
+  e->pending_stream = stream;
+  ++e->epoch;
+  *token = {e->id, e->epoch};
+  auto status =
+      graph ? (hipGraphLaunch(e->graph_executable,
+                              static_cast<hipStream_t>(stream)) == hipSuccess
+                   ? RNS8_SUCCESS
+                   : RNS8_BACKEND_FAILURE)
+            : enqueue_prepared(*e, stream);
+  if (status == RNS8_SUCCESS &&
+      hipEventRecord(e->completion_event.get(),
+                     static_cast<hipStream_t>(stream)) != hipSuccess)
+    status = RNS8_BACKEND_FAILURE;
+  if (status != RNS8_SUCCESS) {
+    (void)hipStreamSynchronize(static_cast<hipStream_t>(stream));
+    finish_prepared_hip(*e, status);
+  }
+  return status;
+#else
+  (void)e;
+  (void)stream;
+  (void)token;
+  (void)graph;
+  (void)proof;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
                                             void *stream,
                                             rns8_completion_token *token,
                                             bool graph) {
   return guard_api([&]() -> rns8_status {
-    if (!e || !stream || !token)
+    if (!token)
       return RNS8_INVALID_ARGUMENT;
-    if (e->running)
-      return RNS8_BUSY;
-    if (!e->hip_submission_prepared)
-      return RNS8_UNSUPPORTED_BACKEND;
-    if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
-        e->b->in_flight_readers == UINT64_MAX ||
-        (e->d && e->d->in_flight_readers == UINT64_MAX))
-      return RNS8_RANGE_ERROR;
-    auto status = validate_prepared(*e);
+    PreparedHipProof proof;
+    const auto status = prove_prepared_submission(e, stream, graph, proof);
     if (status != RNS8_SUCCESS)
       return status;
-    if (!inputs_match(*e))
-      return RNS8_INVALID_ARGUMENT;
-    boost::multiprecision::cpp_int bound;
-    rns8_exact_matrix_ranges ranges;
-    status =
-        prepared_range(*e, bound, ranges);
-    if (status != RNS8_SUCCESS)
-      return status;
-    if (!rns8::detail::qualified_i32_gemm_address(
-            e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
-            e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
-      return RNS8_UNSUPPORTED_BACKEND;
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if (graph &&
-        (!e->graph_executable || e->graph_a != e->a->hip_residues ||
-         e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues ||
-         (e->d && e->graph_d != e->d->hip_residues)))
-      return RNS8_UNSUPPORTED_BACKEND;
-    if (hipSetDevice(e->ctx->device_id) != hipSuccess)
-      return RNS8_BACKEND_FAILURE;
-    hipDevice_t stream_device = -1;
-    if (hipStreamGetDevice(static_cast<hipStream_t>(stream), &stream_device) !=
-            hipSuccess ||
-        stream_device != e->ctx->device_id)
-      return RNS8_INVALID_ARGUMENT;
-    hipStreamCaptureStatus capture = hipStreamCaptureStatusNone;
-    if (hipStreamIsCapturing(static_cast<hipStream_t>(stream), &capture) !=
-        hipSuccess)
-      return RNS8_BACKEND_FAILURE;
-    if (capture != hipStreamCaptureStatusNone)
-      return RNS8_UNSUPPORTED_BACKEND;
-    e->pending_bound.swap(bound);
-    e->pending_ranges = std::move(ranges);
-    invalidate_output_currentness(*e->c);
-    ++e->a->in_flight_readers;
-    if (e->a != e->b)
-      ++e->b->in_flight_readers;
-    if (e->d && e->d != e->a && e->d != e->b) ++e->d->in_flight_readers;
-    e->c->in_flight_writer = true;
-    e->workspace->in_flight = true;
-    e->running = true;
-    e->pending_stream = stream;
-    ++e->epoch;
-    *token = {e->id, e->epoch};
-    status =
-        graph ? (hipGraphLaunch(e->graph_executable,
-                                static_cast<hipStream_t>(stream)) == hipSuccess
-                     ? RNS8_SUCCESS
-                     : RNS8_BACKEND_FAILURE)
-              : enqueue_prepared(*e, stream);
-    if (status == RNS8_SUCCESS &&
-        hipEventRecord(e->completion_event.get(),
-                       static_cast<hipStream_t>(stream)) != hipSuccess)
-      status = RNS8_BACKEND_FAILURE;
-    if (status != RNS8_SUCCESS) {
-      (void)hipStreamSynchronize(static_cast<hipStream_t>(stream));
-      finish_prepared_hip(*e, status);
-    }
-    return status;
-#else
-    (void)graph;
-    return RNS8_UNSUPPORTED_BACKEND;
-#endif
+    return start_prepared_submission(e, stream, token, graph, proof);
   });
 }
 rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
@@ -236,4 +266,80 @@ rns8_status rns8_wait_prepared_hip(rns8_prepared_execution *e,
                                    rns8_completion_token token,
                                    rns8_completion_info *out) {
   return observe_prepared_hip(e, token, out, true);
+}
+
+static rns8_status
+submit_prepared_group_hip_impl(rns8_prepared_group *group, void *const *streams,
+                               uint32_t count, rns8_completion_token *tokens,
+                               uint32_t token_capacity, uint32_t *out_submitted,
+                               bool graph) {
+  return guard_api([&]() -> rns8_status {
+    if (!group || !streams || !tokens || !out_submitted ||
+        count != group->executions.size() || token_capacity < count)
+      return RNS8_INVALID_ARGUMENT;
+    *out_submitted = 0;
+    if (group->running)
+      return RNS8_BUSY;
+    std::unordered_set<const rns8_workspace *> workspaces;
+    std::unordered_map<const rns8_matrix *, uint64_t> readers;
+    std::vector<PreparedHipProof> proofs(count);
+    workspaces.reserve(count);
+    readers.reserve(static_cast<size_t>(count) * 3);
+    const auto device = group->executions.front()->ctx->device_id;
+    for (uint32_t i = 0; i < count; ++i) {
+      auto *e = group->executions[i];
+      if (e->ctx->device_id != device)
+        return RNS8_UNSUPPORTED_BACKEND;
+      if (!workspaces.insert(e->workspace).second)
+        return RNS8_INVALID_ARGUMENT;
+      const auto status =
+          prove_prepared_submission(e, streams[i], graph, proofs[i]);
+      if (status != RNS8_SUCCESS)
+        return status;
+      ++readers[e->a];
+      if (e->b != e->a)
+        ++readers[e->b];
+      if (e->d && e->d != e->a && e->d != e->b)
+        ++readers[e->d];
+    }
+    for (const auto &[matrix, reservations] : readers)
+      if (matrix->in_flight_readers > UINT64_MAX - reservations)
+        return RNS8_RANGE_ERROR;
+    // Whole-batch admission is complete. No allocation or proof recomputation
+    // follows the first enqueue. Host calls sharing these handles are
+    // serialized.
+    struct RunningGuard {
+      bool &running;
+      explicit RunningGuard(bool &flag) : running(flag) { running = true; }
+      ~RunningGuard() { running = false; }
+    } running(group->running);
+    for (uint32_t i = 0; i < count; ++i) {
+      auto *e = group->executions[i];
+      const auto prior_epoch = e->epoch;
+      const auto status = start_prepared_submission(e, streams[i], tokens + i,
+                                                    graph, proofs[i]);
+      if (e->epoch != prior_epoch)
+        ++*out_submitted;
+      if (status != RNS8_SUCCESS)
+        return status;
+    }
+    return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_submit_prepared_group_hip(rns8_prepared_group *group,
+                                           void *const *streams, uint32_t count,
+                                           rns8_completion_token *tokens,
+                                           uint32_t token_capacity,
+                                           uint32_t *out_submitted) {
+  return submit_prepared_group_hip_impl(group, streams, count, tokens,
+                                        token_capacity, out_submitted, false);
+}
+rns8_status rns8_submit_prepared_group_hip_graph(rns8_prepared_group *group,
+                                                 void *const *streams,
+                                                 uint32_t count,
+                                                 rns8_completion_token *tokens,
+                                                 uint32_t token_capacity,
+                                                 uint32_t *out_submitted) {
+  return submit_prepared_group_hip_impl(group, streams, count, tokens,
+                                        token_capacity, out_submitted, true);
 }

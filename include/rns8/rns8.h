@@ -165,6 +165,20 @@ RNS8_API rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* gro
 RNS8_API rns8_status rns8_execute_prepared_group(
     rns8_prepared_group* group, rns8_completion_token* tokens, uint32_t token_capacity,
     uint32_t* out_executed);
+/* Same-device independent HIP batch. Prepare each member's event (and owned
+ * capture for the graph variant) first. One non-default stream per member;
+ * streams may repeat but workspaces must be unique. All range/stream/generation
+ * checks and aggregate reader-overflow admission precede any enqueue.
+ * out_submitted counts issued tokens, including a failed enqueue. Observe each
+ * token through its member's ordinary query/wait API; earlier issued work may
+ * remain pending on runtime failure. Later token slots are untouched. Group
+ * destruction is BUSY while any member remains pending. */
+RNS8_API rns8_status rns8_submit_prepared_group_hip(
+    rns8_prepared_group* group, void* const* streams, uint32_t count,
+    rns8_completion_token* tokens, uint32_t token_capacity, uint32_t* out_submitted);
+RNS8_API rns8_status rns8_submit_prepared_group_hip_graph(
+    rns8_prepared_group* group, void* const* streams, uint32_t count,
+    rns8_completion_token* tokens, uint32_t token_capacity, uint32_t* out_submitted);
 RNS8_API rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group);
 
 typedef struct rns8_context_options {

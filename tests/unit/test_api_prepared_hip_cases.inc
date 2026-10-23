@@ -378,3 +378,4 @@ TEST_CASE("prepared HIP epilogues bind addends and preserve capture expression i
   SKIP("HIP epilogue submission unavailable in this build");
 #endif
 }
+#include "test_api_prepared_batch_cases.inc"

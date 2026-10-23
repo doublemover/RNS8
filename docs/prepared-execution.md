@@ -124,8 +124,33 @@ Group execution likewise preflights every binding before starting the first
 task. It executes ordinary calls sequentially, stops on the first failure, and
 returns the count of issued completion records. Earlier successful results
 remain available. Later token slots are untouched. This is an ordinary-launch
-baseline for #38, not a persistent matrix-engine queue, uploaded tile schedule
-or async submission.
+baseline for #38. It does not upload a tile schedule or use a persistent
+matrix-engine queue.
+
+`rns8_submit_prepared_group_hip` submits an independent same-device batch to
+caller-owned streams. Prepare each member's HIP submission resources first.
+`rns8_submit_prepared_group_hip_graph` instead replays each member's previously
+captured graph. Streams may repeat; workspaces must be distinct. All members
+must satisfy the fixed-prefix exact-wide submission contract. Different
+contexts may be used only when they address the same physical HIP device.
+
+Before the first enqueue, the batch checks every stream, binding, address,
+range proof, workspace, epoch and aggregate shared-input reader count. Proofs
+are constructed once and moved into the individual completion owners. A
+preflight failure leaves all output generations and token slots untouched and
+reports zero submissions. After enqueue starts, a backend failure stops the
+batch: earlier submissions remain owned by their execution handles, the failed
+submission also receives a token, and later slots remain untouched. The returned
+count identifies issued tokens, rather than successful or completed operations.
+
+Query or wait each issued token on its execution handle. Only observation of
+that member's completion publishes its output and releases its reservations.
+Group destruction and refresh return busy while any member remains pending.
+Host calls sharing handles must be serialized. This API batches host admission
+and enqueue; overlap, throughput and graph replay break-even remain unmeasured.
+Authored coverage includes shared A/B inputs, mixed GEMM/epilogues, reverse-order
+completion observation, shared-workspace rejection, reader-count overflow and
+a later member's range failure before any output mutation.
 
 ## Prepared exact epilogues
 
