@@ -447,3 +447,12 @@ fixtures cover arithmetic families, two retained consumers, A==B, reverse
 execution/destruction order, stale inputs and old completions. Compilation and
 execution of this slice are pending; async submission and graph envelopes remain
 open.
+
+The #38 first public baseline can retain heterogeneous prepared executions,
+preflight all generations and writer ownership, refresh bindings transactionally,
+and execute through ordinary sequential calls with per-task completion tokens.
+Mixed-shape/semantic, stale-later-task and cross-task hazard fixtures are authored.
+Persistent matrix-engine queues, uploaded tile descriptors, bounded chunk
+scheduling, fairness and performance qualification remain open. The preceding
+single-execution API compiled in the CPU build at `55feaea`; this group addition
+and all new runtime tests remain unvalidated.

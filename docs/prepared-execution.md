@@ -42,3 +42,19 @@ This is the first synchronous slice of issue #43. Explicit streams, retained
 in-flight reservations, dependency tokens, fixed graph resource envelopes,
 data-ready versus status-ready events, graph replay and asynchronous wait/query
 remain separate implementation and qualification work. No speedup is claimed.
+
+## Heterogeneous prepared groups
+
+`rns8_create_prepared_group` retains an immutable list of up to 65536 prepared
+executions. Tasks may have different shapes, semantics and prefixes. Shared
+readers are legal; duplicate writers and cross-task output/input hazards are
+rejected in expected linear time. The group retains execution handles, which
+in turn retain all resources. Destroy groups before executions.
+
+Group refresh validates all tasks before changing any generation binding.
+Group execution likewise preflights every binding before starting the first
+task. It executes ordinary calls sequentially, stops on the first failure, and
+returns the count of issued completion records. Earlier successful results
+remain available. Later token slots are untouched. This is an ordinary-launch
+baseline for #38, not a persistent matrix-engine queue, uploaded tile schedule
+or async submission.

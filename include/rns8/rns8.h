@@ -22,6 +22,7 @@ typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
 typedef struct rns8_result_cache rns8_result_cache;
 typedef struct rns8_prepared_execution rns8_prepared_execution;
+typedef struct rns8_prepared_group rns8_prepared_group;
 
 typedef struct rns8_completion_token {
   uint64_t prepared_id;
@@ -60,6 +61,23 @@ RNS8_API rns8_status rns8_execute_prepared(
 RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
+
+/* Immutable heterogeneous group of 1..65536 prepared executions. Retains its
+ * execution handles; their destruction returns BUSY until the group is destroyed.
+ * Shared readers are allowed. Duplicate writers and cross-task read/write
+ * hazards are rejected. Refresh and execute validate all tasks before changes.
+ * Execution uses sequential ordinary launches, stops on the first operation
+ * failure, and reports attempted executions (including that failed operation).
+ * Earlier successful outputs remain current; later token slots are untouched.
+ * Preflight failure executes no tasks. External shared-handle serialization is
+ * required, as for individual prepared execution. */
+RNS8_API rns8_status rns8_create_prepared_group(
+    rns8_prepared_execution* const* executions, uint32_t count, rns8_prepared_group** out);
+RNS8_API rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group);
+RNS8_API rns8_status rns8_execute_prepared_group(
+    rns8_prepared_group* group, rns8_completion_token* tokens, uint32_t token_capacity,
+    uint32_t* out_executed);
+RNS8_API rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group);
 
 typedef struct rns8_context_options {
   uint64_t struct_size;

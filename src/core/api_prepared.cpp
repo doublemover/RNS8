@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include <atomic>
 #include <memory>
+#include <unordered_set>
 
 using namespace rns8::detail::api;
 
@@ -14,6 +15,12 @@ struct rns8_prepared_execution {
   uint64_t id = 0, epoch = 0;
   uint64_t a_instance = 0, a_generation = 0, b_instance = 0, b_generation = 0;
   rns8_completion_info completion{};
+  bool running = false;
+  uint64_t group_references = 0;
+};
+
+struct rns8_prepared_group {
+  std::vector<rns8_prepared_execution*> executions;
   bool running = false;
 };
 
@@ -33,7 +40,7 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
   switch (e.plan->desc.semantics) {
     case RNS8_FINITE_RING_U8:
     case RNS8_FINITE_FIELD_U8:
-      return validate_finite_gemm_operands(*e.ctx, *e.plan, e.plan->desc.finite_modulus, *e.a, *e.b, *e.c);
+      return validate_finite_gemm_operands(*e.ctx, *e.plan, static_cast<uint16_t>(e.plan->desc.finite_modulus), *e.a, *e.b, *e.c);
     case RNS8_WRAP_U64_MOD_2_64:
       return validate_wrap_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
     default:
@@ -43,6 +50,10 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
 void bind_inputs(rns8_prepared_execution& e) {
   e.a_instance = e.a->matrix_instance_id; e.a_generation = e.a->content_generation;
   e.b_instance = e.b->matrix_instance_id; e.b_generation = e.b->content_generation;
+}
+bool inputs_match(const rns8_prepared_execution& e) {
+  return e.a_instance == e.a->matrix_instance_id && e.a_generation == e.a->content_generation &&
+         e.b_instance == e.b->matrix_instance_id && e.b_generation == e.b->content_generation;
 }
 // A==B is legal; hold that resource once. No allocation follows retention.
 void reference_slots(const rns8_prepared_execution& e, uint64_t* (&slots)[6]) {
@@ -92,16 +103,15 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
     if (e->epoch == UINT64_MAX) return RNS8_RANGE_ERROR;
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
-    if (e->a_instance != e->a->matrix_instance_id || e->a_generation != e->a->content_generation ||
-        e->b_instance != e->b->matrix_instance_id || e->b_generation != e->b->content_generation)
-      return RNS8_INVALID_ARGUMENT;
+    if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
     e->running = true;
     ++e->epoch;
     rns8_status operation = RNS8_INTERNAL_ERROR;
     switch (e->plan->desc.semantics) {
       case RNS8_FINITE_RING_U8:
       case RNS8_FINITE_FIELD_U8:
-        operation = rns8_gemm_finite_u8(e->ctx, e->plan, e->plan->desc.finite_modulus, e->a, e->b, e->c, e->workspace);
+        operation = rns8_gemm_finite_u8(e->ctx, e->plan, static_cast<uint16_t>(e->plan->desc.finite_modulus),
+                                      e->a, e->b, e->c, e->workspace);
         break;
       case RNS8_WRAP_U64_MOD_2_64:
         operation = rns8_gemm_wrap_u64(e->ctx, e->plan, e->a, e->b, e->c, e->workspace);
@@ -136,10 +146,82 @@ rns8_status rns8_get_prepared_completion(
 }
 rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   if (!e) return RNS8_SUCCESS;
-  if (e->running) return RNS8_BUSY;
+  if (e->running || e->group_references) return RNS8_BUSY;
   uint64_t* slots[6]{};
   reference_slots(*e, slots);
   for (auto slot : slots) if (slot) --*slot;
   delete e;
+  return RNS8_SUCCESS;
+}
+
+rns8_status rns8_create_prepared_group(
+    rns8_prepared_execution* const* executions, uint32_t count, rns8_prepared_group** out) {
+  return guard_api([&]() -> rns8_status {
+    if (!out) return RNS8_INVALID_ARGUMENT;
+    *out = nullptr;
+    if (!executions || !count || count > 65536) return RNS8_INVALID_ARGUMENT;
+    auto group = std::make_unique<rns8_prepared_group>();
+    group->executions.assign(executions, executions + count);
+    std::unordered_set<const rns8_matrix*> writers, readers;
+    writers.reserve(count); readers.reserve(static_cast<std::size_t>(count) * 2);
+    for (auto* e : group->executions) {
+      if (!e) return RNS8_INVALID_ARGUMENT;
+      if (e->running) return RNS8_BUSY;
+      if (e->group_references == UINT64_MAX) return RNS8_RANGE_ERROR;
+      auto status = validate_prepared(*e);
+      if (status != RNS8_SUCCESS) return status;
+      if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
+      if (!writers.insert(e->c).second) return RNS8_INVALID_ARGUMENT;
+      readers.insert(e->a); readers.insert(e->b);
+    }
+    for (auto* writer : writers) if (readers.count(writer)) return RNS8_INVALID_ARGUMENT;
+    for (auto* e : group->executions) ++e->group_references;
+    *out = group.release();
+    return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
+  return guard_api([&]() -> rns8_status {
+    if (!group) return RNS8_INVALID_ARGUMENT;
+    if (group->running) return RNS8_BUSY;
+    for (auto* e : group->executions) {
+      if (e->running) return RNS8_BUSY;
+      auto status = validate_prepared(*e);
+      if (status != RNS8_SUCCESS) return status;
+    }
+    for (auto* e : group->executions) bind_inputs(*e);
+    return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_execute_prepared_group(
+    rns8_prepared_group* group, rns8_completion_token* tokens, uint32_t token_capacity, uint32_t* out_executed) {
+  return guard_api([&]() -> rns8_status {
+    if (!group || !tokens || !out_executed || token_capacity < group->executions.size())
+      return RNS8_INVALID_ARGUMENT;
+    *out_executed = 0;
+    if (group->running) return RNS8_BUSY;
+    for (auto* e : group->executions) {
+      if (e->running) return RNS8_BUSY;
+      if (e->epoch == UINT64_MAX) return RNS8_RANGE_ERROR;
+      const auto status = validate_prepared(*e);
+      if (status != RNS8_SUCCESS) return status;
+      if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
+    }
+    group->running = true;
+    for (auto* e : group->executions) {
+      const auto prior_epoch = e->epoch;
+      const auto status = rns8_execute_prepared(e, tokens + *out_executed);
+      if (e->epoch != prior_epoch) ++*out_executed;
+      if (status != RNS8_SUCCESS) { group->running = false; return status; }
+    }
+    group->running = false;
+    return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group) {
+  if (!group) return RNS8_SUCCESS;
+  if (group->running) return RNS8_BUSY;
+  for (auto* e : group->executions) --e->group_references;
+  delete group;
   return RNS8_SUCCESS;
 }
