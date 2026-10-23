@@ -12,6 +12,12 @@ struct NativeTileBound {
   uint32_t required_prefix = 0; // 0 proves zero; 21 means not admitted.
   uint32_t reserved = 0;
 };
+enum class NativeBoundMethod : uint32_t { tile_max = 0, axis_l1 = 1 };
+struct NativeAxisSummary {
+  uint64_t maximum = 0;
+  uint64_t l1_low = 0;
+  uint64_t l1_high = 0; // At most UINT32_MAX for at most UINT32_MAX native cells.
+};
 // Exact portable multiplication; no saturation or signed negation of INT64_MIN.
 RNS8_BOUND_HD constexpr NativeTileBound native_tile_max_bound(uint64_t a, uint64_t b, uint32_t k) {
   NativeTileBound out{};
@@ -34,6 +40,28 @@ RNS8_BOUND_HD constexpr NativeTileBound native_tile_max_bound(uint64_t a, uint64
     carry = y >> 32;
   }
   return out;
+}
+RNS8_BOUND_HD constexpr NativeTileBound native_l1_product_bound(uint64_t maximum, uint64_t low, uint64_t high) {
+  auto result = native_tile_max_bound(maximum, low, 1);
+  const auto upper = native_tile_max_bound(maximum, high, 1);
+  const uint64_t old = result.magnitude[1];
+  result.magnitude[1] += upper.magnitude[0];
+  result.magnitude[2] = upper.magnitude[1] + (result.magnitude[1] < old);
+  return result;
+}
+RNS8_BOUND_HD constexpr bool native_bound_less(const NativeTileBound& a, const NativeTileBound& b) {
+  for (int limb = 2; limb >= 0; --limb)
+    if (a.magnitude[limb] != b.magnitude[limb]) return a.magnitude[limb] < b.magnitude[limb];
+  return false;
+}
+RNS8_BOUND_HD constexpr NativeTileBound native_axis_l1_bound(
+    const NativeAxisSummary& a, const NativeAxisSummary& b, uint32_t k) {
+  auto bound = native_tile_max_bound(a.maximum, b.maximum, k);
+  const auto left = native_l1_product_bound(a.maximum, b.l1_low, b.l1_high);
+  const auto right = native_l1_product_bound(b.maximum, a.l1_low, a.l1_high);
+  if (native_bound_less(left, bound)) bound = left;
+  if (native_bound_less(right, bound)) bound = right;
+  return bound;
 }
 // products has 21 rows including P0=1. Caller supplies the fixed basis table.
 RNS8_BOUND_HD inline void select_native_bound_prefix(

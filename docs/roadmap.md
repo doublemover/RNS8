@@ -584,3 +584,10 @@ baseline at final admission. Synthetic provenance now keeps manifest/capture
 commits consistent. See [timing admission](timing-admission.md); these integration
 fixtures await combined validation. The HIP test executable compiled at
 `ee133a6`, including sparse stride-domain fixtures, without executing tests.
+
+The #34 device producer now has an explicit exact axis-L1 method alongside its
+max-only baseline. Two-limb row/column sums and three-limb products admit the
+minimum of three independently sound bounds; no default cost decision is made.
+See [device bound discovery](device-bound-discovery.md). CPU/GPU differential
+fixtures are authored; compilation, runtime and net-benefit measurements remain
+pending.

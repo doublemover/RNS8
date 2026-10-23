@@ -1,5 +1,5 @@
 template <typename NativeT>
-void check_native_bound_discovery(bool unsigned_inputs) {
+void check_native_bound_discovery(bool unsigned_inputs, rns8::detail::NativeBoundMethod method) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   constexpr int m = 35, n = 33, k = 17, lda = 19, ldb = 36;
@@ -31,7 +31,7 @@ void check_native_bound_discovery(bool unsigned_inputs) {
     REQUIRE(hip_direct_copy_host_to_device(0, di, indices.data(), indices.size() * sizeof(uint32_t)) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, dof, offsets.data(), offsets.size() * sizeof(uint32_t)) == RNS8_SUCCESS);
     REQUIRE(hip_direct_discover_native_tile_bounds(0, da, db, m, n, k, lda, ldb, unsigned_inputs, 20,
-        static_cast<NativeTileBound*>(dr), static_cast<uint32_t*>(di), static_cast<uint32_t*>(dof), 4096) == RNS8_SUCCESS);
+        static_cast<NativeTileBound*>(dr), static_cast<uint32_t*>(di), static_cast<uint32_t*>(dof), 4096, method) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_device_to_host(0, records.data(), dr, records.size() * sizeof(NativeTileBound)) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_device_to_host(0, indices.data(), di, indices.size() * sizeof(uint32_t)) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_device_to_host(0, offsets.data(), dof, offsets.size() * sizeof(uint32_t)) == RNS8_SUCCESS);
@@ -43,18 +43,31 @@ void check_native_bound_discovery(bool unsigned_inputs) {
     std::vector<bool> seen(tiles);
     constexpr int moduli[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167};
     for (int tile = 0; tile < tiles; ++tile) {
-      cpp_int max_a = 0, max_b = 0;
-      for (int row = tile / tc * 16; row < std::min(m, (tile / tc + 1) * 16); ++row)
+      cpp_int max_a = 0, max_b = 0, sum_a = 0, sum_b = 0;
+      for (int row = tile / tc * 16; row < std::min(m, (tile / tc + 1) * 16); ++row) {
+        cpp_int row_sum = 0;
         for (int q = 0; q < k; ++q) {
           cpp_int x = boost::multiprecision::abs(cpp_int(a[row * lda + q]));
           if (x > max_a) max_a = x;
+          row_sum += x;
         }
-      for (int col = tile % tc * 16; col < std::min(n, (tile % tc + 1) * 16); ++col)
+        if (row_sum > sum_a) sum_a = row_sum;
+      }
+      for (int col = tile % tc * 16; col < std::min(n, (tile % tc + 1) * 16); ++col) {
+        cpp_int col_sum = 0;
         for (int q = 0; q < k; ++q) {
           cpp_int x = boost::multiprecision::abs(cpp_int(b[q * ldb + col]));
           if (x > max_b) max_b = x;
+          col_sum += x;
         }
-      const cpp_int exact = max_a * max_b * k;
+        if (col_sum > sum_b) sum_b = col_sum;
+      }
+      cpp_int exact = max_a * max_b * k;
+      if (method == NativeBoundMethod::axis_l1) {
+        const cpp_int left = max_a * sum_b, right = max_b * sum_a;
+        if (left < exact) exact = left;
+        if (right < exact) exact = right;
+      }
       const auto& record = records[tile];
       REQUIRE(cpp_int(record.magnitude[0]) + (cpp_int(record.magnitude[1]) << 64) +
           (cpp_int(record.magnitude[2]) << 128) == exact);
@@ -89,6 +102,8 @@ void check_native_bound_discovery(bool unsigned_inputs) {
 }
 TEST_CASE("device native bound discovery proves prefixes and complete compact buckets") {
   if (!hip_available()) SKIP("no HIP device for native bound discovery");
-  check_native_bound_discovery<int64_t>(false);
-  check_native_bound_discovery<uint64_t>(true);
+  for (auto method : {rns8::detail::NativeBoundMethod::tile_max, rns8::detail::NativeBoundMethod::axis_l1}) {
+    check_native_bound_discovery<int64_t>(false, method);
+    check_native_bound_discovery<uint64_t>(true, method);
+  }
 }
