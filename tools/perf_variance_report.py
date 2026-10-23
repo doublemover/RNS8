@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+from build_manifest import manifest_provenance_complete
 from timing_eligibility import phase_blockers
 from benchmark_sweep_lib.capture_metadata import (
     backend_id,
@@ -63,12 +64,8 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
     manifest = capture.get("build_manifest") or {}
     def sha256(value: Any) -> bool:
         return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
-    if (not isinstance(manifest, dict) or not isinstance(artifact, dict)
-            or manifest.get("version") != 1 or not sha256(manifest.get("source_digest"))
-            or not isinstance(manifest.get("source_dirty"), bool)
-            or not isinstance(manifest.get("source_commit"), str)
-            or re.fullmatch(r"[0-9a-f]{40}", manifest["source_commit"]) is None
-            or not manifest.get("configuration") or not manifest.get("dependency_digest")
+    if (not manifest_provenance_complete(manifest, backend_id(capture)) or not isinstance(artifact, dict)
+            or manifest.get("source_commit") != capture.get("git_commit")
             or not sha256(artifact.get("executable_sha256"))
             or artifact.get("rns8_linkage") not in {"static", "shared"}
             or (artifact.get("rns8_linkage") == "shared" and not sha256(artifact.get("shared_library_sha256")))

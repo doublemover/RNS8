@@ -127,6 +127,15 @@ def main() -> int:
         )
         assert report["blocked_count"] == 0
         assert report["capture_count"] == 2
+        provenance = json.loads(stable_a.read_text(encoding="utf-8"))
+        assert perf_variance_report.execution_cohort(provenance) is not None
+        for field, value in (("version", 1), ("source_dirty", True), ("external_dependencies", {})):
+            broken = copy.deepcopy(provenance)
+            broken["build_manifest"][field] = value
+            assert perf_variance_report.execution_cohort(broken) is None
+        broken = copy.deepcopy(provenance)
+        broken["git_commit"] = "f" * 40
+        assert perf_variance_report.execution_cohort(broken) is None
         assert all(entry["required_speedup_margin"] >= 1.03 for entry in report["entries"])
 
         duplicate_copy = tmp / "copy.json"

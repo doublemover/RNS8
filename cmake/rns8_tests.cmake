@@ -743,7 +743,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2)
   rns8_copy_windows_clang_asan_runtime(rns8_tests)
   include(Catch)
-  catch_discover_tests(rns8_tests)
+  # Older distro Catch2 discovery scripts omit this property even though the
+  # runtime returns 4 when every selected test is explicitly skipped.
+  catch_discover_tests(rns8_tests PROPERTIES SKIP_RETURN_CODE 4)
   if(RNS8_ENABLE_HIP)
     list(GET RNS8_AMDGPU_TARGETS 0 RNS8_HIP_ISA_CHECK_TARGET)
     add_test(

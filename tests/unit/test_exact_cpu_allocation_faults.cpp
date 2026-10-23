@@ -315,7 +315,12 @@ void allocator_self_check() {
   require(reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0, "aligned allocation hook");
   ::operator delete(aligned, std::align_val_t(64));
   void* array = ::operator new[](8);
+#if defined(__cpp_sized_deallocation)
   ::operator delete[](array, std::size_t(8));
+#else
+  // Clang does not enable sized deallocation by default on every platform.
+  ::operator delete[](array);
+#endif
   require(fault::live_allocations() == live, "hook paired deallocation accounting");
 }
 
