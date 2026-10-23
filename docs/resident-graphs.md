@@ -96,7 +96,7 @@ dense MatMul/ExactAxpby graph. `rns8_submit_resident_graph_hip` preflights every
 binding and propagates every intermediate proof, then enqueues the ordered DAG
 on one caller-owned nondefault stream. Internal dependencies follow stream
 order. BaseExtend/Export nodes and adaptive tile schedules reject as unsupported
-before launch; owned capture of an entire DAG is not yet implemented.
+before launch. Owned capture supports this same fixed resource envelope.
 
 The graph reserves each distinct external input once, each output as a writer,
 and each distinct workspace once. A workspace shared by serial nodes is legal.
@@ -122,3 +122,21 @@ diamonds, dependency chains, shared workspaces, reader overflow, stale tokens,
 busy lifetime rules and no early publication. CPU paths explicitly reject HIP
 preparation. Runtime correctness, leak/error recovery, overlap and submission
 latency measurements remain pending.
+
+`rns8_capture_resident_graph_hip` owns a HIP graph containing the ordered kernels
+and `rns8_replay_resident_graph_hip` replays it with the same whole-DAG range,
+reservation, token and observed-publication rules. Capture does not publish or
+change any matrix value. It retains every A/B/C/D address, including internal
+edges; a changed address rejects replay before reservation or output writes.
+Stable-address input changes require ordinary explicit input refresh. Shape,
+coefficients, topology or storage changes require a new graph/capture envelope.
+Replacement capture preserves the previous executable until instantiation
+succeeds. All outputs count as attempted on graph launch and remain invalid on
+a failed replay. Event recording stays outside the captured kernel graph.
+
+Authored replay tests cover diamonds, produced addends, signed/unsigned extreme
+coefficients, replacement capture, address substitution rejection, no capture
+publication and zero new allocations through the RNS8 device-allocation helper
+during submission/wait. HIP-internal allocations are not covered by that
+counter. Execution, capture leaks, instruction qualification and replay
+break-even remain pending.

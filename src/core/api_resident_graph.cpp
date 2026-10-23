@@ -29,8 +29,13 @@ struct rns8_resident_graph {
   rns8_graph_execution_info completion{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_unique_event completion_event;
+  hipGraph_t captured_graph = nullptr;
+  hipGraphExec_t captured_executable = nullptr;
+  std::vector<std::array<const void*, 4>> captured_addresses;
   ~rns8_resident_graph() {
-    if (ctx && completion_event) (void)hipSetDevice(ctx->device_id);
+    if (ctx && (completion_event || captured_graph || captured_executable)) (void)hipSetDevice(ctx->device_id);
+    if (captured_executable) (void)hipGraphExecDestroy(captured_executable);
+    if (captured_graph) (void)hipGraphDestroy(captured_graph);
   }
 #endif
 };

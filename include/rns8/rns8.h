@@ -112,6 +112,13 @@ RNS8_API rns8_status rns8_query_resident_graph_hip(
     rns8_resident_graph* graph, rns8_graph_completion_token token, rns8_graph_execution_info* info);
 RNS8_API rns8_status rns8_wait_resident_graph_hip(
     rns8_resident_graph* graph, rns8_graph_completion_token token, rns8_graph_execution_info* info);
+/* Own a fixed HIP capture of the same supported DAG envelope. Capture performs
+ * no matrix publication. Replay checks every captured device address and uses
+ * the ordinary graph completion token/reservation contract. Stable-address
+ * input mutation requires refresh. A failed recapture preserves the old graph. */
+RNS8_API rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph* graph);
+RNS8_API rns8_status rns8_replay_resident_graph_hip(
+    rns8_resident_graph* graph, void* stream, rns8_graph_completion_token* token);
 
 typedef struct rns8_completion_token {
   uint64_t prepared_id;

@@ -1,4 +1,18 @@
 namespace {
+rns8_status enqueue_resident_node(const rns8_resident_node &node,
+                                  void *stream) {
+  return node.kind == RNS8_RESIDENT_EXACT_AXPBY
+             ? rns8::detail::hip_direct_enqueue_axpby_no_publish(
+                   node.plan, node.a, node.b, node.d, node.c, node.alpha,
+                   node.beta, stream)
+             : rns8::detail::hip_direct_enqueue_rns_no_publish(
+                   node.plan, node.a, node.b, node.c, stream);
+}
+std::array<const void *, 4>
+resident_node_addresses(const rns8_resident_node &node) {
+  return {node.a->hip_residues, node.b->hip_residues, node.c->hip_residues,
+          node.d ? node.d->hip_residues : nullptr};
+}
 void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
                                uint32_t failed) {
   for (const auto &input : graph.inputs)
@@ -111,9 +125,10 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
   });
 }
 
-rns8_status rns8_submit_resident_graph_hip(rns8_resident_graph *graph,
-                                           void *stream,
-                                           rns8_graph_completion_token *token) {
+static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
+                                             void *stream,
+                                             rns8_graph_completion_token *token,
+                                             bool replay) {
   return guard_api([&]() -> rns8_status {
     if (!graph || !stream || !token)
       return RNS8_INVALID_ARGUMENT;
@@ -132,6 +147,15 @@ rns8_status rns8_submit_resident_graph_hip(rns8_resident_graph *graph,
     if (status != RNS8_SUCCESS)
       return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if (replay) {
+      if (!graph->captured_executable ||
+          graph->captured_addresses.size() != graph->nodes.size())
+        return RNS8_UNSUPPORTED_BACKEND;
+      for (size_t i = 0; i < graph->nodes.size(); ++i)
+        if (resident_node_addresses(graph->nodes[i]) !=
+            graph->captured_addresses[i])
+          return RNS8_UNSUPPORTED_BACKEND;
+    }
     if (hipSetDevice(graph->ctx->device_id) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     const auto hip_stream = static_cast<hipStream_t>(stream);
@@ -157,20 +181,23 @@ rns8_status rns8_submit_resident_graph_hip(rns8_resident_graph *graph,
     // One ordered stream provides the DAG dependencies. Internal values remain
     // unpublished until the final event; these private enqueues do no
     // admission.
-    for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
-      const auto &node = graph->nodes[i];
-      invalidate_output_currentness(*node.c);
-      status = node.kind == RNS8_RESIDENT_EXACT_AXPBY
-                   ? rns8::detail::hip_direct_enqueue_axpby_no_publish(
-                         node.plan, node.a, node.b, node.d, node.c, node.alpha,
-                         node.beta, stream)
-                   : rns8::detail::hip_direct_enqueue_rns_no_publish(
-                         node.plan, node.a, node.b, node.c, stream);
-      if (status != RNS8_SUCCESS) {
-        failed = i;
-        break;
+    if (replay) {
+      for (const auto &node : graph->nodes)
+        invalidate_output_currentness(*node.c);
+      status =
+          hipGraphLaunch(graph->captured_executable, hip_stream) == hipSuccess
+              ? RNS8_SUCCESS
+              : RNS8_BACKEND_FAILURE;
+    } else
+      for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
+        const auto &node = graph->nodes[i];
+        invalidate_output_currentness(*node.c);
+        status = enqueue_resident_node(node, stream);
+        if (status != RNS8_SUCCESS) {
+          failed = i;
+          break;
+        }
       }
-    }
     if (status == RNS8_SUCCESS &&
         hipEventRecord(graph->completion_event.get(), hip_stream) != hipSuccess)
       status = RNS8_BACKEND_FAILURE;
@@ -179,6 +206,68 @@ rns8_status rns8_submit_resident_graph_hip(rns8_resident_graph *graph,
       finish_resident_graph_hip(*graph, status, failed);
     }
     return status;
+#else
+    (void)replay;
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  });
+}
+
+rns8_status rns8_submit_resident_graph_hip(rns8_resident_graph *graph,
+                                           void *stream,
+                                           rns8_graph_completion_token *token) {
+  return submit_resident_graph_hip(graph, stream, token, false);
+}
+rns8_status rns8_replay_resident_graph_hip(rns8_resident_graph *graph,
+                                           void *stream,
+                                           rns8_graph_completion_token *token) {
+  return submit_resident_graph_hip(graph, stream, token, true);
+}
+rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
+  return guard_api([&]() -> rns8_status {
+    const auto status = rns8_prepare_resident_graph_hip(graph);
+    if (status != RNS8_SUCCESS)
+      return status;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    std::vector<std::array<const void *, 4>> addresses;
+    addresses.reserve(graph->nodes.size());
+    for (const auto &node : graph->nodes)
+      addresses.push_back(resident_node_addresses(node));
+    rns8::detail::hip_unique_stream capture_stream;
+    if (capture_stream.create_non_blocking() != hipSuccess)
+      return RNS8_BACKEND_FAILURE;
+    if (hipStreamBeginCapture(capture_stream.get(),
+                              hipStreamCaptureModeThreadLocal) != hipSuccess)
+      return RNS8_BACKEND_FAILURE;
+    rns8_status body = RNS8_SUCCESS;
+    for (const auto &node : graph->nodes) {
+      body = enqueue_resident_node(node, capture_stream.get());
+      if (body != RNS8_SUCCESS)
+        break;
+    }
+    hipGraph_t captured = nullptr;
+    const auto ended = hipStreamEndCapture(capture_stream.get(), &captured);
+    if (body != RNS8_SUCCESS || ended != hipSuccess) {
+      if (captured)
+        (void)hipGraphDestroy(captured);
+      return body != RNS8_SUCCESS ? body : RNS8_BACKEND_FAILURE;
+    }
+    hipGraphExec_t executable = nullptr;
+    if (hipGraphInstantiate(&executable, captured, nullptr, nullptr, 0) !=
+        hipSuccess) {
+      if (executable)
+        (void)hipGraphExecDestroy(executable);
+      (void)hipGraphDestroy(captured);
+      return RNS8_BACKEND_FAILURE;
+    }
+    if (graph->captured_executable)
+      (void)hipGraphExecDestroy(graph->captured_executable);
+    if (graph->captured_graph)
+      (void)hipGraphDestroy(graph->captured_graph);
+    graph->captured_graph = captured;
+    graph->captured_executable = executable;
+    graph->captured_addresses.swap(addresses);
+    return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif

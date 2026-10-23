@@ -69,7 +69,7 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
         REQUIRE(info.completed_nodes == 3);
         REQUIRE(info.failed_node == UINT32_MAX);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-        if (hip) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info);
+        if (hip) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info, round == 2);
 #endif
         const std::vector<cpp_int> ax(av.begin(), av.end()), bx(bv.begin(), bv.end());
         const auto cx = multiply(ax,bx);
@@ -257,7 +257,7 @@ TEST_CASE("resident epilogue DAG proves produced addends before any writes", "[a
         if (!hip) REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_UNSUPPORTED_BACKEND);
         for (int repeat = 0; repeat < 3; ++repeat) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-          if (hip && repeat) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info);
+          if (hip && repeat) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info, repeat == 2);
           else
 #endif
           REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
