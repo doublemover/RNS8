@@ -12,15 +12,14 @@ __global__ void rns8_native_wmma_capability_kernel(int* supported) {
 // Native loads are outside the channel loop; channels have separate encoded
 // fragments and accumulators. No INT32 or packed-input global workspace exists.
 template <typename NativeT, int Group>
-__global__ __launch_bounds__(32) void rns8_native_grouped_wmma_kernel(
+__device__ __forceinline__ void rns8_native_grouped_wmma_tile(
     const NativeT* a, const NativeT* b, int8_t* c,
-    int m, int n, int k, int lda, int ldb, int ldc, int prefix) {
+    int m, int n, int k, int lda, int ldb, int ldc, int prefix,
+    int64_t tile_row, int64_t tile_col, int first_plane) {
 #if RNS8_DEVICE_NATIVE_WMMA
   using fragment = int __attribute__((ext_vector_type(4)));
   using accumulator = int __attribute__((ext_vector_type(8)));
-  const int lane = threadIdx.x, first_plane = blockIdx.z * Group;
-  const int64_t tile_row = static_cast<int64_t>(blockIdx.y) * 16;
-  const int64_t tile_col = static_cast<int64_t>(blockIdx.x) * 16;
+  const int lane = threadIdx.x;
   const int64_t ar = tile_row + (lane & 15), bc = tile_col + (lane & 15);
   accumulator acc[Group]{};
   int moduli[Group]{};
@@ -77,6 +76,48 @@ __global__ __launch_bounds__(32) void rns8_native_grouped_wmma_kernel(
 #else
   (void)a; (void)b; (void)c; (void)m; (void)n; (void)k;
   (void)lda; (void)ldb; (void)ldc; (void)prefix;
+#endif
+}
+template <typename NativeT, int Group>
+__global__ __launch_bounds__(32) void rns8_native_grouped_wmma_kernel(
+    const NativeT* a, const NativeT* b, int8_t* c,
+    int m, int n, int k, int lda, int ldb, int ldc, int prefix) {
+  rns8_native_grouped_wmma_tile<NativeT, Group>(a, b, c, m, n, k, lda, ldb, ldc, prefix,
+      static_cast<int64_t>(blockIdx.y) * 16, static_cast<int64_t>(blockIdx.x) * 16, blockIdx.z * Group);
+}
+template <typename NativeT>
+__device__ __forceinline__ void rns8_native_queue_tile(
+    const rns8::detail::NativeWmmaTask& task, const rns8::detail::NativeWmmaWork& work) {
+  const auto* a = static_cast<const NativeT*>(task.a);
+  const auto* b = static_cast<const NativeT*>(task.b);
+  const int64_t row = static_cast<int64_t>(work.tile_row) * 16, col = static_cast<int64_t>(work.tile_col) * 16;
+  if (task.group == 1)
+    rns8_native_grouped_wmma_tile<NativeT, 1>(a, b, task.c, task.m, task.n, task.k,
+        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
+  else if (task.group == 2)
+    rns8_native_grouped_wmma_tile<NativeT, 2>(a, b, task.c, task.m, task.n, task.k,
+        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
+  else
+    rns8_native_grouped_wmma_tile<NativeT, 4>(a, b, task.c, task.m, task.n, task.k,
+        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
+}
+__global__ __launch_bounds__(32) void rns8_native_wmma_queue_kernel(
+    const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
+    uint32_t count, uint32_t* cursor) {
+#if RNS8_DEVICE_NATIVE_WMMA
+  __shared__ uint32_t next;
+  while (true) {
+    if (!threadIdx.x) next = atomicAdd(cursor, 1u);
+    __syncthreads();
+    if (next >= count) return;
+    const auto item = work[next];
+    const auto task = tasks[item.task];
+    if (task.unsigned_inputs) rns8_native_queue_tile<uint64_t>(task, item);
+    else rns8_native_queue_tile<int64_t>(task, item);
+    __syncthreads(); // Every lane finishes before the next shared queue claim.
+  }
+#else
+  (void)tasks; (void)work; (void)count; (void)cursor;
 #endif
 }
 #undef RNS8_DEVICE_NATIVE_WMMA

@@ -591,3 +591,11 @@ minimum of three independently sound bounds; no default cost decision is made.
 See [device bound discovery](device-bound-discovery.md). CPU/GPU differential
 fixtures are authored; compilation, runtime and net-benefit measurements remain
 pending.
+
+The #38 private native WMMA queue now executes heterogeneous signed/unsigned
+shapes and channel groups through a bounded persistent device cursor. Host
+admission checks the entire batch for write hazards and scratch limits. Mapping
+and Boost differential fixtures cover tails, group prefixes and K=65537. The
+VS2026/gfx1100 HIP test executable compiles with this addition; runtime tests,
+ISA/resource evidence and scheduling measurements remain pending. Public
+prepared groups remain sequential; see [queue contract](persistent-native-queue.md).

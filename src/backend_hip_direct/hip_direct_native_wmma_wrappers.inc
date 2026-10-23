@@ -2,6 +2,13 @@ extern "C" int rns8_hip_native_wmma_capability(int* supported) {
   hipLaunchKernelGGL(rns8_native_wmma_capability_kernel, dim3(1), dim3(1), 0, nullptr, supported);
   return static_cast<int>(hipGetLastError());
 }
+extern "C" int rns8_hip_native_wmma_queue(
+    const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
+    uint32_t count, uint32_t* cursor, uint32_t workers) {
+  hipLaunchKernelGGL(rns8_native_wmma_queue_kernel, dim3(workers), dim3(32), 0, nullptr,
+                    tasks, work, count, cursor);
+  return static_cast<int>(hipGetLastError());
+}
 template <typename NativeT, int Group>
 int rns8_launch_native_wmma_group(
     const void* a, const void* b, int8_t* c, int m, int n, int k,

@@ -1,6 +1,7 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/garner_constants.hpp"
+#include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 
 #include "core/api_internal.hpp"
@@ -632,6 +633,7 @@ namespace rns8::detail {
 #include "hip_backend_narrow.inc"
 #include "hip_backend_int4.inc"
 #include "hip_backend_native_wmma.inc"
+#include "hip_backend_native_queue.inc"
 #include "hip_backend_bounds.inc"
 #include "hip_backend_ragged.inc"
 #include "hip_backend_block_sparse.inc"

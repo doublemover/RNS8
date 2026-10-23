@@ -12,6 +12,7 @@
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
+#include "../backend_common/native_wmma_queue.hpp"
 #include "../backend_common/ragged_residues.hpp"
 
 namespace {

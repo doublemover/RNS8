@@ -9,11 +9,17 @@
 #include "rns8/rns8.h"
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/native_tile_bound.hpp"
+#include "backend_common/native_wmma_queue.hpp"
 #include "backend_common/ragged_residues.hpp"
 #include "backend_common/block_sparse.hpp"
 #include "backend_common/integrity_identity.hpp"
 
 namespace rns8::detail {
+// Private synchronous heterogeneous native-input queue. Caller owns integer
+// range proofs and output invalidation once outputs_may_be_written is set.
+rns8_status hip_direct_gemm_native_wmma_queue(
+    int device_id, const std::vector<NativeWmmaTask>& tasks, uint32_t workers,
+    uint64_t max_scratch_bytes, bool& outputs_may_be_written);
 // Read-only private sentinel. Failure bits: 1 malformed residue, 2 bound,
 // 4 check-257, 8 check-263. Successful checks do not prove arbitrary correctness.
 rns8_status hip_direct_check_native_product_integrity(
