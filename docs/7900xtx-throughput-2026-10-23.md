@@ -5,7 +5,7 @@ Measured on AMD Radeon RX 7900 XTX (`gfx1100`), Windows, VS2026/MSVC
 executable was rebuilt from clean source `8a4d1219acad0288eb773c27221cae78796c1e32`,
 RelWithDebInfo, optional rocWMMA enabled, generated WMMA and Garner table disabled.
 
-These are **integer TOPS**, not floating-point TFLOP/s. Each row uses M=N=K=256,
+Each row uses M=N=K=256,
 seed 3135, five independently launched processes in randomized order, three
 warmups and 15 measured calls per process. All 525 measured outputs passed
 Boost reference and canary checks. The reported time is the median of five

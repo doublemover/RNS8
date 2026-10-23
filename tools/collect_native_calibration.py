@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import random
 import subprocess
@@ -22,7 +23,7 @@ def validate_case(case):
     if ((not native and not narrow and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
             or (not native and case["group"] != 1) or type(case["unsigned_inputs"]) is not bool
-            or case["m"] * case["n"] * case["k"] > 16777216):
+            or case["m"] * case["n"] * case["k"] > 1073741824):
         raise ValueError("invalid native calibration candidate/group/reference budget")
     if narrow and (case["prefix"] != 1 or case["k"] > 32768
                    or (case["candidate"] == "narrow_scalar" and case["unsigned_inputs"])):
@@ -111,7 +112,12 @@ def main():
                 or any(capture.get(key) != value for key, value in narrow_contract(case).items())
                 or capture.get("repeats") != args.repeats or capture.get("warmups") != args.warmups
                 or len(capture.get("samples", [])) != args.repeats
-                or any(sample.get("exact_reference_passed") is not True for sample in capture["samples"])):
+                or any(sample.get("exact_reference_passed") is not True
+                       or sample.get("uninstrumented_exact_reference_passed") is not True
+                       or type(sample.get("uninstrumented_host_call_ns")) not in (int, float)
+                       or not math.isfinite(sample["uninstrumented_host_call_ns"])
+                       or sample["uninstrumented_host_call_ns"] <= 0
+                       for sample in capture["samples"])):
             raise RuntimeError(f"native microcase contract/reference mismatch; retained {run_id}")
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed while executing; capture is ineligible")

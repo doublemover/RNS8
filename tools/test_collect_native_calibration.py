@@ -12,6 +12,14 @@ from collect_native_calibration import main, validate_case, epilogue_contract, n
 def run():
     case = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inputs=False)
     assert validate_case(case) == case
+    large = {**case, "m": 1024, "n": 1024, "k": 1024}
+    assert validate_case(large) == large
+    try:
+        validate_case({**large, "k": 1025})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("reference-work budget exceeded")
     for key, value in (("m", True), ("k", 0), ("prefix", 21), ("group", 3),
                        ("unsigned_inputs", 0), ("candidate", "unknown")):
         try:
@@ -37,7 +45,7 @@ def run():
         def child(command, **kwargs):
             assert command[1] == "wmma" and command[-4] == "0"
             capture = {**case, "schema": "rns8_native_microcase_v1", "run_id": command[-1],
-                       "repeats": 3, "warmups": 1, "samples": [{"exact_reference_passed": True}] * 3}
+                       "repeats": 3, "warmups": 1, "samples": [{"exact_reference_passed": True, "uninstrumented_exact_reference_passed": True, "uninstrumented_host_call_ns": 1000.5}] * 3}
             return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
         with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=child):
             assert main() == 0
@@ -62,7 +70,7 @@ def run():
         def wrong_expression(command, **kwargs):
             capture = {**epilogue, **epilogue_contract(epilogue), "schema": "rns8_native_microcase_v1",
                        "run_id": command[-1], "repeats": 3, "warmups": 1,
-                       "samples": [{"exact_reference_passed": True}] * 3}
+                       "samples": [{"exact_reference_passed": True, "uninstrumented_exact_reference_passed": True, "uninstrumented_host_call_ns": 1000.5}] * 3}
             capture["expression"]["beta"] = 0
             return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
         with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=wrong_expression):
@@ -98,7 +106,7 @@ def run():
         def wrong_native_output(command, **kwargs):
             capture = {**narrow, **narrow_contract(narrow), "schema": "rns8_native_microcase_v1",
                        "run_id": command[-1], "repeats": 3, "warmups": 1,
-                       "samples": [{"exact_reference_passed": True}] * 3}
+                       "samples": [{"exact_reference_passed": True, "uninstrumented_exact_reference_passed": True, "uninstrumented_host_call_ns": 1000.5}] * 3}
             capture["output_contract"] = "product_residues_default_basis_no_integer_export"
             return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
         with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=wrong_native_output):

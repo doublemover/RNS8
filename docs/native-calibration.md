@@ -25,12 +25,19 @@ packing/direct baseline cases; WMMA candidates accept one, two or four.
 
 Arguments are candidate, M, N, K, prefix, group, unsigned flag (0/1), repeat count,
 warmup count, and a unique run ID. M/N are at most 1024, K at most 65537, and
-M*N*K at most 16777216 to bound the independent CPU reference. A fixed seed and
+M*N*K at most 1073741824 to bound the independent CPU reference (up to 1024³). A fixed seed and
 full-width signed/unsigned extremes are included. Boost computes expected
 residues before timing; outputs are poisoned before each call, and every warmup
 and repeat checks output bytes and a tail canary outside the timed region.
 
 The report preserves fractional host nanoseconds and separate HIP event labels,
+and pairs each instrumented call with an additional call with timing hooks
+disabled (`uninstrumented_host_call_ns`). Both calls undergo full output and
+canary verification outside timing. The uninstrumented column retains production
+admission/status and synchronization; it excludes event instrumentation. The
+instrumented call always precedes its paired uninstrumented call, so comparisons
+between these columns are diagnostic rather than randomized overhead estimates.
+The report also preserves
 compiled provenance, device/runtime identity, complete case parameters, and
 logical buffer sizes. Host calls include candidate-specific allocation,
 capability probing and synchronization. Initial uploads, reference construction,
@@ -68,8 +75,12 @@ All cases retain identical native A/B/C and status buffer allocations. RNS also
 retains its operand and product residue planes, with their storage reported.
 Candidate-local
 scratch allocation, capability probing and synchronization remain timed. HIP
-event labels retain component timing separately; output poisoning and Boost
-comparison of every integer and eight tail canaries are outside timing.
+event labels retain component timing separately; output poisoning and exact CPU
+comparison of every integer and eight tail canaries are outside timing. The byte
+alphabet and K limit bound every absolute partial sum below INT32_MAX, so the
+narrow CPU oracle uses exact int64 arithmetic with contiguous B-row traversal.
+Boost independently audits both boundary columns of every row. Full-width
+residue cases continue to use Boost for every output.
 
 The RNS case scans current device inputs, packs both operands, runs direct residue
 GEMM and reconstructs to the device native output with overflow status readback.

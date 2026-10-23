@@ -43,14 +43,21 @@ void pack_pair(const void* a, const void* b, void* ra, void* rb,
     if (status != hipSuccess) throw std::runtime_error(hipGetErrorString(status));
   };
   hip_unique_event start, stop;
-  hip_check(start.create()); hip_check(stop.create());
-  hip_check(hipEventRecord(start.get(), nullptr));
+  const bool timed = hip_direct_timing_enabled();
+  if (timed) {
+    hip_check(start.create()); hip_check(stop.create());
+    hip_check(hipEventRecord(start.get(), nullptr));
+  }
   if (unsigned_inputs) {
     hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(a), static_cast<int8_t*>(ra), m,k,k,prefix)));
     hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(b), static_cast<int8_t*>(rb), k,n,n,prefix)));
   } else {
     hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(a), static_cast<int8_t*>(ra), m,k,k,prefix)));
     hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(b), static_cast<int8_t*>(rb), k,n,n,prefix)));
+  }
+  if (!timed) {
+    hip_check(hipDeviceSynchronize());
+    return;
   }
   hip_check(hipEventRecord(stop.get(), nullptr));
   hip_check(hipEventSynchronize(stop.get()));
@@ -82,7 +89,7 @@ int main(int argc, char** argv) {
     const int64_t alpha = unsigned_inputs ? INT64_MAX : INT64_MIN, beta = INT64_MAX;
     if ((!native && !epilogue && candidate != "pack_pair" && candidate != "packed_gemm" && candidate != "pack_gemm") ||
         run_id.empty() || (group != 1 && group != 2 && group != 4) || (!native && group != 1) ||
-        uint64_t{m} * n * k > 16777216) throw std::invalid_argument("invalid candidate/group or reference-work limit");
+        uint64_t{m} * n * k > 1073741824) throw std::invalid_argument("invalid candidate/group or reference-work limit");
     const uint32_t splits = std::min(k, 3u), workers = 32;
     rns8_device_info device{};
     check(hip_direct_probe(0, device));
@@ -170,7 +177,17 @@ int main(int argc, char** argv) {
       for (const auto& event : hip_direct_timing_snapshot()) events.push_back({{"label",event.label},
           {"elapsed_ns",event.microseconds>0 ? nlohmann::json(event.microseconds*1000) : nlohmann::json(nullptr)}});
       verify();
+      hip_direct_timing_set_enabled(false);
+      prepare();
+      const auto production_start = std::chrono::steady_clock::now();
+      execute();
+      const double production_ns = std::chrono::duration<double,std::nano>(
+          std::chrono::steady_clock::now()-production_start).count();
+      verify();
+      hip_direct_timing_set_enabled(true);
       samples.push_back({{"host_call_ns",host_ns>0 ? nlohmann::json(host_ns) : nlohmann::json(nullptr)},
+                         {"uninstrumented_host_call_ns",production_ns},
+                         {"uninstrumented_exact_reference_passed",true},
                          {"events",events},{"exact_reference_passed",true}});
     }
     hip_direct_timing_set_enabled(false);
