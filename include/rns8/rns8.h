@@ -23,6 +23,46 @@ typedef struct rns8_prepack_cache rns8_prepack_cache;
 typedef struct rns8_result_cache rns8_result_cache;
 typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
+typedef struct rns8_resident_graph rns8_resident_graph;
+
+typedef struct rns8_resident_matmul_node {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  const rns8_plan* plan;
+  const rns8_matrix* a;
+  const rns8_matrix* b;
+  rns8_matrix* c;
+  rns8_workspace* workspace;
+} rns8_resident_matmul_node;
+
+typedef struct rns8_graph_execution_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_status operation_status;
+  uint64_t epoch;
+  uint32_t completed_nodes;
+  uint32_t failed_node; /* UINT32_MAX on complete success. */
+} rns8_graph_execution_info;
+
+/* Ordered, single-assignment exact-wide MatMul DAG, CPU or direct HIP.
+ * Every output has exactly one writer; a produced value may only be read after
+ * its producer. External input generations are bound explicitly. Existing
+ * matrix/plan/workspace storage must match each edge; this first executor does
+ * not allocate intermediate matrices or automatically extend a prefix.
+ * Retains every referenced handle. Refresh validates all proofs before rebinding.
+ * Execute propagates all exact bounds before the first write, then uses ordinary
+ * synchronous GEMM. Outputs remain resident; export any requested node explicitly.
+ * Shared handles require external host-thread serialization; not graph-capture
+ * safe or asynchronous. On runtime failure completed earlier nodes remain valid,
+ * the failing node follows ordinary GEMM invalidation, later nodes are untouched.
+ */
+RNS8_API rns8_status rns8_create_resident_graph(
+    rns8_context* ctx, const rns8_resident_matmul_node* nodes, uint32_t count,
+    rns8_resident_graph** out);
+RNS8_API rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* graph);
+RNS8_API rns8_status rns8_execute_resident_graph(
+    rns8_resident_graph* graph, rns8_graph_execution_info* out);
+RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
 
 typedef struct rns8_completion_token {
   uint64_t prepared_id;

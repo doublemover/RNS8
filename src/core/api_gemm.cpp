@@ -54,7 +54,8 @@ rns8_status validate_rns_gemm_operands(
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C,
+    bool require_current_inputs) {
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0) {
     return RNS8_INVALID_ARGUMENT;
@@ -101,8 +102,8 @@ rns8_status validate_rns_gemm_operands(
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan_all_zero_output_tiles(plan)) {
     return RNS8_SUCCESS;
   }
-  if (!rns_residue_state_current_for_backend(A, plan.backend) ||
-      !rns_residue_state_current_for_backend(B, plan.backend)) {
+  if (require_current_inputs && (!rns_residue_state_current_for_backend(A, plan.backend) ||
+      !rns_residue_state_current_for_backend(B, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;

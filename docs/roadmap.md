@@ -456,3 +456,14 @@ Persistent matrix-engine queues, uploaded tile descriptors, bounded chunk
 scheduling, fairness and performance qualification remain open. The preceding
 single-execution API compiled in the CPU build at `55feaea`; this group addition
 and all new runtime tests remain unvalidated.
+
+The #42 first resident executor now validates and retains ordered exact-wide
+MatMul DAGs, preflights complete bound propagation through the existing proof
+owner and executes ordinary CPU/direct-HIP calls without intermediate export.
+Input-generation rebinding, diamonds and deterministic rejection of forward
+references/duplicate writers are explicit. CPU/HIP Boost fixtures cover
+three-node shared-value graphs, mutation, zero graphs and downstream range
+exhaustion before writes. See [resident graphs](resident-graphs.md) for supported
+uniform-storage contracts. Allocation/liveness optimization, explicit extension
+and conversion nodes, ragged consumers and cost-based planning remain open.
+Compilation and runtime validation of this slice are pending.
