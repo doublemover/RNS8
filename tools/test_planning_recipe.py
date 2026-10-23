@@ -57,6 +57,17 @@ def main() -> int:
     rejects(replace(recipe, required_materializations=("packed", "native_i64")), "materialization")
     rejects(recipe, "unsupported", cap=replace(target, kernels=()))
     rejects(recipe, "unsupported", cap=replace(target, kernels=(replace(capability, instruction_evidence_sha256=""),)))
+    rejects(recipe, "output boundary", cap=replace(target, kernels=(replace(capability, output_boundary="native_integer"),)))
+    rejects(recipe, "duplicate kernel", cap=replace(target, kernels=(capability, capability)))
+    native_problem = replace(problem, output_boundary="native_integer")
+    native_recipe = replace(recipe, contract=native_problem)
+    missing_export = shortlist(native_problem, facts, target, profile, (MockProvider((native_recipe,)),), 31)
+    assert not missing_export["candidates"]
+    assert "output boundary" in missing_export["rejected"][0]["reason"]
+    # A separately attested terminal output policy can admit the native result;
+    # changing only the requested label or cost cannot invent reconstruction.
+    native_target = replace(target, kernels=(replace(capability, output_boundary="native_integer"),))
+    assert shortlist(native_problem, facts, native_target, profile, (MockProvider((native_recipe,)),), 31)["candidates"]
     rejects(recipe, "target/compiler", cap=replace(target, target="different-target"))
     rejects(recipe, "cost environment", cost=replace(profile, artifact_sha256="c" * 64))
     rejects(recipe, "missing kernel calibration", cost=replace(profile, kernel_symbols=()))

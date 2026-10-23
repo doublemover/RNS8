@@ -25,6 +25,13 @@ artifact, and every stage symbol and work term needs calibration. Use
 reference admission checks when importing measurements. CPU mock fixtures
 construct explicitly fabricated profiles instead.
 
+Capabilities also declare the actual kernel output boundary. Every terminal
+stage must produce the requested boundary, so renaming a residue-only recipe's
+result to native integers cannot omit reconstruction. Duplicate symbol/proof/
+layout capability keys reject as ambiguous rather than allowing ordering to
+select an output policy. Providers still supply complete conversion dependencies;
+the boundary check does not synthesize missing stages or hardware evidence.
+
 Coverage is checked as disjoint half-open ranges over the full flattened
 output-tile/plane/K-slab domain. Duplicate arrivals cannot hide missing work.
 Address admission conservatively checks 64-bit element spans. Providers must

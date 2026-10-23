@@ -50,6 +50,7 @@ class KernelCapability:
     opcode: str
     layout: str
     instruction_evidence_sha256: str
+    output_boundary: str = "resident_residues"
 
 
 @dataclass(frozen=True)
@@ -243,6 +244,9 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
         if ((rows - 1) * ld + cols) * 8 > target.address_limit:
             raise ValueError("address domain overflow")
     capabilities = {(c.symbol, c.certificate_sha256, c.layout): c for c in target.kernels}
+    if len(capabilities) != len(target.kernels):
+        raise ValueError("ambiguous duplicate kernel capability")
+    consumed_stages = {name for stage in recipe.stages for name in stage.dependencies}
     for stage in recipe.stages:
         for certificate in recipe.certificates:
             capability = capabilities.get((stage.kernel_symbol, certificate_hash(certificate), recipe.layout))
@@ -250,6 +254,10 @@ def admit(recipe: CandidateRecipe, problem: ProblemContract, facts: tuple[ValueF
                     or not _digest(capability.instruction_evidence_sha256)
                     or capability.instruction_evidence_sha256 != certificate.instruction.measured_evidence_sha256):
                 raise ValueError("unsupported or unmeasured kernel/certificate/layout combination")
+            if capability.output_boundary not in {"resident_residues", "native_integer"}:
+                raise ValueError("unknown kernel output boundary")
+            if stage.name not in consumed_stages and capability.output_boundary != problem.output_boundary:
+                raise ValueError("terminal kernel output boundary differs from requested result")
     resources = checked_resources(recipe.resources, recipe.stages, budget)
     if resources["status"] != "success":
         raise ValueError(f"workspace {resources['status']}: {resources['reason']}")
