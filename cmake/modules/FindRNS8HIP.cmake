@@ -52,6 +52,33 @@ if(RNS8HIP_FOUND)
   set(RNS8_HIP_LIBRARIES "${RNS8_HIP_LIBRARY}")
 endif()
 
+# LLVM llvm-project#201563 fixes MSVC 14.51 constexpr math declarations colliding
+# with HIP's late device declarations. Backport only that include-order change
+# into the build tree for older SDK wrappers; never modify the installed SDK.
+set(RNS8_HIP_STL_OVERLAY "")
+if(RNS8HIP_FOUND AND WIN32 AND MSVC_VERSION GREATER_EQUAL 1951)
+  get_filename_component(_hip_bin "${RNS8_HIP_HIPCC}" DIRECTORY)
+  execute_process(COMMAND "${_hip_bin}/clang.exe" -print-resource-dir
+    OUTPUT_VARIABLE _hip_resource OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE _hip_resource_status)
+  if(_hip_resource_status EQUAL 0)
+    set(_wrapper "${_hip_resource}/include/__clang_hip_runtime_wrapper.h")
+    if(EXISTS "${_wrapper}")
+      file(READ "${_wrapper}" _wrapper_text)
+      string(FIND "${_wrapper_text}" "#include <cmath>" _cmath_position)
+      string(FIND "${_wrapper_text}" "#include <__clang_cuda_math_forward_declares.h>" _forward_position)
+      if(_cmath_position GREATER_EQUAL 0 AND _forward_position GREATER _cmath_position)
+        string(REPLACE "#include <__clang_cuda_math_forward_declares.h>" "" _wrapper_text "${_wrapper_text}")
+        string(REPLACE "#include <cmath>" "#include <__clang_cuda_math_forward_declares.h>\n#include <cmath>" _wrapper_text "${_wrapper_text}")
+        set(RNS8_HIP_STL_OVERLAY "${CMAKE_CURRENT_BINARY_DIR}/hip-stl-overlay")
+        file(MAKE_DIRECTORY "${RNS8_HIP_STL_OVERLAY}")
+        file(CONFIGURE OUTPUT "${RNS8_HIP_STL_OVERLAY}/__clang_hip_runtime_wrapper.h" CONTENT "${_wrapper_text}" @ONLY)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_wrapper}")
+        message(STATUS "HIP/MSVC 14.51: applying LLVM #201563 include-order fix in build-local wrapper")
+      endif()
+    endif()
+  endif()
+endif()
+
 function(rns8_compile_hip_source out_var source)
   if(NOT RNS8HIP_FOUND)
     message(FATAL_ERROR "rns8_compile_hip_source requires RNS8HIP")
@@ -83,6 +110,11 @@ function(rns8_compile_hip_source out_var source)
   endif()
 
   set(_include_args)
+  set(_compat_dependencies)
+  if(RNS8_HIP_STL_OVERLAY)
+    list(APPEND _include_args "-I${RNS8_HIP_STL_OVERLAY}")
+    list(APPEND _compat_dependencies "${RNS8_HIP_STL_OVERLAY}/__clang_hip_runtime_wrapper.h")
+  endif()
   foreach(_include_dir IN LISTS RNS8_HIP_SOURCE_INCLUDE_DIRS)
     if(_include_dir)
       list(APPEND _include_args "-I${_include_dir}")
@@ -112,7 +144,7 @@ function(rns8_compile_hip_source out_var source)
       ${_source_compile_options}
       -c "${_source_abs}"
       -o "${_object}"
-    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS}
+    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )

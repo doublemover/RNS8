@@ -87,8 +87,24 @@ cmake --build --preset linux-cpu-release --parallel 4
 
 ### Windows (PowerShell)
 
-Install Visual Studio 2022's C++ workload, CMake, Ninja, Python, and vcpkg. Set
+Install Visual Studio 2026's C++ workload, CMake, Ninja, Python, and vcpkg. Set
 `VCPKG_ROOT` to your actual installation; the CPU presets use it explicitly.
+The Windows wrapper selects Visual Studio 2026 (18.x). Use a fresh build directory
+when migrating from VS 2022: CMake caches the compiler path, and mixing an old
+compiler with VS 2026 STL headers is unsupported. Existing explicit developer
+environments and `VSINSTALLDIR` overrides are honored.
+
+```powershell
+python tools/windows_dev.py cmake -S . -B build/vs2026-cpu -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo
+python tools/windows_dev.py cmake --build build/vs2026-cpu --parallel 4
+```
+
+HIP still uses explicit `hipcc` compilation. Host qualification does not by itself
+qualify the installed HIP compiler with the new STL; GPU support requires the
+HIP build and CPU differentials. For HIP 7.1 with MSVC 14.51, CMake applies
+[LLVM's math declaration-order fix](https://github.com/llvm/llvm-project/pull/201563)
+to a build-local compiler wrapper. The installed SDK is unchanged; newer wrappers
+that already include declarations first need no overlay.
 
 ```powershell
 $env:VCPKG_ROOT = 'C:\vcpkg'
