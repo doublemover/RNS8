@@ -51,7 +51,7 @@ assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
 assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
 assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
 assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
-assert group["source_metadata"]["git_commits"] == ["fixture"]
+assert group["source_metadata"]["git_commits"] == ["a" * 40]
 assert group["source_metadata"]["seeds"] == [13]
 assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
 assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
@@ -1391,3 +1391,13 @@ assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)
     "tree-crt-export-candidate",
 ]
 
+
+for field in ("build_manifest", "artifact_capture"):
+    missing = finite_capture("ck",190)
+    missing.pop(field)
+    provenance_report = benchmark_sweep.review_captures([missing,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+    assert not provenance_report["promotable_autotune_entries"]
+dirty = finite_capture("ck",190)
+dirty["build_manifest"]["source_dirty"] = True
+provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+assert not provenance_report["promotable_autotune_entries"]

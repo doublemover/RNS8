@@ -24,6 +24,14 @@ from test_benchmark_schema import as_host_api_batch_capture
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
 
 
+def attach_test_provenance(capture):
+    # Synthetic evidence only; these fixtures never represent a measured build.
+    capture["git_commit"] = "a" * 40
+    capture["build_manifest"] = dict(version=1, source_commit="a"*40, source_dirty=False,
+                                      source_digest="b"*64, configuration="synthetic-test")
+    capture["artifact_capture"] = dict(executable_sha256="c"*64, unchanged_during_run=True)
+
+
 def set_phase(capture: dict, end_to_end: int) -> None:
     repeats = capture.get("repeats", 2)
     for phase in benchmark_sweep.PHASES:
@@ -202,6 +210,7 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct")
     metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -388,6 +397,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     attach_final_output_metadata(capture)
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -431,6 +441,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         capture,
     )
     attach_final_output_metadata(capture)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -530,6 +541,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
         }
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 

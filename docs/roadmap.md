@@ -100,11 +100,60 @@ backend, not permission to label a fallback as the requested accelerator.
 
 ## October 23 issue repair qualification
 
-Issues #16–#22 are under implementation on PR #15. Resident ownership, content
-generation, failure invalidation, scratch preparation, checked limb import and
-single-pass exact admission share one validation campaign. Benchmark provenance
-is embedded at build time. The CPU Garner plan imports only the constexpr
-specification from the isolated `codex/garner-constants-20261008` experiment;
-its unqualified GPU routing changes are not imported. Existing GPU reconstruction
-and release routing remain unchanged. Completion requires executed regression
-and performance evidence; source edits alone do not close hardware gates.
+PR #15 implements the resident ownership, per-matrix content generation,
+failure invalidation, scratch preparation, checked limb import and single-pass
+exact admission repairs for #16-#21. The optional scalar-first exact proof policy
+is explicit; eager moment propagation remains the default. Matrix materialization
+preserves identity for a self-conversion and publishes a new value for a distinct
+destination. Cache regression tests execute a two-stage GPU chain after both an
+unversioned repack and a replacement handle using the same caller version.
+
+Windows builds now select VS 2026 (18.x). Local qualification used MSVC
+19.51.36260 (14.51.36231 tool directory), HIP 7.1.51803/Clang 21, gfx1100,
+RelWithDebInfo, and OpenMP disabled. CPU CTest: 253 registered tests, zero
+failures, two HIP-only skips. Direct HIP CTest: 335 tests, zero failures. The
+experimental table build also passed all 335. These are local correctness
+results, not cross-platform release qualification. The build-local LLVM #201563
+wrapper fix is hashed in the manifest. Windows objects carry a manifest identity
+record so a stale-object mixture is rejected by the linker. Source manifests and
+launch-time executable hashes replace runtime-checkout attribution; dirty or
+incomplete captures cannot qualify a release.
+
+For #22, only the constexpr specification was imported from the isolated
+`codex/garner-constants-20261008` branch. The CPU immutable reconstruction plan
+is active. A separately implemented HIP table candidate is gated by
+`RNS8_EXPERIMENTAL_GARNER_TABLE=ON`, defaults OFF, and is excluded from release
+promotion. Its products, per-modulus and pair inverses are checked against Boost.
+The safe three-limb recurrence is retained.
+
+Local diagnostic evidence (scratch captures in `temp/`, not release receipts):
+
+- Actual old CPU helper from `8315ccbd` versus the new helper, MSVC `/O2 /MD`,
+  65,536 prebuilt rows for `97*i+13`, one setup warmup, five alternating
+  observations: prefix 20 took 63.4-64.8 ms versus 25.8-26.2 ms. Prefix 9 took
+  23.2-25.0 ms versus 12.3-13.1 ms. Checksums matched. This isolates helper work;
+  it is not a matrix-export or end-to-end speedup.
+- Host exact-range helper, all-one M-by-1 times 1-by-M, signed prefix 20,
+  20 calls per observation and five observations: scalar-first avoids quadratic
+  moment propagation after a successful scalar proof. At M=256 eager work was
+  28.6-38.3 ms/call versus approximately 0.05 microseconds for the scalar branch.
+  Both proved bound 1; the scalar branch intentionally returned no axis summary.
+  The tiny branch timing is timer-sensitive and does not represent total API cost.
+- Actual gfx1100 A/B: M=N in {1,64,256}, K=1, seed 1, three warmups and 15 repeats;
+  bounded-u64 prefix 9 and exact-wide-unsigned prefixes 18/20, fixed and pair
+  exports. All 15 case checksums matched. At 64-square prefix 20, fixed export
+  kernel median was 201.76 versus 143.80 microseconds and host export was 516
+  versus 460 microseconds. Pair export was 176.54 versus 106.68 microseconds.
+  End-to-end results were noisy, and one pair capture lacked event samples.
+  No default change follows from these diagnostics.
+- Compiled ISA reports were generated for both gfx1100 objects. Aggregate code
+  increased (610,588 to 929,554 disassembly instruction lines); aggregate maximum
+  VGPR count rose from 55 to 83 while maximum SGPR count fell from 104 to 42.
+  These are whole-object maxima, not selected-export occupancy. They do not prove
+  elimination of every inverse/division loop or a per-kernel resource win.
+
+Remaining qualification includes actual gfx942 runs, per-export resource/division
+analysis, sanitizer/OpenMP fault coverage, controlled partial HIP-write failure
+injection, full source-free and stale-object artifact attribution across Linux,
+and repeated same-contract release-grade timing. These gates remain open;
+source changes and local correctness do not close them automatically.

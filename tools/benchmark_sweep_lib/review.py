@@ -1924,13 +1924,13 @@ def review_captures(
         manifest_complete = all(
             m.get("version") == 1 and m.get("source_dirty") is False and
             len(str(m.get("source_commit", ""))) == 40 and len(str(m.get("source_digest", ""))) == 64 and
-            bool(m.get("configuration")) for m in manifests)
+            bool(m.get("configuration")) and "garner_table=ON" not in m.get("configuration", "") for m in manifests)
         artifact_complete = all(
             len(str(a.get("executable_sha256", ""))) == 64 and a.get("unchanged_during_run") is True
             for a in artifacts)
         git_commit_identity_complete = not missing_git_commits and manifest_complete and artifact_complete
         git_commit_values = {commit for commit in git_commits.values() if commit}
-        git_commit_identity_compatible = git_commit_identity_complete and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
+        git_commit_identity_compatible = git_commit_identity_complete and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()}) <= 1 and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
         release_timing_by_backend = {
             backend: capture
             for backend, capture in by_backend.items()
