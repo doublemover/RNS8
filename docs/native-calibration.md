@@ -48,7 +48,7 @@ remain separate #31 acceptance work.
 
 ## Matched native integer comparison
 
-`narrow_wmma`, `narrow_scalar` and `narrow_vector` use the same seeded byte-domain
+`narrow_wmma`, `narrow_scalar`, `narrow_vector` and `narrow_rns` use the same seeded byte-domain
 values stored in native 64-bit arrays and produce bounded exact native 64-bit
 integers. Signed data cover [-128,127]; unsigned data cover [0,255]. Both operands
 include the maximum magnitude explicitly. These cases require prefix=group=1
@@ -59,15 +59,26 @@ support both interpretations.
 
 Host timing includes each complete checked call: WMMA/scalar scan actual device
 inputs and prove partial sums; vector ALU resets and reads its overflow status.
-All cases retain identical A/B/C and status buffer allocations. Candidate-local
+All cases retain identical native A/B/C and status buffer allocations. RNS also
+retains its operand and product residue planes, with their storage reported.
+Candidate-local
 scratch allocation, capability probing and synchronization remain timed. HIP
 event labels retain component timing separately; output poisoning and Boost
 comparison of every integer and eight tail canaries are outside timing.
 
-The collector validates the dataset, native output contract, partial-sum bound
-and buffer sizes. These cases cannot be compared directly with the residue-output
-cases above. They do not yet include an RNS pipeline with integer reconstruction,
-and no collection, ISA qualification or performance result is claimed.
+The RNS case scans current device inputs, packs both operands, runs direct residue
+GEMM and reconstructs to the device native output with overflow status readback.
+It uses the smallest default prefix whose product strictly exceeds twice the
+absolute bound for signed data, or the bound for unsigned data. The dataset
+determines capacity before timing, but every call independently scans and checks
+the actual bound before packing. Admission, packing, GEMM and export have separate
+event labels. This is the direct HIP RNS baseline; it does not claim to select the
+fastest available RNS kernel for each shape.
+
+The collector validates the dataset, native output contract, partial-sum bound,
+minimal prefix and buffer sizes. These cases cannot be compared directly with
+the residue-output cases above. No collection, ISA qualification or performance
+result is claimed.
 
 ## Matched resident epilogue comparison
 

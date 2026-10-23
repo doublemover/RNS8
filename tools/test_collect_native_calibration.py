@@ -73,10 +73,11 @@ def run():
             else:
                 raise AssertionError("different epilogue expression accepted")
         assert len(list((root / "wrong-expression").glob("*.json"))) == 1
-        for name in ("narrow_wmma", "narrow_scalar", "narrow_vector"):
+        for name in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns"):
             narrow = {**case, "candidate": name, "prefix": 1, "group": 1}
             assert validate_case(narrow) == narrow
             assert narrow_contract(narrow)["abs_partial_sum_bound"] == 257 * 128 ** 2
+            assert (narrow_contract(narrow)["selected_rns_prefix"] > 0) == (name == "narrow_rns")
             for changes in ({"prefix": 2}, {"k": 32769}, {"group": 2}):
                 try:
                     validate_case({**narrow, **changes})

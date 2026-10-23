@@ -1,5 +1,30 @@
 // Included after the shared argument, exact-value and HIP helpers.
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_byte_domain(const void*, int, int, int, uint64_t*, uint64_t*, bool);
+extern "C" int rns8_hip_direct_export_i64_device(const int8_t*, int64_t*, int, int, int, uint64_t, int*);
+extern "C" int rns8_hip_direct_export_u64_device(const int8_t*, uint64_t*, int, int, int, uint64_t, int*);
+#endif
 namespace {
+template<class Operation>
+void narrow_timed_component(const char* label, Operation operation) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto checked = [](hipError_t e) {
+    if (e != hipSuccess) throw std::runtime_error(hipGetErrorString(e));
+  };
+  hip_unique_event start, stop;
+  checked(start.create()); checked(stop.create());
+  checked(hipEventRecord(start.get(), nullptr));
+  checked(static_cast<hipError_t>(operation()));
+  checked(hipEventRecord(stop.get(), nullptr));
+  checked(hipEventSynchronize(stop.get()));
+  float ms = 0;
+  checked(hipEventElapsedTime(&ms, start.get(), stop.get()));
+  hip_direct_timing_record_sample(label, ms * 1000.0);
+#else
+  (void)label; (void)operation;
+  throw std::runtime_error("HIP not compiled");
+#endif
+}
 int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
                      uint32_t k, uint32_t prefix, uint32_t group,
                      bool unsigned_inputs, uint32_t repeats, uint32_t warmups,
@@ -20,6 +45,10 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
     operand->front() = unsigned_inputs ? 255 : static_cast<uint64_t>(-128);
   }
   const uint64_t bound = uint64_t{k} * (unsigned_inputs ? 255 * 255 : 128 * 128);
+  uint32_t selected_prefix = 0;
+  uint64_t basis_product = 1;
+  const uint64_t required_range = bound * (unsigned_inputs ? 1 : 2);
+  while (basis_product <= required_range) basis_product *= kDefaultModuli[selected_prefix++];
   // Native output and eight uint64 canaries; no residue storage or CRT here.
   const uint64_t poison = UINT64_C(0x6363636363636363);
   std::vector<uint64_t> expected(std::size_t{m} * n + 8, poison);
@@ -34,9 +63,14 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
       expected[std::size_t{row} * n + col] = unsigned_inputs
           ? sum.convert_to<uint64_t>() : static_cast<uint64_t>(sum.convert_to<int64_t>());
     }
-  hip_direct_device_buffer da, db, dc, status;
+  hip_direct_device_buffer da, db, dc, status, ra, rb, rc;
   check(da.allocate(0, a.size() * 8)); check(db.allocate(0, b.size() * 8));
   check(dc.allocate(0, expected.size() * 8)); check(status.allocate(0, sizeof(uint32_t)));
+  if (candidate == "narrow_rns") {
+    check(ra.allocate(0, a.size() * selected_prefix));
+    check(rb.allocate(0, b.size() * selected_prefix));
+    check(rc.allocate(0, std::size_t{m} * n * selected_prefix));
+  }
   check(hip_direct_copy_host_to_device(0, da.get(), a.data(), a.size() * 8));
   check(hip_direct_copy_host_to_device(0, db.get(), b.data(), b.size() * 8));
   const std::vector<uint64_t> poisoned(expected.size(), poison);
@@ -46,7 +80,38 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
   };
   const auto execute = [&] {
     uint64_t observed_bound = 0;
-    if (candidate == "narrow_vector") {
+    if (candidate == "narrow_rns") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      // Repeat discovery inside timing. No historical dataset bound is trusted
+      // as a substitute for current device values.
+      hip_direct_device_buffer proof;
+      check(proof.allocate(0, 3 * sizeof(uint64_t)));
+      check(hip_direct_zero(0, proof.get(), 3 * sizeof(uint64_t)));
+      auto* words = static_cast<uint64_t*>(proof.get());
+      narrow_timed_component("narrow_rns_admission", [&] {
+        int error = rns8_hip_native_byte_domain(da.get(), m, k, k, words, words + 2, unsigned_inputs);
+        if (!error) error = rns8_hip_native_byte_domain(db.get(), k, n, n, words + 1, words + 2, unsigned_inputs);
+        return error;
+      });
+      uint64_t maxima[3]{};
+      check(hip_direct_copy_device_to_host(0, maxima, proof.get(), sizeof(maxima)));
+      if (maxima[2] || !native_partial_sum_bound(maxima[0], maxima[1], k, INT32_MAX, observed_bound) || observed_bound != bound)
+        throw std::runtime_error("RNS byte-domain proof mismatch");
+      pack_pair(da.get(), db.get(), ra.get(), rb.get(), m, n, k, selected_prefix, unsigned_inputs);
+      check(hip_direct_gemm_rns_device(0, ra.get(), rb.get(), rc.get(), m, n, k, k, n, n, selected_prefix));
+      check(hip_direct_zero(0, status.get(), sizeof(uint32_t)));
+      narrow_timed_component("narrow_rns_native_export", [&] {
+        return unsigned_inputs
+          ? rns8_hip_direct_export_u64_device(static_cast<const int8_t*>(rc.get()), static_cast<uint64_t*>(dc.get()), m, n, selected_prefix, observed_bound, static_cast<int*>(status.get()))
+          : rns8_hip_direct_export_i64_device(static_cast<const int8_t*>(rc.get()), static_cast<int64_t*>(dc.get()), m, n, selected_prefix, observed_bound, static_cast<int*>(status.get()));
+      });
+      int failures = 0;
+      check(hip_direct_copy_device_to_host(0, &failures, status.get(), sizeof(failures)));
+      if (failures) throw std::runtime_error("RNS native reconstruction failed");
+#else
+      throw std::runtime_error("HIP not compiled");
+#endif
+    } else if (candidate == "narrow_vector") {
       // Status reset and readback belong to this candidate's complete checked call.
       check(hip_direct_zero(0, status.get(), sizeof(uint32_t)));
       check(unsigned_inputs ? vector_alu_gemm_u64_device(0, da.get(), db.get(), dc.get(), status.get(), m, n, k)
@@ -93,6 +158,8 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
       {"runtime_version", device.hip_runtime_version}, {"build_manifest", nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON)},
       {"native_input_storage_bytes", (a.size() + b.size()) * 8}, {"native_output_bytes", std::size_t{m} * n * 8},
       {"reserved_status_bytes", sizeof(uint32_t)}, {"actual_hbm_bytes", nullptr}, {"timing_resolution_ns", nullptr},
+      {"selected_rns_prefix", candidate == "narrow_rns" ? selected_prefix : 0u},
+      {"residue_storage_bytes", candidate == "narrow_rns" ? (a.size() + b.size() + std::size_t{m} * n) * selected_prefix : 0},
       {"isa_verified", false}, {"promotion_eligible", false}, {"samples", samples},
       {"timing_scope", "resident native inputs; complete checked host call includes device range scans or vector status reset/readback, allocations and synchronization; upload, output poisoning and Boost verification excluded"},
       {"cache_state", "repeated inputs; destination reinitialized outside every timed call"}}.dump(2) << '\n';

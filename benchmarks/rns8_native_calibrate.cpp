@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
     const bool native = candidate == "wmma" || candidate == "queue" || candidate == "split_k";
-    if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector")
+    if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
       return calibrate_narrow(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";
     const int64_t alpha = unsigned_inputs ? INT64_MAX : INT64_MIN, beta = INT64_MAX;

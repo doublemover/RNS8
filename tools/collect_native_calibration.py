@@ -7,6 +7,7 @@ import random
 import subprocess
 import time
 import uuid
+from modulus_set_search import DEFAULT_MODULI
 
 
 def validate_case(case):
@@ -17,7 +18,7 @@ def validate_case(case):
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
     native = case["candidate"] in ("wmma", "queue", "split_k")
-    narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector")
+    narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if ((not native and not narrow and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
             or (not native and case["group"] != 1) or type(case["unsigned_inputs"]) is not bool
@@ -45,10 +46,18 @@ def epilogue_contract(case):
 def narrow_contract(case):
     if not case["candidate"].startswith("narrow_"):
         return {}
+    bound = case["k"] * (255 ** 2 if case["unsigned_inputs"] else 128 ** 2)
+    prefix, product = 0, 1
+    if case["candidate"] == "narrow_rns":
+        while product <= bound * (1 if case["unsigned_inputs"] else 2):
+            product *= DEFAULT_MODULI[prefix]
+            prefix += 1
     return {"dataset": "byte_domain_mt19937_64_seed3135_forced_maxima_v1",
             "input_domain": "resident_native_64_byte_values",
             "output_contract": "bounded_exact_native_64",
-            "abs_partial_sum_bound": case["k"] * (255 ** 2 if case["unsigned_inputs"] else 128 ** 2),
+            "abs_partial_sum_bound": bound,
+            "selected_rns_prefix": prefix,
+            "residue_storage_bytes": (case["m"] * case["k"] + case["k"] * case["n"] + case["m"] * case["n"]) * prefix,
             "native_input_storage_bytes": (case["m"] * case["k"] + case["k"] * case["n"]) * 8,
             "native_output_bytes": case["m"] * case["n"] * 8,
             "reserved_status_bytes": 4}
