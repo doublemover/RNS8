@@ -79,7 +79,7 @@ This source audit does not satisfy that release decision.
 - Matrix-engine small-N improvements that genuinely preserve lane/stride/finite
   semantics; a scalar shuffle kernel is not WMMA evidence
 - Persistent graph/API lifetime design, asynchronous execution, and multi-GPU GEMM
-- Device-owned exact-wide lifting and execution qualification; explicit CPU
+- Qualification and integration of synchronous device exact-wide lifting; explicit CPU
   lifting and opt-in admission-driven CPU selection with transactional operand/
   output staging are implemented within allocated twenty-plane ceilings
 - Stronger correlation-aware range proofs; scalar, per-axis and integer
@@ -291,3 +291,12 @@ inputs. Its result explicitly limits detection to errors nonzero modulo the chec
 product under a correct independent check path, with common-mode and undetectable
 error fixtures. It neither corrects values nor authorizes runtime publication.
 GPU check-plane execution and measured overhead remain future work.
+
+
+`block_gemm_research.py` adds the #48 phase-one division-free Strassen polynomial
+certificate and an exact one-level CPU modular implementation. Pre-additions are
+reduced before signed-byte products; odd rectangular dimensions are zero-padded
+and each product is accumulated immediately without retaining seven product
+matrices. Exhaustive polynomial expansion and all byte-modulus tail fixtures are
+authored. No rank-23 program, GPU transform path, performance result or promotion
+is claimed.
