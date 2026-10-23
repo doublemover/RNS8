@@ -51,6 +51,8 @@ rns8_status hip_direct_gemm_finite_int4_device(
 // uint64 limbs per cell. This does not infer signedness or bounded output semantics.
 rns8_status hip_direct_export_canonical_direct_crt_device(
     int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
+rns8_status hip_direct_export_canonical_balanced_crt_device(
+    int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
 
 rns8_status hip_direct_convert_residue_layout(
     int device_id, const void* src, const ResidueLayout& source, void* dst, const ResidueLayout& destination);

@@ -8,6 +8,7 @@
 #include "../backend_common/residue_epilogue.hpp"
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
+#include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/ragged_residues.hpp"
@@ -49,6 +50,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_narrow_kernels.cuh"
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
+#include "hip_direct_balanced_crt_kernels.cuh"
 #include "hip_direct_int4_kernels.cuh"
 #include "hip_direct_native_wmma_kernels.cuh"
 #include "hip_direct_bound_kernels.cuh"
@@ -56,6 +58,13 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_export_canonical_balanced_crt(
+    const int8_t* residues,uint64_t* limbs,int cells,const rns8::detail::balanced_crt::Plan* plan) {
+  hipLaunchKernelGGL(rns8_export_canonical_balanced_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,
+      residues,limbs,cells,*plan);
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_block_sparse_gemm(
     const int8_t* a,const uint32_t* ao,const uint32_t* ai,

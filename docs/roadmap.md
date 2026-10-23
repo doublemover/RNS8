@@ -492,3 +492,10 @@ actual native zeros, validates CSR/CSC block directories, and intersects K-block
 lists in a single-owner HIP output kernel. See [block-sparse](block-sparse.md)
 for its budget, generation and arithmetic contracts. Boost CPU and HIP fixtures
 are authored; this addition is not yet compiled or performance-qualified.
+
+The block-sparse HIP test executable compiled at `e6b7dac`; tests remain pending.
+The #39 scalar-device baseline now also includes a fully balanced CRT merge
+tree with checked 192-bit arithmetic and immutable host-generated plans. See
+[balanced CRT](balanced-crt.md) for the exact intermediate bounds and remaining
+comparison gates. CPU and GPU differential fixtures are authored; compilation,
+execution, resource inspection and performance measurement remain pending.
