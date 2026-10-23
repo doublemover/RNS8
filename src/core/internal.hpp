@@ -13,6 +13,7 @@
 #include "rns8/rns8.h"
 
 struct rns8_context {
+  mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;
   int device_id = -1;
@@ -22,6 +23,7 @@ struct rns8_context {
 };
 
 struct rns8_plan {
+  mutable uint64_t prepared_references = 0;
   rns8_gemm_desc desc{};
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   boost::multiprecision::cpp_int modulus_product = 0;
@@ -92,6 +94,7 @@ struct rns8_exact_matrix_ranges {
 };
 
 struct rns8_matrix {
+  mutable uint64_t prepared_references = 0;
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
@@ -171,6 +174,7 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_bound_kind bound_kind = RNS8_BOUND_NONE;

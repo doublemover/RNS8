@@ -21,6 +21,45 @@ typedef struct rns8_sparse_matrix rns8_sparse_matrix;
 typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
 typedef struct rns8_result_cache rns8_result_cache;
+typedef struct rns8_prepared_execution rns8_prepared_execution;
+
+typedef struct rns8_completion_token {
+  uint64_t prepared_id;
+  uint64_t epoch;
+} rns8_completion_token;
+
+typedef struct rns8_completion_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_status operation_status;
+  uint64_t a_instance;
+  uint64_t a_generation;
+  uint64_t b_instance;
+  uint64_t b_generation;
+  uint64_t c_instance;
+  uint64_t c_generation;
+  uint32_t completed;
+  uint32_t output_is_current;
+} rns8_completion_info;
+
+/* Prepared synchronous GEMM. Retains all handles until destroy: destroying a
+ * retained handle returns BUSY without releasing it. A/B may be repacked between
+ * calls, but refresh is required before executing changed input generations.
+ * Calls using any shared handle require external host-thread serialization.
+ * This API executes the ordinary synchronous path, may allocate, and is not
+ * HIP stream submission or graph-capture safe. No completion means enqueue.
+ * Execution preserves ordinary preflight rollback/write-invalidation semantics.
+ * Tokens identify only the latest execution of this prepared instance. */
+RNS8_API rns8_status rns8_prepare_gemm(
+    rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* a,
+    const rns8_matrix* b, rns8_matrix* c, rns8_workspace* workspace,
+    rns8_prepared_execution** out);
+RNS8_API rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* execution);
+RNS8_API rns8_status rns8_execute_prepared(
+    rns8_prepared_execution* execution, rns8_completion_token* out_token);
+RNS8_API rns8_status rns8_get_prepared_completion(
+    const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
+RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
 typedef struct rns8_context_options {
   uint64_t struct_size;

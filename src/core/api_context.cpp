@@ -195,6 +195,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 }
 
 rns8_status rns8_destroy_context(rns8_context* ctx) {
+  if (ctx && ctx->prepared_references) return RNS8_BUSY;
   if (ctx && ctx->hipblaslt_handle) {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
     const rns8_status status = rns8::detail::hipblaslt_destroy_context(ctx->device_id, ctx->hipblaslt_handle);

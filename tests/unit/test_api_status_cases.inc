@@ -15,6 +15,7 @@ TEST_CASE("public status strings cover every ABI status") {
       {RNS8_BACKEND_FAILURE, "backend failure"},
       {RNS8_VERIFICATION_FAILED, "verification failed"},
       {RNS8_INTERNAL_ERROR, "internal error"},
+      {RNS8_BUSY, "busy"},
   };
 
   for (const Case& item : cases) {

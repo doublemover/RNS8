@@ -24,6 +24,8 @@ const char* rns8_status_string(rns8_status status) {
       return "verification failed";
     case RNS8_INTERNAL_ERROR:
       return "internal error";
+    case RNS8_BUSY:
+      return "busy";
   }
   return "unknown status";
 }

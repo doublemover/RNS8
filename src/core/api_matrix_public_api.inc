@@ -122,6 +122,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
 }
 
 rns8_status rns8_destroy_matrix(rns8_matrix* matrix) {
+  if (matrix && matrix->prepared_references) return RNS8_BUSY;
   if (matrix) {
     const rns8_status status = free_hip_matrix_storage(*matrix);
     delete matrix;

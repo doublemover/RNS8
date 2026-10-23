@@ -49,17 +49,19 @@ rns8_status hip_direct_discover_native_tile_bounds(
     });
   };
   if (run("native_bound_axis_scan", [&]() {
-        return rns8_hip_native_axis_bounds(a, b, maxima, m, n, k, lda, ldb, unsigned_inputs);
+        return rns8_hip_native_axis_bounds(a, b, maxima, static_cast<int>(m), static_cast<int>(n),
+            static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), unsigned_inputs);
       }) != hipSuccess) return RNS8_BACKEND_FAILURE;
   if (run("native_bound_prefix_selection", [&]() {
-        return rns8_hip_native_tile_bounds(maxima, device_bounds, counts, rows, cols, k, capacity, !unsigned_inputs);
+        return rns8_hip_native_tile_bounds(maxima, device_bounds, counts, static_cast<int>(rows),
+            static_cast<int>(cols), static_cast<int>(k), static_cast<int>(capacity), !unsigned_inputs);
       }) != hipSuccess) return RNS8_BACKEND_FAILURE;
   uint32_t rejected = 0;
   status = hip_direct_copy_device_to_host(device_id, &rejected, counts + 21, sizeof(rejected));
   if (status != RNS8_SUCCESS) return status;
   if (rejected) return RNS8_RANGE_ERROR;
   return run("native_bound_bucket_compaction", [&]() {
-    return rns8_hip_native_bound_compact(device_bounds, counts, cursors, device_offsets, device_indices, tiles);
+    return rns8_hip_native_bound_compact(device_bounds, counts, cursors, device_offsets, device_indices, static_cast<int>(tiles));
   }) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id; (void)unsigned_inputs;

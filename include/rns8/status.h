@@ -34,7 +34,8 @@ typedef enum rns8_status RNS8_ENUM_BASE {
   RNS8_WORKSPACE_TOO_SMALL = 7,
   RNS8_BACKEND_FAILURE = 8,
   RNS8_VERIFICATION_FAILED = 9,
-  RNS8_INTERNAL_ERROR = 10
+  RNS8_INTERNAL_ERROR = 10,
+  RNS8_BUSY = 11
 } rns8_status;
 
 /* Returns stable lowercase diagnostic text for public status codes, or

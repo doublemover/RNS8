@@ -78,6 +78,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
 }
 
 rns8_status rns8_destroy_plan(rns8_plan* plan) {
+  if (plan && plan->prepared_references) return RNS8_BUSY;
   delete plan;
   return RNS8_SUCCESS;
 }

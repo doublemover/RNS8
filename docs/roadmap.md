@@ -433,3 +433,17 @@ unchanged. Generation-bound public proof reuse, L1/K-panel refinements, a
 device-count consumer and discovery-versus-conversion planner selection remain
 open. Boost width/prefix and GPU bucket/tail/mutation fixtures are authored;
 compilation, execution and net performance are pending.
+
+At `f3127af`, the gfx1100 HIP test executable compiled with grouped native WMMA
+and device bound discovery. No tests or performance measurements were run.
+
+The first #43 public slice now provides synchronous prepared GEMM bindings,
+resource retention/BUSY destruction, explicit generation refresh and completion
+tokens with prepared-instance identity plus nonwrapping epochs. Existing GEMM
+write guards own publication. Old tokens cannot certify a later output mutation.
+See [prepared execution](prepared-execution.md) for the exact state/lifetime
+contract and the explicitly unsupported async/graph behavior. CPU/HIP API
+fixtures cover arithmetic families, two retained consumers, A==B, reverse
+execution/destruction order, stale inputs and old completions. Compilation and
+execution of this slice are pending; async submission and graph envelopes remain
+open.
