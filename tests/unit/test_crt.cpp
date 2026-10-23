@@ -1,3 +1,5 @@
+#include "../../benchmarks/rns8_bench_support.hpp"
+#include <cmath>
 #include <catch2/catch_test_macros.hpp>
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -288,4 +290,14 @@ TEST_CASE("Address-domain qualification proves complete spans without allocation
       }
     }
   }
+}
+
+TEST_CASE("Host duration conversion preserves sub-microsecond samples") {
+  using rns8::bench::duration_us;
+  for (int64_t ns : {0, 1, 500, 999, 1000, 1500, 1999}) {
+    CHECK(std::abs(duration_us(std::chrono::nanoseconds(ns)) - static_cast<double>(ns) / 1000.0) < 1e-12);
+  }
+  double sum = 0;
+  for (unsigned i = 0; i < 100; ++i) sum += duration_us(std::chrono::nanoseconds(500));
+  CHECK(sum == 50.0);
 }

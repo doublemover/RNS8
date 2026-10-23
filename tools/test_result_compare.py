@@ -82,6 +82,13 @@ def main() -> int:
     else:
         raise AssertionError("missing finite modulus must not form a baseline identity")
 
+    censored = copy.deepcopy(cpu)
+    censored["timing_metadata"]["phase_states"] = {"end_to_end": "below_resolution"}
+    censored["timing_metadata"]["host_result_kind"] = "single_operation_or_explicit_batch"
+    timing_report = result_compare.compare(censored, censored, Path("a"), Path("b"))
+    assert timing_report["timings"]["end_to_end"]["ratio"] is None
+    assert not timing_report["timings"]["end_to_end"]["host_ratio_qualified"]
+
     cpu_vs_gpu = result_compare.compare(cpu, gpu, Path("cpu.json"), Path("gpu.json"))
     assert cpu_vs_gpu["matching_contract"] is True
     assert cpu_vs_gpu["gpu_compatibility_required"] is False

@@ -26,7 +26,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);
@@ -74,7 +74,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);

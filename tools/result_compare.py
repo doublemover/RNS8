@@ -505,7 +505,18 @@ def compare(
         cand, cand_source = phase_timing(candidate, phase, candidate_path) if cand_applicable else (None, "not_applicable")
         delta = cand - base if base is not None and cand is not None else None
         ratio = cand / base if base is not None and base != 0 and cand is not None else None
+        base_state = dotted_get(baseline, f"timing_metadata.phase_states.{phase}")
+        cand_state = dotted_get(candidate, f"timing_metadata.phase_states.{phase}")
+        host_mode_match = (dotted_get(baseline, "timing_metadata.host_result_kind") ==
+                           dotted_get(candidate, "timing_metadata.host_result_kind"))
+        host_ratio_qualified = host_mode_match and base_state == cand_state == "measured"
+        if not host_mode_match or base_state == "below_resolution" or cand_state == "below_resolution":
+            ratio = None
+
         timings[phase] = {
+            "host_ratio_qualified": host_ratio_qualified,
+            "baseline_measurement_state": base_state or "legacy_integer_microsecond_quantization",
+            "candidate_measurement_state": cand_state or "legacy_integer_microsecond_quantization",
             "baseline": base,
             "candidate": cand,
             "delta": delta,

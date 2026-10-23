@@ -64,7 +64,11 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
         return None
     identity = {key: capture.get(key) for key in
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
-                 "device", "cpu_parallel", "clock_policy", "timing_metadata")}
+                 "device", "cpu_parallel", "clock_policy")}
+    timing = capture.get("timing_metadata") or {}
+    identity["timing_contract"] = {key: timing.get(key) for key in
+                                   ("host_timing_contract_version", "host_result_kind", "source", "source_scope",
+                                    "clock_period_numerator", "clock_period_denominator")}
     identity["artifact"] = {key: artifact.get(key) for key in
                             ("executable_sha256", "rns8_linkage", "shared_library_sha256")}
     return capture_digest(identity)

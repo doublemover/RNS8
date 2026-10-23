@@ -667,8 +667,8 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_independent_final_export && args.residue_chain_length <= 1) {
     usage_error("--residue-chain-independent-final-export requires --residue-chain-length > 1");
   }
-  if (args.host_api_batch_size == 0) {
-    usage_error("--host-api-batch-size must be positive");
+  if (args.host_api_batch_size == 0 || args.host_api_batch_size > 4096) {
+    usage_error("--host-api-batch-size must be in [1, 4096]");
   }
   if (args.grouped_dispatch_tasks == 0) {
     usage_error("--grouped-dispatch must be positive");

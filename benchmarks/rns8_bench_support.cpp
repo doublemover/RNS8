@@ -1,6 +1,7 @@
 #include "rns8_bench_support.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -26,8 +27,19 @@
 
 namespace rns8::bench {
 
-uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
-  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+const HostClockCalibration& host_clock_calibration() {
+  static const HostClockCalibration calibration = [] {
+    std::array<double, 1001> overhead{};
+    for (auto& value : overhead) {
+      const auto start = std::chrono::steady_clock::now();
+      const auto end = std::chrono::steady_clock::now();
+      value = elapsed_us(start, end);
+    }
+    std::sort(overhead.begin(), overhead.end());
+    const double nominal_tick = duration_us(std::chrono::steady_clock::duration{1});
+    return HostClockCalibration{overhead[500], overhead[950], std::max(nominal_tick, 5 * overhead[950])};
+  }();
+  return calibration;
 }
 
 [[noreturn]] void usage_error(const std::string& message) {

@@ -100,7 +100,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -150,10 +150,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -186,7 +186,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
             fail_status("pack_exact_wide_signed_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }
@@ -452,7 +452,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -502,10 +502,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -538,7 +538,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
             fail_status("pack_exact_wide_unsigned_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }

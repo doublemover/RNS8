@@ -315,8 +315,8 @@ std::vector<double> streaming_event_values(
   return values;
 }
 
-uint64_t rounded_event_us(double value) {
-  return value <= 0.0 ? 0 : static_cast<uint64_t>(value + 0.5);
+double rounded_event_us(double value) {
+  return std::max(0.0, value);
 }
 
 void fill_streaming_overlap_event_results(BenchmarkResult& result, uint32_t repeats) {
@@ -706,7 +706,7 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph bounded pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -933,7 +933,7 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph exact-wide pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1183,7 +1183,7 @@ void run_hip_graph_replay_finite_pack_gemm_export(
       }
       fail_status("hip graph finite pack/GEMM/export measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1360,7 +1360,7 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
       }
       fail_status("hip graph wrap64 pack/GEMM/export measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);

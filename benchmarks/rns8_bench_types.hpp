@@ -125,12 +125,12 @@ struct Args {
 };
 
 struct TimingSamples {
-  std::vector<uint64_t> pack_us;
-  std::vector<uint64_t> pack_a_us;
-  std::vector<uint64_t> pack_b_us;
-  std::vector<uint64_t> gemm_us;
-  std::vector<uint64_t> export_us;
-  std::vector<uint64_t> end_to_end_us;
+  std::vector<double> pack_us;
+  std::vector<double> pack_a_us;
+  std::vector<double> pack_b_us;
+  std::vector<double> gemm_us;
+  std::vector<double> export_us;
+  std::vector<double> end_to_end_us;
 };
 
 struct GpuEventSamples {
@@ -147,13 +147,13 @@ enum class PrepackReuseStrategy {
 };
 
 struct BenchmarkResult {
-  uint64_t plan_us = 0;
-  uint64_t schedule_query_us = 0;
-  uint64_t global_bound_scan_us = 0;
+  double plan_us = 0;
+  double schedule_query_us = 0;
+  double global_bound_scan_us = 0;
   bool global_bound_scan_available = false;
-  uint64_t tile_bound_scan_us = 0;
+  double tile_bound_scan_us = 0;
   bool tile_bound_scan_available = false;
-  uint64_t matrix_alloc_us = 0;
+  double matrix_alloc_us = 0;
   uint64_t static_bound = 0;
   uint64_t effective_bound = 0;
   bool effective_bound_available = false;
@@ -187,8 +187,8 @@ struct BenchmarkResult {
   uint32_t streaming_overlap_stream_count = 0;
   uint32_t streaming_overlap_buffer_count = 0;
   uint32_t streaming_overlap_measured_repeat_count = 0;
-  uint64_t streaming_overlap_batch_wall_us = 0;
-  uint64_t streaming_overlap_per_repeat_pipeline_us = 0;
+  double streaming_overlap_batch_wall_us = 0;
+  double streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
   std::string target_id = "cpu";
   rns8_plan_backend_info backend_info{};
@@ -231,20 +231,20 @@ struct BenchmarkResult {
   uint32_t workspace_arena_suballocation_count = 0;
   std::string workspace_arena_target_id{};
   std::string workspace_arena_policy{};
-  uint64_t prepack_setup_us = 0;
+  double prepack_setup_us = 0;
   bool prepack_setup_available = false;
-  uint64_t prepack_setup_pack_a_us = 0;
-  uint64_t prepack_setup_pack_b_us = 0;
-  uint64_t prepack_setup_runtime_cache_us = 0;
-  uint64_t prepack_setup_unclassified_us = 0;
+  double prepack_setup_pack_a_us = 0;
+  double prepack_setup_pack_b_us = 0;
+  double prepack_setup_runtime_cache_us = 0;
+  double prepack_setup_unclassified_us = 0;
   PrepackReuseStrategy prepack_reuse_strategy = PrepackReuseStrategy::None;
   rns8_prepack_cache_info prepack_cache_info{};
   bool prepack_cache_info_available = false;
   bool hip_graph_replay_requested = false;
   bool hip_graph_replay_available = false;
   bool hip_graph_replay_used = false;
-  uint64_t hip_graph_capture_us = 0;
-  uint64_t hip_graph_instantiate_us = 0;
+  double hip_graph_capture_us = 0;
+  double hip_graph_instantiate_us = 0;
   uint64_t hip_graph_launch_count = 0;
   std::string hip_graph_replay_status = "not_requested";
   std::string hip_graph_replay_scope = "not_applicable";

@@ -209,3 +209,17 @@ ID once per launched process and copied captures preserve it. Promotion ledger
 consumption binds the report entry to the capture digest. Multi-GPU reports derive
 expected ranks from requested launch devices and reconcile per-rank case coverage,
 so missing output cannot reduce the expected inventory.
+
+
+Host timing contract version 2 preserves fractional microseconds from clock ticks
+through sample storage and aggregation, printing 17 significant digits. The
+nominal steady-clock period is recorded separately from physical accuracy
+(which remains unknown); 1001 empty timer pairs characterize median/p95 overhead
+outside workload intervals. A conservative censor threshold is the larger of one
+nominal tick and five times p95 pair overhead. Phase states distinguish measured,
+below-resolution, fused, elided and unsupported work. The existing explicit
+`--host-api-batch-size` mode is bounded to 4096 independent tasks and labels its
+aggregate measurements as amortized batches with per-task outputs. It does not
+claim single-call latency. Legacy integer-us captures retain their quantization;
+comparison output marks their ratios unqualified, and suppresses ratios for
+censored or mismatched measurement modes. HIP-event samples remain separate.

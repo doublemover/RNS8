@@ -97,7 +97,7 @@ void print_comparison_baseline(const Args& args, const rns8_device_info& info, c
   std::cout << "  },\n";
 }
 
-void print_single_u64_array(uint64_t value) {
+void print_single_timing_array(double value) {
   std::cout << "[" << value << "]";
 }
 

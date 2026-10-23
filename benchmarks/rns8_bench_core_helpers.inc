@@ -676,8 +676,8 @@ void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA&
 }
 
 struct PackOperandTiming {
-  uint64_t a_us = 0;
-  uint64_t b_us = 0;
+  double a_us = 0;
+  double b_us = 0;
 };
 
 template <typename PackA, typename PackB>
@@ -704,15 +704,15 @@ PackOperandTiming pack_preused_inputs_timed(
 
 void record_prepack_setup_timing(
     BenchmarkResult& result,
-    uint64_t total_us,
+    double total_us,
     const PackOperandTiming& pack_timing,
-    uint64_t runtime_cache_us) {
+    double runtime_cache_us) {
   result.prepack_setup_us = total_us;
   result.prepack_setup_available = true;
   result.prepack_setup_pack_a_us = pack_timing.a_us;
   result.prepack_setup_pack_b_us = pack_timing.b_us;
   result.prepack_setup_runtime_cache_us = runtime_cache_us;
-  const uint64_t classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
+  const double classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
   result.prepack_setup_unclassified_us = total_us > classified ? total_us - classified : 0;
 }
 
@@ -758,7 +758,7 @@ PackOperandTiming pack_per_repeat_inputs_timed(
   return timing;
 }
 
-void record_pack_operand_timing(TimingSamples* samples, uint64_t pack_a_us, uint64_t pack_b_us) {
+void record_pack_operand_timing(TimingSamples* samples, double pack_a_us, double pack_b_us) {
   if (!samples) {
     return;
   }
@@ -969,7 +969,7 @@ void run_hip_graph_replay_resident_chain(
       }
       fail_status("hip graph measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
