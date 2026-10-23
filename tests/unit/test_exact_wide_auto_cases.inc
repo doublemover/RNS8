@@ -330,6 +330,7 @@ TEST_CASE("exact-wide opt-in CPU selection rejects invalid calls without mutatio
   CHECK(f.automatic(0, 1, 2, 100, selected) == RNS8_INVALID_ARGUMENT);
   f.matrices[1]->desc.cols = 1;
   const auto backend = f.plan->backend;
+  f.plan->validated_contract.reset(); // Explicit internal corruption diagnostic.
   f.plan->backend = f.ctx->backend = RNS8_BACKEND_HIP_DIRECT;
   CHECK(f.automatic(0, 1, 2, 100, selected) == RNS8_UNSUPPORTED_BACKEND);
   f.plan->backend = f.ctx->backend = backend;

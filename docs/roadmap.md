@@ -557,3 +557,10 @@ packed block traffic. See [locality schedules](locality-schedules.md). Authored
 bijection and shuffled-arithmetic fixtures await combined validation. Runtime
 remapping and measured cache/XCD behavior remain unqualified and are not inferred
 from this simulator.
+
+The #34 unchanged-schedule hot-path slice now validates and seals plans at
+construction, caches fingerprints and active counts, and admits equivalent-plan
+workspace reuse with structural equality before retaining the new identity.
+See [plan validation](plan-validation.md). Diagnostic mutation tests retain full
+revalidation; high-tile-count traversal counters and collision fixtures are
+authored. Compilation, execution and latency measurements remain pending.

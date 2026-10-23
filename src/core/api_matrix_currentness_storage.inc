@@ -108,10 +108,12 @@ bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const 
   }
   uint64_t running_offset = 0;
   for (uint32_t p = 0; p < workspace.hip_tile_schedule_active_prefix_count; ++p) {
-    uint64_t expected_count = 0;
-    for (const auto& entry : plan.tile_schedule) {
-      if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
-        ++expected_count;
+    uint64_t expected_count = plan.validated_contract ? plan.validated_contract->active_counts[p] : 0;
+    if (!plan.validated_contract) {
+      for (const auto& entry : plan.tile_schedule) {
+        if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+          ++expected_count;
+        }
       }
     }
     if (workspace.hip_tile_schedule_active_offsets[p] != running_offset ||

@@ -256,6 +256,7 @@ TEST_CASE("public wrap64 CPU path rejects stale bounded schedule metadata") {
   stale_entry.required_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   stale_entry.selected_prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   auto check_gemm_rejects_plan_mutation = [&](auto mutate, auto restore) {
+    plan->validated_contract.reset(); // Force exhaustive corruption diagnostics.
     mutate();
     CHECK(rns8_gemm_wrap_u64(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
     restore();

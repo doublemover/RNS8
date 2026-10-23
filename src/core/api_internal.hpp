@@ -323,6 +323,14 @@ uint64_t workspace_fingerprint_mix_string(uint64_t hash, const std::string& valu
 uint64_t signed_to_fingerprint(int64_t value);
 
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan);
+bool seal_plan_contract(rns8_plan& plan);
+bool revalidate_plan_schedule_contract(const rns8_plan& plan);
+struct plan_validation_counters {
+  uint64_t exhaustive_validations = 0;
+  uint64_t fingerprint_traversals = 0;
+  uint64_t equivalent_comparisons = 0;
+};
+inline thread_local plan_validation_counters plan_validation_work{};
 
 bool matrix_descriptor_matches(
     const rns8_matrix& matrix,

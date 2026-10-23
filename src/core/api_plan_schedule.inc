@@ -107,6 +107,7 @@ bool plan_has_zero_row_col_proofs(const rns8_plan& plan) {
 }
 
 rns8_status configure_plan_schedule(rns8_plan& plan) {
+  plan.validated_contract.reset();
   const uint32_t tile_m = plan.desc.tile_m == 0 ? 128u : plan.desc.tile_m;
   const uint32_t tile_n = plan.desc.tile_n == 0 ? 128u : plan.desc.tile_n;
   const uint32_t requested_max_prefix = plan.prefix;

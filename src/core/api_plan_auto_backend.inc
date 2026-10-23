@@ -1,4 +1,5 @@
 void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
+  plan.validated_contract.reset();
   rns8_backend_capability_info capability{};
   capability.struct_size = sizeof(capability);
   capability.abi_version = RNS8_ABI_VERSION;

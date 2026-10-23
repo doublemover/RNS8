@@ -100,7 +100,7 @@ TEST_CASE("scalar first proof is opt in and refines before range rejection", "[a
   desc.max_prefix=20;
   rns8_plan* plan=nullptr;
   REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
-  rns8_plan narrow=*plan; narrow.prefix=1; narrow.modulus_product=256;
+  rns8_plan narrow=*plan; narrow.validated_contract.reset(); narrow.prefix=1; narrow.modulus_product=256;
   rns8_matrix a,b; a.exact_range_prefix=b.exact_range_prefix=1;
   const int64_t av[]={100,100},bv[]={1,-1};
   a.exact_axis_ranges=native_exact_ranges(av,1,2,2,a.exact_max_magnitude);

@@ -14,6 +14,8 @@ void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context
 }
 
 void initialize_workspace_schedule_contract(rns8_workspace& workspace, const rns8_plan& plan) {
+  workspace.validated_plan_contract = plan.validated_contract;
+  workspace.equivalent_plan_contract.reset();
   workspace.schedule_tile_rows = plan.schedule_tile_rows;
   workspace.schedule_tile_cols = plan.schedule_tile_cols;
   workspace.schedule_tile_count = plan.schedule_tile_count;
@@ -68,6 +70,17 @@ bool workspace_identity_matches_plan(
 }
 
 bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+  if (plan.validated_contract && workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.equivalent_plan_contract) {
+    ++plan_validation_work.equivalent_comparisons;
+    // The hash is only a rejection filter. Admit a distinct plan by complete
+    // canonical structural equality, then retain its immutable identity.
+    if (plan.validated_contract->fingerprint != workspace.validated_plan_contract->fingerprint ||
+        plan.validated_contract->canonical_workspace_key !=
+            workspace.validated_plan_contract->canonical_workspace_key) return false;
+    workspace.equivalent_plan_contract = plan.validated_contract;
+  }
   return workspace.bound == plan.desc.bound &&
          workspace.finite_modulus == plan.desc.finite_modulus &&
          workspace.tile_m == plan.desc.tile_m &&

@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -22,7 +23,16 @@ struct rns8_context {
   std::string hipblaslt_library_version;
 };
 
+// Created only after exhaustive construction validation. Public plans have no
+// mutation API. Internal diagnostic mutation must first discard this seal.
+struct rns8_validated_plan_contract {
+  uint64_t fingerprint = 0;
+  std::vector<uint64_t> canonical_workspace_key;
+  uint64_t active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+};
+
 struct rns8_plan {
+  std::shared_ptr<const rns8_validated_plan_contract> validated_contract;
   mutable uint64_t prepared_references = 0;
   rns8_gemm_desc desc{};
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -176,6 +186,8 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  std::shared_ptr<const rns8_validated_plan_contract> validated_plan_contract;
+  mutable std::shared_ptr<const rns8_validated_plan_contract> equivalent_plan_contract;
   mutable uint64_t prepared_references = 0;
   bool in_flight = false;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;

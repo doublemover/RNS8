@@ -43,10 +43,8 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
                                                 desc->k, desc->n, desc->n, std::max(prefix, 1u))) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    auto* plan = new (std::nothrow) rns8_plan();
-    if (!plan) {
-      return RNS8_INTERNAL_ERROR;
-    }
+    auto owner = std::make_unique<rns8_plan>();
+    auto* plan = owner.get();
     plan->desc = *desc;
     plan->desc.max_prefix = prefix;
     if (plan->desc.tile_m == 0) {
@@ -57,7 +55,6 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     }
     if (plan->desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K &&
         !rns8::detail::input_range_output_bound(plan->desc, plan->desc.bound)) {
-      delete plan;
       return RNS8_RANGE_ERROR;
     }
     plan->prefix = prefix;
@@ -65,14 +62,14 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     plan->backend = requested;
     const rns8_status schedule_status = configure_plan_schedule(*plan);
     if (schedule_status != RNS8_SUCCESS) {
-      delete plan;
       return schedule_status;
     }
     configure_plan_backend_metadata(*plan, ctx);
     if (desc->requested_backend == RNS8_BACKEND_AUTO) {
       select_auto_backend_from_reviewed_cache(*ctx, *plan);
     }
-    *out = plan;
+    if (!seal_plan_contract(*plan)) return RNS8_INVALID_ARGUMENT;
+    *out = owner.release();
     return RNS8_SUCCESS;
   });
 }
