@@ -10,7 +10,7 @@ template<std::size_t Index>
 void check_generated_reducer() {
   constexpr uint16_t modulus = rns8::generated::moduli[Index];
   using Reducer = rns8::generated::CenteredReducer<modulus>;
-  auto check = [](int32_t value) {
+  auto check = [=](int32_t value) {
     // Widen first so the independent formula handles INT32_MIN without negation.
     int64_t canonical = static_cast<int64_t>(value) % modulus;
     if (canonical < 0) canonical += modulus;
