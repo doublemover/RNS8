@@ -41,6 +41,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_lift_kernels.cuh"
 #include "hip_direct_split_k_kernels.cuh"
 #include "hip_direct_epilogue_kernels.cuh"
+#include "hip_direct_narrow_kernels.cuh"
 
 }  // namespace
 
@@ -115,5 +116,20 @@ extern "C" int rns8_hip_gemm_rns_axpby(
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
   hipLaunchKernelGGL(rns8_gemm_rns_axpby_kernel, dim3(blocks, prefix), dim3(256), 0, nullptr,
                     a, b, d, c, m, n, k, lda, ldb, ldd, ldc, alpha, beta);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_i64_abs_max(const int64_t* source, int rows, int cols, int ld, void* maximum) {
+  const auto blocks = static_cast<unsigned>((static_cast<int64_t>(rows) * cols + 255) / 256);
+  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel, dim3(blocks), dim3(256), 0, nullptr,
+                    source, rows, cols, ld, static_cast<unsigned long long*>(maximum));
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_native_i64_narrow_gemm(
+    const int64_t* a, const int64_t* b, int64_t* c, int m, int n, int k, int lda, int ldb, int ldc) {
+  const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
+  hipLaunchKernelGGL(rns8_native_i64_narrow_gemm_kernel, dim3(blocks), dim3(256), 0, nullptr,
+                    a, b, c, m, n, k, lda, ldb, ldc);
   return static_cast<int>(hipGetLastError());
 }

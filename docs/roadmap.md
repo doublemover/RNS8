@@ -346,3 +346,14 @@ fixture covers full coefficient extremes, padded strides, prefix 20 and K=65537.
 Complete pointer spans reject overlapping output writers in this and split-K
 baselines. No public expression API, whole-expression integer range admission,
 matrix-engine fusion, cache selector or speedup is claimed yet.
+
+
+The #53 private native signed-i64 candidate scans the actual device operands for
+absolute maxima (INT64_MIN uses unsigned magnitude arithmetic), then admits only
+`K*amax*bmax <= INT64_MAX` before launching scalar native products. The proof
+covers each product and every partial sum; zero products remain valid even when
+an operand contains INT64_MIN. Rejection preserves output bytes and does not
+return a proof. Scan, status transfer and GEMM costs remain visible. Authored Boost
+fixtures cover full-width boundaries, unsafe cancellation, padding and K=65537.
+This synchronous scan-per-call baseline is not a performance promotion, cached
+admission, INT8 matrix route or public planner integration. Validation is pending.

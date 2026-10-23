@@ -9,6 +9,14 @@
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
+// Native signed-i64 scalar candidate admitted by an actual device input scan.
+// The returned bound covers every partial absolute product sum. No automatic
+// selection or matrix-engine claim; reject rather than infer safety from C.
+rns8_status hip_direct_gemm_i64_narrow_checked_device(
+    int device_id, const int64_t* a, const int64_t* b, int64_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint64_t* out_abs_sum_bound);
+
 // Explicit modular expression baseline. Callers must separately prove bounded
 // integer semantics and own publication; D/C must not alias. No default routing.
 rns8_status hip_direct_gemm_rns_axpby_device(
