@@ -1,3 +1,7 @@
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+__device__ __constant__ rns8::detail::garner::Constants rns8_garner_table = rns8::detail::garner::make_constants();
+#endif
+
 __device__ __constant__ int rns8_default_moduli_device[kRns8DefaultModulusCount] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
@@ -393,15 +397,24 @@ __device__ void rns8_reconstruct_canonical_wide_device(
     const uint32_t target =
         rns8_canonical_from_centered_device(residues[static_cast<int64_t>(i) * elements + cell], modulus);
     const uint32_t x_mod = rns8_u192_mod_u32_device(x, static_cast<uint32_t>(modulus));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const uint32_t inverse = rns8_garner_table.inverses[i];
+#else
     const uint32_t product_mod = rns8_u192_mod_u32_device(product, static_cast<uint32_t>(modulus));
     const uint32_t inverse = rns8_mod_inverse_device(product_mod, static_cast<uint32_t>(modulus));
+#endif
     int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     delta_mod %= modulus;
     delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
     x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const auto* next = rns8_garner_table.products[i+1];
+    product = {next[0], next[1], next[2]};
+#else
     product = rns8_u192_mul_u32_device(product, static_cast<uint32_t>(modulus));
+#endif
   }
   *out_x = x;
   *out_product = product;
@@ -422,15 +435,24 @@ __device__ void rns8_reconstruct_canonical_wide_fixed_prefix_device(
     const uint32_t target =
         rns8_canonical_from_centered_device(residues[static_cast<int64_t>(i) * elements + cell], modulus);
     const uint32_t x_mod = rns8_u192_mod_u32_device(x, static_cast<uint32_t>(modulus));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const uint32_t inverse = rns8_garner_table.inverses[i];
+#else
     const uint32_t product_mod = rns8_u192_mod_u32_device(product, static_cast<uint32_t>(modulus));
     const uint32_t inverse = rns8_mod_inverse_device(product_mod, static_cast<uint32_t>(modulus));
+#endif
     int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     delta_mod %= modulus;
     delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
     x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const auto* next = rns8_garner_table.products[i+1];
+    product = {next[0], next[1], next[2]};
+#else
     product = rns8_u192_mul_u32_device(product, static_cast<uint32_t>(modulus));
+#endif
   }
   *out_x = x;
   *out_product = product;
@@ -459,7 +481,11 @@ __device__ void rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device(
     const uint32_t rhs_target = rns8_canonical_from_centered_device(
         residues[static_cast<int64_t>(lhs_index + 1) * elements + cell],
         static_cast<int>(rhs_modulus));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const uint32_t inverse = rns8_garner_table.pair_inner_inverses[pair];
+#else
     const uint32_t inverse = rns8_mod_inverse_device(lhs_modulus % rhs_modulus, rhs_modulus);
+#endif
     int64_t delta_mod = static_cast<int64_t>(rhs_target) - static_cast<int64_t>(lhs_target % rhs_modulus);
     delta_mod %= static_cast<int64_t>(rhs_modulus);
     delta_mod += static_cast<int64_t>(rhs_modulus) & -static_cast<int64_t>(delta_mod < 0);
@@ -476,15 +502,24 @@ __device__ void rns8_reconstruct_canonical_wide_tree_pairs_fixed_prefix_device(
     const uint32_t modulus = pair_moduli[pair];
     const uint32_t target = pair_values[pair];
     const uint32_t x_mod = rns8_u192_mod_u32_device(x, modulus);
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const uint32_t inverse = rns8_garner_table.pair_prefix_inverses[pair];
+#else
     const uint32_t product_mod = rns8_u192_mod_u32_device(product, modulus);
     const uint32_t inverse = rns8_mod_inverse_device(product_mod, modulus);
+#endif
     int64_t delta_mod = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     delta_mod %= static_cast<int64_t>(modulus);
     delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % modulus);
     x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
+#if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
+    const auto* next = rns8_garner_table.products[2*(pair+1)];
+    product = {next[0], next[1], next[2]};
+#else
     product = rns8_u192_mul_u32_device(product, modulus);
+#endif
   }
   *out_x = x;
   *out_product = product;

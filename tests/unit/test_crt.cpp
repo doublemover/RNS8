@@ -188,3 +188,15 @@ TEST_CASE("immutable Garner constants and every prefix match independent congrue
     }
   }
 }
+
+TEST_CASE("Garner pair constants prove both inverse levels", "[crt][value-lifecycle]") {
+  using namespace rns8::detail;
+  cpp_int product=1;
+  for (uint32_t pair=0;pair<10;++pair) {
+    const uint32_t lhs=kDefaultModuli[pair*2], rhs=kDefaultModuli[pair*2+1];
+    CHECK(garner::kConstants.pair_moduli[pair]==lhs*rhs);
+    CHECK((lhs*garner::kConstants.pair_inner_inverses[pair]) % rhs==1);
+    CHECK((product % (lhs*rhs))*garner::kConstants.pair_prefix_inverses[pair] % (lhs*rhs)==1);
+    product*=lhs*rhs;
+  }
+}

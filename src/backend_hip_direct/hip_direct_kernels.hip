@@ -1,6 +1,7 @@
 #include <hip/hip_runtime.h>
 
 #include <cstdint>
+#include "../backend_common/garner_constants.hpp"
 
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"

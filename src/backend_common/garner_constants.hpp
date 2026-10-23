@@ -11,6 +11,9 @@ struct Constants {
   uint32_t moduli[kCount]{};
   uint32_t inverses[kCount]{};
   uint64_t products[kProductCount][3]{};
+  uint32_t pair_moduli[10]{};
+  uint32_t pair_inner_inverses[10]{};
+  uint32_t pair_prefix_inverses[10]{};
 };
 
 constexpr uint32_t inverse(uint32_t a, uint32_t modulus) {
@@ -47,6 +50,15 @@ constexpr Constants make_constants() {
         carry=hi >> 32;
       }
     }
+  }
+  for (uint32_t pair=0;pair<10;++pair) {
+    const uint32_t lhs=moduli[2*pair], rhs=moduli[2*pair+1];
+    out.pair_moduli[pair]=lhs*rhs;
+    out.pair_inner_inverses[pair]=inverse(lhs % rhs,rhs);
+    uint32_t prefix_mod=1;
+    for (uint32_t j=0;j<2*pair;++j)
+      prefix_mod=static_cast<uint32_t>((static_cast<uint64_t>(prefix_mod)*moduli[j]) % (lhs*rhs));
+    out.pair_prefix_inverses[pair]=inverse(prefix_mod,lhs*rhs);
   }
   return out;
 }

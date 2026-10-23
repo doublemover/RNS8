@@ -1,3 +1,4 @@
+option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_BUILD_TESTS "Build RNS8 correctness tests" ON)
 option(RNS8_BUILD_TOOLS "Build RNS8 command-line tools" ON)
