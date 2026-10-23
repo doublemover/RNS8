@@ -1,3 +1,4 @@
+#include "backend_common/address_domain.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"

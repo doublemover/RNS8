@@ -1,3 +1,4 @@
+#include "backend_common/address_domain.hpp"
 #include "backend_ck/ck_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -160,6 +161,11 @@ rns8_status ck_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_rns_device(
@@ -211,6 +217,11 @@ rns8_status ck_gemm_rns_tiled_device(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_rns_tiled_device(
@@ -263,6 +274,11 @@ rns8_status ck_gemm_finite_u8_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_finite_u8_device(

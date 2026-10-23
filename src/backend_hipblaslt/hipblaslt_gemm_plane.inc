@@ -43,6 +43,11 @@ rns8_status gemm_one_plane(
     uint16_t modulus,
     const int8_t* cached_packed_a_t,
     const int8_t* cached_packed_b_t) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   int64_t k_offset = 0;
   bool accumulate = false;
   while (k_offset < k) {

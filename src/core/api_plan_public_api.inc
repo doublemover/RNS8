@@ -38,6 +38,11 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
+    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+        !rns8::detail::qualified_i32_gemm_address(desc->m, desc->n, desc->k,
+                                                desc->k, desc->n, desc->n, std::max(prefix, 1u))) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
     auto* plan = new (std::nothrow) rns8_plan();
     if (!plan) {
       return RNS8_INTERNAL_ERROR;

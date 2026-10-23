@@ -19,6 +19,11 @@ rns8_status hip_direct_pack_i64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, ld, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -98,6 +103,11 @@ rns8_status hip_direct_pack_u64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, ld, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -161,6 +171,11 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     int64_t ld,
     uint32_t prefix,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
@@ -260,6 +275,11 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     int64_t ld,
     uint32_t prefix,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
@@ -443,6 +463,11 @@ rns8_status hip_direct_pack_finite_u8_device(
     int64_t cols,
     int64_t ld,
     uint16_t modulus) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || modulus < 2 || modulus > 256 ||
       rows <= 0 || cols <= 0 || ld < cols || rows > std::numeric_limits<int>::max() ||
@@ -505,6 +530,11 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
     int64_t ld,
     uint16_t modulus,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, 1) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||

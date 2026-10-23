@@ -1,6 +1,8 @@
 #ifndef RNS8_CORE_INTERNAL_HPP
 #define RNS8_CORE_INTERNAL_HPP
 
+#include "backend_common/address_domain.hpp"
+
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <cstddef>

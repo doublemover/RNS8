@@ -18,6 +18,11 @@ rns8_status hipblaslt_gemm_rns_device(
     rns8_workspace* workspace_state,
     uint64_t a_source_version,
     uint64_t b_source_version) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if (!handle || !device_a_residues || !device_b_residues || !device_c_residues || !int32_scratch ||
       !workspace || !checked_common_shape(m, n, k, lda, ldb, ldc) ||

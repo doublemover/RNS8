@@ -180,3 +180,32 @@ analysis, controlled partial HIP-write failure injection,
 full source-free and stale-object artifact attribution across Linux,
 and repeated same-contract release-grade timing. These gates remain open;
 source changes and local correctness do not close them automatically.
+
+
+### Pending issue-batch qualification (2026-10-23)
+
+The development branch now rejects GPU plans and matrix storage whose complete
+padded, multi-plane address domain is not qualified for the existing signed
+32-bit global index intermediates. The shared checked-address helper proves
+last-element offsets and byte extents with checked arithmetic; admission also
+reserves space for tile-tail arithmetic. This deliberately rejects some shapes
+whose final offset alone fits (including a plane with exactly 2^31 elements,
+whose signed plane-size product does not). CPU descriptor capacity is unchanged.
+A widened-index GPU specialization remains future work; rejection is not evidence
+that large-address GPU execution has been validated. Native/finite, resident,
+region and optional backend wrapper checks also cover supplied leading dimensions.
+
+Native CPU packing uses integer remainder without per-cell Boost conversion.
+The multiprecision oracle remains in differential tests and exact-wide imports.
+Performance and the new regression cases remain unqualified until the deferred
+validation campaign completes.
+
+Benchmark comparisons include the finite modulus, chain length and logical
+output boundary in shared contract keys. Missing finite modulus is invalid
+comparison evidence. Variance reports count execution IDs within an immutable
+artifact/environment cohort; legacy captures without these identities remain
+descriptive and cannot qualify independent runs. The sweep launcher assigns an
+ID once per launched process and copied captures preserve it. Promotion ledger
+consumption binds the report entry to the capture digest. Multi-GPU reports derive
+expected ranks from requested launch devices and reconcile per-rank case coverage,
+so missing output cannot reduce the expected inventory.

@@ -9,6 +9,11 @@ rns8_status hip_direct_gemm_i64_native_prefix9_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -65,6 +70,11 @@ rns8_status hip_direct_gemm_i64_native_prefix9_colpair_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -121,6 +131,11 @@ rns8_status hip_direct_gemm_u64_native_prefix9_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -177,6 +192,11 @@ rns8_status hip_direct_gemm_u64_native_prefix9_colpair_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||

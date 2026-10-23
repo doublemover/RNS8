@@ -259,3 +259,33 @@ TEST_CASE("Finite native CPU packing exhausts every byte and modulus") {
     CHECK(matrix.residues.back() == 77);
   }
 }
+
+TEST_CASE("Address-domain qualification proves complete spans without allocations") {
+  using namespace rns8::detail;
+  AddressDomain domain;
+  REQUIRE(checked_address_domain(32768, 65536, 65536, 1, 1, 0, domain));
+  CHECK(domain.last_element == 2147483647ull);
+  REQUIRE(checked_address_domain(32769, 65536, 65536, 1, 1, 0, domain));
+  CHECK(domain.last_element == 2147549183ull);
+  CHECK_FALSE(qualified_i32_matrix_address(32769, 65536, 65536));
+  CHECK_FALSE(qualified_i32_matrix_address(32768, 65536, 65536)); // signed plane product overflows
+  CHECK(qualified_i32_matrix_address(32767, 65536, 65536));
+  CHECK_FALSE(qualified_i32_matrix_address(32767, 65536, 65536, 2));
+  CHECK_FALSE(checked_address_domain(UINT64_MAX, 8, 8, 8, 1, 0, domain));
+  CHECK_FALSE(checked_address_domain(1, 8, 8, 8, UINT64_MAX, 8, domain));
+  CHECK_FALSE(checked_address_domain(1, UINT64_MAX, UINT64_MAX, 8, 1, 0, domain));
+  CHECK_FALSE(checked_address_domain(2, 8, 8, 1, 2, 8, domain));
+  for (uint64_t rows : {1ull, 3ull, 65536ull}) {
+    for (uint64_t cols : {1ull, 17ull, 65536ull}) {
+      for (uint64_t padding : {0ull, 7ull}) {
+        for (uint64_t planes : {1ull, 20ull}) {
+          const auto ld = cols + padding;
+          REQUIRE(checked_address_domain(rows, cols, ld, 8, planes, 0, domain));
+          const cpp_int last = cpp_int(planes - 1) * rows * ld + cpp_int(rows - 1) * ld + cols - 1;
+          CHECK(cpp_int(domain.last_element) == last);
+          CHECK(cpp_int(domain.byte_extent) == (last + 1) * 8);
+        }
+      }
+    }
+  }
+}

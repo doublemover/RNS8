@@ -26,6 +26,11 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (!backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
+    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+        !rns8::detail::qualified_i32_matrix_address(desc->rows, desc->cols, desc->cols,
+                                                  std::max(prefix, 1u), 8)) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
     auto* matrix = new (std::nothrow) rns8_matrix();
     if (!matrix) {
       return RNS8_INTERNAL_ERROR;

@@ -10,6 +10,11 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
@@ -71,6 +76,11 @@ rns8_status hip_direct_gemm_finite_u8_region_device(
     int64_t region_rows,
     int64_t region_cols,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || region_row_offset < 0 ||
@@ -253,6 +263,11 @@ rns8_status hip_direct_gemm_finite_u8_native_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
@@ -310,6 +325,11 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
@@ -404,6 +424,11 @@ rns8_status hip_direct_gemm_rns_tiled_device(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || !entries || entry_count == 0 || m <= 0 ||
       n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
@@ -515,6 +540,11 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     const uint64_t* active_counts,
     uint32_t active_prefix_count,
     uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries ||
       !active_offsets || !active_counts || active_prefix_count == 0 || entry_count == 0 ||
