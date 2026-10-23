@@ -376,3 +376,14 @@ Authored mapping-bijection and GPU round-trip fixtures cover prefixes 1-20, tail
 padding, malformed descriptors and overflow. This addition follows the preceding
 compile checkpoint and remains uncompiled/unexecuted. Fused consumers, ragged
 directories, exact extension adapters and route-level cost selection remain open.
+
+
+The #39 direct-CRT candidate now has an explicit private GPU canonical export.
+Compile-time weights are P/m with inverses modulo m; each coefficient is reduced
+before multiplying its 192-bit weight. Every term is below P and every ordered
+sum below 20*2^160, so the unreduced numerator fits below 165 bits; at most
+prefix-1 product subtractions canonicalize it. The output contract is exactly
+three little-endian limbs in [0,P), with no inferred signed or bounded semantics.
+Boost constant/width fixtures and prefix-1-through-20 random/boundary GPU cases
+are authored. Compilation, execution, resource measurement, balanced-tree GPU
+implementation and benchmark-selector comparison remain pending.

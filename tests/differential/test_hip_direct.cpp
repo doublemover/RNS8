@@ -50,3 +50,4 @@ namespace {
 #include "test_hip_direct_epilogue_cases.inc"
 #include "test_hip_direct_narrow_cases.inc"
 #include "test_hip_direct_layout_cases.inc"
+#include "test_hip_direct_direct_crt_cases.inc"

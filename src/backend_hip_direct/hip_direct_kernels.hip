@@ -7,6 +7,7 @@
 #include "../backend_common/residue_dot.hpp"
 #include "../backend_common/residue_epilogue.hpp"
 #include "../backend_common/residue_layout.hpp"
+#include "../backend_common/direct_crt_constants.hpp"
 
 namespace {
 
@@ -44,6 +45,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_epilogue_kernels.cuh"
 #include "hip_direct_narrow_kernels.cuh"
 #include "hip_direct_layout_kernels.cuh"
+#include "hip_direct_direct_crt_kernels.cuh"
 
 }  // namespace
 
@@ -141,5 +143,11 @@ extern "C" int rns8_hip_convert_residue_layout(
   const auto blocks = static_cast<unsigned>((source.rows * source.cols * source.prefix + 255) / 256);
   hipLaunchKernelGGL(rns8_convert_residue_layout_kernel, dim3(blocks), dim3(256), 0, nullptr,
                     src, source, dst, destination);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_export_canonical_direct_crt(const int8_t* residues, uint64_t* limbs, int cells, int prefix) {
+  hipLaunchKernelGGL(rns8_export_canonical_direct_crt_kernel, dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+                    residues, limbs, cells, prefix);
   return static_cast<int>(hipGetLastError());
 }

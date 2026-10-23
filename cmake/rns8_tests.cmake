@@ -638,6 +638,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_residue_epilogue.cpp
     tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
+    tests/unit/test_direct_crt_constants.cpp
     tests/unit/test_generated_reducers.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp
