@@ -390,6 +390,15 @@ def main() -> int:
 
     graph = as_hip_graph_replay_capture(direct_hip_base)
     validate_capture(graph)
+    fractional_graph = copy.deepcopy(graph)
+    for key in ("capture_us", "instantiate_us"):
+        fractional_graph["hip_graph_replay"][key] = 0.375
+        fractional_graph["timing_metadata"]["hip_graph_" + key] = 0.375
+    validate_capture(fractional_graph)
+    for value in (True, -0.125, float("nan"), float("inf")):
+        invalid = copy.deepcopy(fractional_graph)
+        invalid["hip_graph_replay"]["capture_us"] = value
+        expect_invalid(invalid, "hip_graph_replay.capture_us must be finite and nonnegative")
 
     stale_graph_status = copy.deepcopy(graph)
     stale_graph_status["hip_graph_replay"]["capture_status"] = "stale_graph_status"
@@ -567,6 +576,15 @@ def main() -> int:
         stale_overlap_executed_scope,
         "executed streaming_overlap captures must use stage_event_scope",
     )
+    fractional_overlap = copy.deepcopy(stale_overlap_executed_scope)
+    fractional_overlap["streaming_overlap"].update(
+        stage_event_scope="direct_hip_streaming_overlap_multistream_operation_groups",
+        batch_wall_us=0.875, per_repeat_pipeline_us=0.125)
+    validate_capture(fractional_overlap)
+    for value in (True, -0.125, float("nan"), float("inf")):
+        invalid = copy.deepcopy(fractional_overlap)
+        invalid["streaming_overlap"]["batch_wall_us"] = value
+        expect_invalid(invalid, "streaming_overlap.batch_wall_us must be finite and nonnegative")
 
     stale_proxy = copy.deepcopy(optional)
     stale_proxy["workload_proxy"]["family"] = "linux_instinct_readiness"

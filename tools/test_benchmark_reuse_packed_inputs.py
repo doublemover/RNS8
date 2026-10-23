@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -56,14 +57,14 @@ def main() -> int:
         assert capture["timing_metadata"]["pack_mode"] == expected_mode
         assert capture["timing_metadata"]["prepack_reuse_operands"] == expected_operands
         assert capture["timing_metadata"]["prepack_reuse_strategy"] == "persistent_matrix_residency"
-        assert isinstance(capture["prepack_setup_us"], int)
+        assert type(capture["prepack_setup_us"]) in (int, float) and math.isfinite(capture["prepack_setup_us"])
         assert capture["prepack_setup_us"] >= 0
         assert capture["avg_prepack_setup_us"] == float(capture["prepack_setup_us"])
         breakdown = capture["prepack_setup_breakdown_us"]
         assert isinstance(breakdown, dict)
         assert set(breakdown) == {"pack_a", "pack_b", "runtime_cache", "unclassified"}
-        assert all(isinstance(breakdown[key], int) and breakdown[key] >= 0 for key in breakdown)
-        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in breakdown.values())
+        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         if expected_mode == "prepacked_reuse_a":
             assert breakdown["pack_b"] == 0
@@ -119,7 +120,7 @@ def main() -> int:
         assert breakdown["pack_a"] == 0
         assert breakdown["pack_b"] >= 0
         assert breakdown["runtime_cache"] >= 0
-        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         runtime_cache = capture["reuse_contract"]["runtime_prepack_cache"]
         assert runtime_cache["source"] == "rns8_get_prepack_cache_info"

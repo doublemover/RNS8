@@ -895,10 +895,14 @@ def validate_contract_metadata(self: Any) -> None:
             for key in ["pipeline", "buffering", "dependency_contract", "transfer_policy"]:
                 if not isinstance(overlap.get(key), str):
                     self._error(f"streaming_overlap.{key} must be a string")
-            for key in ["stream_count", "buffer_count", "measured_repeat_count", "batch_wall_us", "per_repeat_pipeline_us"]:
+            for key in ["stream_count", "buffer_count", "measured_repeat_count"]:
                 value = overlap.get(key)
                 if not _is_int(value) or value < 0:
                     self._error(f"streaming_overlap.{key} must be a nonnegative integer")
+            for key in ["batch_wall_us", "per_repeat_pipeline_us"]:
+                value = overlap.get(key)
+                if not _is_number(value) or value < 0:
+                    self._error(f"streaming_overlap.{key} must be finite and nonnegative")
             if not isinstance(overlap.get("explicit_dependency_events"), bool):
                 self._error("streaming_overlap.explicit_dependency_events must be a boolean")
             if not isinstance(overlap.get("stage_event_scope"), str):
@@ -921,9 +925,9 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error("executed streaming_overlap captures must use at least two buffers")
                 if _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
                     self._error("streaming_overlap.measured_repeat_count must match repeats when executed")
-                if _is_int(batch_wall_us) and batch_wall_us <= 0:
+                if _is_number(batch_wall_us) and batch_wall_us <= 0:
                     self._error("executed streaming_overlap captures must record batch_wall_us > 0")
-                if _is_int(per_repeat_pipeline_us) and per_repeat_pipeline_us <= 0:
+                if _is_number(per_repeat_pipeline_us) and per_repeat_pipeline_us <= 0:
                     self._error("executed streaming_overlap captures must record per_repeat_pipeline_us > 0")
                 if overlap.get("explicit_dependency_events") is not True:
                     self._error("executed streaming_overlap captures must set explicit_dependency_events=true")
