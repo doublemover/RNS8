@@ -2,9 +2,49 @@
 #include "backend_common/direct_crt_constants.hpp"
 #include "backend_common/strassen_program.hpp"
 #include "backend_common/rank23_reference.hpp"
+#include "backend_common/bilinear_resources.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <random>
+
+TEST_CASE("bilinear resource queries separate full-stack offsets from sub-GEMM indexing") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  for (uint32_t blocks : {2u, 3u}) for (uint32_t prefix : {1u, 9u, 20u})
+    for (int64_t size : {int64_t{1}, int64_t{17}, int64_t{16384}}) {
+      const auto plan = query_bilinear_resources(size, size + 1, size + 2,
+          size + 3, size + 4, size + 5, prefix, blocks, UINT64_MAX);
+      REQUIRE(plan.status == RNS8_SUCCESS);
+      const cpp_int hm = (size + blocks - 1) / blocks;
+      const cpp_int hn = (size + 1 + blocks - 1) / blocks;
+      const cpp_int hk = (size + 2 + blocks - 1) / blocks;
+      REQUIRE(cpp_int(plan.a_bytes) == hm * hk * prefix);
+      REQUIRE(cpp_int(plan.b_bytes) == hk * hn * prefix);
+      REQUIRE(cpp_int(plan.product_bytes) == hm * hn * prefix);
+      REQUIRE(cpp_int(plan.output_bytes) == cpp_int(size) * (size + 1) * prefix);
+      REQUIRE(cpp_int(plan.total_bytes) == (hm * hk + hk * hn + hm * hn + cpp_int(size) * (size + 1)) * prefix);
+      REQUIRE(plan.b_offset == plan.a_bytes);
+      REQUIRE(plan.product_offset == plan.a_bytes + plan.b_bytes);
+      REQUIRE(plan.output_offset + plan.output_bytes == plan.total_bytes);
+      REQUIRE(cpp_int(plan.source_a.byte_extent) == (cpp_int(prefix) * size - 1) * (size + 3) + size + 2);
+      REQUIRE(query_bilinear_resources(size, size + 1, size + 2, size + 3, size + 4, size + 5,
+          prefix, blocks, plan.total_bytes).status == RNS8_SUCCESS);
+      const auto insufficient = query_bilinear_resources(size, size + 1, size + 2, size + 3, size + 4, size + 5,
+          prefix, blocks, plan.total_bytes - 1);
+      REQUIRE(insufficient.status == RNS8_WORKSPACE_TOO_SMALL);
+      REQUIRE(insufficient.total_bytes == plan.total_bytes);
+    }
+  REQUIRE_FALSE(qualified_i32_gemm_address(16384, 16384, 16384, 16384, 16384, 16384, 20));
+  for (uint32_t blocks : {2u, 3u}) {
+    const auto large = query_bilinear_resources(16384, 16384, 16384, 16384, 16384, 16384, 20, blocks, UINT64_MAX);
+    REQUIRE(large.status == RNS8_SUCCESS);
+    REQUIRE(large.source_a.byte_extent > INT32_MAX);
+    REQUIRE(query_bilinear_resources(32768, 32768, 32768, 32768, 32768, 32768, 20, blocks, UINT64_MAX).status == RNS8_UNSUPPORTED_BACKEND);
+  }
+  REQUIRE(query_bilinear_resources(1, 1, 1, 1, 1, 1, 20, 1, UINT64_MAX).status == RNS8_INVALID_ARGUMENT);
+  REQUIRE(query_bilinear_resources(INT64_MAX, 1, 1, 1, 1, 1, 20, 3, UINT64_MAX).status == RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(query_bilinear_resources(1, 1, 1, 1, 1, 1, 0, 3, UINT64_MAX).status == RNS8_INVALID_ARGUMENT);
+}
 
 TEST_CASE("rank23 exact coefficients reject every single coefficient mutation") {
   using namespace rns8::detail::rank23;

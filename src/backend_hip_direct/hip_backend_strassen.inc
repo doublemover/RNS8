@@ -11,37 +11,32 @@ static rns8_status hip_direct_gemm_bilinear_device(
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
     uint64_t max_scratch_bytes, bool &commit_started, bool rank23) {
   commit_started = false;
-  if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n ||
-      ldc < n || !prefix || prefix > 20)
+  if (!a || !b || !c)
     return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix))
-    return RNS8_UNSUPPORTED_BACKEND;
-  if (!nonoverlapping_byte_ranges(c, uint64_t(m) * ldc * prefix, a,
-                                  uint64_t(m) * lda * prefix) ||
-      !nonoverlapping_byte_ranges(c, uint64_t(m) * ldc * prefix, b,
-                                  uint64_t(k) * ldb * prefix))
+  const auto resources = query_bilinear_resources(
+      m, n, k, lda, ldb, ldc, prefix, rank23 ? 3 : 2, max_scratch_bytes);
+  if (resources.status != RNS8_SUCCESS)
+    return resources.status;
+  if (!nonoverlapping_byte_ranges(c, resources.destination.byte_extent, a,
+                                  resources.source_a.byte_extent) ||
+      !nonoverlapping_byte_ranges(c, resources.destination.byte_extent, b,
+                                  resources.source_b.byte_extent))
     return RNS8_INVALID_ARGUMENT;
-  const uint64_t blocks = rank23 ? 3 : 2;
-  const uint64_t hm = (uint64_t(m) + blocks - 1) / blocks,
-                 hn = (uint64_t(n) + blocks - 1) / blocks,
-                 hk = (uint64_t(k) + blocks - 1) / blocks;
-  const uint64_t ab = hm * hk * prefix, bb = hk * hn * prefix,
-                 pb = hm * hn * prefix, cb = uint64_t(m) * n * prefix;
-  const uint64_t scratch_bytes = ab + bb + pb + cb;
-  if (scratch_bytes > SIZE_MAX || scratch_bytes > max_scratch_bytes)
-    return RNS8_WORKSPACE_TOO_SMALL;
+  const auto hm = resources.block_m, hn = resources.block_n,
+             hk = resources.block_k;
+  const auto cb = resources.output_bytes;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
   hip_direct_device_buffer scratch;
-  status = scratch.allocate(device_id, scratch_bytes);
+  status = scratch.allocate(device_id, resources.total_bytes);
   if (status != RNS8_SUCCESS)
     return status;
   auto *ta = static_cast<int8_t *>(scratch.get());
-  auto *tb = ta + ab;
-  auto *product = tb + bb;
-  auto *stage = product + pb;
+  auto *tb = ta + resources.b_offset;
+  auto *product = ta + resources.product_offset;
+  auto *stage = ta + resources.output_offset;
   status = hip_direct_zero(device_id, stage, cb);
   if (status != RNS8_SUCCESS)
     return status;

@@ -1,5 +1,6 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_common/balanced_crt.hpp"
+#include "backend_common/bilinear_resources.hpp"
 #include "backend_common/garner_constants.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"

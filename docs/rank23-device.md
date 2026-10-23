@@ -28,6 +28,16 @@ buffers and padding. The candidate is one level only and uses ordinary
 sequential subproduct launches. It does not yet implement grouped/persistent
 subproducts, transform-SLP liveness reuse or automatic planner selection.
 
+The shared `query_bilinear_resources` routine returns an explicit status plus
+region sizes/offsets and source/destination address spans. A failed query is not
+a zero-byte workspace. It qualifies full residue-stack offsets using the
+transform/commit kernels' actual 64-bit arithmetic, while retaining 32-bit
+qualification for their per-plane dimensions and each transformed sub-GEMM.
+This admits the N=16384/prefix-20 address envelope without pretending the
+classical full-stack 32-bit GEMM can address it. Resource-query tests check the
+large descriptors without allocating them. Actual available device memory and
+execution remain separate requirements; no large-shape run is claimed.
+
 The independent CPU scalar prototype covers every modulus 2-256 against Boost.
 Authored coefficient-mutation tests alter each A/B/C coefficient individually.
 HIP fixtures compare both bilinear candidates to classical Boost products with
