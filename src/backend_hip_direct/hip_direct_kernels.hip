@@ -6,6 +6,7 @@
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"
 #include "../backend_common/residue_epilogue.hpp"
+#include "../backend_common/residue_layout.hpp"
 
 namespace {
 
@@ -42,6 +43,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_split_k_kernels.cuh"
 #include "hip_direct_epilogue_kernels.cuh"
 #include "hip_direct_narrow_kernels.cuh"
+#include "hip_direct_layout_kernels.cuh"
 
 }  // namespace
 
@@ -131,5 +133,13 @@ extern "C" int rns8_hip_native_i64_narrow_gemm(
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
   hipLaunchKernelGGL(rns8_native_i64_narrow_gemm_kernel, dim3(blocks), dim3(256), 0, nullptr,
                     a, b, c, m, n, k, lda, ldb, ldc);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_convert_residue_layout(
+    const int8_t* src, rns8::detail::ResidueLayout source, int8_t* dst, rns8::detail::ResidueLayout destination) {
+  const auto blocks = static_cast<unsigned>((source.rows * source.cols * source.prefix + 255) / 256);
+  hipLaunchKernelGGL(rns8_convert_residue_layout_kernel, dim3(blocks), dim3(256), 0, nullptr,
+                    src, source, dst, destination);
   return static_cast<int>(hipGetLastError());
 }

@@ -49,3 +49,4 @@ namespace {
 #include "test_hip_direct_split_k_cases.inc"
 #include "test_hip_direct_epilogue_cases.inc"
 #include "test_hip_direct_narrow_cases.inc"
+#include "test_hip_direct_layout_cases.inc"

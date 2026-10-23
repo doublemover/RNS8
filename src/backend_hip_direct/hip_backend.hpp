@@ -7,8 +7,12 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "backend_common/residue_layout.hpp"
 
 namespace rns8::detail {
+rns8_status hip_direct_convert_residue_layout(
+    int device_id, const void* src, const ResidueLayout& source, void* dst, const ResidueLayout& destination);
+
 // Native signed-i64 scalar candidate admitted by an actual device input scan.
 // The returned bound covers every partial absolute product sum. No automatic
 // selection or matrix-engine claim; reject rather than infer safety from C.

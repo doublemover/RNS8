@@ -357,3 +357,22 @@ return a proof. Scan, status transfer and GEMM costs remain visible. Authored Bo
 fixtures cover full-width boundaries, unsafe cancellation, padding and K=65537.
 This synchronous scan-per-call baseline is not a performance promotion, cached
 admission, INT8 matrix route or public planner integration. Validation is pending.
+
+
+Compilation checkpoint (not test execution): at `3a639ed`, VS2026 completed both
+`cmake --build build/issues-cpu --parallel 4` and
+`cmake --build build/issues-hip --parallel 4` through `tools/windows_dev.py`.
+This includes the benchmark, libraries, generated reducer test, and gfx1100
+base-extension/split-K/epilogue/narrow kernels and differential executable. An
+initial MSVC lambda-capture error in the generated-reducer test was corrected.
+No new CTest, GPU execution, sanitizer or benchmark qualification is asserted.
+
+The #40 phase-one adapter now has a checked uniform-prefix tile-major byte layout
+and host/direct-HIP converters to/from modulus-major storage. Descriptors own
+shape, strides, tile extents, grid size, default-basis version, prefix and checked
+payload bytes. Conversion touches only active cells, preserves padding, rejects
+full-span aliases and cannot add missing planes or reinterpret a different basis.
+Authored mapping-bijection and GPU round-trip fixtures cover prefixes 1-20, tails,
+padding, malformed descriptors and overflow. This addition follows the preceding
+compile checkpoint and remains uncompiled/unexecuted. Fused consumers, ragged
+directories, exact extension adapters and route-level cost selection remain open.
