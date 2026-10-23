@@ -1401,3 +1401,9 @@ dirty = finite_capture("ck",190)
 dirty["build_manifest"]["source_dirty"] = True
 provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
 assert not provenance_report["promotable_autotune_entries"]
+
+for field in ("dependency_digest", "linkage", "identity_scope"):
+    incomplete=finite_capture("ck",190)
+    incomplete["build_manifest"].pop(field)
+    provenance_report=benchmark_sweep.review_captures([incomplete,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+    assert not provenance_report["promotable_autotune_entries"]

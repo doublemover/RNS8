@@ -154,7 +154,10 @@ if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
     message(FATAL_ERROR "Missing required LLVM libFuzzer runtime: ${RNS8_CLANG_FUZZER_LIB}")
   endif()
   link_libraries("${RNS8_CLANG_ASAN_LIB}" "${RNS8_CLANG_ASAN_THUNK_LIB}")
-  add_compile_definitions(_DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
+  # VS2026 also annotates optional. LLVM's separate runtime does not ship
+  # MSVC stl_asan.lib; disable STL-specific annotations consistently while
+  # retaining compiler ASan instrumentation for heap/stack memory accesses.
+  add_compile_definitions(_DISABLE_STL_ANNOTATION _DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
   configure_file("${RNS8_CLANG_ASAN_DLL}" "${CMAKE_CURRENT_BINARY_DIR}/clang_rt.asan_dynamic-x86_64.dll" COPYONLY)
 endif()
 

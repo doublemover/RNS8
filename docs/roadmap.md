@@ -152,8 +152,31 @@ Local diagnostic evidence (scratch captures in `temp/`, not release receipts):
   These are whole-object maxima, not selected-export occupancy. They do not prove
   elimination of every inverse/division loop or a per-kernel resource win.
 
-Remaining qualification includes actual gfx942 runs, per-export resource/division
-analysis, sanitizer/OpenMP fault coverage, controlled partial HIP-write failure
-injection, full source-free and stale-object artifact attribution across Linux,
+The follow-up sweep removed the backend's quadratic grouped ownership scans,
+permitted shared read-only operands, and preserved exclusive ownership for
+packing writes. All 335 HIP tests passed with authored grouped A-squared and
+alias-rejection checks; the 253-test CPU gate also passed. Scalar-first CLI runs
+matched eager checksums on CPU and gfx1100. Both clean binaries reported the
+compiled commit and clean manifest state.
+
+Fresh LLVM 22 ASan instrumentation under the VS2026 environment passed 197 CPU
+cases / 287,098 assertions, with two HIP-only skips; its standalone allocation
+fault sweep also passed. The OpenMP build passed bounded sweeps at all 36 serial
+and 37 two-worker allocation points, plus 896 exact allocation failures and six
+K=131073 scratch checks with zero internal allocations. VS2026 STL-specific
+annotations are disabled consistently for LLVM's runtime (including optional);
+ordinary compiler ASan instrumentation remains enabled. A copied Windows
+benchmark launched without Git retained its old compiled SHA after the checkout
+advanced; generated mixed-identity objects failed linking as intended.
+
+Selected prefix-20/four-limb unsigned export metadata shows the GPU tradeoff:
+fixed baseline SGPR/VGPR/scratch = 98/51/8 bytes versus table 18/71/0; pair
+baseline = 102/49/8 versus table 18/82/0. Baseline reconstruction uses out-of-line
+cell helpers, while the table is inlined, so caller-only instruction counts are
+not comparable. Occupancy and remaining division expansion are not yet qualified.
+
+Remaining qualification includes actual gfx942 runs, per-export division
+analysis, controlled partial HIP-write failure injection,
+full source-free and stale-object artifact attribution across Linux,
 and repeated same-contract release-grade timing. These gates remain open;
 source changes and local correctness do not close them automatically.

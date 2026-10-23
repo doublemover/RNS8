@@ -407,6 +407,12 @@ int main(int argc, char** argv) {
   allocator_self_check();
   reused_scratch_boundary_check();
   bounded_writer_faults(profile_only);
+  if (rns8::detail::cpu_parallel_runtime_available()) {
+    rns8::detail::configure_cpu_parallel(2,1,false);
+    bounded_writer_faults(profile_only);
+    rns8::detail::configure_cpu_parallel(1,UINT64_MAX,false);
+    std::printf("PASS bounded OpenMP two-worker allocation sweep\n");
+  }
   std::size_t points = 0;
   Fixture signed_dual(RNS8_EXACT_WIDE_SIGNED);
   points += exercise("signed-dual-2x13", signed_dual, profile_only);

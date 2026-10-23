@@ -5,6 +5,10 @@
 
 #include "core/internal.hpp"
 
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+#  include <omp.h>
+#endif
+
 namespace rns8::detail {
 
 uint32_t canonical_residue(const cpp_int& value, uint16_t modulus) {
@@ -191,7 +195,7 @@ struct RingScratch {
   explicit RingScratch(int64_t n, uint64_t work) {
     int workers = 1;
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-    if (cpu_parallel_should_use(work)) workers = omp_get_max_threads();
+    if (cpu_parallel_should_use(work)) workers = static_cast<int>(cpu_parallel_effective_threads());
 #endif
     rows.resize(static_cast<std::size_t>(workers));
     // No allocation or exception is allowed inside an OpenMP worker.

@@ -1924,6 +1924,8 @@ def review_captures(
         manifest_complete = all(
             m.get("version") == 1 and m.get("source_dirty") is False and
             len(str(m.get("source_commit", ""))) == 40 and len(str(m.get("source_digest", ""))) == 64 and
+            len(str(m.get("dependency_digest", ""))) == 64 and
+            m.get("linkage") == "static-rns8" and m.get("identity_scope") == "source-and-config" and
             bool(m.get("configuration")) and "garner_table=ON" not in m.get("configuration", "") for m in manifests)
         artifact_complete = all(
             len(str(a.get("executable_sha256", ""))) == 64 and a.get("unchanged_during_run") is True
