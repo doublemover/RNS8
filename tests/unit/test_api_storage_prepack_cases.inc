@@ -172,7 +172,7 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   CHECK(a_info.workspace_fingerprint == a_info.plan_fingerprint);
   CHECK(std::string(a_info.current_domain) == "rns_residue_host_current");
   CHECK(std::string(a_info.matrix_role_name) == "A");
-  CHECK(std::string(a_info.source_version_policy) == "monotonic_per_import_pack_or_gemm_output_hash");
+  CHECK(std::string(a_info.source_version_policy) == "matrix_instance_plus_monotonic_content_generation");
   CHECK(std::string(a_info.workspace_binding_policy) ==
         "plan_fingerprint_plus_workspace_identity_schedule_backend");
   CHECK(std::string(a_info.mismatch_policy) ==

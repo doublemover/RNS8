@@ -273,7 +273,7 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense bounded reference") {
   REQUIRE(rns8_export_i64(ctx, plan, dense_c, dense_out.data(), 2) == RNS8_SUCCESS);
   REQUIRE(rns8_export_i64(ctx, plan, sparse_c, sparse_out.data(), 2) == RNS8_SUCCESS);
   CHECK(sparse_out == dense_out);
-  CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(101, 202));
+  CHECK(sparse_c->source_version == sparse_c->content_generation);
 
   rns8_destroy_sparse_matrix(sparse_a);
   rns8_destroy_matrix(sparse_c);
@@ -350,7 +350,7 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense bounded unsigned reference
   REQUIRE(rns8_export_u64(ctx, plan, dense_c, dense_out.data(), 2) == RNS8_SUCCESS);
   REQUIRE(rns8_export_u64(ctx, plan, sparse_c, sparse_out.data(), 2) == RNS8_SUCCESS);
   CHECK(sparse_out == dense_out);
-  CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(301, 302));
+  CHECK(sparse_c->source_version == sparse_c->content_generation);
 
   rns8_destroy_sparse_matrix(sparse_a);
   rns8_destroy_matrix(sparse_c);
@@ -433,7 +433,7 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense exact-wide reference") {
     REQUIRE(
         rns8_export_exact_wide_signed_limbs(ctx, plan, sparse_c, sparse_limbs.data(), n, limb_count) == RNS8_SUCCESS);
     CHECK(sparse_limbs == dense_limbs);
-    CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(401, 402));
+    CHECK(sparse_c->source_version == sparse_c->content_generation);
 
     rns8_destroy_sparse_matrix(sparse_a);
     rns8_destroy_matrix(sparse_c);
@@ -509,7 +509,7 @@ TEST_CASE("resident sparse RNS CPU GEMM matches dense exact-wide reference") {
     REQUIRE(
         rns8_export_exact_wide_unsigned_limbs(ctx, plan, sparse_c, sparse_limbs.data(), n, limb_count) == RNS8_SUCCESS);
     CHECK(sparse_limbs == dense_limbs);
-    CHECK(sparse_c->source_version == rns8::detail::api::gemm_output_source_version_values(501, 502));
+    CHECK(sparse_c->source_version == sparse_c->content_generation);
 
     rns8_destroy_sparse_matrix(sparse_a);
     rns8_destroy_matrix(sparse_c);

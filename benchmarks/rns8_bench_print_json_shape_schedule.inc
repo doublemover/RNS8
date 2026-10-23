@@ -1,3 +1,4 @@
+  std::cout << "  \"exact_proof_policy\": \"" << (args.exact_scalar_first ? "scalar_first_v1" : "eager_moments_v1") << "\",\n";
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";

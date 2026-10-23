@@ -1130,8 +1130,6 @@ void run_hip_graph_replay_finite_pack_gemm_export(
         }
         rns8::detail::api::mark_output_device_residues_current(*c_matrix);
         c_matrix->finite_modulus = args.finite_modulus;
-        c_matrix->source_version =
-            rns8::detail::api::gemm_output_source_version_values(a_matrix->source_version, b_matrix->source_version);
         enqueue_finite_graph_export(
             args,
             c_matrix,

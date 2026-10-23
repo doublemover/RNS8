@@ -177,6 +177,13 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A,
                                     rns8_exact_matrix_ranges* output_ranges = nullptr) {
   if (!exact_wide_semantics(plan.desc.semantics)) return RNS8_SUCCESS;
   if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+  if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0) {
+    output_bound = cpp_int(plan.desc.k) * A.exact_max_magnitude * B.exact_max_magnitude;
+    if (exact_range_fits(plan.desc.semantics, output_bound, plan.modulus_product)) {
+      if (output_ranges) { output_ranges->rows.clear(); output_ranges->cols.clear(); }
+      return RNS8_SUCCESS;
+    }
+  }
   exact_gemm_bound(plan, A, B, output_bound, output_ranges);
   return exact_range_fits(plan.desc.semantics, output_bound, plan.modulus_product) ? RNS8_SUCCESS
                                                                                    : RNS8_RANGE_ERROR;

@@ -277,3 +277,13 @@ it decodes logical cells, rebuilds global/axis/moment proofs, checks strict CRT
 capacity, and publishes residues and proof together. Padding is excluded. Prior
 independent exact-wide export/repack chain captures require rerunning before
 comparison or promotion; no historical numerical damage is inferred.
+
+`RNS8_PLAN_EXACT_SCALAR_FIRST` explicitly trades propagated proof tightness for
+host admission cost. It first checks K times the input magnitude envelopes and
+skips per-cell moments only if that bound strictly fits the current CRT range.
+Otherwise it performs full refinement before rejecting. Successful scalar
+admission discards axis summaries, so later chains may reject sooner. The default
+remains eager and preserves existing tight-chain admissibility. This policy has
+no retained proof DAG, borrowed matrix references or hidden cache, and its plan
+fingerprint/selection key is distinct. GPU event timers do not measure its host
+proof cost; compare host helper/public-call timing separately.

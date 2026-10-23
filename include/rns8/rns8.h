@@ -66,6 +66,12 @@ typedef struct rns8_device_info {
 #define RNS8_PLAN_FORCE_FIXED_PREFIX 0x00000001u
 #define RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS 0x00000002u
 #define RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS 0x00000004u
+/* Exact-wide opt-in: try the scalar envelope before moment refinement. If it
+ * fits, propagate only that conservative envelope. This reduces proof work but
+ * can reject later chains that eager axis proofs admit. Defaults remain eager.
+ * If the scalar envelope fails current admission, full refinement is mandatory.
+ */
+#define RNS8_PLAN_EXACT_SCALAR_FIRST 0x00000008u
 
 /*
  * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and

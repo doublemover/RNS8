@@ -63,7 +63,7 @@ bool zero_row_col_contract_matches(const rns8_plan& plan) {
 
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
   constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST;
   constexpr uint32_t known_tile_schedule_flags =
       RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
   if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||

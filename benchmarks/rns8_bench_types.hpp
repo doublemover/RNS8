@@ -82,6 +82,7 @@ struct Args {
   InputProfile input_profile = InputProfile::UniformSmall;
   BoundSource bound_source = BoundSource::StaticProfile;
   PrefixPolicy prefix_policy = PrefixPolicy::MinimumProven;
+  bool exact_scalar_first = false;
   uint32_t max_prefix_override = 0;
   uint32_t exact_wide_limb_count = kDefaultExactWideBenchmarkLimbCount;
   uint32_t residue_chain_length = 1;

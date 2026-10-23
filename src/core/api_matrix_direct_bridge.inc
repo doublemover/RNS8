@@ -58,6 +58,10 @@ rns8_status materialize_native_matrix_as_direct_rns(
       return RNS8_INVALID_ARGUMENT;
     }
 
+    // A self-conversion adds a representation of the existing value. A distinct
+    // destination is a new value and must not expose its previous domains after
+    // a partially failed write.
+    if (source != target) api::invalidate_output_currentness(*target);
     rns8_status status = RNS8_SUCCESS;
     if (plan->desc.semantics == RNS8_BOUNDED_I64) {
       status = rns8::detail::hip_direct_native_i64_to_rns_device(
@@ -72,8 +76,11 @@ rns8_status materialize_native_matrix_as_direct_rns(
       api::clear_device_residues_current(*target);
       return status;
     }
-    api::mark_output_device_residues_current(*target);
-    target->source_version = source->source_version;
+    if (source == target) {
+      api::mark_device_residues_current(*target);
+    } else {
+      api::mark_output_device_residues_current(*target);
+    }
     return RNS8_SUCCESS;
   });
 }

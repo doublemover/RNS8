@@ -1119,7 +1119,8 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
 
   for (uint32_t index = 0; index < descriptor.task_count; ++index) {
     const hip_direct_grouped_gemm_task& task = descriptor.tasks[index];
-    if (!task.c->device_residues_current) {
+    if (!task.c->device_residues_current || task.c->imported_source ||
+        task.c->source_version != (task.c->generation_exhausted ? 0 : task.c->content_generation)) {
       return RNS8_INVALID_ARGUMENT;
     }
 

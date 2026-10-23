@@ -880,9 +880,7 @@ rns8_status rns8_gemm_rns(
     }
     boost::multiprecision::cpp_int exact_bound;
     rns8_exact_matrix_ranges exact_ranges;
-    const auto range_status = run_timed_api_status("exact_range_proof", [&]() {
-      return rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
-    });
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
     invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
@@ -1180,9 +1178,7 @@ rns8_status rns8_gemm_rns_incremental(
     }
     boost::multiprecision::cpp_int exact_bound;
     rns8_exact_matrix_ranges exact_ranges;
-    const auto range_status = run_timed_api_status("exact_range_proof", [&]() {
-      return rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
-    });
+    const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
     const auto status = execute_incremental_gemm(
         *ctx,

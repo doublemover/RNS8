@@ -91,3 +91,79 @@ TEST_CASE("wide limb import rebuilds proof from padded signed and unsigned value
     rns8_destroy_matrix(matrix); rns8_destroy_context(ctx);
   }
 }
+
+TEST_CASE("scalar first proof is opt in and refines before range rejection", "[api][value-lifecycle]") {
+  using namespace rns8::detail;
+  auto* ctx=create_cpu_context();
+  auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,2);
+  desc.flags=RNS8_PLAN_EXACT_SCALAR_FIRST | RNS8_PLAN_FORCE_FIXED_PREFIX;
+  desc.max_prefix=20;
+  rns8_plan* plan=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  rns8_plan narrow=*plan; narrow.prefix=1; narrow.modulus_product=256;
+  rns8_matrix a,b; a.exact_range_prefix=b.exact_range_prefix=1;
+  const int64_t av[]={100,100},bv[]={1,-1};
+  a.exact_axis_ranges=native_exact_ranges(av,1,2,2,a.exact_max_magnitude);
+  b.exact_axis_ranges=native_exact_ranges(bv,2,1,1,b.exact_max_magnitude);
+  cpp_int bound; rns8_exact_matrix_ranges ranges;
+  REQUIRE(exact_gemm_range(narrow,a,b,bound,&ranges)==RNS8_SUCCESS);
+  CHECK(bound==0); // scalar 200 cannot fit signed prefix 1; cancellation must refine
+  CHECK_FALSE(ranges.rows.empty());
+  a.exact_max_magnitude=1; b.exact_max_magnitude=1;
+  REQUIRE(exact_gemm_range(narrow,a,b,bound,&ranges)==RNS8_SUCCESS);
+  CHECK(bound==2); CHECK(ranges.rows.empty());
+  rns8_destroy_plan(plan);
+  desc=bounded_gemm_desc(RNS8_BOUNDED_I64,1,1,2);desc.flags=RNS8_PLAN_EXACT_SCALAR_FIRST;
+  CHECK(rns8_create_plan(ctx,&desc,&plan)==RNS8_INVALID_ARGUMENT);
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("reimported exact chains match Boost at every step and reject CRT overflow", "[api][value-lifecycle]") {
+  using namespace rns8::detail;
+  for(bool hip:{false,true}) {
+    if(hip && !api::direct_hip_compiled()) continue;
+    for(bool signed_values:{false,true}) {
+      auto semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
+      rns8_context_options options{}; options.struct_size=sizeof(options); options.abi_version=RNS8_ABI_VERSION;
+      options.requested_backend=hip?RNS8_BACKEND_HIP_DIRECT:RNS8_BACKEND_CPU_REFERENCE;
+      rns8_context* ctx=nullptr;
+      REQUIRE(rns8_create_context(hip?0:-1,&options,&ctx)==RNS8_SUCCESS);
+      auto desc=exact_desc(semantics,1,1,1); desc.requested_backend=options.requested_backend;
+      desc.flags=RNS8_PLAN_FORCE_FIXED_PREFIX; desc.max_prefix=20;
+      rns8_plan* plan=nullptr; rns8_workspace* ws=nullptr;
+      REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+      REQUIRE(rns8_create_workspace(ctx,plan,&ws)==RNS8_SUCCESS);
+      auto md=exact_matrix_desc(1,1,semantics);
+      rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+      for(auto** m:{&a,&b,&c}) REQUIRE(rns8_create_matrix(ctx,&md,m)==RNS8_SUCCESS);
+      uint64_t initial[4]={2,0,0,0};
+      REQUIRE(api::import_exact_wide_limbs(*ctx,*a,initial,1,4,signed_values,1)==RNS8_SUCCESS);
+      int64_t factor=-2; uint64_t unsigned_factor=2;
+      REQUIRE((signed_values?rns8_pack_i64(ctx,b,&factor,1,1):rns8_pack_u64(ctx,b,&unsigned_factor,1,1))==RNS8_SUCCESS);
+      cpp_int expected=2; bool rejected=false;
+      for(int step=0;step<200;++step) {
+        expected*=signed_values?-2:2;
+        const cpp_int magnitude=expected<0?-expected:expected;
+        const bool fits=plan->modulus_product > magnitude*(signed_values?2:1);
+        auto status=rns8_gemm_rns(ctx,plan,a,b,c,ws);
+        if(!fits) { CHECK(status==RNS8_RANGE_ERROR); rejected=true; break; }
+        REQUIRE(status==RNS8_SUCCESS);
+        uint64_t limbs[4]{};
+        auto export_value=[&](uint32_t count) {return signed_values?
+          rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs,1,count):
+          rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs,1,count);};
+        REQUIRE(export_value(4)==RNS8_SUCCESS);
+        cpp_int decoded=0;
+        for(int j=3;j>=0;--j) { decoded<<=64; decoded+=limbs[j]; }
+        if(signed_values && (limbs[3]>>63)) decoded-=cpp_int(1)<<256;
+        CHECK(decoded==expected);
+        REQUIRE(api::import_exact_wide_limbs(*ctx,*a,limbs,1,4,signed_values,step+2)==RNS8_SUCCESS);
+        if(magnitude >= (cpp_int(1)<<(signed_values?63:64)) && expected!=(cpp_int(-1)<<63))
+          CHECK(export_value(1)==RNS8_RANGE_ERROR);
+      }
+      CHECK(rejected);
+      for(auto* m:{a,b,c}) rns8_destroy_matrix(m);
+      rns8_destroy_workspace(ws); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
+    }
+  }
+}

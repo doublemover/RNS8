@@ -306,6 +306,8 @@ Args parse_args(int argc, char** argv) {
       args.tile_shape_variant = argv[++i];
     } else if (arg == "--export-variant" && i + 1 < argc) {
       args.export_variant = argv[++i];
+    } else if (arg == "--exact-proof-scalar-first") {
+      args.exact_scalar_first = true;
     } else if (arg == "--reconstruction-variant" && i + 1 < argc) {
       args.reconstruction_variant = argv[++i];
     } else if (arg == "--grouped-dispatch" && i + 1 < argc) {

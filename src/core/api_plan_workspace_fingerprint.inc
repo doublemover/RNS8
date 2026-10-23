@@ -18,6 +18,7 @@ uint64_t signed_to_fingerprint(int64_t value) {
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   uint64_t hash = 1469598103934665603ull;
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.semantics));
+  hash = workspace_fingerprint_mix(hash, plan.desc.flags);
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.bound_kind));
   hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.m));
   hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(plan.desc.n));
