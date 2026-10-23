@@ -598,7 +598,9 @@ admission checks the entire batch for write hazards and scratch limits. Mapping
 and Boost differential fixtures cover tails, group prefixes and K=65537. The
 VS2026/gfx1100 HIP test executable compiles with this addition; runtime tests,
 ISA/resource evidence and scheduling measurements remain pending. Public
-prepared groups remain sequential; see [queue contract](persistent-native-queue.md).
+prepared groups additionally support explicit same-device HIP stream/graph
+submissions with whole-batch admission and separate completion ownership;
+see [queue contract](persistent-native-queue.md) and [prepared execution](prepared-execution.md).
 
 The #32 [joint scheme oracle](joint-scheme-search.md) now enumerates bounded
 basis/form/order/group/slab combinations with separate dot and epilogue caps,
@@ -614,7 +616,7 @@ in the VS2026/gfx1100 test executable. Full-width Boost, exhaustive residue-pair
 and K-slab fixtures await execution. This does not qualify floating instructions;
 see [generated encodings](generated-encodings.md).
 
-The #42/#41 resident graph now uses typed MatMul/BaseExtend nodes. Whole-graph
+The #42/#41 resident graph uses typed MatMul/BaseExtend/ExactAxpby/ExportLimbs nodes. Whole-graph
 preflight propagates materialized prefixes and checks lift capacity, staged-byte
 budgets, unique-value proofs and busy resources before execution. Existing CPU
 and HIP lifts preserve generations. The VS2026/gfx1100 test executable compiles;
@@ -642,3 +644,51 @@ outside timing and retains per-stage HIP events. The VS2026/gfx1100 executable
 compiles; collection, ISA/counter evidence and qualification remain pending.
 An independent-process collector and mocked orchestration fixtures are authored;
 see [native calibration](native-calibration.md).
+
+### Subsequent implementation boundary
+
+The last complete local runtime campaign remains `97fde22`; the changes below
+are development artifacts with authored regression coverage, not a new passing
+qualification campaign.
+
+- [Resident graphs](resident-graphs.md) now support whole-expression exact
+  epilogues, host limb export nodes, and asynchronous fixed MatMul/epilogue DAGs.
+  Owned HIP capture/replay binds storage addresses and publishes output values
+  only after observed completion. Async lift/export and adaptive schedules remain
+  unsupported. Prepared epilogues and same-device grouped streams/captures retain
+  their input readers, exclusive output writers and workspaces through completion.
+- [Exact epilogues](exact-epilogues.md) have a feature-detected rocWMMA candidate
+  and matched fused/unfused calibration. Manifest v2 includes content hashes of
+  enabled accelerator dependency trees. Optional rocWMMA compiled with VS2026;
+  runtime/ISA qualification remains pending.
+- Device bound discovery includes exact K-panel L1 bounds. The private
+  [mixed-radix lift](mixed-radix-lift.md) reuses reconstructed digits within a
+  call and applies the complete-product correction for negative values. Neither
+  adds a public generation-bound proof cache or automatic selection.
+- [Native narrow WMMA](native-narrow.md) scans actual byte-domain membership and
+  bounds all INT32 partial sums before widening to native i64/u64 output.
+  [Calibration](native-calibration.md) now compares this with signed scalar,
+  full-width vector ALU and minimal-prefix direct RNS packing/GEMM/reconstruction
+  under the same native output contract. Collection and performance remain pending.
+- The [rank-23 prototype](rank23-device.md) imports pinned numeric coefficients
+  with independent tensor/basis checks and shares the staged bilinear scheduler.
+  Resource admission distinguishes full-stack wide offsets from sub-GEMM i32
+  indices; inactive recombination blocks skip memory accesses. It does not implement
+  the paper's alternative-basis 51-addition schedule or meet its performance gate.
+- [Offline recipe admission](planning-recipes.md) checks generations, arithmetic,
+  capabilities, coverage and workspace before costs. Terminal kernel output
+  policies must match the requested result. [Generated variants](generated-native-wmma.md)
+  bind composed conversion/slab/carry/store proofs and resource contracts; paired
+  unfused and K-permutation differentials await execution.
+
+The gfx1100 test executable compiled through `d7e7122`; matched native-output
+calibration compiled at `2fbba9b`. These builds do not prove runtime correctness.
+Automatic Ubuntu CI at `5765e82` exposed a stale next-operation comparison
+fixture; `b84a085` corrects its expectation without weakening contract admission.
+Its CI rerun and the broader Linux matrix remain unqualified. Development CI now
+supersedes obsolete branch/PR runs independently while retaining main-branch runs.
+
+Unavailable Linux multi-GPU, Instinct/CDNA, floating low-precision matrix and CPU
+matrix-extension qualification stays deferred at the user's request. The local
+runtime, ISA, calibration, remaining architecture integration and performance
+acceptance work remains open; no issue closure or default promotion is implied.
