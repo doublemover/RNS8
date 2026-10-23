@@ -6,6 +6,8 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <type_traits>
+#include "core/hip_resources.hpp"
 
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
@@ -29,4 +31,5 @@ namespace {
 #include "test_rocwmma_adaptive_exact_finite_cases.inc"
 #include "test_rocwmma_finite_wrap64_cases.inc"
 #include "test_rocwmma_epilogue_cases.inc"
+#include "test_rocwmma_native_pack_cases.inc"
 #endif

@@ -74,5 +74,10 @@ failed the no-divide ISA gate. Coefficients and modulus reciprocals now reduce
 once per plane on the host and travel in a small by-value kernel argument.
 The device epilogue uses only bounded INT32 products and reciprocal reduction;
 it no longer computes full-width coefficient remainders per output cell. The
-retry will check the unchanged ISA gate and expanded signed-minimum fixtures.
-This repair is not yet a measured performance gain.
+expanded signed-minimum fixtures passed on retry. The four remaining reciprocal
+instructions were traced to signed/unsigned native-B packing, whose fallback
+still used a variable modulus. Fixed reductions now cover all 28 backend ladder
+entries. The subsequent full gfx1100 rocWMMA suite passed 430 tests, including
+the unchanged no-divide ISA gate and a new Boost packing differential over all
+28 planes, full-width inputs and padded tails. No timing gain is inferred from
+the ISA repair alone.
