@@ -8,6 +8,7 @@
 #include "../backend_common/residue_epilogue.hpp"
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
+#include "../backend_common/int4_encoding.hpp"
 
 namespace {
 
@@ -46,8 +47,22 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_narrow_kernels.cuh"
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
+#include "hip_direct_int4_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_int4_capability(int* supported) {
+  hipLaunchKernelGGL(rns8_int4_capability_kernel, dim3(1), dim3(1), 0, nullptr, supported);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_finite_int4_gemm(
+    const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k,
+    int lda, int ldb, int ldc, int modulus) {
+  hipLaunchKernelGGL(rns8_finite_int4_wmma_kernel,
+      dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16),
+      dim3(32), 0, nullptr, a, b, c, m, n, k, lda, ldb, ldc, modulus);
+  return static_cast<int>(hipGetLastError());
+}
 
 #include "hip_direct_pack_wrappers.inc"
 #include "hip_direct_split_k_wrappers.inc"

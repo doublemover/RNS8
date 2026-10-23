@@ -374,7 +374,8 @@ payload bytes. Conversion touches only active cells, preserves padding, rejects
 full-span aliases and cannot add missing planes or reinterpret a different basis.
 Authored mapping-bijection and GPU round-trip fixtures cover prefixes 1-20, tails,
 padding, malformed descriptors and overflow. This addition follows the preceding
-compile checkpoint and remains uncompiled/unexecuted. Fused consumers, ragged
+compile checkpoint; its gfx1100 test executable compiled at `65846cb`, but has
+not executed. Fused consumers, ragged
 directories, exact extension adapters and route-level cost selection remain open.
 
 
@@ -385,5 +386,21 @@ sum below 20*2^160, so the unreduced numerator fits below 165 bits; at most
 prefix-1 product subtractions canonicalize it. The output contract is exactly
 three little-endian limbs in [0,P), with no inferred signed or bounded semantics.
 Boost constant/width fixtures and prefix-1-through-20 random/boundary GPU cases
-are authored. Compilation, execution, resource measurement, balanced-tree GPU
+are authored, and the gfx1100 test executable compiled at `65846cb`. Execution,
+resource measurement, balanced-tree GPU
 implementation and benchmark-selector comparison remain pending.
+
+The #46 local candidate uses the RDNA3 signed INT4 WMMA primitive for explicit
+finite moduli 2-16. Every signed-byte input is first reduced into the centered
+modulus alphabet, so nibble packing is exact; default-ladder residues cannot use
+this route. Accumulators reduce after each 65536 logical K terms, bounding every
+partial by 65536*64+15. Tail operands are zero and output padding is preserved.
+Device-compiled target/builtin detection reports unsupported before touching C
+on other targets. The synchronous private route separately exposes capability
+probe and GEMM events; per-call probe overhead is not hidden or claimed optimal.
+CPU exhaustive encoding/product checks and Boost GPU differential cases across
+WMMA tile tails and K=65535/65536/65537 are authored. Compilation, execution,
+instruction inspection, performance evidence and public planner integration are
+pending. See AMD's
+[RDNA3 dense WMMA builtin reference](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/rdna/rdna3-dense-wmma-builtins.html)
+for the underlying instruction interface.

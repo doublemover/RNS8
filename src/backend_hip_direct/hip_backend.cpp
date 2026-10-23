@@ -628,6 +628,7 @@ namespace rns8::detail {
 #include "hip_backend_split_k.inc"
 #include "hip_backend_epilogue.inc"
 #include "hip_backend_narrow.inc"
+#include "hip_backend_int4.inc"
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"
 
