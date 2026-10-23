@@ -93,23 +93,77 @@ def schoolbook_certificate(modulus: int, safe_k: int = 65536) -> ArithmeticCerti
     return ArithmeticCertificate(modulus, planes, 1, safe_k, 0, 0, -(1 << 63), (1 << 63) - 1, instruction)
 
 
-def generate_header(certificate: ArithmeticCertificate) -> str:
+def generate_header(certificate: ArithmeticCertificate, symbol: str | None = None) -> str:
+    import re
     result = verify(certificate)
     if not result["algebraically_verified"]:
         raise ValueError(result["proof_failures"])
+    c = certificate
+    if (c.prior_min != 0 or c.prior_max != 0 or not 1 <= c.safe_k <= (1 << 32) - 1
+            or c.recombination_min < -(1 << 63) or c.recombination_max >= (1 << 63)
+            or c.instruction.accumulator_min < -(1 << 63) or c.instruction.accumulator_max >= (1 << 63)
+            or not 1 <= c.denominator < (1 << 63)
+            or any(not -(1 << 63) < p.weight < (1 << 63) for p in c.planes)
+            or any(not -128 <= x <= 127 for p in c.planes for x in p.lhs + p.rhs)):
+        raise ValueError("generated scalar implementation requires zero prior and proven byte/int64 intermediates")
+    symbol = symbol or "encoding_" + result["sha256"]
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", symbol) or "__" in symbol:
+        raise ValueError("invalid generated C++ symbol")
+    symbol = "rns8_" + symbol
     arrays = []
-    for index, plane in enumerate(certificate.planes):
-        for operand in ("lhs", "rhs"):
-            values = ",".join(str(v) for v in getattr(plane, operand))
-            arrays.append(f"inline constexpr int8_t {operand}_{index}[] = {{{values}}};")
-    terms = " +\n      ".join(f"int64_t{{{p.weight}}} * lhs_{i}[a] * rhs_{i}[b]" for i, p in enumerate(certificate.planes))
-    return ("// Generated algebraic reference only; no GPU dispatch.\n#pragma once\n#include <cstdint>\n#include <stdexcept>\n"
-            "namespace rns8_encoding_reference {\n"
-            f'inline constexpr char certificate_sha256[] = "{result["sha256"]}";\n'
-            + "\n".join(arrays)
-            + f"\ninline int64_t product(uint16_t a, uint16_t b) {{\n"
-              f"  if (a >= {certificate.modulus} || b >= {certificate.modulus}) throw std::out_of_range(\"encoding input\");\n"
-              f"  return ({terms}) / {certificate.denominator};\n}}\n}}\n")
+    for operand in ("lhs", "rhs"):
+        rows = ["{" + ",".join(str(v) for v in getattr(p, operand)) + "}" for p in c.planes]
+        arrays.append(f"  inline static constexpr int8_t {operand}[{len(c.planes)}][{c.modulus}] = {{" + ",".join(rows) + "};")
+    weights = ",".join(str(p.weight) + "LL" for p in c.planes)
+    return f"""// Generated exact scalar integer model; no floating instruction qualification.
+#pragma once
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+namespace rns8_encoding_reference {{
+struct {symbol} {{
+  inline static constexpr char certificate_sha256[] = "{result['sha256']}";
+  inline static constexpr uint32_t modulus = {c.modulus};
+  inline static constexpr uint32_t safe_k = {c.safe_k};
+  inline static constexpr uint32_t plane_count = {len(c.planes)};
+  inline static constexpr int64_t weights[plane_count] = {{{weights}}};
+{chr(10).join(arrays)}
+  template<class T> static uint32_t canonical(T value) {{
+    static_assert(std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>);
+    if constexpr (std::is_signed_v<T>) {{
+      const auto r = value % static_cast<int64_t>(modulus);
+      return static_cast<uint32_t>(r < 0 ? r + modulus : r);
+    }} else return static_cast<uint32_t>(value % modulus);
+  }}
+  // All dot accumulators and ordered weighted partials are independently
+  // covered by the embedded certificate. Divide BEFORE modular reduction.
+  template<class T> static bool dot(const T* a, const T* b, std::size_t count, int8_t& output) {{
+    static_assert(std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>);
+    if (count && (!a || !b)) return false;
+    int64_t residue = 0;
+    for (std::size_t offset = 0; offset < count;) {{
+      const auto remaining = count - offset;
+      const std::size_t length = remaining < safe_k ? remaining : safe_k;
+      int64_t sums[plane_count]{{}};
+      for (std::size_t q = 0; q < length; ++q) {{
+        const auto x = canonical(a[offset + q]), y = canonical(b[offset + q]);
+        for (uint32_t p = 0; p < plane_count; ++p)
+          sums[p] += static_cast<int64_t>(lhs[p][x]) * rhs[p][y];
+      }}
+      int64_t numerator = 0;
+      for (uint32_t p = 0; p < plane_count; ++p) numerator += weights[p] * sums[p];
+      if (numerator % {c.denominator}LL) return false;
+      residue = (residue + (numerator / {c.denominator}LL) % modulus) % modulus;
+      offset += length;
+    }}
+    if (residue < 0) residue += modulus;
+    if (residue >= (modulus + 1) / 2) residue -= modulus;
+    output = static_cast<int8_t>(residue);
+    return true;
+  }}
+}};
+}} // namespace rns8_encoding_reference
+"""
 
 
 def main() -> int:
@@ -119,6 +173,7 @@ def main() -> int:
     parser.add_argument("--construction", choices=("base13", "awe6"), default="base13")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--header", type=Path)
+    parser.add_argument("--symbol")
     args = parser.parse_args()
     factory = awe_certificate if args.construction == "awe6" else schoolbook_certificate
     certificate = factory(args.modulus, args.safe_k)
@@ -131,9 +186,15 @@ def main() -> int:
                             "path": "AWE/Solutions/SIX_PRODUCT.md",
                             "git_blob_sha1": "3c1b45655c4cf72a04cc5b9ddbace11e2b96cfe7",
                             "encoding": "independently enumerated; no upstream verifier executed"}
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if args.header:
-        args.header.write_text(generate_header(certificate), encoding="utf-8")
+    header = generate_header(certificate, args.symbol) if args.header else None
+    if header is not None:
+        import hashlib
+        result["generated_source_sha256"] = hashlib.sha256(header.encode("utf-8")).hexdigest()
+        result["generated_kind"] = "scalar_integer_dot_model"
+        args.header.parent.mkdir(parents=True, exist_ok=True)
+        args.header.write_text(header, encoding="utf-8", newline="\n")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     return 0 if result["algebraically_verified"] else 1
 
 

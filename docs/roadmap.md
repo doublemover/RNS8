@@ -606,3 +606,10 @@ resource/format compatibility and exact final range admission. Its authored
 independent brute-force oracle includes a staged-search lost-optimum witness.
 The declared objective uses supplied synthetic/calibrated costs; no measured
 hardware optimum or runtime basis change is claimed. Runtime tests remain pending.
+
+The #44/#29 encoding generator now emits source-bound executable scalar native
+64-bit dot models with independent product-plane accumulators and exact division
+before reduction. AWE6, base-13 and denominator-two generated fixtures compile
+in the VS2026/gfx1100 test executable. Full-width Boost, exhaustive residue-pair
+and K-slab fixtures await execution. This does not qualify floating instructions;
+see [generated encodings](generated-encodings.md).

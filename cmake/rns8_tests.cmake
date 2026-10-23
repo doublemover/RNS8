@@ -648,6 +648,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_ragged_residues.cpp
     tests/unit/test_block_sparse.cpp
     tests/unit/test_generated_reducers.cpp
+    tests/unit/test_generated_encodings.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
@@ -684,12 +685,23 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
             --out-dir "${_rns8_reducer_dir}"
     DEPENDS tools/generate_modulus_kernels.py tools/arithmetic_certificate.py tools/modulus_set_search.py
     VERBATIM)
-  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}")
+  set(_rns8_encoding_dir "${CMAKE_CURRENT_BINARY_DIR}/generated-encoding-tests")
+  set(_rns8_encoding_header "${_rns8_encoding_dir}/encodings.hpp")
+  add_custom_command(OUTPUT "${_rns8_encoding_header}"
+    BYPRODUCTS "${_rns8_encoding_dir}/awe6_251.hpp" "${_rns8_encoding_dir}/awe6_256.hpp"
+               "${_rns8_encoding_dir}/base13_251.hpp" "${_rns8_encoding_dir}/base13_256.hpp"
+               "${_rns8_encoding_dir}/exact_divide.hpp" "${_rns8_encoding_dir}/encodings.json"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_encoding_test_fixtures.py"
+            --out-dir "${_rns8_encoding_dir}"
+    DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
+    VERBATIM)
+  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
   target_include_directories(
     rns8_tests
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${_rns8_reducer_dir}"
+      "${_rns8_encoding_dir}"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)

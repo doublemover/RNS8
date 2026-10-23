@@ -32,6 +32,29 @@ def main() -> int:
         assert generate_header(certificate) == generate_header(certificate)
         assert not result["instruction_measured"]
     base = schoolbook_certificate(256)
+    generated = generate_header(base, "base13_256")
+    assert "struct rns8_base13_256" in generated
+    assert "numerator / 1LL" in generated and "offset += length" in generated
+    assert "certificate_sha256" in generated and "static bool dot" in generated
+    for symbol in ("bad-name", "x;int injected", "double__underscore", ""):
+        if symbol == "":
+            continue  # Empty optional symbol selects the certificate hash.
+        try:
+            generate_header(base, symbol)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid C++ symbol accepted")
+    # Algebraically valid arbitrary precision certificates are not necessarily
+    # executable with this generator's fixed byte/int64 implementation.
+    wide_intermediate = replace(base, recombination_max=1 << 80)
+    assert verify(wide_intermediate)["algebraically_verified"]
+    try:
+        generate_header(wide_intermediate)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unqualified int64 implementation emitted")
     corrupted = replace(base.planes[0], lhs=(5,) + base.planes[0].lhs[1:])
     result = verify(replace(base, planes=(corrupted,) + base.planes[1:]))
     assert "plane_0_stored_alphabet" in result["proof_failures"]
