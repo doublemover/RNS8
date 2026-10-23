@@ -4,7 +4,9 @@
 #include "residue_layout.hpp"
 #include "native_tile_bound.hpp"
 #include "garner_constants.hpp"
+#if !defined(__HIP_DEVICE_COMPILE__)
 #include "rns8/status.h"
+#endif
 
 namespace rns8::detail {
 struct RaggedResidueTile {
@@ -58,8 +60,10 @@ inline bool compatible_ragged_destination(
   return valid_residue_layout(destination) && destination.rows == source.rows && destination.cols == source.cols &&
          valid_ragged_residue_layout(source, instance, generation, destination.prefix);
 }
+#if !defined(__HIP_DEVICE_COMPILE__)
 rns8_status materialize_ragged_residues_host(
     const int8_t* source, const RaggedResidueLayout& layout, int8_t* destination,
     const ResidueLayout& target, uint64_t expected_instance, uint64_t expected_generation,
     uint64_t max_staged_bytes);
+#endif
 } // namespace rns8::detail

@@ -53,8 +53,20 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_native_wmma_kernels.cuh"
 #include "hip_direct_bound_kernels.cuh"
 #include "hip_direct_ragged_kernels.cuh"
+#include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_block_sparse_gemm(
+    const int8_t* a,const uint32_t* ao,const uint32_t* ai,
+    const int8_t* b,const uint32_t* bo,const uint32_t* bi,
+    int8_t* c,int m,int n,int k,int ldc,int prefix) {
+  const uint64_t tile_cols=(static_cast<uint64_t>(n)+15)/16;
+  const uint64_t tiles=((static_cast<uint64_t>(m)+15)/16)*tile_cols;
+  hipLaunchKernelGGL(rns8_block_sparse_gemm_kernel,dim3(tiles,prefix),dim3(256),0,nullptr,
+      a,ao,ai,b,bo,bi,c,m,n,k,ldc,prefix,static_cast<int>(tile_cols));
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_materialize_ragged(
     const int8_t* source, const rns8::detail::RaggedResidueTile* tiles,

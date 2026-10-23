@@ -10,8 +10,15 @@
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/ragged_residues.hpp"
+#include "backend_common/block_sparse.hpp"
 
 namespace rns8::detail {
+// Private modular block-sparse producer; public bounded/exact range admission
+// and output transaction ownership remain the caller's responsibility.
+rns8_status hip_direct_gemm_block_sparse_device(
+    int device_id,const void* a,const BlockSparseOperand& lhs,uint64_t a_instance,uint64_t a_generation,
+    const void* b,const BlockSparseOperand& rhs,uint64_t b_instance,uint64_t b_generation,
+    void* c,int64_t ldc,uint64_t max_scratch_bytes);
 // Private exact ragged-to-uniform materialization. Caller owns generation/proof
 // binding and must invalidate destination on any failure after commit_started.
 rns8_status hip_direct_materialize_ragged_residues(

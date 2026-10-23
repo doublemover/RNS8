@@ -642,6 +642,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_int4_encoding.cpp
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_ragged_residues.cpp
+    tests/unit/test_block_sparse.cpp
     tests/unit/test_generated_reducers.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp

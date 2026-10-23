@@ -485,3 +485,10 @@ tiling, values through 140 bits and a following GEMM crossing source tile bounds
 Private callers still own proof/generation binding; public ragged matrix
 ownership and DAG scheduling integration are pending. Compilation and execution
 of this addition remain pending.
+
+The ragged materialization HIP test executable compiled at `91f8795`; runtime
+validation remains pending. The #51 private block-sparse baseline now packs
+actual native zeros, validates CSR/CSC block directories, and intersects K-block
+lists in a single-owner HIP output kernel. See [block-sparse](block-sparse.md)
+for its budget, generation and arithmetic contracts. Boost CPU and HIP fixtures
+are authored; this addition is not yet compiled or performance-qualified.

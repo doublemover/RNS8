@@ -54,5 +54,6 @@ namespace {
 #include "test_hip_direct_native_wmma_cases.inc"
 #include "test_hip_direct_bound_cases.inc"
 #include "test_hip_direct_ragged_cases.inc"
+#include "test_hip_direct_block_sparse_cases.inc"
 #include "test_hip_direct_layout_cases.inc"
 #include "test_hip_direct_direct_crt_cases.inc"

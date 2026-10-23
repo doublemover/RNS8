@@ -30,6 +30,7 @@ set(RNS8_SOURCES
   src/core/status.cpp
   src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
+  src/cpu/block_sparse.cpp
   src/reconstruct/crt.cpp
   src/reconstruct/ragged_residues.cpp
   src/backend_hip_direct/hip_backend.cpp
