@@ -898,6 +898,22 @@ RNS8_API rns8_status rns8_lift_exact_wide_cpu(
     uint32_t target_prefix,
     uint64_t max_staged_residue_bytes);
 
+/* Synchronous HIP-direct value-preserving exact-wide base extension.
+ * Requires current device residues, an existing uniqueness proof and allocated
+ * target capacity. Values stay on device; only a completion status is read back.
+ * The suffix payload budget excludes a four-byte status allocation. Staging and
+ * proof failures preserve the source. A failed final device commit invalidates
+ * matrix currentness; success preserves generation and source identity, extends
+ * exact_range_prefix and invalidates any old host residue materialization.
+ * Access must be serialized by the caller. This operation is not graph-safe.
+ */
+RNS8_API rns8_status rns8_lift_exact_wide_hip(
+    rns8_context* ctx,
+    rns8_matrix* matrix,
+    uint32_t target_prefix,
+    uint64_t max_staged_residue_bytes);
+
+
 /*
  * Pack persistent finite-ring or finite-field uint8_t host storage into a
  * resident finite matrix. The matrix descriptor semantics select ring versus

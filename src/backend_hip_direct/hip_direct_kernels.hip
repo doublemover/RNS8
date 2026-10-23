@@ -37,6 +37,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_gemm_kernels.cuh"
 
 #include "hip_direct_export_kernels.cuh"
+#include "hip_direct_lift_kernels.cuh"
 
 }  // namespace
 
@@ -90,4 +91,16 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
   if (code != 0) return code;
   hipError_t e = hipDeviceSynchronize();
   return e == hipSuccess ? 0 : (int)e;
+}
+
+extern "C" int rns8_hip_direct_lift_suffix_device(
+    const int8_t* residues, int8_t* suffix, int cells, int source_prefix, int target_prefix,
+    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status) {
+  if (!residues || !suffix || !status || cells <= 0 || cells > kRns8MaxInt - 256 ||
+      source_prefix <= 0 || target_prefix > kRns8MaxSupportedPrefix || source_prefix >= target_prefix)
+    return static_cast<int>(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_exact_lift_suffix_kernel, dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+                    residues, suffix, cells, source_prefix, target_prefix, signed_value,
+                    (rns8_u192_device{bound0, bound1, bound2}), status);
+  return static_cast<int>(hipGetLastError());
 }

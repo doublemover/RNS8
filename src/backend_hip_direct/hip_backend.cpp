@@ -18,6 +18,8 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
+extern "C" int rns8_hip_direct_lift_suffix_device(
+    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*);
 
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
@@ -622,6 +624,7 @@ namespace rns8::detail {
 #include "hip_backend_gemm.inc"
 
 #include "hip_backend_export.inc"
+#include "hip_backend_lift.inc"
 
 rns8_status hip_direct_synchronize(int device_id) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

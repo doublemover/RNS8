@@ -1,0 +1,57 @@
+TEST_CASE("direct HIP exact base extension preserves every source prefix and signed representative") {
+  if (!hip_available()) SKIP("no HIP device for exact base-extension qualification");
+  using boost::multiprecision::cpp_int;
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  constexpr std::size_t cells = 7;
+  for (const auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto desc = matrix_desc(1, cells, semantics, RNS8_BOUND_NONE);
+    desc.max_prefix = 20;
+    rns8_matrix* matrix = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+    for (uint32_t source = 1; source < 20; ++source) {
+      const cpp_int product = rns8::detail::modulus_product(source);
+      const bool signed_value = semantics == RNS8_EXACT_WIDE_SIGNED;
+      const cpp_int bound = signed_value ? cpp_int((product - 1) / 2) : cpp_int(product - 1);
+      std::vector<cpp_int> values{0, 1, bound, bound - 1, bound / 2, 7, 17};
+      if (signed_value) { values[3] = -bound; values[4] = -1; }
+      std::vector<int8_t> expected(cells * 20);
+      for (uint32_t p = 0; p < 20; ++p)
+        for (std::size_t cell = 0; cell < cells; ++cell)
+          expected[p * cells + cell] = rns8::detail::centered_residue(values[cell], rns8::detail::kDefaultModuli[p]);
+      for (uint32_t target = source + 1; target <= 20; ++target) {
+        auto initial = expected;
+        std::fill(initial.begin() + source * cells, initial.end(), int8_t{99});
+        REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, matrix->hip_residues, initial.data(), initial.size()) == RNS8_SUCCESS);
+        matrix->device_residues_current = true;
+        matrix->host_residues_current = false;
+        matrix->host_native_current = false;
+        matrix->device_native_current = false;
+        matrix->exact_range_prefix = source;
+        matrix->exact_max_magnitude = bound;
+        const auto generation = matrix->content_generation;
+        const auto identity = matrix->matrix_instance_id;
+        const auto version = matrix->source_version;
+        const auto bytes = cells * (target - source);
+        CHECK(rns8_lift_exact_wide_hip(ctx, matrix, target, bytes - 1) == RNS8_WORKSPACE_TOO_SMALL);
+        CHECK(matrix->exact_range_prefix == source);
+        REQUIRE(rns8_lift_exact_wide_hip(ctx, matrix, target, bytes) == RNS8_SUCCESS);
+        CHECK(matrix->exact_range_prefix == target);
+        CHECK(matrix->content_generation == generation);
+        CHECK(matrix->matrix_instance_id == identity);
+        CHECK(matrix->source_version == version);
+        CHECK(matrix->device_residues_current);
+        CHECK_FALSE(matrix->host_residues_current);
+        std::vector<int8_t> actual(initial.size());
+        REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, actual.data(), matrix->hip_residues, actual.size()) == RNS8_SUCCESS);
+        for (std::size_t i = 0; i < actual.size(); ++i)
+          REQUIRE(actual[i] == (i < target * cells ? expected[i] : int8_t{99}));
+        CHECK(rns8_lift_exact_wide_hip(ctx, matrix, target, 0) == RNS8_SUCCESS);
+      }
+      matrix->exact_range_prefix = source;
+      matrix->exact_max_magnitude = product; // Cannot recover an aliased integer.
+      CHECK(rns8_lift_exact_wide_hip(ctx, matrix, 20, UINT64_MAX) == RNS8_RANGE_ERROR);
+    }
+    REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

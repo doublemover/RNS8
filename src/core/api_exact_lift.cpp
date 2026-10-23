@@ -201,3 +201,45 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
     return RNS8_SUCCESS;
   });
 }
+
+rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uint32_t target_prefix,
+                                   uint64_t max_staged_residue_bytes) {
+  return guard_api([&]() -> rns8_status {
+    if (!ctx || !matrix || ctx->backend != matrix->backend) return RNS8_INVALID_ARGUMENT;
+    if (ctx->backend != RNS8_BACKEND_HIP_DIRECT) return RNS8_UNSUPPORTED_BACKEND;
+    if (!rns8::detail::exact_wide_semantics(matrix->desc.semantics) || target_prefix == 0 ||
+        target_prefix > matrix->prefix || target_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+        matrix->hip_device_id != ctx->device_id ||
+        rns8::detail::validate_matrix_desc(matrix->desc, matrix->prefix) != RNS8_SUCCESS ||
+        !rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
+        !matrix->device_residues_current) return RNS8_INVALID_ARGUMENT;
+    const uint32_t source_prefix = matrix->exact_range_prefix;
+    if (!source_prefix || source_prefix > matrix->prefix ||
+        !rns8::detail::exact_range_fits(matrix->desc.semantics, matrix->exact_max_magnitude,
+                                      rns8::detail::modulus_product(source_prefix))) return RNS8_RANGE_ERROR;
+    if (target_prefix <= source_prefix) return RNS8_SUCCESS;
+    std::size_t cells = 0;
+    if (!matrix_cell_count(matrix->desc.rows, matrix->desc.cols, cells) || cells > INT32_MAX - 256 ||
+        cells > SIZE_MAX / (target_prefix - source_prefix)) return RNS8_RANGE_ERROR;
+    if (cells * (target_prefix - source_prefix) > max_staged_residue_bytes) return RNS8_WORKSPACE_TOO_SMALL;
+    uint64_t bound[3]{};
+    auto remaining = matrix->exact_max_magnitude;
+    for (auto& limb : bound) {
+      limb = static_cast<uint64_t>(remaining & UINT64_MAX);
+      remaining >>= 64;
+    }
+    if (remaining != 0) return RNS8_RANGE_ERROR;
+    bool commit_started = false;
+    const auto status = rns8::detail::hip_direct_lift_exact_suffix(
+        ctx->device_id, matrix->hip_residues, static_cast<int64_t>(cells), source_prefix,
+        target_prefix, matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED, bound, commit_started);
+    if (status != RNS8_SUCCESS) {
+      if (commit_started) invalidate_output_currentness(*matrix);
+      return status;
+    }
+    matrix->exact_range_prefix = target_prefix;
+    matrix->host_residues_current = false;
+    // This is a new materialization of the same value, not a logical mutation.
+    return RNS8_SUCCESS;
+  });
+}

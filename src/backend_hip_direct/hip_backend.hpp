@@ -9,6 +9,10 @@
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
+rns8_status hip_direct_lift_exact_suffix(
+    int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
+    bool signed_value, const uint64_t* bound, bool& commit_started);
+
 
 struct hip_direct_timing_sample {
   std::string label;

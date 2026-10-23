@@ -248,3 +248,14 @@ The new research regression cases are authored and registered; execution remains
 pending the development-first validation campaign. Research issues #29–#48
 remain open until their concrete runtime and target-specific acceptance gates
 are met, including device, calibration, lifecycle and performance evidence.
+
+
+The explicit synchronous `rns8_lift_exact_wide_hip` entrypoint now has a direct-HIP
+implementation. It reconstructs with the current 192-bit Garner helper, applies
+signed centering, checks the certified magnitude and stages only missing suffix
+planes. Only status returns to the host. Successful materialization preserves
+logical generation; a final device-copy failure invalidates currentness. The
+API requires an existing uniqueness proof and allocated capacity, and does not
+provide device-owned bound discovery or graph-safe/asynchronous execution.
+Every source/destination prefix pair has a Boost differential fixture, including
+signed boundaries and suffix canaries. Actual GPU validation is still pending.
