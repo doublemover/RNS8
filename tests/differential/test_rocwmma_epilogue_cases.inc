@@ -22,7 +22,8 @@ TEST_CASE("rocWMMA fused epilogue matches integer reference across tails and saf
     REQUIRE(hip_direct_copy_host_to_device(0, da, a.data(), a.size()) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, db, b.data(), b.size()) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, dd, d.data(), d.size()) == RNS8_SUCCESS);
-    for (auto coefficients : {std::pair<int64_t, int64_t>{0, 0}, {0, 1}, {1, 0}, {-1, 1}, {INT64_MIN, INT64_MAX}}) {
+    for (auto coefficients : {std::pair<int64_t, int64_t>{0, 0}, {0, 1}, {1, 0}, {-1, 1},
+                             {INT64_MIN, INT64_MAX}, {INT64_MAX, INT64_MIN}, {INT64_MIN, INT64_MIN}}) {
       const auto [alpha, beta] = coefficients;
       std::fill(output.begin(), output.end(), int8_t{99});
       REQUIRE(hip_direct_copy_host_to_device(0, dc, output.data(), output.size()) == RNS8_SUCCESS);

@@ -140,3 +140,11 @@ publication and zero new allocations through the RNS8 device-allocation helper
 during submission/wait. HIP-internal allocations are not covered by that
 counter. Execution, capture leaks, instruction qualification and replay
 break-even remain pending.
+
+Fresh validation at `167aff0` exposed a reservation/invalidation ordering bug:
+submission reserved output writers, then generic invalidation rejected those
+same reservations with BUSY. Owned graph invalidation now clears currentness
+without releasing or rechecking its own writer reservation. Each ordinary
+submission invalidates only attempted outputs; replay invalidates all outputs
+at launch. Completion retains the existing publication and reservation-release
+rules. The bounded retry includes both diamond and produced-addend DAG cases.

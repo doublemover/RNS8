@@ -46,6 +46,10 @@ static void exercise_resident_async_submission(
   REQUIRE(hipStreamEndCapture(stream.get(), &empty) == hipSuccess);
   if (empty)
     REQUIRE(hipGraphDestroy(empty) == hipSuccess);
+  REQUIRE_FALSE(workspace->in_flight);
+  REQUIRE(a->in_flight_readers == 0);
+  REQUIRE(b->in_flight_readers == 0);
+  for (auto* output : {c, d, e}) REQUIRE_FALSE(output->in_flight_writer);
   rns8::detail::hip_direct_allocation_counters_reset();
   REQUIRE(submit(graph, stream.get(), &token) == RNS8_SUCCESS);
   REQUIRE(a->in_flight_readers == 1);

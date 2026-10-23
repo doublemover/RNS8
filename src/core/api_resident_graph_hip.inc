@@ -1,4 +1,12 @@
 namespace {
+// The graph already owns every output writer reservation. Clearing currentness
+// must not re-enter the generic writable check, which rejects those reservations.
+// Keep reservations intact, and invalidate only outputs whose writes are attempted.
+void invalidate_owned_graph_output(rns8_matrix& output) {
+  clear_residue_current(output);
+  clear_byte_limb_current(output);
+  clear_native_current(output);
+}
 rns8_status enqueue_resident_node(const rns8_resident_node &node,
                                   void *stream) {
   return node.kind == RNS8_RESIDENT_EXACT_AXPBY
@@ -183,7 +191,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
     // admission.
     if (replay) {
       for (const auto &node : graph->nodes)
-        invalidate_output_currentness(*node.c);
+        invalidate_owned_graph_output(*node.c);
       status =
           hipGraphLaunch(graph->captured_executable, hip_stream) == hipSuccess
               ? RNS8_SUCCESS
@@ -191,7 +199,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
     } else
       for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
         const auto &node = graph->nodes[i];
-        invalidate_output_currentness(*node.c);
+        invalidate_owned_graph_output(*node.c);
         status = enqueue_resident_node(node, stream);
         if (status != RNS8_SUCCESS) {
           failed = i;

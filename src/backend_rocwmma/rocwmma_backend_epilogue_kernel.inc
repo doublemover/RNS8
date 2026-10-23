@@ -1,8 +1,12 @@
 // One wave owns a complete output tile and modulus. Only local LDS holds
 // packed byte fragments and INT32 fragment stores; no global AB temporary.
+struct RocwmmaExactCoefficients {
+  uint32_t modulus[20], reciprocal[20];
+  int32_t alpha[20], beta[20];
+};
 __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kernel(
     const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
-    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int64_t alpha, int64_t beta) {
+    int m, int n, int k, int lda, int ldb, int ldd, int ldc, RocwmmaExactCoefficients coefficients) {
   using namespace rocwmma;
   using FragA = fragment<matrix_a, 16, 16, 16, int8_t, row_major>;
   using FragB = fragment<matrix_b, 16, 16, 16, int8_t, col_major>;
@@ -13,8 +17,9 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kern
   int32_t residues[owned]{};
   const int lane = threadIdx.x, plane = blockIdx.z;
   const int64_t tile_row = int64_t{blockIdx.y} * 16, tile_col = int64_t{blockIdx.x} * 16;
-  const int modulus = rocwmma_default_modulus_device(plane);
-  const uint32_t reciprocal = rns8::detail::finite_u8::modulus_reciprocal_u32(modulus);
+  const int modulus = coefficients.modulus[plane];
+  const uint32_t reciprocal = coefficients.reciprocal[plane];
+  const int32_t alpha = coefficients.alpha[plane], beta = coefficients.beta[plane];
   for (int64_t begin = 0; begin < k; begin += kRns8SignedSafeInt32KBlock) {
     const int64_t end = begin + kRns8SignedSafeInt32KBlock < k ? begin + kRns8SignedSafeInt32KBlock : k;
     FragAcc acc;
@@ -46,8 +51,8 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kern
     const int index = lane + slot * kRns8WmmaWaveThreads;
     const int64_t row = tile_row + index / 16, col = tile_col + index % 16;
     if (row < m && col < n)
-      c[(int64_t{plane} * m + row) * ldc + col] = rns8::detail::centered_residue_axpby(
-          static_cast<int8_t>(residues[slot]), d[(int64_t{plane} * m + row) * ldd + col],
-          alpha, beta, modulus);
+      c[(int64_t{plane} * m + row) * ldc + col] = rns8::detail::finite_u8::reduce_to_centered_i32(
+          alpha * residues[slot] + beta * static_cast<int32_t>(d[(int64_t{plane} * m + row) * ldd + col]),
+          modulus, reciprocal);
   }
 }

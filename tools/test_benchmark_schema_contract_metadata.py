@@ -14,6 +14,7 @@ from test_benchmark_schema import (
     as_reused_pack_capture,
     expect_invalid,
     expect_valid,
+    with_accumulator_key_fields,
 )
 
 
@@ -576,10 +577,33 @@ def main() -> int:
         stale_overlap_executed_scope,
         "executed streaming_overlap captures must use stage_event_scope",
     )
-    fractional_overlap = copy.deepcopy(stale_overlap_executed_scope)
+    # Executed overlap needs a complete Direct-HIP resident-B envelope, not
+    # just a corrected stage scope on the intentionally invalid CK fixture.
+    fractional_overlap = as_reused_pack_capture(stale_overlap_executed_scope)
+    fractional_overlap.update(
+        benchmark="rns8_streaming_overlap_resident_b_pipeline",
+        benchmark_execution_mode="benchmark_streaming_overlap_resident_b_pipeline",
+        backend_requested="hip-direct", backend_selected="hip-direct",
+        pack_mode="prepacked_reuse_b", prepack_reuse_operands=["B"],
+        per_modulus_gemm_estimate_applicable=False)
+    fractional_overlap["backend_metadata"] = copy.deepcopy(direct_hip_base["backend_metadata"])
+    fractional_overlap["selected_kernel"] = "direct_hip_tiled_active_prefix_rns_gemm_v2"
+    fractional_overlap["backend_metadata"].update(
+        selected_kernel=fractional_overlap["selected_kernel"],
+        workspace_mode="resident_device_buffers", workspace_required_bytes=0,
+        autotune_key=with_accumulator_key_fields(
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=128;k=64;prefix=9;"
+            "tile_m=128;tile_n=128;groups=1;adaptive_prefix=0;adaptive_skip=0;"
+            "kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;epilogue=fused_centered_residue_then_crt_export",
+            fractional_overlap))
+    fractional_overlap["timing_metadata"].update(
+        benchmark_execution_mode="benchmark_streaming_overlap_resident_b_pipeline",
+        pack_mode="prepacked_reuse_b", prepack_reuse_operands=["B"],
+        gpu_event_timing_source_scope="direct_hip_streaming_overlap_multistream_operation_groups")
     fractional_overlap["streaming_overlap"].update(
         stage_event_scope="direct_hip_streaming_overlap_multistream_operation_groups",
-        batch_wall_us=0.875, per_repeat_pipeline_us=0.125)
+        batch_wall_us=0.125 * fractional_overlap["repeats"], per_repeat_pipeline_us=0.125)
+    add_helper_lane_fields(fractional_overlap)
     validate_capture(fractional_overlap)
     for value in (True, -0.125, float("nan"), float("inf")):
         invalid = copy.deepcopy(fractional_overlap)

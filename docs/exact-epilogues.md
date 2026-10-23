@@ -68,3 +68,11 @@ only integer fragments are used. `rocwmma_headers.hpp` scopes Clang's
 MSVC 19.50+, leaving RNS8 diagnostics intact. Dependency probes include the
 same wrapper after `<chrono>` so their STL/include environment matches the
 actual translation unit. This does not qualify floating-point backends.
+
+The fresh validation at `167aff0` passed the rocWMMA epilogue differential but
+failed the no-divide ISA gate. Coefficients and modulus reciprocals now reduce
+once per plane on the host and travel in a small by-value kernel argument.
+The device epilogue uses only bounded INT32 products and reciprocal reduction;
+it no longer computes full-width coefficient remainders per output cell. The
+retry will check the unchanged ISA gate and expanded signed-minimum fixtures.
+This repair is not yet a measured performance gain.
