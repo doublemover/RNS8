@@ -6,7 +6,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from collect_native_calibration import main, validate_case, epilogue_contract
+from collect_native_calibration import main, validate_case, epilogue_contract, narrow_contract
 
 
 def run():
@@ -73,6 +73,40 @@ def run():
             else:
                 raise AssertionError("different epilogue expression accepted")
         assert len(list((root / "wrong-expression").glob("*.json"))) == 1
+        for name in ("narrow_wmma", "narrow_scalar", "narrow_vector"):
+            narrow = {**case, "candidate": name, "prefix": 1, "group": 1}
+            assert validate_case(narrow) == narrow
+            assert narrow_contract(narrow)["abs_partial_sum_bound"] == 257 * 128 ** 2
+            for changes in ({"prefix": 2}, {"k": 32769}, {"group": 2}):
+                try:
+                    validate_case({**narrow, **changes})
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("unmatched narrow contract accepted")
+        narrow = {**case, "candidate": "narrow_wmma", "prefix": 1, "group": 1, "unsigned_inputs": True}
+        assert narrow_contract(narrow)["abs_partial_sum_bound"] == 257 * 255 ** 2
+        try:
+            validate_case({**narrow, "candidate": "narrow_scalar"})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unsigned scalar accepted")
+        cases.write_text(json.dumps([narrow]), encoding="utf-8")
+        argv[argv.index(str(root / "wrong-expression"))] = str(root / "wrong-native-output")
+        def wrong_native_output(command, **kwargs):
+            capture = {**narrow, **narrow_contract(narrow), "schema": "rns8_native_microcase_v1",
+                       "run_id": command[-1], "repeats": 3, "warmups": 1,
+                       "samples": [{"exact_reference_passed": True}] * 3}
+            capture["output_contract"] = "product_residues_default_basis_no_integer_export"
+            return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
+        with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=wrong_native_output):
+            try:
+                main()
+            except RuntimeError as error:
+                assert "contract/reference mismatch" in str(error)
+            else:
+                raise AssertionError("residue output admitted as native integer comparison")
     print("native calibration collector self-test: PASS")
     return 0
 

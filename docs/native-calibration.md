@@ -11,7 +11,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
 | `split_k` | Three fragments (or K if smaller), queue, canonicalize, merge/store | Resident native 64-bit |
 
-All product cases produce the same default-basis residue planes for matched
+The product cases in this table produce the same default-basis residue planes for matched
 shape/prefix/signedness. This output boundary does not assert that a small prefix
 uniquely represents the full integer product. Packing-only and already-packed
 cases have different boundaries and cannot be compared as complete native-input
@@ -45,6 +45,29 @@ resolution, ISA, counter evidence and qualification are explicitly absent; raw
 records cannot promote a candidate. Instruction-dependency/throughput roofs,
 dedicated HBM/LDS probes, measured reuse break-even and held-out planner regret
 remain separate #31 acceptance work.
+
+## Matched native integer comparison
+
+`narrow_wmma`, `narrow_scalar` and `narrow_vector` use the same seeded byte-domain
+values stored in native 64-bit arrays and produce bounded exact native 64-bit
+integers. Signed data cover [-128,127]; unsigned data cover [0,255]. Both operands
+include the maximum magnitude explicitly. These cases require prefix=group=1
+(the prefix is an unused CLI placeholder) and K<=32768, which proves all INT32
+absolute partial sums fit even for unsigned bytes. The scalar implementation is
+signed-only; requesting unsigned scalar fails explicitly. WMMA and vector ALU
+support both interpretations.
+
+Host timing includes each complete checked call: WMMA/scalar scan actual device
+inputs and prove partial sums; vector ALU resets and reads its overflow status.
+All cases retain identical A/B/C and status buffer allocations. Candidate-local
+scratch allocation, capability probing and synchronization remain timed. HIP
+event labels retain component timing separately; output poisoning and Boost
+comparison of every integer and eight tail canaries are outside timing.
+
+The collector validates the dataset, native output contract, partial-sum bound
+and buffer sizes. These cases cannot be compared directly with the residue-output
+cases above. They do not yet include an RNS pipeline with integer reconstruction,
+and no collection, ISA qualification or performance result is claimed.
 
 ## Matched resident epilogue comparison
 

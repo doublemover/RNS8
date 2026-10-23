@@ -17,11 +17,15 @@ def validate_case(case):
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
     native = case["candidate"] in ("wmma", "queue", "split_k")
-    if ((not native and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
+    narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector")
+    if ((not native and not narrow and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
             or (not native and case["group"] != 1) or type(case["unsigned_inputs"]) is not bool
             or case["m"] * case["n"] * case["k"] > 16777216):
         raise ValueError("invalid native calibration candidate/group/reference budget")
+    if narrow and (case["prefix"] != 1 or case["k"] > 32768
+                   or (case["candidate"] == "narrow_scalar" and case["unsigned_inputs"])):
+        raise ValueError("narrow cases require prefix=1, K<=32768; scalar is signed only")
     return case
 
 
@@ -36,6 +40,18 @@ def epilogue_contract(case):
                            "d_dataset": "seed_3135_after_a_b"},
             "reserved_intermediate_bytes": size,
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
+
+
+def narrow_contract(case):
+    if not case["candidate"].startswith("narrow_"):
+        return {}
+    return {"dataset": "byte_domain_mt19937_64_seed3135_forced_maxima_v1",
+            "input_domain": "resident_native_64_byte_values",
+            "output_contract": "bounded_exact_native_64",
+            "abs_partial_sum_bound": case["k"] * (255 ** 2 if case["unsigned_inputs"] else 128 ** 2),
+            "native_input_storage_bytes": (case["m"] * case["k"] + case["k"] * case["n"]) * 8,
+            "native_output_bytes": case["m"] * case["n"] * 8,
+            "reserved_status_bytes": 4}
 
 
 def main():
@@ -83,6 +99,7 @@ def main():
         if (capture.get("schema") != "rns8_native_microcase_v1" or capture.get("run_id") != run_id
                 or any(capture.get(key) != value for key, value in case.items())
                 or any(capture.get(key) != value for key, value in epilogue_contract(case).items())
+                or any(capture.get(key) != value for key, value in narrow_contract(case).items())
                 or capture.get("repeats") != args.repeats or capture.get("warmups") != args.warmups
                 or len(capture.get("samples", [])) != args.repeats
                 or any(sample.get("exact_reference_passed") is not True for sample in capture["samples"])):
