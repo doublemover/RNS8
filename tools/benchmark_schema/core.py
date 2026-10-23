@@ -81,6 +81,16 @@ class _Validator(
             return
         self.version = version
         self._validate_v4()
+        manifest = self.data.get("build_manifest")
+        if manifest is not None:
+            if not isinstance(manifest, dict):
+                self._error("build_manifest must be an object")
+            elif (manifest.get("version") != 1 or type(manifest.get("source_dirty")) is not bool or
+                  not isinstance(manifest.get("configuration"), str) or
+                  not isinstance(manifest.get("source_digest"), str) or
+                  len(manifest["source_digest"]) != 64 or
+                  manifest.get("source_commit") != self.data.get("git_commit")):
+                self._error("build_manifest has incomplete or inconsistent source identity")
 
     def _error(self, message: str) -> None:
         self.errors.append(f"{self.path}: {message}")

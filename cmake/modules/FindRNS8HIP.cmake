@@ -104,6 +104,7 @@ function(rns8_compile_hip_source out_var source)
       ${_arch_args}
       ${_host_runtime_args}
       ${_pic_args}
+      -include "${RNS8_MANIFEST_HEADER}"
       -std=c++17
       -O2
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -111,7 +112,7 @@ function(rns8_compile_hip_source out_var source)
       ${_source_compile_options}
       -c "${_source_abs}"
       -o "${_object}"
-    DEPENDS "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS}
+    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )

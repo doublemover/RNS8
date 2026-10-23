@@ -1,4 +1,5 @@
 function(rns8_configure_library target_name)
+  rns8_bind_manifest(${target_name})
   target_compile_features(${target_name} PUBLIC cxx_std_17)
   target_include_directories(
     ${target_name}
@@ -169,6 +170,7 @@ if(RNS8_BUILD_BENCHMARKS)
     list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
+  rns8_bind_manifest(rns8-bench)
   target_compile_definitions(
     rns8-bench
     PRIVATE

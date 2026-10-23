@@ -217,6 +217,9 @@
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  std::cout << "  \"build_manifest\": " << RNS8_BUILD_MANIFEST_JSON << ",\n";
+#endif
   std::cout << "  \"compiler\": {\n";
   std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
