@@ -1,5 +1,10 @@
 # Native conversion and scheduling calibration
 
+The first local matched native-output and resident-epilogue collection is
+recorded in [RX 7900 XTX throughput](7900xtx-throughput-2026-10-23.md). It covers
+seven candidates at 256³ with five independent processes each. Other collection
+and qualification gaps described below remain open.
+
 The `rns8-native-calibrate` research executable exposes explicit product/packing and epilogue microcases:
 
 | Candidate | Timed work | Input boundary |
@@ -40,7 +45,7 @@ before and after each process, and retains unique raw stdout/stderr records,
 commands, UUIDs and failure records. The authored collector test mocks child
 processes and does not claim GPU execution.
 
-The VS2026/gfx1100 executable compiles. No collection has been run yet. Clock
+The VS2026/gfx1100 executable compiles. Broad product-case collection remains pending. Clock
 resolution, ISA, counter evidence and qualification are explicitly absent; raw
 records cannot promote a candidate. Instruction-dependency/throughput roofs,
 dedicated HBM/LDS probes, measured reuse break-even and held-out planner regret
@@ -78,7 +83,7 @@ fastest available RNS kernel for each shape.
 The collector validates the dataset, native output contract, partial-sum bound,
 minimal prefix and buffer sizes. These cases cannot be compared directly with
 the residue-output cases above. No collection, ISA qualification or performance
-result is claimed.
+result beyond the linked local 256³ collection is claimed.
 
 ## Matched resident epilogue comparison
 
@@ -104,4 +109,5 @@ The standalone combine has signed-byte modular semantics and rejects output
 aliases. It is a correctness/measurement baseline, not integer range admission.
 Authored full-width-coefficient CPU/Boost differentials compare fused and unfused
 paths with padded tails and K=65537. The extended calibration executable and tests compiled with VS2026/HIP 7.1,
-optional rocWMMA and gfx1100. Collection and runtime qualification remain pending.
+optional rocWMMA and gfx1100. Local differentials and the linked 256³ collection
+have passed; broader performance qualification remains pending.
