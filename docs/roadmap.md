@@ -313,3 +313,13 @@ cover prefixes 1/9/20, K around 65536 and 131073, multi-level merges, cancellati
 worst signed-byte products, padding and budget rejection. Execution remains
 pending. Matrix-engine producers, prepared scratch, planner selection and timing
 evidence are still required before calling the research issue complete.
+
+
+The existing modulus generator now emits valid host/HIP C++ reducer templates,
+including explicit centered handling of modulus 256, instead of undeclared
+function specializations. Generation is bounded to 28 distinct byte moduli and
+K slabs at most 65536, checks arithmetic certificates before writing, and emits
+deterministic UTF-8/LF sources plus source/generator/certificate hashes. Generated
+reducers are compiled into the unit target with all-byte-ladder and INT32 boundary
+fixtures. This repairs the #55 reducer baseline only: matrix-tile variant
+generation, compile-resource extraction and actual GPU qualification are pending.

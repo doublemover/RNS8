@@ -1,5 +1,6 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
   add_test(NAME residue_integrity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_residue_integrity.py")
   add_test(NAME analytical_planner_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analytical_planner.py")
@@ -634,6 +635,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_residue_dot.cpp
     tests/unit/test_crt.cpp
+    tests/unit/test_generated_reducers.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
@@ -662,11 +664,20 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(RNS8_ENABLE_AMDGPU_BUILTINS)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_amdgpu_builtins.cpp)
   endif()
-  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES})
+  set(_rns8_reducer_dir "${CMAKE_CURRENT_BINARY_DIR}/generated-reducer-tests")
+  set(_rns8_reducer_header "${_rns8_reducer_dir}/rns8_generated_centered_reducers.cuh")
+  add_custom_command(OUTPUT "${_rns8_reducer_header}"
+    BYPRODUCTS "${_rns8_reducer_dir}/rns8_generated_centered_reducers.json"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_modulus_kernels.py"
+            --out-dir "${_rns8_reducer_dir}"
+    DEPENDS tools/generate_modulus_kernels.py tools/arithmetic_certificate.py tools/modulus_set_search.py
+    VERBATIM)
+  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}")
   target_include_directories(
     rns8_tests
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
+      "${_rns8_reducer_dir}"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
