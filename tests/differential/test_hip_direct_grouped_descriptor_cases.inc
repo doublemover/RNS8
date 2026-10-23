@@ -18,7 +18,7 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(public_contract.descriptor_contract_supported == 1);
   CHECK(public_contract.public_execution_available == 1);
   CHECK(public_contract.same_shape_required == 1);
-  CHECK(public_contract.unique_matrix_handles_required == 1);
+  CHECK(public_contract.unique_matrix_handles_required == 0);
   CHECK(public_contract.unique_workspace_handles_required == 1);
   CHECK(public_contract.same_plan_fingerprint_required == 1);
   CHECK(public_contract.same_device_required == 1);
@@ -172,6 +172,30 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   shared_workspace_descriptor.tasks = shared_workspace_tasks;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(shared_workspace_descriptor, nullptr) ==
         RNS8_INVALID_ARGUMENT);
+
+  // Shared read-only inputs are legal, including A == B; writes cannot alias.
+  rns8_grouped_gemm_task shared_tasks[2]{};
+  for(auto& task:shared_tasks) {
+    task.struct_size=sizeof(task); task.abi_version=RNS8_ABI_VERSION;
+    task.a=a0; task.b=a0;
+  }
+  shared_tasks[0].c=c0; shared_tasks[0].workspace=workspace0;
+  shared_tasks[1].c=c1; shared_tasks[1].workspace=workspace1;
+  REQUIRE(rns8_gemm_rns_grouped(ctx,plan,shared_tasks,2)==RNS8_SUCCESS);
+  std::vector<uint64_t> shared0(4),shared1(4),reference(4);
+  REQUIRE(rns8_export_u64(ctx,plan,c0,shared0.data(),2)==RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx,plan,c1,shared1.data(),2)==RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx,plan,a0,a0,c0,workspace0)==RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx,plan,c0,reference.data(),2)==RNS8_SUCCESS);
+  CHECK(shared0==reference); CHECK(shared1==reference);
+  CHECK(shared0==std::vector<uint64_t>{7,10,15,22});
+  const auto old_generation=c0->content_generation;
+  shared_tasks[1].c=a0;
+  CHECK(rns8_gemm_rns_grouped(ctx,plan,shared_tasks,2)==RNS8_INVALID_ARGUMENT);
+  CHECK(c0->content_generation==old_generation);
+  shared_tasks[1].c=c0;
+  CHECK(rns8_gemm_rns_grouped(ctx,plan,shared_tasks,2)==RNS8_INVALID_ARGUMENT);
+  CHECK(c0->content_generation==old_generation);
 
   rns8_destroy_matrix(c1);
   rns8_destroy_matrix(b1);

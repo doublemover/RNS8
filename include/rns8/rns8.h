@@ -1066,6 +1066,8 @@ RNS8_API rns8_status rns8_gemm_rns_incremental(
  * grouped descriptor path. Inputs must already be packed/current resident
  * matrices for this plan; the grouped call does not perform host packing,
  * native-to-RNS conversion, final host export, or AUTO routing.
+ * Read-only input handles may be shared, including A == B. Every output must
+ * be distinct from all inputs and other outputs; workspaces must be unique.
  */
 RNS8_API rns8_status rns8_gemm_rns_grouped(
     rns8_context* ctx,

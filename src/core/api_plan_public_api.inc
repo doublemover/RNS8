@@ -276,7 +276,7 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
     out->same_shape_required = 1;
     out->same_semantics_required = 1;
     out->compact_row_major_required = 1;
-    out->unique_matrix_handles_required = 1;
+    out->unique_matrix_handles_required = 0;
     out->unique_workspace_handles_required = 1;
     out->same_plan_fingerprint_required = 1;
     out->same_device_required = 1;

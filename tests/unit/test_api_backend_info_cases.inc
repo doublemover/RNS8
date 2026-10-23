@@ -486,7 +486,7 @@ TEST_CASE("public grouped dispatch contract info reports explicit grouped requir
   CHECK(info.same_shape_required == 1);
   CHECK(info.same_semantics_required == 1);
   CHECK(info.compact_row_major_required == 1);
-  CHECK(info.unique_matrix_handles_required == 1);
+  CHECK(info.unique_matrix_handles_required == 0);
   CHECK(info.unique_workspace_handles_required == 1);
   CHECK(info.same_plan_fingerprint_required == 1);
   CHECK(info.same_device_required == 1);

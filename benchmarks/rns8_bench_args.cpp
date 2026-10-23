@@ -388,6 +388,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
+          << "                  [--exact-proof-scalar-first]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--residue-chain-final-export]\n"
           << "                  [--residue-chain-independent-final-export]\n"
