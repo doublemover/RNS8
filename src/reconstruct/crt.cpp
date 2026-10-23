@@ -1,4 +1,5 @@
 #include "core/internal.hpp"
+#include "backend_common/garner_constants.hpp"
 
 #include <limits>
 
@@ -6,29 +7,22 @@ namespace rns8::detail {
 
 namespace {
 
-uint32_t mod_inverse(uint32_t a, uint32_t modulus) {
-  int64_t t = 0;
-  int64_t next_t = 1;
-  int64_t r = modulus;
-  int64_t next_r = a % modulus;
-
-  while (next_r != 0) {
-    const int64_t quotient = r / next_r;
-    const int64_t new_t = t - quotient * next_t;
-    t = next_t;
-    next_t = new_t;
-    const int64_t new_r = r - quotient * next_r;
-    r = next_r;
-    next_r = new_r;
+struct ReconstructionPlan {
+  std::array<cpp_int, RNS8_MAX_SUPPORTED_PREFIX + 1> products;
+  ReconstructionPlan() {
+    products[0] = 1;
+    for (uint32_t i = 0; i < RNS8_MAX_SUPPORTED_PREFIX; ++i) {
+      if (garner::kConstants.moduli[i] != kDefaultModuli[i] ||
+          (products[i] % kDefaultModuli[i]) * garner::kConstants.inverses[i] % kDefaultModuli[i] != 1)
+        throw std::logic_error("invalid Garner specification");
+      products[i + 1] = products[i] * kDefaultModuli[i];
+    }
   }
-
-  if (r != 1) {
-    return 0;
-  }
-  if (t < 0) {
-    t += modulus;
-  }
-  return static_cast<uint32_t>(t);
+};
+const ReconstructionPlan& reconstruction_plan() {
+  // C++ guarantees thread-safe initialization; no mutable per-cell cache.
+  static const ReconstructionPlan plan;
+  return plan;
 }
 
 bool fits_uint64(const cpp_int& value) {
@@ -53,7 +47,7 @@ cpp_int centered_from_canonical(const cpp_int& value, const cpp_int& product) {
 
 cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix) {
   cpp_int x = 0;
-  cpp_int product = 1;
+  const auto& plan = reconstruction_plan();
   for (uint32_t i = 0; i < prefix; ++i) {
     const uint32_t modulus = kDefaultModuli[i];
     const uint32_t target = canonical_from_centered(residues[i], static_cast<uint16_t>(modulus));
@@ -61,16 +55,14 @@ cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t pref
     if (x_mod < 0) {
       x_mod += modulus;
     }
-    const uint32_t product_mod = static_cast<uint32_t>(product % modulus);
-    const uint32_t inverse = mod_inverse(product_mod, modulus);
+    const uint32_t inverse = garner::kConstants.inverses[i];
     const int64_t delta = static_cast<int64_t>(target) - static_cast<int64_t>(x_mod);
     int64_t delta_mod = delta % static_cast<int64_t>(modulus);
     if (delta_mod < 0) {
       delta_mod += modulus;
     }
     const uint32_t coefficient = static_cast<uint32_t>((delta_mod * inverse) % modulus);
-    x += product * coefficient;
-    product *= modulus;
+    x += plan.products[i] * coefficient;
   }
   return x;
 }

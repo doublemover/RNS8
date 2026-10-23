@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "backend_common/garner_constants.hpp"
+#include <random>
 
 namespace {
 
@@ -159,5 +161,30 @@ TEST_CASE("CRT reconstruction rejects malformed prefix inputs before range evalu
     CHECK(rns8::detail::reconstruct_signed(residues, 0, 1, value) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8::detail::reconstruct_signed(residues, RNS8_MAX_SUPPORTED_PREFIX + 1, 1, value) ==
           RNS8_INVALID_ARGUMENT);
+  }
+}
+
+TEST_CASE("immutable Garner constants and every prefix match independent congruences", "[crt][value-lifecycle]") {
+  using namespace rns8::detail;
+  std::mt19937_64 rng(20261023);
+  cpp_int product=1;
+  for (uint32_t prefix=1;prefix<=20;++prefix) {
+    const auto modulus=kDefaultModuli[prefix-1];
+    CHECK(garner::kConstants.moduli[prefix-1]==modulus);
+    CHECK((product % modulus)*garner::kConstants.inverses[prefix-1] % modulus==1);
+    product*=modulus;
+    cpp_int encoded=0;
+    for (int limb=2;limb>=0;--limb) { encoded<<=64; encoded+=garner::kConstants.products[prefix][limb]; }
+    CHECK(encoded==product); CHECK(product < (cpp_int(1)<<160));
+    for (const cpp_int value : std::vector<cpp_int>{0,1,product/2,product-1})
+      CHECK(reconstruct_canonical(residues_for(value,prefix),prefix)==value);
+    for (int trial=0;trial<100;++trial) {
+      std::vector<int8_t> residues(prefix);
+      for (uint32_t p=0;p<prefix;++p) residues[p]=centered_residue(cpp_int(rng()%kDefaultModuli[p]),kDefaultModuli[p]);
+      const auto value=reconstruct_canonical(residues,prefix);
+      REQUIRE(value>=0); REQUIRE(value<product);
+      for (uint32_t p=0;p<prefix;++p)
+        CHECK(value % kDefaultModuli[p]==canonical_from_centered(residues[p],kDefaultModuli[p]));
+    }
   }
 }
