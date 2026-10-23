@@ -19,6 +19,7 @@ CHECK_ENUM_ABI(rns8_output_domain);
 CHECK_ENUM_ABI(rns8_next_op_flags);
 CHECK_ENUM_ABI(rns8_resident_matrix_role);
 CHECK_ENUM_ABI(rns8_operand_role);
+CHECK_ENUM_ABI(rns8_resident_node_kind);
 #undef CHECK_ENUM_ABI
 
 TEST_CASE("reserved research APIs fail closed without changing outputs", "[qualification][cpu]") {

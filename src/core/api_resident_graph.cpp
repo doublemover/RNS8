@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -9,7 +10,7 @@ struct rns8_resident_graph {
     uint64_t instance, generation;
   };
   rns8_context* ctx = nullptr;
-  std::vector<rns8_resident_matmul_node> nodes;
+  std::vector<rns8_resident_node> nodes;
   std::vector<Input> inputs;
   std::vector<uint64_t*> holds;
   uint64_t epoch = 0;
@@ -17,12 +18,40 @@ struct rns8_resident_graph {
 };
 
 namespace {
+std::array<const rns8_matrix*, 2> node_inputs(const rns8_resident_node& node) {
+  return node.kind == RNS8_RESIDENT_BASE_EXTEND ? std::array<const rns8_matrix*, 2>{node.c, nullptr}
+                                              : std::array<const rns8_matrix*, 2>{node.a, node.b};
+}
+
+rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& node, rns8_matrix& proof) {
+  const auto& matrix = *node.c;
+  if (matrix.in_flight_writer || matrix.in_flight_readers) return RNS8_BUSY;
+  if (matrix.backend != ctx.backend || !rns8::detail::exact_wide_semantics(matrix.desc.semantics) ||
+      !node.target_prefix || node.target_prefix > matrix.prefix || node.target_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      matrix.desc.max_prefix != matrix.prefix ||
+      rns8::detail::validate_matrix_desc(matrix.desc, matrix.prefix) != RNS8_SUCCESS ||
+      !rns_matrix_storage_matches(matrix, ctx.backend, matrix.desc.rows, matrix.desc.cols, matrix.prefix) ||
+      (ctx.backend == RNS8_BACKEND_HIP_DIRECT && matrix.hip_device_id != ctx.device_id)) return RNS8_INVALID_ARGUMENT;
+  if (!proof.exact_range_prefix || proof.exact_range_prefix > matrix.prefix ||
+      !rns8::detail::exact_range_fits(matrix.desc.semantics, proof.exact_max_magnitude,
+                                     rns8::detail::modulus_product(proof.exact_range_prefix))) return RNS8_RANGE_ERROR;
+  if (node.target_prefix <= proof.exact_range_prefix) return RNS8_SUCCESS;
+  std::size_t cells = 0;
+  const auto suffix = node.target_prefix - proof.exact_range_prefix;
+  if (!matrix_cell_count(matrix.desc.rows, matrix.desc.cols, cells) || cells > SIZE_MAX / suffix ||
+      (ctx.backend == RNS8_BACKEND_HIP_DIRECT && cells > INT32_MAX - 256)) return RNS8_RANGE_ERROR;
+  if (cells * suffix > node.max_staged_residue_bytes) return RNS8_WORKSPACE_TOO_SMALL;
+  proof.exact_range_prefix = node.target_prefix;
+  return RNS8_SUCCESS;
+}
+
 // Metadata-only proof values: no copies of host/device matrix payloads.
 rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node, bool check_bindings) {
   std::unordered_map<const rns8_matrix*, rns8_matrix> proofs;
   proofs.reserve(graph.inputs.size() + graph.nodes.size());
   for (const auto& input : graph.inputs) {
     const auto& m = *input.matrix;
+    if (m.in_flight_writer) return RNS8_BUSY;
     if (m.generation_exhausted || !rns_residue_state_current_for_backend(m, graph.ctx->backend) ||
         (check_bindings && (m.matrix_instance_id != input.instance || m.content_generation != input.generation)))
       return RNS8_INVALID_ARGUMENT;
@@ -38,6 +67,13 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
   for (uint32_t index = 0; index < graph.nodes.size(); ++index) {
     failed_node = index;
     const auto& node = graph.nodes[index];
+    if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
+      auto input = proofs.find(node.c);
+      if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
+      const auto status = prove_extension(*graph.ctx, node, input->second);
+      if (status != RNS8_SUCCESS) return status;
+      continue;
+    }
     auto status = validate_plan_context_workspace(*graph.ctx, *node.plan, *node.workspace);
     if (status != RNS8_SUCCESS) return status;
     status = validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.c, false);
@@ -64,7 +100,7 @@ void bind_graph_inputs(rns8_resident_graph& graph) {
 }
 
 rns8_status rns8_create_resident_graph(
-    rns8_context* ctx, const rns8_resident_matmul_node* nodes, uint32_t count, rns8_resident_graph** out) {
+    rns8_context* ctx, const rns8_resident_node* nodes, uint32_t count, rns8_resident_graph** out) {
   return guard_api([&]() -> rns8_status {
     if (!out) return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
@@ -78,29 +114,35 @@ rns8_status rns8_create_resident_graph(
     producers.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
       const auto& node = nodes[i];
-      if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) ||
-          !node.plan || !node.a || !node.b || !node.c || !node.workspace ||
-          !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
-          !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
+      if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
+        return RNS8_INVALID_ARGUMENT;
+      if (node.kind == RNS8_RESIDENT_MATMUL) {
+        if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
+            !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
+            !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
+      } else if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
+        if (node.plan || node.a || node.b || node.workspace) return RNS8_INVALID_ARGUMENT;
+      } else return RNS8_INVALID_ARGUMENT;
     }
     std::unordered_set<const rns8_matrix*> external;
     std::unordered_set<uint64_t*> holds{&ctx->prepared_references};
     for (uint32_t i = 0; i < count; ++i) {
       const auto& node = nodes[i];
-      for (const auto* input : {node.a, node.b}) {
+      for (const auto* input : node_inputs(node)) {
+        if (!input) continue;
         const auto found = producers.find(input);
         if (found == producers.end()) external.insert(input);
         else if (found->second >= i) return RNS8_INVALID_ARGUMENT;
         holds.insert(&input->prepared_references);
       }
       holds.insert(&node.c->prepared_references);
-      holds.insert(&node.plan->prepared_references);
-      holds.insert(&node.workspace->prepared_references);
+      if (node.plan) holds.insert(&node.plan->prepared_references);
+      if (node.workspace) holds.insert(&node.workspace->prepared_references);
     }
     // Input binding order is deterministic, independent of hash iteration.
     for (const auto& node : graph->nodes)
-      for (const auto* input : {node.a, node.b})
-        if (external.erase(input)) graph->inputs.push_back({input, input->matrix_instance_id, input->content_generation});
+      for (const auto* input : node_inputs(node))
+        if (input && external.erase(input)) graph->inputs.push_back({input, input->matrix_instance_id, input->content_generation});
     graph->holds.assign(holds.begin(), holds.end());
     for (auto* hold : graph->holds) if (*hold == UINT64_MAX) return RNS8_RANGE_ERROR;
     uint32_t failed = UINT32_MAX;
@@ -135,7 +177,12 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
     graph->running = true;
     for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
       const auto& node = graph->nodes[i];
-      out->operation_status = rns8_gemm_rns(graph->ctx, node.plan, node.a, node.b, node.c, node.workspace);
+      if (node.kind == RNS8_RESIDENT_MATMUL)
+        out->operation_status = rns8_gemm_rns(graph->ctx, node.plan, node.a, node.b, node.c, node.workspace);
+      else if (graph->ctx->backend == RNS8_BACKEND_HIP_DIRECT)
+        out->operation_status = rns8_lift_exact_wide_hip(graph->ctx, node.c, node.target_prefix, node.max_staged_residue_bytes);
+      else
+        out->operation_status = rns8_lift_exact_wide_cpu(graph->ctx, node.c, node.target_prefix, node.max_staged_residue_bytes);
       if (out->operation_status != RNS8_SUCCESS) {
         out->failed_node = i; graph->running = false; return out->operation_status;
       }

@@ -25,15 +25,25 @@ typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
 
-typedef struct rns8_resident_matmul_node {
+typedef enum rns8_resident_node_kind RNS8_ENUM_BASE {
+  RNS8_RESIDENT_MATMUL = 0,
+  RNS8_RESIDENT_BASE_EXTEND = 1
+} rns8_resident_node_kind;
+
+typedef struct rns8_resident_node {
   uint64_t struct_size;
   uint32_t abi_version;
+  rns8_resident_node_kind kind;
   const rns8_plan* plan;
   const rns8_matrix* a;
   const rns8_matrix* b;
   rns8_matrix* c;
   rns8_workspace* workspace;
-} rns8_resident_matmul_node;
+  /* BASE_EXTEND uses c as the value-preserving materialization target;
+   * plan/a/b/workspace must be null. MATMUL requires both fields below zero. */
+  uint32_t target_prefix;
+  uint64_t max_staged_residue_bytes;
+} rns8_resident_node;
 
 typedef struct rns8_graph_execution_info {
   uint64_t struct_size;
@@ -44,11 +54,12 @@ typedef struct rns8_graph_execution_info {
   uint32_t failed_node; /* UINT32_MAX on complete success. */
 } rns8_graph_execution_info;
 
-/* Ordered, single-assignment exact-wide MatMul DAG, CPU or direct HIP.
+/* Ordered exact-wide MatMul/BaseExtend DAG, CPU or direct HIP.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
- * matrix/plan/workspace storage must match each edge; this first executor does
- * not allocate intermediate matrices or automatically extend a prefix.
+ * matrix/plan/workspace storage must match each edge. Explicit BASE_EXTEND
+ * nodes extend a uniquely represented value in-place without changing its
+ * generation. The executor does not allocate intermediate matrices or infer lifts.
  * Retains every referenced handle. Refresh validates all proofs before rebinding.
  * Execute propagates all exact bounds before the first write, then uses ordinary
  * synchronous GEMM. Outputs remain resident; export any requested node explicitly.
@@ -57,7 +68,7 @@ typedef struct rns8_graph_execution_info {
  * the failing node follows ordinary GEMM invalidation, later nodes are untouched.
  */
 RNS8_API rns8_status rns8_create_resident_graph(
-    rns8_context* ctx, const rns8_resident_matmul_node* nodes, uint32_t count,
+    rns8_context* ctx, const rns8_resident_node* nodes, uint32_t count,
     rns8_resident_graph** out);
 RNS8_API rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* graph);
 RNS8_API rns8_status rns8_execute_resident_graph(
