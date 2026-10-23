@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
-from fractions import Fraction
 import hashlib
 import json
 import math
@@ -112,11 +111,13 @@ def verify(c: ArithmeticCertificate) -> dict:
     for a in range(c.modulus):
         for b in range(c.modulus):
             numerator = sum(p.weight * p.lhs[a] * p.rhs[b] for p in c.planes)
-            decoded = Fraction(numerator, c.denominator)
-            if decoded.denominator != 1:
+            # A common positive denominator permits exact integer division;
+            # no rational allocation or gcd is needed for every byte pair.
+            decoded, remainder = divmod(numerator, c.denominator)
+            if remainder:
                 failures.append("nonintegral_recombination")
                 break
-            if decoded.numerator % c.modulus != a * b % c.modulus:
+            if decoded % c.modulus != a * b % c.modulus:
                 failures.append("encoding_product_identity")
                 break
         if failures and failures[-1] in {"nonintegral_recombination", "encoding_product_identity"}:
@@ -176,7 +177,12 @@ def main() -> int:
     parser.add_argument("certificate", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = verify(from_json(json.loads(args.certificate.read_text(encoding="utf-8"))))
+    data = json.loads(args.certificate.read_text(encoding="utf-8"))
+    if data.get("schema") == "rns8_arithmetic_composition_v1":
+        from arithmetic_composition import Node, verify_composition
+        result = verify_composition(tuple(Node(**node) for node in data["nodes"]))
+    else:
+        result = verify(from_json(data))
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(text, encoding="utf-8")

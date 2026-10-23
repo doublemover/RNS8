@@ -323,3 +323,15 @@ deterministic UTF-8/LF sources plus source/generator/certificate hashes. Generat
 reducers are compiled into the unit target with all-byte-ladder and INT32 boundary
 fixtures. This repairs the #55 reducer baseline only: matrix-tile variant
 generation, compile-resource extraction and actual GPU qualification are pending.
+
+
+The arithmetic checker also accepts `rns8_arithmetic_composition_v1` proof DAGs.
+It verifies the stated evaluation order for integer input/add/multiply/dot,
+canonical/centered reduction, divisible unreduced integer division, physical
+rescaling and layout permutation nodes. Each node has a physical width, value
+interval, divisibility information and separate modular/scale domain. Authored
+fixtures reject overflowing fusion of individually safe dots, carried overflow,
+reduction before noninvertible division, mixed accumulator scales and final-bound
+substitution for partial-sum safety. Input assumptions still require binding-time
+validation, and this host checker does not qualify instructions or route kernels.
+CRT-merge nodes and runtime certificate consumption remain open.

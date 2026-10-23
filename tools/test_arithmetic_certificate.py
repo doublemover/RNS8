@@ -14,6 +14,8 @@ def main() -> int:
         assert certificate_hash(from_json(json.loads(json.dumps(asdict(certificate))))) == certificate_hash(certificate)
     base = centered_int8(256, 131071)
     assert verify(base)["algebraically_verified"]
+    doubled = replace(base.planes[0], weight=2)
+    assert verify(replace(base, planes=(doubled,), denominator=2))["algebraically_verified"]
     broken = [
         (replace(base, safe_k=131072), "plane_0_accumulator_overflow"),
         (replace(base, instruction=replace(base.instruction, operand_min=0, operand_max=255)), "plane_0_operand_alphabet"),
