@@ -12,6 +12,14 @@ struct AddressDomain {
   uint64_t byte_extent = 0;
 };
 
+inline bool nonoverlapping_byte_ranges(const void* a, uint64_t a_bytes, const void* b, uint64_t b_bytes) {
+  constexpr auto limit = std::numeric_limits<uintptr_t>::max();
+  const auto first = reinterpret_cast<uintptr_t>(a), second = reinterpret_cast<uintptr_t>(b);
+  if (!a || !b || !a_bytes || !b_bytes || a_bytes > limit || b_bytes > limit ||
+      first > limit - a_bytes || second > limit - b_bytes) return false;
+  return first + a_bytes <= second || second + b_bytes <= first;
+}
+
 // Prove the last accessed element and byte extent without evaluating an
 // overflowing product. Plane stride is in elements; zero means dense planes.
 inline bool checked_address_domain(uint64_t rows, uint64_t cols, uint64_t ld,

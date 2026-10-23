@@ -283,6 +283,11 @@ TEST_CASE("Finite native CPU packing exhausts every byte and modulus") {
 TEST_CASE("Address-domain qualification proves complete spans without allocations") {
   using namespace rns8::detail;
   AddressDomain domain;
+  uint8_t storage[24]{};
+  CHECK(nonoverlapping_byte_ranges(storage, 8, storage + 8, 16));
+  CHECK_FALSE(nonoverlapping_byte_ranges(storage, 9, storage + 8, 16));
+  CHECK_FALSE(nonoverlapping_byte_ranges(storage, UINT64_MAX, storage + 8, 16));
+  CHECK_FALSE(nonoverlapping_byte_ranges(nullptr, 8, storage, 8));
   REQUIRE(checked_address_domain(32768, 65536, 65536, 1, 1, 0, domain));
   CHECK(domain.last_element == 2147483647ull);
   REQUIRE(checked_address_domain(32769, 65536, 65536, 1, 1, 0, domain));

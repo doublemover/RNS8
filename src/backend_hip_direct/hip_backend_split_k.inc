@@ -12,6 +12,10 @@ rns8_status hip_direct_gemm_rns_split_k_device(
       lda < k || ldb < n || ldc < n || !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
       !splits || splits > 4096 || splits > static_cast<uint64_t>(k)) return RNS8_INVALID_ARGUMENT;
   if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix)) return RNS8_UNSUPPORTED_BACKEND;
+  const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * prefix;
+  if (!nonoverlapping_byte_ranges(c, output_bytes, a, static_cast<uint64_t>(m) * lda * prefix) ||
+      !nonoverlapping_byte_ranges(c, output_bytes, b, static_cast<uint64_t>(k) * ldb * prefix))
+    return RNS8_INVALID_ARGUMENT;
   if ((static_cast<uint64_t>(k) + splits - 1) / splits > 65536) return RNS8_RANGE_ERROR;
   const uint64_t plane_cells = static_cast<uint64_t>(m) * n * prefix;
   const uint64_t merge_slots = (splits + 127) / 128;

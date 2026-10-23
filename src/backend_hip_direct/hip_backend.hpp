@@ -9,6 +9,13 @@
 #include "rns8/rns8.h"
 
 namespace rns8::detail {
+// Explicit modular expression baseline. Callers must separately prove bounded
+// integer semantics and own publication; D/C must not alias. No default routing.
+rns8_status hip_direct_gemm_rns_axpby_device(
+    int device_id, const void* a, const void* b, const void* d, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
+    uint32_t prefix, int64_t alpha, int64_t beta);
+
 // Research baseline: synchronous explicit split-K, no automatic dispatch.
 // Scratch holds canonical byte residues; output follows ordinary backend write
 // semantics and must be protected by the caller's publication transaction.

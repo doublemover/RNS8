@@ -335,3 +335,14 @@ reduction before noninvertible division, mixed accumulator scales and final-boun
 substitution for partial-sum safety. Input assumptions still require binding-time
 validation, and this host checker does not qualify instructions or route kernels.
 CRT-merge nodes and runtime certificate consumption remain open.
+
+
+The #47 private direct-HIP scalar baseline fuses `alpha*AB + beta*D` into one
+output store, retaining slab reductions in registers rather than materializing
+an intermediate AB matrix. Integer coefficients are reduced before multiplication
+(including INT64_MIN), and the final sum has an absolute bound of 65280. The
+shared host/device epilogue has Boost fixtures for every byte modulus; the GPU
+fixture covers full coefficient extremes, padded strides, prefix 20 and K=65537.
+Complete pointer spans reject overlapping output writers in this and split-K
+baselines. No public expression API, whole-expression integer range admission,
+matrix-engine fusion, cache selector or speedup is claimed yet.

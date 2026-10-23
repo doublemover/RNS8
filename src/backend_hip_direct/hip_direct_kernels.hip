@@ -5,6 +5,7 @@
 
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"
+#include "../backend_common/residue_epilogue.hpp"
 
 namespace {
 
@@ -39,6 +40,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_export_kernels.cuh"
 #include "hip_direct_lift_kernels.cuh"
 #include "hip_direct_split_k_kernels.cuh"
+#include "hip_direct_epilogue_kernels.cuh"
 
 }  // namespace
 
@@ -104,5 +106,14 @@ extern "C" int rns8_hip_direct_lift_suffix_device(
   hipLaunchKernelGGL(rns8_exact_lift_suffix_kernel, dim3((cells + 255) / 256), dim3(256), 0, nullptr,
                     residues, suffix, cells, source_prefix, target_prefix, signed_value,
                     (rns8_u192_device{bound0, bound1, bound2}), status);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_gemm_rns_axpby(
+    const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
+    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+  const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
+  hipLaunchKernelGGL(rns8_gemm_rns_axpby_kernel, dim3(blocks, prefix), dim3(256), 0, nullptr,
+                    a, b, d, c, m, n, k, lda, ldb, ldd, ldc, alpha, beta);
   return static_cast<int>(hipGetLastError());
 }

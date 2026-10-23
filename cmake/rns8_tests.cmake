@@ -635,6 +635,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_residue_dot.cpp
+    tests/unit/test_residue_epilogue.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_generated_reducers.cpp
     tests/unit/test_api.cpp
