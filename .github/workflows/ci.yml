@@ -67,3 +67,33 @@ jobs:
 
       - name: Test CPU
         run: ctest --preset linux-cpu-debug --output-on-failure
+
+  linux-openmp-matrix:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        parallel: ["ON", "OFF"]
+        shared: ["ON", "OFF"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install compiler and native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ clang libomp-dev python3 catch2 nlohmann-json3-dev libboost-dev
+      - name: Configure enabled or disabled OpenMP branch
+        run: >-
+          cmake -S . -B build/ci-openmp -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+          -DRNS8_ENABLE_HIP=OFF
+          -DRNS8_ENABLE_CPU_PARALLEL=${{ matrix.parallel }}
+          -DRNS8_REQUIRE_OPENMP=${{ matrix.parallel }}
+          -DRNS8_BUILD_SHARED=${{ matrix.shared }}
+      - name: Compile complete CPU targets
+        run: cmake --build build/ci-openmp --parallel 2
+      - name: Exercise CPU tests with bounded OpenMP teams
+        env:
+          OMP_NUM_THREADS: 3
+        run: ctest --test-dir build/ci-openmp --output-on-failure --parallel 2

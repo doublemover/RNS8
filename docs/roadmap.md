@@ -223,3 +223,28 @@ aggregate measurements as amortized batches with per-task outputs. It does not
 claim single-call latency. Legacy integer-us captures retain their quantization;
 comparison output marks their ratios unqualified, and suppresses ratios for
 censored or mismatched measurement modes. HIP-event samples remain separate.
+
+
+Research foundation work (not completed hardware experiments):
+
+- `tools/arithmetic_certificate.py` separates representation tables, ordered
+  weighted recombination, accumulator domains, exact-range basis proofs and
+  instruction identity. It checks all canonical byte pairs with exact rational
+  arithmetic and emits a SHA-256 identity. An evidence reference alone cannot
+  mark a certificate instruction-measured or dispatch-eligible.
+- `tools/encoding_catalogue.py` derives a deterministic scaled-E2M1 base-13
+  schoolbook oracle and generates host reference tables. Numeric scale 2 is
+  explicit; hardware scale-bit encoding is unknown. AWE coefficient import and
+  real floating matrix instructions are still pending.
+- `tools/crt_research.py` implements exact host direct CRT and a complete balanced
+  merge tree, with per-intermediate width certificates. These are algorithm
+  prototypes, not new GPU export selectors or measured wins.
+- CI now has GCC/Clang, OpenMP enabled/disabled and static/shared combinations.
+  `RNS8_REQUIRE_OPENMP=ON` prevents an enabled qualification job from silently
+  falling back to serial execution. These new CI combinations are not yet claimed
+  as passing.
+
+The new research regression cases are authored and registered; execution remains
+pending the development-first validation campaign. Research issues #29–#48
+remain open until their concrete runtime and target-specific acceptance gates
+are met, including device, calibration, lifecycle and performance evidence.
