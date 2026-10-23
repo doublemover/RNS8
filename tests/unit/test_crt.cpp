@@ -200,3 +200,62 @@ TEST_CASE("Garner pair constants prove both inverse levels", "[crt][value-lifecy
     product*=lhs*rhs;
   }
 }
+
+TEST_CASE("Native CPU packing matches multiprecision at every ladder prefix") {
+  using namespace rns8::detail;
+  constexpr int64_t rows = 3, cols = 257, ld = cols + 7;
+  std::vector<int64_t> signed_values(rows * ld, 42);
+  std::vector<uint64_t> unsigned_values(rows * ld, 42);
+  std::mt19937_64 random(260026);
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      const uint64_t bits = random();
+      unsigned_values[row * ld + col] = bits;
+      signed_values[row * ld + col] = col % 2 ? -static_cast<int64_t>(bits >> 1) : static_cast<int64_t>(bits >> 1);
+    }
+  }
+  signed_values[0] = std::numeric_limits<int64_t>::min();
+  signed_values[1] = std::numeric_limits<int64_t>::max();
+  signed_values[2] = -1;
+  signed_values[3] = 0;
+  unsigned_values[0] = std::numeric_limits<uint64_t>::max();
+  unsigned_values[1] = uint64_t{1} << 63;
+  unsigned_values[2] = 0;
+  for (uint32_t prefix = 1; prefix <= RNS8_DEFAULT_MODULUS_COUNT; ++prefix) {
+    rns8_matrix matrix{};
+    matrix.desc.rows = rows;
+    matrix.desc.cols = cols;
+    matrix.prefix = prefix;
+    matrix.residues.resize(prefix * rows * cols + 1, 77);
+    pack_i64_matrix(matrix, signed_values.data(), ld);
+    for (uint32_t p = 0; p < prefix; ++p)
+      for (int64_t row = 0; row < rows; ++row)
+        for (int64_t col = 0; col < cols; ++col)
+          REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
+                  centered_residue(cpp_int(signed_values[row * ld + col]), kDefaultModuli[p]));
+    CHECK(matrix.residues.back() == 77);
+    pack_u64_matrix(matrix, unsigned_values.data(), ld);
+    for (uint32_t p = 0; p < prefix; ++p)
+      for (int64_t row = 0; row < rows; ++row)
+        for (int64_t col = 0; col < cols; ++col)
+          REQUIRE(matrix.residues[residue_index(matrix, p, row, col)] ==
+                  centered_residue(cpp_int(unsigned_values[row * ld + col]), kDefaultModuli[p]));
+    CHECK(matrix.residues.back() == 77);
+  }
+}
+
+TEST_CASE("Finite native CPU packing exhausts every byte and modulus") {
+  using namespace rns8::detail;
+  std::vector<uint8_t> values(263, 199);
+  for (unsigned value = 0; value < 256; ++value) values[value] = static_cast<uint8_t>(value);
+  rns8_matrix matrix{};
+  matrix.desc.rows = 1;
+  matrix.desc.cols = 256;
+  matrix.residues.resize(257, 77);
+  for (uint16_t modulus = 2; modulus <= 256; ++modulus) {
+    pack_finite_u8_matrix(matrix, values.data(), 263, modulus);
+    for (unsigned value = 0; value < 256; ++value)
+      REQUIRE(matrix.residues[value] == centered_residue(cpp_int(value), modulus));
+    CHECK(matrix.residues.back() == 77);
+  }
+}

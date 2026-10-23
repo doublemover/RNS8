@@ -246,7 +246,7 @@ for rank, device in enumerate(devices):
             },
         }
     )
-status_path.write_text(json.dumps({"records": records}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+status_path.write_text(json.dumps({"records": records, "launch_inventory": {"requested_devices": devices, "world_size": world_size, "cases": ["bounded-i64-hip-direct-smoke"], "dry_run": os.environ["CDNA_DRY_RUN_VALUE"] == "1"}}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(status_path)
 PY
 

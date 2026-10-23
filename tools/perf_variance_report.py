@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import statistics
 from datetime import datetime, timezone
@@ -51,6 +52,29 @@ def _export_kernel(capture: dict[str, Any]) -> str:
     return ""
 
 
+def capture_digest(capture: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(capture, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def execution_cohort(capture: dict[str, Any]) -> str | None:
+    artifact = capture.get("artifact_capture") or {}
+    manifest = capture.get("build_manifest") or {}
+    if (not manifest or len(str(artifact.get("executable_sha256", ""))) != 64
+            or artifact.get("unchanged_during_run") is not True):
+        return None
+    identity = {key: capture.get(key) for key in
+                ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
+                 "device", "cpu_parallel", "clock_policy", "timing_metadata")}
+    identity["artifact"] = {key: artifact.get(key) for key in
+                            ("executable_sha256", "rns8_linkage", "shared_library_sha256")}
+    return capture_digest(identity)
+
+
+def execution_id(capture: dict[str, Any]) -> str | None:
+    value = capture.get("execution_id")
+    return value if isinstance(value, str) and value.strip() else None
+
+
 def variance_group_key(capture: dict[str, Any]) -> str:
     return ";".join(
         [
@@ -60,6 +84,7 @@ def variance_group_key(capture: dict[str, Any]) -> str:
             f"export_kernel={_export_kernel(capture)}",
             f"execution_mode={capture_execution_mode(capture)}",
             f"pack_mode={capture_pack_mode(capture)}",
+            f"cohort={execution_cohort(capture)}",
         ]
     )
 
@@ -117,6 +142,10 @@ def _capture_entry(
     within_rel_spread = _within_capture_rel_spread(capture)
     sample_count = _timing_sample_count(capture)
     blockers: list[str] = []
+    if execution_id(capture) is None:
+        blockers.append("execution_identity_missing")
+    if execution_cohort(capture) is None:
+        blockers.append("execution_cohort_unqualified")
     if median_us is None or median_us <= 0.0:
         blockers.append("missing_end_to_end_median")
     if sample_count < min_repeats:
@@ -142,6 +171,10 @@ def _capture_entry(
     return {
         "capture": str(path),
         "capture_key": path_key(path),
+        "capture_sha256": capture_digest(capture),
+        "execution_id": execution_id(capture),
+        "execution_cohort": execution_cohort(capture),
+        "distinct_run_count": group_count,
         "group_key": variance_group_key(capture),
         "backend": backend_id(capture),
         "selected_kernel": selected_kernel(capture),
@@ -181,13 +214,17 @@ def build_report(
 
     group_stats: dict[str, dict[str, Any]] = {}
     for key, items in by_group.items():
-        medians = [
-            value
-            for _, capture in items
-            if (value := median_phase(capture, "end_to_end")) is not None and value > 0.0
-        ]
+        runs = {}
+        for _, capture in items:
+            run = execution_id(capture)
+            if run is not None and execution_cohort(capture) is not None:
+                runs.setdefault(run, capture)
+        medians = [value for capture in runs.values()
+                   if (value := median_phase(capture, "end_to_end")) is not None and value > 0.0]
         group_stats[key] = {
             "capture_count": len(items),
+            "unique_capture_count": len({capture_digest(capture) for _, capture in items}),
+            "distinct_run_count": len(runs),
             "median_end_to_end_us": statistics.median(medians) if medians else None,
             "run_to_run_rel_spread": _relative_spread(medians),
         }
@@ -196,7 +233,7 @@ def build_report(
         _capture_entry(
             capture=capture,
             path=path,
-            group_count=int(group_stats[variance_group_key(capture)]["capture_count"]),
+            group_count=int(group_stats[variance_group_key(capture)]["distinct_run_count"]),
             group_rel_spread=group_stats[variance_group_key(capture)]["run_to_run_rel_spread"],
             min_repeats=min_repeats,
             min_runs=min_runs,
@@ -221,6 +258,8 @@ def build_report(
         },
         "group_count": len(group_stats),
         "capture_count": len(entries),
+        "submitted_file_count": len(captures),
+        "unique_capture_count": len({capture_digest(capture) for _, capture in loaded}),
         "blocked_count": sum(1 for entry in entries if entry["blockers"]),
         "groups": [
             {"group_key": key, **stats}

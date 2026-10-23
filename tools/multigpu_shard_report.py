@@ -16,6 +16,14 @@ from benchmark_schema import BenchmarkSchemaError, load_capture, validate_captur
 
 DEFAULT_OUT_DIR = Path("temp") / "multigpu-shard-report"
 CRITICAL_EXIT_BLOCKERS = {
+    "launch_inventory_unknown",
+    "launch_inventory_invalid",
+    "world_size_mismatch",
+    "rank_device_mismatch",
+    "duplicate_rank_status",
+    "duplicate_rank_case",
+    "missing_rank_status",
+    "missing_cases",
     "checksum_mismatch",
     "env_summary_invalid_json",
     "env_summary_missing",
@@ -248,17 +256,61 @@ def _discover_captures(shards_dir: Path | None, explicit: list[Path]) -> list[Pa
     return deduped
 
 
-def _missing_ranks(rows: list[dict[str, Any]], records: list[dict[str, Any]]) -> list[int]:
-    expected = {_as_int(record.get("rank")) for record in records}
-    expected.discard(None)
-    observed = {_as_int(row.get("rank")) for row in rows}
-    observed.discard(None)
-    if not expected:
-        world_sizes = {_as_int(row.get("world_size")) for row in rows}
-        world_sizes.discard(None)
-        if len(world_sizes) == 1:
-            expected = set(range(next(iter(world_sizes))))
-    return sorted(int(rank) for rank in expected if rank not in observed)
+def _launch_coverage(summary, status_paths, rows, records):
+    """Expected ranks come from launcher intent, never surviving output ranks."""
+    blockers = set()
+    inventories = []
+    requested = summary.get("requested_devices")
+    if isinstance(requested, list) and requested:
+        inventories.append([str(device) for device in requested])
+    expected_cases = set()
+    for path in status_paths:
+        inventory = _load_json(path).get("launch_inventory")
+        if isinstance(inventory, dict):
+            devices = inventory.get("requested_devices")
+            if isinstance(devices, list) and devices:
+                inventories.append([str(device) for device in devices])
+            cases = inventory.get("cases")
+            if isinstance(cases, list):
+                expected_cases.update(str(case) for case in cases)
+    if not inventories:
+        return [], [], [], {"launch_inventory_unknown"}
+    devices = inventories[0]
+    if len(set(devices)) != len(devices) or any(value != devices for value in inventories):
+        blockers.add("launch_inventory_invalid")
+    expected = set(range(len(devices)))
+    worlds = [_as_int(item.get("world_size")) for item in records + rows]
+    if any(world != len(devices) for world in worlds):
+        blockers.add("world_size_mismatch")
+    status_ranks = set()
+    for record in records:
+        rank = _as_int(record.get("rank"))
+        if rank in status_ranks:
+            blockers.add("duplicate_rank_status")
+        status_ranks.add(rank)
+        if rank not in expected or str(record.get("device_index")) != devices[rank]:
+            blockers.add("rank_device_mismatch")
+    if expected - status_ranks:
+        blockers.add("missing_rank_status")
+    observed = set()
+    rank_cases = set()
+    for row in rows:
+        rank = _as_int(row.get("rank"))
+        observed.add(rank)
+        if rank not in expected or str(row.get("physical_device_id")) != devices[rank]:
+            blockers.add("rank_device_mismatch")
+        case = re.sub(r"-rank[0-9]+$", "", Path(row["capture"]).stem)
+        key = (rank, case)
+        if key in rank_cases:
+            blockers.add("duplicate_rank_case")
+        rank_cases.add(key)
+    if not expected_cases:
+        expected_cases = {case for _, case in rank_cases}
+    missing_cases = [{"rank": rank, "case": case} for rank in sorted(expected)
+                     for case in sorted(expected_cases) if (rank, case) not in rank_cases]
+    if missing_cases:
+        blockers.add("missing_cases")
+    return devices, sorted(expected - observed), missing_cases, blockers
 
 
 def _checksum_groups(rows: list[dict[str, Any]]) -> dict[str, list[Any]]:
@@ -310,7 +362,8 @@ def build_report(
     ]
     checksum_groups = _checksum_groups(rows)
     checksum_mismatch_groups = {key: values for key, values in checksum_groups.items() if len(values) > 1}
-    missing_ranks = _missing_ranks(rows, records)
+    expected_devices, missing_ranks, missing_cases, coverage_blockers = _launch_coverage(
+        summary, target_status or [], rows, records)
     failed_ranks = sorted(
         {
             int(row["rank"])
@@ -320,7 +373,7 @@ def build_report(
         }
     )
     timing_outliers = _timing_outliers(rows)
-    blockers = set()
+    blockers = set(coverage_blockers)
     if missing_ranks:
         blockers.add("missing_shards")
     if failed_ranks:
@@ -344,6 +397,9 @@ def build_report(
         "env_summary_status": env_summary_status,
         "world_sizes": sorted({str(row.get("world_size")) for row in rows if row.get("world_size") is not None}),
         "observed_ranks": sorted({int(row["rank"]) for row in rows if row.get("rank") is not None}),
+        "expected_devices": expected_devices,
+        "execution_status": "not_executed" if rows and all(row["schema_status"] == "dry_run" for row in rows) else "executed_or_incomplete",
+        "missing_cases": missing_cases,
         "missing_ranks": missing_ranks,
         "failed_ranks": failed_ranks,
         "checksum_groups": checksum_groups,

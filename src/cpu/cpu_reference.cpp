@@ -62,7 +62,7 @@ void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld) {
     const uint16_t modulus = kDefaultModuli[p];
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[residue_index(matrix, p, row, col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(src[row * ld + col], modulus);
     }
   };
   const uint64_t work =
@@ -90,7 +90,7 @@ void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
     const uint16_t modulus = kDefaultModuli[p];
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[residue_index(matrix, p, row, col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(static_cast<int64_t>(src[row * ld + col] % modulus), modulus);
     }
   };
   const uint64_t work =
@@ -114,7 +114,7 @@ void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, 
   const auto pack_row = [&](int64_t row) {
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(src[row * ld + col], modulus);
     }
   };
   const uint64_t work = cpu_parallel_saturating_mul(

@@ -27,6 +27,11 @@ TIMING_PHASES = [
 ]
 CONTRACT_KEYS = [
     "semantics",
+    "finite_modulus",
+    "residue_chain_length",
+    "requested_next_op.resolved",
+    "output_logical_ld",
+    "output_ld_padding",
     "bound_kind",
     "bound_mode",
     "bound",
@@ -276,6 +281,19 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "finite_modulus":
+        if data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}:
+            modulus = data.get(key)
+            if type(modulus) is not int or not 2 <= modulus <= 256:
+                raise BenchmarkSchemaError("finite arithmetic contract requires an integer modulus in [2, 256]")
+            return modulus
+        return None
+    if key == "residue_chain_length":
+        return data.get(key, 1)
+    if key == "output_logical_ld":
+        return data.get(key, data.get("n"))
+    if key == "output_ld_padding":
+        return data.get(key, 0)
     if key == "reuse_packed_inputs":
         return data.get("reuse_packed_inputs") is True
     if key == "pack_mode":

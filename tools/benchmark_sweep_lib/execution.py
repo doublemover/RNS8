@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 import json
 import os
 import subprocess
@@ -112,6 +113,7 @@ def run_command(
     run_env = os.environ.copy()
     if env_overrides:
         run_env.update(env_overrides)
+    execution_id = str(uuid.uuid4())
     capture_start = time.perf_counter()
     executable = Path(shutil.which(command[0]) or command[0]).resolve()
     executable_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
@@ -209,6 +211,7 @@ def run_command(
         return False
     try:
         capture = json.loads(stdout_text)
+        capture["execution_id"] = execution_id
         capture["artifact_capture"] = {
             "executable_sha256": executable_hash, "executable_path": str(executable),
             "hash_seconds": capture_overhead, "rns8_linkage": "static",

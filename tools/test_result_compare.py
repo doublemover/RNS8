@@ -54,6 +54,34 @@ def main() -> int:
     gpu = load_capture(FIXTURE_DIR / "v4_finite_ring_u8_ck.json")
     cpu = cpu_reference_from(gpu)
 
+    # Modulus is arithmetic identity, including selector-review comparisons and
+    # every report that consumes the shared contract values.
+    import host_api_batch_report
+    import reuse_contract_report
+    import rns_chain_report
+    for semantics, q1, q2 in [("finite_ring_u8", 255, 251), ("finite_field_u8", 251, 241)]:
+        left = copy.deepcopy(cpu)
+        right = copy.deepcopy(cpu)
+        left["semantics"] = right["semantics"] = semantics
+        left["finite_modulus"] = q1
+        right["finite_modulus"] = q2
+        for relaxed in (False, True):
+            report = result_compare.compare(left, right, Path("left.json"), Path("right.json"),
+                                            allow_export_selector_diff=relaxed)
+            assert not report["matching_contract"]
+            assert not report["contract"]["finite_modulus"]["match"]
+        assert host_api_batch_report.contract_key(left) != host_api_batch_report.contract_key(right)
+        assert reuse_contract_report.normalized_contract_key(left) != reuse_contract_report.normalized_contract_key(right)
+        assert rns_chain_report.normalized_contract_key(left) != rns_chain_report.normalized_contract_key(right)
+    missing = copy.deepcopy(cpu)
+    missing.pop("finite_modulus", None)
+    try:
+        host_api_batch_report.contract_key(missing)
+    except result_compare.BenchmarkSchemaError:
+        pass
+    else:
+        raise AssertionError("missing finite modulus must not form a baseline identity")
+
     cpu_vs_gpu = result_compare.compare(cpu, gpu, Path("cpu.json"), Path("gpu.json"))
     assert cpu_vs_gpu["matching_contract"] is True
     assert cpu_vs_gpu["gpu_compatibility_required"] is False

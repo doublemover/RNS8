@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import tempfile
+import uuid
 from pathlib import Path
 
 from benchmark_schema import load_capture, validate_capture
@@ -26,6 +27,10 @@ def _summary(values: list[float]) -> dict[str, float]:
 
 def capture_with_timings(values: list[float]) -> dict:
     capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json"))
+    capture["execution_id"] = str(uuid.uuid4())
+    capture["build_manifest"] = {"fixture_only": True, "source_digest": "a" * 64}
+    capture["artifact_capture"] = {"executable_sha256": "b" * 64, "unchanged_during_run": True,
+                                   "rns8_linkage": "static"}
     capture["warmups"] = 3
     capture["repeats"] = len(values)
     raw = capture.setdefault("raw_timings_us", {})
@@ -113,6 +118,29 @@ def main() -> int:
         assert report["blocked_count"] == 0
         assert report["capture_count"] == 2
         assert all(entry["required_speedup_margin"] >= 1.03 for entry in report["entries"])
+
+        duplicate_copy = tmp / "copy.json"
+        duplicate_copy.write_bytes(stable_a.read_bytes())
+        for paths in ([stable_a, stable_a], [stable_a, duplicate_copy]):
+            duplicate_report = perf_variance_report.build_report(paths, min_repeats=3, require_multi_run=True)
+            assert duplicate_report["unique_capture_count"] == 1
+            assert all(entry["distinct_run_count"] == 1 for entry in duplicate_report["entries"])
+            assert all("multi_run_variance_missing" in entry["blockers"] for entry in duplicate_report["entries"])
+        independent = json.loads(stable_a.read_text(encoding="utf-8"))
+        independent["execution_id"] = str(uuid.uuid4())
+        independent_path = write_capture(tmp / "independent.json", independent)
+        identical = perf_variance_report.build_report([stable_a, independent_path], min_repeats=3, require_multi_run=True)
+        assert identical["blocked_count"] == 0  # Equal timings are not evidence of duplicate execution.
+        independent["compiler"]["version"] += "-changed"
+        write_capture(independent_path, independent)
+        mixed = perf_variance_report.build_report([stable_a, independent_path], min_repeats=3, require_multi_run=True)
+        assert mixed["group_count"] == 2
+        assert mixed["blocked_count"] == 2
+        legacy = json.loads(stable_a.read_text(encoding="utf-8"))
+        legacy.pop("execution_id")
+        legacy_path = write_capture(tmp / "legacy.json", legacy)
+        unqualified = perf_variance_report.build_report([legacy_path], min_repeats=3)
+        assert "execution_identity_missing" in unqualified["entries"][0]["blockers"]
 
         single_report = perf_variance_report.build_report(
             [stable_a],
