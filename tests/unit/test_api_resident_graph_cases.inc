@@ -1,3 +1,4 @@
+#include "test_api_resident_export_cases.inc"
 TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings before writes", "[api][graph]") {
   using boost::multiprecision::cpp_int;
   for (bool hip : {false,true}) {

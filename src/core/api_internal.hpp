@@ -536,7 +536,8 @@ rns8_status validate_export_matrix(
     const rns8_matrix& C,
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
-    uint32_t prefix);
+    uint32_t prefix,
+    bool require_current = true);
 
 rns8_status validate_finite_export_matrix(
     const rns8_context& ctx,

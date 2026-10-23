@@ -19,8 +19,36 @@ struct rns8_resident_graph {
 
 namespace {
 std::array<const rns8_matrix*, 3> node_inputs(const rns8_resident_node& node) {
-  return node.kind == RNS8_RESIDENT_BASE_EXTEND ? std::array<const rns8_matrix*, 3>{node.c, nullptr, nullptr}
+  return (node.kind == RNS8_RESIDENT_BASE_EXTEND || node.kind == RNS8_RESIDENT_EXPORT_LIMBS) ? std::array<const rns8_matrix*, 3>{node.c, nullptr, nullptr}
                                               : std::array<const rns8_matrix*, 3>{node.a, node.b, node.d};
+}
+
+rns8_status export_span(const rns8_resident_node& node, uint64_t& bytes) {
+  if (!node.export_limbs || !node.plan ||
+      !valid_limb_export_access(node.plan->desc.m, node.plan->desc.n, node.export_ld, node.export_limb_count) ||
+      reinterpret_cast<uintptr_t>(node.export_limbs) % alignof(uint64_t)) return RNS8_INVALID_ARGUMENT;
+  rns8::detail::AddressDomain domain;
+  if (!rns8::detail::checked_host_plane_address(node.plan->desc.m, node.plan->desc.n,
+          node.export_ld, 1, uint64_t{8} * node.export_limb_count, domain)) return RNS8_RANGE_ERROR;
+  bytes = domain.byte_extent;
+  if (reinterpret_cast<uintptr_t>(node.export_limbs) > UINTPTR_MAX - bytes) return RNS8_RANGE_ERROR;
+  return RNS8_SUCCESS;
+}
+
+rns8_status prove_export(const rns8_context& ctx, const rns8_resident_node& node, const rns8_matrix& proof) {
+  if (node.c->in_flight_writer) return RNS8_BUSY;
+  const auto status = validate_export_matrix(ctx, *node.plan, *node.c,
+      node.plan->desc.semantics, RNS8_BOUND_NONE, node.plan->prefix, false);
+  if (status != RNS8_SUCCESS) return status;
+  if (proof.exact_range_prefix < node.plan->prefix ||
+      !rns8::detail::exact_range_fits(node.plan->desc.semantics, proof.exact_max_magnitude, node.plan->modulus_product))
+    return RNS8_RANGE_ERROR;
+  const unsigned bits = 64 * node.export_limb_count -
+      (node.plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED ? 1 : 0);
+  // Symmetric magnitude proof deliberately does not infer the sign of a value
+  // at the signed minimum. Full-width exports remain available with more limbs.
+  if (proof.exact_max_magnitude >= (boost::multiprecision::cpp_int(1) << bits)) return RNS8_RANGE_ERROR;
+  return RNS8_SUCCESS;
 }
 
 rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& node, rns8_matrix& proof) {
@@ -67,6 +95,13 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
   for (uint32_t index = 0; index < graph.nodes.size(); ++index) {
     failed_node = index;
     const auto& node = graph.nodes[index];
+    if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS) {
+      const auto input = proofs.find(node.c);
+      if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
+      const auto status = prove_export(*graph.ctx, node, input->second);
+      if (status != RNS8_SUCCESS) return status;
+      continue;
+    }
     if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
       auto input = proofs.find(node.c);
       if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
@@ -121,10 +156,13 @@ rns8_status rns8_create_resident_graph(
     graph->ctx = ctx;
     graph->nodes.assign(nodes, nodes + count);
     std::unordered_map<const rns8_matrix*, uint32_t> producers;
+    std::vector<std::pair<const void*, uint64_t>> exports;
     producers.reserve(count);
     for (uint32_t i = 0; i < count; ++i) {
       const auto& node = nodes[i];
       if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
+        return RNS8_INVALID_ARGUMENT;
+      if (node.kind != RNS8_RESIDENT_EXPORT_LIMBS && (node.export_limbs || node.export_ld || node.export_limb_count))
         return RNS8_INVALID_ARGUMENT;
       if (node.kind == RNS8_RESIDENT_MATMUL || node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
         if (node.kind == RNS8_RESIDENT_EXACT_AXPBY ? !node.d : (node.d || node.alpha || node.beta))
@@ -134,6 +172,17 @@ rns8_status rns8_create_resident_graph(
             !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
         if (node.plan || node.a || node.b || node.workspace || node.d || node.alpha || node.beta) return RNS8_INVALID_ARGUMENT;
+      } else if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS) {
+        if (!node.plan || !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
+            node.a || node.b || node.workspace || node.d || node.alpha || node.beta ||
+            node.target_prefix || node.max_staged_residue_bytes) return RNS8_INVALID_ARGUMENT;
+        uint64_t bytes = 0;
+        const auto status = export_span(node, bytes);
+        if (status != RNS8_SUCCESS) return status;
+        for (const auto& previous : exports)
+          if (!rns8::detail::nonoverlapping_byte_ranges(node.export_limbs, bytes, previous.first, previous.second))
+            return RNS8_INVALID_ARGUMENT;
+        exports.emplace_back(node.export_limbs, bytes);
       } else return RNS8_INVALID_ARGUMENT;
     }
     std::unordered_set<const rns8_matrix*> external;
@@ -194,6 +243,10 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       else if (node.kind == RNS8_RESIDENT_EXACT_AXPBY)
         out->operation_status = rns8_gemm_exact_axpby(graph->ctx, node.plan, node.a, node.b, node.d,
                                                     node.c, node.alpha, node.beta, node.workspace);
+      else if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS)
+        out->operation_status = node.plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED
+            ? rns8_export_exact_wide_signed_limbs(graph->ctx, node.plan, node.c, node.export_limbs, node.export_ld, node.export_limb_count)
+            : rns8_export_exact_wide_unsigned_limbs(graph->ctx, node.plan, node.c, node.export_limbs, node.export_ld, node.export_limb_count);
       else if (graph->ctx->backend == RNS8_BACKEND_HIP_DIRECT)
         out->operation_status = rns8_lift_exact_wide_hip(graph->ctx, node.c, node.target_prefix, node.max_staged_residue_bytes);
       else

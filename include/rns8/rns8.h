@@ -28,7 +28,8 @@ typedef struct rns8_resident_graph rns8_resident_graph;
 typedef enum rns8_resident_node_kind RNS8_ENUM_BASE {
   RNS8_RESIDENT_MATMUL = 0,
   RNS8_RESIDENT_BASE_EXTEND = 1,
-  RNS8_RESIDENT_EXACT_AXPBY = 2
+  RNS8_RESIDENT_EXACT_AXPBY = 2,
+  RNS8_RESIDENT_EXPORT_LIMBS = 3
 } rns8_resident_node_kind;
 
 typedef struct rns8_resident_node {
@@ -49,6 +50,14 @@ typedef struct rns8_resident_node {
   const rns8_matrix* d;
   int64_t alpha;
   int64_t beta;
+  /* EXPORT_LIMBS reads c through plan into borrowed host storage. All other
+   * resource/epilogue/extension fields except plan/c must be zero. Caller keeps the destination
+   * alive for the graph lifetime, disjoint from library-owned storage;
+   * destinations of different nodes cannot overlap.
+   * Signedness follows the exact-wide plan; export_ld counts matrix cells. */
+  uint64_t* export_limbs;
+  int64_t export_ld;
+  uint32_t export_limb_count;
 } rns8_resident_node;
 
 typedef struct rns8_graph_execution_info {
@@ -68,7 +77,8 @@ typedef struct rns8_graph_execution_info {
  * generation. The executor does not allocate intermediate matrices or infer lifts.
  * Retains every referenced handle. Refresh validates all proofs before rebinding.
  * Execute propagates all exact bounds before the first write, then uses ordinary
- * synchronous GEMM. Outputs remain resident; export any requested node explicitly.
+ * synchronous GEMM. EXPORT_LIMBS nodes mark explicit host output boundaries;
+ * other outputs remain resident. Export width is proved before any graph writes.
  * Shared handles require external host-thread serialization; not graph-capture
  * safe or asynchronous. On runtime failure completed earlier nodes remain valid,
  * the failing node follows ordinary GEMM invalidation, later nodes are untouched.

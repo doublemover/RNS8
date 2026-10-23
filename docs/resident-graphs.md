@@ -32,8 +32,25 @@ basis. The unpublished AB need not fit independently (for example, alpha zero).
 All three inputs still require materialized planes even with zero coefficients.
 Its output carries a conservative scalar bound into downstream consumers.
 Execution uses existing synchronous GEMM, exact epilogue and CPU/HIP lift publication guards.
-Each intermediate remains resident and can feed multiple later nodes. Export
-only the requested outputs through their ordinary plan/export APIs.
+Each intermediate remains resident and can feed multiple later nodes.
+
+`EXPORT_LIMBS` nodes explicitly read the matrix in `c` through `plan` into a
+borrowed host `export_limbs` buffer. `export_ld` is measured in matrix cells and
+`export_limb_count` selects 1-32 little-endian 64-bit limbs per cell; signedness
+comes from the exact-wide plan. Other resource, epilogue and extension fields
+must be zero. Keep the buffer alive for the graph lifetime and disjoint from
+library-owned storage. Export destinations in the same graph cannot overlap,
+including their inter-row padding spans. Shape, stride, byte-span overflow and
+alignment are checked before execution.
+
+The complete graph proof includes the export's available prefix and destination
+width. A symmetric magnitude bound must fit the signed/unsigned destination;
+it conservatively rejects a signed-minimum boundary when the proof cannot
+distinguish that sign. A later narrow export therefore rejects before earlier
+GEMMs write. Wider exports remain available. Export nodes retain their plan and
+source handles, preserve the logical value's generation and call the ordinary
+staged CPU/HIP export implementation. An explicit export node can also read an
+external resident value. Additional exports outside the graph remain supported.
 
 External input instances and generations are bound at creation. Repacking one
 requires `rns8_refresh_resident_graph_inputs`, which rechecks the complete proof
@@ -55,7 +72,7 @@ the full-native planner prefix -> fixed prefix 20, signed negative values, faile
 or forward lifts, identity preservation and stale external bindings. Execution
 of these fixtures remains pending.
 
-Liveness-based allocation reuse, native conversion/export IR nodes,
+Liveness-based allocation reuse, native conversion IR nodes,
 ragged inputs, backwards materialization demand, cost-based representation
 selection and asynchronous completion remain open. Preflight and ordinary GEMM
 both perform admission; this baseline exposes that setup cost rather than
@@ -65,3 +82,9 @@ Authored epilogue DAG fixtures cover signed/unsigned CPU/HIP chains with a
 produced addend, repeated execution, extreme coefficients, Boost differential
 exports, forward/alias rejection, and downstream range rejection before writes.
 These fixtures have not yet been executed.
+
+Authored export-node fixtures cover CPU/HIP signed and unsigned GEMM/export,
+repeated execution, padded host destinations, an export-only reader preserving
+generation, forward and overlapping destinations, malformed fields, overflow
+and later-node width rejection before earlier output mutation. Runtime
+qualification remains pending.

@@ -8,7 +8,8 @@ rns8_status validate_export_matrix(
     const rns8_matrix& C,
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
-    uint32_t prefix) {
+    uint32_t prefix,
+    bool require_current) {
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -36,10 +37,10 @@ rns8_status validate_export_matrix(
   }
   if (uses_rns_storage(semantics) &&
       (!rns_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n, storage_prefix) ||
-       !rns_residue_state_current_for_backend(C, plan.backend))) {
+       (require_current && !rns_residue_state_current_for_backend(C, plan.backend)))) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (rns8::detail::exact_wide_semantics(semantics) && C.exact_range_prefix != 0 &&
+  if (require_current && rns8::detail::exact_wide_semantics(semantics) && C.exact_range_prefix != 0 &&
       (C.exact_range_prefix < prefix ||
        !rns8::detail::exact_range_fits(semantics, C.exact_max_magnitude, plan.modulus_product))) {
     return RNS8_RANGE_ERROR;
