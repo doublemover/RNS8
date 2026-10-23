@@ -19,6 +19,7 @@ from metadata_registry_constants import (
     GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H,
 )
 from test_benchmark_schema import as_host_api_batch_capture
+from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -26,11 +27,8 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benc
 
 def attach_test_provenance(capture):
     # Synthetic evidence only; these fixtures never represent a measured build.
-    capture["git_commit"] = "a" * 40
-    capture["build_manifest"] = dict(version=1, source_commit="a"*40, source_dirty=False,
-                                      source_digest="b"*64, configuration="synthetic-test", dependency_digest="d"*64,
-                                      linkage="static-rns8", identity_scope="source-and-config")
-    capture["artifact_capture"] = dict(executable_sha256="c"*64, unchanged_during_run=True)
+    synthetic_identity(capture, commit="a" * 40)
+    synthetic_host_measurements(capture)
 
 
 def set_phase(capture: dict, end_to_end: int) -> None:

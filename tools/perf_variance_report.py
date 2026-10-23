@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+from timing_eligibility import phase_blockers
 from benchmark_sweep_lib.capture_metadata import (
     backend_id,
     capture_contract_key,
@@ -162,14 +163,7 @@ def _capture_entry(
         blockers.append("execution_identity_missing")
     if execution_cohort(capture) is None:
         blockers.append("execution_cohort_unqualified")
-    timing = capture.get("timing_metadata") or {}
-    if timing.get("host_timing_contract_version") != 2:
-        blockers.append("legacy_host_timing_unqualified")
-    elif (timing.get("phase_states") or {}).get("end_to_end") != "measured":
-        blockers.append("end_to_end_timing_not_measured")
-    elif any(value <= timing["censor_threshold_us"]
-             for value in capture.get("raw_timings_us", {}).get("end_to_end", [])):
-        blockers.append("end_to_end_samples_below_resolution")
+    blockers.extend(phase_blockers(capture))
     if median_us is None or median_us <= 0.0:
         blockers.append("missing_end_to_end_median")
     if sample_count < min_repeats:

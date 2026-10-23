@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
+from timing_eligibility import pair_blockers
 
 
 TIMING_PHASES = [
@@ -509,8 +510,9 @@ def compare(
         cand_state = dotted_get(candidate, f"timing_metadata.phase_states.{phase}")
         host_mode_match = (dotted_get(baseline, "timing_metadata.host_result_kind") ==
                            dotted_get(candidate, "timing_metadata.host_result_kind"))
-        host_ratio_qualified = host_mode_match and base_state == cand_state == "measured"
-        if not host_mode_match or base_state == "below_resolution" or cand_state == "below_resolution":
+        host_ratio_qualified = not pair_blockers(baseline, candidate, phase)
+        if (not host_mode_match or base_state in {"below_resolution", "fused", "elided", "unsupported"}
+                or cand_state in {"below_resolution", "fused", "elided", "unsupported"}):
             ratio = None
 
         timings[phase] = {

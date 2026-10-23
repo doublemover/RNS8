@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from evidence_database_lib.isa import lookup_isa_resources
+from timing_eligibility import phase_blockers, pair_blockers, comparison_record
 
 from .capture_metadata import (
     backend_id,
@@ -2058,6 +2059,15 @@ def review_captures(
                     blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
+            blockers.extend(phase_blockers(item))
+            timing_baseline = direct_baseline or vector_baseline
+            timing_comparison = None
+            if timing_baseline is not None:
+                blockers.extend(pair_blockers(timing_baseline, item))
+                if timing_baseline.get("_path"):
+                    timing_comparison = comparison_record(timing_baseline, item, timing_baseline["_path"])
+            else:
+                blockers.append("timing_comparison_baseline_missing")
             expected_matrix_mnemonic = expected_amdgpu_builtin_matrix_mnemonic(item, metadata)
             if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata):
                 if not matrix_histogram:
@@ -2150,6 +2160,7 @@ def review_captures(
                     else None
                 ),
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
+                "timing_comparison": timing_comparison,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
                 "exact_output_contract": (
                     item.get("exact_output_contract") if isinstance(item.get("exact_output_contract"), dict) else None

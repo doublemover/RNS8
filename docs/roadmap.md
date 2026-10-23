@@ -577,3 +577,10 @@ and latest last-consumer completion; it is explicitly conservative and includes
 equal-time boundaries. CRT certificates distinguish inverse multiply, weighted
 multiply, ordered sum and final reduction widths; an optional temporary-width
 check rejects a uniformly narrow lowering of an otherwise adequate sum.
+
+The #23/#27 follow-up now centralizes host timing eligibility through variance,
+review and ledger admission, binds reviews to both capture digests and rereads the
+baseline at final admission. Synthetic provenance now keeps manifest/capture
+commits consistent. See [timing admission](timing-admission.md); these integration
+fixtures await combined validation. The HIP test executable compiled at
+`ee133a6`, including sparse stride-domain fixtures, without executing tests.

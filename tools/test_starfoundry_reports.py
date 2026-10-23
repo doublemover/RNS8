@@ -456,7 +456,9 @@ def main() -> int:
         assert reviewed_entry["review_report_promotable"] is True
         assert reviewed_entry["performance_validated"] is True
         assert reviewed_entry["speedup_margin"] == 1.5
-        assert reviewed_entry["promotion_blockers"] == []
+        # Legacy synthetic captures with an unbound authored review are still
+        # descriptive evidence, not an admissible timing comparison.
+        assert "timing_comparison_binding_missing" in reviewed_entry["promotion_blockers"]
         selector_review_capture = copy.deepcopy(reviewed_capture)
         selector_review_capture["export_variant"]["name"] = "compact-d2h-export-candidate"
         selector_review_capture["export_variant"]["promotion_eligible"] = False
