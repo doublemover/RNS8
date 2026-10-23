@@ -2,13 +2,29 @@
 from dataclasses import replace
 
 from arithmetic_certificate import verify
-from encoding_catalogue import decode, encode, generate_header, schoolbook_certificate
+from encoding_catalogue import (AWE_COEFFICIENTS, AWE_WEIGHTS, awe_certificate, awe_encode,
+                               decode, encode, generate_header, schoolbook_certificate)
 from modulus_set_search import DEFAULT_MODULI
 
 
 def main() -> int:
     for value in range(-128, 128):
         assert decode(encode(value)) == value
+        faces = awe_encode(value)
+        assert sum(w * x for w, x in zip(AWE_WEIGHTS, faces[:3])) == value
+        assert all(-4 <= x <= 4 for x in faces)
+        for other in range(-128, 128):
+            assert sum(w * x * y for w, x, y in zip(AWE_COEFFICIENTS, faces, awe_encode(other))) == value * other
+    for modulus in (*DEFAULT_MODULI, 2, 4, 128, 256):
+        certificate = awe_certificate(modulus, 1 << 20)
+        result = verify(certificate)
+        assert result["algebraically_verified"], result
+        assert not result["runtime_dispatch_eligible"]
+    cap = awe_certificate(256, (1 << 20) + 1)
+    assert not verify(cap)["algebraically_verified"]
+    base_awe = awe_certificate(256)
+    changed = replace(base_awe.planes[0], weight=base_awe.planes[0].weight + 1)
+    assert not verify(replace(base_awe, planes=(changed,) + base_awe.planes[1:]))["algebraically_verified"]
     for modulus in DEFAULT_MODULI:
         certificate = schoolbook_certificate(modulus)
         result = verify(certificate)

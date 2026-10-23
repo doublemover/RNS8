@@ -234,8 +234,10 @@ Research foundation work (not completed hardware experiments):
   mark a certificate instruction-measured or dispatch-eligible.
 - `tools/encoding_catalogue.py` derives a deterministic scaled-E2M1 base-13
   schoolbook oracle and generates host reference tables. Numeric scale 2 is
-  explicit; hardware scale-bit encoding is unknown. AWE coefficient import and
-  real floating matrix instructions are still pending.
+  explicit; hardware scale-bit encoding is unknown. The AWE six-product (8,17,48)
+  construction is independently enumerated with explicit signed-byte coverage,
+  including -128, and pinned source-document identity. Real floating matrix
+  instruction qualification remains pending.
 - `tools/crt_research.py` implements exact host direct CRT and a complete balanced
   merge tree, with per-intermediate width certificates. These are algorithm
   prototypes, not new GPU export selectors or measured wins.
@@ -274,3 +276,18 @@ wave quantization, uncertainty intervals and live workspace accounting. All
 current tests use synthetic calibration; no measured target model, winner regret,
 runtime shortlist or promotion is claimed. Hardware calibration and held-out
 validation remain required by #30/#31.
+
+
+Unavailable-target qualification is deferred at the user's explicit request on
+2026-10-23: no additional Linux multi-GPU, Instinct/CDNA, low-precision floating
+matrix or CPU matrix-extension host is currently available. This does not retire
+the experiments or qualify their implementations. Local CPU/gfx1100 work continues.
+
+`residue_integrity.py` provides the offline #49 phase-one checker and authored
+corruption fixtures. It excludes check channels from reconstruction range, binds
+operation/input-generation/epoch/basis identities and rejects a consumed check
+channel after basis growth. Check residues originate from original integer dot
+inputs. Its result explicitly limits detection to errors nonzero modulo the check
+product under a correct independent check path, with common-mode and undetectable
+error fixtures. It neither corrects values nor authorizes runtime publication.
+GPU check-plane execution and measured overhead remain future work.
