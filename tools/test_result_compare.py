@@ -213,7 +213,14 @@ def main() -> int:
         "output_channel_count": 1,
     }
     native_compare = result_compare.compare(gpu, native_layout, Path("gpu.json"), Path("native.json"))
-    assert native_compare["matching_contract"] is True
+    # Representation metadata may differ, but a changed next-operation
+    # contract cannot be treated as the same complete pipeline boundary.
+    assert native_compare["matching_contract"] is False
+    assert native_compare["contract"]["requested_next_op.resolved"]["match"] is False
+    relaxed_native_compare = result_compare.compare(
+        gpu, native_layout, Path("gpu.json"), Path("native.json"), allow_export_selector_diff=True)
+    assert relaxed_native_compare["matching_contract"] is False
+    assert relaxed_native_compare["contract"]["requested_next_op.resolved"]["ignored_for_contract"] is False
     assert native_compare["backend_evidence"]["packed_layout_version"]["match"] is False
     assert native_compare["backend_evidence"]["requested_next_op.resolved"]["match"] is False
     assert native_compare["backend_evidence"]["plan_packing.input_domain_name"]["match"] is False
