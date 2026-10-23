@@ -9,7 +9,7 @@ path; Windows evidence does not validate those targets.
 - Windows 11 x86-64.
 - AMD Radeon GPU supported by the Windows HIP SDK.
 - AMD HIP SDK for Windows.
-- Visual Studio 2022 Build Tools or Community with MSVC C++ and Windows SDK.
+- Visual Studio 2026 Build Tools or Community with MSVC C++ and Windows SDK.
 - CMake, Ninja, Git, Python 3.11 or newer.
 - vcpkg at `C:\vcpkg` or `VCPKG_ROOT` with packages from `vcpkg.json`.
 - Optional Radeon Developer Tool Suite CLI utilities for ISA/profiling work.

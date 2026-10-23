@@ -168,7 +168,7 @@ Required for Windows GPU execution:
 - AMD HIP SDK, latest production release available for Windows.
 - HIP SDK Core, HIP Libraries development files, HIP Runtime Compiler
   development files, and AMD GPU driver.
-- Visual Studio 2022 Build Tools with MSVC C++ and Windows SDK.
+- Visual Studio 2026 Build Tools with MSVC C++ and Windows SDK.
 - CMake and Ninja.
 - Python packages: `numpy`, `pandas`, `matplotlib`, `pytest`, and `scipy`.
 
