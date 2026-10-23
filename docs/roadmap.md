@@ -549,3 +549,11 @@ publishing C, owns the graph and captured addresses, and replays through the sam
 range/reservation/completion owner. Stable-address rebinding and repeated replay
 fixtures are authored. Compilation, runtime correctness, leak/overlap checks and
 break-even qualification of graph replay remain pending.
+
+The graph-enabled HIP test executable compiled at `9ebdc7f`; runtime validation
+remains pending. The #36 offline mapping simulator now records exact tile/group/
+K-slab ownership, explicit slab barriers, tail/cost buckets and native-versus-
+packed block traffic. See [locality schedules](locality-schedules.md). Authored
+bijection and shuffled-arithmetic fixtures await combined validation. Runtime
+remapping and measured cache/XCD behavior remain unqualified and are not inferred
+from this simulator.
