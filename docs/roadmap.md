@@ -507,3 +507,9 @@ It exports same-environment rational planner rates only after independent-run,
 reference, ISA and uncertainty admission, and supplies held-out discrepancy
 checks. See [calibration](calibration.md). No hardware calibration constants
 have been produced or promoted; real microbenchmark collection remains open.
+
+A CRT collection executable now exercises Garner/direct/balanced canonical
+three-limb exports with Boost verification outside each timed call. Its collector
+records independent process UUIDs, compiled provenance, executable hashes and
+shuffled order. Missing ISA/resolution/counter evidence remains explicit and
+blocks promotion. This collection path is not yet compiled or executed.
