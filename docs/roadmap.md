@@ -300,3 +300,16 @@ and each product is accumulated immediately without retaining seven product
 matrices. Exhaustive polynomial expansion and all byte-modulus tail fixtures are
 authored. No rank-23 program, GPU transform path, performance result or promotion
 is claimed.
+
+
+The private direct-HIP #37 baseline now accepts explicit split count and scratch
+budget, with no automatic runtime selection. Fragment producers reduce signed
+INT8 dots (at most 65536 terms, absolute bound 2^30) to canonical byte scratch.
+Each merge level owns disjoint groups of at most 128 bytes (sum at most 32640),
+reduces again, and alternates bounded scratch regions. A final centered store
+preserves padded output columns. Producer, merge and store have separate event
+labels; each stage is synchronous in this initial baseline. Differential cases
+cover prefixes 1/9/20, K around 65536 and 131073, multi-level merges, cancellation,
+worst signed-byte products, padding and budget rejection. Execution remains
+pending. Matrix-engine producers, prepared scratch, planner selection and timing
+evidence are still required before calling the research issue complete.

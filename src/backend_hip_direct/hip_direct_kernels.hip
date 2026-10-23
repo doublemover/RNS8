@@ -38,10 +38,12 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 
 #include "hip_direct_export_kernels.cuh"
 #include "hip_direct_lift_kernels.cuh"
+#include "hip_direct_split_k_kernels.cuh"
 
 }  // namespace
 
 #include "hip_direct_pack_wrappers.inc"
+#include "hip_direct_split_k_wrappers.inc"
 #include "hip_direct_finite_wrappers.inc"
 #include "hip_direct_rns_native_wrappers.inc"
 #include "hip_direct_grouped_zero_wrappers.inc"
