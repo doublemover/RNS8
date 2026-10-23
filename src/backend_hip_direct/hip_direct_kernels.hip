@@ -48,6 +48,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_int4_kernels.cuh"
+#include "hip_direct_native_wmma_kernels.cuh"
 
 }  // namespace
 
@@ -65,6 +66,7 @@ extern "C" int rns8_hip_finite_int4_gemm(
 }
 
 #include "hip_direct_pack_wrappers.inc"
+#include "hip_direct_native_wmma_wrappers.inc"
 #include "hip_direct_split_k_wrappers.inc"
 #include "hip_direct_finite_wrappers.inc"
 #include "hip_direct_rns_native_wrappers.inc"

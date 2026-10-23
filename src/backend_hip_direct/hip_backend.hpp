@@ -10,6 +10,13 @@
 #include "backend_common/residue_layout.hpp"
 
 namespace rns8::detail {
+// Private one-shot native conversion + grouped matrix-engine candidate. The
+// explicit flag selects i64/u64 interpretation; output is default-basis residues,
+// not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
+rns8_status hip_direct_gemm_native_wmma_grouped_device(
+    int device_id, const void* a, const void* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint32_t prefix, uint32_t group, bool unsigned_inputs);
 // Explicit finite-ring candidate: input signed bytes are reduced modulo 2..16;
 // output uses centered residues. No default-ladder RNS interpretation.
 rns8_status hip_direct_gemm_finite_int4_device(

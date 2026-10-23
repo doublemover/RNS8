@@ -404,3 +404,17 @@ instruction inspection, performance evidence and public planner integration are
 pending. See AMD's
 [RDNA3 dense WMMA builtin reference](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/rdna/rdna3-dense-wmma-builtins.html)
 for the underlying instruction interface.
+
+The #35 one-shot prototype now includes private RDNA3 WMMA kernels for native
+signed/unsigned 64-bit inputs and channel groups 1, 2 and 4. Each wave owns one
+16x16 C tile and a contiguous group from the fixed basis. Raw A/B loads occur
+outside the channel loop; each channel independently converts, accumulates and
+reduces. Partial groups execute no omitted planes, and K slabs include the prior
+residue in their INT32 bound. The route has no packed-input or INT32 global
+workspace and writes centered output bytes directly. Group size is explicit,
+not automatically maximized. CPU/Boost differential fixtures cover full-width
+signedness, composite/even moduli, partial groups, padding, tile tails and safe
+K boundaries. Compilation and execution are pending; source-level load reuse
+does not prove generated load counts, occupancy or speedup. ISA/resource
+inspection, repeated-B/resident variants, descriptor/planner integration and
+matched end-to-end experiments remain open.
