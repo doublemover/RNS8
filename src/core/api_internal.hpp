@@ -30,10 +30,17 @@
 
 namespace rns8::detail::api {
 
+struct ResourceBusy {};
+inline void require_matrix_writable(const rns8_matrix& matrix) {
+  if (matrix.in_flight_readers || matrix.in_flight_writer) throw ResourceBusy{};
+}
+
 template <typename Fn>
 rns8_status guard_api(Fn&& fn) {
   try {
     return fn();
+  } catch (const ResourceBusy&) {
+    return RNS8_BUSY;
   } catch (const std::bad_alloc&) {
     return RNS8_INTERNAL_ERROR;
   } catch (...) {

@@ -9,7 +9,7 @@ is retained once. Multiple prepared executions may retain the same resource.
 Users of C++ RAII handles must likewise destroy the prepared execution before
 the wrappers that own its resources.
 
-The current API is synchronous. `rns8_execute_prepared` invokes the existing
+The ordinary `rns8_execute_prepared` API is synchronous. It invokes the existing
 GEMM implementation and returns after its ordinary completion/status boundary.
 It may allocate and synchronize; it is not a HIP-stream or graph-capture API.
 Calls involving shared handles require external host-thread serialization.
@@ -38,10 +38,51 @@ generations. Refresh does not execute work or alter previous completion history.
 Generation exhaustion rejects preparation/refresh/execution rather than reusing
 an ambiguous identity.
 
-This is the first synchronous slice of issue #43. Explicit streams, retained
-in-flight reservations, dependency tokens, fixed graph resource envelopes,
-data-ready versus status-ready events, graph replay and asynchronous wait/query
-remain separate implementation and qualification work. No speedup is claimed.
+The explicit HIP submission subset below adds stream/event completion. Grouped
+and DAG submission, fixed graph envelopes and graph replay remain separate
+implementation and qualification work. No speedup is claimed.
+
+## Explicit HIP submission
+
+Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide
+execution to allocate its completion event. The subset has fixed shape/basis/
+prefix and no adaptive tile schedule. Other semantics/backends return unsupported.
+`rns8_submit_prepared_hip` takes a caller-owned non-default HIP stream and checks
+its device and capture state. Keep that stream alive until completion is observed.
+Stream capture is explicitly unsupported; there is no synchronous fallback.
+
+Submission checks input generations and computes the complete exact range proof
+before changing the output or epoch. Host proof work can allocate; device event
+storage is prepared ahead of submission. It then reserves input readers, the
+output writer and workspace, invalidates C through the existing lifecycle owner,
+enqueues the existing GEMM kernel path without publication, and records an event.
+Returning success means accepted work. No global synchronization occurs on the
+successful enqueue path. Inputs shared by independent submissions may have
+multiple readers; mutations, conflicting output writers and workspace reuse
+are rejected until their reservations are released.
+
+`rns8_query_prepared_hip` returns BUSY while the event is pending;
+`rns8_wait_prepared_hip` waits for that event. Both observe completion and only
+then publish C's logical generation and exact proof on success. The output stays
+unavailable even if the GPU finishes before the host observes completion. Query/
+wait success means the completion record was retrieved: inspect its
+`operation_status` and `output_is_current`. A device failure leaves C invalid.
+An enqueue/event-record failure drains the stream before releasing reservations
+and returns the failure with the issued token. A failed preflight does not issue
+an epoch or alter the caller's token. Old epochs never certify later writes.
+
+The host must serialize calls sharing handles; device work may overlap across
+independent streams. Consumers must observe producer completion before using the
+new value. Destruction remains BUSY while handles are retained or executions are
+pending. Event errors trigger a stream drain before reservations are released;
+fatal device-context errors remain backend failures and are not repaired here.
+
+CPU reservation fixtures and real HIP two-stream fixtures are authored for
+shared readers completed in reverse order, write/workspace collisions, pending
+destruction, rebinding, stale epochs, range rejection, tails and K-slab crossings.
+Compilation and execution are pending; no overlap or enqueue-time gain is claimed.
+The lifetime/capture distinction follows the active
+[HIP 7.1 graph contract](https://rocm.docs.amd.com/projects/HIP/en/docs-7.1.0/how-to/hip_runtime_api/hipgraph.html).
 
 ## Heterogeneous prepared groups
 

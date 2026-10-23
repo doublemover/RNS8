@@ -50,6 +50,7 @@ bool workspace_identity_matches_plan(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (workspace.in_flight) return false;
   if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
     return false;
   }
@@ -223,6 +224,7 @@ rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (workspace.in_flight) return RNS8_BUSY;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }

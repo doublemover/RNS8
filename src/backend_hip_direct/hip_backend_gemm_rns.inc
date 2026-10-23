@@ -420,6 +420,17 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
 #endif
 }
 
+rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan* plan,const rns8_matrix* a,
+    const rns8_matrix* b,rns8_matrix* c,void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto error=launch_direct_rns_gemm_no_sync(a->hip_residues,b->hip_residues,c->hip_residues,
+      plan->desc.m,plan->desc.n,plan->desc.k,a->desc.cols,b->desc.cols,c->desc.cols,plan->prefix,stream);
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)plan;(void)a;(void)b;(void)c;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
     const rns8_plan* plan,
     const rns8_matrix* A,

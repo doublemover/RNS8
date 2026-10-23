@@ -535,3 +535,10 @@ candidate reconstruction. Identity mismatch and failed integrity are explicit;
 an authored undetectable-error fixture preserves the stated coverage boundary.
 See [device integrity](device-integrity.md). Public commit/cache integration,
 compilation, execution and overhead qualification remain pending.
+
+CPU and HIP test executables compiled at `160e652`, including the integrity
+sentinel. The #43 explicit stream subset now prepares an event, reserves readers/
+writers/workspace, enqueues exact-wide dense GEMM without publication, and
+publishes only after query/wait observes completion. Capture and other operation
+subsets report unsupported. CPU lifetime and HIP two-stream regression fixtures
+are authored; this addition is not yet compiled or executed.

@@ -240,6 +240,7 @@ void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_ve
 void MatrixWriteGuard::invalidate() { invalidate_output_currentness(matrix); }
 
 void invalidate_output_currentness(rns8_matrix& matrix) {
+  require_matrix_writable(matrix);
   clear_residue_current(matrix);
   clear_byte_limb_current(matrix);
   clear_native_current(matrix);

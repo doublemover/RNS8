@@ -105,6 +105,7 @@ rns8_status rns8_lift_exact_wide_cpu(rns8_context* ctx, rns8_matrix* matrix, uin
                                      uint64_t max_staged_residue_bytes) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !matrix) return RNS8_INVALID_ARGUMENT;
+    require_matrix_writable(*matrix);
     ExactCpuLift lift;
     auto status = prepare_exact_cpu_lift(*ctx, *matrix, target_prefix, lift);
     if (status != RNS8_SUCCESS) return status;
@@ -206,6 +207,7 @@ rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uin
                                    uint64_t max_staged_residue_bytes) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !matrix || ctx->backend != matrix->backend) return RNS8_INVALID_ARGUMENT;
+    require_matrix_writable(*matrix);
     if (ctx->backend != RNS8_BACKEND_HIP_DIRECT) return RNS8_UNSUPPORTED_BACKEND;
     if (!rns8::detail::exact_wide_semantics(matrix->desc.semantics) || target_prefix == 0 ||
         target_prefix > matrix->prefix || target_prefix > RNS8_MAX_SUPPORTED_PREFIX ||

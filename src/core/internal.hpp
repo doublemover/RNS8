@@ -95,6 +95,8 @@ struct rns8_exact_matrix_ranges {
 
 struct rns8_matrix {
   mutable uint64_t prepared_references = 0;
+  mutable uint64_t in_flight_readers = 0;
+  bool in_flight_writer = false;
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
@@ -175,6 +177,7 @@ struct rns8_sparse_matrix {
 
 struct rns8_workspace {
   mutable uint64_t prepared_references = 0;
+  bool in_flight = false;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_bound_kind bound_kind = RNS8_BOUND_NONE;

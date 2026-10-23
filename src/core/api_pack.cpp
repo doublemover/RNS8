@@ -42,6 +42,7 @@ rns8_status rns8_pack_i64(
     if (matrix->desc.semantics != RNS8_BOUNDED_I64 && matrix->desc.semantics != RNS8_EXACT_WIDE_SIGNED) {
       return RNS8_INVALID_ARGUMENT;
     }
+    require_matrix_writable(*matrix);
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -150,6 +151,7 @@ rns8_status rns8_pack_u64(
         matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
       return RNS8_INVALID_ARGUMENT;
     }
+    require_matrix_writable(*matrix);
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -343,6 +345,7 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(
     int64_t ld, uint32_t limb_count, bool signed_values, uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
     const auto expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
+    require_matrix_writable(matrix);
     if (!src || limb_count == 0 || limb_count > 32 || matrix.desc.semantics != expected ||
         ctx.backend != matrix.backend || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld) ||
         !rns_matrix_storage_matches(matrix, ctx.backend, matrix.desc.rows, matrix.desc.cols, matrix.prefix) ||

@@ -102,6 +102,19 @@ RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
+/* Explicit direct-HIP exact-wide, fixed-prefix dense submission. Prepare the
+ * event resource outside submission; submit uses a caller-owned non-default
+ * hipStream_t passed as void*. Keep the stream alive through wait/query.
+ * Shared handles require serialized host calls. Inputs are read-reserved and
+ * output/workspace write-reserved until completion is observed. C is unavailable
+ * while pending. Query returns BUSY until ready; successful query/wait returns
+ * completion information, whose operation_status records execution failure.
+ * These calls reject stream capture; no implicit synchronous fallback. */
+RNS8_API rns8_status rns8_prepare_hip_submission(rns8_prepared_execution* execution);
+RNS8_API rns8_status rns8_submit_prepared_hip(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
+RNS8_API rns8_status rns8_query_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
+RNS8_API rns8_status rns8_wait_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
+
 /* Immutable heterogeneous group of 1..65536 prepared executions. Retains its
  * execution handles; their destruction returns BUSY until the group is destroyed.
  * Shared readers are allowed. Duplicate writers and cross-task read/write

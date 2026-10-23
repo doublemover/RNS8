@@ -36,3 +36,4 @@ namespace {
 #include "test_api_prepared_group_cases.inc"
 #include "test_api_resident_graph_cases.inc"
 #include "test_api_exact_epilogue_cases.inc"
+#include "test_api_prepared_hip_cases.inc"

@@ -2,6 +2,7 @@
 #include <atomic>
 #include <memory>
 #include <unordered_set>
+#include "core/hip_resources.hpp"
 
 using namespace rns8::detail::api;
 
@@ -17,6 +18,13 @@ struct rns8_prepared_execution {
   rns8_completion_info completion{};
   bool running = false;
   uint64_t group_references = 0;
+  bool hip_submission_prepared = false;
+  void* pending_stream = nullptr;
+  boost::multiprecision::cpp_int pending_bound;
+  rns8_exact_matrix_ranges pending_ranges;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_unique_event completion_event;
+#endif
 };
 
 struct rns8_prepared_group {
@@ -153,6 +161,8 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   delete e;
   return RNS8_SUCCESS;
 }
+
+#include "api_prepared_hip.inc"
 
 rns8_status rns8_create_prepared_group(
     rns8_prepared_execution* const* executions, uint32_t count, rns8_prepared_group** out) {
