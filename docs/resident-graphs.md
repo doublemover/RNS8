@@ -88,3 +88,37 @@ repeated execution, padded host destinations, an export-only reader preserving
 generation, forward and overlapping destinations, malformed fields, overflow
 and later-node width rejection before earlier output mutation. Runtime
 qualification remains pending.
+
+## Explicit asynchronous direct-HIP DAGs
+
+`rns8_prepare_resident_graph_hip` prepares a completion event for a fixed-prefix
+dense MatMul/ExactAxpby graph. `rns8_submit_resident_graph_hip` preflights every
+binding and propagates every intermediate proof, then enqueues the ordered DAG
+on one caller-owned nondefault stream. Internal dependencies follow stream
+order. BaseExtend/Export nodes and adaptive tile schedules reject as unsupported
+before launch; owned capture of an entire DAG is not yet implemented.
+
+The graph reserves each distinct external input once, each output as a writer,
+and each distinct workspace once. A workspace shared by serial nodes is legal.
+All graph handles remain retained. Repacking, refresh, synchronous execution,
+resubmission and destruction return busy while pending. The completion token
+binds graph identity and epoch; another graph's or an earlier submission's token
+cannot observe this execution.
+
+No intermediate is publicly current while the DAG is pending. Query/wait
+observes the final event, publishes every output with its precomputed bound and
+new generation, and releases all reservations. Publication swaps already
+computed proofs rather than allocating after GPU completion. An enqueue or
+event failure drains the stream and releases reservations without publishing
+any attempted output; nodes never attempted retain their earlier values. This
+whole-DAG asynchronous publication rule differs from synchronous execution,
+which can retain successfully completed earlier nodes. Completion reports zero
+published nodes on failure and the launch-failure index when available.
+
+The API rejects externally capturing streams and does not allocate device
+storage during submission. Proof construction can allocate host metadata.
+Authored signed/unsigned mixed MatMul/epilogue tests cover produced addends,
+diamonds, dependency chains, shared workspaces, reader overflow, stale tokens,
+busy lifetime rules and no early publication. CPU paths explicitly reject HIP
+preparation. Runtime correctness, leak/error recovery, overlap and submission
+latency measurements remain pending.

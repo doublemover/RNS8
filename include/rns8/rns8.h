@@ -69,6 +69,11 @@ typedef struct rns8_graph_execution_info {
   uint32_t failed_node; /* UINT32_MAX on complete success. */
 } rns8_graph_execution_info;
 
+typedef struct rns8_graph_completion_token {
+  uint64_t graph_id;
+  uint64_t epoch;
+} rns8_graph_completion_token;
+
 /* Ordered exact-wide MatMul/BaseExtend/ExactAxpby DAG, CPU or direct HIP.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
@@ -90,6 +95,23 @@ RNS8_API rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* gra
 RNS8_API rns8_status rns8_execute_resident_graph(
     rns8_resident_graph* graph, rns8_graph_execution_info* out);
 RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
+
+/* Explicit single-stream fixed-prefix direct-HIP MatMul/ExactAxpby DAGs.
+ * Prepare completion resources first. BaseExtend/Export nodes and adaptive
+ * schedules are unsupported. Submission preflights the complete DAG, reserves
+ * external readers and all output/workspace writers, and issues one token.
+ * Query/wait publishes all outputs only after the final event succeeds.
+ * A backend failure drains the stream and leaves every attempted output invalid;
+ * unattempted outputs retain their prior values. Inputs/resources remain owned
+ * until observation or failure cleanup. Null/default streams and external HIP
+ * capture are unsupported. Shared handles require host-thread serialization. */
+RNS8_API rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph* graph);
+RNS8_API rns8_status rns8_submit_resident_graph_hip(
+    rns8_resident_graph* graph, void* stream, rns8_graph_completion_token* token);
+RNS8_API rns8_status rns8_query_resident_graph_hip(
+    rns8_resident_graph* graph, rns8_graph_completion_token token, rns8_graph_execution_info* info);
+RNS8_API rns8_status rns8_wait_resident_graph_hip(
+    rns8_resident_graph* graph, rns8_graph_completion_token token, rns8_graph_execution_info* info);
 
 typedef struct rns8_completion_token {
   uint64_t prepared_id;

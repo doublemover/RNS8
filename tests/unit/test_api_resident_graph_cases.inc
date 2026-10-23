@@ -1,4 +1,5 @@
 #include "test_api_resident_export_cases.inc"
+#include "test_api_resident_async_support.inc"
 TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings before writes", "[api][graph]") {
   using boost::multiprecision::cpp_int;
   for (bool hip : {false,true}) {
@@ -67,6 +68,9 @@ TEST_CASE("resident exact DAG executes a diamond and rejects stale bindings befo
         REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
         REQUIRE(info.completed_nodes == 3);
         REQUIRE(info.failed_node == UINT32_MAX);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+        if (hip) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info);
+#endif
         const std::vector<cpp_int> ax(av.begin(), av.end()), bx(bv.begin(), bv.end());
         const auto cx = multiply(ax,bx);
         check(c,cx); check(d,multiply(cx,ax)); check(e,multiply(cx,bx));
@@ -250,7 +254,12 @@ TEST_CASE("resident epilogue DAG proves produced addends before any writes", "[a
         rns8_resident_graph* graph = nullptr;
         REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_SUCCESS);
         REQUIRE(rns8_destroy_matrix(d) == RNS8_BUSY);
-        for (int repeat = 0; repeat < 2; ++repeat) {
+        if (!hip) REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_UNSUPPORTED_BACKEND);
+        for (int repeat = 0; repeat < 3; ++repeat) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+          if (hip && repeat) exercise_resident_async_submission(graph, a, b, c, d, e, workspace, info);
+          else
+#endif
           REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
           REQUIRE(info.completed_nodes == 3);
           std::vector<cpp_int> product(4), expected(4);

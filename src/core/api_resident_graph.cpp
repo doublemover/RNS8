@@ -1,10 +1,16 @@
 #include "core/api_internal.hpp"
 #include <array>
+#include <atomic>
+#include "core/hip_resources.hpp"
 #include <unordered_map>
 #include <unordered_set>
 
 using namespace rns8::detail::api;
 struct rns8_resident_graph {
+  struct OutputProof {
+    boost::multiprecision::cpp_int bound;
+    rns8_exact_matrix_ranges ranges;
+  };
   struct Input {
     const rns8_matrix* matrix;
     uint64_t instance, generation;
@@ -15,9 +21,28 @@ struct rns8_resident_graph {
   std::vector<uint64_t*> holds;
   uint64_t epoch = 0;
   bool running = false;
+  uint64_t id = 0;
+  bool hip_prepared = false;
+  void* pending_stream = nullptr;
+  std::vector<rns8_workspace*> hip_workspaces;
+  std::vector<OutputProof> pending_proofs;
+  rns8_graph_execution_info completion{};
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_unique_event completion_event;
+  ~rns8_resident_graph() {
+    if (ctx && completion_event) (void)hipSetDevice(ctx->device_id);
+  }
+#endif
 };
 
 namespace {
+uint64_t next_graph_id() {
+  static std::atomic<uint64_t> next{1};
+  auto value = next.load(std::memory_order_relaxed);
+  while (value != UINT64_MAX)
+    if (next.compare_exchange_weak(value, value + 1, std::memory_order_relaxed)) return value;
+  return 0;
+}
 std::array<const rns8_matrix*, 3> node_inputs(const rns8_resident_node& node) {
   return (node.kind == RNS8_RESIDENT_BASE_EXTEND || node.kind == RNS8_RESIDENT_EXPORT_LIMBS) ? std::array<const rns8_matrix*, 3>{node.c, nullptr, nullptr}
                                               : std::array<const rns8_matrix*, 3>{node.a, node.b, node.d};
@@ -74,7 +99,9 @@ rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& n
 }
 
 // Metadata-only proof values: no copies of host/device matrix payloads.
-rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node, bool check_bindings) {
+rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node, bool check_bindings,
+                       std::vector<rns8_resident_graph::OutputProof>* pending = nullptr) {
+  if (pending) { pending->clear(); pending->reserve(graph.nodes.size()); }
   std::unordered_map<const rns8_matrix*, rns8_matrix> proofs;
   proofs.reserve(graph.inputs.size() + graph.nodes.size());
   for (const auto& input : graph.inputs) {
@@ -131,6 +158,7 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     }
     if (status != RNS8_SUCCESS) return status;
     output.exact_range_prefix = node.plan->prefix;
+    if (pending) pending->push_back({output.exact_max_magnitude, output.exact_axis_ranges});
     proofs.emplace(node.c, std::move(output));
   }
   failed_node = UINT32_MAX;
@@ -209,6 +237,8 @@ rns8_status rns8_create_resident_graph(
     uint32_t failed = UINT32_MAX;
     const auto status = prove_graph(*graph, failed, true);
     if (status != RNS8_SUCCESS) return status;
+    graph->id = next_graph_id();
+    if (!graph->id) return RNS8_RANGE_ERROR;
     for (auto* hold : graph->holds) ++*hold;
     *out = graph.release();
     return RNS8_SUCCESS;
@@ -267,3 +297,5 @@ rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph) {
   delete graph;
   return RNS8_SUCCESS;
 }
+
+#include "api_resident_graph_hip.inc"

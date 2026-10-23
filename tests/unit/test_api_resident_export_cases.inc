@@ -60,6 +60,7 @@ TEST_CASE(
       rns8_resident_graph *graph = nullptr, *bad = nullptr;
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) ==
               RNS8_SUCCESS);
+      REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_UNSUPPORTED_BACKEND);
       rns8_graph_execution_info info{};
       info.struct_size = sizeof(info);
       info.abi_version = RNS8_ABI_VERSION;
