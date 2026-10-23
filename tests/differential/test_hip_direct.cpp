@@ -59,6 +59,7 @@ namespace {
 #include "test_hip_direct_native_wmma_cases.inc"
 #include "test_hip_direct_native_queue_cases.inc"
 #include "test_hip_direct_bound_cases.inc"
+#include "test_hip_direct_adaptive_native_cases.inc"
 #include "test_hip_direct_ragged_cases.inc"
 #include "test_hip_direct_block_sparse_cases.inc"
 #include "test_hip_direct_layout_cases.inc"

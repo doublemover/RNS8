@@ -61,6 +61,16 @@ rns8_status hip_direct_discover_native_tile_bounds(
 // Private one-shot native conversion + grouped matrix-engine candidate. The
 // explicit flag selects i64/u64 interpretation; output is default-basis residues,
 // not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
+// Private synchronous exact adaptive producer. Fresh bounds select each tile's
+// minimal prefix; exact suffix completion makes every output plane valid.
+// Inputs must remain immutable through return. Caller owns publication and must
+// invalidate output on any failure after commit_started becomes true.
+rns8_status hip_direct_gemm_adaptive_native_device(
+    int device_id, const void* a, const void* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    bool unsigned_inputs, uint32_t capacity, uint32_t group,
+    uint64_t max_scratch_bytes, bool& commit_started,
+    NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256);
 rns8_status hip_direct_gemm_native_wmma_grouped_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,

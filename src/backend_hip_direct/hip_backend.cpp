@@ -644,6 +644,7 @@ namespace rns8::detail {
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"
 #include "hip_backend_strassen.inc"
+#include "hip_backend_adaptive_native.inc"
 #include "hip_backend_integrity.inc"
 
 rns8_status hip_direct_synchronize(int device_id) {
