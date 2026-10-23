@@ -114,6 +114,11 @@ RNS8_API rns8_status rns8_prepare_hip_submission(rns8_prepared_execution* execut
 RNS8_API rns8_status rns8_submit_prepared_hip(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 RNS8_API rns8_status rns8_query_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
 RNS8_API rns8_status rns8_wait_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
+/* Capture the supported fixed-address GEMM into an owned HIP graph outside
+ * submission. Replay shares stream reservations and query/wait publication.
+ * Shape/layout/basis or address changes require new preparation/capture. */
+RNS8_API rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution* execution);
+RNS8_API rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 
 /* Immutable heterogeneous group of 1..65536 prepared executions. Retains its
  * execution handles; their destruction returns BUSY until the group is destroyed.

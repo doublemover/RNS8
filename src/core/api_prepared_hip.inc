@@ -82,8 +82,10 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
 #endif
   });
 }
-rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
-                                     rns8_completion_token *token) {
+static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
+                                            void *stream,
+                                            rns8_completion_token *token,
+                                            bool graph) {
   return guard_api([&]() -> rns8_status {
     if (!e || !stream || !token)
       return RNS8_INVALID_ARGUMENT;
@@ -110,6 +112,10 @@ rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
             e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
       return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if (graph &&
+        (!e->graph_executable || e->graph_a != e->a->hip_residues ||
+         e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues))
+      return RNS8_UNSUPPORTED_BACKEND;
     if (hipSetDevice(e->ctx->device_id) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     hipDevice_t stream_device = -1;
@@ -135,8 +141,13 @@ rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
     e->pending_stream = stream;
     ++e->epoch;
     *token = {e->id, e->epoch};
-    status = rns8::detail::hip_direct_enqueue_rns_no_publish(
-        e->plan, e->a, e->b, e->c, stream);
+    status =
+        graph ? (hipGraphLaunch(e->graph_executable,
+                                static_cast<hipStream_t>(stream)) == hipSuccess
+                     ? RNS8_SUCCESS
+                     : RNS8_BACKEND_FAILURE)
+              : rns8::detail::hip_direct_enqueue_rns_no_publish(
+                    e->plan, e->a, e->b, e->c, stream);
     if (status == RNS8_SUCCESS &&
         hipEventRecord(e->completion_event.get(),
                        static_cast<hipStream_t>(stream)) != hipSuccess)
@@ -146,6 +157,67 @@ rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
       finish_prepared_hip(*e, status);
     }
     return status;
+#else
+    (void)graph;
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  });
+}
+rns8_status rns8_submit_prepared_hip(rns8_prepared_execution *e, void *stream,
+                                     rns8_completion_token *token) {
+  return submit_prepared_hip_impl(e, stream, token, false);
+}
+rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution *e,
+                                           void *stream,
+                                           rns8_completion_token *token) {
+  return submit_prepared_hip_impl(e, stream, token, true);
+}
+rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
+  return guard_api([&]() -> rns8_status {
+    const auto preparation = rns8_prepare_hip_submission(e);
+    if (preparation != RNS8_SUCCESS)
+      return preparation;
+    if (!rns8::detail::qualified_i32_gemm_address(
+            e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
+            e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
+      return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    rns8::detail::hip_unique_stream capture_stream;
+    if (capture_stream.create_non_blocking() != hipSuccess)
+      return RNS8_BACKEND_FAILURE;
+    if (hipStreamBeginCapture(capture_stream.get(),
+                              hipStreamCaptureModeThreadLocal) != hipSuccess)
+      return RNS8_BACKEND_FAILURE;
+    const auto body = rns8::detail::hip_direct_enqueue_rns_no_publish(
+        e->plan, e->a, e->b, e->c, capture_stream.get());
+    hipGraph_t graph = nullptr;
+    const auto end = hipStreamEndCapture(capture_stream.get(), &graph);
+    if (body != RNS8_SUCCESS || end != hipSuccess) {
+      if (graph)
+        (void)hipGraphDestroy(graph);
+      return body != RNS8_SUCCESS ? body : RNS8_BACKEND_FAILURE;
+    }
+    hipGraphExec_t executable = nullptr;
+    const auto instantiated =
+        hipGraphInstantiate(&executable, graph, nullptr, nullptr, 0);
+    if (instantiated != hipSuccess) {
+      if (executable)
+        (void)hipGraphExecDestroy(executable);
+      (void)hipGraphDestroy(graph);
+      return RNS8_BACKEND_FAILURE;
+    }
+    // Keep the old graph intact until replacement capture/instantiation
+    // succeeds.
+    if (e->graph_executable)
+      (void)hipGraphExecDestroy(e->graph_executable);
+    if (e->graph)
+      (void)hipGraphDestroy(e->graph);
+    e->graph = graph;
+    e->graph_executable = executable;
+    e->graph_a = e->a->hip_residues;
+    e->graph_b = e->b->hip_residues;
+    e->graph_c = e->c->hip_residues;
+    return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif

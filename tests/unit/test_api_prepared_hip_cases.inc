@@ -47,6 +47,8 @@ TEST_CASE("HIP submissions reserve shared readers and publish only after "
     REQUIRE(s1.create_non_blocking() == hipSuccess);
     REQUIRE(s2.create_non_blocking() == hipSuccess);
     rns8_completion_token t1{}, t2{}, unused{};
+    REQUIRE(rns8_submit_prepared_hip_graph(e1, s1.get(), &unused) ==
+            RNS8_UNSUPPORTED_BACKEND);
     REQUIRE(rns8_submit_prepared_hip(e1, nullptr, &unused) ==
             RNS8_INVALID_ARGUMENT);
     REQUIRE(rns8_submit_prepared_hip(e1, s1.get(), &t1) == RNS8_SUCCESS);
@@ -56,6 +58,7 @@ TEST_CASE("HIP submissions reserve shared readers and publish only after "
     REQUIRE(rns8_pack_i64(ctx, a, av.data(), k, 0) == RNS8_BUSY);
     REQUIRE(rns8_lift_exact_wide_hip(ctx, c, 20, UINT64_MAX) == RNS8_BUSY);
     REQUIRE(rns8_destroy_prepared_execution(e1) == RNS8_BUSY);
+    REQUIRE(rns8_capture_prepared_hip_graph(e1) == RNS8_BUSY);
     REQUIRE(rns8_execute_prepared(e1, &unused) == RNS8_BUSY);
     REQUIRE(rns8_submit_prepared_hip(e3, s2.get(), &unused) == RNS8_BUSY);
     REQUIRE(rns8_submit_prepared_hip(e2, s2.get(), &t2) == RNS8_SUCCESS);
@@ -74,6 +77,20 @@ TEST_CASE("HIP submissions reserve shared readers and publish only after "
     REQUIRE(info.output_is_current);
     REQUIRE(a->in_flight_readers == 0);
     REQUIRE_FALSE(w1->in_flight);
+    const auto before_capture = c->content_generation;
+    REQUIRE(rns8_capture_prepared_hip_graph(e1) == RNS8_SUCCESS);
+    REQUIRE(c->content_generation == before_capture);
+    REQUIRE(c->device_residues_current);
+    hip_direct_allocation_counters_reset();
+    for (int replay = 0; replay < 3; ++replay) {
+      REQUIRE(rns8_submit_prepared_hip_graph(e1, s1.get(), &unused) ==
+              RNS8_SUCCESS);
+      REQUIRE_FALSE(c->device_residues_current);
+      REQUIRE(rns8_wait_prepared_hip(e1, unused, &info) == RNS8_SUCCESS);
+      REQUIRE(info.operation_status == RNS8_SUCCESS);
+      REQUIRE(info.output_is_current);
+    }
+    REQUIRE(hip_direct_allocation_counters_snapshot().allocate_calls == 0);
     uint64_t limbs[6]{};
     for (auto *matrix : {c, d}) {
       REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, limbs, 3,
@@ -93,7 +110,8 @@ TEST_CASE("HIP submissions reserve shared readers and publish only after "
     REQUIRE(rns8_submit_prepared_hip(e1, s1.get(), &unused) ==
             RNS8_INVALID_ARGUMENT);
     REQUIRE(rns8_refresh_prepared_inputs(e1) == RNS8_SUCCESS);
-    REQUIRE(rns8_submit_prepared_hip(e1, s1.get(), &unused) == RNS8_SUCCESS);
+    REQUIRE(rns8_submit_prepared_hip_graph(e1, s1.get(), &unused) ==
+            RNS8_SUCCESS);
     REQUIRE(rns8_query_prepared_hip(e1, t1, &info) == RNS8_INVALID_ARGUMENT);
     const auto query = rns8_query_prepared_hip(e1, unused, &info);
     REQUIRE((query == RNS8_BUSY || query == RNS8_SUCCESS));
@@ -106,7 +124,7 @@ TEST_CASE("HIP submissions reserve shared readers and publish only after "
     REQUIRE(rns8_pack_i64(ctx, b, bv.data(), 3, 0) == RNS8_SUCCESS);
     REQUIRE(rns8_refresh_prepared_inputs(e1) == RNS8_SUCCESS);
     const auto previous = unused;
-    REQUIRE(rns8_submit_prepared_hip(e1, s1.get(), &unused) ==
+    REQUIRE(rns8_submit_prepared_hip_graph(e1, s1.get(), &unused) ==
             RNS8_RANGE_ERROR);
     REQUIRE(unused.epoch == previous.epoch);
     REQUIRE(c->content_generation == generation);

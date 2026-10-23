@@ -24,6 +24,16 @@ struct rns8_prepared_execution {
   rns8_exact_matrix_ranges pending_ranges;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_unique_event completion_event;
+  hipGraph_t graph = nullptr;
+  hipGraphExec_t graph_executable = nullptr;
+  const void* graph_a = nullptr;
+  const void* graph_b = nullptr;
+  const void* graph_c = nullptr;
+  ~rns8_prepared_execution() {
+    if (ctx && (graph_executable || graph || completion_event)) (void)hipSetDevice(ctx->device_id);
+    if (graph_executable) (void)hipGraphExecDestroy(graph_executable);
+    if (graph) (void)hipGraphDestroy(graph);
+  }
 #endif
 };
 

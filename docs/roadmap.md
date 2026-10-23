@@ -542,3 +542,10 @@ writers/workspace, enqueues exact-wide dense GEMM without publication, and
 publishes only after query/wait observes completion. Capture and other operation
 subsets report unsupported. CPU lifetime and HIP two-stream regression fixtures
 are authored; this addition is not yet compiled or executed.
+
+The stream-submission HIP test executable compiled at `06027bd`. The #43
+fixed-envelope graph addition now captures the enqueue-only kernel path without
+publishing C, owns the graph and captured addresses, and replays through the same
+range/reservation/completion owner. Stable-address rebinding and repeated replay
+fixtures are authored. Compilation, runtime correctness, leak/overlap checks and
+break-even qualification of graph replay remain pending.

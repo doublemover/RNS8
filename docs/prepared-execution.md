@@ -38,8 +38,8 @@ generations. Refresh does not execute work or alter previous completion history.
 Generation exhaustion rejects preparation/refresh/execution rather than reusing
 an ambiguous identity.
 
-The explicit HIP submission subset below adds stream/event completion. Grouped
-and DAG submission, fixed graph envelopes and graph replay remain separate
+The explicit HIP submission subset below adds stream/event completion and a
+fixed-envelope graph replay path. Grouped and DAG submission remain separate
 implementation and qualification work. No speedup is claimed.
 
 ## Explicit HIP submission
@@ -83,6 +83,33 @@ destruction, rebinding, stale epochs, range rejection, tails and K-slab crossing
 Compilation and execution are pending; no overlap or enqueue-time gain is claimed.
 The lifetime/capture distinction follows the active
 [HIP 7.1 graph contract](https://rocm.docs.amd.com/projects/HIP/en/docs-7.1.0/how-to/hip_runtime_api/hipgraph.html).
+
+## Owned fixed-envelope HIP graph
+
+`rns8_capture_prepared_hip_graph` captures the supported GEMM launches on an
+internally owned stream and instantiates an owned graph. Capture leaves C's
+currentness and generation unchanged; it records the enqueue-only backend path.
+No device allocation, synchronous transfer or host callback occurs in the
+captured body. Event and graph construction happen outside replay. A failed
+replacement capture preserves the previous executable graph.
+
+`rns8_submit_prepared_hip_graph` shares ordinary submission's range/generation
+preflight, reservations, epoch, event and query/wait publication. It verifies
+the captured A/B/C device addresses before enqueue. The immutable envelope is
+one fixed-shape dense exact-wide operation, its fixed basis/prefix, and all
+ordered K-slab launches. Shape, topology, layout, basis or address changes need
+a new prepared binding/capture. Input values can change at stable addresses
+between completed submissions with explicit input refresh. No adaptive growth
+outside this envelope is silently accommodated.
+
+Graph replay is an explicit API choice; ordinary stream submission does not
+silently change paths. Calling submission while the caller's stream is already
+capturing remains unsupported. The host preflight may allocate proof metadata,
+and runtime-internal HIP allocations are not asserted absent. Authored tests
+check capture without publication, repeated replay, stable-address rebinding,
+stale epochs and zero new allocations through RNS8's device-allocation helper
+during replay. Compilation and execution are pending; capture cost, overlap,
+leaks and replay break-even have not been measured.
 
 ## Heterogeneous prepared groups
 
