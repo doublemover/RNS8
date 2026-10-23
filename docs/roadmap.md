@@ -418,3 +418,18 @@ K boundaries. Compilation and execution are pending; source-level load reuse
 does not prove generated load counts, occupancy or speedup. ISA/resource
 inspection, repeated-B/resident variants, descriptor/planner integration and
 matched end-to-end experiments remain open.
+
+The #34 discovery baseline now scans device-native signed/unsigned inputs for
+16-row A and 16-column B absolute maxima. It forms exact 192-bit
+K*max_abs(A)*max_abs(B) tile bounds, including INT64_MIN and full uint64 values,
+then chooses the smallest available strict signed/unsigned prefix. Zero is
+proved from actual all-zero operand regions, not zero residues. Insufficient
+capacity returns RANGE_ERROR. Device counts, offsets and scatter compact all
+tiles into prefix buckets; only the range-error status returns to the host.
+Within-bucket order is unspecified, but each tile has one owner and appears
+once. The private API exposes summary/selection/compaction timings and scratch
+budget; raw output records are valid only while the input values remain
+unchanged. Generation-bound public proof reuse, L1/K-panel refinements, a
+device-count consumer and discovery-versus-conversion planner selection remain
+open. Boost width/prefix and GPU bucket/tail/mutation fixtures are authored;
+compilation, execution and net performance are pending.

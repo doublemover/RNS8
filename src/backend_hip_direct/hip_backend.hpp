@@ -8,8 +8,19 @@
 
 #include "rns8/rns8.h"
 #include "backend_common/residue_layout.hpp"
+#include "backend_common/native_tile_bound.hpp"
 
 namespace rns8::detail {
+// Synchronous private discovery for fixed 16x16 output tiles. Caller allocates
+// ceil(m/16)*ceil(n/16) bounds/indices and 22 offsets. Bucket 0 is proven zero;
+// buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.
+// Outputs are usable only on success and while these exact input values remain
+// unchanged; these raw records are not public generation-bound matrix proofs.
+rns8_status hip_direct_discover_native_tile_bounds(
+    int device_id, const void* a, const void* b, int64_t m, int64_t n, int64_t k,
+    int64_t lda, int64_t ldb, bool unsigned_inputs, uint32_t capacity,
+    NativeTileBound* device_bounds, uint32_t* device_indices, uint32_t* device_offsets,
+    uint64_t max_scratch_bytes);
 // Private one-shot native conversion + grouped matrix-engine candidate. The
 // explicit flag selects i64/u64 interpretation; output is default-basis residues,
 // not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
