@@ -1,5 +1,12 @@
 # Current roadmap and release gates
 
+The latest [expanded local validation](local-all-features-20261023.md) enables
+all locally available optional backends and reports 468 passes, three explicit
+target-inapplicable skips and zero failures at `c7f7e05`. It supersedes older
+pending local runtime notes for those registered tests, including the repaired
+hipBLASLt operand-cache collision. Architecture integration, measurements and
+the deferred hardware gates remain separate work.
+
 This is the current execution checklist. The [research specification](RNS8_RESEARCH_SPEC.md)
 retains long-term design requirements; [historical queues](archive/README.md)
 retain earlier decisions without asserting they are satisfied by current code.

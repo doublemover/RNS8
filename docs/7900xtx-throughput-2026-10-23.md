@@ -1,5 +1,9 @@
 # RX 7900 XTX local throughput — 2026-10-23
 
+The [larger-workload collection](7900xtx-large-throughput-2026-10-23.md) supersedes
+this 256³ diagnostic for scaling comparisons and adds sustained execution with
+timing instrumentation disabled.
+
 Measured on AMD Radeon RX 7900 XTX (`gfx1100`), Windows, VS2026/MSVC
 19.51.36260, HIP 7.1.51803 / Clang 21, runtime 71260602. The static calibration
 executable was rebuilt from clean source `8a4d1219acad0288eb773c27221cae78796c1e32`,
