@@ -4,6 +4,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
   add_test(NAME arithmetic_composition_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_composition.py")
   add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
+  add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
   add_test(NAME residue_integrity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_residue_integrity.py")
   add_test(NAME analytical_planner_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analytical_planner.py")
@@ -705,6 +706,19 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
+  if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    target_sources(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp")
+    target_include_directories(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}")
+    target_compile_definitions(rns8_tests PRIVATE RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=1)
+    add_test(NAME generated_native_wmma_isa_check
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_generated_native_wmma.py"
+              --object "${RNS8_GENERATED_NATIVE_OBJECT}" --generated-dir "${RNS8_GENERATED_NATIVE_DIR}"
+              --target "${RNS8_AMDGPU_TARGETS}" --hipcc "${RNS8_HIP_HIPCC}"
+              --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+              --output "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma/isa.json"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(generated_native_wmma_isa_check PROPERTIES LABELS "hip;isa;generated-native")
+  endif()
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>)

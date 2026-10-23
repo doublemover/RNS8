@@ -51,6 +51,9 @@ namespace {
 #include "test_hip_direct_epilogue_cases.inc"
 #include "test_hip_direct_narrow_cases.inc"
 #include "test_hip_direct_int4_cases.inc"
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+#include "native_variants.hpp"
+#endif
 #include "test_hip_direct_native_wmma_cases.inc"
 #include "test_hip_direct_native_queue_cases.inc"
 #include "test_hip_direct_bound_cases.inc"

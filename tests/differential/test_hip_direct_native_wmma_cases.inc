@@ -1,5 +1,5 @@
 template <typename NativeT>
-bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix) {
+bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix, bool generated = false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
@@ -34,8 +34,23 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   for (uint32_t group : {1u, 2u, 4u}) {
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
-    const auto status = hip_direct_gemm_native_wmma_grouped_device(
-        0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group, unsigned_inputs);
+    auto status = RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    if (generated) {
+      for (const auto& variant : rns8::generated::native_variants) {
+        if (variant.group == group && variant.unsigned_inputs == unsigned_inputs) {
+          INFO("generated variant " << variant.id);
+          REQUIRE(variant.launch(da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix) == 0);
+          status = RNS8_SUCCESS;
+        }
+      }
+      REQUIRE(status == RNS8_SUCCESS);
+    } else
+#else
+    (void)generated;
+#endif
+      status = hip_direct_gemm_native_wmma_grouped_device(
+          0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group, unsigned_inputs);
     REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), dc, actual.size()) == RNS8_SUCCESS);
     if (status == RNS8_UNSUPPORTED_BACKEND) {
       REQUIRE(std::all_of(actual.begin(), actual.end(), [](int8_t x) { return x == 99; }));
@@ -54,6 +69,18 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   CHECK(hip_direct_free(0, da) == RNS8_SUCCESS);
   return supported;
 }
+
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+TEST_CASE("generated native WMMA variants match Boost for every declared group and signedness") {
+  if (!hip_available()) SKIP("no HIP device for generated native variants");
+  for (const int k : {17, 65535, 65536, 65537})
+    for (const uint32_t prefix : {1u, 3u, 9u, 20u}) {
+      const int m = k < 32 ? 19 : 1, n = k < 32 ? 21 : 1;
+      REQUIRE(check_native_wmma_groups<int64_t>(false, m, n, k, prefix, true));
+      REQUIRE(check_native_wmma_groups<uint64_t>(true, m, n, k, prefix, true));
+    }
+}
+#endif
 
 TEST_CASE("native grouped WMMA preserves signedness planes tails and safe K slabs") {
   if (!hip_available()) SKIP("no HIP device for grouped native WMMA differential");

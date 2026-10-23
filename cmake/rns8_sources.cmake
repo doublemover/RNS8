@@ -113,6 +113,26 @@ if(RNS8_ENABLE_HIP)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
   unset(RNS8_HIP_SOURCE_DEPENDS)
+  if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    if(NOT RNS8_AMDGPU_TARGETS MATCHES "^gfx110[012]$")
+      message(FATAL_ERROR "Generated native WMMA requires one gfx1100/gfx1101/gfx1102 target")
+    endif()
+    set(RNS8_GENERATED_NATIVE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma")
+    set(_rns8_native_source "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hip")
+    add_custom_command(OUTPUT "${_rns8_native_source}" "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp"
+      BYPRODUCTS "${RNS8_GENERATED_NATIVE_DIR}/native_variants.json"
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_native_wmma.py"
+              --out-dir "${RNS8_GENERATED_NATIVE_DIR}" --target "${RNS8_AMDGPU_TARGETS}"
+      DEPENDS tools/generate_native_wmma.py tools/arithmetic_certificate.py tools/modulus_set_search.py
+              ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS}
+      VERBATIM)
+    set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
+    rns8_compile_hip_source(RNS8_GENERATED_NATIVE_OBJECT "${_rns8_native_source}")
+    unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
+    unset(RNS8_HIP_SOURCE_DEPENDS)
+    list(APPEND RNS8_SOURCES "${RNS8_GENERATED_NATIVE_OBJECT}")
+  endif()
   file(
     GLOB
     RNS8_WRAP64_HIP_KERNEL_DEPENDS
