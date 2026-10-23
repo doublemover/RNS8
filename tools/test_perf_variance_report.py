@@ -28,11 +28,19 @@ def _summary(values: list[float]) -> dict[str, float]:
 def capture_with_timings(values: list[float]) -> dict:
     capture = copy.deepcopy(load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json"))
     capture["execution_id"] = str(uuid.uuid4())
-    capture["build_manifest"] = {"fixture_only": True, "source_digest": "a" * 64}
+    capture["build_manifest"] = {"fixture_only": True, "version": 1, "source_digest": "a" * 64,
+                                 "source_commit": "c" * 40, "source_dirty": False,
+                                 "configuration": "synthetic fixture", "dependency_digest": "d" * 64}
     capture["artifact_capture"] = {"executable_sha256": "b" * 64, "unchanged_during_run": True,
                                    "rns8_linkage": "static"}
     capture["warmups"] = 3
     capture["repeats"] = len(values)
+    capture.setdefault("timing_metadata", {}).update({
+        "host_timing_contract_version": 2, "host_result_kind": "single_operation",
+        "clock_period_numerator": 1, "clock_period_denominator": 1000000000,
+        "timer_overhead_samples": 1001, "timer_pair_median_us": 0.02,
+        "timer_pair_p95_us": 0.04, "censor_threshold_us": 0.2,
+        "phase_states": {phase: "measured" for phase in PHASES}})
     raw = capture.setdefault("raw_timings_us", {})
     summary = capture.setdefault("timing_summary_us", {})
     for phase in PHASES:
@@ -141,6 +149,15 @@ def main() -> int:
         legacy_path = write_capture(tmp / "legacy.json", legacy)
         unqualified = perf_variance_report.build_report([legacy_path], min_repeats=3)
         assert "execution_identity_missing" in unqualified["entries"][0]["blockers"]
+        censored = capture_with_timings([100.0, 101.0, 99.0])
+        censored["timing_metadata"]["phase_states"]["end_to_end"] = "below_resolution"
+        censored_path = write_capture(tmp / "censored.json", censored)
+        assert "end_to_end_timing_not_measured" in perf_variance_report.build_report([censored_path], min_repeats=3)["entries"][0]["blockers"]
+        stale_id = json.loads(stable_a.read_text(encoding="utf-8"))
+        stale_id["command_line"] += " --fixture-altered"
+        stale_path = write_capture(tmp / "conflicting.json", stale_id)
+        conflict = perf_variance_report.build_report([stable_a, stale_path], min_repeats=3, require_multi_run=True)
+        assert all("conflicting_execution_identity" in entry["blockers"] for entry in conflict["entries"])
 
         single_report = perf_variance_report.build_report(
             [stable_a],

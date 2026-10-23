@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import statistics
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,16 +60,27 @@ def capture_digest(capture: dict[str, Any]) -> str:
 def execution_cohort(capture: dict[str, Any]) -> str | None:
     artifact = capture.get("artifact_capture") or {}
     manifest = capture.get("build_manifest") or {}
-    if (not manifest or len(str(artifact.get("executable_sha256", ""))) != 64
+    def sha256(value: Any) -> bool:
+        return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+    if (not isinstance(manifest, dict) or not isinstance(artifact, dict)
+            or manifest.get("version") != 1 or not sha256(manifest.get("source_digest"))
+            or not isinstance(manifest.get("source_dirty"), bool)
+            or not isinstance(manifest.get("source_commit"), str)
+            or re.fullmatch(r"[0-9a-f]{40}", manifest["source_commit"]) is None
+            or not manifest.get("configuration") or not manifest.get("dependency_digest")
+            or not sha256(artifact.get("executable_sha256"))
+            or artifact.get("rns8_linkage") not in {"static", "shared"}
+            or (artifact.get("rns8_linkage") == "shared" and not sha256(artifact.get("shared_library_sha256")))
             or artifact.get("unchanged_during_run") is not True):
         return None
     identity = {key: capture.get(key) for key in
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
-                 "device", "cpu_parallel", "clock_policy")}
+                 "device", "cpu_parallel", "clock_policy", "warmups")}
     timing = capture.get("timing_metadata") or {}
     identity["timing_contract"] = {key: timing.get(key) for key in
                                    ("host_timing_contract_version", "host_result_kind", "source", "source_scope",
-                                    "clock_period_numerator", "clock_period_denominator")}
+                                    "clock_period_numerator", "clock_period_denominator",
+                                    "inner_repetitions", "amortization_policy")}
     identity["artifact"] = {key: artifact.get(key) for key in
                             ("executable_sha256", "rns8_linkage", "shared_library_sha256")}
     return capture_digest(identity)
@@ -150,6 +162,14 @@ def _capture_entry(
         blockers.append("execution_identity_missing")
     if execution_cohort(capture) is None:
         blockers.append("execution_cohort_unqualified")
+    timing = capture.get("timing_metadata") or {}
+    if timing.get("host_timing_contract_version") != 2:
+        blockers.append("legacy_host_timing_unqualified")
+    elif (timing.get("phase_states") or {}).get("end_to_end") != "measured":
+        blockers.append("end_to_end_timing_not_measured")
+    elif any(value <= timing["censor_threshold_us"]
+             for value in capture.get("raw_timings_us", {}).get("end_to_end", [])):
+        blockers.append("end_to_end_samples_below_resolution")
     if median_us is None or median_us <= 0.0:
         blockers.append("missing_end_to_end_median")
     if sample_count < min_repeats:
