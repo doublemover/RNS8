@@ -634,3 +634,11 @@ byte-residue merges. Output commit is delayed until the final store. Queue
 hazard spans correctly account for offset K fragments. CPU boundary and Boost
 GPU fixtures compile in the VS2026/gfx1100 test executable; runtime qualification is pending.
 See [native split-K](native-split-k.md).
+
+The #31 native calibration executable now separates resident packing, prepacked
+GEMM, pack+GEMM, fused WMMA, persistent queues and native split-K under explicit
+input/output boundaries. Every sample has an independent Boost/reference check
+outside timing and retains per-stage HIP events. The VS2026/gfx1100 executable
+compiles; collection, ISA/counter evidence and qualification remain pending.
+An independent-process collector and mocked orchestration fixtures are authored;
+see [native calibration](native-calibration.md).
