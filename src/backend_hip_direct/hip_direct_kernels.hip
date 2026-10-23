@@ -209,9 +209,9 @@ extern "C" int rns8_hip_direct_lift_suffix_device(
 
 extern "C" int rns8_hip_gemm_rns_axpby(
     const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
-    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta, void* stream) {
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
-  hipLaunchKernelGGL(rns8_gemm_rns_axpby_kernel, dim3(blocks, prefix), dim3(256), 0, nullptr,
+  hipLaunchKernelGGL(rns8_gemm_rns_axpby_kernel, dim3(blocks, prefix), dim3(256), 0, static_cast<hipStream_t>(stream),
                     a, b, d, c, m, n, k, lda, ldb, ldd, ldc, alpha, beta);
   return static_cast<int>(hipGetLastError());
 }

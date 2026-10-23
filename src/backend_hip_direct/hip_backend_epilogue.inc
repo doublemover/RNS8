@@ -1,6 +1,6 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_gemm_rns_axpby(const int8_t*, const int8_t*, const int8_t*, int8_t*,
-                                     int, int, int, int, int, int, int, int, int64_t, int64_t);
+                                     int, int, int, int, int, int, int, int, int64_t, int64_t, void*);
 #endif
 
 rns8_status hip_direct_gemm_rns_axpby_device(
@@ -23,12 +23,31 @@ rns8_status hip_direct_gemm_rns_axpby_device(
     const auto launched = static_cast<hipError_t>(rns8_hip_gemm_rns_axpby(
         static_cast<const int8_t*>(a), static_cast<const int8_t*>(b), static_cast<const int8_t*>(d),
         static_cast<int8_t*>(c), static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
-        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldd), static_cast<int>(ldc), prefix, alpha, beta));
+        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldd), static_cast<int>(ldc), prefix, alpha, beta, nullptr));
     return launched == hipSuccess ? hipDeviceSynchronize() : launched;
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id; (void)alpha; (void)beta;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+// Internal enqueue-only route: caller owns validated storage, range admission,
+// device/stream selection, reservations and completion publication.
+rns8_status hip_direct_enqueue_axpby_no_publish(
+    const rns8_plan* plan, const rns8_matrix* a, const rns8_matrix* b,
+    const rns8_matrix* d, rns8_matrix* c, int64_t alpha, int64_t beta, void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto error = static_cast<hipError_t>(rns8_hip_gemm_rns_axpby(
+      static_cast<const int8_t*>(a->hip_residues), static_cast<const int8_t*>(b->hip_residues),
+      static_cast<const int8_t*>(d->hip_residues), static_cast<int8_t*>(c->hip_residues),
+      static_cast<int>(plan->desc.m), static_cast<int>(plan->desc.n), static_cast<int>(plan->desc.k),
+      static_cast<int>(a->desc.cols), static_cast<int>(b->desc.cols), static_cast<int>(d->desc.cols),
+      static_cast<int>(c->desc.cols), plan->prefix, alpha, beta, stream));
+  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)plan; (void)a; (void)b; (void)d; (void)c; (void)alpha; (void)beta; (void)stream;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

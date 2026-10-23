@@ -98,6 +98,11 @@ typedef struct rns8_completion_info {
   uint64_t c_generation;
   uint32_t completed;
   uint32_t output_is_current;
+  uint32_t has_exact_epilogue;
+  int64_t alpha;
+  int64_t beta;
+  uint64_t d_instance;
+  uint64_t d_generation;
 } rns8_completion_info;
 
 /* Prepared synchronous GEMM. Retains all handles until destroy: destroying a
@@ -111,6 +116,14 @@ typedef struct rns8_completion_info {
 RNS8_API rns8_status rns8_prepare_gemm(
     rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* a,
     const rns8_matrix* b, rns8_matrix* c, rns8_workspace* workspace,
+    rns8_prepared_execution** out);
+/* Bind the distinct-output exact-wide expression alpha*A*B + beta*D.
+ * Coefficients and D identity are retained through completion and HIP capture.
+ * D may alias A/B when shapes match; every distinct input is retained once. */
+RNS8_API rns8_status rns8_prepare_exact_axpby(
+    rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* a,
+    const rns8_matrix* b, const rns8_matrix* d, rns8_matrix* c,
+    int64_t alpha, int64_t beta, rns8_workspace* workspace,
     rns8_prepared_execution** out);
 RNS8_API rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* execution);
 RNS8_API rns8_status rns8_execute_prepared(

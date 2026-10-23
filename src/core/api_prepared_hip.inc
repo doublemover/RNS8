@@ -3,6 +3,7 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   --e.a->in_flight_readers;
   if (e.a != e.b)
     --e.b->in_flight_readers;
+  if (e.d && e.d != e.a && e.d != e.b) --e.d->in_flight_readers;
   e.c->in_flight_writer = false;
   e.workspace->in_flight = false;
   if (operation == RNS8_SUCCESS) {
@@ -19,6 +20,7 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   e.completion.c_instance = e.c->matrix_instance_id;
   e.completion.c_generation = e.c->content_generation;
   e.completion.completed = 1;
+  record_epilogue_completion(e);
   e.running = false;
   e.pending_stream = nullptr;
 }
@@ -94,7 +96,8 @@ static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
     if (!e->hip_submission_prepared)
       return RNS8_UNSUPPORTED_BACKEND;
     if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
-        e->b->in_flight_readers == UINT64_MAX)
+        e->b->in_flight_readers == UINT64_MAX ||
+        (e->d && e->d->in_flight_readers == UINT64_MAX))
       return RNS8_RANGE_ERROR;
     auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS)
@@ -104,7 +107,7 @@ static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
     boost::multiprecision::cpp_int bound;
     rns8_exact_matrix_ranges ranges;
     status =
-        rns8::detail::exact_gemm_range(*e->plan, *e->a, *e->b, bound, &ranges);
+        prepared_range(*e, bound, ranges);
     if (status != RNS8_SUCCESS)
       return status;
     if (!rns8::detail::qualified_i32_gemm_address(
@@ -114,7 +117,8 @@ static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     if (graph &&
         (!e->graph_executable || e->graph_a != e->a->hip_residues ||
-         e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues))
+         e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues ||
+         (e->d && e->graph_d != e->d->hip_residues)))
       return RNS8_UNSUPPORTED_BACKEND;
     if (hipSetDevice(e->ctx->device_id) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
@@ -135,6 +139,7 @@ static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
     ++e->a->in_flight_readers;
     if (e->a != e->b)
       ++e->b->in_flight_readers;
+    if (e->d && e->d != e->a && e->d != e->b) ++e->d->in_flight_readers;
     e->c->in_flight_writer = true;
     e->workspace->in_flight = true;
     e->running = true;
@@ -146,8 +151,7 @@ static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
                                 static_cast<hipStream_t>(stream)) == hipSuccess
                      ? RNS8_SUCCESS
                      : RNS8_BACKEND_FAILURE)
-              : rns8::detail::hip_direct_enqueue_rns_no_publish(
-                    e->plan, e->a, e->b, e->c, stream);
+              : enqueue_prepared(*e, stream);
     if (status == RNS8_SUCCESS &&
         hipEventRecord(e->completion_event.get(),
                        static_cast<hipStream_t>(stream)) != hipSuccess)
@@ -188,8 +192,7 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
     if (hipStreamBeginCapture(capture_stream.get(),
                               hipStreamCaptureModeThreadLocal) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    const auto body = rns8::detail::hip_direct_enqueue_rns_no_publish(
-        e->plan, e->a, e->b, e->c, capture_stream.get());
+    const auto body = enqueue_prepared(*e, capture_stream.get());
     hipGraph_t graph = nullptr;
     const auto end = hipStreamEndCapture(capture_stream.get(), &graph);
     if (body != RNS8_SUCCESS || end != hipSuccess) {
@@ -217,6 +220,7 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
     e->graph_a = e->a->hip_residues;
     e->graph_b = e->b->hip_residues;
     e->graph_c = e->c->hip_residues;
+    e->graph_d = e->d ? e->d->hip_residues : nullptr;
     return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;

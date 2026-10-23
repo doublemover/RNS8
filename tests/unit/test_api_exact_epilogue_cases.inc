@@ -49,6 +49,28 @@ TEST_CASE(
       for (const auto [alpha, beta] : coefficients) {
         REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, alpha, beta,
                                       workspace) == RNS8_SUCCESS);
+        rns8_prepared_execution* prepared = nullptr;
+        REQUIRE(rns8_prepare_exact_axpby(ctx, plan, a, b, d, c, alpha, beta, workspace, &prepared) == RNS8_SUCCESS);
+        REQUIRE(rns8_destroy_matrix(d) == RNS8_BUSY);
+        rns8_prepared_execution* conflicting = nullptr;
+        REQUIRE(rns8_prepare_gemm(ctx, plan, a, b, d, workspace, &conflicting) == RNS8_SUCCESS);
+        rns8_prepared_execution* members[]{prepared, conflicting};
+        rns8_prepared_group* rejected = nullptr;
+        REQUIRE(rns8_create_prepared_group(members, 2, &rejected) == RNS8_INVALID_ARGUMENT);
+        REQUIRE(rejected == nullptr);
+        REQUIRE(rns8_destroy_prepared_execution(conflicting) == RNS8_SUCCESS);
+        rns8_completion_token token{};
+        REQUIRE(rns8_execute_prepared(prepared, &token) == RNS8_SUCCESS);
+        rns8_completion_info completion{};
+        completion.struct_size = sizeof(completion); completion.abi_version = RNS8_ABI_VERSION;
+        REQUIRE(rns8_get_prepared_completion(prepared, token, &completion) == RNS8_SUCCESS);
+        REQUIRE(completion.has_exact_epilogue == 1);
+        REQUIRE(completion.alpha == alpha);
+        REQUIRE(completion.beta == beta);
+        REQUIRE(completion.d_instance == d->matrix_instance_id);
+        REQUIRE(completion.d_generation == d->content_generation);
+        REQUIRE(completion.output_is_current);
+        REQUIRE(rns8_destroy_prepared_execution(prepared) == RNS8_SUCCESS);
         uint64_t limbs[12]{};
         REQUIRE((signed_values
                      ? rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs,

@@ -126,3 +126,33 @@ returns the count of issued completion records. Earlier successful results
 remain available. Later token slots are untouched. This is an ordinary-launch
 baseline for #38, not a persistent matrix-engine queue, uploaded tile schedule
 or async submission.
+
+## Prepared exact epilogues
+
+`rns8_prepare_exact_axpby` binds the exact-wide integer expression
+`alpha*A*B + beta*D` to the same prepared execution lifecycle. Alpha and beta are
+immutable original integer coefficients; D's instance/generation participates
+in binding and refresh. Completion records expose the expression flag,
+coefficients and D identity explicitly. The unreleased completion record grew;
+callers must rebuild and supply its current struct size.
+
+The CPU/HIP synchronous routes call the ordinary range-admitted epilogue API.
+Explicit HIP submission and owned capture enqueue the fused epilogue on the
+requested stream without global synchronization or early publication. Replay
+checks D's captured device address as well as A/B/C. Each distinct A/B/D handle
+is retained and reserved exactly once; D may share A/B when descriptors match,
+but never C. Groups include D in cross-task read/write hazard detection.
+
+Original-coefficient whole-expression bounds are recomputed before submission.
+D mutation requires refresh even when beta is zero, preserving the bound
+workload identity. A captured expression cannot silently become ordinary GEMM
+or acquire different coefficients. Change the expression by preparing a new
+execution. Source-generated completion metadata does not qualify timing or
+cache equivalence by itself.
+
+Authored CPU/HIP differential cases cover extreme signed/unsigned coefficients,
+shared A/B/D lifetime counts, distinct addend reservations, stale D binding,
+stream and capture execution, and completion identities. Runtime qualification
+is pending. The ordinary async range-exhaustion fixture now uses a legal
+full-width plan and creates a wider-than-native A with an exact outer product
+before replay, rather than requesting an inadmissibly small initial basis.
