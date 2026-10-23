@@ -18,7 +18,8 @@ inline bool checked_address_domain(uint64_t rows, uint64_t cols, uint64_t ld,
                                    uint64_t element_bytes, uint64_t planes,
                                    uint64_t plane_stride, AddressDomain& out) {
   constexpr uint64_t limit = std::numeric_limits<std::size_t>::max();
-  if (!rows || !cols || ld < cols || !element_bytes || !planes) return false;
+  if (!rows || !cols || ld < cols || !element_bytes || !planes ||
+      rows > limit || cols > limit || ld > limit || element_bytes > limit) return false;
   if (rows - 1 > (limit - (cols - 1)) / ld) return false;
   uint64_t last = (rows - 1) * ld + cols - 1;
   if (!plane_stride) {

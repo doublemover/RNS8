@@ -45,6 +45,11 @@ rns8_status rns8_pack_i64(
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Reject unsupported source strides before scanning exact bounds or beginning
+    // a resident write transaction. Rejection must preserve the previous value.
+    if (hip_resident_rns_backend(ctx->backend) &&
+        !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, ld, 1, sizeof(*src)))
+      return RNS8_RANGE_ERROR;
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
@@ -148,6 +153,11 @@ rns8_status rns8_pack_u64(
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Reject unsupported source strides before scanning exact bounds or beginning
+    // a resident write transaction. Rejection must preserve the previous value.
+    if (hip_resident_rns_backend(ctx->backend) &&
+        !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, ld, 1, sizeof(*src)))
+      return RNS8_RANGE_ERROR;
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
@@ -280,6 +290,11 @@ rns8_status rns8_pack_finite_u8(
     if (ctx->backend != matrix->backend) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Reject unsupported source strides before scanning exact bounds or beginning
+    // a resident write transaction. Rejection must preserve the previous value.
+    if (hip_resident_rns_backend(ctx->backend) &&
+        !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, ld, 1, sizeof(*src)))
+      return RNS8_RANGE_ERROR;
     if (!uses_finite_storage(matrix->desc.semantics) ||
         !finite_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols)) {
       return RNS8_INVALID_ARGUMENT;

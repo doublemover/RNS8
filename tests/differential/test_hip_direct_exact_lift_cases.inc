@@ -1,3 +1,29 @@
+TEST_CASE("direct HIP rejects unsupported pack strides before touching prior values") {
+  if (!hip_available()) SKIP("no HIP device for source-stride qualification");
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  const int64_t signed_values[] = {1, -2, 3, -4};
+  const uint64_t unsigned_values[] = {1, 2, 3, 4};
+  for (const auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto desc = matrix_desc(2, 2, semantics, RNS8_BOUND_NONE);
+    desc.max_prefix = 4;
+    rns8_matrix* matrix = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+    const bool is_signed = semantics == RNS8_EXACT_WIDE_SIGNED;
+    REQUIRE((is_signed ? rns8_pack_i64(ctx, matrix, signed_values, 2, 1)
+                       : rns8_pack_u64(ctx, matrix, unsigned_values, 2, 1)) == RNS8_SUCCESS);
+    const auto generation = matrix->content_generation;
+    const auto bound = matrix->exact_max_magnitude;
+    CHECK((is_signed ? rns8_pack_i64(ctx, matrix, signed_values, INT32_MAX, 2)
+                     : rns8_pack_u64(ctx, matrix, unsigned_values, INT32_MAX, 2)) == RNS8_RANGE_ERROR);
+    CHECK(matrix->content_generation == generation);
+    CHECK(matrix->source_version == 1);
+    CHECK(matrix->exact_max_magnitude == bound);
+    CHECK(matrix->device_residues_current);
+    REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
 TEST_CASE("direct HIP exact base extension preserves every source prefix and signed representative") {
   if (!hip_available()) SKIP("no HIP device for exact base-extension qualification");
   using boost::multiprecision::cpp_int;
