@@ -1107,6 +1107,15 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
  * not alias any task input. Preflight errors preserve outputs; execution errors
  * may invalidate outputs, which must then be recomputed or repacked. No dynamic prefix growth is performed.
  */
+/* Exact-wide C = alpha*A*B + beta*D, with distinct C and current RNS inputs.
+ * CPU-reference/direct-HIP only. Unsigned semantics require nonnegative
+ * coefficients. A conservative complete-expression bound must fit the stored
+ * basis; rejection preserves C, execution failure invalidates C. */
+RNS8_API rns8_status rns8_gemm_exact_axpby(
+    rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* A,
+    const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
+    int64_t alpha, int64_t beta, rns8_workspace* workspace);
+
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,
     const rns8_plan* plan,

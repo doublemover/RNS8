@@ -513,3 +513,10 @@ three-limb exports with Boost verification outside each timed call. Its collecto
 records independent process UUIDs, compiled provenance, executable hashes and
 shuffled order. Missing ISA/resolution/counter evidence remains explicit and
 blocks promotion. This collection path is not yet compiled or executed.
+
+Both the CRT collection executable and HIP test executable compiled at
+`edee062`; collection and test execution remain pending. The #47 exact-wide
+public linear epilogue now admits the complete alpha*AB+beta*D bound before
+writes, rejects output aliases and publishes through the existing write guard.
+See [exact epilogues](exact-epilogues.md). CPU/HIP API fixtures are authored;
+compilation, execution and performance qualification of this addition are pending.
