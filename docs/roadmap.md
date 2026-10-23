@@ -499,3 +499,11 @@ tree with checked 192-bit arithmetic and immutable host-generated plans. See
 [balanced CRT](balanced-crt.md) for the exact intermediate bounds and remaining
 comparison gates. CPU and GPU differential fixtures are authored; compilation,
 execution, resource inspection and performance measurement remain pending.
+
+The balanced CRT HIP test executable compiled at `6682403`; runtime validation
+remains pending. The #31/#30 calibration bridge now preserves typed identity,
+raw run samples, missing/censored data and measured-versus-modeled counters.
+It exports same-environment rational planner rates only after independent-run,
+reference, ISA and uncertainty admission, and supplies held-out discrepancy
+checks. See [calibration](calibration.md). No hardware calibration constants
+have been produced or promoted; real microbenchmark collection remains open.

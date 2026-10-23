@@ -66,7 +66,7 @@ RNS8_CRT_HD inline Wide reduce(Wide a, Wide modulus) {
   Wide r;
   for (int i = bits(a) - 1; i >= 0; --i) {
     r = add(r, r);
-    r.limb[0] |= bit(a, i);
+    r.limb[0] |= static_cast<uint64_t>(bit(a, i));
     if (compare(r, modulus) >= 0)
       r = subtract(r, modulus);
   }
