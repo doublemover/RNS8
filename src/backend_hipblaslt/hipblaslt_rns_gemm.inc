@@ -19,7 +19,7 @@ rns8_status hipblaslt_gemm_rns_device(
     uint64_t a_source_version,
     uint64_t b_source_version) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 

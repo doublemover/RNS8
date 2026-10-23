@@ -425,7 +425,7 @@ rns8_status hip_direct_gemm_rns_tiled_device(
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, RNS8_MAX_SUPPORTED_PREFIX)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -541,7 +541,7 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     uint32_t active_prefix_count,
     uint64_t entry_count) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, RNS8_MAX_SUPPORTED_PREFIX)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 

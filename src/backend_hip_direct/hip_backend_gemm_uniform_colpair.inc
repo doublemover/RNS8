@@ -10,7 +10,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
     int64_t ldb,
     int64_t ldc) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -115,7 +115,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_labe
     int64_t ldb,
     int64_t ldc) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -180,7 +180,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_devic
     int64_t ldb,
     int64_t ldc) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -249,7 +249,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_devic
     int64_t ldb,
     int64_t ldc) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -318,7 +318,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device
     int64_t ldb,
     int64_t ldc) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 

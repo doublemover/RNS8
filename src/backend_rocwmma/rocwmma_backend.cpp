@@ -199,7 +199,7 @@ rns8_status rocwmma_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -255,7 +255,7 @@ rns8_status rocwmma_gemm_rns_tiled_device(
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, RNS8_MAX_SUPPORTED_PREFIX)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 

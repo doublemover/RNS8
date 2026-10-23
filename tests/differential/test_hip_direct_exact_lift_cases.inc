@@ -19,6 +19,11 @@ TEST_CASE("direct HIP rejects unsupported pack strides before touching prior val
     CHECK(matrix->source_version == 1);
     CHECK(matrix->exact_max_magnitude == bound);
     CHECK(matrix->device_residues_current);
+    // One plane fits signed indexing, but two planes do not. Rejection must
+    // precede any access to these deliberately tiny backing allocations.
+    CHECK(rns8::detail::hip_direct_gemm_rns_device(
+        0, matrix->hip_residues, matrix->hip_residues, matrix->hip_residues,
+        32767, 1, 65536, 65536, 1, 1, 2) == RNS8_UNSUPPORTED_BACKEND);
     REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
   }
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
