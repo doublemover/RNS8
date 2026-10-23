@@ -1,6 +1,11 @@
 """Independent positive and adversarial arithmetic-certificate checks."""
 from dataclasses import asdict, replace
 import json
+import math
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 
 from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify
 
@@ -14,6 +19,36 @@ def main() -> int:
         assert certificate_hash(from_json(json.loads(json.dumps(asdict(certificate))))) == certificate_hash(certificate)
     base = centered_int8(256, 131071)
     assert verify(base)["algebraically_verified"]
+    for value in (True, 1.0, math.nan, math.inf, -math.inf, "1", None):
+        for field in ("prior_min", "prior_max", "recombination_min", "recombination_max"):
+            malformed = replace(base, **{field: value})
+            result = verify(malformed)
+            assert not result["algebraically_verified"] and result["sha256"] is None
+            json.dumps(result, allow_nan=False)
+            try:
+                certificate_hash(malformed)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("malformed proof received a canonical identity")
+        for field in ("operand_min", "operand_max", "accumulator_min", "accumulator_max"):
+            malformed = replace(base, instruction=replace(base.instruction, **{field: value}))
+            assert not verify(malformed)["algebraically_verified"]
+    for instruction in (replace(base.instruction, exact_integer_products=1),
+                        replace(base.instruction, target=False),
+                        replace(base.instruction, measured_evidence_sha256="not-a-digest")):
+        assert not verify(replace(base, instruction=instruction))["algebraically_verified"]
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "certificate.json"
+        for value in (math.nan, math.inf, True, "1", None):
+            data = asdict(base)
+            data["instruction"]["accumulator_max"] = value
+            path.write_text(json.dumps(data), encoding="utf-8")
+            run = subprocess.run([sys.executable, str(Path(__file__).with_name("arithmetic_certificate.py")),
+                                  str(path)], capture_output=True, text=True, check=False)
+            assert run.returncode == 1, run.stderr
+            result = json.loads(run.stdout)
+            assert not result["algebraically_verified"] and result["sha256"] is None
     doubled = replace(base.planes[0], weight=2)
     assert verify(replace(base, planes=(doubled,), denominator=2))["algebraically_verified"]
     broken = [

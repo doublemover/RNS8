@@ -51,8 +51,44 @@ class ArithmeticCertificate:
     output_bound: int | None = None
 
 
+def _schema_failures(c: ArithmeticCertificate) -> list[str]:
+    if type(c) is not ArithmeticCertificate or type(c.instruction) is not InstructionContract:
+        return ["invalid_certificate_structure"]
+    i = c.instruction
+    integers = (c.modulus, c.denominator, c.safe_k, c.prior_min, c.prior_max,
+                c.recombination_min, c.recombination_max, i.operand_min,
+                i.operand_max, i.accumulator_min, i.accumulator_max)
+    failures = []
+    if any(type(x) is not int for x in integers):
+        failures.append("noninteger_proof_endpoint_or_parameter")
+    if type(i.exact_integer_products) is not bool:
+        failures.append("invalid_exactness_boolean")
+    if any(type(x) is not str or not x for x in (i.target, i.opcode, i.compiler, c.semantics)):
+        failures.append("invalid_proof_identity")
+    if type(i.flags) is not tuple or any(type(x) is not str or not x for x in i.flags):
+        failures.append("invalid_compiler_flags")
+    digest = i.measured_evidence_sha256
+    if digest is not None and (type(digest) is not str or len(digest) != 64
+                               or any(x not in "0123456789abcdef" for x in digest)):
+        failures.append("invalid_evidence_digest")
+    if (type(c.basis) is not tuple or any(type(x) is not int for x in c.basis)
+            or type(i.operand_alphabet) is not tuple
+            or any(type(x) is not int for x in i.operand_alphabet)):
+        failures.append("invalid_integer_alphabet_or_basis")
+    if c.output_bound is not None and type(c.output_bound) is not int:
+        failures.append("noninteger_output_bound")
+    if type(c.planes) is not tuple or any(
+            type(p) is not ProductPlane or type(p.lhs) is not tuple or type(p.rhs) is not tuple
+            or type(p.weight) is not int or any(type(x) is not int for x in p.lhs + p.rhs)
+            for p in c.planes):
+        failures.append("invalid_product_plane_structure")
+    return failures
+
+
 def certificate_hash(certificate: ArithmeticCertificate) -> str:
-    payload = json.dumps(asdict(certificate), sort_keys=True, separators=(",", ":"))
+    if _schema_failures(certificate):
+        raise ValueError("cannot hash a malformed arithmetic certificate")
+    payload = json.dumps(asdict(certificate), sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -62,6 +98,9 @@ def _product_interval(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int]
 
 
 def verify(c: ArithmeticCertificate) -> dict:
+    malformed = _schema_failures(c)
+    if malformed:
+        return _result(c, malformed, [], malformed=True)
     failures: list[str] = []
     instruction = c.instruction
     if type(c.modulus) is not int or not 2 <= c.modulus <= 256:
@@ -144,13 +183,13 @@ def verify(c: ArithmeticCertificate) -> dict:
     return _result(c, failures, intervals)
 
 
-def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict]) -> dict:
-    return {"schema": "rns8_arithmetic_certificate_v1", "sha256": certificate_hash(c),
+def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict], malformed: bool = False) -> dict:
+    return {"schema": "rns8_arithmetic_certificate_v1", "sha256": None if malformed else certificate_hash(c),
             "algebraically_verified": not failures, "proof_failures": sorted(set(failures)),
             "intervals": intervals, "simulator_verified": False,
             # An evidence string is a reference, not permission to self-certify.
             "instruction_measured": False, "end_to_end_qualified": False,
-            "runtime_dispatch_eligible": False, "certificate": asdict(c)}
+            "runtime_dispatch_eligible": False, "certificate": None if malformed else asdict(c)}
 
 
 def centered_int8(modulus: int, safe_k: int = 65536) -> ArithmeticCertificate:
@@ -177,13 +216,20 @@ def main() -> int:
     parser.add_argument("certificate", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    data = json.loads(args.certificate.read_text(encoding="utf-8"))
-    if data.get("schema") == "rns8_arithmetic_composition_v1":
-        from arithmetic_composition import Node, verify_composition
-        result = verify_composition(tuple(Node(**node) for node in data["nodes"]))
-    else:
-        result = verify(from_json(data))
-    text = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    def reject_constant(value):
+        raise ValueError(f"non-finite JSON constant: {value}")
+    try:
+        data = json.loads(args.certificate.read_text(encoding="utf-8"), parse_constant=reject_constant)
+        if data.get("schema") == "rns8_arithmetic_composition_v1":
+            from arithmetic_composition import Node, verify_composition
+            result = verify_composition(tuple(Node(**node) for node in data["nodes"]))
+        else:
+            result = verify(from_json(data))
+        text = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    except (ValueError, TypeError, KeyError, AttributeError) as error:
+        result = {"algebraically_verified": False, "runtime_dispatch_eligible": False,
+                  "sha256": None, "proof_failures": ["invalid_certificate_input"], "error": str(error)}
+        text = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if args.output:
         args.output.write_text(text, encoding="utf-8")
     else:
