@@ -599,3 +599,10 @@ and Boost differential fixtures cover tails, group prefixes and K=65537. The
 VS2026/gfx1100 HIP test executable compiles with this addition; runtime tests,
 ISA/resource evidence and scheduling measurements remain pending. Public
 prepared groups remain sequential; see [queue contract](persistent-native-queue.md).
+
+The #32 [joint scheme oracle](joint-scheme-search.md) now enumerates bounded
+basis/form/order/group/slab combinations with separate dot and epilogue caps,
+resource/format compatibility and exact final range admission. Its authored
+independent brute-force oracle includes a staged-search lost-optimum witness.
+The declared objective uses supplied synthetic/calibrated costs; no measured
+hardware optimum or runtime basis change is claimed. Runtime tests remain pending.

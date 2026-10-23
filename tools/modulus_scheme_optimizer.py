@@ -29,7 +29,8 @@ class Form:
 
 
 def optimize(forms: list[Form], bound: int, signed: bool, k: int, max_nodes: int = 1000000) -> dict:
-    if type(bound) is not int or bound < 0 or type(k) is not int or k <= 0 or max_nodes < 1:
+    if (type(bound) is not int or bound < 0 or type(k) is not int or k <= 0
+            or type(signed) is not bool or type(max_nodes) is not int or max_nodes < 1):
         raise ValueError("invalid exact output bound, K or search budget")
     if not forms or len(forms) > 24:
         raise ValueError("search domain must contain 1..24 explicitly supplied forms")
@@ -103,9 +104,15 @@ def main() -> int:
     args = parser.parse_args()
     request = json.loads(args.input.read_text(encoding="utf-8"))
     forms = [Form(certificate=from_json(item["certificate"]), **item["costs"]) for item in request["forms"]]
-    result = optimize(forms, request["bound"], request["signed"], request["k"], request.get("max_nodes", 1000000))
+    if "joint_schedule" in request:
+        from joint_scheme_optimizer import ScheduledForm, joint_optimize
+        scheduled = [ScheduledForm(form, **item["resources"]) for form, item in zip(forms, request["forms"])]
+        result = joint_optimize(scheduled, request["bound"], request["signed"], request["k"],
+                                max_nodes=request.get("max_nodes", 1000000), **request["joint_schedule"])
+    else:
+        result = optimize(forms, request["bound"], request["signed"], request["k"], request.get("max_nodes", 1000000))
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return 0 if result["feasible"] else 1
+    return 0 if result.get("feasible", result.get("best") is not None) else 1
 
 
 if __name__ == "__main__":
