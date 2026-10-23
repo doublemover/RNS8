@@ -11,8 +11,15 @@
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/ragged_residues.hpp"
 #include "backend_common/block_sparse.hpp"
+#include "backend_common/integrity_identity.hpp"
 
 namespace rns8::detail {
+// Read-only private sentinel. Failure bits: 1 malformed residue, 2 bound,
+// 4 check-257, 8 check-263. Successful checks do not prove arbitrary correctness.
+rns8_status hip_direct_check_native_product_integrity(
+    int device_id,const void* a,const void* b,const void* candidate,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,bool unsigned_inputs,const uint64_t bound[3],
+    const IntegrityIdentity& expected,const IntegrityIdentity& candidate_identity,uint32_t& failures);
 // Private one-level modular Strassen. Caller owns integer range admission and
 // invalidation after a failed final commit; earlier failures preserve C.
 rns8_status hip_direct_gemm_strassen_device(

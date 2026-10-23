@@ -527,3 +527,11 @@ Strassen transforms, existing direct-HIP subproducts and staged recombination,
 with scratch reuse and compile-time coefficient verification. See
 [device Strassen](strassen-device.md) for width/lifetime bounds and remaining
 retirement gates. This addition is not yet compiled or executed.
+
+The one-level Strassen HIP test executable compiled at `8c5d00f`; runtime
+validation remains pending. The #49 private device sentinel now compares
+independently recomputed native-input checks modulo 257/263 with a range-admitted
+candidate reconstruction. Identity mismatch and failed integrity are explicit;
+an authored undetectable-error fixture preserves the stated coverage boundary.
+See [device integrity](device-integrity.md). Public commit/cache integration,
+compilation, execution and overhead qualification remain pending.

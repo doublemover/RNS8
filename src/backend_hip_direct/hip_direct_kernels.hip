@@ -53,6 +53,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_balanced_crt_kernels.cuh"
 #include "hip_direct_strassen_kernels.cuh"
+#include "hip_direct_integrity_kernels.cuh"
 #include "hip_direct_int4_kernels.cuh"
 #include "hip_direct_native_wmma_kernels.cuh"
 #include "hip_direct_bound_kernels.cuh"
@@ -60,6 +61,20 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_integrity_check(const void* a,const void* b,const int8_t* candidate,
+    int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures) {
+  const dim3 grid((static_cast<uint64_t>(m)*n+255)/256);
+  const rns8_u192_device wide_bound{bound[0],bound[1],bound[2]};
+  if(unsigned_inputs) {
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<uint64_t>),grid,dim3(256),0,nullptr,
+        static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),candidate,m,n,k,lda,ldb,prefix,false,wide_bound,failures);
+  } else {
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<int64_t>),grid,dim3(256),0,nullptr,
+        static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),candidate,m,n,k,lda,ldb,prefix,true,wide_bound,failures);
+  }
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
     int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs) {
