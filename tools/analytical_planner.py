@@ -41,7 +41,7 @@ def predict(stages: tuple[Stage, ...], rates: dict[str, Rate], certificate: Arit
     proof = verify(certificate)
     if not proof["algebraically_verified"]:
         raise ValueError(f"arithmetic obligations failed: {proof['proof_failures']}")
-    if not target or workspace_budget < 0:
+    if type(target) is not str or not target or type(workspace_budget) is not int or workspace_budget < 0:
         raise ValueError("target and nonnegative workspace budget are required")
     names = {stage.name for stage in stages}
     if not stages or len(names) != len(stages) or "" in names:
@@ -52,14 +52,17 @@ def predict(stages: tuple[Stage, ...], rates: dict[str, Rate], certificate: Arit
             raise ValueError("stage requires a concrete symbol and unique resources")
         if not set(stage.dependencies) <= names or stage.name in stage.dependencies:
             raise ValueError("unknown or self dependency")
-        if (stage.launch_ns < 0 or stage.tiles <= 0 or stage.resident_tiles <= 0 or stage.bytes_allocated < 0
+        if (any(type(value) is not int for value in (stage.launch_ns, stage.tiles, stage.resident_tiles, stage.bytes_allocated))
+                or type(stage.retain_output) is not bool
+                or stage.launch_ns < 0 or stage.tiles <= 0 or stage.resident_tiles <= 0 or stage.bytes_allocated < 0
                 or len({kind for kind, _ in stage.work}) != len(stage.work)):
             raise ValueError("invalid work/resource descriptor")
         for kind, count in stage.work:
             rate = rates.get(kind)
             if type(count) is not int or count < 0 or rate is None:
                 raise ValueError(f"missing or invalid calibrated work term: {kind}")
-            if (not rate.cohort or not rate.unit or rate.lower_units_per_ns <= 0
+            if (type(rate.lower_units_per_ns) is not Fraction or type(rate.upper_units_per_ns) is not Fraction
+                    or not rate.cohort or not rate.unit or rate.lower_units_per_ns <= 0
                     or rate.upper_units_per_ns < rate.lower_units_per_ns):
                 raise ValueError(f"invalid calibrated rate: {kind}")
             cohorts.add(rate.cohort)
