@@ -467,3 +467,21 @@ exhaustion before writes. See [resident graphs](resident-graphs.md) for supporte
 uniform-storage contracts. Allocation/liveness optimization, explicit extension
 and conversion nodes, ragged consumers and cost-based planning remain open.
 Compilation and runtime validation of this slice are pending.
+
+Both CPU and gfx1100 HIP test executables compiled at `3bc864b`, including the
+prepared APIs and resident DAG. These are compilation checkpoints only.
+
+The #40/#41 adapter now includes a compact ragged directory carrying each tile's
+prefix, byte offset, exact magnitude bound, basis/version and logical value
+instance/generation. CPU and HIP materializers reconstruct the unique signed or
+unsigned value before filling missing planes into a uniform modulus-major or
+tile-major destination. A suffix is never treated as zero. Destination prefixes
+must independently retain uniqueness; insufficient target range, stale identity,
+malformed directories/residues and violated bounds reject publication.
+The GPU route stages output plus preserved padding and reports whether the final
+commit began, so its future public owner can invalidate after a failed copy.
+Authored fixtures include neighboring prefixes 1/2/9/3/12/20, different destination
+tiling, values through 140 bits and a following GEMM crossing source tile bounds.
+Private callers still own proof/generation binding; public ragged matrix
+ownership and DAG scheduling integration are pending. Compilation and execution
+of this addition remain pending.

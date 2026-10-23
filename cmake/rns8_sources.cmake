@@ -31,6 +31,7 @@ set(RNS8_SOURCES
   src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
   src/reconstruct/crt.cpp
+  src/reconstruct/ragged_residues.cpp
   src/backend_hip_direct/hip_backend.cpp
   src/backend_hip_direct/hip_grouped_descriptor.cpp
   src/backend_hip_direct/hip_timing.cpp

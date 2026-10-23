@@ -9,8 +9,15 @@
 #include "rns8/rns8.h"
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/native_tile_bound.hpp"
+#include "backend_common/ragged_residues.hpp"
 
 namespace rns8::detail {
+// Private exact ragged-to-uniform materialization. Caller owns generation/proof
+// binding and must invalidate destination on any failure after commit_started.
+rns8_status hip_direct_materialize_ragged_residues(
+    int device_id, const void* source, const RaggedResidueLayout& layout,
+    void* destination, const ResidueLayout& target, uint64_t instance, uint64_t generation,
+    uint64_t max_scratch_bytes, bool& commit_started);
 // Synchronous private discovery for fixed 16x16 output tiles. Caller allocates
 // ceil(m/16)*ceil(n/16) bounds/indices and 22 offsets. Bucket 0 is proven zero;
 // buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.

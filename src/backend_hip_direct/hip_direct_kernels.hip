@@ -10,6 +10,7 @@
 #include "../backend_common/direct_crt_constants.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
+#include "../backend_common/ragged_residues.hpp"
 
 namespace {
 
@@ -51,8 +52,18 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_int4_kernels.cuh"
 #include "hip_direct_native_wmma_kernels.cuh"
 #include "hip_direct_bound_kernels.cuh"
+#include "hip_direct_ragged_kernels.cuh"
 
 }  // namespace
+
+extern "C" int rns8_hip_materialize_ragged(
+    const int8_t* source, const rns8::detail::RaggedResidueTile* tiles,
+    int tile_rows, int tile_cols, int grid_cols, bool signed_value,
+    int8_t* destination, rns8::detail::ResidueLayout target, int* status) {
+  hipLaunchKernelGGL(rns8_materialize_ragged_kernel, dim3((target.rows * target.cols + 255) / 256),
+      dim3(256), 0, nullptr, source, tiles, tile_rows, tile_cols, grid_cols, signed_value, destination, target, status);
+  return static_cast<int>(hipGetLastError());
+}
 
 extern "C" int rns8_hip_int4_capability(int* supported) {
   hipLaunchKernelGGL(rns8_int4_capability_kernel, dim3(1), dim3(1), 0, nullptr, supported);

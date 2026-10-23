@@ -17,6 +17,7 @@
 #include "core/internal.hpp"
 #include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
+#include "../support/ragged_fixture.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -52,5 +53,6 @@ namespace {
 #include "test_hip_direct_int4_cases.inc"
 #include "test_hip_direct_native_wmma_cases.inc"
 #include "test_hip_direct_bound_cases.inc"
+#include "test_hip_direct_ragged_cases.inc"
 #include "test_hip_direct_layout_cases.inc"
 #include "test_hip_direct_direct_crt_cases.inc"
