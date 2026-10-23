@@ -123,7 +123,7 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
 
 rns8_status hip_direct_lift_exact_suffix(
     int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
-    bool signed_value, const uint64_t* bound, bool& commit_started);
+    bool signed_value, const uint64_t* bound, bool& commit_started, bool mixed_radix = false);
 
 
 struct hip_direct_timing_sample {

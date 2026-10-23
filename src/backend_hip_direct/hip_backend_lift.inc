@@ -1,6 +1,6 @@
 rns8_status hip_direct_lift_exact_suffix(
     int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
-    bool signed_value, const uint64_t* bound, bool& commit_started) {
+    bool signed_value, const uint64_t* bound, bool& commit_started, bool mixed_radix) {
   commit_started = false;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!residues || !bound || cells <= 0 || cells > INT32_MAX - 256 || source_prefix == 0 ||
@@ -15,11 +15,11 @@ rns8_status hip_direct_lift_exact_suffix(
   if (status != RNS8_SUCCESS) return status;
   int host_status = 0;
   if (hipMemset(device_status.get(), 0, sizeof(int)) != hipSuccess) return RNS8_BACKEND_FAILURE;
-  const auto error = timed_hip_operation("exact_lift_suffix_kernel", [&]() {
+  const auto error = timed_hip_operation(mixed_radix ? "exact_lift_mixed_radix_suffix_kernel" : "exact_lift_suffix_kernel", [&]() {
     const int code = rns8_hip_direct_lift_suffix_device(
         static_cast<const int8_t*>(residues), static_cast<int8_t*>(suffix.get()), static_cast<int>(cells),
         static_cast<int>(source_prefix), static_cast<int>(target_prefix), signed_value,
-        bound[0], bound[1], bound[2], static_cast<int*>(device_status.get()));
+        bound[0], bound[1], bound[2], static_cast<int*>(device_status.get()), mixed_radix);
     return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
   });
   if (error != hipSuccess || hipMemcpy(&host_status, device_status.get(), sizeof(int), hipMemcpyDeviceToHost) != hipSuccess)
@@ -30,7 +30,7 @@ rns8_status hip_direct_lift_exact_suffix(
   return hip_direct_copy_device_to_device(device_id, destination, suffix.get(), bytes);
 #else
   (void)device_id; (void)residues; (void)cells; (void)source_prefix; (void)target_prefix;
-  (void)signed_value; (void)bound;
+  (void)signed_value; (void)bound; (void)mixed_radix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

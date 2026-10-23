@@ -4,6 +4,38 @@
 #include <catch2/catch_test_macros.hpp>
 #include <random>
 #include "backend_common/native_narrow.hpp"
+#include "backend_common/mixed_radix_lift.hpp"
+
+TEST_CASE("mixed radix lift subtracts the complete source product for negatives") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  const auto& moduli = garner::kConstants.moduli;
+  cpp_int product = 1;
+  for (uint32_t count = 1; count < 20; ++count) {
+    product *= moduli[count - 1];
+    const std::vector<cpp_int> values{0, 1, product - 1, (product - 1) / 2, product / 2 + 1};
+    for (const auto& canonical : values) {
+      uint32_t digits[20]{};
+      cpp_int remaining = canonical;
+      for (uint32_t i = 0; i < count; ++i) {
+        digits[i] = static_cast<uint32_t>(remaining % moduli[i]);
+        remaining /= moduli[i];
+      }
+      REQUIRE(remaining == 0);
+      for (bool negative : {false, true}) for (uint32_t p = count; p < 20; ++p) {
+        const cpp_int value = negative ? cpp_int(canonical - product) : canonical;
+        cpp_int expected = value % moduli[p];
+        if (expected < 0) expected += moduli[p];
+        REQUIRE(mixed_radix_lift_residue(digits, moduli, count, moduli[p], negative) == expected);
+      }
+    }
+  }
+  // X=P-1 represents -1: reducing X alone is a different residue for every
+  // coprime suffix modulus and must not be accepted as signed extension.
+  const uint32_t digits[]{255}, base[]{256};
+  REQUIRE(mixed_radix_lift_residue(digits, base, 1, 255, false) == 0);
+  REQUIRE(mixed_radix_lift_residue(digits, base, 1, 255, true) == 254);
+}
 
 TEST_CASE("native partial sum admission agrees with arbitrary precision at caps") {
   using namespace rns8::detail;

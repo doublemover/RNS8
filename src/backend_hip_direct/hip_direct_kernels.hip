@@ -15,6 +15,7 @@
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
 #include "../backend_common/ragged_residues.hpp"
+#include "../backend_common/mixed_radix_lift.hpp"
 
 namespace {
 
@@ -226,13 +227,19 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
 
 extern "C" int rns8_hip_direct_lift_suffix_device(
     const int8_t* residues, int8_t* suffix, int cells, int source_prefix, int target_prefix,
-    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status) {
+    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix) {
   if (!residues || !suffix || !status || cells <= 0 || cells > kRns8MaxInt - 256 ||
       source_prefix <= 0 || target_prefix > kRns8MaxSupportedPrefix || source_prefix >= target_prefix)
     return static_cast<int>(hipErrorInvalidValue);
-  hipLaunchKernelGGL(rns8_exact_lift_suffix_kernel, dim3((cells + 255) / 256), dim3(256), 0, nullptr,
-                    residues, suffix, cells, source_prefix, target_prefix, signed_value,
-                    (rns8_u192_device{bound0, bound1, bound2}), status);
+  if (mixed_radix) {
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+                      residues, suffix, cells, source_prefix, target_prefix, signed_value,
+                      (rns8_u192_device{bound0, bound1, bound2}), status);
+  } else {
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+                      residues, suffix, cells, source_prefix, target_prefix, signed_value,
+                      (rns8_u192_device{bound0, bound1, bound2}), status);
+  }
   return static_cast<int>(hipGetLastError());
 }
 

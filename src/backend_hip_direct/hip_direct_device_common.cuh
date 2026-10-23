@@ -389,7 +389,8 @@ __device__ void rns8_reconstruct_canonical_wide_device(
     int elements,
     int prefix,
     rns8_u192_device* out_x,
-    rns8_u192_device* out_product) {
+    rns8_u192_device* out_product,
+    uint32_t* out_digits = nullptr) {
   rns8_u192_device x = rns8_u192_from_u64_device(0);
   rns8_u192_device product = rns8_u192_from_u64_device(1);
   for (int i = 0; i < prefix; ++i) {
@@ -408,6 +409,7 @@ __device__ void rns8_reconstruct_canonical_wide_device(
     delta_mod += static_cast<int64_t>(modulus) & -static_cast<int64_t>(delta_mod < 0);
     const uint32_t coefficient = static_cast<uint32_t>(
         (static_cast<uint64_t>(delta_mod) * static_cast<uint64_t>(inverse)) % static_cast<uint32_t>(modulus));
+    if (out_digits) out_digits[i] = coefficient;
     x = rns8_u192_add_device(x, rns8_u192_mul_u32_device(product, coefficient));
 #if defined(RNS8_EXPERIMENTAL_GARNER_TABLE) && RNS8_EXPERIMENTAL_GARNER_TABLE
     const auto* next = rns8_garner_table.products[i+1];
