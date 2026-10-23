@@ -94,8 +94,10 @@ rns8_status hipblaslt_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix,
     rns8_workspace* workspace_state,
-    uint64_t a_source_version,
-    uint64_t b_source_version);
+    uint64_t a_generation,
+    uint64_t b_generation,
+    uint64_t a_instance_id,
+    uint64_t b_instance_id);
 rns8_status hipblaslt_gemm_finite_u8_device(
     int device_id,
     void* handle,

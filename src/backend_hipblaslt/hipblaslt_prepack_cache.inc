@@ -32,7 +32,8 @@ rns8_status clear_a_prepack_cache(rns8_workspace& state) {
   }
   state.hipblaslt_a_prepack_cache = nullptr;
   state.hipblaslt_a_prepack_cache_bytes = 0;
-  state.hipblaslt_a_prepack_source_version = 0;
+  state.hipblaslt_a_prepack_generation = 0;
+  state.hipblaslt_a_prepack_instance_id = 0;
   state.hipblaslt_a_prepack_m = 0;
   state.hipblaslt_a_prepack_k = 0;
   state.hipblaslt_a_prepack_lda = 0;
@@ -49,7 +50,8 @@ rns8_status clear_b_prepack_cache(rns8_workspace& state) {
   }
   state.hipblaslt_b_prepack_cache = nullptr;
   state.hipblaslt_b_prepack_cache_bytes = 0;
-  state.hipblaslt_b_prepack_source_version = 0;
+  state.hipblaslt_b_prepack_generation = 0;
+  state.hipblaslt_b_prepack_instance_id = 0;
   state.hipblaslt_b_prepack_k = 0;
   state.hipblaslt_b_prepack_n = 0;
   state.hipblaslt_b_prepack_ldb = 0;
@@ -62,16 +64,19 @@ rns8_status clear_b_prepack_cache(rns8_workspace& state) {
 bool a_prepack_cache_matches(
     const rns8_workspace& state,
     int device_id,
-    uint64_t source_version,
+    uint64_t generation,
+    uint64_t instance_id,
     int64_t m,
     int64_t k,
     int64_t lda,
     uint32_t prefix,
     std::size_t total_bytes) {
-  return state.hipblaslt_a_prepack_current &&
+  return generation != 0 && instance_id != 0 &&
+         state.hipblaslt_a_prepack_instance_id == instance_id &&
+         state.hipblaslt_a_prepack_current &&
          state.hipblaslt_a_prepack_cache != nullptr &&
          state.hipblaslt_a_prepack_cache_bytes == total_bytes &&
-         state.hipblaslt_a_prepack_source_version == source_version &&
+         state.hipblaslt_a_prepack_generation == generation &&
          state.hipblaslt_a_prepack_m == m &&
          state.hipblaslt_a_prepack_k == k &&
          state.hipblaslt_a_prepack_lda == lda &&
@@ -82,16 +87,19 @@ bool a_prepack_cache_matches(
 bool b_prepack_cache_matches(
     const rns8_workspace& state,
     int device_id,
-    uint64_t source_version,
+    uint64_t generation,
+    uint64_t instance_id,
     int64_t k,
     int64_t n,
     int64_t ldb,
     uint32_t prefix,
     std::size_t total_bytes) {
-  return state.hipblaslt_b_prepack_current &&
+  return generation != 0 && instance_id != 0 &&
+         state.hipblaslt_b_prepack_instance_id == instance_id &&
+         state.hipblaslt_b_prepack_current &&
          state.hipblaslt_b_prepack_cache != nullptr &&
          state.hipblaslt_b_prepack_cache_bytes == total_bytes &&
-         state.hipblaslt_b_prepack_source_version == source_version &&
+         state.hipblaslt_b_prepack_generation == generation &&
          state.hipblaslt_b_prepack_k == k &&
          state.hipblaslt_b_prepack_n == n &&
          state.hipblaslt_b_prepack_ldb == ldb &&
@@ -103,7 +111,8 @@ rns8_status ensure_a_prepack_cache(
     int device_id,
     const int8_t* a_base,
     rns8_workspace& state,
-    uint64_t source_version,
+    uint64_t generation,
+    uint64_t instance_id,
     int64_t m,
     int64_t k,
     int64_t lda,
@@ -117,7 +126,7 @@ rns8_status ensure_a_prepack_cache(
     return RNS8_RANGE_ERROR;
   }
   const std::size_t total_bytes = plane_bytes * static_cast<std::size_t>(prefix);
-  if (a_prepack_cache_matches(state, device_id, source_version, m, k, lda, prefix, total_bytes)) {
+  if (a_prepack_cache_matches(state, device_id, generation, instance_id, m, k, lda, prefix, total_bytes)) {
     return RNS8_SUCCESS;
   }
   state.hipblaslt_a_prepack_current = false;
@@ -159,7 +168,8 @@ rns8_status ensure_a_prepack_cache(
     }
   }
 
-  state.hipblaslt_a_prepack_source_version = source_version;
+  state.hipblaslt_a_prepack_generation = generation;
+  state.hipblaslt_a_prepack_instance_id = instance_id;
   state.hipblaslt_a_prepack_m = m;
   state.hipblaslt_a_prepack_k = k;
   state.hipblaslt_a_prepack_lda = lda;
@@ -173,7 +183,8 @@ rns8_status ensure_b_prepack_cache(
     int device_id,
     const int8_t* b_base,
     rns8_workspace& state,
-    uint64_t source_version,
+    uint64_t generation,
+    uint64_t instance_id,
     int64_t k,
     int64_t n,
     int64_t ldb,
@@ -187,7 +198,7 @@ rns8_status ensure_b_prepack_cache(
     return RNS8_RANGE_ERROR;
   }
   const std::size_t total_bytes = plane_bytes * static_cast<std::size_t>(prefix);
-  if (b_prepack_cache_matches(state, device_id, source_version, k, n, ldb, prefix, total_bytes)) {
+  if (b_prepack_cache_matches(state, device_id, generation, instance_id, k, n, ldb, prefix, total_bytes)) {
     return RNS8_SUCCESS;
   }
   state.hipblaslt_b_prepack_current = false;
@@ -229,7 +240,8 @@ rns8_status ensure_b_prepack_cache(
     }
   }
 
-  state.hipblaslt_b_prepack_source_version = source_version;
+  state.hipblaslt_b_prepack_generation = generation;
+  state.hipblaslt_b_prepack_instance_id = instance_id;
   state.hipblaslt_b_prepack_k = k;
   state.hipblaslt_b_prepack_n = n;
   state.hipblaslt_b_prepack_ldb = ldb;

@@ -96,3 +96,11 @@ contracts genuinely match.
 `metadata/*.yaml` are JSON-compatible registry files. Generate Python/C++
 constants with `python tools/metadata_registry.py --write-generated` and check
 with `--check`. Registration is metadata validation, not an execution proof.
+
+hipBLASLt workspace operand packs bind the stable matrix instance ID and its
+engine-owned content generation, together with shape, prefix and device. Caller
+source labels and generation equality across distinct handles never authorize
+reuse. Zero or exhausted generations force repacking while retaining allocated
+scratch capacity. Exact-wide chains and same-generation operand swaps cover this
+contract in the optional-backend differentials.
+

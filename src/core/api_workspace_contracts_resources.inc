@@ -167,7 +167,8 @@ void reset_workspace_active_schedule_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_a_prepack_current = false;
-  workspace.hipblaslt_a_prepack_source_version = 0;
+  workspace.hipblaslt_a_prepack_generation = 0;
+  workspace.hipblaslt_a_prepack_instance_id = 0;
   workspace.hipblaslt_a_prepack_m = 0;
   workspace.hipblaslt_a_prepack_k = 0;
   workspace.hipblaslt_a_prepack_lda = 0;
@@ -177,7 +178,8 @@ void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_b_prepack_current = false;
-  workspace.hipblaslt_b_prepack_source_version = 0;
+  workspace.hipblaslt_b_prepack_generation = 0;
+  workspace.hipblaslt_b_prepack_instance_id = 0;
   workspace.hipblaslt_b_prepack_k = 0;
   workspace.hipblaslt_b_prepack_n = 0;
   workspace.hipblaslt_b_prepack_ldb = 0;

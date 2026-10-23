@@ -1016,7 +1016,9 @@ rns8_status rns8_gemm_rns(
           plan->prefix,
           workspace,
           A->generation_exhausted ? 0 : A->content_generation,
-          B->generation_exhausted ? 0 : B->content_generation);
+          B->generation_exhausted ? 0 : B->content_generation,
+          A->matrix_instance_id,
+          B->matrix_instance_id);
       if (status != RNS8_SUCCESS) {
         return status;
       }

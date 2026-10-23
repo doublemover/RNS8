@@ -257,7 +257,8 @@ struct rns8_workspace {
   std::size_t hipblaslt_workspace_bytes = 0;
   void* hipblaslt_a_prepack_cache = nullptr;
   std::size_t hipblaslt_a_prepack_cache_bytes = 0;
-  uint64_t hipblaslt_a_prepack_source_version = 0;
+  uint64_t hipblaslt_a_prepack_generation = 0;
+  uint64_t hipblaslt_a_prepack_instance_id = 0;
   int64_t hipblaslt_a_prepack_m = 0;
   int64_t hipblaslt_a_prepack_k = 0;
   int64_t hipblaslt_a_prepack_lda = 0;
@@ -266,7 +267,8 @@ struct rns8_workspace {
   bool hipblaslt_a_prepack_current = false;
   void* hipblaslt_b_prepack_cache = nullptr;
   std::size_t hipblaslt_b_prepack_cache_bytes = 0;
-  uint64_t hipblaslt_b_prepack_source_version = 0;
+  uint64_t hipblaslt_b_prepack_generation = 0;
+  uint64_t hipblaslt_b_prepack_instance_id = 0;
   int64_t hipblaslt_b_prepack_k = 0;
   int64_t hipblaslt_b_prepack_n = 0;
   int64_t hipblaslt_b_prepack_ldb = 0;
