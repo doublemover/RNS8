@@ -1,9 +1,45 @@
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/direct_crt_constants.hpp"
 #include "backend_common/strassen_program.hpp"
+#include "backend_common/rank23_reference.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <random>
+
+TEST_CASE("rank23 exact coefficients reject every single coefficient mutation") {
+  using namespace rns8::detail::rank23;
+  REQUIRE(verified(program()));
+  for (int p = 0; p < 23; ++p) for (int term = 0; term < 9; ++term) {
+    auto changed = program(); ++changed.products[p].a[term]; REQUIRE_FALSE(verified(changed));
+    changed = program(); ++changed.products[p].b[term]; REQUIRE_FALSE(verified(changed));
+    changed = program(); ++changed.products[p].c[term]; REQUIRE_FALSE(verified(changed));
+  }
+}
+
+TEST_CASE("rank23 scalar prototype preserves every byte modulus including composite rings") {
+  using boost::multiprecision::cpp_int;
+  using namespace rns8::detail::rank23;
+  std::mt19937 random(4823);
+  for (uint32_t modulus = 2; modulus <= 256; ++modulus) for (int sample = 0; sample < 24; ++sample) {
+    int8_t a[9]{}, b[9]{}, actual[9]{};
+    for (int i = 0; i < 9; ++i) {
+      a[i] = static_cast<int8_t>(sample == 0 ? -128 : sample == 1 ? 127 : int(random() % 256) - 128);
+      b[i] = static_cast<int8_t>(sample < 2 ? (i % 2 ? -128 : 127) : int(random() % 256) - 128);
+    }
+    REQUIRE(multiply3x3_modular(a, b, actual, modulus));
+    for (int row = 0; row < 3; ++row) for (int col = 0; col < 3; ++col) {
+      cpp_int expected = 0;
+      for (int q = 0; q < 3; ++q) expected += cpp_int(a[row * 3 + q]) * b[q * 3 + col];
+      expected %= modulus;
+      if (expected < 0) expected += modulus;
+      if (expected >= (modulus + 1) / 2) expected -= modulus;
+      REQUIRE(cpp_int(actual[row * 3 + col]) == expected);
+    }
+  }
+  int8_t zero[9]{}, untouched[9]{1,2,3,4,5,6,7,8,9};
+  REQUIRE_FALSE(multiply3x3_modular(zero, zero, untouched, 257));
+  for (int i = 0; i < 9; ++i) REQUIRE(untouched[i] == i + 1);
+}
 
 TEST_CASE("Strassen coefficient identity rejects mutations") {
   using namespace rns8::detail::strassen;

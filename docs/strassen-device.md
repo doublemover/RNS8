@@ -25,13 +25,14 @@ are rejected before execution.
 
 Transform-pair, underlying GEMM, recombination and commit event labels remain
 separate. This baseline has repeated launches and synchronizations; fewer
-algebraic products are not a measured speedup. No recursion, automatic routing,
-or rank-23 construction is enabled. The existing 32-bit device address admission
+algebraic products are not a measured speedup. No recursion or automatic routing
+is enabled. The explicit [rank-23 candidate](rank23-device.md) now shares this
+bounded transform/recombination scheduler. The existing 32-bit device address admission
 still limits supported shapes and prefixes.
 
 Authored GPU fixtures use a Boost classical reference over prefixes 1/3/9/20,
 signed extrema, odd output/K tails, K=131073 crossing a transformed GEMM slab,
-padding canaries and budget rejection. Compilation and execution are pending.
+padding canaries and budget rejection. Both candidates compile; execution is pending.
 Grouped/persistent subproducts, matrix-engine comparisons, final integer export
 qualification and the specification's >=1.15x at N>=16384 with <=2.2x memory
 gate remain open under #48. Failure to meet those gates retains classical routing.

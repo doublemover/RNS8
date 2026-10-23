@@ -11,6 +11,7 @@
 #include "../backend_common/direct_crt_constants.hpp"
 #include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
+#include "../backend_common/rank23_program.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
@@ -114,14 +115,26 @@ extern "C" int rns8_hip_split_k_canonicalize(uint8_t* values, int64_t cells, int
 }
 
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs) {
-  hipLaunchKernelGGL(rns8_strassen_transform_kernel,dim3((static_cast<uint64_t>(hr)*hc+255)/256,prefix),dim3(256),0,nullptr,
-      source,output,rows,cols,ld,hr,hc,product,lhs);
+    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,bool rank23) {
+  const dim3 grid((static_cast<uint64_t>(hr)*hc+255)/256,prefix);
+  if (rank23) {
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<3>),grid,dim3(256),0,nullptr,
+        source,output,rows,cols,ld,hr,hc,product,lhs);
+  } else {
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<2>),grid,dim3(256),0,nullptr,
+        source,output,rows,cols,ld,hr,hc,product,lhs);
+  }
   return static_cast<int>(hipGetLastError());
 }
-extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index) {
-  hipLaunchKernelGGL(rns8_strassen_combine_kernel,dim3((static_cast<uint64_t>(m)*n+255)/256,prefix),dim3(256),0,nullptr,
-      product,stage,m,n,hm,hn,index);
+extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index,bool rank23) {
+  const dim3 grid((static_cast<uint64_t>(m)*n+255)/256,prefix);
+  if (rank23) {
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<3>),grid,dim3(256),0,nullptr,
+        product,stage,m,n,hm,hn,index);
+  } else {
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<2>),grid,dim3(256),0,nullptr,
+        product,stage,m,n,hm,hn,index);
+  }
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_strassen_commit(const int8_t* stage,int8_t* output,int m,int n,int ldc,int prefix) {

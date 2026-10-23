@@ -298,8 +298,8 @@ certificate and an exact one-level CPU modular implementation. Pre-additions are
 reduced before signed-byte products; odd rectangular dimensions are zero-padded
 and each product is accumulated immediately without retaining seven product
 matrices. Exhaustive polynomial expansion and all byte-modulus tail fixtures are
-authored. No rank-23 program, GPU transform path, performance result or promotion
-is claimed.
+authored. Subsequent GPU transform and rank-23 slices are recorded below;
+no performance result or promotion is claimed.
 
 
 The private direct-HIP #37 baseline now accepts explicit split count and scratch

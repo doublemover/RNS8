@@ -1,11 +1,12 @@
 TEST_CASE(
-    "one-level HIP Strassen matches exact classical residues with odd tails") {
+    "one-level HIP Strassen and rank23 match classical residues with odd tails") {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   if (!hip_available())
     SKIP("no HIP device for Strassen");
-  for (uint32_t prefix : {1u, 3u, 9u, 20u})
-    for (int k : {1, 3, 17, 131073}) {
+  for (bool rank23 : {false, true}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
+    for (int k : {1, 3, 17, rank23 ? 196609 : 131073}) {
+      const auto multiply = rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
       const int m = k > 100 ? 1 : 5, n = k > 100 ? 1 : 7, lda = k + 1,
                 ldb = n + 2, ldc = n + 3;
       std::vector<int8_t> a(prefix * m * lda, 99), b(prefix * k * ldb, 99),
@@ -41,7 +42,7 @@ TEST_CASE(
       REQUIRE(hip_direct_copy_host_to_device(0, dc, observed.data(),
                                              observed.size()) == RNS8_SUCCESS);
       bool committed = true;
-      REQUIRE(hip_direct_gemm_strassen_device(0, da, db, dc, m, n, k, lda, ldb,
+      REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, 0, committed) ==
               RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(committed);
@@ -49,7 +50,7 @@ TEST_CASE(
                                              observed.size()) == RNS8_SUCCESS);
       REQUIRE(std::all_of(observed.begin(), observed.end(),
                           [](int8_t v) { return v == 77; }));
-      REQUIRE(hip_direct_gemm_strassen_device(0, da, db, dc, m, n, k, lda, ldb,
+      REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, UINT64_MAX,
                                               committed) == RNS8_SUCCESS);
       REQUIRE(committed);
