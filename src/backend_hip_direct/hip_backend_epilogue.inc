@@ -51,3 +51,36 @@ rns8_status hip_direct_enqueue_axpby_no_publish(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_axpby_residues(const int8_t*, const int8_t*, int8_t*,
+                                     int, int, int, int, int, int, int64_t, int64_t);
+#endif
+rns8_status hip_direct_axpby_residues_device(
+    int device_id, const void* x, const void* d, void* c, int64_t m, int64_t n,
+    int64_t ldx, int64_t ldd, int64_t ldc, uint32_t prefix, int64_t alpha, int64_t beta) {
+  if (!x || !d || !c || m <= 0 || n <= 0 || ldx < n || ldd < n || ldc < n ||
+      !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX) return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_matrix_address(m, n, ldx, prefix) ||
+      !qualified_i32_matrix_address(m, n, ldd, prefix) ||
+      !qualified_i32_matrix_address(m, n, ldc, prefix)) return RNS8_UNSUPPORTED_BACKEND;
+  const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * prefix;
+  if (!nonoverlapping_byte_ranges(c, output_bytes, x, static_cast<uint64_t>(m) * ldx * prefix) ||
+      !nonoverlapping_byte_ranges(c, output_bytes, d, static_cast<uint64_t>(m) * ldd * prefix))
+    return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto status = set_hip_device(device_id);
+  if (status != RNS8_SUCCESS) return status;
+  const auto error = timed_hip_operation("residue_axpby_kernel", [&]() {
+    const auto launch = static_cast<hipError_t>(rns8_hip_axpby_residues(
+        static_cast<const int8_t*>(x), static_cast<const int8_t*>(d), static_cast<int8_t*>(c),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(ldx), static_cast<int>(ldd),
+        static_cast<int>(ldc), prefix, alpha, beta));
+    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
+  });
+  return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id; (void)alpha; (void)beta;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

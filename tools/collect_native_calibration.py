@@ -17,12 +17,25 @@ def validate_case(case):
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
     native = case["candidate"] in ("wmma", "queue", "split_k")
-    if ((not native and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm"))
+    if ((not native and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
             or (not native and case["group"] != 1) or type(case["unsigned_inputs"]) is not bool
             or case["m"] * case["n"] * case["k"] > 16777216):
         raise ValueError("invalid native calibration candidate/group/reference budget")
     return case
+
+
+def epilogue_contract(case):
+    if not case["candidate"].startswith("epilogue_"):
+        return {}
+    size = case["m"] * case["n"] * case["prefix"]
+    return {"input_domain": "resident_centered_residues",
+            "output_contract": "integer_alpha_ab_plus_beta_d_residues_no_integer_export",
+            "expression": {"alpha": (1 << 63) - 1 if case["unsigned_inputs"] else -(1 << 63),
+                           "beta": (1 << 63) - 1, "coefficients": "original_integers",
+                           "d_dataset": "seed_3135_after_a_b"},
+            "reserved_intermediate_bytes": size,
+            "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
 
 
 def main():
@@ -69,6 +82,7 @@ def main():
         capture = json.loads(record["stdout"])
         if (capture.get("schema") != "rns8_native_microcase_v1" or capture.get("run_id") != run_id
                 or any(capture.get(key) != value for key, value in case.items())
+                or any(capture.get(key) != value for key, value in epilogue_contract(case).items())
                 or capture.get("repeats") != args.repeats or capture.get("warmups") != args.warmups
                 or len(capture.get("samples", [])) != args.repeats
                 or any(sample.get("exact_reference_passed") is not True for sample in capture["samples"])):

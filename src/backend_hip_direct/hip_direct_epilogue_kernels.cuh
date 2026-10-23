@@ -15,3 +15,14 @@ __global__ void rns8_gemm_rns_axpby_kernel(
   c[static_cast<int64_t>(plane) * m * ldc + row * ldc + col] = rns8::detail::centered_residue_axpby(
       product, d[static_cast<int64_t>(plane) * m * ldd + row * ldd + col], alpha, beta, modulus);
 }
+
+__global__ void rns8_axpby_residues_kernel(
+    const int8_t* x, const int8_t* d, int8_t* c,
+    int m, int n, int ldx, int ldd, int ldc, int64_t alpha, int64_t beta) {
+  const int64_t cell = int64_t{blockIdx.x} * blockDim.x + threadIdx.x;
+  if (cell >= int64_t{m} * n) return;
+  const int64_t row = cell / n, col = cell % n, plane = blockIdx.y;
+  c[(plane * m + row) * ldc + col] = rns8::detail::centered_residue_axpby(
+      x[(plane * m + row) * ldx + col], d[(plane * m + row) * ldd + col],
+      alpha, beta, rns8_default_moduli_device[plane]);
+}

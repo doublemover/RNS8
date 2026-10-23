@@ -86,6 +86,10 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
 
 // Explicit modular expression baseline. Callers must separately prove bounded
 // integer semantics and own publication; D/C must not alias. No default routing.
+// Private standalone modular combine baseline; C must be distinct from X/D.
+rns8_status hip_direct_axpby_residues_device(
+    int device_id, const void* x, const void* d, void* c, int64_t m, int64_t n,
+    int64_t ldx, int64_t ldd, int64_t ldc, uint32_t prefix, int64_t alpha, int64_t beta);
 rns8_status hip_direct_gemm_rns_axpby_device(
     int device_id, const void* a, const void* b, const void* d, void* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,

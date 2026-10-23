@@ -6,7 +6,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from collect_native_calibration import main, validate_case
+from collect_native_calibration import main, validate_case, epilogue_contract
 
 
 def run():
@@ -20,6 +20,13 @@ def run():
             pass
         else:
             raise AssertionError("malformed native case accepted")
+    for name in ("epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"):
+        expression_case = {**case, "candidate": name, "group": 1}
+        assert validate_case(expression_case) == expression_case
+        contract = epilogue_contract(expression_case)
+        assert contract["expression"]["alpha"] == -(1 << 63)
+        assert contract["reserved_intermediate_bytes"] == 17 * 19 * 3
+        assert bool(contract["materialized_intermediate_bytes"]) == (name == "epilogue_unfused")
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
         exe, cases, output = root / "mock.exe", root / "cases.json", root / "records"
@@ -49,6 +56,23 @@ def run():
                 raise AssertionError("timeout accepted")
         failed = list((root / "timeout").glob("*.json"))
         assert len(failed) == 1 and json.loads(failed[0].read_text())["reason"] == "timeout"
+        epilogue = {**case, "candidate": "epilogue_direct", "group": 1}
+        cases.write_text(json.dumps([epilogue]), encoding="utf-8")
+        argv[argv.index(str(root / "timeout"))] = str(root / "wrong-expression")
+        def wrong_expression(command, **kwargs):
+            capture = {**epilogue, **epilogue_contract(epilogue), "schema": "rns8_native_microcase_v1",
+                       "run_id": command[-1], "repeats": 3, "warmups": 1,
+                       "samples": [{"exact_reference_passed": True}] * 3}
+            capture["expression"]["beta"] = 0
+            return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
+        with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=wrong_expression):
+            try:
+                main()
+            except RuntimeError as error:
+                assert "contract/reference mismatch" in str(error)
+            else:
+                raise AssertionError("different epilogue expression accepted")
+        assert len(list((root / "wrong-expression").glob("*.json"))) == 1
     print("native calibration collector self-test: PASS")
     return 0
 

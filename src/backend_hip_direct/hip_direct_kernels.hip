@@ -207,6 +207,14 @@ extern "C" int rns8_hip_direct_lift_suffix_device(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_axpby_residues(
+    const int8_t* x, const int8_t* d, int8_t* c,
+    int m, int n, int ldx, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+  hipLaunchKernelGGL(rns8_axpby_residues_kernel, dim3((int64_t{m} * n + 255) / 256, prefix), dim3(256), 0, nullptr,
+                    x, d, c, m, n, ldx, ldd, ldc, alpha, beta);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_gemm_rns_axpby(
     const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta, void* stream) {
