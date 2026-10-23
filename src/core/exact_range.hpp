@@ -189,6 +189,23 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A,
                                                                                    : RNS8_RANGE_ERROR;
 }
 
+// Admit the complete expression, without requiring the unpublished AB to fit.
+inline rns8_status exact_axpby_range(const rns8_plan& plan, const rns8_matrix& A,
+                                    const rns8_matrix& B, const rns8_matrix& D,
+                                    int64_t alpha, int64_t beta, cpp_int& bound) {
+  if (!exact_wide_semantics(plan.desc.semantics) ||
+      (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED && (alpha < 0 || beta < 0)))
+    return RNS8_INVALID_ARGUMENT;
+  if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix ||
+      D.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+  cpp_int product_bound;
+  exact_gemm_bound(plan, A, B, product_bound);
+  bound = boost::multiprecision::abs(cpp_int(alpha)) * product_bound +
+          boost::multiprecision::abs(cpp_int(beta)) * D.exact_max_magnitude;
+  return exact_range_fits(plan.desc.semantics, bound, plan.modulus_product)
+             ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
+}
+
 inline void commit_exact_range(rns8_matrix& matrix, const rns8_plan& plan, cpp_int& bound,
                                rns8_exact_matrix_ranges* ranges = nullptr) {
   if (exact_wide_semantics(plan.desc.semantics)) {

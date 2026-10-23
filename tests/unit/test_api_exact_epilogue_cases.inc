@@ -72,6 +72,10 @@ TEST_CASE(
           }
       }
       const auto generation = c->content_generation;
+      d->in_flight_writer = true;
+      REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 1, 1, workspace) == RNS8_BUSY);
+      d->in_flight_writer = false;
+      REQUIRE(c->content_generation == generation);
       for (auto *alias : {a, b, d})
         REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, alias, 1, 1,
                                       workspace) == RNS8_INVALID_ARGUMENT);

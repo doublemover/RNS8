@@ -18,9 +18,9 @@ struct rns8_resident_graph {
 };
 
 namespace {
-std::array<const rns8_matrix*, 2> node_inputs(const rns8_resident_node& node) {
-  return node.kind == RNS8_RESIDENT_BASE_EXTEND ? std::array<const rns8_matrix*, 2>{node.c, nullptr}
-                                              : std::array<const rns8_matrix*, 2>{node.a, node.b};
+std::array<const rns8_matrix*, 3> node_inputs(const rns8_resident_node& node) {
+  return node.kind == RNS8_RESIDENT_BASE_EXTEND ? std::array<const rns8_matrix*, 3>{node.c, nullptr, nullptr}
+                                              : std::array<const rns8_matrix*, 3>{node.a, node.b, node.d};
 }
 
 rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& node, rns8_matrix& proof) {
@@ -76,14 +76,24 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     }
     auto status = validate_plan_context_workspace(*graph.ctx, *node.plan, *node.workspace);
     if (status != RNS8_SUCCESS) return status;
-    status = validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.c, false);
+    status = node.kind == RNS8_RESIDENT_EXACT_AXPBY
+        ? validate_exact_axpby_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.d,
+                                        *node.c, node.alpha, node.beta, false)
+        : validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.c, false);
     if (status != RNS8_SUCCESS) return status;
     if (node.c->generation_exhausted) return RNS8_RANGE_ERROR;
     auto ai = proofs.find(node.a), bi = proofs.find(node.b);
     if (ai == proofs.end() || bi == proofs.end()) return RNS8_INVALID_ARGUMENT;
     rns8_matrix output;
-    status = rns8::detail::exact_gemm_range(*node.plan, ai->second, bi->second,
-                                         output.exact_max_magnitude, &output.exact_axis_ranges);
+    if (node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
+      const auto di = proofs.find(node.d);
+      if (di == proofs.end()) return RNS8_INVALID_ARGUMENT;
+      status = rns8::detail::exact_axpby_range(*node.plan, ai->second, bi->second, di->second,
+                                             node.alpha, node.beta, output.exact_max_magnitude);
+    } else {
+      status = rns8::detail::exact_gemm_range(*node.plan, ai->second, bi->second,
+                                           output.exact_max_magnitude, &output.exact_axis_ranges);
+    }
     if (status != RNS8_SUCCESS) return status;
     output.exact_range_prefix = node.plan->prefix;
     proofs.emplace(node.c, std::move(output));
@@ -116,12 +126,14 @@ rns8_status rns8_create_resident_graph(
       const auto& node = nodes[i];
       if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
         return RNS8_INVALID_ARGUMENT;
-      if (node.kind == RNS8_RESIDENT_MATMUL) {
+      if (node.kind == RNS8_RESIDENT_MATMUL || node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
+        if (node.kind == RNS8_RESIDENT_EXACT_AXPBY ? !node.d : (node.d || node.alpha || node.beta))
+          return RNS8_INVALID_ARGUMENT;
         if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
             !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
             !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
-        if (node.plan || node.a || node.b || node.workspace) return RNS8_INVALID_ARGUMENT;
+        if (node.plan || node.a || node.b || node.workspace || node.d || node.alpha || node.beta) return RNS8_INVALID_ARGUMENT;
       } else return RNS8_INVALID_ARGUMENT;
     }
     std::unordered_set<const rns8_matrix*> external;
@@ -179,6 +191,9 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       const auto& node = graph->nodes[i];
       if (node.kind == RNS8_RESIDENT_MATMUL)
         out->operation_status = rns8_gemm_rns(graph->ctx, node.plan, node.a, node.b, node.c, node.workspace);
+      else if (node.kind == RNS8_RESIDENT_EXACT_AXPBY)
+        out->operation_status = rns8_gemm_exact_axpby(graph->ctx, node.plan, node.a, node.b, node.d,
+                                                    node.c, node.alpha, node.beta, node.workspace);
       else if (graph->ctx->backend == RNS8_BACKEND_HIP_DIRECT)
         out->operation_status = rns8_lift_exact_wide_hip(graph->ctx, node.c, node.target_prefix, node.max_staged_residue_bytes);
       else

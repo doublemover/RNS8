@@ -2,7 +2,12 @@
 
 `rns8_create_resident_graph` accepts an ordered list of 1-4096 typed exact-wide
 `rns8_resident_node` records on CPU or direct HIP. MatMul nodes reference an existing plan,
-workspace, input matrices and distinct output matrix. BaseExtend nodes reference
+workspace, input matrices and distinct output matrix. ExactAxpby nodes also
+reference an addend in `d` and signed integer `alpha`/`beta` coefficients and
+compute `alpha*a*b + beta*d`. Unsigned semantics reject negative coefficients.
+The addend can be external or produced earlier in the DAG, and is retained and
+bound like every other input. Other kinds require these epilogue fields zero.
+BaseExtend nodes reference
 the matrix in `c`, an explicit target prefix and a staging budget; their other
 resource fields must be null. The graph retains these
 handles and the context; destroy returns BUSY while a graph holds a resource.
@@ -21,7 +26,12 @@ staging budget before earlier nodes overwrite outputs. Proof propagation updates
 available prefixes only after an explicit BaseExtend node; omitted lifts fail
 preflight. It also checks extension busy state, storage/device identity and the
 source value's unique reconstruction range.
-Execution uses existing synchronous GEMM and CPU/HIP lift publication guards.
+ExactAxpby uses the same complete-expression bound and operand validation as
+the standalone API: `abs(alpha)*bound(AB) + abs(beta)*bound(D)` must fit the root
+basis. The unpublished AB need not fit independently (for example, alpha zero).
+All three inputs still require materialized planes even with zero coefficients.
+Its output carries a conservative scalar bound into downstream consumers.
+Execution uses existing synchronous GEMM, exact epilogue and CPU/HIP lift publication guards.
 Each intermediate remains resident and can feed multiple later nodes. Export
 only the requested outputs through their ordinary plan/export APIs.
 
@@ -50,3 +60,8 @@ ragged inputs, backwards materialization demand, cost-based representation
 selection and asynchronous completion remain open. Preflight and ordinary GEMM
 both perform admission; this baseline exposes that setup cost rather than
 claiming a measured dispatch or proof-work reduction.
+
+Authored epilogue DAG fixtures cover signed/unsigned CPU/HIP chains with a
+produced addend, repeated execution, extreme coefficients, Boost differential
+exports, forward/alias rejection, and downstream range rejection before writes.
+These fixtures have not yet been executed.

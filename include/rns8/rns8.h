@@ -27,7 +27,8 @@ typedef struct rns8_resident_graph rns8_resident_graph;
 
 typedef enum rns8_resident_node_kind RNS8_ENUM_BASE {
   RNS8_RESIDENT_MATMUL = 0,
-  RNS8_RESIDENT_BASE_EXTEND = 1
+  RNS8_RESIDENT_BASE_EXTEND = 1,
+  RNS8_RESIDENT_EXACT_AXPBY = 2
 } rns8_resident_node_kind;
 
 typedef struct rns8_resident_node {
@@ -43,6 +44,11 @@ typedef struct rns8_resident_node {
    * plan/a/b/workspace must be null. MATMUL requires both fields below zero. */
   uint32_t target_prefix;
   uint64_t max_staged_residue_bytes;
+  /* EXACT_AXPBY computes alpha*a*b + beta*d. Other kinds require these
+   * fields zero/null. EXACT_AXPBY requires both extension fields zero. */
+  const rns8_matrix* d;
+  int64_t alpha;
+  int64_t beta;
 } rns8_resident_node;
 
 typedef struct rns8_graph_execution_info {
@@ -54,7 +60,7 @@ typedef struct rns8_graph_execution_info {
   uint32_t failed_node; /* UINT32_MAX on complete success. */
 } rns8_graph_execution_info;
 
-/* Ordered exact-wide MatMul/BaseExtend DAG, CPU or direct HIP.
+/* Ordered exact-wide MatMul/BaseExtend/ExactAxpby DAG, CPU or direct HIP.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
  * matrix/plan/workspace storage must match each edge. Explicit BASE_EXTEND

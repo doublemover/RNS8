@@ -3,6 +3,48 @@
 #include "core/api_internal.hpp"
 
 using namespace rns8::detail::api;
+namespace rns8::detail::api {
+rns8_status validate_exact_axpby_operands(
+    const rns8_context &ctx, const rns8_plan &plan, const rns8_matrix &A,
+    const rns8_matrix &B, const rns8_matrix &D, const rns8_matrix &C,
+    int64_t alpha, int64_t beta, bool require_current_inputs) {
+  if (!exact_wide_semantics(plan.desc.semantics) || &D == &C ||
+      (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED &&
+       (alpha < 0 || beta < 0)))
+    return RNS8_INVALID_ARGUMENT;
+  if (plan.backend != RNS8_BACKEND_CPU_REFERENCE &&
+      plan.backend != RNS8_BACKEND_HIP_DIRECT)
+    return RNS8_UNSUPPORTED_BACKEND;
+  auto status =
+      validate_rns_gemm_operands(ctx, plan, A, B, C, require_current_inputs);
+  if (status != RNS8_SUCCESS)
+    return status;
+  if (D.in_flight_writer)
+    return RNS8_BUSY;
+  const auto prefix = rns_storage_prefix_for_plan(plan);
+  if (!matrix_backend_compatible_with_plan(ctx, D, plan.backend) ||
+      !matrix_descriptor_matches(D, plan.desc.semantics,
+                                 storage_bound_kind_for_plan(plan), plan.desc.m,
+                                 plan.desc.n, prefix, plan.desc.tile_m,
+                                 plan.desc.tile_n) ||
+      !rns_matrix_storage_matches(D, plan.backend, plan.desc.m, plan.desc.n,
+                                  prefix) ||
+      (require_current_inputs &&
+       !rns_residue_state_current_for_backend(D, plan.backend)) ||
+      (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+       D.hip_device_id != ctx.device_id))
+    return RNS8_INVALID_ARGUMENT;
+  if (C.generation_exhausted)
+    return RNS8_RANGE_ERROR;
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
+      !qualified_i32_gemm_address(plan.desc.m, plan.desc.n, plan.desc.k,
+                                  A.desc.cols, B.desc.cols, C.desc.cols,
+                                  plan.prefix))
+    return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_SUCCESS;
+}
+} // namespace rns8::detail::api
+
 rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
                                   const rns8_matrix *A, const rns8_matrix *B,
                                   const rns8_matrix *D, rns8_matrix *C,
@@ -13,48 +55,17 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
     if (!ctx || !plan || !A || !B || !D || !C || !workspace || A == C ||
         B == C || D == C)
       return RNS8_INVALID_ARGUMENT;
-    if (!exact_wide_semantics(plan->desc.semantics))
-      return RNS8_INVALID_ARGUMENT;
-    if (plan->backend != RNS8_BACKEND_CPU_REFERENCE &&
-        plan->backend != RNS8_BACKEND_HIP_DIRECT)
-      return RNS8_UNSUPPORTED_BACKEND;
-    if (plan->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED &&
-        (alpha < 0 || beta < 0))
-      return RNS8_INVALID_ARGUMENT;
     auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (status != RNS8_SUCCESS)
       return status;
-    status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C);
+    status =
+        validate_exact_axpby_operands(*ctx, *plan, *A, *B, *D, *C, alpha, beta);
     if (status != RNS8_SUCCESS)
       return status;
-    const auto prefix = rns_storage_prefix_for_plan(*plan);
-    if (!matrix_backend_compatible_with_plan(*ctx, *D, plan->backend) ||
-        !matrix_descriptor_matches(*D, plan->desc.semantics,
-                                   storage_bound_kind_for_plan(*plan),
-                                   plan->desc.m, plan->desc.n, prefix,
-                                   plan->desc.tile_m, plan->desc.tile_n) ||
-        !rns_matrix_storage_matches(*D, plan->backend, plan->desc.m,
-                                    plan->desc.n, prefix) ||
-        !rns_residue_state_current_for_backend(*D, plan->backend) ||
-        (plan->backend == RNS8_BACKEND_HIP_DIRECT &&
-         D->hip_device_id != ctx->device_id))
-      return RNS8_INVALID_ARGUMENT;
-    if (A->exact_range_prefix < plan->prefix ||
-        B->exact_range_prefix < plan->prefix ||
-        D->exact_range_prefix < plan->prefix || C->generation_exhausted)
-      return RNS8_RANGE_ERROR;
-    cpp_int product_bound;
-    exact_gemm_bound(*plan, *A, *B, product_bound);
-    cpp_int bound =
-        boost::multiprecision::abs(cpp_int(alpha)) * product_bound +
-        boost::multiprecision::abs(cpp_int(beta)) * D->exact_max_magnitude;
-    if (!exact_range_fits(plan->desc.semantics, bound, plan->modulus_product))
-      return RNS8_RANGE_ERROR;
-    if (plan->backend == RNS8_BACKEND_HIP_DIRECT &&
-        !qualified_i32_gemm_address(plan->desc.m, plan->desc.n, plan->desc.k,
-                                    A->desc.cols, B->desc.cols, C->desc.cols,
-                                    plan->prefix))
-      return RNS8_UNSUPPORTED_BACKEND;
+    cpp_int bound;
+    status = exact_axpby_range(*plan, *A, *B, *D, alpha, beta, bound);
+    if (status != RNS8_SUCCESS)
+      return status;
     // All allocation-prone proof work finishes before entering the write
     // region.
     MatrixWriteGuard write(*C);
