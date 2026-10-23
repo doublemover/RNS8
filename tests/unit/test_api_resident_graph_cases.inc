@@ -107,15 +107,16 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
       } else ctx = create_cpu_context();
       const auto semantics = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
       auto desc = exact_desc(semantics, 2, 2, 2);
-      desc.max_prefix = 3;
+      desc.max_prefix = 20;
       if (hip) desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
       rns8_plan *small = nullptr, *wide = nullptr;
       rns8_workspace *small_work = nullptr, *wide_work = nullptr;
       REQUIRE(rns8_create_plan(ctx, &desc, &small) == RNS8_SUCCESS);
-      desc.max_prefix = 9;
+      desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
       REQUIRE(rns8_create_plan(ctx, &desc, &wide) == RNS8_SUCCESS);
-      REQUIRE(small->prefix == 3);
-      REQUIRE(wide->prefix == 9);
+      REQUIRE(small->prefix < 20);
+      REQUIRE(wide->prefix == 20);
+      const uint64_t staged_bytes = 4 * (wide->prefix - small->prefix);
       REQUIRE(rns8_create_workspace(ctx, small, &small_work) == RNS8_SUCCESS);
       REQUIRE(rns8_create_workspace(ctx, wide, &wide_work) == RNS8_SUCCESS);
       auto md = exact_matrix_desc(2, 2, semantics);
@@ -134,15 +135,15 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
       for (auto& node : nodes) { node.struct_size = sizeof(node); node.abi_version = RNS8_ABI_VERSION; }
       nodes[0].plan = small; nodes[0].a = a; nodes[0].b = b; nodes[0].c = c; nodes[0].workspace = small_work;
       nodes[1].kind = RNS8_RESIDENT_BASE_EXTEND; nodes[1].c = c;
-      nodes[1].target_prefix = 9; nodes[1].max_staged_residue_bytes = 24;
+      nodes[1].target_prefix = 20; nodes[1].max_staged_residue_bytes = staged_bytes;
       nodes[2].plan = wide; nodes[2].a = c; nodes[2].b = b; nodes[2].c = d; nodes[2].workspace = wide_work;
       rns8_resident_graph* graph = nullptr;
-      nodes[1].max_staged_residue_bytes = 23;
+      nodes[1].max_staged_residue_bytes = staged_bytes - 1;
       const auto initial_generation = c->content_generation;
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE(graph == nullptr);
       REQUIRE(c->content_generation == initial_generation);
-      nodes[1].max_staged_residue_bytes = 24;
+      nodes[1].max_staged_residue_bytes = staged_bytes;
       auto malformed = nodes[1]; malformed.plan = small;
       REQUIRE(rns8_create_resident_graph(ctx, &malformed, 1, &graph) == RNS8_INVALID_ARGUMENT);
       malformed = nodes[1]; malformed.kind = static_cast<rns8_resident_node_kind>(UINT32_MAX);
@@ -158,7 +159,7 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
         const auto generation = c->content_generation;
         REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
         REQUIRE(info.completed_nodes == 3);
-        REQUIRE(c->exact_range_prefix == 9);
+        REQUIRE(c->exact_range_prefix == 20);
         REQUIRE(c->content_generation == generation + 1); // Lift itself preserves identity.
         std::vector<cpp_int> intermediate(4), expected(4);
         for (int r = 0; r < 2; ++r) for (int col = 0; col < 2; ++col)
@@ -177,7 +178,9 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
       REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
       // A materialization-only graph binds an external value and preserves its
       // generation even when actual new suffix planes are written.
-      nodes[1].target_prefix = 20; nodes[1].max_staged_residue_bytes = 44;
+      REQUIRE(rns8_gemm_rns(ctx, small, a, b, c, small_work) == RNS8_SUCCESS);
+      REQUIRE(c->exact_range_prefix == small->prefix);
+      nodes[1].target_prefix = 20; nodes[1].max_staged_residue_bytes = staged_bytes;
       REQUIRE(rns8_create_resident_graph(ctx, &nodes[1], 1, &graph) == RNS8_SUCCESS);
       const auto generation = c->content_generation;
       REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);

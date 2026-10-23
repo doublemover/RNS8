@@ -618,7 +618,7 @@ The #42/#41 resident graph now uses typed MatMul/BaseExtend nodes. Whole-graph
 preflight propagates materialized prefixes and checks lift capacity, staged-byte
 budgets, unique-value proofs and busy resources before execution. Existing CPU
 and HIP lifts preserve generations. The VS2026/gfx1100 test executable compiles;
-new prefix-3/9/20 chains, signed results and rejection fixtures await execution.
+new selected-prefix/20 chains, signed results and rejection fixtures await execution.
 The unreleased MatMul-only node record is replaced by `rns8_resident_node`.
 
 The #55 opt-in generated native WMMA family now binds six signedness/group

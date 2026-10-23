@@ -41,7 +41,7 @@ intermediates remain allocated until callers release them after graph destructio
 The former MatMul-only node record is replaced by the typed record in this
 unreleased API; callers must rebuild and set its current struct size. Unknown
 kinds and mixed node fields fail closed. Authored CPU/HIP chain fixtures cover
-prefix 3 -> 9 -> 20, signed negative values, failed staging admission, missing
+the full-native planner prefix -> fixed prefix 20, signed negative values, failed staging admission, missing
 or forward lifts, identity preservation and stale external bindings. Execution
 of these fixtures remains pending.
 
