@@ -94,14 +94,17 @@ def predict(stages: tuple[Stage, ...], rates: dict[str, Rate], certificate: Arit
 
     low_start, low_end, low_terms = schedule(True)
     high_start, high_end, high_terms = schedule(False)
-    # Liveness begins at producer launch, not completion, and ends only after
-    # every consumer completes. Retained outputs live until the entire graph ends.
+    # For the fixed dependency/resource order, max-plus starts/completions are
+    # monotone in every stage duration. Each possible lifetime is contained in
+    # [earliest producer start, latest last-consumer completion]. Intersecting
+    # these envelopes is conservative but sound even for interior rate choices;
+    # neither endpoint schedule alone bounds allocation overlap.
     events = []
     end = max(high_end.values())
     for stage in stages:
         consumers = [high_end[consumer.name] for consumer in stages if stage.name in consumer.dependencies]
         release = end if stage.retain_output else max(consumers + [high_end[stage.name]])
-        events.append((high_start[stage.name], 0, stage.bytes_allocated))
+        events.append((low_start[stage.name], 0, stage.bytes_allocated))
         events.append((release, 1, -stage.bytes_allocated))
     live = peak = 0
     for _, _, delta in sorted(events):
@@ -113,8 +116,12 @@ def predict(stages: tuple[Stage, ...], rates: dict[str, Rate], certificate: Arit
             "certificate_sha256": certificate_hash(certificate), "calibration_cohort": next(iter(cohorts)),
             "latency_lower_ns": float(max(low_end.values())), "latency_upper_ns": float(end),
             "peak_workspace_bytes": peak, "optimistic_schedule": low_terms, "conservative_schedule": high_terms,
+            "workspace_admission": "robust_lifetime_envelopes",
+            "workspace_bound_tight": False,
             "model_assumptions": ["exclusive_declared_resources", "work_per_resident_wave",
-                                  "intra_stage_work_terms_overlap", "fixed_named_topological_order"],
+                                  "intra_stage_work_terms_overlap", "fixed_named_topological_order",
+                                  "closed_lifetime_envelopes_include_equal_time_boundaries",
+                                  "one_allocation_per_producer_retained_through_all_consumers"],
             "instruction_qualification_required": True, "runtime_route_changed": False,
             "promotion_eligible": False}
 
