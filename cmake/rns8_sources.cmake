@@ -218,6 +218,7 @@ if(RNS8_ENABLE_HIP)
       RNS8_ROCWMMA_KERNEL_DEPENDS
       CONFIGURE_DEPENDS
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/*.inc"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/*.hpp"
     )
     set(RNS8_ROCWMMA_WAVE_THREADS 32)
     if(RNS8_AMDGPU_TARGETS)

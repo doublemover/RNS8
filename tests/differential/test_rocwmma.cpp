@@ -8,6 +8,8 @@
 #include <vector>
 
 #include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_hip_direct/hip_backend.hpp"
+#include <boost/multiprecision/cpp_int.hpp>
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
@@ -26,4 +28,5 @@ namespace {
 #include "test_rocwmma_bounded_reuse_cases.inc"
 #include "test_rocwmma_adaptive_exact_finite_cases.inc"
 #include "test_rocwmma_finite_wrap64_cases.inc"
+#include "test_rocwmma_epilogue_cases.inc"
 #endif

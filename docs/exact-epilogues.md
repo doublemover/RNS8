@@ -34,3 +34,37 @@ CPU and HIP API fixtures cover positive/negative and extreme coefficients, zero
 terms, signed/unsigned exact exports, aliases and over-range rejection with
 preserved output generation. Compilation and execution are pending; no fused
 performance advantage has been measured.
+
+## Explicit rocWMMA candidate
+
+The private `rocwmma_exact_axpby_device` candidate consumes resident planar
+signed-byte residues and uses one rocWMMA wave per 16x16 output tile/modulus.
+Cooperative LDS staging handles arbitrary M/N/K tails. Independent INT32
+fragments accumulate at most 65536 terms before a local centered reduction;
+the carry is bounded by 128. The final shared reducer combines original integer
+coefficients reduced modulo each channel with D, then stores each C byte once.
+The kernel uses 512 bytes of input LDS and 1024 bytes of INT32 fragment LDS per
+CTA, with no global INT32, AB-residue or packed-input temporary.
+
+This is a feature-detected, opt-in rocWMMA baseline. It is not selected by the
+public exact epilogue API. Its private residue-domain contract requires callers
+to supply integer output range admission; modular equality alone does not
+certify a unique reconstructed integer. Invalid shapes, address domains and
+C/A/B/D overlaps reject before launch. Coefficients remain full-width integers;
+negative coefficients and signed-byte inputs do not imply a field inverse.
+
+Authored CPU/Boost differential fixtures cover prefix 1/3/20, complete and
+masked tiles, K 1/17/65535/65536/65537, zero/unit/extreme coefficients, negative
+D, aliases and output padding. The candidate and full test executable compiled
+with VS2026/HIP 7.1 for gfx1100. Instruction/resource inspection,
+runtime qualification and comparison with the direct scalar and unfused
+resident baselines remain required. LDS staging/barriers and D reads are real
+costs; no dispatch promotion or performance improvement is claimed.
+
+VS2026/MSVC 14.51 marks standard type traits as non-specializable. The current
+rocWMMA dependency specializes them for its floating wrapper types even when
+only integer fragments are used. `rocwmma_headers.hpp` scopes Clang's
+`invalid-specialization` diagnostic suppression to that vendor include on
+MSVC 19.50+, leaving RNS8 diagnostics intact. Dependency probes include the
+same wrapper after `<chrono>` so their STL/include environment matches the
+actual translation unit. This does not qualify floating-point backends.

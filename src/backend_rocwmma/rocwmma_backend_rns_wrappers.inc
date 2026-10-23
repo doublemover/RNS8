@@ -257,3 +257,14 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
   return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }
 
+
+extern "C" int rns8_rocwmma_exact_axpby_device(
+    int device_id, const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
+    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+  if (hipSetDevice(device_id) != hipSuccess) return rocwmma_backend_failure;
+  hipLaunchKernelGGL(rocwmma_exact_axpby_kernel,
+      dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16, prefix),
+      dim3(kRns8WmmaWaveThreads), 0, nullptr, a, b, d, c, m, n, k, lda, ldb, ldd, ldc, alpha, beta);
+  return hipGetLastError() == hipSuccess && hipDeviceSynchronize() == hipSuccess
+             ? rocwmma_success : rocwmma_backend_failure;
+}
