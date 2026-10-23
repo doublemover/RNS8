@@ -45,6 +45,15 @@ poisoning and verification copies are excluded. Native and packed control buffer
 are retained across all cases; source buffers are reused and destination buffers
 are initialized between calls. Logical storage bytes are not actual HBM traffic.
 
+After the individually verified pairs, each process runs a sustained burst of
+the same synchronous checked operation with timing hooks disabled. It runs at
+least 16 calls and targets 250 ms, capped at 4096 calls. The burst has no output
+poisoning or reference readbacks between calls; the final full output and canaries
+are checked afterward. `sustained` reports the actual call count, duration and
+mean latency. It measures repeated resident execution, including required
+admission/status work, rather than transfer-inclusive one-shot latency. Per-call
+verification and burst verification are reported as different evidence scopes.
+
 `collect_native_calibration.py` accepts an explicit JSON list of case objects
 with `candidate,m,n,k,prefix,group,unsigned_inputs`. It randomizes process order,
 defaults to five independent processes per case, checks executable identity

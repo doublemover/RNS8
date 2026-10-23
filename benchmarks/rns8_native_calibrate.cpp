@@ -69,6 +69,24 @@ void pack_pair(const void* a, const void* b, void* ra, void* rb,
   throw std::runtime_error("HIP not compiled");
 #endif
 }
+template<class Prepare, class Execute, class Verify>
+nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) {
+  hip_direct_timing_set_enabled(false);
+  prepare();
+  uint32_t calls = 0;
+  double elapsed_ns = 0;
+  const auto start = std::chrono::steady_clock::now();
+  do {
+    execute();
+    ++calls;
+    elapsed_ns = std::chrono::duration<double, std::nano>(
+        std::chrono::steady_clock::now() - start).count();
+  } while (calls < 4096 && (calls < 16 || elapsed_ns < 250000000.0));
+  verify();
+  return {{"calls", calls}, {"elapsed_ns", elapsed_ns}, {"mean_call_ns", elapsed_ns / calls},
+          {"final_exact_reference_passed", true},
+          {"scope", "same resident inputs and output; synchronous checked calls; no timing hooks, poison or reference readback between calls; final output and canaries verified"}};
+}
 }
 
 #include "native_narrow_calibration.inc"
@@ -191,7 +209,9 @@ int main(int argc, char** argv) {
                          {"events",events},{"exact_reference_passed",true}});
     }
     hip_direct_timing_set_enabled(false);
+    const auto sustained = sustained_calls(prepare, execute, verify);
     std::cout << nlohmann::json{{"schema","rns8_native_microcase_v1"},{"run_id",run_id},{"candidate",candidate},
+        {"sustained",sustained},
         {"m",m},{"n",n},{"k",k},{"prefix",prefix},{"group",group},{"unsigned_inputs",bool(unsigned_inputs)},
         {"splits",candidate=="split_k" ? splits : 1u},{"workers",workers},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
         {"input_domain",(candidate=="packed_gemm" || epilogue) ? "resident_centered_residues" : "resident_native_64"},

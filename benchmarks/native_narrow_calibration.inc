@@ -183,7 +183,9 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
                        {"events", events}, {"exact_reference_passed", true}});
   }
   hip_direct_timing_set_enabled(false);
+  const auto sustained = sustained_calls(prepare, execute, verify);
   std::cout << nlohmann::json{
+      {"sustained", sustained},
       {"schema", "rns8_native_microcase_v1"}, {"run_id", run_id}, {"candidate", candidate},
       {"m", m}, {"n", n}, {"k", k}, {"prefix", prefix}, {"group", group},
       {"unsigned_inputs", unsigned_inputs}, {"seed", 3135}, {"repeats", repeats}, {"warmups", warmups},

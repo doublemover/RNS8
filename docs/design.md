@@ -103,4 +103,3 @@ source labels and generation equality across distinct handles never authorize
 reuse. Zero or exhausted generations force repacking while retaining allocated
 scratch capacity. Exact-wide chains and same-generation operand swaps cover this
 contract in the optional-backend differentials.
-

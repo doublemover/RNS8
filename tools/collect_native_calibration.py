@@ -44,6 +44,16 @@ def epilogue_contract(case):
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
 
 
+def valid_sustained(value):
+    if not isinstance(value, dict) or value.get("final_exact_reference_passed") is not True:
+        return False
+    calls, elapsed, mean = (value.get(k) for k in ("calls", "elapsed_ns", "mean_call_ns"))
+    return (type(calls) is int and 16 <= calls <= 4096
+            and all(type(x) in (int, float) and math.isfinite(x) and x > 0 for x in (elapsed, mean))
+            and (elapsed >= 250000000 or calls == 4096)
+            and math.isclose(mean * calls, elapsed, rel_tol=1e-12))
+
+
 def narrow_contract(case):
     if not case["candidate"].startswith("narrow_"):
         return {}
@@ -111,6 +121,7 @@ def main():
                 or any(capture.get(key) != value for key, value in epilogue_contract(case).items())
                 or any(capture.get(key) != value for key, value in narrow_contract(case).items())
                 or capture.get("repeats") != args.repeats or capture.get("warmups") != args.warmups
+                or not valid_sustained(capture.get("sustained"))
                 or len(capture.get("samples", [])) != args.repeats
                 or any(sample.get("exact_reference_passed") is not True
                        or sample.get("uninstrumented_exact_reference_passed") is not True

@@ -6,10 +6,17 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from collect_native_calibration import main, validate_case, epilogue_contract, narrow_contract
+from collect_native_calibration import main, validate_case, epilogue_contract, narrow_contract, valid_sustained
 
 
 def run():
+    sustained = dict(calls=16, elapsed_ns=320000000, mean_call_ns=20000000,
+                     final_exact_reference_passed=True)
+    assert valid_sustained(sustained)
+    for changes in ({"calls": True}, {"calls": 15}, {"elapsed_ns": float("nan")},
+                    {"mean_call_ns": 0}, {"final_exact_reference_passed": False},
+                    {"elapsed_ns": 1600, "mean_call_ns": 100}):
+        assert not valid_sustained({**sustained, **changes})
     case = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inputs=False)
     assert validate_case(case) == case
     large = {**case, "m": 1024, "n": 1024, "k": 1024}
@@ -45,6 +52,7 @@ def run():
         def child(command, **kwargs):
             assert command[1] == "wmma" and command[-4] == "0"
             capture = {**case, "schema": "rns8_native_microcase_v1", "run_id": command[-1],
+                       "sustained": sustained,
                        "repeats": 3, "warmups": 1, "samples": [{"exact_reference_passed": True, "uninstrumented_exact_reference_passed": True, "uninstrumented_host_call_ns": 1000.5}] * 3}
             return subprocess.CompletedProcess(command, 0, json.dumps(capture), "")
         with patch.object(sys, "argv", argv), patch("collect_native_calibration.subprocess.run", side_effect=child):
