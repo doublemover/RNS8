@@ -1,5 +1,6 @@
 template <typename NativeT>
-bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix, bool generated = false) {
+bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix,
+                              bool generated = false, uint32_t splits = 0) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
@@ -35,6 +36,18 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
     auto status = RNS8_UNSUPPORTED_BACKEND;
+    if (splits) {
+      bool commit = true;
+      REQUIRE(hip_direct_gemm_native_wmma_split_k_device(
+          0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
+          unsigned_inputs, splits, 32, 0, commit) == RNS8_WORKSPACE_TOO_SMALL);
+      REQUIRE_FALSE(commit);
+      status = hip_direct_gemm_native_wmma_split_k_device(
+          0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
+          unsigned_inputs, splits, 32, UINT64_MAX, commit);
+      REQUIRE(commit == (status == RNS8_SUCCESS));
+    } else {
+      (void)generated;
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
     if (generated) {
       for (const auto& variant : rns8::generated::native_variants) {
@@ -46,11 +59,10 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
       }
       REQUIRE(status == RNS8_SUCCESS);
     } else
-#else
-    (void)generated;
 #endif
       status = hip_direct_gemm_native_wmma_grouped_device(
           0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group, unsigned_inputs);
+    }
     REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), dc, actual.size()) == RNS8_SUCCESS);
     if (status == RNS8_UNSUPPORTED_BACKEND) {
       REQUIRE(std::all_of(actual.begin(), actual.end(), [](int8_t x) { return x == 99; }));
@@ -68,6 +80,18 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   CHECK(hip_direct_free(0, db) == RNS8_SUCCESS);
   CHECK(hip_direct_free(0, da) == RNS8_SUCCESS);
   return supported;
+}
+
+TEST_CASE("persistent native WMMA split K canonicalizes odd moduli before hierarchical merges") {
+  if (!hip_available()) SKIP("no HIP device for native WMMA split K");
+  for (const uint32_t splits : {1u, 3u, 129u})
+    for (const int k : {257, 65537})
+      for (const uint32_t prefix : {3u, 20u}) {
+        const int m = k < 1024 ? 17 : 1, n = k < 1024 ? 19 : 1;
+        if (!check_native_wmma_groups<int64_t>(false, m, n, k, prefix, false, splits))
+          SKIP("compiled target lacks native WMMA");
+        REQUIRE(check_native_wmma_groups<uint64_t>(true, m, n, k, prefix, false, splits));
+      }
 }
 
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)

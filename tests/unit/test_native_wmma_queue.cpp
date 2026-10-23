@@ -5,6 +5,17 @@
 
 using namespace rns8::detail;
 
+TEST_CASE("native queue bounds offset K fragments through the last accessed element") {
+  uint64_t allocation[12]{}, b = 1;
+  NativeWmmaTask task{allocation + 3, &b, reinterpret_cast<int8_t*>(allocation + 8),
+                      2, 1, 1, 4, 1, 1, 1, 1, 0};
+  std::vector<NativeWmmaWork> work;
+  uint64_t bytes = 0;
+  REQUIRE(build_native_wmma_queue({task}, 1, UINT64_MAX, work, bytes) == RNS8_SUCCESS);
+  task.c = reinterpret_cast<int8_t*>(allocation + 7);
+  REQUIRE(build_native_wmma_queue({task}, 1, UINT64_MAX, work, bytes) == RNS8_INVALID_ARGUMENT);
+}
+
 TEST_CASE("native WMMA queue covers heterogeneous tiles exactly once") {
   std::vector<uint64_t> a(33 * 19), b(19 * 35);
   std::vector<int8_t> c(20 * 33 * 35), d(c.size()), e(c.size());

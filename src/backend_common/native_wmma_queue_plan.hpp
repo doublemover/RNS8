@@ -33,9 +33,12 @@ inline rns8_status build_native_wmma_queue(const std::vector<NativeWmmaTask>& ta
       if (!qualified_i32_matrix_address(task.m, task.k, task.lda, 1, 8) ||
           !qualified_i32_matrix_address(task.k, task.n, task.ldb, 1, 8) ||
           !qualified_i32_matrix_address(task.m, task.n, task.ldc, task.prefix)) return RNS8_UNSUPPORTED_BACKEND;
-      if (!span(task.a, static_cast<uint64_t>(task.m) * task.lda * 8, false) ||
-          !span(task.b, static_cast<uint64_t>(task.k) * task.ldb * 8, false) ||
-          !span(task.c, static_cast<uint64_t>(task.m) * task.ldc * task.prefix, true)) return RNS8_INVALID_ARGUMENT;
+      // Bound accessed bytes, excluding unused final pitch. Split-K tasks can
+      // start within a row; charging that row offset again at the end would
+      // falsely extend the input span beyond its allocation.
+      if (!span(task.a, (static_cast<uint64_t>(task.m - 1) * task.lda + task.k) * 8, false) ||
+          !span(task.b, (static_cast<uint64_t>(task.k - 1) * task.ldb + task.n) * 8, false) ||
+          !span(task.c, (static_cast<uint64_t>(task.m) * task.prefix - 1) * task.ldc + task.n, true)) return RNS8_INVALID_ARGUMENT;
       const uint64_t count = ((task.m + 15) / 16) * ((task.n + 15) / 16) *
                              ((task.prefix + task.group - 1) / task.group);
       if (count > UINT32_MAX - workers || total > UINT32_MAX - workers - count) return RNS8_RANGE_ERROR;

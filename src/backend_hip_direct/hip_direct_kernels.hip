@@ -77,6 +77,12 @@ extern "C" int rns8_hip_integrity_check(const void* a,const void* b,const int8_t
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_split_k_canonicalize(uint8_t* values, int64_t cells, int prefix, int fragments) {
+  hipLaunchKernelGGL(rns8_split_k_canonicalize_kernel, dim3((cells + 255) / 256, prefix, fragments),
+                    dim3(256), 0, nullptr, values, cells, prefix, fragments);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
     int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs) {
   hipLaunchKernelGGL(rns8_strassen_transform_kernel,dim3((static_cast<uint64_t>(hr)*hc+255)/256,prefix),dim3(256),0,nullptr,

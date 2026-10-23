@@ -21,6 +21,19 @@ __global__ void rns8_split_k_produce_kernel(
   scratch[(static_cast<int64_t>(fragment) * prefix + plane) * cells + cell] = static_cast<uint8_t>(residue);
 }
 
+// Native WMMA producers store centered bytes; explicitly canonicalize before
+// the unsigned merge tree. Reinterpreting negative centered bytes is incorrect
+// for every odd modulus, even though it happens to work for modulus 256.
+__global__ void rns8_split_k_canonicalize_kernel(uint8_t* values, int64_t cells, int prefix, int fragments) {
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= cells) return;
+  const int plane = blockIdx.y, fragment = blockIdx.z;
+  if (fragment >= fragments) return;
+  const int64_t offset = (static_cast<int64_t>(fragment) * prefix + plane) * cells + cell;
+  const int value = reinterpret_cast<int8_t*>(values)[offset];
+  values[offset] = static_cast<uint8_t>(value < 0 ? value + rns8_default_moduli_device[plane] : value);
+}
+
 // Fixed fan-in 128: canonical inputs are <=255, sum <=32640. Every level
 // reduces before global storage, so the proof is independent of tree depth.
 __global__ void rns8_split_k_merge_kernel(

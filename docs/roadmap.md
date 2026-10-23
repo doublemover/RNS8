@@ -627,3 +627,10 @@ hashes. Unsupported combinations and target/builtin mismatches fail closed.
 Generated gfx1100 kernels and their differential fixture compile; an exact-symbol
 ISA/resource checker reuses existing inspection infrastructure. Runtime and ISA
 execution remain pending. See [generated family](generated-native-wmma.md).
+
+The #37/#38 private native split-K path now uses persistent grouped WMMA
+producers, explicit centered-to-canonical conversion and bounded hierarchical
+byte-residue merges. Output commit is delayed until the final store. Queue
+hazard spans correctly account for offset K fragments. CPU boundary and Boost
+GPU fixtures compile in the VS2026/gfx1100 test executable; runtime qualification is pending.
+See [native split-K](native-split-k.md).
