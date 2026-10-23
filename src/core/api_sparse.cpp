@@ -88,7 +88,9 @@ bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_co
     return false;
   }
   const uint64_t group_count = groups_per_plane * static_cast<uint64_t>(plane_count);
-  if (group_count > std::numeric_limits<uint64_t>::max() / 2u) {
+  const uint64_t object_limit = static_cast<uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
+  if (group_count > object_limit / 2u ||
+      group_count > std::numeric_limits<std::size_t>::max() / 2u) {
     return false;
   }
   counts.plane_count = plane_count;
@@ -99,25 +101,19 @@ bool sparse_contract_valid(const rns8_sparse_matrix_desc& desc, sparse_layout_co
 }
 
 bool dense_ld_valid(const rns8_sparse_matrix_desc& desc, int64_t dense_ld) {
-  return dense_ld >= desc.expanded_k;
+  sparse_layout_counts counts{};
+  rns8::detail::AddressDomain domain;
+  return dense_ld > 0 && sparse_contract_valid(desc, counts) &&
+         rns8::detail::checked_host_plane_address(
+             static_cast<uint64_t>(desc.rows), static_cast<uint64_t>(desc.expanded_k),
+             static_cast<uint64_t>(dense_ld), counts.plane_count, 1, domain);
 }
 
 bool dense_plane_byte_count(const rns8_sparse_matrix_desc& desc, uint32_t plane_count, std::size_t& bytes) {
-  const auto rows = static_cast<uint64_t>(desc.rows);
-  const auto cols = static_cast<uint64_t>(desc.expanded_k);
-  if (rows != 0 && cols > std::numeric_limits<uint64_t>::max() / rows) {
-    return false;
-  }
-  const uint64_t cells_per_plane = rows * cols;
-  if (cells_per_plane != 0 &&
-      static_cast<uint64_t>(plane_count) > std::numeric_limits<uint64_t>::max() / cells_per_plane) {
-    return false;
-  }
-  const uint64_t total_cells = cells_per_plane * static_cast<uint64_t>(plane_count);
-  if (total_cells > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
-    return false;
-  }
-  bytes = static_cast<std::size_t>(total_cells);
+  rns8::detail::AddressDomain domain;
+  if (!rns8::detail::checked_host_plane_address(desc.rows, desc.expanded_k, desc.expanded_k,
+                                               plane_count, 1, domain)) return false;
+  bytes = static_cast<std::size_t>(domain.byte_extent);
   return true;
 }
 
@@ -618,7 +614,8 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
     int64_t dense_ld,
     uint64_t source_version) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!ctx || !matrix || !dense_a_planes || ctx->backend != matrix->backend) {
+    if (!ctx || !matrix || !dense_a_planes || ctx->backend != matrix->backend ||
+        !dense_ld_valid(matrix->desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
     // A malformed later group must not partially overwrite a current matrix

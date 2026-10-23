@@ -1,3 +1,70 @@
+TEST_CASE("sparse host planes reject unrepresentable strides before access") {
+  using namespace rns8::detail;
+  AddressDomain domain;
+  constexpr uint64_t limit = std::numeric_limits<std::ptrdiff_t>::max();
+  REQUIRE(checked_host_plane_address(1, 4, INT64_MAX, 1, 1, domain));
+  REQUIRE(domain.byte_extent == 4);
+  REQUIRE_FALSE(checked_host_plane_address(1, 4, INT64_MAX, 3, 1, domain));
+  REQUIRE_FALSE(checked_host_plane_address(UINT64_MAX, 1, 1, 2, 1, domain));
+  REQUIRE(checked_host_plane_address(1, 1, limit - 1, 2, 1, domain));
+  REQUIRE(domain.byte_extent == limit);
+  REQUIRE_FALSE(checked_host_plane_address(1, 1, limit, 2, 1, domain));
+  REQUIRE(checked_host_plane_address(1, 1, limit / 8 - 1, 2, 8, domain));
+  REQUIRE_FALSE(checked_host_plane_address(1, 1, limit / 8, 2, 8, domain));
+  for (uint64_t planes : {1u, 3u, 20u})
+    for (uint64_t rows : {1u, 2u, 7u}) {
+      REQUIRE(checked_host_plane_address(rows, 4, 7, planes, 1, domain));
+      REQUIRE(domain.byte_extent == (planes * rows - 1) * 7 + 4);
+    }
+  rns8_sparse_matrix_desc desc{};
+  desc.struct_size = sizeof(desc); desc.abi_version = RNS8_ABI_VERSION;
+  desc.semantics = RNS8_EXACT_WIDE_UNSIGNED;
+  desc.bound_kind = RNS8_BOUND_NONE;
+  desc.contract = RNS8_SPARSE_A_4_TO_2_STRUCTURED_K;
+  desc.sparse_operand = RNS8_SPARSE_OPERAND_A;
+  desc.index_layout = RNS8_SPARSE_INDEX_LAYOUT_CANONICAL_2BIT_K_GROUPS_V1;
+  desc.value_signedness = RNS8_SPARSE_VALUE_SIGNEDNESS_SIGNED_I8;
+  desc.rows = 1; desc.expanded_k = 4; desc.group_size = 4; desc.nonzeros_per_group = 2;
+  desc.max_prefix = 3;
+  uint8_t dense[]{1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 2, 0};
+  std::vector<uint8_t> values(6, 123), indices(3, 123), output(12, 123);
+  REQUIRE(rns8_pack_sparse_a_4_to_2_u8(&desc, dense, INT64_MAX, values.data(), indices.data()) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(values == std::vector<uint8_t>(6, 123));
+  REQUIRE(indices == std::vector<uint8_t>(3, 123));
+  REQUIRE(rns8_expand_sparse_a_4_to_2_u8(&desc, values.data(), indices.data(), output.data(), INT64_MAX) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(output == std::vector<uint8_t>(12, 123));
+  auto* ctx = create_cpu_context();
+  rns8_sparse_matrix* matrix = nullptr;
+  REQUIRE(rns8_create_sparse_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, matrix, dense, 4, 7) == RNS8_SUCCESS);
+  const auto saved_values = matrix->packed_values;
+  const auto saved_bound = matrix->exact_max_magnitude;
+  REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, matrix, dense, INT64_MAX, 8) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(matrix->packed_values == saved_values);
+  REQUIRE(matrix->exact_max_magnitude == saved_bound);
+  REQUIRE(matrix->source_version == 7);
+  REQUIRE(matrix->host_current);
+  REQUIRE(rns8_destroy_sparse_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+  desc.max_prefix = 1;
+  REQUIRE(rns8_pack_sparse_a_4_to_2_u8(&desc, dense, INT64_MAX, values.data(), indices.data()) == RNS8_SUCCESS);
+  REQUIRE(rns8_expand_sparse_a_4_to_2_u8(&desc, values.data(), indices.data(), output.data(), INT64_MAX) == RNS8_SUCCESS);
+  REQUIRE(std::equal(output.begin(), output.begin() + 4, dense));
+  desc.rows = 2; desc.max_prefix = 20;
+  std::vector<uint8_t> padded(20 * 2 * 7, 123), expanded(padded.size(), 123);
+  values.resize(20 * 2 * 2); indices.resize(20 * 2);
+  for (std::size_t row = 0; row < 40; ++row)
+    std::copy(dense, dense + 4, padded.begin() + row * 7);
+  REQUIRE(rns8_pack_sparse_a_4_to_2_u8(&desc, padded.data(), 7, values.data(), indices.data()) == RNS8_SUCCESS);
+  REQUIRE(rns8_expand_sparse_a_4_to_2_u8(&desc, values.data(), indices.data(), expanded.data(), 7) == RNS8_SUCCESS);
+  REQUIRE(expanded == padded);
+  desc.rows = INT64_MAX;
+  uint64_t groups = 77, packed = 88;
+  REQUIRE(rns8_sparse_a_4_to_2_layout_counts(&desc, &groups, &packed) == RNS8_INVALID_ARGUMENT);
+  REQUIRE(groups == 77);
+  REQUIRE(packed == 88);
+}
+
 TEST_CASE("sparse A 4:2 contract packs and expands canonical K groups") {
   rns8_sparse_matrix_desc desc{};
   desc.struct_size = sizeof(desc);

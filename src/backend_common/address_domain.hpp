@@ -12,6 +12,24 @@ struct AddressDomain {
   uint64_t byte_extent = 0;
 };
 
+// Host planes are rows*ld apart. Prove only accessed bytes, within the
+// representable C++ object/difference domain; an unused last pitch is harmless.
+inline bool checked_host_plane_address(uint64_t rows, uint64_t cols, uint64_t ld,
+                                       uint64_t planes, uint64_t element_bytes,
+                                       AddressDomain& out) {
+  constexpr uint64_t object_limit = static_cast<uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
+  constexpr uint64_t size_limit = static_cast<uint64_t>(std::numeric_limits<std::size_t>::max());
+  constexpr uint64_t limit = object_limit < size_limit ? object_limit : size_limit;
+  if (!rows || !cols || ld < cols || !planes || !element_bytes ||
+      element_bytes > limit || rows > UINT64_MAX / planes) return false;
+  const uint64_t cells_limit = limit / element_bytes;
+  const uint64_t logical_rows = rows * planes;
+  if (cols > cells_limit || logical_rows - 1 > (cells_limit - cols) / ld) return false;
+  const uint64_t cells = (logical_rows - 1) * ld + cols;
+  out = {cells - 1, cells * element_bytes};
+  return true;
+}
+
 inline bool nonoverlapping_byte_ranges(const void* a, uint64_t a_bytes, const void* b, uint64_t b_bytes) {
   constexpr auto limit = std::numeric_limits<uintptr_t>::max();
   const auto first = reinterpret_cast<uintptr_t>(a), second = reinterpret_cast<uintptr_t>(b);
