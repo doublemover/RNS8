@@ -31,6 +31,28 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   REQUIRE(hip_direct_allocate(0, actual.size(), &dc) == RNS8_SUCCESS);
   REQUIRE(hip_direct_copy_host_to_device(0, da, a.data(), a.size() * sizeof(NativeT)) == RNS8_SUCCESS);
   REQUIRE(hip_direct_copy_host_to_device(0, db, b.data(), b.size() * sizeof(NativeT)) == RNS8_SUCCESS);
+  if (generated) {
+    // Independent unfused conversion/GEMM route with the identical native
+    // semantics, basis and padded output policy.
+    hip_direct_device_buffer ra, rb;
+    REQUIRE(ra.allocate(0, std::size_t{prefix} * m * k) == RNS8_SUCCESS);
+    REQUIRE(rb.allocate(0, std::size_t{prefix} * k * n) == RNS8_SUCCESS);
+    void* upload = nullptr;
+    std::size_t upload_bytes = 0;
+    const auto pack = [&](const NativeT* source, void* destination, int rows, int cols, int ld) {
+      if constexpr (std::is_same_v<NativeT, uint64_t>)
+        return hip_direct_pack_u64_device(0, source, &upload, &upload_bytes, destination, rows, cols, ld, prefix);
+      else
+        return hip_direct_pack_i64_device(0, source, &upload, &upload_bytes, destination, rows, cols, ld, prefix);
+    };
+    REQUIRE(pack(a.data(), ra.get(), m, k, lda) == RNS8_SUCCESS);
+    REQUIRE(pack(b.data(), rb.get(), k, n, ldb) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_gemm_rns_device(0, ra.get(), rb.get(), dc, m, n, k, k, n, ldc, prefix) == RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), dc, actual.size()) == RNS8_SUCCESS);
+    REQUIRE(actual == expected);
+    REQUIRE(hip_direct_free(0, upload) == RNS8_SUCCESS);
+  }
   bool supported = true;
   for (uint32_t group : {1u, 2u, 4u}) {
     std::fill(actual.begin(), actual.end(), 99);
@@ -71,6 +93,30 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
     }
     REQUIRE(status == RNS8_SUCCESS);
     REQUIRE(actual == expected);
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    if (generated) {
+      // Reverse the contraction axis in both operands. This moves values
+      // across WMMA tiles and slab boundaries while preserving exact AB.
+      auto reversed_a = a, reversed_b = b;
+      for (int row = 0; row < m; ++row)
+        for (int q = 0; q < k; ++q) reversed_a[row * lda + q] = a[row * lda + k - 1 - q];
+      for (int q = 0; q < k; ++q)
+        for (int col = 0; col < n; ++col) reversed_b[q * ldb + col] = b[(k - 1 - q) * ldb + col];
+      REQUIRE(hip_direct_copy_host_to_device(0, da, reversed_a.data(), reversed_a.size() * sizeof(NativeT)) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, db, reversed_b.data(), reversed_b.size() * sizeof(NativeT)) == RNS8_SUCCESS);
+      std::fill(actual.begin(), actual.end(), 99);
+      REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
+      for (const auto& variant : rns8::generated::native_variants)
+        if (variant.group == group && variant.unsigned_inputs == unsigned_inputs) {
+          INFO("reverse K variant " << variant.id);
+          REQUIRE(variant.launch(da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix) == 0);
+        }
+      REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), dc, actual.size()) == RNS8_SUCCESS);
+      REQUIRE(actual == expected);
+      REQUIRE(hip_direct_copy_host_to_device(0, da, a.data(), a.size() * sizeof(NativeT)) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0, db, b.data(), b.size() * sizeof(NativeT)) == RNS8_SUCCESS);
+    }
+#endif
   }
   REQUIRE(hip_direct_gemm_native_wmma_grouped_device(
       0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, 3, unsigned_inputs) == RNS8_INVALID_ARGUMENT);

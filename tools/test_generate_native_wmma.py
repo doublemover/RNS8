@@ -3,7 +3,7 @@ from dataclasses import replace
 import hashlib
 from pathlib import Path
 import tempfile
-from generate_native_wmma import Variant, generate
+from generate_native_wmma import Variant, generate, composition
 from check_generated_native_wmma import verify_generated_source
 
 
@@ -23,6 +23,15 @@ def main():
         for entry in first["variants"]:
             assert entry["kernel_symbol"].encode() in source
             assert len(entry["arithmetic_certificates"]) == 20
+            assert len(entry["composition_certificates"]) == 20
+            assert entry["resource_plan"]["global_temporary_bytes"] == 0
+            assert not entry["compatibility"]["cross_feature_runtime_qualified"]
+        try:
+            composition(replace(baseline, safe_k=262144), 256)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("overflowing carried slab composition accepted")
         assert not first["qualified"] and not first["promotion_eligible"]
         assert verify_generated_source(root / "a") == first
         (root / "a/native_variants.hpp").write_text("// drift\n", encoding="utf-8")

@@ -21,11 +21,24 @@ ranges and output overlap before dispatch. A/B sharing remains legal. The
 compiler's actual configuration is recorded by the existing build manifest,
 including the opt-in flag. Generator metadata alone never asserts compilation.
 
+Each ID also binds a per-modulus composed proof of native reduction, byte
+fragment values, the INT32 slab plus centered carry, and the final centered byte
+store. Carry/output closure establishes the same range for subsequent slabs.
+The existing proof-DAG verifier checks physical widths and modular domains;
+the existing planner resource query checks the empty global temporary arena.
+The compatibility record names form, group, slab, layout and output boundary.
+It does not certify lane mapping, register use, spills or instruction execution.
+
 The existing GPU differential fixture is reused for every generated variant,
 including signed/unsigned full-width values, prefix/group tails, padding and
 K=65535/65536/65537. Generator fixtures cover reproducibility, duplicate IDs,
 unsupported specifications and source/header drift. The gfx1100 variants and
 their test executable compile with VS2026/HIP; runtime tests remain pending.
+Paired fixtures additionally compare each generated route with separate native
+packing and direct residue GEMM, then reverse the contraction axis of both
+operands to move values across tiles and slab boundaries while preserving AB.
+Both routes check the same Boost result, padded bytes and unused suffix plane.
+These cross-feature fixtures are authored; runtime qualification is pending.
 
 `check_generated_native_wmma.py` regenerates expected artifacts before inspecting
 the exact manifested symbols with the existing ISA extraction and resource

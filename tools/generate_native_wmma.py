@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 
 from arithmetic_certificate import centered_int8, verify
+from arithmetic_composition import Node, verify_composition
+from analytical_planner import Stage
+from planning_recipe import ResourcePlan, checked_resources
 from modulus_set_search import DEFAULT_MODULI
 
 
@@ -35,11 +38,36 @@ DEPENDENCIES = ("src/backend_hip_direct/hip_direct_device_common.cuh",
                 "src/backend_common/garner_constants.hpp",
                 "src/backend_common/native_wmma_queue.hpp",
                 "src/backend_common/address_domain.hpp",
-                "tools/arithmetic_certificate.py", "tools/modulus_set_search.py")
+                "tools/arithmetic_certificate.py", "tools/arithmetic_composition.py",
+                "tools/planning_recipe.py", "tools/analytical_planner.py", "tools/modulus_set_search.py")
 
 
 def digest(value):
     return hashlib.sha256(value).hexdigest()
+
+
+def composition(v, modulus):
+    """Prove one slab with a centered carry; induction covers further slabs.
+
+    Layout labels identify the intended recipe, not measured lane mapping.
+    The arithmetic certificate separately proves exact native modular encoding.
+    """
+    low, high = (0, (1 << 64) - 1) if v.unsigned_inputs else (-(1 << 63), (1 << 63) - 1)
+    nodes = (
+        Node("native_a", "input", bits=64, signed=not v.unsigned_inputs, interval=(low, high)),
+        Node("native_b", "input", bits=64, signed=not v.unsigned_inputs, interval=(low, high)),
+        Node("residue_a", "centered_reduce", ("native_a",), bits=8, modulus=modulus),
+        Node("residue_b", "centered_reduce", ("native_b",), bits=8, modulus=modulus),
+        Node("fragment_a", "layout", ("residue_a",), bits=8),
+        Node("fragment_b", "layout", ("residue_b",), bits=8),
+        Node("carry", "input", bits=8, interval=(-(modulus // 2), (modulus - 1) // 2), modulus=modulus),
+        Node("slab", "dot", ("fragment_a", "fragment_b", "carry"), count=v.safe_k),
+        Node("output", "centered_reduce", ("slab",), bits=8, modulus=modulus),
+    )
+    result = verify_composition(nodes)
+    if not result["algebraically_verified"]:
+        raise ValueError("native encoding/slab/carry/store composition failed")
+    return result
 
 
 def generate(directory, variants, root=None):
@@ -65,8 +93,20 @@ def generate(directory, variants, root=None):
     proof_hashes = [c["sha256"] for c in certificates]
     entries = []
     for v in variants:
+        compositions = [composition(v, m) for m in DEFAULT_MODULI[:20]]
+        # The concrete fused kernel owns no global temporary arena. Register
+        # occupancy/spills remain separate compiled resource evidence.
+        resource = checked_resources(ResourcePlan("success"),
+            (Stage("fused", "generated_native", (), ("matrix",), (), 0),), 0)
+        if resource["status"] != "success":
+            raise ValueError("generated resource plan failed")
         identity = {"spec": asdict(v), "dependencies": dependencies, "generator_sha256": generator,
-                    "arithmetic_certificates": proof_hashes, "ordered_basis": DEFAULT_MODULI[:20]}
+                    "arithmetic_certificates": proof_hashes, "ordered_basis": DEFAULT_MODULI[:20],
+                    "composition_certificates": [c["sha256"] for c in compositions],
+                    "resource_plan": {"status": resource["status"], "global_temporary_bytes": resource["required_bytes"]},
+                    "compatibility": {"form": "centered_int8", "group": v.group,
+                                      "slab": v.safe_k, "layout": v.layout, "output": v.output,
+                                      "reconstruction": "none", "cross_feature_runtime_qualified": False}}
         variant_id = digest(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode())
         entries.append({**identity, "id": variant_id, "kernel_symbol": "rns8_native_" + variant_id,
                         "launch_symbol": "rns8_launch_" + variant_id})
@@ -121,7 +161,8 @@ def generate(directory, variants, root=None):
                 "toolchain_binding": "requires_actual_compiled_build_manifest_and_artifact",
                 "resource_evidence": "launch_bounds_32_and_no_explicit_LDS_only_registers_unmeasured",
                 "required_tests": ["signed_unsigned_full_width", "tails_and_padded_strides", "prefix_group_tails",
-                                   "k_65535_65536_65537", "cpu_Boost_differential", "launched_symbol_ISA_resources"]}
+                                   "k_65535_65536_65537", "cpu_Boost_differential", "paired_pack_then_gemm",
+                                   "paired_reverse_k", "launched_symbol_ISA_resources"]}
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "native_variants.hip").write_bytes(source_text.encode())
     (directory / "native_variants.hpp").write_bytes(header_text.encode())

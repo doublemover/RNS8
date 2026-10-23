@@ -9,11 +9,13 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
+#include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"

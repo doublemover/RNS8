@@ -124,6 +124,7 @@ if(RNS8_ENABLE_HIP)
       COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_native_wmma.py"
               --out-dir "${RNS8_GENERATED_NATIVE_DIR}" --target "${RNS8_AMDGPU_TARGETS}"
       DEPENDS tools/generate_native_wmma.py tools/arithmetic_certificate.py tools/modulus_set_search.py
+              tools/arithmetic_composition.py tools/planning_recipe.py tools/analytical_planner.py
               ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS}
       VERBATIM)
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src")
