@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from evidence_database_lib.isa import lookup_isa_resources
+from build_manifest import manifest_provenance_complete, manifest_dependencies_compatible
 from timing_eligibility import phase_blockers, pair_blockers, comparison_record
 
 from .capture_metadata import (
@@ -1922,18 +1923,13 @@ def review_captures(
         # Legacy captures remain readable, but cannot qualify a new release.
         manifests = [capture.get("build_manifest", {}) for capture in by_backend.values()]
         artifacts = [capture.get("artifact_capture", {}) for capture in by_backend.values()]
-        manifest_complete = all(
-            m.get("version") == 1 and m.get("source_dirty") is False and
-            len(str(m.get("source_commit", ""))) == 40 and len(str(m.get("source_digest", ""))) == 64 and
-            len(str(m.get("dependency_digest", ""))) == 64 and
-            m.get("linkage") == "static-rns8" and m.get("identity_scope") == "source-and-config" and
-            bool(m.get("configuration")) and "garner_table=ON" not in m.get("configuration", "") for m in manifests)
+        manifest_complete = all(manifest_provenance_complete(m, backend) for backend, m in zip(by_backend, manifests))
         artifact_complete = all(
             len(str(a.get("executable_sha256", ""))) == 64 and a.get("unchanged_during_run") is True
             for a in artifacts)
         git_commit_identity_complete = not missing_git_commits and manifest_complete and artifact_complete
         git_commit_values = {commit for commit in git_commits.values() if commit}
-        git_commit_identity_compatible = git_commit_identity_complete and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()}) <= 1 and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
+        git_commit_identity_compatible = git_commit_identity_complete and manifest_dependencies_compatible(manifests) and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()}) <= 1 and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
         release_timing_by_backend = {
             backend: capture
             for backend, capture in by_backend.items()

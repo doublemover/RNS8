@@ -5,9 +5,15 @@ import uuid
 def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
     capture["git_commit"] = commit
     capture["execution_id"] = str(uuid.uuid4())
-    capture["build_manifest"] = {"fixture_only": True, "version": 1, "source_digest": "a" * 64,
+    capture["build_manifest"] = {"fixture_only": True, "version": 2, "source_digest": "a" * 64,
                                  "source_commit": commit, "source_dirty": False,
-                                 "configuration": "synthetic fixture", "dependency_digest": "d" * 64}
+                                 "configuration": "synthetic fixture", "dependency_digest": "d" * 64,
+                                 "linkage": "static-rns8", "identity_scope": "source-config-and-external-headers",
+                                 "external_dependencies": {}}
+    for name in ("CK", "ROCWMMA", "HIPBLASLT"):
+        capture["build_manifest"]["configuration"] += f"\n{name.lower()}=ON\ndependency_tree.{name}=synthetic/{name}"
+        capture["build_manifest"]["external_dependencies"][name] = {
+            "root": f"synthetic/{name}", "sha256": "e" * 64, "files": 1, "bytes": 1}
     capture["artifact_capture"] = {"executable_sha256": "b" * 64, "unchanged_during_run": True,
                                    "rns8_linkage": "static", "fixture_only": True}
 

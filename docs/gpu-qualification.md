@@ -122,3 +122,20 @@ The old 2048/4096 summaries do not qualify the repaired baseline.
 Stop at correctness or device errors. Preserve `manifest.json`, `results.json`,
 stdout/stderr logs, JUnit, raw captures, CTest logs, and disassembly together.
 No GPU session was run to create this preparation work.
+
+### External accelerator build identity
+
+Build manifest v2 binds enabled rocWMMA, CK and hipBLASLt include trees, plus
+CK generated/patch trees, by relative filename, byte length and SHA256 of actual
+contents. Trees may live outside the RNS8 checkout. Every build rehashes them;
+header edits/additions/deletions change the forced build identity and COFF
+mixed-object link guard. Directory links are followed with cycle rejection;
+missing, empty and unreadable configured trees fail the manifest build.
+
+Release comparison requires v2 external-tree records consistent with the enabled
+backend configuration. Shared dependencies must have matching content identities
+and vcpkg metadata digests; relocations alone do not change tree contents.
+Historical v1 captures remain readable but cannot qualify new promotions.
+This is build-input identity, not a claim that runtime-loaded shared libraries
+have been hashed. Execution artifact/environment checks remain separate gates.
+Authored isolated-tree and release-admission regressions await execution.

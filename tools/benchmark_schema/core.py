@@ -85,7 +85,9 @@ class _Validator(
         if manifest is not None:
             if not isinstance(manifest, dict):
                 self._error("build_manifest must be an object")
-            elif (manifest.get("version") != 1 or type(manifest.get("source_dirty")) is not bool or
+            elif (type(manifest.get("version")) is not int or manifest["version"] not in (1, 2) or
+                  (manifest["version"] == 2 and not isinstance(manifest.get("external_dependencies"), dict)) or
+                  type(manifest.get("source_dirty")) is not bool or
                   not isinstance(manifest.get("configuration"), str) or
                   not isinstance(manifest.get("source_digest"), str) or
                   len(manifest["source_digest"]) != 64 or
