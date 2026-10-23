@@ -96,6 +96,11 @@ struct rns8_matrix {
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   uint16_t finite_modulus = 0;
   uint64_t source_version = 0;
+  // Engine-owned, monotonic within this stable handle; saturation disables reuse.
+  uint64_t content_generation = 0;
+  bool generation_exhausted = false;
+  bool imported_source = false;
+
   // Proof for public exact-wide pack/GEMM chains. Zero prefix means unknown.
   boost::multiprecision::cpp_int exact_max_magnitude = 0;
   uint32_t exact_range_prefix = 0;
@@ -311,6 +316,8 @@ struct rns8_result_cache {
   uint64_t a_matrix_instance_id = 0;
   uint64_t b_matrix_instance_id = 0;
   uint64_t c_matrix_instance_id = 0;
+  uint64_t a_content_generation = 0;
+  uint64_t b_content_generation = 0;
   uint64_t a_source_version = 0;
   uint64_t b_source_version = 0;
   uint64_t c_source_version = 0;

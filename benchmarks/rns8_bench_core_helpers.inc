@@ -10,62 +10,9 @@ rns8_status pack_exact_wide_limbs_as_rns(
     uint32_t limb_count,
     bool signed_values,
     uint64_t source_version) {
-  if (!ctx || !matrix || !src || limb_count == 0 || limb_count > 32 ||
-      !benchmark_host_matrix_access_valid(matrix->desc.rows, matrix->desc.cols, ld) ||
-      matrix->prefix == 0 || matrix->prefix > RNS8_MAX_SUPPORTED_PREFIX ||
-      matrix->residues.size() !=
-          static_cast<std::size_t>(matrix->prefix) * static_cast<std::size_t>(matrix->desc.rows) *
-              static_cast<std::size_t>(matrix->desc.cols)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  const rns8_semantics expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
-  if (matrix->desc.semantics != expected || ctx->backend != matrix->backend) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-
-  std::vector<boost::multiprecision::cpp_int> values;
-  values.reserve(static_cast<std::size_t>(matrix->desc.rows) * static_cast<std::size_t>(matrix->desc.cols));
-  for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-    for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-      values.push_back(exact_wide_value_from_limbs(
-          src + exact_wide_limb_index(row, col, ld, limb_count), limb_count, signed_values));
-    }
-  }
-
-  for (uint32_t p = 0; p < matrix->prefix; ++p) {
-    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
-    for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-      for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-        const std::size_t value_index =
-            static_cast<std::size_t>(row * matrix->desc.cols + col);
-        matrix->residues[rns8::detail::residue_index(*matrix, p, row, col)] =
-            rns8::detail::centered_residue(values[value_index], modulus);
-      }
-    }
-  }
-
-  matrix->source_version = source_version;
-  rns8::detail::api::clear_byte_limb_current(*matrix);
-  rns8::detail::api::clear_native_current(*matrix);
-
-  if (matrix->hip_residues != nullptr) {
-    if (matrix->hip_device_id != ctx->device_id ||
-        matrix->hip_residue_bytes != matrix->residues.size() * sizeof(int8_t)) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    const rns8_status status = run_timed_status_operation("pack_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(
-          ctx->device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes);
-    });
-    if (status != RNS8_SUCCESS) {
-      rns8::detail::api::clear_device_residues_current(*matrix);
-      return status;
-    }
-    rns8::detail::api::mark_device_residues_current(*matrix);
-  } else {
-    rns8::detail::api::mark_host_residues_current(*matrix);
-  }
-  return RNS8_SUCCESS;
+  if (!ctx || !matrix) return RNS8_INVALID_ARGUMENT;
+  return rns8::detail::api::import_exact_wide_limbs(
+      *ctx, *matrix, src, ld, limb_count, signed_values, source_version);
 }
 
 

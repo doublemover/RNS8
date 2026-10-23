@@ -37,7 +37,7 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->semantics = plan->desc.semantics;
     out->operand_role = operand_role;
     out->cache_key_valid = 1;
-    const bool stable_source_version = matrix->source_version != 0;
+    const bool stable_source_version = matrix->source_version != 0 && !matrix->generation_exhausted;
     const bool reusable_cache =
         stable_source_version && operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan);
     const bool production_cache =
@@ -96,7 +96,7 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
-        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0) {
+        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0 || matrix->generation_exhausted) {
       return RNS8_INVALID_ARGUMENT;
     }
 

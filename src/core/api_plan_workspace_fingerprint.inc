@@ -15,17 +15,6 @@ uint64_t signed_to_fingerprint(int64_t value) {
   return static_cast<uint64_t>(value);
 }
 
-uint64_t gemm_output_source_version_values(uint64_t a_source_version, uint64_t b_source_version) {
-  uint64_t hash = 1469598103934665603ull;
-  hash = workspace_fingerprint_mix(hash, a_source_version);
-  hash = workspace_fingerprint_mix(hash, b_source_version);
-  return hash == 0 ? 1 : hash;
-}
-
-uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B) {
-  return gemm_output_source_version_values(A.source_version, B.source_version);
-}
-
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
   uint64_t hash = 1469598103934665603ull;
   hash = workspace_fingerprint_mix(hash, static_cast<uint64_t>(plan.desc.semantics));

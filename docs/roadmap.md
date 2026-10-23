@@ -97,3 +97,14 @@ Stop at the first arithmetic, out-of-bounds, device fault, unexplained skip, or
 wrong-target error. Preserve logs and the exact build. Diagnose correctness
 before timing. A missing optional dependency is a qualification blocker for that
 backend, not permission to label a fallback as the requested accelerator.
+
+## October 23 issue repair qualification
+
+Issues #16–#22 are under implementation on PR #15. Resident ownership, content
+generation, failure invalidation, scratch preparation, checked limb import and
+single-pass exact admission share one validation campaign. Benchmark provenance
+is embedded at build time. The CPU Garner plan imports only the constexpr
+specification from the isolated `codex/garner-constants-20261008` experiment;
+its unqualified GPU routing changes are not imported. Existing GPU reconstruction
+and release routing remain unchanged. Completion requires executed regression
+and performance evidence; source edits alone do not close hardware gates.

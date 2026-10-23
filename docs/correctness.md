@@ -255,3 +255,25 @@ carry checks.
 Run the [qualification guide](gpu-qualification.md) on each actual target.
 CPU success, schema-valid fixtures, compiled kernel metadata, and skipped tests
 are not GPU correctness evidence.
+
+## Resident value publication
+
+Every resident GEMM rejects output/input handle aliases before materialization or
+writes. A shared A/B handle is valid with a distinct C. Grouped outputs must be
+distinct and disjoint from every task's inputs. Preflight rejection preserves
+old outputs. Once execution begins, failure may invalidate every output domain;
+export and downstream arithmetic require a successful recompute or repack.
+
+Caller import versions remain scoped to imported sources. Internally, matrices
+also carry an engine-owned content generation, advanced on successful value
+writes and used by result/prepack cache keys. Generated source_version reports
+that generation, not a hash of caller versions. Recomputing an identical value
+may advance it; materialization/lifting preserves it. Generation exhaustion
+permanently disables reuse for that handle instead of wrapping. Generated output
+cannot accidentally satisfy the unchanged-import optimization.
+
+The benchmark's arbitrary-width importer now uses the core checked importer:
+it decodes logical cells, rebuilds global/axis/moment proofs, checks strict CRT
+capacity, and publishes residues and proof together. Padding is excluded. Prior
+independent exact-wide export/repack chain captures require rerunning before
+comparison or promotion; no historical numerical damage is inferred.

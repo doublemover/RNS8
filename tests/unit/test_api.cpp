@@ -30,3 +30,5 @@ namespace {
 #include "test_api_result_cache_cases.inc"
 #include "test_api_auto_selector_cases.inc"
 #include "test_api_status_cases.inc"
+
+#include "test_api_value_lifecycle_cases.inc"

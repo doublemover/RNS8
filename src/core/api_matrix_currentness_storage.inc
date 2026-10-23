@@ -227,6 +227,18 @@ void clear_device_byte_limb_current(rns8_matrix& matrix) {
   matrix.device_byte_limbs_current = false;
 }
 
+void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_version) {
+  if (matrix.content_generation == std::numeric_limits<uint64_t>::max())
+    matrix.generation_exhausted = true;
+  else
+    ++matrix.content_generation;
+  matrix.imported_source = imported;
+  matrix.source_version = matrix.generation_exhausted ? 0 :
+      (imported ? source_version : matrix.content_generation);
+}
+
+void MatrixWriteGuard::invalidate() { invalidate_output_currentness(matrix); }
+
 void invalidate_output_currentness(rns8_matrix& matrix) {
   clear_residue_current(matrix);
   clear_byte_limb_current(matrix);
@@ -265,26 +277,31 @@ void mark_device_native_current(rns8_matrix& matrix) {
 }
 
 void mark_output_host_residues_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_host_residues_current(matrix);
   clear_native_current(matrix);
 }
 
 void mark_output_device_residues_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_device_residues_current(matrix);
   clear_native_current(matrix);
 }
 
 void mark_output_host_byte_limbs_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   mark_host_byte_limbs_current(matrix);
 }
 
 void mark_output_device_byte_limbs_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   mark_device_byte_limbs_current(matrix);
 }
 
 void mark_output_device_native_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   clear_residue_current(matrix);
   clear_byte_limb_current(matrix);
   matrix.host_native_current = false;

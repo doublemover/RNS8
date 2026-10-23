@@ -187,14 +187,12 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
                                              plan->desc.k, A->desc.cols, B->desc.cols, C->desc.cols,
                                              rns8::detail::kDefaultModuli[p], row_accumulator);
     }
-    const uint64_t output_version = gemm_output_source_version(*A, *B);
     // All allocation, validation and arithmetic precede the first resident
     // write. No staging buffer is swapped into a matrix's storage allocation.
     commit_exact_cpu_lift(*A, a_lift);
     if (A != B) commit_exact_cpu_lift(*B, b_lift);
     std::copy(output.begin(), output.end(), C->residues.begin());
     mark_output_host_residues_current(*C);
-    C->source_version = output_version;
     C->exact_max_magnitude.swap(output_bound);
     C->exact_axis_ranges.rows.swap(output_ranges.rows);
     C->exact_axis_ranges.cols.swap(output_ranges.cols);

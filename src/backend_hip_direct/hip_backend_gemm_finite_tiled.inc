@@ -221,9 +221,6 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
     rns8_matrix* matrix = c_matrices[index];
     mark_device_residue_output_current(matrix);
     matrix->finite_modulus = modulus;
-    matrix->source_version = api::gemm_output_source_version_values(
-        a_matrices[index]->source_version,
-        b_matrices[index]->source_version);
   }
   return RNS8_SUCCESS;
 #else

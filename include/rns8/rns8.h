@@ -983,7 +983,10 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
  * selected CRT range (twice the bound for signed semantics). The global
  * K*max_abs(A)*max_abs(B) bound is tightened by available row/column proofs.
  * Insufficient range/unwritten planes return RNS8_RANGE_ERROR before changing
- * C. Exact-wide C must not alias A or B. No dynamic prefix growth is performed.
+ * C. For every resident arithmetic contract, C must not alias A or B.
+ * A == B is allowed with distinct C. Grouped outputs must be distinct and may
+ * not alias any task input. Preflight errors preserve outputs; execution errors
+ * may invalidate outputs, which must then be recomputed or repacked. No dynamic prefix growth is performed.
  */
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,

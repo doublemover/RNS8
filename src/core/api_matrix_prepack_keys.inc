@@ -226,6 +226,7 @@ uint64_t prepack_cache_key_hash(
   hash = workspace_fingerprint_mix(hash, matrix.prefix);
   hash = workspace_fingerprint_mix(hash, matrix.finite_modulus);
   hash = workspace_fingerprint_mix(hash, matrix.source_version);
+  hash = workspace_fingerprint_mix(hash, matrix.content_generation);
   hash = workspace_fingerprint_mix(hash, signed_to_fingerprint(matrix.hip_device_id));
   hash = workspace_fingerprint_mix(hash, matrix.host_residues_current ? 1u : 0u);
   hash = workspace_fingerprint_mix(hash, matrix.device_residues_current ? 1u : 0u);
@@ -270,6 +271,7 @@ std::string build_prepack_cache_key(
   key += ";m=" + std::to_string(plan.desc.m);
   key += ";n=" + std::to_string(plan.desc.n);
   key += ";k=" + std::to_string(plan.desc.k);
+  key += ";content_generation=" + std::to_string(matrix.content_generation);
   key += ";source_version=" + std::to_string(matrix.source_version);
   key += ";hip_device_id=" + std::to_string(matrix.hip_device_id);
   key += ";matrix_rows=" + std::to_string(matrix.desc.rows);

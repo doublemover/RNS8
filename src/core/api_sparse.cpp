@@ -698,7 +698,7 @@ rns8_status rns8_gemm_rns_sparse_a(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -730,12 +730,10 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      if (rns8::detail::exact_wide_semantics(plan->desc.semantics))
-        rns8::detail::api::invalidate_output_currentness(*C);
+      rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
       if (status == RNS8_SUCCESS) {
         rns8::detail::api::mark_output_host_residues_current(*C);
-        C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
         rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       }
       return status;
@@ -750,8 +748,7 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
-      if (rns8::detail::exact_wide_semantics(plan->desc.semantics))
-        rns8::detail::api::invalidate_output_currentness(*C);
+      rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::amdgpu_builtins_gemm_rns_sparse_a_device(
           ctx->device_id,
           A->hip_packed_values,
@@ -768,7 +765,6 @@ rns8_status rns8_gemm_rns_sparse_a(
         return status;
       }
       rns8::detail::api::mark_output_device_residues_current(*C);
-      C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
     }
@@ -786,7 +782,7 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -809,11 +805,11 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
+      rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
       if (status == RNS8_SUCCESS) {
         rns8::detail::api::mark_output_host_residues_current(*C);
         C->finite_modulus = modulus;
-        C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
       }
       return status;
     }
@@ -827,6 +823,7 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       if (operand_status != RNS8_SUCCESS) {
         return operand_status;
       }
+      rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::amdgpu_builtins_gemm_finite_u8_sparse_a_device(
           ctx->device_id,
           A->hip_packed_values,
@@ -844,7 +841,6 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       }
       rns8::detail::api::mark_output_device_residues_current(*C);
       C->finite_modulus = modulus;
-      C->source_version = rns8::detail::api::gemm_output_source_version_values(A->source_version, B->source_version);
       return RNS8_SUCCESS;
     }
 #endif

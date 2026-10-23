@@ -315,10 +315,6 @@ uint64_t workspace_fingerprint_mix_string(uint64_t hash, const std::string& valu
 
 uint64_t signed_to_fingerprint(int64_t value);
 
-uint64_t gemm_output_source_version_values(uint64_t a_source_version, uint64_t b_source_version);
-
-uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B);
-
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan);
 
 bool matrix_descriptor_matches(
@@ -360,6 +356,20 @@ void clear_device_residues_current(rns8_matrix& matrix);
 void clear_byte_limb_current(rns8_matrix& matrix);
 
 void clear_device_byte_limb_current(rns8_matrix& matrix);
+
+rns8_status import_exact_wide_limbs(rns8_context& ctx, rns8_matrix& matrix, const uint64_t* src,
+                                    int64_t ld, uint32_t limb_count, bool signed_values, uint64_t source_version);
+
+void publish_matrix_value(rns8_matrix& matrix, bool imported = false, uint64_t source_version = 0);
+
+// Invalidates on unwinding or any failed post-write status, including native uploads.
+struct MatrixWriteGuard {
+  rns8_matrix& matrix;
+  bool committed = false;
+  explicit MatrixWriteGuard(rns8_matrix& value) : matrix(value) { invalidate(); }
+  void invalidate();
+  ~MatrixWriteGuard() { if (!committed) invalidate(); }
+};
 
 void invalidate_output_currentness(rns8_matrix& matrix);
 

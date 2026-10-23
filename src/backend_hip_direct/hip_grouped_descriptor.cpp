@@ -1117,20 +1117,12 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
     return status;
   }
 
-  const bool bounded_output =
-      descriptor.semantics == RNS8_BOUNDED_I64 || descriptor.semantics == RNS8_BOUNDED_U64;
   for (uint32_t index = 0; index < descriptor.task_count; ++index) {
     const hip_direct_grouped_gemm_task& task = descriptor.tasks[index];
     if (!task.c->device_residues_current) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (bounded_output) {
-      const uint64_t expected_source_version =
-          api::gemm_output_source_version_values(task.a->source_version, task.b->source_version);
-      if (task.c->source_version != expected_source_version) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-    }
+
   }
   return RNS8_SUCCESS;
 }
