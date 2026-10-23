@@ -19,6 +19,9 @@ missing rows/columns and reduce each sum to a centered byte before calling the
 existing direct-HIP GEMM. Every coefficient is -1, 0 or 1: a transform is bounded
 by nine byte magnitudes, and recombination reduces after each subproduct. No
 inverse or exact-division assumption is needed for composite/even moduli.
+Recombination skips output blocks whose coefficient for the current product is
+zero. Those blocks retain their staged bytes without product loads or stage
+read/reduce/write traffic. Timing impact is unmeasured.
 
 Strassen and rank-23 share templated transform/recombination kernels and the
 bounded host scheduler. One transformed A, transformed B and product buffer

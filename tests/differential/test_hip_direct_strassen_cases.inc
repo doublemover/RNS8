@@ -5,9 +5,11 @@ TEST_CASE(
   if (!hip_available())
     SKIP("no HIP device for Strassen");
   for (bool rank23 : {false, true}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
-    for (int k : {1, 3, 17, rank23 ? 196609 : 131073}) {
+    for (int k : {1, 2, 3, 17, rank23 ? 196609 : 131073}) {
       const auto multiply = rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
-      const int m = k > 100 ? 1 : 5, n = k > 100 ? 1 : 7, lda = k + 1,
+      // The 3x3 case exercises individual rank-23 output blocks, including
+      // skipped zero-coefficient contributions and a padded K block.
+      const int m = k > 100 ? 1 : k == 2 ? 3 : 5, n = k > 100 ? 1 : k == 2 ? 3 : 7, lda = k + 1,
                 ldb = n + 2, ldc = n + 3;
       std::vector<int8_t> a(prefix * m * lda, 99), b(prefix * k * ldb, 99),
           expected(prefix * m * ldc, 77), observed(expected.size(), 77);

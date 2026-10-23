@@ -55,6 +55,10 @@ rns8_bilinear_combine_kernel(const int8_t *product, int8_t *stage, int m, int n,
   const int64_t row = cell / n, col = cell % n;
   const int quadrant = (row / hm) * Blocks + col / hn, plane = blockIdx.y;
   const int coefficient = rns8_bilinear_term<Blocks>(product_index).c[quadrant];
+  // A zero coefficient leaves this staged block unchanged. Avoid product and
+  // stage traffic, and avoid division/reduction for these inactive outputs.
+  if (!coefficient)
+    return;
   const int64_t output = static_cast<int64_t>(plane) * m * n + cell;
   const int64_t input =
       (static_cast<int64_t>(plane) * hm + row % hm) * hn + col % hn;
