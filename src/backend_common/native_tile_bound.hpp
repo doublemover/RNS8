@@ -12,7 +12,7 @@ struct NativeTileBound {
   uint32_t required_prefix = 0; // 0 proves zero; 21 means not admitted.
   uint32_t reserved = 0;
 };
-enum class NativeBoundMethod : uint32_t { tile_max = 0, axis_l1 = 1 };
+enum class NativeBoundMethod : uint32_t { tile_max = 0, axis_l1 = 1, panel_l1 = 2 };
 struct NativeAxisSummary {
   uint64_t maximum = 0;
   uint64_t l1_low = 0;
@@ -62,6 +62,18 @@ RNS8_BOUND_HD constexpr NativeTileBound native_axis_l1_bound(
   if (native_bound_less(left, bound)) bound = left;
   if (native_bound_less(right, bound)) bound = right;
   return bound;
+}
+// Sum only disjoint K-panel bounds: total native K <= UINT32_MAX bounds the
+// exact result below 2^160, so three limbs cannot overflow.
+RNS8_BOUND_HD constexpr void add_native_panel_bound(NativeTileBound& total, const NativeTileBound& panel) {
+  uint64_t carry = 0;
+  for (int limb = 0; limb < 3; ++limb) {
+    const uint64_t old = total.magnitude[limb];
+    const uint64_t sum = old + panel.magnitude[limb];
+    const uint64_t with_carry = sum + carry;
+    carry = (sum < old) | (with_carry < sum);
+    total.magnitude[limb] = with_carry;
+  }
 }
 // products has 21 rows including P0=1. Caller supplies the fixed basis table.
 RNS8_BOUND_HD inline void select_native_bound_prefix(

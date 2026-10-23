@@ -20,10 +20,36 @@ benefit-based default selection is claimed. Scan, prefix selection and device
 bucket compaction have distinct timing labels. The existing synchronous rejected
 count readback remains; an indirect consumer is still pending. Raw records are
 usable only while the exact inputs remain unchanged; generation-bound public
-proof ownership, reusable summaries, K-panel refinement, selected conversion and
+proof ownership, reusable summaries, selected conversion and
 matrix-engine consumers remain separate integration work.
 
 Authored Boost checks cover full-width sums/products, carry boundaries through
 UINT32_MAX K, signed minima, unsigned maxima, zeros, mutation, padded tails,
 outliers and both methods' exact bound/prefix/bucket outputs. Compilation and
 execution are pending; smaller proved prefixes do not establish a net speedup.
+
+## Explicit K-panel L1 refinement
+
+`panel_l1` partitions K into caller-selected panels of 1..65536 elements (default
+256). Each axis-tile/panel keeps the same exact maximum and L1 summary. A tile's
+bound is the sum over panels of the minimum of panel_length*amax*bmax,
+amax*B_column_L1 and A_row_L1*bmax. Every term independently bounds every cell
+on that panel; summing disjoint panels is conservative by the triangle inequality.
+Three limbs preserve all carries: total K remains at most UINT32_MAX, so the
+native product bound stays below 2^160. All-zero products from disjoint nonzero
+panels can therefore be proved without forming an M-by-N magnitude matrix.
+
+The producer scans native inputs once, stores 24 bytes per axis tile per panel,
+and performs one bounded panel loop per output tile. Scratch admission charges
+all summaries and compaction arrays. At most 65535 panels are admitted by this
+launch layout; larger requested grids report unsupported. `native_bound_panel_l1_scan`
+labels the new scan, while selection/compaction retain separate timing labels.
+Required prefixes and zero buckets use the existing strict uniqueness test.
+
+This policy need not dominate whole-axis L1: maximizing different rows within
+each panel can lose cross-panel information. The caller chooses the route; no
+cost-based default or net speedup is asserted. Authored CPU multiword and GPU
+Boost fixtures include signed minima/unsigned maxima, exact carries, partial
+panels, disjoint K support, mutation, canaries and invalid panel/budget rejection.
+The extension and test executable compiled with VS2026/HIP 7.1 for gfx1100.
+Runtime qualification remains pending.

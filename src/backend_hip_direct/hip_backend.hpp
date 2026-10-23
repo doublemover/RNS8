@@ -52,7 +52,8 @@ rns8_status hip_direct_discover_native_tile_bounds(
     int device_id, const void* a, const void* b, int64_t m, int64_t n, int64_t k,
     int64_t lda, int64_t ldb, bool unsigned_inputs, uint32_t capacity,
     NativeTileBound* device_bounds, uint32_t* device_indices, uint32_t* device_offsets,
-    uint64_t max_scratch_bytes, NativeBoundMethod method = NativeBoundMethod::tile_max);
+    uint64_t max_scratch_bytes, NativeBoundMethod method = NativeBoundMethod::tile_max,
+    uint32_t panel_k = 256);
 // Private one-shot native conversion + grouped matrix-engine candidate. The
 // explicit flag selects i64/u64 interpretation; output is default-basis residues,
 // not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.

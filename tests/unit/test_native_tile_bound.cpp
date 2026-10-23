@@ -57,3 +57,28 @@ TEST_CASE("native tile maximum bounds have exact multiword products and strict p
   select_native_bound_prefix(equal, true, 1, basis.products);
   REQUIRE(equal.required_prefix == 21); // P == 2*bound is insufficient.
 }
+
+TEST_CASE("K-panel bound summation preserves carries and disjoint zero proofs") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  const auto decode = [](const NativeTileBound& value) -> cpp_int {
+    return cpp_int(value.magnitude[0]) + (cpp_int(value.magnitude[1]) << 64) +
+           (cpp_int(value.magnitude[2]) << 128);
+  };
+  for (uint64_t maximum : {uint64_t{0}, uint64_t{1}, uint64_t{1} << 63, UINT64_MAX}) {
+    NativeTileBound accumulated{};
+    uint64_t terms = 0;
+    for (uint32_t panel : {1u, 65535u, 65536u, UINT32_MAX - 131072u}) {
+      add_native_panel_bound(accumulated, native_tile_max_bound(maximum, maximum, panel));
+      terms += panel;
+      REQUIRE(decode(accumulated) == cpp_int(maximum) * maximum * terms);
+    }
+    REQUIRE(terms == UINT32_MAX);
+  }
+  const NativeAxisSummary zero{}, large{UINT64_MAX, UINT64_MAX, 0};
+  NativeTileBound disjoint{};
+  add_native_panel_bound(disjoint, native_axis_l1_bound(large, zero, 1));
+  add_native_panel_bound(disjoint, native_axis_l1_bound(zero, large, 1));
+  REQUIRE(decode(disjoint) == 0);
+  REQUIRE(decode(native_axis_l1_bound(large, large, 2)) > 0);
+}

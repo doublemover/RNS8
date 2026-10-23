@@ -1,6 +1,6 @@
 template <typename NativeT, bool RowTiles>
 __global__ void rns8_native_axis_l1_kernel(
-    const NativeT* source, int rows, int cols, int ld, rns8::detail::NativeAxisSummary* summaries) {
+    const NativeT* source, int rows, int cols, int ld, rns8::detail::NativeAxisSummary* summaries, int panel_k, int panels) {
   __shared__ uint64_t maxima[256], low[256], high[256];
   const int lane = threadIdx.x;
   const int axis_lane = RowTiles ? lane / 16 : lane % 16;
@@ -9,9 +9,11 @@ __global__ void rns8_native_axis_l1_kernel(
   const int64_t axis = static_cast<int64_t>(blockIdx.x) * 16 + axis_lane;
   const int axis_size = RowTiles ? rows : cols;
   const int k_size = RowTiles ? cols : rows;
+  const int64_t begin = int64_t{blockIdx.y} * panel_k;
+  const int64_t end = begin + panel_k < k_size ? begin + panel_k : k_size;
   uint64_t maximum = 0, sum_low = 0, sum_high = 0;
   if (axis < axis_size)
-    for (int64_t q = k_lane; q < k_size; q += 16) {
+    for (int64_t q = begin + k_lane; q < end; q += 16) {
       const NativeT value = source[RowTiles ? axis * ld + q : q * ld + axis];
       const uint64_t bits = static_cast<uint64_t>(value);
       const uint64_t magnitude = value < 0 ? uint64_t{0} - bits : bits;
@@ -40,17 +42,24 @@ __global__ void rns8_native_axis_l1_kernel(
         summary.l1_low = low[index]; summary.l1_high = high[index];
       }
     }
-    summaries[blockIdx.x] = summary;
+    summaries[static_cast<uint64_t>(blockIdx.x) * panels + blockIdx.y] = summary;
   }
 }
 
 __global__ void rns8_native_l1_tile_bounds_kernel(
     const rns8::detail::NativeAxisSummary* a, const rns8::detail::NativeAxisSummary* b,
     rns8::detail::NativeTileBound* bounds, uint32_t* counts,
-    int tile_count, int tile_cols, int k, int capacity, bool signed_result) {
+    int tile_count, int tile_cols, int k, int capacity, bool signed_result, int panel_k, int panels) {
   const int64_t tile = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (tile >= tile_count) return;
-  auto bound = rns8::detail::native_axis_l1_bound(a[tile / tile_cols], b[tile % tile_cols], k);
+  rns8::detail::NativeTileBound bound{};
+  for (int panel = 0; panel < panels; ++panel) {
+    const int64_t remaining = k - int64_t{panel} * panel_k;
+    const auto terms = static_cast<uint32_t>(remaining < panel_k ? remaining : panel_k);
+    const auto part = rns8::detail::native_axis_l1_bound(
+        a[(tile / tile_cols) * panels + panel], b[(tile % tile_cols) * panels + panel], terms);
+    rns8::detail::add_native_panel_bound(bound, part);
+  }
   rns8::detail::select_native_bound_prefix(bound, signed_result, capacity, rns8_direct_crt_table.products);
   bounds[tile] = bound;
   atomicAdd(counts + bound.required_prefix, 1u);
