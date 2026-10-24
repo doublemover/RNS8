@@ -133,7 +133,7 @@ def contract(case, run_id, repeats, warmups):
             "memory_budget_bytes": BUDGET, "exact_full_output_and_padding_checked": True, "inputs_unchanged_checked": True}
 
 
-def validate_provenance(manifest):
+def validate_provenance(manifest, backend=None):
     """Accept structural diagnostic evidence without upgrading its eligibility."""
     demand(type(manifest) is dict and type(manifest.get("source_dirty")) is bool, "missing build provenance")
     structural = dict(manifest, source_dirty=False)
@@ -142,7 +142,7 @@ def validate_provenance(manifest):
     configuration = structural.get("configuration")
     if isinstance(configuration, str):
         structural["configuration"] = "\n".join("garner_table=OFF" if line.partition("=")[0] == "garner_table" else line for line in configuration.splitlines())
-    demand(manifest_provenance_complete(structural), "invalid structural build provenance")
+    demand(manifest_provenance_complete(structural, backend), "invalid structural build provenance")
 
 
 def validate_capture(capture, case, run_id, repeats, warmups):

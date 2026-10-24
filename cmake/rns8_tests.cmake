@@ -9,6 +9,26 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME native_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_calibration.py")
   add_test(NAME finite_verify_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_finite_verify.py")
   add_test(NAME block_sparse_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_block_sparse.py")
+  add_test(NAME wrap64_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_wrap64.py")
+  if(TARGET rns8-wrap64-calibrate)
+    set_tests_properties(wrap64_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_WRAP64_CALIBRATION_EXE=$<TARGET_FILE:rns8-wrap64-calibrate>"
+      LABELS "tools;wrap64;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_wrap_candidate IN ITEMS signed_radix native_u8 direct_v4 rocwmma_corrected)
+        if(_wrap_candidate STREQUAL "rocwmma_corrected" AND NOT RNS8_ENABLE_ROCWMMA)
+          continue()
+        endif()
+        foreach(_wrap_scope IN ITEMS resident roundtrip cold)
+          add_test(NAME wrap64_${_wrap_candidate}_${_wrap_scope}_smoke
+            COMMAND rns8-wrap64-calibrate 0 ${_wrap_candidate} ${_wrap_scope}
+              2 3 17 carry 1 2 1 ctest-${_wrap_candidate}-${_wrap_scope})
+          set_tests_properties(wrap64_${_wrap_candidate}_${_wrap_scope}_smoke PROPERTIES
+            LABELS "hip;wrap64;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   if(TARGET rns8-block-sparse-calibrate)
     set_tests_properties(block_sparse_collector_self_test PROPERTIES
       ENVIRONMENT "RNS8_BLOCK_SPARSE_EXE=$<TARGET_FILE:rns8-block-sparse-calibrate>"

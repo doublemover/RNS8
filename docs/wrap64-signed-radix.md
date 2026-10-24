@@ -45,3 +45,9 @@ The longer mathematical signed cap of 131071 and unsigned cap of 33025 are
 certificate bounds, not current schedule lengths. Matched comparison against
 direct-HIP v4 and corrected rocWMMA, ISA/resource receipts, and sustained
 end-to-end benchmark evidence remain required before any measured integration.
+
+The authored [matched calibration driver](wrap64-calibration.md) supplies
+resident, roundtrip and cold-input controls with common canonical byte limbs,
+hook-disabled production timing and complete outside references. Its long-K
+cases explicitly omit rocWMMA above that existing control's K32768 cap.
+The new driver, collector, case sets and fixtures have not run.

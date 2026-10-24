@@ -135,6 +135,8 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     for key in ("device_name", "selected_dense_kernel"):
         demand(type(capture.get(key)) is str and capture[key].strip(), f"missing identity: {key}")
     demand(type(capture.get("target")) is str and re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?", capture["target"]), "invalid target")
+    if "wmma" in case["mode"] or "hybrid" in case["mode"]:
+        demand(capture["target"].split(":")[0] in ("gfx1100", "gfx1101", "gfx1102"), "target disagrees with current sparse WMMA admission")
     for key in ("hip_runtime_version", "hip_driver_version"):
         demand(integer(capture.get(key), 1, (1 << 31)-1), "invalid runtime identity")
     for key in ("reference_and_dataset_ns", "native_setup_ns", "setup_ns", "clock_period_numerator", "clock_period_denominator"):

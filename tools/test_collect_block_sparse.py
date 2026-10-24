@@ -134,6 +134,9 @@ class Captures(unittest.TestCase):
         capture = fixture(cold); capture["samples"][0].update(preparation_ns=900, destruction_ns=900)
         with self.assertRaises(ValueError):
             validate_capture(capture, cold, "fixture-run", 2, 1)
+        accelerated = case_for("sparse_wmma"); capture = fixture(accelerated); capture["target"] = "gfx942"
+        with self.assertRaises(ValueError):
+            validate_capture(capture, accelerated, "fixture-run", 2, 1)
 
     def test_tracked_manifests_have_complete_controls(self):
         root = Path(__file__).resolve().parents[1]/"benchmarks"/"block-sparse"

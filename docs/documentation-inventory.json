@@ -4084,6 +4084,32 @@
       ]
     },
     {
+      "path": "docs/wrap64-calibration.md",
+      "purpose": "Matched private signed-radix/native-U8/direct-HIP/rocWMMA wrap64 cold, roundtrip and resident cost controls",
+      "audience": "Researchers and benchmark contributors",
+      "disposition": "keep",
+      "canonical": "docs/wrap64-calibration.md",
+      "owner": "benchmarks/rns8_wrap64_calibrate.cpp",
+      "reason": "Complete Boost, native-ring and cpp_int references with canonical/canary/export-padding audits, separate event and production timing, explicit rocWMMA long-K gap; authored only pending consolidated qualification.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "wrap64-calibration.md"
+        },
+        {
+          "source": "docs/wrap64-signed-radix.md",
+          "reference": "wrap64-calibration.md"
+        }
+      ],
+      "anchors": [
+        "commands-and-matched-cases",
+        "controls-and-boundaries",
+        "exact-dataset-and-reference",
+        "matched-canonical-wrap64-calibration",
+        "resource-and-evidence-accounting"
+      ]
+    },
+    {
       "path": "examples/README.md",
       "purpose": "Checked examples",
       "audience": "API users",

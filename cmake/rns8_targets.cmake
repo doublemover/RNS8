@@ -174,7 +174,13 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
   add_executable(rns8-finite-verify-calibrate benchmarks/rns8_finite_verify_calibrate.cpp)
   add_executable(rns8-block-sparse-calibrate benchmarks/rns8_block_sparse_calibrate.cpp)
-  foreach(_calibrator IN ITEMS rns8-crt-calibrate rns8-native-calibrate rns8-finite-verify-calibrate rns8-block-sparse-calibrate)
+  add_executable(rns8-wrap64-calibrate benchmarks/rns8_wrap64_calibrate.cpp)
+  foreach(_calibrator IN ITEMS
+      rns8-crt-calibrate
+      rns8-native-calibrate
+      rns8-finite-verify-calibrate
+      rns8-block-sparse-calibrate
+      rns8-wrap64-calibrate)
     rns8_bind_manifest(${_calibrator})
     target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
     target_link_libraries(${_calibrator} PRIVATE rns8_static nlohmann_json::nlohmann_json)
