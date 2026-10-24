@@ -214,12 +214,18 @@ void clear_device_native_current(rns8_matrix& matrix) {
 
 void clear_residue_current(rns8_matrix& matrix) {
   matrix.exact_range_prefix = 0;
+  matrix.materialized_rns_prefix = 0;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = false;
   matrix.device_residues_current = false;
 }
 
 void clear_device_residues_current(rns8_matrix& matrix) {
   matrix.device_residues_current = false;
+  if (!matrix.host_residues_current) {
+    matrix.materialized_rns_prefix = 0;
+    matrix.materialized_rns_schedule.reset();
+  }
 }
 
 void clear_byte_limb_current(rns8_matrix& matrix) {
@@ -250,13 +256,52 @@ void invalidate_output_currentness(rns8_matrix& matrix) {
   clear_native_current(matrix);
 }
 
-void mark_host_residues_current(rns8_matrix& matrix) {
+bool bounded_residue_semantics(rns8_semantics semantics) {
+  return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
+}
+
+bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix) {
+  return !bounded_residue_semantics(matrix.desc.semantics) ||
+      (prefix != 0 && matrix.materialized_rns_prefix >= prefix && matrix.materialized_rns_prefix <= matrix.prefix);
+}
+
+bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& plan) {
+  if (materialized_rns_prefix_covers(matrix, rns_storage_prefix_for_plan(plan))) return true;
+  const auto& written = matrix.materialized_rns_schedule;
+  const auto& requested = plan.validated_contract;
+  // A hash is only a fast rejection. Compare the complete owned structural key;
+  // neither plan destruction nor a fingerprint collision authorizes new planes.
+  return !plan.tile_schedule.empty() && written && requested &&
+      written->fingerprint == requested->fingerprint &&
+      written->canonical_workspace_key == requested->canonical_workspace_key &&
+      matrix.materialized_rns_prefix == plan.schedule_min_selected_prefix;
+}
+
+void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan) {
+  matrix.materialized_rns_schedule.reset();
+  if (!bounded_residue_semantics(matrix.desc.semantics)) {
+    matrix.materialized_rns_prefix = matrix.prefix;
+    return;
+  }
+  // Missing publication provenance fails closed rather than promoting capacity.
+  matrix.materialized_rns_prefix = plan ? plan->prefix : 0;
+  if (plan && !plan->tile_schedule.empty()) {
+    matrix.materialized_rns_prefix = plan->schedule_min_selected_prefix;
+    matrix.materialized_rns_schedule = plan->validated_contract;
+  }
+}
+
+void mark_host_residues_current(rns8_matrix& matrix, uint32_t written_prefix) {
+  matrix.materialized_rns_prefix = written_prefix == UINT32_MAX ? matrix.prefix : written_prefix;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = true;
   matrix.device_residues_current = false;
   clear_byte_limb_current(matrix);
 }
 
-void mark_device_residues_current(rns8_matrix& matrix) {
+void mark_device_residues_current(rns8_matrix& matrix, uint32_t written_prefix) {
+  matrix.materialized_rns_prefix = written_prefix == UINT32_MAX ? matrix.prefix : written_prefix;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = false;
   matrix.device_residues_current = true;
   clear_byte_limb_current(matrix);
@@ -281,17 +326,19 @@ void mark_device_native_current(rns8_matrix& matrix) {
   matrix.device_native_current = true;
 }
 
-void mark_output_host_residues_current(rns8_matrix& matrix) {
+void mark_output_host_residues_current(rns8_matrix& matrix, const rns8_plan* plan) {
   publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_host_residues_current(matrix);
+  record_materialized_rns_output(matrix, plan);
   clear_native_current(matrix);
 }
 
-void mark_output_device_residues_current(rns8_matrix& matrix) {
+void mark_output_device_residues_current(rns8_matrix& matrix, const rns8_plan* plan) {
   publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_device_residues_current(matrix);
+  record_materialized_rns_output(matrix, plan);
   clear_native_current(matrix);
 }
 

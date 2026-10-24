@@ -373,10 +373,18 @@ The plan's declared output bound remains the caller's contract; submission does
 not reinterpret bounded storage as exact-wide or invent a dynamic range proof.
 Export still uses the checked signed or unsigned bounded API. The prepared object
 requires already-current RNS inputs; lazy native conversion must happen before
-submission. Other backends and bounded resident DAGs remain unsupported by this
-asynchronous surface. Source fixtures cover narrow and full-width declared
+submission. Bounded resident MatMul DAGs use the separate resident-graph APIs.
+Other prepared backends remain unsupported by this asynchronous surface. Source fixtures cover narrow and full-width declared
 bounds, signed extrema, unsigned maxima, pitched export, replay, refresh
 and cancellation; execution is pending the final campaign.
+
+Bounded RNS currentness also records the number of materialized planes. A small
+declared output bound can select fewer planes than a matrix's allocated capacity.
+Prepared admission, refresh and execution reject a later wider-prefix consumer
+with `RNS8_RANGE_ERROR`; current storage alone does not authorize unwritten
+planes. Pending producers use their actual selected write prefix. Native import
+explicitly encodes the full destination basis again. This is plane availability,
+not an exact-wide magnitude proof or automatic base extension.
 
 ## Event-dependent prepared submission
 

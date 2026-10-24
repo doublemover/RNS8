@@ -67,6 +67,11 @@ immutable across scan and conversion under the lease contract.
 Export requires current device residues and a current unique scalar proof
 fitting the native type. Ordinary bounded results without that proof reject;
 use a path that publishes such a proof, rather than inventing one at export.
+The proof must cover every residue plane consumed by native export, currently
+the matrix's complete basis. A narrowed exact-wide computation in a larger
+allocation is rejected until those suffix planes are explicitly materialized;
+capacity alone is not evidence. Ordinary plan-specific host export can still
+read its actually written prefix.
 Existing CRT kernels reconstruct into lease-owned compact scratch, then read
 only a four-byte status. Only successful range/status verification permits the
 D2D logical-row copy to the external destination. Padding is preserved. The

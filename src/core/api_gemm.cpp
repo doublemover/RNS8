@@ -50,6 +50,7 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
       !rns_residue_state_current_for_backend(A, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (!materialized_rns_prefix_covers(A, storage_prefix)) return RNS8_RANGE_ERROR;
   return RNS8_SUCCESS;
 }
 rns8_status validate_rns_gemm_operands(
@@ -112,6 +113,8 @@ rns8_status validate_rns_gemm_operands(
       !rns_residue_state_current_for_backend(B, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (require_current_inputs && (!materialized_rns_prefix_covers(A, storage_prefix) ||
+      !materialized_rns_prefix_covers(B, storage_prefix))) return RNS8_RANGE_ERROR;
   return RNS8_SUCCESS;
 }
 
@@ -242,6 +245,10 @@ rns8_status build_public_grouped_gemm_descriptor(
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
+    if (uses_rns_storage(plan.desc.semantics)) {
+      const auto operand_status = validate_rns_gemm_operands(ctx, plan, *task.a, *task.b, *task.c);
+      if (operand_status != RNS8_SUCCESS) return operand_status;
+    }
     internal_tasks.push_back(
         {const_cast<rns8_matrix*>(task.a), const_cast<rns8_matrix*>(task.b), task.c, task.workspace});
   }
@@ -346,6 +353,7 @@ rns8_status execute_public_grouped_gemm(
   }
   if (status == RNS8_SUCCESS) {
     for (uint32_t i = 0; i < task_count; ++i) {
+      record_materialized_rns_output(*tasks[i].c, &plan);
       if (!exact_bounds.empty()) rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
     }
   }
@@ -639,7 +647,7 @@ rns8_status execute_incremental_region_recompute(
     }
     cache.recomputed_cell_count += static_cast<uint64_t>(region.row_extent) * static_cast<uint64_t>(region.col_extent);
   }
-  mark_output_device_residues_current(C);
+  mark_output_device_residues_current(C, &plan);
   if (finite) {
     C.finite_modulus = modulus;
   }
@@ -696,7 +704,7 @@ rns8_status execute_incremental_gemm(
     if (status != RNS8_SUCCESS) {
       return status;
     }
-    mark_output_device_residues_current(C);
+    mark_output_device_residues_current(C, &plan);
     if (finite) {
       C.finite_modulus = modulus;
     }
@@ -947,7 +955,7 @@ rns8_status rns8_gemm_rns(
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        mark_output_host_residues_current(*C);
+        mark_output_host_residues_current(*C, plan);
         rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       }
       return status;
@@ -995,7 +1003,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
     }
@@ -1029,7 +1037,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1074,7 +1082,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1119,7 +1127,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1147,7 +1155,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1273,7 +1281,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     if (status != RNS8_SUCCESS) {
       return status;
     }
-    mark_output_device_residues_current(*C);
+    mark_output_device_residues_current(*C, plan);
     rns8::detail::commit_exact_range(*C, *plan, exact_bound);
     return RNS8_SUCCESS;
   });
@@ -1317,7 +1325,7 @@ rns8_status rns8_gemm_finite_u8(
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        mark_output_host_residues_current(*C);
+        mark_output_host_residues_current(*C, plan);
         C->finite_modulus = modulus;
       }
       return status;
@@ -1338,7 +1346,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
     }
@@ -1367,7 +1375,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
 #else
@@ -1393,7 +1401,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
 #else
@@ -1419,7 +1427,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
 #else
@@ -1447,7 +1455,7 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
 #else
@@ -1607,7 +1615,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
         C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
         A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, max_scratch_bytes, commit_started);
     if (status != RNS8_SUCCESS) return status;
-    mark_output_device_residues_current(*C);
+    mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C, *plan, bound, &ranges);
     // Additional transient storage relative to the resident A+B+C residue bytes.
     const long double resident = static_cast<long double>(resources.source_a.byte_extent) +

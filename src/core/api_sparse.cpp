@@ -168,6 +168,7 @@ rns8_matrix make_sparse_expanded_rns_matrix(const rns8_sparse_matrix& sparse, co
   dense.source_version = sparse.source_version;
   dense.exact_max_magnitude = sparse.exact_max_magnitude;
   dense.exact_range_prefix = sparse.exact_range_prefix;
+  dense.materialized_rns_prefix = storage_prefix;
   dense.host_residues_current = true;
   dense.device_residues_current = false;
   dense.residues.resize(
@@ -348,6 +349,7 @@ rns8_status validate_sparse_rns_device_operands(
   }
   const uint32_t storage_prefix = rns_storage_prefix_for_plan(plan);
   const rns8_bound_kind storage_bound_kind = storage_bound_kind_for_plan(plan);
+  if (!rns8::detail::api::materialized_rns_prefix_covers(B, storage_prefix)) return RNS8_RANGE_ERROR;
   if (!matrix_descriptor_matches(
           B, plan.desc.semantics, storage_bound_kind, plan.desc.k, plan.desc.n, storage_prefix, plan.desc.tile_m,
           plan.desc.tile_n) ||
@@ -743,7 +745,7 @@ rns8_status rns8_gemm_rns_sparse_a(
       rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, dense_a, *B, *C);
       if (status == RNS8_SUCCESS) {
-        rns8::detail::api::mark_output_host_residues_current(*C);
+        rns8::detail::api::mark_output_host_residues_current(*C, plan);
         rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       }
       return status;
@@ -774,7 +776,7 @@ rns8_status rns8_gemm_rns_sparse_a(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      rns8::detail::api::mark_output_device_residues_current(*C);
+      rns8::detail::api::mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound);
       return RNS8_SUCCESS;
     }
@@ -827,7 +829,7 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       rns8::detail::api::invalidate_output_currentness(*C);
       const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, dense_a, *B, *C);
       if (status == RNS8_SUCCESS) {
-        rns8::detail::api::mark_output_host_residues_current(*C);
+        rns8::detail::api::mark_output_host_residues_current(*C, plan);
         C->finite_modulus = modulus;
       }
       return status;
@@ -858,7 +860,7 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      rns8::detail::api::mark_output_device_residues_current(*C);
+      rns8::detail::api::mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
       return RNS8_SUCCESS;
     }

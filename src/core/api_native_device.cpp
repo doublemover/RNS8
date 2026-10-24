@@ -206,9 +206,10 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
     auto status=native_matrix_contract(ctx,matrix,lease,false);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_WRITE || !matrix->device_residues_current) return RNS8_INVALID_ARGUMENT;
+    if(!materialized_rns_prefix_covers(*matrix,matrix->prefix)) return RNS8_RANGE_ERROR;
     const bool signed_values=lease->desc.element_type==RNS8_NATIVE_DEVICE_I64;
     const boost::multiprecision::cpp_int limit=signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX);
-    if(!matrix->exact_range_prefix || matrix->exact_range_prefix>matrix->prefix || matrix->exact_max_magnitude<0 ||
+    if(!matrix->exact_range_prefix || matrix->exact_range_prefix!=matrix->prefix || matrix->exact_max_magnitude<0 ||
        matrix->exact_max_magnitude>limit || !exact_range_fits(signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED,
            matrix->exact_max_magnitude,modulus_product(matrix->exact_range_prefix))) return RNS8_RANGE_ERROR;
     if(budget<lease->resources.export_scratch_bytes) return RNS8_WORKSPACE_TOO_SMALL;

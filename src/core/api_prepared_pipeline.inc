@@ -41,6 +41,7 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
     if(!producer || !producer->running) {
       if(input->in_flight_writer) return RNS8_BUSY;
       if(!rns_residue_state_current_for_backend(*input,e.plan->backend)) return RNS8_INVALID_ARGUMENT;
+      if(!materialized_rns_prefix_covers(*input,e.plan->prefix)) return RNS8_RANGE_ERROR;
       proof_inputs[slot].exact_range_prefix=input->exact_range_prefix;
       proof_inputs[slot].exact_max_magnitude=input->exact_max_magnitude;
       proof_inputs[slot].exact_axis_ranges=input->exact_axis_ranges;

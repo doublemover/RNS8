@@ -188,7 +188,8 @@ bool prepack_operand_matrix_compatible(
            rns_residue_state_current_for_backend(matrix, plan.backend);
   }
   return rns_matrix_storage_matches(matrix, plan.backend, rows, cols, storage_prefix) &&
-         rns_residue_state_current_for_backend(matrix, plan.backend);
+         rns_residue_state_current_for_backend(matrix, plan.backend) &&
+         materialized_rns_prefix_covers(matrix, storage_prefix);
 }
 
 uint64_t prepack_cache_key_hash(

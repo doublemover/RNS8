@@ -39,7 +39,7 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
       e.c->finite_modulus=0;
       e.c->exact_axis_ranges.rows.clear();e.c->exact_axis_ranges.cols.clear();
     } else {
-      mark_output_device_residues_current(*e.c);
+      mark_output_device_residues_current(*e.c, e.plan);
       if(uses_finite_storage(e.plan->desc.semantics)) {
         e.c->finite_modulus=static_cast<uint16_t>(e.plan->desc.finite_modulus);
         e.c->exact_axis_ranges.rows.clear();e.c->exact_axis_ranges.cols.clear();

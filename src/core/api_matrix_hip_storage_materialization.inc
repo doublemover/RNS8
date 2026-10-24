@@ -179,9 +179,12 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
       (plan.desc.semantics != RNS8_BOUNDED_I64 && plan.desc.semantics != RNS8_BOUNDED_U64)) {
     return RNS8_SUCCESS;
   }
-  if (rns_residue_state_current_for_backend(matrix, plan.backend)) {
+  if (rns_residue_state_current_for_backend(matrix, plan.backend) &&
+      materialized_rns_prefix_covers(matrix, rns_storage_prefix_for_plan(plan))) {
     return RNS8_SUCCESS;
   }
+  if (rns_residue_state_current_for_backend(matrix, plan.backend) &&
+      !bounded_native_state_current(matrix)) return RNS8_RANGE_ERROR;
   if (matrix.backend != RNS8_BACKEND_HIP_DIRECT || matrix.hip_device_id != ctx.device_id ||
       matrix.desc.semantics != plan.desc.semantics ||
       !rns_matrix_storage_matches(
@@ -213,7 +216,7 @@ rns8_status ensure_bounded_native_residues_current_for_rns_plan(
     clear_device_residues_current(matrix);
     return status;
   }
-  mark_device_residues_current(matrix);
+  mark_device_residues_current(matrix, storage_prefix);
   return RNS8_SUCCESS;
 }
 

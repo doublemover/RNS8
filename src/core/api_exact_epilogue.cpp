@@ -70,7 +70,7 @@ rns8_status rns8_gemm_narrow_exact(
         plan->desc.m,plan->desc.n,plan->desc.k,A->desc.cols,B->desc.cols,plan->prefix,
         unsigned_inputs,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes,commit_started);
     if (status!=RNS8_SUCCESS) return status;
-    mark_output_device_residues_current(*C);
+    mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C,*plan,bound,&ranges);
     write.published=true;
     return RNS8_SUCCESS;
@@ -131,7 +131,7 @@ rns8_status rns8_gemm_adaptive_exact(
         A->desc.cols, B->desc.cols, C->desc.cols, unsigned_inputs, plan->prefix, group,
         max_scratch_bytes, commit_started, discovery, panel_k, compact_workers);
     if (status != RNS8_SUCCESS) return status;
-    mark_output_device_residues_current(*C);
+    mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C, *plan, bound, &ranges);
     write.published = true;
     return RNS8_SUCCESS;
@@ -210,7 +210,7 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
           alpha, beta);
       if (status != RNS8_SUCCESS)
         return status;
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
     } else {
       const auto m = plan->desc.m, n = plan->desc.n, k = plan->desc.k;
       for (uint32_t p = 0; p < plan->prefix; ++p) {
@@ -236,7 +236,7 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
                 static_cast<int8_t>(result);
           }
       }
-      mark_output_host_residues_current(*C);
+      mark_output_host_residues_current(*C, plan);
     }
     commit_exact_range(*C, *plan, bound);
     write.committed = true;

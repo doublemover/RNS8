@@ -46,6 +46,9 @@ struct rns8_resident_graph {
 };
 
 namespace {
+bool bounded_graph_semantics(rns8_semantics semantics) {
+  return semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64;
+}
 uint64_t next_graph_id() {
   static std::atomic<uint64_t> next{1};
   auto value = next.load(std::memory_order_relaxed);
@@ -124,8 +127,8 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
             : rns_residue_state_current_for_backend(m, graph.ctx->backend)) ||
         (check_bindings && (m.matrix_instance_id != input.instance || m.content_generation != input.generation)))
       return RNS8_INVALID_ARGUMENT;
-    if(m.desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
-      proofs.try_emplace(input.matrix);
+    if(m.desc.semantics==RNS8_WRAP_U64_MOD_2_64 || bounded_graph_semantics(m.desc.semantics)) {
+      proofs.try_emplace(input.matrix).first->second.materialized_rns_prefix=m.materialized_rns_prefix;
       continue;
     }
     if(uses_finite_storage(m.desc.semantics)) {
@@ -175,9 +178,15 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     if (node.c->generation_exhausted) return RNS8_RANGE_ERROR;
     auto ai = proofs.find(node.a), bi = proofs.find(node.b);
     if (ai == proofs.end() || bi == proofs.end()) return RNS8_INVALID_ARGUMENT;
-    if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
+    if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64 || bounded_graph_semantics(node.plan->desc.semantics)) {
       if(node.kind!=RNS8_RESIDENT_MATMUL) return RNS8_INVALID_ARGUMENT;
-      proofs.try_emplace(node.c);
+      // Internal prefix metadata describes written planes, not an integer proof.
+      if(bounded_graph_semantics(node.plan->desc.semantics) &&
+          (ai->second.materialized_rns_prefix<rns_storage_prefix_for_plan(*node.plan) ||
+           bi->second.materialized_rns_prefix<rns_storage_prefix_for_plan(*node.plan)))
+        return RNS8_RANGE_ERROR;
+      auto& output=proofs.try_emplace(node.c).first->second;
+      output.materialized_rns_prefix=node.plan->tile_schedule.empty()?node.plan->prefix:node.plan->schedule_min_selected_prefix;
       if(pending) pending->push_back({{}, {}});
       continue;
     }
@@ -278,7 +287,7 @@ rns8_status rns8_create_resident_graph(
         if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
             (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
              !(node.kind==RNS8_RESIDENT_MATMUL && (uses_finite_storage(node.plan->desc.semantics) ||
-                 node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64))) ||
+                 node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64 || bounded_graph_semantics(node.plan->desc.semantics)))) ||
             !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
         if (!node.plan || !node.a || !node.a_imag || !node.b || !node.b_imag || !node.c_imag ||

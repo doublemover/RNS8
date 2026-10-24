@@ -90,8 +90,9 @@ typedef struct rns8_graph_completion_token {
 } rns8_graph_completion_token;
 
 /* Ordered exact-wide MatMul/BaseExtend/ExactAxpby/ComplexMatMul DAG, CPU or direct HIP.
- * MATMUL also admits strict wrap64 byte-limb edges and explicit finite ring/field
- * edges with matching moduli.
+ * MATMUL also admits bounded i64/u64, strict wrap64 byte-limb edges and explicit
+ * finite ring/field edges with matching moduli. Bounded nodes retain each plan
+ * caller-supplied output-bound contract; no exact-wide proof is inferred.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
  * matrix/plan/workspace storage must match each edge. Explicit BASE_EXTEND
@@ -114,7 +115,7 @@ RNS8_API rns8_status rns8_execute_resident_graph(
 RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
 
 /* Explicit single-stream direct-HIP fixed-prefix exact-wide MatMul/ExactAxpby
- * and strict wrap64 or finite ring/field MatMul DAGs.
+ * and bounded i64/u64, strict wrap64 or finite ring/field MatMul DAGs.
  * Prepare completion resources first. BaseExtend/Export nodes and adaptive
  * schedules are unsupported. Submission preflights the complete DAG, reserves
  * external readers and all output/workspace writers, and issues one token.
@@ -806,6 +807,15 @@ typedef struct rns8_matrix_storage_info {
   char layout_version[96];
   char storage_scope[96];
   char detail[256];
+  /* Bounded RNS plane availability, independent of allocation max_prefix and
+   * exact-wide magnitude proofs. A tiled result may have additional valid
+   * planes described by its retained immutable write schedule. The fingerprint
+   * is diagnostic only; internal admission compares complete schedule content.
+   * These three fields are zero for non-bounded semantics; exact-wide range
+   * proofs are a separate contract, and finite/byte-limb storage has no RNS prefix. */
+  uint32_t materialized_rns_prefix;
+  uint32_t has_materialized_rns_schedule;
+  uint64_t materialized_rns_schedule_fingerprint;
 } rns8_matrix_storage_info;
 
 typedef struct rns8_stream_gemm_plan rns8_stream_gemm_plan;

@@ -8,7 +8,7 @@ rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) 
         node.plan->backend != RNS8_BACKEND_HIP_DIRECT || !node.plan->tile_schedule.empty() ||
         (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
          !(node.kind==RNS8_RESIDENT_MATMUL && (uses_finite_storage(node.plan->desc.semantics) ||
-             node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64))) ||
+             node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64 || bounded_graph_semantics(node.plan->desc.semantics)))) ||
         !rns8::detail::qualified_i32_gemm_address(node.plan->desc.m, node.plan->desc.n,
             node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64?8:
             uses_finite_storage(node.plan->desc.semantics)?1:node.plan->prefix))
@@ -63,7 +63,7 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
         node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();
         continue;
       }
-      mark_output_device_residues_current(*node.c);
+      mark_output_device_residues_current(*node.c, node.plan);
       if(uses_finite_storage(node.plan->desc.semantics)) {
         node.c->finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);
         node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();

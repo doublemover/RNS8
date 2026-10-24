@@ -30,7 +30,7 @@ rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* x,rns8_matri
     }
     c->finite_modulus=finite?x->finite_modulus:0;
     c->exact_axis_ranges.rows.clear();c->exact_axis_ranges.cols.clear();
-    if(!finite) {c->exact_max_magnitude.swap(bound);c->exact_range_prefix=c->prefix;}
+    if(!finite) {c->materialized_rns_prefix=c->prefix;c->exact_max_magnitude.swap(bound);c->exact_range_prefix=c->prefix;}
     write.published=true;
     return RNS8_SUCCESS;
   });

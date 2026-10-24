@@ -470,9 +470,13 @@ rns8_status free_result_cache_snapshot(rns8_result_cache& cache);
 rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C);
 rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C);
 
-void mark_host_residues_current(rns8_matrix& matrix);
+bool bounded_residue_semantics(rns8_semantics semantics);
+bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix);
+bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& plan);
+void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan);
+void mark_host_residues_current(rns8_matrix& matrix, uint32_t written_prefix = UINT32_MAX);
 
-void mark_device_residues_current(rns8_matrix& matrix);
+void mark_device_residues_current(rns8_matrix& matrix, uint32_t written_prefix = UINT32_MAX);
 
 void mark_host_byte_limbs_current(rns8_matrix& matrix);
 
@@ -480,9 +484,9 @@ void mark_device_byte_limbs_current(rns8_matrix& matrix);
 
 void mark_device_native_current(rns8_matrix& matrix);
 
-void mark_output_host_residues_current(rns8_matrix& matrix);
+void mark_output_host_residues_current(rns8_matrix& matrix, const rns8_plan* plan = nullptr);
 
-void mark_output_device_residues_current(rns8_matrix& matrix);
+void mark_output_device_residues_current(rns8_matrix& matrix, const rns8_plan* plan = nullptr);
 
 void mark_output_host_byte_limbs_current(rns8_matrix& matrix);
 

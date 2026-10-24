@@ -1,8 +1,8 @@
 # Resident DAG execution
 
 `rns8_create_resident_graph` accepts an ordered list of 1-4096 typed
-`rns8_resident_node` records on CPU or direct HIP. MatMul supports exact-wide
-and explicit finite ring/field semantics; other node kinds remain exact-wide.
+`rns8_resident_node` records on CPU or direct HIP. MatMul supports bounded i64/u64, exact-wide, strict wrap64 and explicit finite
+ring/field semantics; other node kinds remain exact-wide.
 MatMul nodes reference an existing plan,
 workspace, input matrices and distinct output matrix. ExactAxpby nodes also
 reference an addend in `d` and signed integer `alpha`/`beta` coefficients and
@@ -272,3 +272,44 @@ explicit moduli; cancellation/failure retains the existing graph invalidation an
 reservation rules. Authored CPU/HIP diamond fixtures compare every intermediate
 and output under moduli 2/250/251/256, replay captured graphs, check unpublished
 intermediates and reject changed-modulus bindings. Execution remains pending.
+
+## Bounded integer DAG edges
+
+CPU and direct-HIP MatMul graphs accept bounded signed/unsigned 64-bit plans,
+including direct-HIP stream submission and owned graph replay. Each edge keeps
+its existing caller-declared output-bound contract and ordinary checked export.
+All storage, semantic, prefix, generation and ownership checks still apply.
+Bounded intermediate values carry no fabricated exact-wide range proof; they
+cannot be used as exact-wide lift, epilogue or limb-export nodes. Declared bounds
+must hold for every intermediate, not only the final output. Execution does not
+scan outputs to prove caller-supplied bounds.
+
+External and unpublished bounded edges carry explicit written-prefix metadata,
+separate from allocation capacity and exact-wide proofs. A previously computed
+narrow-prefix result cannot feed a wider ordinary, prepared or graph consumer.
+Such admission returns `RNS8_RANGE_ERROR` before changing outputs or reservations.
+Repacking native values encodes the complete basis; no implicit reconstruction or
+suffix lift is inferred from spare storage.
+
+Adaptive per-tile outputs retain an owned immutable write-schedule contract.
+The producing plan may be destroyed: an equivalent sealed plan still exports
+through the same tile-specific prefixes. Admission compares the complete
+structural schedule key as well as its diagnostic fingerprint. A different wider
+schedule cannot read planes that were skipped. General GEMM consumers require a
+common materialized prefix sufficient for every input plane they read; reusing a
+nonuniform output as a wider input is conservatively rejected. Publication only
+retains an existing immutable seal and allocates no new schedule after writes.
+Invalidation and canceled submissions clear this availability metadata.
+
+`rns8_get_matrix_storage_info` reports bounded `materialized_rns_prefix`, the
+retained-schedule flag and its diagnostic fingerprint. `max_prefix` remains
+allocation capacity. These new diagnostics are zero for other semantic domains;
+they do not reinterpret exact-wide proof, finite-ring or byte-limb contracts.
+
+Authored CPU/HIP fixtures cover signed and unsigned full bounds, narrow bounds,
+padded exports, a three-node fanout, unpublished intermediate consumption,
+replay, cancellation, stale bindings and refresh. Execution remains deferred to
+the consolidated qualification campaign. Additional source fixtures cover
+separate-execution narrow output followed by wider export, GEMM, prepared and
+graph admission, complete native reimport, adaptive own/equivalent-plan exports,
+plan destruction, invalidation and a synthetic fingerprint-collision rejection.

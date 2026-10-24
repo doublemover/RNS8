@@ -77,9 +77,11 @@ rns8_status materialize_native_matrix_as_direct_rns(
       return status;
     }
     if (source == target) {
-      api::mark_device_residues_current(*target);
+      api::mark_device_residues_current(*target, storage_prefix);
     } else {
-      api::mark_output_device_residues_current(*target);
+      api::mark_output_device_residues_current(*target, plan);
+      target->materialized_rns_prefix = storage_prefix;
+      target->materialized_rns_schedule.reset();
     }
     return RNS8_SUCCESS;
   });

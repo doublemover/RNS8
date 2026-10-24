@@ -7,7 +7,8 @@ namespace {
 
 bool same_source_device_residue_pack_current(const rns8_context& ctx, const rns8_matrix& matrix, uint64_t source_version) {
   return source_version != 0 && matrix.imported_source && !matrix.generation_exhausted && matrix.source_version == source_version && hip_resident_rns_backend(ctx.backend) &&
-         matrix.device_residues_current && !should_populate_native_on_pack(ctx, matrix);
+         matrix.device_residues_current && materialized_rns_prefix_covers(matrix, matrix.prefix) &&
+         !should_populate_native_on_pack(ctx, matrix);
 }
 
 bool same_source_device_byte_limb_pack_current(

@@ -11,11 +11,12 @@ std::atomic<uint64_t> g_hip_direct_allocated_bytes{0};
 constexpr uint32_t kKnownTileScheduleFlags =
     RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
 
-void mark_device_residue_output_current(rns8_matrix* matrix) {
+void mark_device_residue_output_current(rns8_matrix* matrix, uint32_t written_prefix = 0, const rns8_plan* plan = nullptr) {
   if (!matrix) {
     return;
   }
-  api::mark_output_device_residues_current(*matrix);
+  api::mark_output_device_residues_current(*matrix, plan);
+  if (written_prefix) matrix->materialized_rns_prefix = written_prefix;
 }
 
 }  // namespace

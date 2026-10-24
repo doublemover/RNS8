@@ -129,6 +129,12 @@ struct rns8_matrix {
   uint32_t exact_range_prefix = 0;
   rns8_exact_matrix_ranges exact_axis_ranges;
 
+  // Plane availability is independent of the exact-wide magnitude proof and
+  // allocated capacity. Adaptive bounded outputs retain their immutable write
+  // contract so matching tiled exports can use nonuniform written prefixes.
+  uint32_t materialized_rns_prefix = 0;
+  std::shared_ptr<const rns8_validated_plan_contract> materialized_rns_schedule;
+
   std::vector<int8_t> residues;
   std::vector<uint8_t> byte_limbs;
   std::vector<int64_t> native_i64;

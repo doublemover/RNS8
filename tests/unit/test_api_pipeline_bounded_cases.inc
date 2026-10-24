@@ -47,6 +47,7 @@ TEST_CASE("bounded event-dependent GEMM reserves pending operands without host p
       REQUIRE((signed_values?cpp_int(actual[i]):cpp_int(actual_u[i]))==(signed_values?cpp_int(values[i]):cpp_int(values_u[i])));
     }
     REQUIRE(matrices[3]->exact_range_prefix==0);
+    REQUIRE(matrices[3]->materialized_rns_prefix==plan->prefix);
     REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);REQUIRE(rns8_destroy_prepared_execution(producer)==RNS8_SUCCESS);
     for(auto* m:matrices) REQUIRE(rns8_destroy_matrix(m)==RNS8_SUCCESS);
     for(auto* w:workspaces) REQUIRE(rns8_destroy_workspace(w)==RNS8_SUCCESS);

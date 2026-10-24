@@ -22,6 +22,13 @@ Gram requires that unique source proof and also K*maxabs(X)^2<=INT64_MAX. A
 bounded result without a retained proof is rejected; no caller small-bound claim
 is promoted to a fact. The added bounded-pack scan is part of conversion cost.
 
+Gram reads the complete source basis. Its source proof must therefore cover that
+entire prefix, rather than only a narrower computed prefix inside a larger
+allocation. Such a narrowed source rejects both ordinary and prepared Gram
+admission until the suffix is explicitly materialized. Plan-specific ordinary
+GEMM/export may still use the already-written prefix; Gram does not silently
+lift it or treat spare capacity as current data.
+
 For Q=ceil(N/16), checked integer arithmetic constructs Q*(Q+1)/2 jobs, one for
 each upper triangular tile. An off-diagonal job stores its tile and the mirrored
 transpose. A diagonal job stores each independent upper cell and mirrors it

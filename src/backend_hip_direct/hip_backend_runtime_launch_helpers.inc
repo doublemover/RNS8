@@ -294,6 +294,8 @@ rns8_status validate_grouped_rns_matrices(
     if (require_current && !matrix->device_residues_current) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (require_current && !api::materialized_rns_prefix_covers(*matrix, matrix->prefix))
+      return RNS8_RANGE_ERROR;
     if (index == 0) {
       device_id = matrix->hip_device_id;
       prefix = matrix->prefix;

@@ -31,9 +31,10 @@ inline rns8_status validate_gram_contract(rns8_context* ctx,const rns8_matrix* x
     }
     if(finite && !valid_finite_modulus_for_semantics(x->desc.semantics,x->finite_modulus))
       return RNS8_INVALID_ARGUMENT;
+    if(!finite && !materialized_rns_prefix_covers(*x,x->prefix)) return RNS8_RANGE_ERROR;
     bound=0;
     if(!finite) {
-      if(!x->exact_range_prefix || x->exact_range_prefix>x->prefix || x->exact_max_magnitude<0 ||
+      if(!x->exact_range_prefix || x->exact_range_prefix!=x->prefix || x->exact_max_magnitude<0 ||
          !exact_range_fits(RNS8_EXACT_WIDE_SIGNED,x->exact_max_magnitude,modulus_product(x->exact_range_prefix)))
         return RNS8_RANGE_ERROR;
       bound=boost::multiprecision::cpp_int(k)*x->exact_max_magnitude*x->exact_max_magnitude;

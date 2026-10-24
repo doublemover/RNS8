@@ -107,7 +107,7 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner) {
     }
     c->finite_modulus=owner->problem.modulus;
     c->exact_axis_ranges.rows.clear();c->exact_axis_ranges.cols.clear();
-    if(!uses_finite_storage(c->desc.semantics)) {c->exact_max_magnitude.swap(bound);c->exact_range_prefix=c->prefix;}
+    if(!uses_finite_storage(c->desc.semantics)) {c->materialized_rns_prefix=c->prefix;c->exact_max_magnitude.swap(bound);c->exact_range_prefix=c->prefix;}
     reservation.finish();return RNS8_SUCCESS;
   });
 }

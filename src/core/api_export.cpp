@@ -46,6 +46,8 @@ rns8_status validate_export_matrix(
        !rns8::detail::exact_range_fits(semantics, C.exact_max_magnitude, plan.modulus_product))) {
     return RNS8_RANGE_ERROR;
   }
+  if (require_current && uses_rns_storage(semantics) && !materialized_rns_export_covers(C, plan))
+    return RNS8_RANGE_ERROR;
   if (semantics == RNS8_WRAP_U64_MOD_2_64 &&
       (!wrap_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n) ||
        !wrap_byte_limb_state_current_for_backend(C, plan.backend))) {

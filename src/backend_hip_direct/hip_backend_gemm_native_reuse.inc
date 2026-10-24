@@ -195,7 +195,7 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_I64 || C->desc.semantics != RNS8_BOUNDED_I64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS || C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS ||
       B->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
@@ -216,7 +216,7 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -233,7 +233,7 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_colpair_matrix(
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_I64 || C->desc.semantics != RNS8_BOUNDED_I64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS || C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS ||
       B->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
@@ -254,7 +254,7 @@ rns8_status hip_direct_gemm_i64_native_a_resident_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -271,7 +271,7 @@ rns8_status hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_matrix
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_I64 || C->desc.semantics != RNS8_BOUNDED_I64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS || C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS ||
       B->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
@@ -292,7 +292,7 @@ rns8_status hip_direct_gemm_i64_uniform_small_native_a_resident_b_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -620,7 +620,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_U64 || C->desc.semantics != RNS8_BOUNDED_U64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
@@ -642,7 +642,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -659,7 +659,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_U64 || C->desc.semantics != RNS8_BOUNDED_U64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
@@ -681,7 +681,7 @@ rns8_status hip_direct_gemm_u64_native_a_resident_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -698,7 +698,7 @@ rns8_status hip_direct_gemm_i64_resident_a_native_b_prefix9_colpair_matrix(
     int64_t k,
     int64_t ldb,
     uint64_t source_version) {
-  if (!A || !device_b_native || !C || !A->device_residues_current || !A->hip_residues || !C->hip_residues ||
+  if (!A || !device_b_native || !C || !A->device_residues_current || !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !A->hip_residues || !C->hip_residues ||
       A->desc.semantics != RNS8_BOUNDED_I64 || C->desc.semantics != RNS8_BOUNDED_I64 ||
       A->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS || C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS ||
       A->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX ||
@@ -719,7 +719,7 @@ rns8_status hip_direct_gemm_i64_resident_a_native_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -736,7 +736,7 @@ rns8_status hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix(
     int64_t k,
     int64_t ldb,
     uint64_t source_version) {
-  if (!A || !device_b_native || !C || !A->device_residues_current || !A->hip_residues || !C->hip_residues ||
+  if (!A || !device_b_native || !C || !A->device_residues_current || !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !A->hip_residues || !C->hip_residues ||
       A->desc.semantics != RNS8_BOUNDED_U64 || C->desc.semantics != RNS8_BOUNDED_U64 ||
       A->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
@@ -758,7 +758,7 @@ rns8_status hip_direct_gemm_u64_resident_a_native_b_prefix9_colpair_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -775,7 +775,7 @@ rns8_status hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_matrix
     int64_t k,
     int64_t lda,
     uint64_t source_version) {
-  if (!device_a_native || !B || !C || !B->device_residues_current || !B->hip_residues || !C->hip_residues ||
+  if (!device_a_native || !B || !C || !B->device_residues_current || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) || !B->hip_residues || !C->hip_residues ||
       B->desc.semantics != RNS8_BOUNDED_U64 || C->desc.semantics != RNS8_BOUNDED_U64 ||
       B->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
@@ -797,7 +797,7 @@ rns8_status hip_direct_gemm_u64_uniform_small_native_a_resident_b_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;

@@ -108,7 +108,10 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       if (!rns_residue_count(desc->rows, desc->cols, prefix, elements)) {
         return RNS8_RANGE_ERROR;
       }
-      if (!hip_resident_rns_backend(ctx->backend)) matrix->residues.assign(elements, 0);
+      if (!hip_resident_rns_backend(ctx->backend)) {
+        matrix->residues.assign(elements, 0);
+        matrix->materialized_rns_prefix = prefix; // Complete freshly initialized zero basis.
+      }
       if (rns8::detail::exact_wide_semantics(matrix->desc.semantics) &&
           ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
         matrix->exact_range_prefix = prefix;  // The freshly created host matrix is zero.
@@ -176,6 +179,10 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
     out->source_version = matrix->source_version;
     out->host_residues_current = matrix->host_residues_current ? 1u : 0u;
     out->device_residues_current = matrix->device_residues_current ? 1u : 0u;
+    out->materialized_rns_prefix = bounded_residue_semantics(matrix->desc.semantics) ? matrix->materialized_rns_prefix : 0;
+    out->has_materialized_rns_schedule = bounded_residue_semantics(matrix->desc.semantics) && matrix->materialized_rns_schedule ? 1u : 0u;
+    out->materialized_rns_schedule_fingerprint = out->has_materialized_rns_schedule
+        ? matrix->materialized_rns_schedule->fingerprint : 0;
     out->host_byte_limbs_current = matrix->host_byte_limbs_current ? 1u : 0u;
     out->device_byte_limbs_current = matrix->device_byte_limbs_current ? 1u : 0u;
     out->host_native_current = matrix->host_native_current ? 1u : 0u;

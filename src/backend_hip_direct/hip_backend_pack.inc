@@ -239,7 +239,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -343,7 +343,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -595,7 +595,7 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->finite_modulus = modulus;
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
