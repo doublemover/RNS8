@@ -27,13 +27,33 @@ store. Carry/output closure establishes the same range for subsequent slabs.
 The existing proof-DAG verifier checks physical widths and modular domains;
 the existing planner resource query checks the empty global temporary arena.
 The compatibility record names form, group, slab, layout and output boundary.
-It does not certify lane mapping, register use, spills or instruction execution.
+It does not certify register use, spills or instruction execution.
+
+The shared `fragment_layout.hpp` now describes the existing RDNA3 input and
+accumulator coordinates as executable binary maps. Input slots are lane/word/byte;
+output slots are lane/register. Inputs deliberately have two agreeing replicas;
+outputs have one owner. Both the host interpreter and the shared native WMMA
+kernel use these maps. Structural admission binds wave32, instruction generation,
+element widths, role and edge masking. Canonical source selection and conversion
+classification distinguish register-only permutations from within-wave exchange;
+this slice does not emit new shuffle or LDS conversion kernels.
+
+The exact map-definition SHA256 is part of each generated identity and source
+dependency. Changing a basis vector or its preconditions regenerates the symbols
+and invalidates previous artifact identities. CPU fixtures exhaustively compare
+physical slots against independently written coordinate formulas, verify replica
+coverage, canonical selection, tails and altered-contract rejection. Existing
+Boost GPU differentials plus a full-tile/masked-edge fixture cover the changed
+indexing. These additions are authored but have not been compiled or run.
+Outer pitches, non-power-of-two residue counts and global storage permutations
+remain separate from this bounded local map. No CDNA mapping or measured bank
+conflict model is inferred from RDNA3 coordinates.
 
 The existing GPU differential fixture is reused for every generated variant,
 including signed/unsigned full-width values, prefix/group tails, padding and
 K=65535/65536/65537. Generator fixtures cover reproducibility, duplicate IDs,
-unsupported specifications and source/header drift. The gfx1100 variants and
-their test executable compile with VS2026/HIP; runtime tests remain pending.
+unsupported specifications and source/header drift. Earlier gfx1100 variants compiled with VS2026/HIP; the changed executable-map
+source requires fresh compilation and runtime qualification.
 Paired fixtures additionally compare each generated route with separate native
 packing and direct residue GEMM, then reverse the contraction axis of both
 operands to move values across tiles and slab boundaries while preserving AB.

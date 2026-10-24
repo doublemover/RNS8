@@ -29,8 +29,10 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
 #if RNS8_DEVICE_NATIVE_WMMA
   using fragment = int __attribute__((ext_vector_type(4)));
   using accumulator = int __attribute__((ext_vector_type(8)));
+  namespace layout = rns8::detail::fragment_layout;
   const int lane = threadIdx.x & 31;
-  const int64_t ar = tile_row + (lane & 15), bc = tile_col + (lane & 15);
+  const int64_t ar = tile_row + layout::row(layout::a_coordinate(lane,0,0));
+  const int64_t bc = tile_col + layout::col(layout::b_coordinate(lane,0,0));
   accumulator acc[Group]{};
   rns8::detail::finite_u8::Native64Reducer reducers[Group]{};
 #pragma unroll
@@ -43,10 +45,13 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
     for (int word = 0; word < 4; ++word) {
       uint32_t ap[Group]{}, bp[Group]{};
       for (int byte = 0; byte < 4; ++byte) {
-        const int64_t q = kk + word * 4 + byte;
+        const int64_t q = kk + layout::col(layout::a_coordinate(lane,word,byte));
         const NativeT raw_a = ar < m && q < k ? a[ar * lda + q] : NativeT{};
         NativeT raw_b{};
-        if constexpr (!EncodedB) raw_b = bc < n && q < k ? b[q * ldb + bc] : NativeT{};
+        if constexpr (!EncodedB) {
+          const int64_t bq = kk + layout::row(layout::b_coordinate(lane,word,byte));
+          raw_b = bc < n && bq < k ? b[bq * ldb + bc] : NativeT{};
+        }
 #pragma unroll
         for (int channel = 0; channel < Group; ++channel) {
           const int plane = first_plane + channel;
@@ -77,13 +82,13 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
         for (int reg = 0; reg < 8; ++reg) acc[channel][reg] %= static_cast<int>(reducers[channel].modulus);
     }
   }
-  const int64_t col = tile_col + (lane & 15);
+  const int64_t col = tile_col + layout::col(layout::c_coordinate(lane,0));
   for (int channel = 0; channel < Group; ++channel) {
     const int plane = first_plane + channel;
     if (plane >= prefix) continue;
     const int modulus = static_cast<int>(reducers[channel].modulus);
     for (int reg = 0; reg < 8; ++reg) {
-      const int64_t row = tile_row + 2 * reg + (lane >> 4);
+      const int64_t row = tile_row + layout::row(layout::c_coordinate(lane,reg));
       if (row < m && col < n) {
         int value = acc[channel][reg] % modulus;
         if (value < 0) value += modulus;

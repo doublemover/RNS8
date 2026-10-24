@@ -37,6 +37,7 @@ DEPENDENCIES = ("src/backend_hip_direct/hip_direct_device_common.cuh",
                 "src/backend_common/finite_u8_reducer.hpp",
                 "src/backend_common/garner_constants.hpp",
                 "src/backend_common/native_wmma_queue.hpp",
+                "src/backend_common/fragment_layout.hpp",
                 "src/backend_common/address_domain.hpp",
                 "tools/arithmetic_certificate.py", "tools/arithmetic_composition.py",
                 "tools/planning_recipe.py", "tools/analytical_planner.py", "tools/modulus_set_search.py")
@@ -49,7 +50,7 @@ def digest(value):
 def composition(v, modulus):
     """Prove one slab with a centered carry; induction covers further slabs.
 
-    Layout labels identify the intended recipe, not measured lane mapping.
+    Executable map source is bound separately; algebra does not prove device lane behavior.
     The arithmetic certificate separately proves exact native modular encoding.
     """
     low, high = (0, (1 << 64) - 1) if v.unsigned_inputs else (-(1 << 63), (1 << 63) - 1)
@@ -102,6 +103,11 @@ def generate(directory, variants, root=None):
             raise ValueError("generated resource plan failed")
         identity = {"spec": asdict(v), "dependencies": dependencies, "generator_sha256": generator,
                     "arithmetic_certificates": proof_hashes, "ordered_basis": DEFAULT_MODULI[:20],
+                    "fragment_layout": {"version": 1, "instruction": "rdna3_iu8_16x16x16_wave32_v1",
+                        "definition_sha256": dependencies["src/backend_common/fragment_layout.hpp"],
+                        "logical_axes": ["row16", "column16"], "input_slot_axes": ["lane32", "word4", "byte4"],
+                        "output_slot_axes": ["lane32", "register8"], "input_replicas": 2,
+                        "output_replicas": 1, "edge_mask": "logical_rows_columns", "hardware_qualified": False},
                     "composition_certificates": [c["sha256"] for c in compositions],
                     "resource_plan": {"status": resource["status"], "global_temporary_bytes": resource["required_bytes"]},
                     "compatibility": {"form": "centered_int8", "group": v.group,
@@ -116,6 +122,7 @@ def generate(directory, variants, root=None):
               '#include "backend_common/finite_u8_reducer.hpp"',
               '#include "backend_common/garner_constants.hpp"',
               '#include "backend_common/native_wmma_queue.hpp"',
+              '#include "backend_common/fragment_layout.hpp"',
               '#include "backend_common/address_domain.hpp"',
               f"#if defined(__HIP_DEVICE_COMPILE__) && !defined(__{target}__)",
               '#error "generated target does not match compiler offload target"', "#endif",

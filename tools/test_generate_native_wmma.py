@@ -25,6 +25,10 @@ def main():
             assert len(entry["arithmetic_certificates"]) == 20
             assert len(entry["composition_certificates"]) == 20
             assert entry["resource_plan"]["global_temporary_bytes"] == 0
+            layout = entry["fragment_layout"]
+            assert layout["definition_sha256"] == entry["dependencies"]["src/backend_common/fragment_layout.hpp"]
+            assert layout["input_replicas"] == 2 and layout["output_replicas"] == 1
+            assert not layout["hardware_qualified"]
             assert not entry["compatibility"]["cross_feature_runtime_qualified"]
         try:
             composition(replace(baseline, safe_k=262144), 256)

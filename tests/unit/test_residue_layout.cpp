@@ -3,6 +3,83 @@
 #include <cstdint>
 #include <vector>
 #include "backend_common/residue_layout.hpp"
+#include "backend_common/fragment_layout.hpp"
+#include <array>
+
+TEST_CASE("RDNA3 executable fragment maps agree with independent coordinate enumeration") {
+  namespace f = rns8::detail::fragment_layout;
+  for (const auto map : {f::a,f::b,f::c}) {
+    REQUIRE(f::admitted(map));
+    std::array<unsigned,256> visits{};
+    for(unsigned lane=0;lane<32;++lane) {
+      if(map.role==f::Role::accumulator) {
+        for(unsigned reg=0;reg<8;++reg) {
+          // Independent legacy instruction convention: lane half chooses row
+          // parity; low lane chooses column; each register adds two rows.
+          const unsigned expected_row=2*reg+lane/16, expected_col=lane%16;
+          const auto coordinate=f::c_coordinate(lane,reg);
+          REQUIRE(f::row(coordinate)==expected_row);
+          REQUIRE(f::col(coordinate)==expected_col);
+          ++visits[coordinate];
+        }
+      } else {
+        for(unsigned word=0;word<4;++word) for(unsigned byte=0;byte<4;++byte) {
+          const auto coordinate=map.logical(f::input_slot(lane,word,byte));
+          const unsigned contraction=4*word+byte, axis=lane%16;
+          REQUIRE(f::row(coordinate)==(map.role==f::Role::a?axis:contraction));
+          REQUIRE(f::col(coordinate)==(map.role==f::Role::a?contraction:axis));
+          ++visits[coordinate];
+        }
+      }
+    }
+    for(unsigned logical=0;logical<256;++logical) {
+      REQUIRE(visits[logical]==map.replicas);
+      const auto canonical=f::canonical_slot(map,logical);
+      REQUIRE(canonical<(1u<<map.physical_bits));
+      REQUIRE(map.logical(canonical)==logical);
+      if(map.replicas==2) REQUIRE((canonical&16)==0);
+    }
+    for(unsigned rows : {0,1,7,15,16}) for(unsigned cols : {0,1,9,15,16}) {
+      unsigned active=0;
+      for(unsigned slot=0;slot<(1u<<map.physical_bits);++slot)
+        active+=f::active(map,slot,rows,cols);
+      REQUIRE(active==rows*cols*map.replicas);
+    }
+    REQUIRE_FALSE(f::active(map,1u<<map.physical_bits,16,16));
+    REQUIRE_FALSE(f::active(map,0,17,16));
+  }
+}
+
+TEST_CASE("fragment conversion preserves replicas and rejects altered instruction contracts") {
+  namespace f = rns8::detail::fragment_layout;
+  REQUIRE(f::conversion(f::a,f::a)==f::Conversion::register_only);
+  REQUIRE(f::conversion(f::a,f::b)==f::Conversion::within_wave);
+  REQUIRE(f::conversion(f::a,f::c)==f::Conversion::unsupported);
+  for(unsigned slot=0;slot<512;++slot) {
+    REQUIRE((f::source_slot(f::a,f::a,slot)&31)==(slot&31));
+    const auto selected=f::source_slot(f::a,f::b,slot);
+    REQUIRE(selected<512);
+    REQUIRE(f::a.logical(selected)==f::b.logical(slot));
+    const auto reverse=f::source_slot(f::b,f::a,selected);
+    REQUIRE(f::b.logical(reverse)==f::a.logical(selected));
+  }
+  for(unsigned mutation=0;mutation<7;++mutation) {
+    auto bad=f::a;
+    switch(mutation) {
+      case 0: bad.basis[0]=2; break;
+      case 1: bad.basis[7]=32; break;
+      case 2: bad.instruction_version=2; break;
+      case 3: bad.wave_size=64; break;
+      case 4: bad.masked_edges=false; break;
+      case 5: bad.replicas=1; break;
+      case 6: bad.physical_bits=32; break;
+    }
+    REQUIRE_FALSE(f::admitted(bad));
+    REQUIRE(f::canonical_slot(bad,0)==UINT32_MAX);
+    REQUIRE(f::source_slot(bad,f::b,0)==UINT32_MAX);
+    REQUIRE(f::conversion(bad,f::b)==f::Conversion::unsupported);
+  }
+}
 
 TEST_CASE("uniform tile-major residue mappings are bijective and preserve padding") {
   using namespace rns8::detail;

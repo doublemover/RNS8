@@ -185,6 +185,15 @@ TEST_CASE("generated native WMMA variants match Boost for every declared group a
 }
 #endif
 
+TEST_CASE("executable RDNA3 fragment maps preserve complete tiles and masked edges") {
+  if (!hip_available()) SKIP("no HIP device for executable fragment maps");
+  for (const int extent : {1, 16, 17}) {
+    if (!check_native_wmma_groups<int64_t>(false, extent, extent, 17, 20))
+      SKIP("compiled device target lacks RDNA3 fragment instruction");
+    REQUIRE(check_native_wmma_groups<uint64_t>(true, extent, extent, 17, 20));
+  }
+}
+
 TEST_CASE("native grouped WMMA preserves signedness planes tails and safe K slabs") {
   if (!hip_available()) SKIP("no HIP device for grouped native WMMA differential");
   for (const int k : {1, 15, 16, 17, 65535, 65536, 65537})
