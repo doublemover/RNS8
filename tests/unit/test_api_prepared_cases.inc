@@ -206,6 +206,8 @@ TEST_CASE("prepared dependencies retain exact producer epochs and refresh only p
   REQUIRE(rns8_prepare_gemm(ctx,plan,c,b,d,w2,&consumer)==RNS8_SUCCESS);
   rns8_completion_token source{},output{77,88};
   REQUIRE(rns8_execute_prepared(producer,&source)==RNS8_SUCCESS);
+  rns8_prepared_group* producer_group=nullptr;
+  REQUIRE(rns8_create_prepared_group(&producer,1,&producer_group)==RNS8_SUCCESS);
   auto stale=source; ++stale.epoch;
   CHECK(rns8_bind_prepared_dependency(consumer,producer,stale)==RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
@@ -213,6 +215,14 @@ TEST_CASE("prepared dependencies retain exact producer epochs and refresh only p
   CHECK(rns8_execute_prepared(producer,&output)==RNS8_BUSY);
   CHECK(output.prepared_id==77);
   CHECK(rns8_refresh_prepared_inputs(consumer)==RNS8_BUSY);
+  // A group created before binding cannot silently replace the retained epoch.
+  uint32_t executed=99;
+  CHECK(rns8_execute_prepared_group(producer_group,&output,1,&executed)==RNS8_BUSY);
+  CHECK(executed==0);
+  CHECK(output.prepared_id==77);
+  CHECK(output.epoch==88);
+  CHECK(rns8_refresh_prepared_group_inputs(producer_group)==RNS8_BUSY);
+  REQUIRE(rns8_destroy_prepared_group(producer_group)==RNS8_SUCCESS);
   REQUIRE(rns8_execute_prepared(consumer,&output)==RNS8_SUCCESS);
   uint64_t result=0;
   REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,d,&result,1,1)==RNS8_SUCCESS);
