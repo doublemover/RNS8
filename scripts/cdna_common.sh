@@ -18,6 +18,7 @@ cdna_session() {
     return 2
   fi
   local default_backend=(--backend hip-direct)
+  if [[ "${kind}" == prepare ]]; then default_backend=(); fi
   local option
   for option in "$@"; do
     if [[ "${option}" == --backend || "${option}" == --backend=* || "${option}" == --accelerators ]]; then

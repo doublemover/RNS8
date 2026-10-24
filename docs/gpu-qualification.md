@@ -224,3 +224,33 @@ Historical v1 captures remain readable but cannot qualify new promotions.
 This is build-input identity, not a claim that runtime-loaded shared libraries
 have been hashed. Execution artifact/environment checks remain separate gates.
 Authored isolated-tree and release-admission regressions await execution.
+
+
+## No-GPU Linux preparation lane
+
+`bash scripts/cdna_prepare.sh --target mi300x --out-dir temp/linux-preparation`
+plans a CPU-only rehearsal using the same dependency discovery, source identity,
+command runner, budgets and checkpoint logic as the GPU session. It accepts no
+device list or accelerator backend lanes. Planning is the default; `--execute`
+explicitly performs configuration, compilation and CPU CTest on a Linux host.
+This lane has not been rehearsed during the current development frontload.
+
+The lane uses the existing `linux-cpu-release` preset, disables HIP and accelerator
+probes, disables vcpkg manifest installation, and sets CMake FetchContent fully
+disconnected. Required packages must already exist in the selected local prefixes;
+it does not download, bootstrap or install them. `--set` uses the same dependency
+overrides as the doctor and live session, with selected tools and policy identities
+recorded in the manifest. This is a receipt for the selected environment, not a
+newly qualified Linux/ROCm stack lock. The ROCm upgrade remains deferred.
+
+CPU tests run serially and produce a retained JUnit artifact. Missing, empty,
+all-skipped or failed reports cannot complete preparation; expected unsupported
+GPU skips are preserved. Successful execution reports
+`cpu_preparation_passed_hardware_pending`, never GPU smoke success. Matching
+`--execute --resume` reuses successful stages only when the source, environment,
+plan and artifact hashes still match. Changed inputs require a fresh directory.
+
+A later GPU session uses its own output directory and explicit `--devices` list.
+Preparation proves neither HIP compilation nor device/runtime/ISA correctness.
+Actual Linux rehearsal, image/driver compatibility, physical device identity,
+artifact export and hardware qualification still require their own receipts.

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KINDS = {"cdna_env_probe.sh": "environment", "cdna_smoke.sh": "smoke",
+KINDS = {"cdna_prepare.sh": "prepare", "cdna_env_probe.sh": "environment", "cdna_smoke.sh": "smoke",
          "cdna_first_pass.sh": "first-pass", "cdna_multigpu_smoke.sh": "multigpu"}
 
 

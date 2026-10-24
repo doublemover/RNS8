@@ -46,7 +46,7 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
                  *, bindings: dict | None = None, session_kind: str = "first-pass",
                  timeout: float = 1800, preset_override: str | None = None) -> list[dict]:
     arch, system, preset = TARGETS[target]
-    if not devices or len(set(devices)) != len(devices) or any(type(device) is not int or device < 0 for device in devices):
+    if session_kind != "prepare" and (not devices or len(set(devices)) != len(devices) or any(type(device) is not int or device < 0 for device in devices)):
         raise ValueError("devices must be unique explicit nonnegative runtime ordinals")
     extension = ".exe" if system == "Windows" else ""
     python = sys.executable if platform.system() == system else "python" if system == "Windows" else "python3"
@@ -58,6 +58,24 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
                          "timeout_seconds": timeout, **checks})
 
     if session_kind == "environment":
+        return commands
+
+    if session_kind == "prepare":
+        if system != "Linux" or devices or backends:
+            raise ValueError("CPU preparation requires Linux, no devices and no backend lanes")
+        build = out / "build" / "cpu-preparation"
+        bound = [f"-D{key}={value}" for key, value in sorted((bindings or {}).items())]
+        options = [f"-DRNS8_ENABLE_{flag}=OFF" for flag in FLAGS.values()]
+        add("prepare-configure", ["cmake", "--preset", preset_override or "linux-cpu-release", "-B", str(build),
+            *bound, "-DRNS8_ENABLE_HIP=OFF", "-DRNS8_PROBE_ACCELERATORS=OFF", *options,
+            "-DRNS8_BUILD_TESTS=ON", "-DRNS8_BUILD_EXAMPLES=ON", "-DRNS8_BUILD_TOOLS=ON",
+            "-DRNS8_BUILD_BENCHMARKS=ON", "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
+            "-DVCPKG_MANIFEST_INSTALL=OFF", "-DFETCHCONTENT_FULLY_DISCONNECTED=ON"], build_dir=str(build))
+        add("prepare-build", ["cmake", "--build", str(build), "--parallel", str(jobs)], build_dir=str(build))
+        junit = out / "cpu-preparation.xml"
+        add("prepare-cpu-tests", ["ctest", "--test-dir", str(build), "--output-on-failure", "--parallel", "1",
+            "--timeout", "600", "--no-tests=error", "--output-junit", str(ROOT / junit)],
+            build_dir=str(build), preparation_junit=str(junit))
         return commands
 
     for backend in backends:
@@ -164,6 +182,16 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
                 errors.append("hardware qualification tests failed or skipped")
         except (OSError, ET.ParseError):
             errors.append("missing or invalid qualification JUnit report")
+    if "preparation_junit" in item:
+        try:
+            root = ET.parse(ROOT / item["preparation_junit"]).getroot()
+            cases = list(root.iter("testcase"))
+            if not cases or not any(not list(case.iter("skipped")) for case in cases):
+                errors.append("CPU preparation report has no executed tests")
+            if any(list(case.iter("failure")) or list(case.iter("error")) for case in cases):
+                errors.append("CPU preparation tests failed")
+        except (OSError, ET.ParseError):
+            errors.append("missing or invalid CPU preparation JUnit report")
     return errors
 
 
@@ -204,7 +232,7 @@ def source_receipt(exclude: Path | None = None) -> dict:
             "dependency_policy_sha256": sha256(ROOT / "metadata/dependencies.json")}
 
 
-def dependency_request(target: str, backends: list[str], definitions: list[str]) -> Request:
+def dependency_request(target: str, backends: list[str], definitions: list[str], *, preparation: bool = False) -> Request:
     overrides = {"RNS8_AMDGPU_TARGETS": TARGETS[target][0]}
     for definition in definitions:
         if "=" not in definition:
@@ -213,13 +241,15 @@ def dependency_request(target: str, backends: list[str], definitions: list[str])
         if key not in REQUEST_KEYS or key in overrides or not value or re.search(r"[\x00-\x1f]|https?://", value, re.I):
             raise ValueError("unsupported, duplicate or unsafe dependency override: " + key)
         overrides[key] = value
-    features = {"RNS8_ENABLE_HIP": True, **{f"RNS8_ENABLE_{flag}": name in backends for name, flag in FLAGS.items()}}
-    return Request(TARGETS[target][1], overrides, features, str(ROOT), require_hip=True,
+    features = {"RNS8_ENABLE_HIP": not preparation, **{f"RNS8_ENABLE_{flag}": name in backends for name, flag in FLAGS.items()}}
+    return Request(TARGETS[target][1], overrides, features, str(ROOT), require_hip=not preparation,
                    require_vcpkg=TARGETS[target][1] == "Windows")
 
 
 def readiness_blockers(args, resolution: dict, environment: dict) -> list[str]:
-    blockers = list(resolution["errors"]) + execution_blockers(environment)
+    blockers = list(resolution["errors"])
+    if getattr(args, "session_kind", None) != "prepare":
+        blockers += execution_blockers(environment)
     if platform.system() != TARGETS[args.target][1]:
         blockers.append("execution requires target operating system " + TARGETS[args.target][1])
     for name in ("cmake", "ninja", "host_cxx"):
@@ -230,7 +260,7 @@ def readiness_blockers(args, resolution: dict, environment: dict) -> list[str]:
 
 def artifact_records(item: dict, out: Path) -> dict[str, str]:
     paths = [out / (item["name"] + suffix) for suffix in (".stdout.log", ".stderr.log")]
-    paths += [ROOT / item[key] for key in ("capture", "junit") if key in item]
+    paths += [ROOT / item[key] for key in ("capture", "junit", "preparation_junit") if key in item]
     executable = ROOT / item["argv"][0]
     if executable.is_file():
         paths.append(executable)
@@ -277,7 +307,7 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
     def checkpoint(status):
         write_json(out / "results.json", {"schema": "rns8_gpu_session_results_v2", "status": status,
             "promotion_allowed": False, "manifest_identity_sha256": manifest["identity_sha256"],
-            "physical_identity_verified": False,
+            "physical_identity_verified": False, "hardware_qualified": False,
             "observed_parent_runtime_devices": [{"stage": name, **info, "pci_bdf": None, "physical_uuid": None}
                                                 for name, info in inspections.items()],
             "completed": len(results), "planned": len(manifest["commands"]),
@@ -317,22 +347,23 @@ def execute_plan(manifest: dict, out: Path, environment: dict, *, resume: bool =
         # run_capture has already terminated its owned process group.
         checkpoint("interrupted")
         return 130
-    checkpoint("smoke_passed_release_qualification_pending" if results else "environment_receipt_only_not_hardware_qualified")
+    checkpoint("cpu_preparation_passed_hardware_pending" if manifest.get("session_kind") == "prepare" and results else
+               "smoke_passed_release_qualification_pending" if results else "environment_receipt_only_not_hardware_qualified")
     return 0
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True, choices=TARGETS)
-    parser.add_argument("--devices", required=True, type=device_list,
+    parser.add_argument("--devices", type=device_list,
                         help="explicit unmasked parent HIP runtime ordinals; never inferred physical ids")
     parser.add_argument("--backend", action="append", choices=BACKENDS)
     parser.add_argument("--accelerators", action="store_true", help="explicitly select all optional backend lanes")
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--jobs", type=int, default=4)
-    parser.add_argument("--execute", action="store_true", help="actually build and use an already available GPU")
+    parser.add_argument("--execute", action="store_true", help="execute the selected preparation or already available GPU session")
     parser.add_argument("--dry-run", action="store_true", help="explicit plan-only alias (the default)")
-    parser.add_argument("--session-kind", choices=("environment", "smoke", "first-pass", "multigpu"), default="first-pass")
+    parser.add_argument("--session-kind", choices=("prepare", "environment", "smoke", "first-pass", "multigpu"), default="first-pass")
     parser.add_argument("--preset", help="explicit existing configure preset; target and feature flags remain explicit")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="shared discovery dependency override")
     parser.add_argument("--resume", action="store_true", help="resume only matching successful checkpoints and unchanged artifacts")
@@ -341,6 +372,13 @@ def main(argv=None) -> int:
     parser.add_argument("--export-reserve-seconds", type=float, default=30)
     parser.add_argument("--min-free-gib", type=float, default=2)
     args = parser.parse_args(argv)
+    preparation = args.session_kind == "prepare"
+    if preparation:
+        if args.devices is not None or args.backend or args.accelerators or TARGETS[args.target][1] != "Linux":
+            parser.error("prepare requires a Linux target and no --devices, --backend or --accelerators")
+        args.devices = []
+    elif args.devices is None:
+        parser.error("GPU session planning requires explicit --devices")
     if args.jobs < 1 or args.jobs > 256 or any(not math.isfinite(value) or value <= 0 for value in
             (args.timeout_seconds, args.total_seconds, args.export_reserve_seconds, args.min_free_gib)):
         parser.error("jobs must be 1..256 and time/disk budgets must be finite positive numbers")
@@ -356,10 +394,10 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     if (out / "results.json").exists() and not args.resume:
         parser.error("results.json already exists; choose a fresh --out-dir or explicit matching --resume")
-    backends = list(dict.fromkeys(args.backend or BACKENDS))
+    backends = [] if preparation else list(dict.fromkeys(args.backend or BACKENDS))
     command_out = Path(os.path.relpath(out, ROOT))
     try:
-        request = dependency_request(args.target, backends, args.set)
+        request = dependency_request(args.target, backends, args.set, preparation=preparation)
     except ValueError as error:
         parser.error(str(error))
     environment = build_environment(os.environ)
@@ -389,7 +427,7 @@ def main(argv=None) -> int:
     manifest = {"schema_version": 2, "generated_utc": datetime.now(timezone.utc).isoformat(),
                 "target": args.target, "requested_architecture": TARGETS[args.target][0], "observed_architecture": None,
                 "source": source_receipt(exclude=out), "backends": backends, "devices": args.devices,
-                "device_namespace": "unmasked_parent_HIP_runtime_ordinal", "physical_identity_verified": False,
+                "device_namespace": "none_cpu_preparation" if preparation else "unmasked_parent_HIP_runtime_ordinal", "physical_identity_verified": False,
                 "session_kind": args.session_kind, "dependency_resolution_sha256": resolution["identity_sha256"],
                 "selected_tool_files": {name: {"path": item["path"], "sha256": sha256(Path(item["path"]))}
                                         for name, item in resolution["tools"].items()
@@ -399,6 +437,7 @@ def main(argv=None) -> int:
                 "budgets": {"total_seconds": args.total_seconds, "export_reserve_seconds": args.export_reserve_seconds,
                             "minimum_free_bytes": int(args.min_free_gib * 1024**3), "jobs": args.jobs},
                 "status": "planned_not_executed", "promotion_allowed": False,
+                "preparation_only": preparation, "hardware_qualified": False,
                 "command_working_directory": "repository_root",
                 "environment": {"RNS8_AUTOTUNE_CACHE": str(command_out / "isolated-empty-cache.json")},
                 "commands": commands, "kernels": kernel_inventory(),

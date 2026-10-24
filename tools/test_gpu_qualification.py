@@ -29,6 +29,54 @@ def result(stdout="", **changes):
 
 
 class QualificationTests(unittest.TestCase):
+    def test_cpu_preparation_has_no_device_or_network_stage(self):
+        plan = q.command_plan("mi300x", [], Path("temp/preparation"), 3, [], session_kind="prepare")
+        self.assertEqual([item["name"] for item in plan], ["prepare-configure", "prepare-build", "prepare-cpu-tests"])
+        self.assertIn("-DRNS8_ENABLE_HIP=OFF", plan[0]["argv"])
+        self.assertIn("-DFETCHCONTENT_FULLY_DISCONNECTED=ON", plan[0]["argv"])
+        self.assertIn("-DVCPKG_MANIFEST_INSTALL=OFF", plan[0]["argv"])
+        self.assertIn("linux-cpu-release", plan[0]["argv"])
+        for item in plan:
+            self.assertNotIn("device", item)
+            self.assertNotIn("inspect_target", item)
+            self.assertNotIn("capture", item)
+        request = q.dependency_request("mi300x", [], [], preparation=True)
+        self.assertFalse(request.require_hip)
+        self.assertFalse(any(request.features.values()))
+        for backends, devices in [(["hip-direct"], []), ([], [0])]:
+            with self.assertRaises(ValueError):
+                q.command_plan("mi300x", backends, Path("temp/preparation"), 3, devices, session_kind="prepare")
+        for extra in (["--devices", "0"], ["--backend", "hip-direct"], ["--accelerators"]):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                q.main(["--target", "mi300x", "--session-kind", "prepare", *extra])
+            self.assertEqual(error.exception.code, 2)
+
+    def test_cpu_preparation_completion_never_claims_gpu_smoke(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            manifest = self.manifest(out)
+            manifest["session_kind"] = "prepare"
+            self.assertEqual(q.execute_plan(manifest, out, {}, runner=lambda *a, **kw: result()), 0)
+            receipt = json.loads((out / "results.json").read_text())
+            self.assertEqual(receipt["status"], "cpu_preparation_passed_hardware_pending")
+            self.assertFalse(receipt["hardware_qualified"])
+            self.assertEqual(receipt["observed_parent_runtime_devices"], [])
+
+    def test_cpu_preparation_report_requires_actual_passed_tests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "cpu.xml"
+            item = {"preparation_junit": str(report)}
+            for xml, success in [
+                ('<testsuite/>', False),
+                ('<testsuite><testcase name="only"><skipped/></testcase></testsuite>', False),
+                ('<testsuite><testcase name="failed"><failure/></testcase></testsuite>', False),
+                ('<testsuite><testcase name="passed"/><testcase name="gpu"><skipped/></testcase></testsuite>', True),
+            ]:
+                report.write_text(xml, encoding="utf-8")
+                self.assertEqual(not q.validate_result(item, result()), success)
+            report.unlink()
+            self.assertTrue(q.validate_result(item, result()))
+
     def test_explicit_device_parser(self):
         self.assertEqual(q.device_list("4,7,0"), [4, 7, 0])
         for value in ("", "all", "0,", "-1", "0,0", "00,0", "0 1", "0, 1", "65536", "0;1"):
