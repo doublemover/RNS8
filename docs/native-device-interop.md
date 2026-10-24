@@ -2,7 +2,7 @@
 
 The experimental public C boundary provides `rns8_query_native_device`,
 `rns8_create_native_device_lease`, `rns8_import_native_device`,
-`rns8_export_native_device`, and `rns8_destroy_native_device_lease`.
+`rns8_import_native_device_verified`, `rns8_export_native_device`, and `rns8_destroy_native_device_lease`.
 The initial execution mode is explicitly synchronous direct HIP. CPU builds
 support descriptor/resource queries and reject lease creation. No host pointer
 API accepts a device pointer implicitly.
@@ -43,6 +43,17 @@ or UINT64_MAX unsigned), checks unique CRT coverage before writes, and publishes
 that conservative scalar proof. It never treats a caller's small bound as a
 verified fact and never downloads input payload for a host scan. Every import
 reads the leased view, including a newly leased recycled address.
+
+The opt-in verified import scans actual device magnitudes with the same block
+reduction used by narrow native admission, extended to unsigned values. It
+charges eight retained device scratch bytes and reads back only the eight-byte
+maximum. The scan handles INT64_MIN without signed negation, excludes padding,
+and completes before the matrix write transaction. Its measured magnitude then
+passes the same exact uniqueness check and replaces the conservative type
+bound. This supports tighter exact-GEMM/native-output admission without trusting
+caller assertions. A failed scan or insufficient CRT range preserves the old
+matrix value; failed drain still pins the matrix and owner. The input remains
+immutable across scan and conversion under the lease contract.
 
 Export requires current device residues and a current unique scalar proof
 fitting the native type. Ordinary bounded results without that proof reject;

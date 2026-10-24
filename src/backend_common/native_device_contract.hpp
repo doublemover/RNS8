@@ -18,6 +18,6 @@ inline rns8_status query_native_device_contract(const rns8_native_device_desc& d
   if(!qualified_i32_matrix_address(d.rows,d.cols,d.ld,1,8)) return RNS8_UNSUPPORTED_BACKEND;
   out={};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;
   out.view_span_bytes=view.byte_extent;out.compact_native_bytes=compact.byte_extent;
-  out.export_scratch_bytes=compact.byte_extent+4;return RNS8_SUCCESS;
+  out.export_scratch_bytes=compact.byte_extent+4;out.verified_import_scratch_bytes=8;return RNS8_SUCCESS;
 }
 }

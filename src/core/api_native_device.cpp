@@ -87,7 +87,7 @@ rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease* lease) {
     lock.unlock();delete lease;return RNS8_SUCCESS;
   });
 }
-rns8_status rns8_import_native_device(rns8_context* ctx,rns8_matrix* matrix,rns8_native_device_lease* lease) {
+static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matrix,rns8_native_device_lease* lease,bool verified,uint64_t budget) {
   return guard_api([&]() -> rns8_status {
     if(!lease) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
@@ -96,6 +96,18 @@ rns8_status rns8_import_native_device(rns8_context* ctx,rns8_matrix* matrix,rns8
     if(matrix->desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT) return RNS8_UNSUPPORTED_BACKEND;
     const bool signed_values=lease->desc.element_type==RNS8_NATIVE_DEVICE_I64;
     boost::multiprecision::cpp_int bound=signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX);
+    if(verified) {
+      if(budget<lease->resources.verified_import_scratch_bytes) return RNS8_WORKSPACE_TOO_SMALL;
+      if(!lease->scratch) {
+        status=hip_direct_allocate(ctx->device_id,lease->resources.verified_import_scratch_bytes,&lease->scratch);
+        if(status!=RNS8_SUCCESS) return status;
+      }
+      uint64_t magnitude=0;pin_native_matrix(*lease,*matrix,true);
+      status=hip_direct_native_view_bound(ctx->device_id,lease->view,lease->scratch,
+          matrix->desc.rows,matrix->desc.cols,lease->desc.ld,signed_values,magnitude);
+      if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
+      release_native_matrix(*lease);bound=magnitude;
+    }
     const auto semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
     if(!exact_range_fits(semantics,bound,modulus_product(matrix->prefix))) return RNS8_RANGE_ERROR;
     // No cache lookup by pointer or source-version: every import reads this lease.
@@ -134,4 +146,11 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
     if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
     release_native_matrix(*lease);return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_import_native_device(rns8_context* ctx,rns8_matrix* matrix,rns8_native_device_lease* lease) {
+  return import_native_device_impl(ctx,matrix,lease,false,0);
+}
+rns8_status rns8_import_native_device_verified(rns8_context* ctx,rns8_matrix* matrix,rns8_native_device_lease* lease,uint64_t budget) {
+  return import_native_device_impl(ctx,matrix,lease,true,budget);
 }

@@ -5,7 +5,7 @@ TEST_CASE("native device query checks view spans without touching device or owne
   const auto valid=descriptor(words,sizeof(words),owner);
   rns8_native_device_resources r{};r.struct_size=sizeof(r);r.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_query_native_device(&valid,&r)==RNS8_SUCCESS);
-  REQUIRE(r.view_span_bytes==19*8);REQUIRE(r.compact_native_bytes==15*8);REQUIRE(r.export_scratch_bytes==15*8+4);
+  REQUIRE(r.view_span_bytes==19*8);REQUIRE(r.compact_native_bytes==15*8);REQUIRE(r.export_scratch_bytes==15*8+4);REQUIRE(r.verified_import_scratch_bytes==8);
   for(unsigned bad=0;bad<12;++bad) {
     auto d=valid;
     switch(bad) {

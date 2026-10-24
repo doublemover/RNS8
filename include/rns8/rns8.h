@@ -2104,7 +2104,7 @@ typedef struct rns8_native_device_desc {
 } rns8_native_device_desc;
 typedef struct rns8_native_device_resources {
   uint32_t struct_size,abi_version;
-  uint64_t view_span_bytes,compact_native_bytes,export_scratch_bytes;
+  uint64_t view_span_bytes,compact_native_bytes,export_scratch_bytes,verified_import_scratch_bytes;
 } rns8_native_device_resources;
 RNS8_API rns8_status rns8_query_native_device(const rns8_native_device_desc*,rns8_native_device_resources*);
 RNS8_API rns8_status rns8_create_native_device_lease(rns8_context*,const rns8_native_device_desc*,rns8_native_device_lease**);
@@ -2112,6 +2112,8 @@ RNS8_API rns8_status rns8_create_native_device_lease(rns8_context*,const rns8_na
  * owner exactly once. Callbacks must not throw or reenter this lease. */
 RNS8_API rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease*);
 RNS8_API rns8_status rns8_import_native_device(rns8_context*,rns8_matrix*,rns8_native_device_lease*);
+/* Device magnitude scan, eight-byte summary readback, then import. */
+RNS8_API rns8_status rns8_import_native_device_verified(rns8_context*,rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);
 /* Requires a current unique scalar range proof fitting the native type.
  * Staged reconstruction/status precedes external writes. */
 RNS8_API rns8_status rns8_export_native_device(rns8_context*,const rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);

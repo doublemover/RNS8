@@ -28,6 +28,11 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     REQUIRE(rns8_import_native_device(ctx,matrix,read)==RNS8_SUCCESS);
     REQUIRE(matrix->device_residues_current);REQUIRE_FALSE(matrix->host_residues_current);
     REQUIRE(matrix->exact_range_prefix==20);REQUIRE(matrix->source_version==0);
+    const auto before_verified=matrix->content_generation;
+    REQUIRE(rns8_import_native_device_verified(ctx,matrix,read,7)==RNS8_WORKSPACE_TOO_SMALL);
+    REQUIRE(matrix->content_generation==before_verified);
+    REQUIRE(rns8_import_native_device_verified(ctx,matrix,read,8)==RNS8_SUCCESS);
+    REQUIRE(matrix->exact_max_magnitude==(signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX)));
     std::vector<int8_t> packed(20*15);
     REQUIRE(hip_direct_copy_device_to_host(0,packed.data(),matrix->hip_residues,packed.size())==RNS8_SUCCESS);
     for(unsigned plane=0;plane<20;++plane) for(int row=0;row<3;++row) for(int col=0;col<5;++col) {
@@ -49,10 +54,12 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     // Release before external mutation. Recycled address gets a new owner id;
     // importing again cannot hit host-pack's source-version shortcut.
     REQUIRE(rns8_destroy_native_device_lease(read)==RNS8_SUCCESS);REQUIRE(reader.released==1);
+    for(int row=0;row<3;++row) for(int col=0;col<5;++col) values[1+row*7+col]=2;
     values[1]=7;REQUIRE(hip_direct_copy_host_to_device(0,input.get(),values.data(),values.size()*8)==RNS8_SUCCESS);
     in.owner_identity=303;in.generation=2;
     REQUIRE(rns8_create_native_device_lease(ctx,&in,&read)==RNS8_SUCCESS);
-    REQUIRE(rns8_import_native_device(ctx,matrix,read)==RNS8_SUCCESS);
+    REQUIRE(rns8_import_native_device_verified(ctx,matrix,read,8)==RNS8_SUCCESS);
+    REQUIRE(matrix->exact_max_magnitude==7);
     REQUIRE(rns8_export_native_device(ctx,matrix,write,resources.export_scratch_bytes)==RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),output.get(),actual.size()*8)==RNS8_SUCCESS);REQUIRE(actual[1]==7);
     REQUIRE(rns8_destroy_native_device_lease(write)==RNS8_SUCCESS);REQUIRE(writer.released==1);

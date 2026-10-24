@@ -50,3 +50,23 @@ rns8_status hip_direct_export_native_view(int device_id,const void* residues,voi
   (void)device_id;(void)residues;(void)destination;(void)scratch;(void)rows;(void)cols;(void)ld;(void)prefix;(void)bound;(void)signed_values;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_abs_max(const void*,int,int,int,void*,bool);
+#endif
+rns8_status hip_direct_native_view_bound(int device_id,const void* source,void* scratch,
+    int64_t rows,int64_t cols,int64_t ld,bool signed_values,uint64_t& bound) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
+  if(hipMemset(scratch,0,8)!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  const auto error=timed_hip_operation("interop_native_bound_scan",[&]() {
+    const auto launch=static_cast<hipError_t>(rns8_hip_native_abs_max(source,int(rows),int(cols),int(ld),scratch,signed_values));
+    const auto drain=hipDeviceSynchronize();return launch==hipSuccess?drain:launch;
+  });if(error!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  uint64_t result=0;status=hip_direct_copy_device_to_host(device_id,&result,scratch,8);
+  if(status==RNS8_SUCCESS) bound=result;return status;
+#else
+  (void)device_id;(void)source;(void)scratch;(void)rows;(void)cols;(void)ld;(void)signed_values;(void)bound;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

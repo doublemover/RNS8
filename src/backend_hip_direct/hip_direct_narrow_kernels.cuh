@@ -1,12 +1,12 @@
 __global__ void rns8_native_i64_abs_max_kernel(
-    const int64_t* source, int rows, int cols, int ld, unsigned long long* maximum) {
+    const uint64_t* source, int rows, int cols, int ld, unsigned long long* maximum, bool signed_values) {
   __shared__ unsigned long long partial[256];
   const int lane = threadIdx.x;
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + lane;
   uint64_t magnitude = 0;
   if (cell < static_cast<int64_t>(rows) * cols) {
-    const int64_t value = source[(cell / cols) * ld + cell % cols];
-    magnitude = value < 0 ? uint64_t{0} - static_cast<uint64_t>(value) : static_cast<uint64_t>(value);
+    const uint64_t value = source[(cell / cols) * ld + cell % cols];
+    magnitude = signed_values && (value >> 63) ? uint64_t{0} - value : value;
   }
   partial[lane] = magnitude;
   __syncthreads();

@@ -313,11 +313,14 @@ extern "C" int rns8_hip_gemm_rns_axpby(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_native_abs_max(const void* source, int rows, int cols, int ld, void* maximum, bool signed_values) {
+  const auto blocks=(uint64_t(rows)*cols+255)/256;
+  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel,dim3(blocks),dim3(256),0,nullptr,
+      static_cast<const uint64_t*>(source),rows,cols,ld,static_cast<unsigned long long*>(maximum),signed_values);
+  return int(hipGetLastError());
+}
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t* source, int rows, int cols, int ld, void* maximum) {
-  const auto blocks = static_cast<unsigned>((static_cast<int64_t>(rows) * cols + 255) / 256);
-  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                    source, rows, cols, ld, static_cast<unsigned long long*>(maximum));
-  return static_cast<int>(hipGetLastError());
+  return rns8_hip_native_abs_max(source,rows,cols,ld,maximum,true);
 }
 
 extern "C" int rns8_hip_native_i64_narrow_gemm(
