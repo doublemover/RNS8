@@ -86,6 +86,38 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
   add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
   add_test(NAME split_k_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_split_k.py")
+  add_test(NAME ragged_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_ragged.py")
+  if(TARGET rns8-ragged-calibrate)
+    set_tests_properties(ragged_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_RAGGED_EXE=$<TARGET_FILE:rns8-ragged-calibrate>"
+      LABELS "tools;ragged;cli")
+    foreach(_ragged_backend IN ITEMS cpu-reference hip-direct)
+      if(_ragged_backend STREQUAL "hip-direct")
+        if(NOT RNS8_ENABLE_HIP)
+          continue()
+        endif()
+        set(_ragged_device 0)
+        set(_ragged_label hip)
+      else()
+        set(_ragged_device -1)
+        set(_ragged_label cpu)
+      endif()
+      foreach(_ragged_domain IN ITEMS signed unsigned)
+        foreach(_ragged_mode IN ITEMS uniform_export ragged_export ragged_resident)
+          add_test(NAME ragged_${_ragged_label}_${_ragged_domain}_${_ragged_mode}_smoke
+            COMMAND rns8-ragged-calibrate ${_ragged_backend} ${_ragged_device} ${_ragged_mode}
+              17 19 mixed ${_ragged_domain} 3 5 2 2 1 ctest-ragged-${_ragged_label}-${_ragged_domain}-${_ragged_mode})
+          set_tests_properties(ragged_${_ragged_label}_${_ragged_domain}_${_ragged_mode}_smoke PROPERTIES
+            LABELS "${_ragged_label};ragged;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      add_test(NAME ragged_${_ragged_label}_wide140_smoke
+        COMMAND rns8-ragged-calibrate ${_ragged_backend} ${_ragged_device} ragged_export
+          4 4 wide140 signed 1 1 1 2 1 ctest-ragged-${_ragged_label}-wide140)
+      set_tests_properties(ragged_${_ragged_label}_wide140_smoke PROPERTIES
+        LABELS "${_ragged_label};ragged;wide;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+    endforeach()
+  endif()
   if(TARGET rns8-split-k-calibrate)
     set_tests_properties(split_k_collector_self_test PROPERTIES
       ENVIRONMENT "RNS8_SPLIT_K_EXE=$<TARGET_FILE:rns8-split-k-calibrate>"

@@ -1,5 +1,9 @@
 # Research topics and application context
 
+[Public ragged calibration](../ragged-calibration.md) compares matched host
+exports and reports preparation, retained storage and reconstruction-only timing
+separately. Source-only fixtures do not establish measured traffic or a speedup.
+
 [Public split-K calibration](../split-k-calibration.md) separates ordinary,
 full-scratch and bounded-window public calls, setup, unchanged reuse and changed
 input recreation. Its authored fixtures await the consolidated validation batch.

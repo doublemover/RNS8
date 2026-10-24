@@ -3,6 +3,17 @@
   "scope": "All first-party Markdown/HTML/RST/legal/template files known to Git, including new untracked docs; generated output and submodule contents excluded",
   "documents": [
     {
+      "path": "docs/ragged-calibration.md",
+      "purpose": "Public ragged ownership and matched host materialization calibration",
+      "audience": "Exact arithmetic researchers and calibration contributors",
+      "disposition": "keep",
+      "canonical": "docs/ragged-calibration.md",
+      "owner": "benchmarks/rns8_ragged_calibrate.cpp",
+      "reason": "Explicit CPU/HIP uniform export versus ragged reconstruct/export controls, independent wide references, preparation/reuse lifecycle, actual retained capacities and modeled transfer limits; authored pending consolidated validation.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/split-k-calibration.md",
       "purpose": "Public reusable split-K calibration and complete independent receipts",
       "audience": "GPU researchers and calibration contributors",
