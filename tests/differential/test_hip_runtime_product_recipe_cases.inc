@@ -52,6 +52,24 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
     }
   }
   recipe.reset();
+  const rns8_matrix* inputs[]{a,b};
+  const rns8_product_node nodes[]{{0,1},{2,1},{2,1},{3,4}};
+  rns8_product_recipe_desc public_desc{};
+  public_desc.struct_size=sizeof(public_desc); public_desc.abi_version=RNS8_ABI_VERSION;
+  public_desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
+  public_desc.inputs=inputs; public_desc.input_count=2; public_desc.nodes=nodes; public_desc.node_count=4;
+  public_desc.max_arena_and_lift_bytes=UINT64_MAX;
+  rns8_product_recipe* public_recipe=nullptr;
+  REQUIRE(rns8_create_product_recipe(ctx,&public_desc,&public_recipe)==RNS8_SUCCESS);
+  REQUIRE(rns8_execute_product_recipe(public_recipe,c)==RNS8_SUCCESS);
+  std::vector<uint64_t> final_limbs(side*side*3);
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,final_limbs.data(),side,3)==RNS8_SUCCESS);
+  for(int cell=0;cell<side*side;++cell) {
+    cpp_int actual=cpp_int(final_limbs[cell*3])+(cpp_int(final_limbs[cell*3+1])<<64)+(cpp_int(final_limbs[cell*3+2])<<128);
+    if(final_limbs[cell*3+2]>>63) actual-=cpp_int(1)<<192;
+    CHECK(actual==expected[cell]);
+  }
+  REQUIRE(rns8_destroy_product_recipe(public_recipe)==RNS8_SUCCESS);
   for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);

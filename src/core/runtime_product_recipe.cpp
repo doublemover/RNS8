@@ -229,3 +229,47 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
   });
 }
 } // namespace rns8::detail
+
+struct rns8_product_recipe {
+  std::unique_ptr<rns8::detail::RuntimeProductRecipe> owner;
+};
+rns8_status rns8_create_product_recipe(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    rns8_product_recipe** out) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    using namespace rns8::detail;
+    if(!ctx || !desc || !out || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
+        !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count>4096 ||
+        !desc->node_count || desc->node_count>4096 ||
+        (desc->prefix_policy!=RNS8_PRODUCT_FULL_PREFIX && desc->prefix_policy!=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
+      return RNS8_INVALID_ARGUMENT;
+    std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count);
+    std::vector<ProductNode> nodes; nodes.reserve(desc->node_count);
+    for(uint32_t i=0;i<desc->node_count;++i) nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});
+    auto result=std::make_unique<rns8_product_recipe>();
+    const auto status=RuntimeProductRecipe::create(ctx,inputs,nodes,desc->max_arena_and_lift_bytes,result->owner,
+        desc->prefix_policy==RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX);
+    if(status!=RNS8_SUCCESS) return status;
+    *out=result.release(); return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output) {
+  return recipe?recipe->owner->execute(output):RNS8_INVALID_ARGUMENT;
+}
+rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,rns8_product_recipe_resources* out) {
+  if(!recipe || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))
+    return RNS8_INVALID_ARGUMENT;
+  const auto& allocation=recipe->owner->allocation();
+  out->node_count=static_cast<uint32_t>(recipe->owner->compute_prefixes().size());
+  out->arena_bytes=allocation.arena_bytes;
+  out->lift_scratch_bytes=recipe->owner->lift_scratch_bytes();
+  out->unreused_payload_bytes=allocation.unreused_bytes;
+  return RNS8_SUCCESS;
+}
+rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,uint32_t* prefixes,uint32_t capacity) {
+  if(!recipe || !prefixes) return RNS8_INVALID_ARGUMENT;
+  const auto& selected=recipe->owner->compute_prefixes();
+  if(capacity<selected.size()) return RNS8_WORKSPACE_TOO_SMALL;
+  std::copy(selected.begin(),selected.end(),prefixes);
+  return RNS8_SUCCESS;
+}
+rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) { delete recipe; return RNS8_SUCCESS; }

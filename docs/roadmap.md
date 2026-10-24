@@ -159,7 +159,7 @@ ends. No new source commit inherits the old checkpoint's qualification.
 
 A one-producer token binding with explicit nonblocking progress is now authored.
 Concrete remaining development includes multi-producer/event-pipelined dependencies and async transfers/lift/export,
-runtime layout/cost selection and public graph arena integration, broader runtime recipe providers,
+runtime layout/cost selection and broader resident-graph arena integration, broader runtime recipe providers,
 encoded-B async integration, block-sparse hybrid scheduling, broader narrow scheduling and rank-23 straight-line
 execution. These are code gaps, distinct from unavailable hardware and measured
 promotion gates. Completion of one validation batch cannot by itself close them.
@@ -168,7 +168,8 @@ The [runtime product arena](runtime-product-arena.md) now authors a real interna
 CPU/direct-HIP fixed-order executor with dependency-safe physical reuse,
 optional minimum-prefix computation and consumer-driven exact suffix materialization,
 and staged final publication. Its linear/diamond fixtures remain unexecuted;
-it does not supply the broader public precision/layout planner.
+the specialized public product-recipe API exposes this executor, while broader
+resident-graph/layout/cost planning remains separate.
 
 A [generation-bound encoded-B owner](encoded-b-native.md) now authors actual
 K-contiguous residue storage and a direct fragment consumer. Ordinary grouped

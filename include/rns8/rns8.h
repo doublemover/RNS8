@@ -1332,6 +1332,51 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
 
+typedef struct rns8_product_recipe rns8_product_recipe;
+typedef enum rns8_product_prefix_policy RNS8_ENUM_BASE {
+  RNS8_PRODUCT_FULL_PREFIX = 0,
+  RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX = 1
+} rns8_product_prefix_policy;
+typedef struct rns8_product_node {
+  uint32_t a;
+  uint32_t b;
+} rns8_product_node;
+typedef struct rns8_product_recipe_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_product_prefix_policy prefix_policy;
+  const rns8_matrix* const* inputs;
+  uint32_t input_count;
+  uint32_t node_count;
+  const rns8_product_node* nodes;
+  uint64_t max_arena_and_lift_bytes;
+} rns8_product_recipe_desc;
+typedef struct rns8_product_recipe_resources {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t node_count;
+  uint64_t arena_bytes;
+  uint64_t lift_scratch_bytes;
+  uint64_t unreused_payload_bytes;
+} rns8_product_recipe_resources;
+/* Synchronous CPU/direct-HIP exact-wide product DAG with owned intermediate arena.
+ * Inputs share semantics/prefix/layout. IDs0..input_count-1 are external inputs;
+ * node i produces ID input_count+i, and may read only earlier IDs. The final node
+ * is the sole observable output. All shapes/range proofs are prepared up front.
+ * Sources/context are retained and generation-bound: repacking requires a new
+ * recipe. Minimum-prefix policy lifts exact suffixes on consumer demand; it is
+ * not a measured cost optimizer. Budget includes aligned arena plus peak HIP
+ * lift scratch; external matrices and host proof/descriptor overhead are separate.
+ * Create failure preserves *out. Use/destruction require external host exclusion. */
+RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
+    const rns8_product_recipe_desc* desc,rns8_product_recipe** out);
+RNS8_API rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output);
+RNS8_API rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,
+    rns8_product_recipe_resources* out);
+RNS8_API rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,
+    uint32_t* prefixes,uint32_t capacity);
+RNS8_API rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe);
+
 typedef struct rns8_encoded_b rns8_encoded_b;
 /* Experimental direct-HIP repeated-B materialization for exact-wide native
  * inputs. B must retain a current native copy. Encodes all prefix planes into

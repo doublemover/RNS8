@@ -71,3 +71,46 @@ TEST_CASE("runtime product recipe executes CPU chain and diamond in a reused are
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("public product recipe owns its arena and exposes exact prefix decisions") {
+  auto* ctx=create_cpu_context();
+  auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED); md.max_prefix=20;
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+  for(auto** matrix:{&a,&b,&c}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  int64_t two=2,three=3;
+  REQUIRE(rns8_pack_i64(ctx,a,&two,1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,b,&three,1,0)==RNS8_SUCCESS);
+  const rns8_matrix* inputs[]{a,b};
+  const rns8_product_node nodes[]{{0,1},{2,1},{2,1},{3,4}};
+  rns8_product_recipe_desc desc{};
+  desc.struct_size=sizeof(desc); desc.abi_version=RNS8_ABI_VERSION;
+  desc.inputs=inputs; desc.input_count=2; desc.nodes=nodes; desc.node_count=4;
+  desc.max_arena_and_lift_bytes=UINT64_MAX;
+  desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
+  rns8_product_recipe* recipe=nullptr;
+  REQUIRE(rns8_create_product_recipe(ctx,&desc,&recipe)==RNS8_SUCCESS);
+  rns8_product_recipe_resources info{}; info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_product_recipe_resources(recipe,&info)==RNS8_SUCCESS);
+  CHECK(info.node_count==4); CHECK(info.arena_bytes>0); CHECK(info.lift_scratch_bytes==0);
+  uint32_t prefixes[4]{99,99,99,99};
+  CHECK(rns8_get_product_recipe_prefixes(recipe,prefixes,3)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(prefixes[0]==99);
+  REQUIRE(rns8_get_product_recipe_prefixes(recipe,prefixes,4)==RNS8_SUCCESS);
+  CHECK(prefixes[0]==1); CHECK(prefixes[3]==2);
+  CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);
+  REQUIRE(rns8_execute_product_recipe(recipe,c)==RNS8_SUCCESS);
+  auto pd=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1); pd.max_prefix=20; pd.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan=nullptr; REQUIRE(rns8_create_plan(ctx,&pd,&plan)==RNS8_SUCCESS);
+  uint64_t result=0;
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,&result,1,1)==RNS8_SUCCESS);
+  CHECK(result==324);
+  REQUIRE(rns8_pack_i64(ctx,b,&three,1,0)==RNS8_SUCCESS);
+  const auto generation=c->content_generation;
+  CHECK(rns8_execute_product_recipe(recipe,c)==RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation==generation);
+  REQUIRE(rns8_destroy_product_recipe(recipe)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_product_recipe(nullptr)==RNS8_SUCCESS);
+  for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

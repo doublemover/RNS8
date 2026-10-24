@@ -1,8 +1,8 @@
 # Runtime product arena
 
-`RuntimeProductRecipe` is an internal synchronous CPU/direct-HIP executor for a
+`rns8_create_product_recipe` owns a synchronous CPU/direct-HIP executor for a
 fixed topologically ordered exact-wide product DAG. It accepts current public
-matrix inputs and publishes one final public matrix. Inputs must share explicit
+matrix inputs and publishes one final public matrix through `rns8_execute_product_recipe`. Inputs must share explicit
 signedness, the default basis, a common input/output prefix and modulus-major storage. It
 retains context/input lifetimes and binds their engine instance/generation;
 repacking requires creating a new recipe. Changed or busy inputs reject execution.
@@ -59,3 +59,26 @@ cost. Small prefixes can lose after lift overhead; the full-prefix route is the
 control. Layout conversion/ragged inputs, public graph arena integration,
 multi-stream execution and an exhaustive prefix/layout cost optimizer remain
 separate work.
+
+## Public recipe lifecycle
+
+Pass an ABI-tagged `rns8_product_recipe_desc` with input handles, ordered product
+nodes, explicit prefix policy and total arena/lift budget. Input IDs precede node
+output IDs. Creation retains inputs/context; failures preserve the output handle.
+`rns8_get_product_recipe_resources` reports aligned arena bytes, peak lift scratch,
+node count and the unaligned sum of unreused payloads. The latter is diagnostic,
+not a guaranteed speedup or allocator peak. `rns8_get_product_recipe_prefixes`
+returns each prepared compute prefix and preserves the array when capacity is too
+small. Resources/prefix choices are immutable after creation.
+
+The final output must match the prepared shape, explicit exact-wide semantics,
+common external prefix and backend/device, and must differ from every input.
+The caller can reuse the recipe with distinct compatible outputs. Intermediate
+values are private and cannot be exported or rebound. Repacking inputs requires
+creating another recipe; destruction releases retained lifetimes. There is no
+public async submission or hidden wait in destruction. External host exclusion
+covers use/destruction, as with other synchronous owning APIs.
+
+The older resident graph API still accepts explicit intermediate handles and its
+own supported operations. This specialized product API provides owned scratch and
+consumer-driven precision for GEMM-only DAGs; it does not replace that graph API.
