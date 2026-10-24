@@ -1332,6 +1332,35 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
 
+/* Explicit generation-bound compact residue materialization. Preparation scans
+ * current exact-wide residues to derive exact per-tile magnitude bounds; HIP
+ * preparation includes a device-to-host snapshot and a compact payload upload.
+ * No implicit adaptive execution or zero-fill of absent planes is performed. */
+typedef struct rns8_ragged_materialization rns8_ragged_materialization;
+typedef struct rns8_ragged_resources {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t minimum_prefix;
+  uint32_t maximum_prefix;
+  uint64_t tile_count;
+  uint64_t payload_bytes;
+  uint64_t directory_bytes;
+  uint64_t source_instance;
+  uint64_t source_generation;
+} rns8_ragged_resources;
+RNS8_API rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,
+    const rns8_matrix* source, uint32_t tile_rows, uint32_t tile_cols,
+    uint64_t max_preparation_bytes, rns8_ragged_materialization** out);
+RNS8_API rns8_status rns8_get_ragged_resources(const rns8_ragged_materialization*,rns8_ragged_resources* out);
+/* Produces full uniform residues, using exact reconstruction/extension under
+ * the retained tile proofs. Source mutation stales the owner. Output must be a
+ * distinct ordinary matrix with sufficient prefix. Precommit failures preserve
+ * output; failed HIP publication invalidates it. Calls are synchronous and
+ * caller excludes concurrent mutation/destruction. */
+RNS8_API rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,
+    const rns8_ragged_materialization* source, rns8_matrix* output,uint64_t max_scratch_bytes);
+RNS8_API rns8_status rns8_destroy_ragged_materialization(rns8_ragged_materialization*);
+
 typedef struct rns8_product_recipe rns8_product_recipe;
 typedef enum rns8_product_prefix_policy RNS8_ENUM_BASE {
   RNS8_PRODUCT_FULL_PREFIX = 0,

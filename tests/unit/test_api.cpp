@@ -44,3 +44,10 @@ namespace {
 #include "test_runtime_product_recipe_cases.inc"
 
 #include "test_api_finite_verify_cases.inc"
+
+#include "../support/ragged_owner_fixture.hpp"
+TEST_CASE("public ragged owner preserves exact values across differently tiled consumers on CPU") {
+  auto* ctx=create_cpu_context();
+  for(bool u:{false,true}) ragged_owner_fixture::roundtrip(ctx,u);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
