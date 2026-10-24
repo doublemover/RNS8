@@ -1640,6 +1640,7 @@
       "anchors": [
         "arithmetic-contract",
         "exact-complex-residue-composition",
+        "internal-matrix-ownership-integration",
         "memory-and-publication",
         "validation-and-remaining-work"
       ]
@@ -2640,6 +2641,7 @@
         "configuration-and-validation",
         "reciprocal-conversion-follow-up",
         "reproduction-and-retained-evidence",
+        "reusable-preparation-at-51ae8d8",
         "rx-7900-xtx-native-wmma-and-queue-measurements",
         "sustained-call-measurements"
       ]
