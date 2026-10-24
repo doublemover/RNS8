@@ -83,3 +83,9 @@ TEST_CASE("public ragged owner extends compact tiles before a HIP GEMM consumer"
   for(bool u:{false,true}) ragged_owner_fixture::roundtrip(ctx,u);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+#include "../support/gram_fixture.hpp"
+TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
+  if (!hip_available()) SKIP("no HIP device for Gram");
+  check_public_gram(RNS8_BACKEND_HIP_DIRECT);
+}

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "backend_common/gram_plan.hpp"
 #include <string>
 #include <vector>
 
@@ -1232,6 +1233,9 @@ rns8_status hip_direct_synchronize(int device_id);
 // Compact canonical byte inputs/output; no public dispatch or AUTO promotion.
 rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const void* b,void* c,
     int64_t m,int64_t n,int64_t k,bool signed_digits,uint64_t max_scratch_bytes,bool& commit_started);
+
+rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const GramProblem& problem,
+    uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started);
 
 }  // namespace rns8::detail
 

@@ -51,3 +51,6 @@ TEST_CASE("public ragged owner preserves exact values across differently tiled c
   for(bool u:{false,true}) ragged_owner_fixture::roundtrip(ctx,u);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+#include "../support/gram_fixture.hpp"
+#include "test_api_gram_cases.inc"

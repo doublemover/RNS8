@@ -783,6 +783,21 @@ typedef struct rns8_matrix_storage_info {
   char detail[256];
 } rns8_matrix_storage_info;
 
+typedef enum rns8_gram_orientation {
+  RNS8_GRAM_TRANSPOSE_TIMES_SELF = 0,
+  RNS8_GRAM_SELF_TIMES_TRANSPOSE = 1
+} rns8_gram_orientation;
+typedef enum rns8_gram_method {
+  RNS8_GRAM_SCALAR = 0,
+  RNS8_GRAM_WMMA = 1
+} rns8_gram_method;
+/* Explicit single-source Gram product. Exact-wide signed and finite ring/field
+ * only; CPU scalar or direct HIP scalar/WMMA. Dense symmetric output, same basis.
+ * Budget includes host/device triangular job lists and capability word. */
+RNS8_API rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* source,
+    rns8_matrix* output,rns8_gram_orientation orientation,rns8_gram_method method,
+    uint64_t max_workspace_bytes);
+
 /* Requested allocation capacities, excluding allocator metadata and proof objects.
  * Current bytes are subsets of payload capacity; staging never denotes a value.
  * No transient peak or process/device allocator observation is implied. */
