@@ -12,6 +12,8 @@ rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   if (!direct_hip_compiled() || e.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
       (!rns8::detail::exact_wide_semantics(e.plan->desc.semantics) &&
        !uses_finite_storage(e.plan->desc.semantics) &&
+       e.plan->desc.semantics!=RNS8_BOUNDED_I64 &&
+       e.plan->desc.semantics!=RNS8_BOUNDED_U64 &&
        e.plan->desc.semantics!=RNS8_WRAP_U64_MOD_2_64) ||
       !e.plan->tile_schedule.empty() ||
       !rns8::detail::qualified_i32_gemm_address(e.plan->desc.m, e.plan->desc.n,

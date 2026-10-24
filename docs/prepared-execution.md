@@ -44,7 +44,7 @@ implementation and qualification work. No speedup is claimed.
 
 ## Explicit HIP submission
 
-Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide, strict wrap64, or
+Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP bounded i64/u64, exact-wide, strict wrap64, or
 finite-ring/field execution to allocate its completion event. The subset has fixed
 shape/basis/prefix or one explicit finite modulus, and no adaptive tile schedule.
 Other semantics/backends return unsupported. Finite operations use their existing
@@ -363,3 +363,17 @@ references, non-square padded host buffers, K=4096/4097 accumulator selection,
 shared-reader groups observed in reverse order, stale generations, cancellation,
 and resident fan-out with unpublished intermediate values. Execution of these
 cases is pending the consolidated validation campaign.
+
+### Bounded prepared submissions
+
+Prepared direct-HIP streams and captured replay also accept dense bounded i64/u64
+plans with a fixed prefix and no adaptive tile schedule. They use the same
+resident residue validation and enqueue kernel as synchronous bounded GEMM.
+The plan's declared output bound remains the caller's contract; submission does
+not reinterpret bounded storage as exact-wide or invent a dynamic range proof.
+Export still uses the checked signed or unsigned bounded API. The prepared object
+requires already-current RNS inputs; lazy native conversion must happen before
+submission. Other backends and bounded resident DAGs remain unsupported by this
+asynchronous surface. Source fixtures cover narrow and full-width declared
+bounds, signed extrema, unsigned maxima, pitched export, replay, refresh
+and cancellation; execution is pending the final campaign.

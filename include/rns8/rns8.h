@@ -276,7 +276,7 @@ RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
-/* Explicit direct-HIP exact-wide fixed-prefix, strict wrap64 byte-limb, or
+/* Explicit direct-HIP bounded i64/u64 or exact-wide fixed-prefix, strict wrap64 byte-limb, or
  * finite ring/field dense submission.
  * Finite operations retain their explicit modulus and never infer integer semantics. Prepare the
  * event resource outside submission; submit uses a caller-owned non-default
