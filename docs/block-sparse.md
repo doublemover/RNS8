@@ -96,3 +96,8 @@ M/N/K tails, padded destinations, prefixes1/9/20, signed full-width products and
 K=65535/65536/65537. Public signed/unsigned owners exercise both added modes with
 independent Boost export checks and the existing failure/lifetime cases. These
 fixtures have not run during frontloaded development.
+
+The authored [public block-sparse calibration](block-sparse-calibration.md)
+compares the dense ordinary control, warm prepared owners and measured cold
+preparation/reuse/destruction batches. Its full Boost audits, case sets and
+collector receipts also await the final consolidated validation campaign.

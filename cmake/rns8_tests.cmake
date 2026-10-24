@@ -8,6 +8,26 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
   add_test(NAME native_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_calibration.py")
   add_test(NAME finite_verify_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_finite_verify.py")
+  add_test(NAME block_sparse_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_block_sparse.py")
+  if(TARGET rns8-block-sparse-calibrate)
+    set_tests_properties(block_sparse_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_BLOCK_SPARSE_EXE=$<TARGET_FILE:rns8-block-sparse-calibrate>"
+      LABELS "tools;sparse;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_sparse_mode IN ITEMS dense sparse_scalar sparse_wmma sparse_hybrid sparse_scalar_cold sparse_wmma_cold sparse_hybrid_cold)
+        if(_sparse_mode MATCHES "hybrid")
+          set(_sparse_threshold 1)
+        else()
+          set(_sparse_threshold 0)
+        endif()
+        add_test(NAME block_sparse_${_sparse_mode}_smoke
+          COMMAND rns8-block-sparse-calibrate 0 ${_sparse_mode} 17 19 129 mixed
+            1 ${_sparse_threshold} 2 1 ctest-${_sparse_mode})
+        set_tests_properties(block_sparse_${_sparse_mode}_smoke PROPERTIES
+          LABELS "hip;sparse;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+      endforeach()
+    endif()
+  endif()
   if(TARGET rns8-finite-verify-calibrate)
     set_tests_properties(finite_verify_collector_self_test PROPERTIES
       ENVIRONMENT "RNS8_FINITE_VERIFY_EXE=$<TARGET_FILE:rns8-finite-verify-calibrate>"

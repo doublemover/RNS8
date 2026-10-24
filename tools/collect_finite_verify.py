@@ -42,7 +42,13 @@ def positive(value):
 
 
 def same(actual, expected):
-    return type(actual) is type(expected) and actual == expected
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, list):
+        return len(actual) == len(expected) and all(same(a, b) for a, b in zip(actual, expected))
+    if isinstance(expected, dict):
+        return actual.keys() == expected.keys() and all(same(actual[key], value) for key, value in expected.items())
+    return actual == expected
 
 
 def strict_json(text):
@@ -127,6 +133,18 @@ def contract(case, run_id, repeats, warmups):
             "memory_budget_bytes": BUDGET, "exact_full_output_and_padding_checked": True, "inputs_unchanged_checked": True}
 
 
+def validate_provenance(manifest):
+    """Accept structural diagnostic evidence without upgrading its eligibility."""
+    demand(type(manifest) is dict and type(manifest.get("source_dirty")) is bool, "missing build provenance")
+    structural = dict(manifest, source_dirty=False)
+    if structural.get("dependency_digest") == "unavailable":
+        structural["dependency_digest"] = "0"*64
+    configuration = structural.get("configuration")
+    if isinstance(configuration, str):
+        structural["configuration"] = "\n".join("garner_table=OFF" if line.partition("=")[0] == "garner_table" else line for line in configuration.splitlines())
+    demand(manifest_provenance_complete(structural), "invalid structural build provenance")
+
+
 def validate_capture(capture, case, run_id, repeats, warmups):
     demand(type(capture) is dict, "capture must be an object")
     for key, value in contract(case, run_id, repeats, warmups).items():
@@ -193,14 +211,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             demand(type(values) is list and len(values) == 3 and all(integer(value, 1, MASK) for value in values), "invalid verifier lifetime bindings")
         demand(len(set(verification["matrix_instance_ids"])) == 3, "unexpected aliased benchmark operands")
     manifest = capture.get("build_manifest")
-    demand(type(manifest) is dict and type(manifest.get("source_dirty")) is bool, "missing build provenance")
-    structural = dict(manifest, source_dirty=False)
-    if structural.get("dependency_digest") == "unavailable":
-        structural["dependency_digest"] = "0"*64
-    configuration = structural.get("configuration")
-    if isinstance(configuration, str):
-        structural["configuration"] = "\n".join("garner_table=OFF" if line.partition("=")[0] == "garner_table" else line for line in configuration.splitlines())
-    demand(manifest_provenance_complete(structural), "invalid structural build provenance")
+    validate_provenance(manifest)
     return {"build_manifest": manifest, **{key: capture[key] for key in ("backend_actual", "device_actual", "device_name", "target", "hip_runtime_version", "hip_driver_version")}}
 
 
@@ -245,11 +256,13 @@ def collect(args):
                 prefix.with_suffix(".record.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")
             try:
                 demand(file_digest(executable) == artifact, "executable changed before child launch")
+                demand(file_digest(args.cases) == cases_hash, "case manifest changed before child launch")
                 child = subprocess.run(command, text=True, encoding="utf-8", capture_output=True, timeout=args.timeout, check=False)
                 prefix.with_suffix(".stdout.json").write_text(child.stdout, encoding="utf-8")
                 prefix.with_suffix(".stderr.txt").write_text(child.stderr, encoding="utf-8")
                 record["returncode"] = child.returncode
                 demand(file_digest(executable) == artifact, "executable changed during child run")
+                demand(file_digest(args.cases) == cases_hash, "case manifest changed during child run")
                 demand(child.returncode == 0, f"child returned {child.returncode}; unsupported is diagnostic, not a passing observation")
                 capture = strict_json(child.stdout)
                 identity = validate_capture(capture, case, run_id, args.repeats, args.warmups)

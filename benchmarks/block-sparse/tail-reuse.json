@@ -1,0 +1,635 @@
+{
+  "schema": "rns8_block_sparse_cases_v1",
+  "cases": [
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "dense",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "mixed",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 1,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 8,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "dense",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    },
+    {
+      "device": 0,
+      "mode": "sparse_scalar_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_wmma_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 0
+    },
+    {
+      "device": 0,
+      "mode": "sparse_hybrid_cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "pattern": "disjoint",
+      "reuse_count": 32,
+      "hybrid_threshold": 1
+    }
+  ]
+}

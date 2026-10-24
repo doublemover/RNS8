@@ -1582,6 +1582,32 @@
       ]
     },
     {
+      "path": "docs/block-sparse-calibration.md",
+      "purpose": "Public dense and block-sparse scalar/WMMA/hybrid cold, warm and reuse wall-cost controls",
+      "audience": "Researchers and benchmark contributors",
+      "disposition": "keep",
+      "canonical": "docs/block-sparse-calibration.md",
+      "owner": "benchmarks/rns8_block_sparse_calibrate.cpp",
+      "reason": "Matched public ownership boundaries, complete Boost references, modeled versus queried resource accounting and observed reuse points; authored only pending consolidated validation.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "block-sparse-calibration.md"
+        },
+        {
+          "source": "docs/block-sparse.md",
+          "reference": "block-sparse-calibration.md"
+        }
+      ],
+      "anchors": [
+        "commands-and-observed-comparisons",
+        "exact-reference-and-dataset",
+        "matched-boundaries",
+        "memory-and-provenance",
+        "public-block-sparse-cost-and-reuse-controls"
+      ]
+    },
+    {
       "path": "docs/block-sparse.md",
       "purpose": "Exact block-sparse research baseline",
       "audience": "Kernel researchers",
