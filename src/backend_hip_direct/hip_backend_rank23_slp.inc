@@ -28,11 +28,15 @@ rns8_status hip_direct_gemm_rank23_slp_device(
     auto launch = static_cast<hipError_t>(rns8_hip_rank23_slp_transform(
         static_cast<const int8_t*>(a),left,static_cast<int>(m),static_cast<int>(k),
         static_cast<int>(lda),hm,hk,prefix,true));
-    if (launch != hipSuccess) return launch;
-    launch = static_cast<hipError_t>(rns8_hip_rank23_slp_transform(
-        static_cast<const int8_t*>(b),right,static_cast<int>(k),static_cast<int>(n),
-        static_cast<int>(ldb),hk,hn,prefix,false));
-    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
+    if (launch == hipSuccess) {
+      launch = static_cast<hipError_t>(rns8_hip_rank23_slp_transform(
+          static_cast<const int8_t*>(b),right,static_cast<int>(k),static_cast<int>(n),
+          static_cast<int>(ldb),hk,hn,prefix,false));
+    }
+    // A may already use scratch when B's launch fails. Drain submitted work
+    // before releasing the owner, preserving the original launch diagnostic.
+    const auto completion = hipDeviceSynchronize();
+    return launch != hipSuccess ? launch : completion;
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
   for (int term = 0; term < 23; ++term) {
