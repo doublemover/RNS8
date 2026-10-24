@@ -2035,3 +2035,11 @@ ring/prime-field semantics, canonical uint64 storage, overflow-safe CPU/HIP
 double/add arithmetic and an exact host decomposition-bound planner. It does
 not extend finite-u8 storage or certify a floating/matrix instruction schedule.
 Full-width Boost differential fixtures are authored for the final campaign.
+
+### Native HIP interoperability (source implementation, pending qualification)
+
+The initial [native device lease interface](native-device-interop.md) admits
+synchronous borrowed i64/u64 views for direct-HIP import and staged native
+export. Typed spans, owner callbacks, conservative unique-range proof and
+failed-drain quarantine are explicit. It reuses existing pack/CRT kernels,
+transfers no host payload, and does not imply prepared async or DLPack support.

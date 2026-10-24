@@ -2073,6 +2073,49 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
     rns8_workspace* workspace);
 
 
+
+/* Synchronous native HIP interop. The caller completes all external producer
+ * work before binding and holds the allocation immutable while leased. Owner
+ * callbacks run on the calling host thread, never a HIP runtime callback. */
+typedef struct rns8_native_device_lease rns8_native_device_lease;
+typedef enum rns8_native_device_type {
+  RNS8_NATIVE_DEVICE_I64=1, RNS8_NATIVE_DEVICE_U64=2
+} rns8_native_device_type;
+typedef enum rns8_native_device_access {
+  RNS8_NATIVE_DEVICE_READ=1, RNS8_NATIVE_DEVICE_WRITE=2
+} rns8_native_device_access;
+typedef enum rns8_native_device_policy { RNS8_NATIVE_DEVICE_BORROW=1 } rns8_native_device_policy;
+typedef rns8_status (*rns8_native_owner_acquire)(void* owner);
+typedef void (*rns8_native_owner_release)(void* owner);
+typedef struct rns8_native_device_desc {
+  uint32_t struct_size,abi_version;
+  rns8_native_device_type element_type;
+  rns8_native_device_access access;
+  void* allocation_base;
+  uint64_t allocation_bytes,byte_offset;
+  int64_t rows,cols,ld;
+  int32_t device_id;
+  uint32_t producer_complete; /* must be 1: explicit caller readiness contract */
+  rns8_native_device_policy policy; /* only explicit borrowed ownership in V1 */
+  uint64_t owner_identity,generation;
+  void* owner;
+  rns8_native_owner_acquire acquire;
+  rns8_native_owner_release release;
+} rns8_native_device_desc;
+typedef struct rns8_native_device_resources {
+  uint32_t struct_size,abi_version;
+  uint64_t view_span_bytes,compact_native_bytes,export_scratch_bytes;
+} rns8_native_device_resources;
+RNS8_API rns8_status rns8_query_native_device(const rns8_native_device_desc*,rns8_native_device_resources*);
+RNS8_API rns8_status rns8_create_native_device_lease(rns8_context*,const rns8_native_device_desc*,rns8_native_device_lease**);
+/* Failed drain/free preserves the lease; successful destruction releases its
+ * owner exactly once. Callbacks must not throw or reenter this lease. */
+RNS8_API rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease*);
+RNS8_API rns8_status rns8_import_native_device(rns8_context*,rns8_matrix*,rns8_native_device_lease*);
+/* Requires a current unique scalar range proof fitting the native type.
+ * Staged reconstruction/status precedes external writes. */
+RNS8_API rns8_status rns8_export_native_device(rns8_context*,const rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);
+
 #ifdef __cplusplus
 }
 #endif

@@ -26,6 +26,7 @@ set(RNS8_SOURCES
   src/core/api_ragged.cpp
   src/core/api_gram.cpp
   src/core/api_stream_gemm.cpp
+  src/core/api_native_device.cpp
   src/core/api_resident_graph.cpp
   src/core/runtime_product_recipe.cpp
   src/core/api_sparse.cpp

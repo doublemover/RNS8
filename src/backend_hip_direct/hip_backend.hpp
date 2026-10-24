@@ -1246,6 +1246,12 @@ namespace word_mod {struct Problem;}
 rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b,void* c,
     const word_mod::Problem& problem,uint64_t budget,bool& commit_started);
 
+rns8_status hip_direct_validate_native_allocation(int device_id,const void* base,uint64_t bytes);
+rns8_status hip_direct_import_native_view(int device_id,const void* source,void* residues,
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values);
+rns8_status hip_direct_export_native_view(int device_id,const void* residues,void* destination,void* scratch,
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,uint64_t bound,bool signed_values,bool& external_write_started);
+
 }  // namespace rns8::detail
 
 #endif

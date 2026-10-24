@@ -60,3 +60,5 @@ TEST_CASE("public ragged owner preserves exact values across differently tiled c
 #include "test_fixed_conversion_cases.inc"
 
 #include "test_word_mod_cases.inc"
+
+#include "test_native_device_contract_cases.inc"

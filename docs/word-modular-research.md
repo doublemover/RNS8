@@ -2,7 +2,7 @@
 
 This opt-in private path accepts canonical uint64 values and an explicit modulus
 from 2 through UINT64_MAX. Ring and prime-field domains are separate; the field
-request checks primality using deterministic 64-bit Miller–Rabin. A prime power
+request checks primality using deterministic 64-bit Miller-Rabin. A prime power
 is a ring here, never an implicit extension field. The public finite-u8 API and
 its centered byte storage are unchanged.
 
