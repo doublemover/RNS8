@@ -74,6 +74,7 @@ rns8_status hip_direct_discover_native_tile_bounds(
 // not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
 // Private synchronous exact adaptive producer. Fresh bounds select each tile's
 // minimal prefix; exact suffix completion makes every output plane valid.
+// compact_workers=0 retains the grid control; 1..65535 bounds compact workers.
 // Inputs must remain immutable through return. Caller owns publication and must
 // invalidate output on any failure after commit_started becomes true.
 rns8_status hip_direct_gemm_adaptive_native_device(
@@ -81,7 +82,8 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     bool unsigned_inputs, uint32_t capacity, uint32_t group,
     uint64_t max_scratch_bytes, bool& commit_started,
-    NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256);
+    NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256,
+    uint32_t compact_workers = 0);
 rns8_status hip_direct_gemm_native_wmma_grouped_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,

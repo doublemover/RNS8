@@ -132,3 +132,43 @@ TEST_CASE("K-panel bound summation preserves carries and disjoint zero proofs") 
   REQUIRE(decode(disjoint) == 0);
   REQUIRE(decode(native_axis_l1_bound(large, large, 2)) > 0);
 }
+
+
+TEST_CASE("compact adaptive scheduling covers each admitted channel group exactly once") {
+  using namespace rns8::detail;
+  for (uint32_t group : {1u, 2u, 4u}) {
+    uint32_t offsets[22]{};
+    std::vector<NativeAdaptiveWork> expected;
+    for (uint32_t prefix = 0; prefix <= 20; ++prefix) {
+      const uint32_t tiles = prefix == 0 ? 5 : prefix % 4 == 0 ? 0 : prefix % 3 + 1;
+      offsets[prefix + 1] = offsets[prefix] + tiles;
+      if (prefix)
+        for (uint32_t index = offsets[prefix]; index < offsets[prefix + 1]; ++index)
+          for (uint32_t plane = 0; plane < prefix; plane += group)
+            expected.push_back({index, prefix, plane});
+    }
+    REQUIRE(native_adaptive_work_count(offsets, 20, group) == expected.size());
+    for (uint32_t workers : {1u, 3u, 128u}) {
+      std::vector<unsigned> visits(expected.size());
+      for (uint64_t worker = 0; worker < workers; ++worker)
+        for (uint64_t ordinal = worker; ordinal < expected.size(); ordinal += workers) {
+          const auto actual = native_adaptive_work(offsets, 20, group, ordinal);
+          CHECK(actual.compact_index == expected[ordinal].compact_index);
+          CHECK(actual.prefix == expected[ordinal].prefix);
+          CHECK(actual.first_plane == expected[ordinal].first_plane);
+          ++visits[ordinal];
+        }
+      for (const auto visits_per_work : visits) REQUIRE(visits_per_work == 1);
+    }
+    CHECK(native_adaptive_work(offsets, 20, group, expected.size()).prefix == 0);
+  }
+  uint32_t empty[22]{};
+  CHECK(native_adaptive_work_count(empty, 20, 1) == 0);
+  uint32_t large[22]{};
+  large[21] = UINT32_MAX;
+  CHECK(native_adaptive_work_count(large, 20, 1) == uint64_t{UINT32_MAX} * 20);
+  const auto last = native_adaptive_work(large, 20, 1, uint64_t{UINT32_MAX} * 20 - 1);
+  CHECK(last.compact_index == UINT32_MAX - 1);
+  CHECK(last.first_plane == 19);
+  CHECK(last.prefix == 20);
+}

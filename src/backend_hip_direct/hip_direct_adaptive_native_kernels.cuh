@@ -1,3 +1,20 @@
+// Fixed bounded workers traverse only admitted tile/channel groups. The compact
+// buckets remain on device; no count readback, atomic queue or task array.
+template <typename NativeT, int Group>
+__global__ __launch_bounds__(32) void rns8_adaptive_native_compact_kernel(
+    const NativeT* a, const NativeT* b, int8_t* c, const uint32_t* indices,
+    const uint32_t* offsets, int m, int n, int k, int lda, int ldb, int capacity) {
+  const uint64_t count = rns8::detail::native_adaptive_work_count(offsets, capacity, Group);
+  const uint32_t cols = (static_cast<uint64_t>(n) + 15) / 16;
+  for (uint64_t ordinal = blockIdx.x; ordinal < count; ordinal += gridDim.x) {
+    const auto work = rns8::detail::native_adaptive_work(offsets, capacity, Group, ordinal);
+    const uint32_t tile = indices[work.compact_index];
+    rns8_native_grouped_wmma_tile<NativeT, Group>(a, b, c, m, n, k, lda, ldb, n,
+        work.prefix, static_cast<int64_t>(tile / cols) * 16,
+        static_cast<int64_t>(tile % cols) * 16, work.first_plane);
+  }
+}
+
 template <typename NativeT, int Group>
 __global__ __launch_bounds__(32) void rns8_adaptive_native_kernel(
     const NativeT* a, const NativeT* b, int8_t* c,

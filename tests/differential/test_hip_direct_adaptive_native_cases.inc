@@ -53,12 +53,13 @@ void check_adaptive_native_product() {
         chain_expected[(p*m+row)*3+1]=centered(alternating,moduli[p]);
       }
     for (auto method : {NativeBoundMethod::tile_max,NativeBoundMethod::axis_l1,NativeBoundMethod::panel_l1})
-      for (uint32_t group : {1u,2u,4u}) {
+      for (uint32_t group : {1u,2u,4u})
+        for (uint32_t workers : {0u, 3u}) {
         std::vector<int8_t> actual(expected.size(),99), chain(chain_expected.size(),99);
         REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size()) == RNS8_SUCCESS);
         bool committed=true;
         const auto result=hip_direct_gemm_adaptive_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
-            m,n,k,lda,ldb,ldc,unsigned_inputs,capacity,group,1<<20,committed,method,7);
+            m,n,k,lda,ldb,ldc,unsigned_inputs,capacity,group,1<<20,committed,method,7,workers);
         if (result==RNS8_UNSUPPORTED_BACKEND) {
           REQUIRE_FALSE(committed);
           SKIP("compiled target lacks native RDNA3 WMMA");
@@ -72,11 +73,16 @@ void check_adaptive_native_product() {
         REQUIRE(hip_direct_gemm_rns_device(0,dc.get(),drhs.get(),dchain.get(),m,2,n,ldc,2,3,capacity)==RNS8_SUCCESS);
         REQUIRE(hip_direct_copy_device_to_host(0,chain.data(),dchain.get(),chain.size()) == RNS8_SUCCESS);
         REQUIRE(chain==chain_expected);
+        committed = true;
+        REQUIRE(hip_direct_gemm_adaptive_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+            m,n,k,lda,ldb,ldc,unsigned_inputs,capacity,group,1<<20,committed,method,7,65536)
+            == RNS8_INVALID_ARGUMENT);
+        REQUIRE_FALSE(committed);
         for (bool insufficient_capacity : {false,true}) {
           committed=true;
           REQUIRE(hip_direct_gemm_adaptive_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
               m,n,k,lda,ldb,ldc,unsigned_inputs,insufficient_capacity?1:capacity,group,
-              insufficient_capacity?1<<20:0,committed,method,7)==
+              insufficient_capacity?1<<20:0,committed,method,7,workers)==
               (insufficient_capacity?RNS8_RANGE_ERROR:RNS8_WORKSPACE_TOO_SMALL));
           REQUIRE_FALSE(committed);
           REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size()) == RNS8_SUCCESS);

@@ -1,6 +1,6 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_adaptive_native(const void*, const void*, int8_t*,
-    const NativeTileBound*, const uint32_t*, int, int, int, int, int, int, int, bool);
+    const NativeTileBound*, const uint32_t*, int, int, int, int, int, int, int, bool, const uint32_t*, uint32_t);
 extern "C" int rns8_hip_adaptive_native_suffix(int8_t*, const NativeTileBound*, int, int, int, bool, int*);
 #endif
 
@@ -8,9 +8,9 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     bool unsigned_inputs, uint32_t capacity, uint32_t group,
-    uint64_t max_scratch_bytes, bool& commit_started, NativeBoundMethod method, uint32_t panel_k) {
+    uint64_t max_scratch_bytes, bool& commit_started, NativeBoundMethod method, uint32_t panel_k, uint32_t compact_workers) {
   commit_started = false;
-  if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+  if (compact_workers > 65535 || !a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4) ||
       (method != NativeBoundMethod::tile_max && method != NativeBoundMethod::axis_l1 && method != NativeBoundMethod::panel_l1) ||
       (method == NativeBoundMethod::panel_l1 && (!panel_k || panel_k > 65536)))
@@ -69,7 +69,7 @@ rns8_status hip_direct_gemm_adaptive_native_device(
       hipMemset(device_status, 0, sizeof(int)) != hipSuccess) return RNS8_BACKEND_FAILURE;
   if (run("adaptive_native_wmma", [&]() {
         return rns8_hip_adaptive_native(a, b, output, bounds, indices, static_cast<int>(m), static_cast<int>(n),
-            static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), capacity, group, unsigned_inputs);
+            static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), capacity, group, unsigned_inputs, offsets, compact_workers);
       }) != hipSuccess) return RNS8_BACKEND_FAILURE;
   if (run("adaptive_native_exact_suffix", [&]() {
         return rns8_hip_adaptive_native_suffix(output, bounds, static_cast<int>(m), static_cast<int>(n),

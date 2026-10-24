@@ -23,9 +23,7 @@ same-address mutation. This is not a public generation-bound proof cache.
 Scratch admission includes compact output, bounds, bucket indices and offsets,
 status, and peak bound-discovery workspace. The existing qualified i32 address
 domains apply. Group widths 1, 2 and 4 are supported. Device discovery, WMMA,
-suffix completion and commit have separate timing labels. Grid slots above a
-tile's required prefix return without computation; this is not yet a compact
-variable-prefix matrix-engine work queue.
+suffix completion and commit have separate timing labels. The original grid path retains slots above a tile's required prefix as a comparison control. The optional compact path below schedules only admitted groups.
 
 Differential fixtures cover signed and unsigned full-width inputs, zero and
 nonzero neighboring tiles, all bound methods and group widths, same-address
@@ -33,3 +31,23 @@ mutation, output padding, rejection without publication, and a second GEMM
 whose contraction crosses precision boundaries. Registered applicable execution
 is covered by the [dated validation](local-all-features-20261023.md). Broader target
 qualification, performance and public dispatch remain separate work.
+
+
+## Compact bounded workers
+
+A nonzero `compact_workers` (1..65535) selects a fixed worker grid over the
+existing device prefix buckets. Each worker traverses work ordinals at its grid
+stride. A small prefix decoder maps each ordinal to a compact tile index and
+channel-group start; proven-zero tiles and absent suffix groups have no work.
+The count uses 64-bit arithmetic, including the UINT32_MAX-tile descriptor limit.
+
+This path adds no task array, atomic queue, counter initialization or host count
+readback. It uses the same WMMA tile function, exact suffix completion, scratch
+budget and staged commit as the original grid. Zero workers preserves that grid
+for matched comparison. Static strides can still have load imbalance; worker
+count is explicit and no default-route or speedup claim is made.
+
+CPU enumeration fixtures cover exact work coverage, empty buckets, grouping
+and large-count boundaries. The signed/unsigned Boost GPU differential and
+cross-precision chain fixtures now cover both launch policies. They are authored
+but await the consolidated validation pass with the new compiler/dependencies.

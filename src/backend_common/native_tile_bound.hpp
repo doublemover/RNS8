@@ -12,6 +12,34 @@ struct NativeTileBound {
   uint32_t required_prefix = 0; // 0 proves zero; 21 means not admitted.
   uint32_t reserved = 0;
 };
+struct NativeAdaptiveWork {
+  uint32_t compact_index = 0;
+  uint32_t prefix = 0;
+  uint32_t first_plane = 0;
+};
+// Offsets describe admitted prefix buckets 0..20. Zero tiles have no work.
+// Widen before multiplying: UINT32_MAX tiles times twenty groups fits uint64.
+RNS8_BOUND_HD constexpr uint64_t native_adaptive_work_count(
+    const uint32_t* offsets, uint32_t capacity, uint32_t group) {
+  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4)) return 0;
+  uint64_t count = 0;
+  for (uint32_t prefix = 1; prefix <= capacity; ++prefix)
+    count += uint64_t{offsets[prefix + 1] - offsets[prefix]} * ((prefix + group - 1) / group);
+  return count;
+}
+RNS8_BOUND_HD constexpr NativeAdaptiveWork native_adaptive_work(
+    const uint32_t* offsets, uint32_t capacity, uint32_t group, uint64_t ordinal) {
+  if (!offsets || !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4)) return {};
+  for (uint32_t prefix = 1; prefix <= capacity; ++prefix) {
+    const uint32_t groups = (prefix + group - 1) / group;
+    const uint64_t count = uint64_t{offsets[prefix + 1] - offsets[prefix]} * groups;
+    if (ordinal < count)
+      return {offsets[prefix] + static_cast<uint32_t>(ordinal / groups), prefix,
+              static_cast<uint32_t>(ordinal % groups) * group};
+    ordinal -= count;
+  }
+  return {};
+}
 enum class NativeBoundMethod : uint32_t { tile_max = 0, axis_l1 = 1, panel_l1 = 2 };
 struct NativeAxisSummary {
   uint64_t maximum = 0;
