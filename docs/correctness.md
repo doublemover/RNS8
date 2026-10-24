@@ -225,9 +225,10 @@ Public C++ enums have fixed uint32 backing so malformed C/FFI values can be
 validated without an invalid-enum load. C clients must use the normal 32-bit
 enum ABI, not `-fshort-enums`.
 
-Unsupported contracts/targets return explicit errors. Ozaki/FP8, INT4/IU4,
-Strassen, and Freivalds execution are unimplemented; reserved research APIs
-return `RNS8_UNSUPPORTED_BACKEND`. Deterministic exact APIs do not use
+Unsupported contracts/targets return explicit errors. Public Ozaki/FP8, INT4/IU4
+and Freivalds execution remain unsupported. The opt-in one-level Strassen owner
+uses ordinary exact range admission and staged publication; public export fixtures
+await the consolidated validation campaign. Deterministic exact APIs do not use
 probabilistic verification as a substitute for reconstruction correctness.
 
 ## Test map

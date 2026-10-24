@@ -36,7 +36,7 @@ TEST_CASE("reserved research APIs fail closed without changing outputs", "[quali
   CHECK(split_count == 88);
   double overhead = -1.0;
   CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1, &overhead) ==
-        RNS8_UNSUPPORTED_BACKEND);
+        RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
   double failure_probability = -1.0;
   CHECK(rns8_freivalds_verify(nullptr, nullptr, nullptr, nullptr, 1, 2, &failure_probability) ==

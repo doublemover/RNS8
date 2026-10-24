@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include <unordered_set>
+#include "backend_common/bilinear_resources.hpp"
 
 namespace rns8::detail::api {
 
@@ -1539,7 +1540,7 @@ rns8_status rns8_gemm_wrap_u64(
 }
 
 
-// Reserved research entrypoints. No backend implements these operations.
+// Research entrypoints with explicit per-operation support.
 
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
     rns8_context* ctx,
@@ -1564,9 +1565,47 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
     rns8_workspace* workspace,
     int strassen_level,
     double* out_memory_overhead_ratio) {
-  (void)ctx; (void)plan; (void)A; (void)B; (void)C; (void)workspace;
-  (void)strassen_level; (void)out_memory_overhead_ratio;
-  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+  return guard_api([&]() -> rns8_status {
+    using namespace rns8::detail;
+    if (!ctx || !plan || !A || !B || !C || !workspace || !out_memory_overhead_ratio ||
+        A == C || B == C || strassen_level < 1) return RNS8_INVALID_ARGUMENT;
+    if (strassen_level != 1 || plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+        !exact_wide_semantics(plan->desc.semantics)) return RNS8_UNSUPPORTED_BACKEND;
+    auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (status != RNS8_SUCCESS) return status;
+    status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C, true);
+    if (status != RNS8_SUCCESS) return status;
+    // Zero-output plan shortcuts do not authorize reading absent input planes.
+    if (!rns_residue_state_current_for_backend(*A, plan->backend) ||
+        !rns_residue_state_current_for_backend(*B, plan->backend)) return RNS8_INVALID_ARGUMENT;
+    if (C->generation_exhausted) return RNS8_RANGE_ERROR;
+    cpp_int bound;
+    rns8_exact_matrix_ranges ranges;
+    status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
+    if (status != RNS8_SUCCESS) return status;
+    const auto resources = query_bilinear_resources(plan->desc.m, plan->desc.n, plan->desc.k,
+        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, 2, UINT64_MAX);
+    if (resources.status != RNS8_SUCCESS) return resources.status;
+    bool commit_started = false;
+    struct CommitGuard {
+      rns8_matrix& output;
+      bool& started;
+      bool published = false;
+      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
+    } write{*C, commit_started};
+    status = hip_direct_gemm_strassen_device(ctx->device_id, A->hip_residues, B->hip_residues,
+        C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
+        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, UINT64_MAX, commit_started);
+    if (status != RNS8_SUCCESS) return status;
+    mark_output_device_residues_current(*C);
+    commit_exact_range(*C, *plan, bound, &ranges);
+    // Additional transient storage relative to the resident A+B+C residue bytes.
+    const long double resident = static_cast<long double>(resources.source_a.byte_extent) +
+        resources.source_b.byte_extent + resources.destination.byte_extent;
+    *out_memory_overhead_ratio = static_cast<double>(resources.total_bytes / resident);
+    write.published = true;
+    return RNS8_SUCCESS;
+  });
 }
 
 RNS8_API rns8_status rns8_freivalds_verify(

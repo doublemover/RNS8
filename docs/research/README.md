@@ -26,7 +26,7 @@ rules instead of creating independent public contracts.
 - [Native split-K](../native-split-k.md) and [persistent queues](../persistent-native-queue.md): private producer/merge scheduling, #37/#38
 - [Logical locality](../locality-schedules.md): offline permutations/model, #36
 - [Block sparse](../block-sparse.md): private scalar baseline alongside explicit public structured Sparse-A, #51
-- [Strassen](../strassen-device.md) and [rank-23](../rank23-device.md): private certified one-level modular programs, #48
+- [Strassen](../strassen-device.md) and [rank-23](../rank23-device.md): opt-in public one-level Strassen and private certified rank-23 program, #48
 - [Exact epilogues](../exact-epilogues.md): public exact-wide expression and separate private rocWMMA candidate, #47
 
 Packed INT4/IU4 work remains restricted to internal proof-certified subsets;

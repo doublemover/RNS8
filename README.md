@@ -185,7 +185,7 @@ Compilation and device validation are recorded separately. `AUTO` uses the
 baseline context unless an eligible exact-match reviewed cache entry selects
 another backend; it performs no runtime tuning. The
 [backend reference](docs/backend-notes.md) covers limits and selection.
-[Research topics](docs/research/README.md) distinguish private Strassen/rank-23,
+[Research topics](docs/research/README.md) distinguish opt-in Strassen and private rank-23,
 low-bit and integrity prototypes from reserved public entrypoints and broader
 async/multi-GPU work.
 

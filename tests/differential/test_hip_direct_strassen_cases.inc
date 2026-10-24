@@ -64,3 +64,80 @@ TEST_CASE(
       CHECK(hip_direct_free(0, da) == RNS8_SUCCESS);
     }
 }
+
+template<class T> void check_public_strassen_owner() {
+  using boost::multiprecision::cpp_int;
+  constexpr bool is_unsigned = std::is_unsigned_v<T>;
+  const auto semantics = is_unsigned ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto descriptor = exact_signed_desc(17, 17, 17, RNS8_BACKEND_HIP_DIRECT);
+  descriptor.semantics = semantics;
+  descriptor.max_prefix = 20;
+  descriptor.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &descriptor, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto md = matrix_desc(17, 17, semantics, RNS8_BOUND_NONE);
+  md.max_prefix = 20;
+  md.flags = 0;
+  rns8_matrix *a=nullptr, *b=nullptr, *c=nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &md, &a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &c) == RNS8_SUCCESS);
+  std::vector<T> av(17*19), bv(17*19);
+  for (int r=0; r<17; ++r) for (int q=0; q<17; ++q) {
+    av[r*19+q] = r<16 ? T(2) : std::numeric_limits<T>::max();
+    bv[r*19+q] = q<16 ? T(3) : std::numeric_limits<T>::max();
+  }
+  if constexpr (!is_unsigned) av[16*19+1] = std::numeric_limits<T>::min();
+  const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
+    if constexpr (is_unsigned) return rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
+    else return rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
+  };
+  double overhead=-1;
+  const auto run = [&](int level) {
+    return rns8_strassen_gemm_research(ctx,plan,a,b,c,workspace,level,&overhead);
+  };
+  REQUIRE(pack(a,av) == RNS8_SUCCESS);
+  REQUIRE(pack(b,bv) == RNS8_SUCCESS);
+  REQUIRE(pack(c,av) == RNS8_SUCCESS);
+  const auto initial_generation=c->content_generation;
+  CHECK(run(2)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(overhead==-1);
+  c->in_flight_readers=1;
+  CHECK(run(1)==RNS8_BUSY);
+  c->in_flight_readers=0;
+  CHECK(c->content_generation==initial_generation);
+  CHECK(overhead==-1);
+  for (int mutation=0; mutation<2; ++mutation) {
+    if (mutation) {
+      av[0] = std::numeric_limits<T>::max();
+      REQUIRE(pack(a,av) == RNS8_SUCCESS);
+    }
+    {
+      REQUIRE(run(1)==RNS8_SUCCESS);
+      CHECK(overhead>0);
+      std::vector<uint64_t> limbs(17*17*3);
+      if constexpr (is_unsigned)
+        REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
+      else
+        REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
+      for (int r=0; r<17; ++r) for (int col=0; col<17; ++col) {
+        cpp_int expected=0;
+        for (int q=0; q<17; ++q) expected += cpp_int(av[r*19+q])*bv[q*19+col];
+        const int at=(r*17+col)*3;
+        cpp_int actual = cpp_int(limbs[at])+(cpp_int(limbs[at+1])<<64)+(cpp_int(limbs[at+2])<<128);
+        if constexpr (!is_unsigned) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
+        REQUIRE(actual == expected);
+      }
+    }
+  }
+  rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
+  rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
+}
+TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves rejected outputs") {
+  if (!hip_available()) SKIP("no HIP device for public Strassen");
+  check_public_strassen_owner<int64_t>();
+  check_public_strassen_owner<uint64_t>();
+}

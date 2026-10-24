@@ -37,3 +37,19 @@ registered applicable compilation/execution evidence for these candidates.
 Grouped/persistent subproducts, matrix-engine comparisons, final integer export
 qualification and the specification's >=1.15x at N>=16384 with <=2.2x memory
 gate remain open under #48. Failure to meet those gates retains classical routing.
+
+## Public owner (authored, validation pending)
+
+`rns8_strassen_gemm_research` now accepts level 1 on direct-HIP exact-wide signed
+and unsigned plans. It checks context/workspace, reservations, current inputs,
+generation and exact product bounds before invoking the staged implementation.
+Successful publication records output ranges for ordinary exact-limb export.
+Precommit failures preserve the destination; failed final commit invalidates it.
+The required ratio output changes only on success and reports additional transient
+residue bytes divided by resident A+B+C residue bytes. This is not a total-memory
+multiplier and excludes allocator bookkeeping. Scratch is internally allocated;
+the legacy public signature has no explicit scratch-budget parameter.
+
+Public full-width signed/unsigned export, mutation, unsupported-level and busy
+preservation fixtures are authored for the consolidated campaign. These changes
+do not establish the large-N performance gate, recursion or matrix-engine products.

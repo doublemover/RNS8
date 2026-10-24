@@ -1692,10 +1692,8 @@ RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
 
 
 /*
- * Reserved research entrypoints. All three currently return
- * RNS8_UNSUPPORTED_BACKEND without modifying outputs. No build option enables
- * Ozaki decomposition, Strassen multiplication, or Freivalds verification.
- * These declarations do not establish an allocation or verification contract.
+ * Ozaki decomposition and Freivalds verification remain reserved and return
+ * RNS8_UNSUPPORTED_BACKEND without modifying outputs.
  */
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
     rns8_context* ctx,
@@ -1707,6 +1705,15 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
     int64_t* out_component_ld,
     int* out_split_count);
 
+/* Experimental synchronous one-level Strassen for direct-HIP exact-wide signed
+ * or unsigned plans. Requires current resident RNS inputs and ordinary GEMM
+ * ownership/range admission. Other levels/backends/semantics are unsupported.
+ * Scratch is allocated internally; workspace retains ordinary plan validation.
+ * On success, out_memory_overhead_ratio receives additional transient residue
+ * bytes divided by resident A+B+C residue bytes (not total memory multiplier).
+ * Precommit failures preserve C and ratio; failed output commit invalidates C.
+ * The ratio pointer is required and written only after successful publication.
+ */
 RNS8_API rns8_status rns8_strassen_gemm_research(
     rns8_context* ctx,
     const rns8_plan* plan,

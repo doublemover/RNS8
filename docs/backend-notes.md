@@ -90,16 +90,15 @@ public API envelope.
 | Family | Current boundary | Owner |
 |---|---|---|
 | Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; public dispatch unchanged | [Native narrow](native-narrow.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
-| Strassen / rank-23 | Private one-level modular prototypes; public `rns8_strassen_gemm_research` remains unsupported | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Strassen / rank-23 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23; new public qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Packed INT4/IU4 | Internal certified subset/prototypes; public research semantics rejected | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Floating encodings / Ozaki | Scalar certificates and research integration; no public floating backend | [Generated encodings](generated-encodings.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
 | Sparse/hybrid | Public explicit structured Sparse-A; private scalar block-sparse baseline | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Multi-GPU | Independent per-device shard scripts; true modulus-sharded GEMM remains work | [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
-The public Ozaki, Strassen and Freivalds research entrypoints return
-`RNS8_UNSUPPORTED_BACKEND`; implemented private candidates do not change that
-contract. The [research index](research/README.md) groups focused technical notes.
+The public Ozaki and Freivalds research entrypoints return
+`RNS8_UNSUPPORTED_BACKEND`. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.
 
 Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
 or an output with pending readers or a writer, before target admission and output
