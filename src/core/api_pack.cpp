@@ -99,7 +99,17 @@ rns8_status rns8_pack_i64(
         return RNS8_SUCCESS;
       }
       write.emplace(*matrix);
-      const rns8_status status = rns8::detail::hip_direct_pack_i64_device(
+      rns8_status status;
+      if (should_populate_native_on_pack(*ctx, *matrix)) {
+        // One owned compact upload supplies both the native readers and RNS
+        // conversion. Padded callers are compacted by upload_native_i64.
+        status = upload_native_i64(*ctx, *matrix, src, ld);
+        if (status == RNS8_SUCCESS)
+          status = rns8::detail::hip_direct_native_i64_to_rns_device(
+              ctx->device_id, matrix->hip_native_i64, matrix->hip_residues,
+              matrix->desc.rows, matrix->desc.cols, matrix->prefix);
+      } else {
+        status = rns8::detail::hip_direct_pack_i64_device(
           ctx->device_id,
           src,
           &matrix->hip_upload_buffer,
@@ -109,6 +119,7 @@ rns8_status rns8_pack_i64(
           matrix->desc.cols,
           ld,
           matrix->prefix);
+      }
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -118,12 +129,7 @@ rns8_status rns8_pack_i64(
       rns8::detail::pack_i64_matrix(*matrix, src, ld);
       mark_host_residues_current(*matrix);
     }
-    if (should_populate_native_on_pack(*ctx, *matrix)) {
-      const rns8_status native_status = upload_native_i64(*ctx, *matrix, src, ld);
-      if (native_status != RNS8_SUCCESS) {
-        return native_status;
-      }
-    } else {
+    if (!should_populate_native_on_pack(*ctx, *matrix)) {
       clear_native_current(*matrix);
     }
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
@@ -240,7 +246,17 @@ rns8_status rns8_pack_u64(
         return RNS8_SUCCESS;
       }
       write.emplace(*matrix);
-      const rns8_status status = rns8::detail::hip_direct_pack_u64_device(
+      rns8_status status;
+      if (should_populate_native_on_pack(*ctx, *matrix)) {
+        // One owned compact upload supplies both the native readers and RNS
+        // conversion. Padded callers are compacted by upload_native_u64.
+        status = upload_native_u64(*ctx, *matrix, src, ld);
+        if (status == RNS8_SUCCESS)
+          status = rns8::detail::hip_direct_native_u64_to_rns_device(
+              ctx->device_id, matrix->hip_native_u64, matrix->hip_residues,
+              matrix->desc.rows, matrix->desc.cols, matrix->prefix);
+      } else {
+        status = rns8::detail::hip_direct_pack_u64_device(
           ctx->device_id,
           src,
           &matrix->hip_upload_buffer,
@@ -250,6 +266,7 @@ rns8_status rns8_pack_u64(
           matrix->desc.cols,
           ld,
           matrix->prefix);
+      }
       if (status != RNS8_SUCCESS) {
         return status;
       }
@@ -259,12 +276,8 @@ rns8_status rns8_pack_u64(
       rns8::detail::pack_u64_matrix(*matrix, src, ld);
       mark_host_residues_current(*matrix);
     }
-    if (should_populate_native_on_pack(*ctx, *matrix)) {
-      const rns8_status native_status = upload_native_u64(*ctx, *matrix, src, ld);
-      if (native_status != RNS8_SUCCESS) {
-        return native_status;
-      }
-    } else if (matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
+    if (!should_populate_native_on_pack(*ctx, *matrix) &&
+        matrix->desc.semantics != RNS8_WRAP_U64_MOD_2_64) {
       clear_native_current(*matrix);
     }
     if (matrix->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {

@@ -107,3 +107,14 @@ boundaries. The query launches nothing and does not mutate routing or evidence.
 CPU fixtures cover exact budget boundaries, malformed parameters, panel-count
 limits, padded address overflow and invariant scratch across launch policies;
 they await the final batch.
+
+### Single owned native upload
+
+Retained signed and unsigned inputs upload once to the matrix-owned compact
+native device allocation. Residue conversion reads that same allocation; it
+neither creates a second native upload buffer nor transfers the source again.
+Padded host inputs use a temporary compact host vector before this one upload.
+The ordinary unretained packing route is unchanged. Successful replacement by
+GEMM still retires native currentness, and failed packing cannot publish a
+partially converted value. The existing native-to-residue kernel performs the
+conversion; matched conversion and end-to-end timings remain pending.

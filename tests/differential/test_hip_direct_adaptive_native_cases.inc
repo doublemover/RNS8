@@ -134,6 +134,26 @@ template<class T> void check_public_adaptive_owner() {
   REQUIRE(pack(a,av) == RNS8_SUCCESS);
   REQUIRE(pack(b,bv) == RNS8_SUCCESS);
   REQUIRE(pack(c,av) == RNS8_SUCCESS);
+  // Both padded and compact retained packs use one native allocation and no
+  // second full input upload staging allocation.
+  const auto check_single_upload_owner = [&](rns8_matrix* matrix) {
+    CHECK(matrix->hip_upload_buffer == nullptr);
+    CHECK(matrix->hip_upload_bytes == 0);
+    CHECK(matrix->device_native_current);
+    CHECK(matrix->device_residues_current);
+    if constexpr (is_unsigned) {
+      CHECK(matrix->hip_native_u64 != nullptr);
+      CHECK(matrix->hip_native_u64_bytes == 17*17*sizeof(T));
+      CHECK(matrix->hip_native_i64 == nullptr);
+    } else {
+      CHECK(matrix->hip_native_i64 != nullptr);
+      CHECK(matrix->hip_native_i64_bytes == 17*17*sizeof(T));
+      CHECK(matrix->hip_native_u64 == nullptr);
+    }
+  };
+  check_single_upload_owner(a);
+  check_single_upload_owner(b);
+  check_single_upload_owner(c);
   const auto initial_generation = c->content_generation;
   CHECK(run(a,0,3) == RNS8_WORKSPACE_TOO_SMALL);
   CHECK(c->content_generation == initial_generation);
@@ -181,6 +201,7 @@ template<class T> void check_public_adaptive_owner() {
     REQUIRE(rns8_pack_u64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
   else
     REQUIRE(rns8_pack_i64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
+  check_single_upload_owner(a);
   REQUIRE(run(a,UINT64_MAX,3) == RNS8_SUCCESS);
   rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
   rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
