@@ -14,6 +14,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import gpu_qualification as q
+import session_artifacts as artifacts
+import hashlib
 import session_environment as env
 from process_progress import run_capture
 
@@ -28,7 +30,181 @@ def result(stdout="", **changes):
     return {"returncode": 0, "timed_out": False, "stdout": stdout, "stderr": "", "elapsed_seconds": 0.01, **changes}
 
 
+class ArtifactCacheTests(unittest.TestCase):
+    def inventory(self, root):
+        root.mkdir(parents=True, exist_ok=True)
+        rows = []
+        for name, data in [("sources/library.tar", b"source fixture"), ("wheels/package.whl", b"wheel fixture")]:
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            rows.append({"id": name.split("/")[0], "kind": "package_source", "path": name,
+                         "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                         "origin_url": "https://example.org/release", "authentication": "local_digest_only"})
+        value = {"schema": "rns8_session_artifacts_v1", "artifacts": rows}
+        manifest = root / "inventory.json"
+        manifest.write_text(json.dumps(value))
+        return artifacts.load_inventory(manifest)
+
+    def test_staging_is_integrity_checked_and_second_run_copies_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); source, target = root / "cache", root / "session"
+            inventory = self.inventory(source)
+            first = artifacts.stage_cache(inventory, source, target)
+            self.assertTrue(first["complete"])
+            self.assertEqual(first["copied_bytes"], sum(row["bytes"] for row in inventory["artifacts"]))
+            self.assertFalse(first["hardware_qualified"])
+            self.assertFalse(first["binary_reuse_qualified"])
+            self.assertFalse(first["authentication_checked_by_this_tool"])
+            with patch.object(artifacts, "_copy_payload", side_effect=AssertionError("unexpected copy")):
+                second = artifacts.stage_cache(inventory, source, target)
+            self.assertEqual(second["copied_bytes"], 0)
+            self.assertEqual(second["reused_artifacts"], 2)
+
+    def test_incomplete_cache_lists_every_failure_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); source, target = root / "cache", root / "session"
+            inventory = self.inventory(source)
+            (source / inventory["artifacts"][0]["path"]).unlink()
+            (source / inventory["artifacts"][1]["path"]).write_bytes(b"corrupt")
+            receipt = artifacts.inspect_cache(inventory, source)
+            self.assertEqual([row["status"] for row in receipt["artifacts"]], ["missing", "mismatch"])
+            with self.assertRaisesRegex(ValueError, "sources:missing, wheels:mismatch"):
+                artifacts.stage_cache(inventory, source, target)
+            self.assertFalse(target.exists())
+
+    def test_existing_conflict_and_mid_copy_change_never_publish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); source, target = root / "cache", root / "session"
+            inventory = self.inventory(source)
+            conflict = target / inventory["artifacts"][0]["path"]
+            conflict.parent.mkdir(parents=True); conflict.write_bytes(b"user data")
+            with self.assertRaisesRegex(ValueError, "existing staged artifact differs"):
+                artifacts.stage_cache(inventory, source, target)
+            self.assertEqual(conflict.read_bytes(), b"user data")
+            conflict.unlink()
+            def corrupt_copy(input_stream, output, length):
+                output.write(b"changed after inspection")
+            with patch.object(artifacts, "_copy_payload", side_effect=corrupt_copy):
+                with self.assertRaisesRegex(ValueError, "changed during staging"):
+                    artifacts.stage_cache(inventory, source, target)
+            self.assertFalse(conflict.exists())
+            self.assertEqual(list(target.rglob(".rns8-stage-*")), [])
+
+    def test_interrupt_and_insufficient_disk_preserve_unpublished_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); source, target = root / "cache", root / "session"
+            inventory = self.inventory(source)
+            with patch.object(artifacts.shutil, "disk_usage") as usage:
+                usage.return_value.free = 0
+                with self.assertRaisesRegex(ValueError, "insufficient free space"):
+                    artifacts.stage_cache(inventory, source, target)
+            self.assertFalse(target.exists())
+            with patch.object(artifacts, "_copy_payload", side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    artifacts.stage_cache(inventory, source, target)
+            self.assertEqual(list(target.rglob(".rns8-stage-*")), [])
+            self.assertFalse((target / inventory["artifacts"][0]["path"]).exists())
+
+    def test_inventory_rejects_nonadjacent_ancestors_and_duplicate_json_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = self.inventory(root)
+            prototype = inventory["artifacts"][0]
+            inventory["artifacts"] = [dict(prototype, id=str(index), path=name)
+                                      for index, name in enumerate(("a", "a-", "a/b"))]
+            manifest = root / "inventory.json"
+            manifest.write_text(json.dumps(inventory), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate or overlapping"):
+                artifacts.load_inventory(manifest)
+            manifest.write_text('{"schema":"old","schema":"rns8_session_artifacts_v1","artifacts":[]}',
+                                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate artifact inventory field"):
+                artifacts.load_inventory(manifest)
+
+    def test_inventory_rejects_traversal_aliases_credentials_and_malformed_types(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inventory = self.inventory(root)
+            manifest = root / "inventory.json"
+            for field, bad in [("path", "../escape"), ("path", "folder/../escape"), ("path", "/absolute"),
+                               ("path", "C:/outside"), ("path", "folder/NUL.txt"), ("path", "folder/file:stream"),
+                               ("path", "folder//file"), ("path", "trailing."), ("bytes", True), ("kind", []),
+                               ("authentication", {}), ("sha256", "abc"), ("origin_url", "https://user:secret@example.org"),
+                               ("origin_url", "https://example.org/?token=secret")]:
+                changed = json.loads(json.dumps(inventory));changed["artifacts"][0][field] = bad
+                manifest.write_text(json.dumps(changed))
+                with self.subTest(field=field, bad=bad), self.assertRaises(ValueError):
+                    artifacts.load_inventory(manifest)
+            changed = json.loads(json.dumps(inventory));changed["artifacts"][1]["path"] = "SOURCES/LIBRARY.TAR"
+            manifest.write_text(json.dumps(changed))
+            with self.assertRaisesRegex(ValueError, "duplicate or overlapping"):
+                artifacts.load_inventory(manifest)
+
+    def test_cli_stages_cache_without_running_missing_toolchain(self):
+        selection = {"errors": ["toolchain missing"], "hip": {"status": "missing"},
+                     "vcpkg": {"status": "unsupported"}, "optional_components": {}, "cmake_bindings": {},
+                     "identity_sha256": "fixture", "compiler_environment": {},
+                     "tools": {name: {"path": None} for name in ("cmake", "ninja", "host_cxx")}}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory);source, out = root / "cache", root / "session"
+            self.inventory(source)
+            argv = ["--target", "mi300x", "--session-kind", "prepare", "--out-dir", str(out),
+                    "--artifact-inventory", str(source / "inventory.json"), "--artifact-cache", str(source),
+                    "--min-free-gib", "0.000001"]
+            with patch.object(q, "resolve", return_value=selection), \
+                 patch.object(q, "source_receipt", return_value={"git_revision": "fixture"}), \
+                 patch.object(q, "kernel_inventory", return_value=[]), \
+                 patch.object(q, "execute_plan", side_effect=AssertionError("must not execute")), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(q.main([*argv, "--dry-run"]), 0)
+                self.assertFalse((out / "artifacts").exists())
+                self.assertEqual(q.main([*argv, "--stage-artifacts"]), 0)
+                staged = json.loads((out / "artifact-staging.json").read_text())
+                self.assertEqual(staged["status"], "staged_runtime_qualification_pending")
+                self.assertTrue(staged["complete"])
+                self.assertFalse(staged["hardware_qualified"])
+                self.assertEqual(q.main([*argv, "--stage-artifacts"]), 0)
+                self.assertEqual(json.loads((out / "artifact-staging.json").read_text())["copied_bytes"], 0)
+                (source / "sources/library.tar").unlink()
+                self.assertEqual(q.main([*argv, "--execute"]), 1)
+                cache = json.loads((out / "artifact-cache.json").read_text())
+                self.assertFalse(cache["complete"])
+
+    def test_linked_cache_payload_is_not_followed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory);inventory = self.inventory(root)
+            with patch.object(Path, "is_symlink", return_value=True):
+                receipt = artifacts.inspect_cache(inventory, root)
+            self.assertFalse(receipt["complete"])
+            self.assertTrue(all(row["status"] == "unreadable_or_unsafe" for row in receipt["artifacts"]))
+
+
 class QualificationTests(unittest.TestCase):
+    def test_combined_lane_compiles_once_and_runs_every_backend_without_duplicate_ctest(self):
+        plan = q.command_plan("mi300x", ["hip-direct"], Path("temp/combined"), 12, [4, 7], all_enabled=True)
+        names = [item["name"] for item in plan]
+        self.assertEqual(len(names), len(set(names)))
+        combined = [item for item in plan if item["name"].startswith("all-enabled-")]
+        configs = [item for item in combined if item["name"].endswith("-configure")]
+        self.assertEqual(len(configs), 1)
+        for flag in q.FLAGS.values():
+            self.assertIn("-DRNS8_ENABLE_" + flag + "=ON", configs[0]["argv"])
+        self.assertEqual(sum(item["name"].endswith("-build") for item in combined), 1)
+        self.assertEqual(sum(item["name"].endswith("-ctest") for item in combined), 2)
+        for backend in q.BACKENDS:
+            for device in (4, 7):
+                stem = f"all-enabled-{backend}-device{device}"
+                self.assertIn(stem + "-parent-inspect", names)
+                child = next(item for item in combined if item["name"] == stem + "-inspect")
+                self.assertEqual(child["match_parent"], stem + "-parent-inspect")
+                self.assertEqual(child["inspect_device"], 0)
+        for item in plan:
+            if item["name"].endswith("-ctest"):
+                self.assertEqual(item["argv"][item["argv"].index("--parallel") + 1], "1")
+        with self.assertRaises(ValueError):
+            q.command_plan("mi300x", [], Path("temp/combined"), 3, [], session_kind="prepare", all_enabled=True)
+
     def test_cpu_preparation_has_no_device_or_network_stage(self):
         plan = q.command_plan("mi300x", [], Path("temp/preparation"), 3, [], session_kind="prepare")
         self.assertEqual([item["name"] for item in plan], ["prepare-configure", "prepare-build", "prepare-cpu-tests"])

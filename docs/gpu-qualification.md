@@ -254,3 +254,52 @@ A later GPU session uses its own output directory and explicit `--devices` list.
 Preparation proves neither HIP compilation nor device/runtime/ISA correctness.
 Actual Linux rehearsal, image/driver compatibility, physical device identity,
 artifact export and hardware qualification still require their own receipts.
+
+## Offline artifact cache and explicit staging
+
+The existing session runner accepts `--artifact-inventory inventory.json
+--artifact-cache /path/to/cache`. It checks every declared artifact before session
+execution and records all missing, corrupt or unsafe entries in `artifact-cache.json`.
+There is no network fallback. Planning reads the cache and writes only the declared
+session output directory. A supplied incomplete cache blocks execution before any
+build or GPU command. The inventory is explicit: its completeness does not imply
+that an operator has listed every dependency needed by the selected stack.
+
+Use `--stage-artifacts` instead of `--execute` to copy the verified inventory to
+`OUT/artifacts`. For a no-GPU packet, combine it with `--target mi300x
+--session-kind prepare`. Staging is separate from dry-run, installation and runtime
+qualification. It needs no selected GPU and does not extract archives, install
+packages, modify a working SDK or authorize cached binaries for reuse.
+
+The strict `rns8_session_artifacts_v1` JSON object contains only `schema` and an
+`artifacts` array. Each entry requires `id`, `kind`, relative POSIX `path`, exact
+`bytes`, lowercase `sha256`, `origin_url` (credential-free HTTPS or null), and
+`authentication`. Kinds distinguish `package_source`, `compiler_cache`,
+`binary_code_object`, `runtime_library` and `autotune_evidence`; these categories
+remain separate staged files and are never activated as runtime or AUTO caches.
+Authentication is a declared provenance value: `local_digest_only`,
+`upstream_checksum_verified` or `upstream_signature_verified`. The staging tool
+checks content integrity only and explicitly reports that it did not verify an
+upstream signature or authenticate the supplied digest.
+
+Paths cannot escape the cache, traverse symbolic links/junctions, overlap, use
+Windows device names, or alias by case. Staging checks free disk space including
+the session reserve, streams large files with bounded buffers, rehashes the copy,
+publishes it exclusively and atomically, and performs final readback. Existing
+mismatched destinations are preserved. A second run reuses verified files without
+copying. Interrupted copies remove their private temporary files; complete earlier
+files remain resumable. `artifact-staging.json` distinguishes complete, interrupted
+and incomplete preparation. These source additions and fixtures await the final
+validation batch; no preparation or hardware qualification has run here.
+
+### Combined accelerator lane
+
+`--all-enabled` adds a separate combined optional-accelerator build after the
+requested isolated lanes. Dependency resolution includes every optional backend
+in that combined build. Each selected device receives one complete regression/
+CTest pass for the combined binary plus explicit smoke and semantic captures
+for every backend. Parent/child device inspection and artifact names remain
+backend-specific. GPU CTest runs serially; `--jobs` controls build parallelism.
+The combined lane is explicit and is not part of CPU-only preparation. It tests
+interactions among the configured accelerator options, not availability of
+unsupported target-specific instructions or automatic backend promotion.

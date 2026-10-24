@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from process_progress import run_capture
+from session_artifacts import load_inventory, inspect_cache, stage_cache
 from check_dependencies_lib.resolution import Request, REQUEST_KEYS, resolve
 from session_environment import build_environment, execution_blockers, isolated_environment, snapshot
 
@@ -44,7 +45,7 @@ def kernel_inventory(root: Path = ROOT) -> list[dict]:
 
 def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices: list[int],
                  *, bindings: dict | None = None, session_kind: str = "first-pass",
-                 timeout: float = 1800, preset_override: str | None = None) -> list[dict]:
+                 timeout: float = 1800, preset_override: str | None = None, all_enabled: bool = False) -> list[dict]:
     arch, system, preset = TARGETS[target]
     if session_kind != "prepare" and (not devices or len(set(devices)) != len(devices) or any(type(device) is not int or device < 0 for device in devices)):
         raise ValueError("devices must be unique explicit nonnegative runtime ordinals")
@@ -61,7 +62,7 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
         return commands
 
     if session_kind == "prepare":
-        if system != "Linux" or devices or backends:
+        if system != "Linux" or devices or backends or all_enabled:
             raise ValueError("CPU preparation requires Linux, no devices and no backend lanes")
         build = out / "build" / "cpu-preparation"
         bound = [f"-D{key}={value}" for key, value in sorted((bindings or {}).items())]
@@ -78,47 +79,49 @@ def command_plan(target: str, backends: list[str], out: Path, jobs: int, devices
             build_dir=str(build), preparation_junit=str(junit))
         return commands
 
-    for backend in backends:
-        # Isolated per-session builds avoid accidental reuse of an unrelated
-        # configure cache. CMake itself binds selected dependencies/provenance.
-        build = out / "build" / backend
+    lanes = [(backend, [backend]) for backend in backends]
+    if all_enabled:
+        lanes.append(("all-enabled", list(BACKENDS)))
+    for lane, enabled_backends in lanes:
+        # Every isolated or combined feature lane has its own build identity.
+        build = out / "build" / lane
         binary = lambda name: str(build / (name + extension))
-        options = [f"-DRNS8_ENABLE_{flag}={'ON' if name == backend else 'OFF'}" for name, flag in FLAGS.items()]
+        options = [f"-DRNS8_ENABLE_{flag}={'ON' if name in enabled_backends else 'OFF'}" for name, flag in FLAGS.items()]
         bound = [f"-D{key}={value}" for key, value in sorted((bindings or {}).items())]
-        add(f"{backend}-configure", wrapper + ["cmake", "--preset", preset_override or preset, "-B", str(build),
+        add(f"{lane}-configure", wrapper + ["cmake", "--preset", preset_override or preset, "-B", str(build),
             *bound, f"-DRNS8_AMDGPU_TARGETS={arch}", "-DRNS8_ENABLE_HIP=ON", "-DVCPKG_MANIFEST_INSTALL=OFF",
             "-DRNS8_PROBE_ACCELERATORS=OFF", *options], device=None, build_dir=str(build))
-        add(f"{backend}-build", wrapper + ["cmake", "--build", str(build), "--parallel", str(jobs)], build_dir=str(build))
-        # Inspect parent runtime ordinals before applying any visibility mask.
-        # Physical PCI/UUID identity is not exposed by rns8-inspect; leave it
-        # unknown rather than infer it from sorted rocminfo/SMI output.
-        for device in devices:
-            add(f"{backend}-device{device}-parent-inspect", [binary("rns8-inspect"), "--backend", backend,
-                "--device", str(device), "--json"], inspect_target=arch, inspect_backend=backend,
-                inspect_device=device, parent_inspect=True, device=None, selected_device=device)
-            child = device_command_plan(backend, device, arch, binary, python, wrapper, build,
-                                        out, session_kind)
-            for name, argv, checks in child:
-                add(name, argv, device=device, selected_device=device, **checks)
+        add(f"{lane}-build", wrapper + ["cmake", "--build", str(build), "--parallel", str(jobs)], build_dir=str(build))
+        for backend_index, backend in enumerate(enabled_backends):
+            prefix = lane + "-" + backend if len(enabled_backends) > 1 else backend
+            # Parent runtime ordinals and child-visible zero remain distinct.
+            for device in devices:
+                add(f"{prefix}-device{device}-parent-inspect", [binary("rns8-inspect"), "--backend", backend,
+                    "--device", str(device), "--json"], inspect_target=arch, inspect_backend=backend,
+                    inspect_device=device, parent_inspect=True, device=None, selected_device=device)
+                child = device_command_plan(backend, device, arch, binary, python, wrapper, build,
+                    out, session_kind, stage_prefix=prefix, full_tests=backend_index == 0)
+                for name, argv, checks in child:
+                    add(name, argv, device=device, selected_device=device, **checks)
     return commands
 
 
-def device_command_plan(backend, device, arch, binary, python, wrapper, build, out, session_kind):
+def device_command_plan(backend, device, arch, binary, python, wrapper, build, out, session_kind, *, stage_prefix=None, full_tests=True):
     commands = []
-    stem = f"{backend}-device{device}"
+    stem = f"{stage_prefix or backend}-device{device}"
     def add(name, argv, **checks):
         commands.append((stem + "-" + name, argv, checks))
     add("inspect", [binary("rns8-inspect"), "--backend", backend, "--device", "0", "--json"],
         inspect_target=arch, inspect_backend=backend, inspect_device=0,
-        match_parent=f"{backend}-device{device}-parent-inspect")
+        match_parent=stem + "-parent-inspect")
     # Unlike an all-skipped CTest run, this fails if there is no HIP device.
     add("smoke", [binary("rns8-verify"), "--hip-smoke"])
-    if session_kind != "smoke":
+    if session_kind != "smoke" and full_tests:
         junit = out / f"{stem}-qualification.xml"
         add("regressions", [binary("rns8_tests"), "[qualification]", "--reporter", "junit", "--out", str(junit)],
             junit=str(junit), require_test="qualification pack covers dispatch thresholds and plane tails")
         add("ctest", wrapper + ["ctest", "--test-dir", str(build), "--output-on-failure",
-            "--parallel", str(jobs), "--timeout", "600", "--no-tests=error"])
+            "--parallel", "1", "--timeout", "600", "--no-tests=error"])
     # Small captures are smoke evidence only, with bounded runtime per command.
     cases = [("bounded-i64", []), ("bounded-u64", []),
                  ("exact-wide-signed", ["--exact-wide-limbs", "3"]),
@@ -205,7 +208,8 @@ def device_list(value: str) -> list[int]:
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def identity(value: dict) -> str:
@@ -229,6 +233,7 @@ def source_receipt(exclude: Path | None = None) -> dict:
             "untracked_files": {name: sha256(ROOT / name) for name in untracked if name and (ROOT / name).is_file()
                                 and (exclude is None or not (ROOT / name).resolve().is_relative_to(exclude.resolve()))},
             "runner_sha256": sha256(Path(__file__)), "environment_helper_sha256": sha256(ROOT / "tools/session_environment.py"),
+            "artifact_helper_sha256": sha256(ROOT / "tools/session_artifacts.py"),
             "dependency_policy_sha256": sha256(ROOT / "metadata/dependencies.json")}
 
 
@@ -359,6 +364,7 @@ def main(argv=None) -> int:
                         help="explicit unmasked parent HIP runtime ordinals; never inferred physical ids")
     parser.add_argument("--backend", action="append", choices=BACKENDS)
     parser.add_argument("--accelerators", action="store_true", help="explicitly select all optional backend lanes")
+    parser.add_argument("--all-enabled", action="store_true", help="add a combined optional-accelerator build and backend smoke lane after isolated lanes")
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--jobs", type=int, default=4)
     parser.add_argument("--execute", action="store_true", help="execute the selected preparation or already available GPU session")
@@ -371,10 +377,24 @@ def main(argv=None) -> int:
     parser.add_argument("--total-seconds", type=float, default=7200, help="whole session wall-clock cap including resumed command time")
     parser.add_argument("--export-reserve-seconds", type=float, default=30)
     parser.add_argument("--min-free-gib", type=float, default=2)
+    parser.add_argument("--artifact-inventory", type=Path, help="explicit frozen local artifact inventory")
+    parser.add_argument("--artifact-cache", type=Path, help="cache-only artifact source; no network fallback")
+    parser.add_argument("--stage-artifacts", action="store_true", help="copy verified local artifacts into out-dir/artifacts, without running the session")
     args = parser.parse_args(argv)
+    if bool(args.artifact_inventory) != bool(args.artifact_cache):
+        parser.error("--artifact-inventory and --artifact-cache must be supplied together")
+    if args.stage_artifacts and (not args.artifact_inventory or args.execute or args.resume or args.dry_run):
+        parser.error("--stage-artifacts requires an inventory/cache and is separate from execute/resume/dry-run")
+    artifacts = artifact_receipt = None
+    if args.artifact_inventory:
+        try:
+            artifacts = load_inventory(args.artifact_inventory)
+            artifact_receipt = inspect_cache(artifacts, args.artifact_cache)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
     preparation = args.session_kind == "prepare"
     if preparation:
-        if args.devices is not None or args.backend or args.accelerators or TARGETS[args.target][1] != "Linux":
+        if args.devices is not None or args.backend or args.accelerators or args.all_enabled or TARGETS[args.target][1] != "Linux":
             parser.error("prepare requires a Linux target and no --devices, --backend or --accelerators")
         args.devices = []
     elif args.devices is None:
@@ -397,7 +417,7 @@ def main(argv=None) -> int:
     backends = [] if preparation else list(dict.fromkeys(args.backend or BACKENDS))
     command_out = Path(os.path.relpath(out, ROOT))
     try:
-        request = dependency_request(args.target, backends, args.set, preparation=preparation)
+        request = dependency_request(args.target, list(BACKENDS) if args.all_enabled else backends, args.set, preparation=preparation)
     except ValueError as error:
         parser.error(str(error))
     environment = build_environment(os.environ)
@@ -411,13 +431,15 @@ def main(argv=None) -> int:
     resolution = resolve(request, discovery_env)
     environment.update({key: value for key, value in discovery_env.items() if key in REQUEST_KEYS})
     blockers = readiness_blockers(args, resolution, os.environ)
+    if artifact_receipt and not artifact_receipt["complete"]:
+        blockers += ["artifact " + row["id"] + ": " + row["status"] for row in artifact_receipt["artifacts"] if row["status"] != "verified"]
     from session_environment import BUILD_ENV_KEYS, ALLOWLIST
     blockers += [key + " contains an unsafe environment value (redacted); select a local prerequisite path explicitly"
                  for key, value in os.environ.items() if key in {*REQUEST_KEYS, *BUILD_ENV_KEYS, *ALLOWLIST}
                  and safe_value(value) != value]
     commands = command_plan(args.target, backends, command_out, args.jobs, args.devices,
                             bindings={**request.overrides, **resolution["cmake_bindings"]}, session_kind=args.session_kind,
-                            timeout=args.timeout_seconds, preset_override=args.preset)
+                            timeout=args.timeout_seconds, preset_override=args.preset, all_enabled=args.all_enabled)
     for item in commands:
         for index, value in enumerate(item["argv"]):
             if value == "cmake" and resolution["tools"]["cmake"]["path"]:
@@ -426,9 +448,10 @@ def main(argv=None) -> int:
                 item["argv"][index] = str(Path(resolution["tools"]["cmake"]["path"]).with_name("ctest.exe" if request.host == "Windows" else "ctest"))
     manifest = {"schema_version": 2, "generated_utc": datetime.now(timezone.utc).isoformat(),
                 "target": args.target, "requested_architecture": TARGETS[args.target][0], "observed_architecture": None,
-                "source": source_receipt(exclude=out), "backends": backends, "devices": args.devices,
+                "source": source_receipt(exclude=out), "backends": backends, "all_enabled_lane": args.all_enabled, "devices": args.devices,
                 "device_namespace": "none_cpu_preparation" if preparation else "unmasked_parent_HIP_runtime_ordinal", "physical_identity_verified": False,
                 "session_kind": args.session_kind, "dependency_resolution_sha256": resolution["identity_sha256"],
+                "artifact_inventory": artifacts, "artifact_cache_receipt": artifact_receipt,
                 "selected_tool_files": {name: {"path": item["path"], "sha256": sha256(Path(item["path"]))}
                                         for name, item in resolution["tools"].items()
                                         if item.get("path") and Path(item["path"]).is_file()},
@@ -455,6 +478,28 @@ def main(argv=None) -> int:
     write_json(out / "environment-allowlist.json", {"schema": "rns8_session_environment_v1", "values": snapshot(os.environ)})
     write_json(out / "manifest.json", manifest)
     print(f"{len(commands)} commands, {len(manifest['kernels'])} source kernel definitions: {out / 'manifest.json'}", flush=True)
+    if artifact_receipt is not None:
+        write_json(out / "artifact-cache.json", artifact_receipt)
+    if args.stage_artifacts:
+        previous_handler = signal.getsignal(signal.SIGTERM)
+        def interrupted_staging(signum, frame):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, interrupted_staging)
+        try:
+            staged = stage_cache(artifacts, args.artifact_cache, out / "artifacts",
+                                 reserve_bytes=manifest["budgets"]["minimum_free_bytes"])
+        except KeyboardInterrupt:
+            write_json(out / "artifact-staging.json", {"status": "interrupted", "hardware_qualified": False})
+            return 130
+        except (OSError, ValueError) as error:
+            write_json(out / "artifact-staging.json", {"status": "incomplete", "error": str(error), "hardware_qualified": False})
+            print("Artifact staging blocked: " + str(error), file=sys.stderr)
+            return 1
+        finally:
+            signal.signal(signal.SIGTERM, previous_handler)
+        write_json(out / "artifact-staging.json", {"status": "staged_runtime_qualification_pending", **staged})
+        print("Verified local artifacts staged; no installation or session execution.", flush=True)
+        return 0
     if not args.execute:
         print("Plan only. No build, GPU work, benchmark, or cache promotion was executed.", flush=True)
         invalid = any(item.get("status") in {"invalid", "ambiguous"} for item in
