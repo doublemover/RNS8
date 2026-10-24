@@ -19,21 +19,23 @@ from .config import *
 from .discovery import *
 from .readiness import *
 from .system import *
-from .resolution import Request, resolve, selection_context
+from .resolution import ACTIVE_RESOLUTION, Request, resolve, selection_context
+from .version_policy import installed_vcpkg_receipt
 
 def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None,
-                 request: Request | None = None) -> tuple[dict[str, object], bool]:
+                 request: Request | None = None, installed_root: Path | None = None) -> tuple[dict[str, object], bool]:
     requested = request or Request(platform.system(), require_hip=True, require_vcpkg=platform.system() == "Windows",
                                    source_root=str(repo_root()))
     resolution = resolve(requested)
     with selection_context(resolution):
-        report, ready = _build_report(run_accelerator_probes, accelerator_probe_dir)
+        report, ready = _build_report(run_accelerator_probes, accelerator_probe_dir, installed_root)
     report["dependency_resolution"] = resolution
     report["schema"] = "rns8_dependency_report_v1"
     return report, ready and not resolution["errors"]
 
 
-def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None) -> tuple[dict[str, object], bool]:
+def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None,
+                  installed_root: Path | None = None) -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
     host_system = platform.system()
@@ -63,7 +65,16 @@ def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: P
     packages = python_packages()
 
     vcpkg_path = find_command("vcpkg")
-    vcpkg_installed = installed_vcpkg_packages(vcpkg_path)
+    if installed_root is None:
+        vcpkg_installed = installed_vcpkg_packages(vcpkg_path)
+        inventory_source = "classic_inventory_only_no_configured_installation"
+    else:
+        selected = ACTIVE_RESOLUTION.get().get("vcpkg", {}).get("selected")
+        triplet = selected.get("paths", {}).get("triplet") if selected else None
+        receipt = installed_vcpkg_receipt(installed_root)
+        vcpkg_installed = {item["name"]: item["version"] + ("#" + str(item["port_version"]) if item["port_version"] else "")
+                          for item in receipt["packages"] if item["feature"] == "core" and item["triplet"] == triplet and item["version"]}
+        inventory_source = "configured_manifest_installation:" + str(installed_root)
     vcpkg_report = {}
     for package in vcpkg_packages:
         version = vcpkg_installed.get(package)
@@ -93,6 +104,7 @@ def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: P
         },
         "vcpkg_package_roles": {package: vcpkg_package_role(package) for package in vcpkg_packages},
         "vcpkg_packages": vcpkg_report,
+        "vcpkg_inventory_source": inventory_source,
         "hip_info": hip_info,
         "optional_cpp_references": optional_cpp_references(vcpkg_installed),
         "rccl": rccl_discovery_report(),

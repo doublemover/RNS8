@@ -18,7 +18,9 @@ CDNA_ACCELERATORS=0
 CDNA_BENCH_ARGV=()
 CDNA_SWEEP_ARGV=()
 CDNA_CMAKE_MIN_VERSION="3.22.0"
-CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-v3.5.4}"
+CDNA_CATCH2_VERSION="${CDNA_CATCH2_VERSION:-}"
+CDNA_CATCH2_COMMIT=""
+CDNA_CMAKE_LOCK_VERSION=""
 CDNA_CMAKE_BIN=""
 CDNA_CTEST_BIN=""
 CDNA_NINJA_BIN=""
@@ -215,6 +217,29 @@ print(Path(cmake.CMAKE_BIN_DIR) / "cmake")
 PY
 }
 
+cdna_load_dependency_pins() {
+  local python_bin="$1"
+  local pins
+  pins="$("${python_bin}" - "${CDNA_REPO_ROOT}" <<'PY'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / "tools"))
+from check_dependencies_lib.version_policy import load_policy
+policy = load_policy(root / "metadata/dependencies.json")
+components = {item["name"]: item for item in policy["components"]}
+print("\t".join((components["cmake"]["selected"]["version"], policy["bootstrap"]["catch2_tag"], policy["bootstrap"]["catch2_commit"])))
+PY
+)" || return 1
+  local catch2_tag
+  IFS=$'\t' read -r CDNA_CMAKE_LOCK_VERSION catch2_tag CDNA_CATCH2_COMMIT <<<"${pins}"
+  if [[ -n "${CDNA_CATCH2_VERSION}" && "${CDNA_CATCH2_VERSION}" != "${catch2_tag}" ]]; then
+    printf 'error: CDNA_CATCH2_VERSION differs from metadata/dependencies.json; review/update the lock rather than silently using an unlocked source.\n' >&2
+    return 1
+  fi
+  CDNA_CATCH2_VERSION="${catch2_tag}"
+}
+
 cdna_prepend_path_dir() {
   local dir="$1"
   [[ -d "${dir}" ]] || return 0
@@ -226,7 +251,8 @@ cdna_prepend_path_dir() {
 
 cdna_resolve_cmake_tools() {
   local python_bin="$1"
-  local tool_root="${CDNA_REPO_ROOT}/temp/cdna-tools/cmake-${CDNA_CMAKE_MIN_VERSION}"
+  cdna_load_dependency_pins "${python_bin}" || return 1
+  local tool_root="${CDNA_REPO_ROOT}/temp/cdna-tools/cmake-${CDNA_CMAKE_LOCK_VERSION}"
   local target_site="${tool_root}/python-packages"
   local candidate
   local target_candidate
@@ -262,8 +288,8 @@ cdna_resolve_cmake_tools() {
   cdna_note_command bootstrap_cmake_venv "${python_bin}" -m venv "${tool_root}"
   if "${python_bin}" -m venv "${tool_root}"; then
     local venv_python="${tool_root}/bin/python"
-    cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
-    "${venv_python}" -m pip install --upgrade "pip" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+    cdna_note_command bootstrap_cmake_pip "${venv_python}" -m pip install --require-hashes --only-binary=:all: --no-deps -r "${CDNA_REPO_ROOT}/scripts/requirements-build-tools.txt"
+    "${venv_python}" -m pip install --require-hashes --only-binary=:all: --no-deps -r "${CDNA_REPO_ROOT}/scripts/requirements-build-tools.txt"
     if cdna_accept_cmake_pair "${python_bin}" "${tool_root}/bin/cmake"; then
       cdna_prepend_path_dir "$(dirname "${CDNA_CMAKE_BIN}")"
       return 0
@@ -273,8 +299,8 @@ cdna_resolve_cmake_tools() {
   fi
 
   mkdir -p "${target_site}"
-  cdna_note_command bootstrap_cmake_pip_target "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
-  "${python_bin}" -m pip install --upgrade --target "${target_site}" "cmake>=${CDNA_CMAKE_MIN_VERSION},<4" ninja
+  cdna_note_command bootstrap_cmake_pip_target "${python_bin}" -m pip install --require-hashes --only-binary=:all: --no-deps --target "${target_site}" -r "${CDNA_REPO_ROOT}/scripts/requirements-build-tools.txt"
+  "${python_bin}" -m pip install --require-hashes --only-binary=:all: --no-deps --target "${target_site}" -r "${CDNA_REPO_ROOT}/scripts/requirements-build-tools.txt"
   cdna_prepend_path_dir "${target_site}/bin"
 
   target_candidate="$(cdna_pip_target_cmake_bin "${python_bin}" "${target_site}")"
@@ -357,6 +383,7 @@ EOF
 }
 
 cdna_resolve_catch2() {
+  cdna_load_dependency_pins "${PYTHON_BIN}" || return 1
   local install_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/install"
   local source_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/src"
   local build_root="${CDNA_REPO_ROOT}/temp/cdna-tools/catch2-${CDNA_CATCH2_VERSION}/build"
@@ -375,6 +402,12 @@ cdna_resolve_catch2() {
   if [[ ! -d "${source_root}/.git" ]]; then
     cdna_note_command bootstrap_catch2_clone git clone --depth 1 --branch "${CDNA_CATCH2_VERSION}" https://github.com/catchorg/Catch2.git "${source_root}"
     git clone --depth 1 --branch "${CDNA_CATCH2_VERSION}" https://github.com/catchorg/Catch2.git "${source_root}"
+  fi
+  local actual_commit
+  actual_commit="$(git -C "${source_root}" rev-parse HEAD)" || return 1
+  if [[ "${actual_commit}" != "${CDNA_CATCH2_COMMIT}" ]] || [[ -n "$(git -C "${source_root}" status --porcelain)" ]]; then
+    printf 'error: Catch2 source commit/content does not match the reviewed lock; preserve the checkout and resolve it explicitly.\n' >&2
+    return 1
   fi
 
   cdna_note_command bootstrap_catch2_configure "${CDNA_CMAKE_BIN}" -S "${source_root}" -B "${build_root}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${install_root}" -DCATCH_INSTALL_DOCS=OFF -DCATCH_INSTALL_EXTRAS=ON -DBUILD_TESTING=OFF

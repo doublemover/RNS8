@@ -257,7 +257,7 @@ def include_root_for_header(header: str | None) -> str | None:
     return str(parent)
 
 
-def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
+def write_ck_generated_headers(root: Path, commit_id: str = "unknown", source_root: Path | None = None, include_root: Path | None = None) -> Path:
     include_dir = root / "generated" / "ck" / "include"
     ck_dir = include_dir / "ck"
     ck_dir.mkdir(parents=True, exist_ok=True)
@@ -283,22 +283,23 @@ def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
         ),
         encoding="utf-8",
     )
-    (ck_dir / "version.h").write_text(
-        "\n".join(
-            [
-                "#ifndef CK_VERSION_H_",
-                "#define CK_VERSION_H_",
-                "#define CK_VERSION 1.1.0",
-                "#define CK_VERSION_MAJOR 1",
-                "#define CK_VERSION_MINOR 1",
-                "#define CK_VERSION_PATCH 0",
-                f"#define CK_COMMIT_ID {commit_id or 'unknown'}",
-                "#endif",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    source_root = source_root or repo_local_accelerator_roots("ck")[0]
+    include_root = include_root or source_root / "include"
+    installed_version = include_root / "ck/version.h"
+    if installed_version.is_file():
+        (ck_dir / "version.h").write_bytes(installed_version.read_bytes())
+    else:
+        cmake = source_root / "CMakeLists.txt"
+        if not cmake.is_file():
+            raise ValueError("selected CK requires an installed ck/version.h or source CMakeLists.txt")
+        match = re.search(r'^\s*set\s*\(\s*version\s+"?(\d+)\.(\d+)\.(\d+)"?\s*\)', cmake.read_text(encoding="utf-8"), re.M | re.I)
+        if not match: raise ValueError("cannot determine selected CK source version")
+        major, minor, patch = match.groups()
+        (ck_dir / "version.h").write_text(
+            "#ifndef CK_VERSION_H_\n#define CK_VERSION_H_\n"
+            + f"#define CK_VERSION {major}.{minor}.{patch}\n"
+            + f"#define CK_VERSION_MAJOR {major}\n#define CK_VERSION_MINOR {minor}\n#define CK_VERSION_PATCH {patch}\n"
+            + f"#define CK_COMMIT_ID {commit_id or 'unknown'}\n#endif\n", encoding="utf-8")
     return include_dir
 
 
@@ -307,12 +308,14 @@ def include_roots_for_component(name: str, component: dict[str, object], probe_d
     include_root = include_root_for_header(header if isinstance(header, str) else None)
     roots: list[str] = []
     if name == "ck":
+        source_root = Path(include_root).parent if include_root else repo_local_accelerator_roots("ck")[0]
         dependency = component.get("repo_local_dependency")
         commit_id = ""
-        if isinstance(dependency, dict):
-            commit_value = dependency.get("actual_sha") or dependency.get("expected_sha")
+        if isinstance(dependency, dict) and dependency.get("path") and Path(str(dependency["path"])).resolve() == source_root.resolve():
+            commit_value = dependency.get("actual_sha")
             commit_id = str(commit_value) if commit_value else ""
-        roots.append(str(write_ck_generated_headers(probe_dir, commit_id)))
+        roots.append(str(write_ck_generated_headers(probe_dir, commit_id, source_root,
+                                                  Path(include_root) if include_root else None)))
         roots.append(str(repo_root() / "src" / "backend_common"))
     if include_root:
         roots.append(include_root)

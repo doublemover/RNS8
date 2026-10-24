@@ -115,8 +115,8 @@ lives beside `hipcc`.
 Host Python selection preserves an explicit interpreter or virtual environment.
 Windows autodiscovery tries `python` before `python3`. Unreadable Windows Store
 app-execution aliases are unsupported: select a readable interpreter explicitly,
-for example `-DPython3_EXECUTABLE=C:/Python313/python.exe` on a host with that
-installation. Discovery fails rather than switching interpreter versions.
+for example `-DPython3_EXECUTABLE=C:/path/to/python.3.15.1/tools/python.exe`
+for a verified portable CPython installation, or the selected project venv executable. Discovery fails rather than switching interpreter versions.
 A virtual environment's invocation path stays intact even when its executable
 is a symlink to a base interpreter. The selected Python version, prefixes and
 readable executable digest are recorded in discovery identity.
@@ -177,7 +177,12 @@ Remaining gates include all-target CK/rocWMMA/builtin API probes, release-aware
 CK generated-header compatibility, complete hipBLASLt/GMP/FLINT link/runtime and
 transitive ABI checks, core-package version/lock compatibility, disposable
 installer qualification, and real fresh-prefix Windows/Linux/WSL runs.
-[#60](https://github.com/doublemover/RNS8/issues/60) owns upgrades/maintained locks;
+[#60](https://github.com/doublemover/RNS8/issues/60) owns upgrade qualification and the maintained version policy;
 [#58](https://github.com/doublemover/RNS8/issues/58) owns Linux session rehearsal.
 Filesystem fixtures and a CMake script-mode handoff test do not compile a kernel
 or qualify a GPU, compiler, platform, or supported-release combination.
+
+The [dependency version policy](dependency-versions.md) now supplies exact
+candidate pins and offline consistency/observed-version gates. Filesystem
+resolution still does not establish qualification; source declarations, installed
+artifacts and actual runtime compatibility remain distinct.

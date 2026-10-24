@@ -9,11 +9,12 @@ Windows vcpkg roots.
 This page owns the current dependency requirements; the
 [Windows](../docs/platform-windows.md) and [Linux](../docs/platform-linux.md)
 guides own OS-specific commands. The current source uses C++17, CMake 3.22+,
-Ninja, Git and Python 3.10+. Python's annotation syntax and standard-library APIs
-set that existing tooling floor; this is not a newly qualified version matrix.
-[#60](https://github.com/doublemover/RNS8/issues/60) owns compatibility-gated
-upgrades/locks, which are not yet implemented. Use the versions recorded in a
-[dated build](../docs/local-all-features-20261023.md) when reproducing its evidence.
+Ninja and Git. Stable Python 3.15.1 is the selected development interpreter in
+[.python-version](../.python-version); older/minimum support is a separate
+compatibility lane. The dated [dependency version policy](../docs/dependency-versions.md)
+owns exact candidate versions, artifact hashes, installed receipts and upgrade
+gates. Candidate pins do not inherit the qualification of an earlier
+[dated build](../docs/local-all-features-20261023.md).
 
 | Role | Dependency | Installation source |
 |---|---|---|
@@ -72,6 +73,11 @@ URL, and commit SHA:
 | Composable Kernel | `third_party/rocm/composable_kernel` | `release/rocm-rel-7.1` | `d9272218c4c59a58e41d3d346362cdaa707c30ce` |
 | rocWMMA | `third_party/rocm/rocWMMA` | `release/rocm-rel-7.1` | `1ab208f49945c38626b79e3f0c284d65ac44a781` |
 
+
+The user has explicitly deferred the ROCm10.1 migration. Keep these exact
+HIP7.1-era pins until that work resumes. The latest bundle source candidate is
+recorded separately in the [version policy](../docs/dependency-versions.md);
+it is not selected, installed or qualified by these retained pins.
 Initialize and probe them with:
 
 ```powershell
@@ -84,7 +90,7 @@ RNS8-owned int8 matrix-engine primitive probes for `gfx1100`. That output is
 dependency readiness evidence only; it is not backend execution, differential
 correctness validation, ISA evidence, or performance evidence.
 
-Do not clone these repositories under `C:\` or commit upstream build products.
+Do not clone this repository under `C:\` or commit upstream build products.
 Generated dependency artifacts belong under ignored `temp/`, `out/`, or
 `build/` paths.
 
@@ -96,4 +102,4 @@ commit identities, configured external include-tree hashes and build manifests
 when comparing results. Configure-time CK compatibility overlays are generated
 in the build tree and exact-match guarded; they do not edit installed/upstream
 headers. The LLVM HIP math wrapper compatibility overlay likewise remains
-build-local. Automatic upgrades and lock regeneration belong to #60.
+build-local. The [version policy](../docs/dependency-versions.md) owns deliberate lock refreshes; no automatic upgrade or cache promotion occurs.

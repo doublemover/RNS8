@@ -6,6 +6,10 @@ separates installed tools from compiled and device-validated paths.
 
 ## Prerequisites
 
+Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
+[version policy](dependency-versions.md). Their upgrade qualification remains
+pending; the user has deferred the separate ROCm10.1 migration.
+
 Install a GPU/driver combination supported by the selected
 [Windows HIP SDK release](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/reference/system-requirements.html)
 and the [HIP SDK development components](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/how-to/install.html).

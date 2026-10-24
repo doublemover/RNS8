@@ -1,0 +1,1919 @@
+{
+  "schema": "rns8_dependency_policy_v1",
+  "audit_date_utc": "2026-10-24",
+  "status": "candidate_pending_qualification",
+  "promotion_allowed": false,
+  "maintenance": {
+    "cadence": "monthly and before release/session lock refresh",
+    "issue": 60,
+    "automatic_install_or_merge": false
+  },
+  "components": [
+    {
+      "name": "python",
+      "role": "build",
+      "latest_stable": {
+        "version": "3.15.1",
+        "release_date": "2026-10-21",
+        "source": "https://www.python.org/downloads/release/python-3151/"
+      },
+      "selected": {
+        "version": "3.15.1",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "PSF-2.0",
+      "last_tested": null,
+      "observed": {
+        "version": "3.15.1",
+        "path": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "source": "parent installation receipt",
+        "pip_version": "26.2.2",
+        "qualification": "pending"
+      },
+      "owner": "parent_python_toolchain",
+      "artifact": {
+        "source": "https://www.nuget.org/packages/python/3.15.1",
+        "url": "https://api.nuget.org/v3-flatcontainer/python/3.15.1/python.3.15.1.nupkg",
+        "sha256": "a53df42a4fb57132896c3d99686c19c7f13d6f126bd603a9a9bc0e9b6ed83d22",
+        "authentication": "Parent verified nuget verify -All repository signature, owner CPython",
+        "installer_exception": "Official MSI failed Windows Installer2502/2503; same CPython version installed from verified official NuGet package"
+      }
+    },
+    {
+      "name": "cmake",
+      "role": "build",
+      "latest_stable": {
+        "version": "4.4.4",
+        "release_date": "2026-10-02",
+        "source": "https://github.com/Kitware/CMake/releases/tag/v4.4.4"
+      },
+      "selected": {
+        "version": "4.4.4",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "BSD-3-Clause",
+      "last_tested": null,
+      "observed": {
+        "version": "4.4.4",
+        "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
+        "qualification": "pending"
+      }
+    },
+    {
+      "name": "ninja",
+      "role": "build",
+      "latest_stable": {
+        "version": "1.13.2",
+        "release_date": "2025-11-20",
+        "source": "https://github.com/ninja-build/ninja/releases/tag/v1.13.2"
+      },
+      "selected": {
+        "version": "1.13.2",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "Apache-2.0",
+      "last_tested": null,
+      "observed": {
+        "version": "1.13.2",
+        "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
+        "qualification": "pending"
+      }
+    },
+    {
+      "name": "pip",
+      "role": "bootstrap_only",
+      "latest_stable": {
+        "version": "26.2.2",
+        "release_date": "2026-10-20",
+        "source": "https://pip.pypa.io/en/stable/news/#v26-2-2"
+      },
+      "selected": {
+        "version": "26.2.2",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": {
+        "version": "26.2.2",
+        "source": "parent hash-locked Python3.15.1 build-tools installation receipt",
+        "qualification": "pending"
+      }
+    },
+    {
+      "name": "git",
+      "role": "build",
+      "latest_stable": {
+        "version": "2.56.0",
+        "release_date": "2026-09-28",
+        "source": "https://git-scm.com/"
+      },
+      "selected": {
+        "version": "2.56.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "GPL-2.0-only",
+      "last_tested": null,
+      "observed": {
+        "version": "2.52.0.windows.1",
+        "path": "C:/Program Files/Git/cmd/git.exe",
+        "source": "read-only tool version inspection before upgrade",
+        "qualification": "new portable candidate installation/qualification pending"
+      },
+      "platform_selections": {
+        "Windows": {
+          "version": "2.56.0.windows.3",
+          "release_date": "2026-10-22",
+          "source": "https://github.com/git-for-windows/git/releases/tag/v2.56.0.windows.3",
+          "portable_artifact": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.3/PortableGit-2.56.0.3-64-bit.7z.exe",
+          "sha256": "4fc27b779829a36df77911e3f4dea09c66c790dd6c5f7dfa3b6a5479f1fe354f",
+          "authentication": "upstream published SHA256; signature not verified",
+          "status": "candidate_pending_installation_and_qualification"
+        }
+      }
+    },
+    {
+      "name": "vcpkg-tool",
+      "role": "package_manager",
+      "latest_stable": {
+        "version": "2026-09-26",
+        "release_date": "2026-09-26",
+        "source": "https://github.com/microsoft/vcpkg-tool/releases/tag/2026-09-26"
+      },
+      "selected": {
+        "version": "2026-09-26",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": {
+        "version": "2026-09-26",
+        "source_revision": "51bf87ca6e9bf3e622d84ff323bd202ab1ca0c0b",
+        "path": "C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/vcpkg.exe",
+        "authentication": "parent verified bootstrap signature",
+        "qualification": "pending"
+      }
+    },
+    {
+      "name": "boost-multiprecision",
+      "role": "required",
+      "latest_stable": {
+        "version": "1.92.0",
+        "release_date": "2026-08-12",
+        "source": "https://www.boost.org/releases/1.92.0/"
+      },
+      "selected": {
+        "version": "1.92.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "BSL-1.0",
+      "last_tested": null,
+      "observed": null
+    },
+    {
+      "name": "catch2",
+      "role": "tests",
+      "latest_stable": {
+        "version": "3.16.1",
+        "release_date": "2026-10-08",
+        "source": "https://github.com/catchorg/Catch2/releases/tag/v3.16.1"
+      },
+      "selected": {
+        "version": "3.16.1",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "BSL-1.0 AND BSD-3-Clause",
+      "last_tested": null,
+      "observed": null
+    },
+    {
+      "name": "nlohmann-json",
+      "role": "required",
+      "latest_stable": {
+        "version": "3.12.0",
+        "release_date": "2025-04-11",
+        "source": "https://github.com/nlohmann/json/releases/tag/v3.12.0"
+      },
+      "selected": {
+        "version": "3.12.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null
+    },
+    {
+      "name": "gmp",
+      "role": "optional_reference",
+      "latest_stable": {
+        "version": "6.3.0",
+        "release_date": "2023-07-30",
+        "source": "https://gmplib.org/"
+      },
+      "selected": {
+        "version": "6.3.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "LGPL-3.0-only OR GPL-2.0-only",
+      "last_tested": null,
+      "observed": null
+    },
+    {
+      "name": "flint",
+      "role": "optional_reference",
+      "latest_stable": {
+        "version": "3.6.0",
+        "release_date": "2026-06-29",
+        "source": "https://github.com/flintlib/flint/releases/tag/v3.6.0"
+      },
+      "selected": {
+        "version": "3.6.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "GPL-3.0-only",
+      "last_tested": null,
+      "observed": null,
+      "requires": {
+        "gmp": ">=6.2.1",
+        "mpfr": ">=4.1.0"
+      },
+      "constraints": [
+        "Windows ARM64/UWP unsupported by selected vcpkg port",
+        "Linux native FLINT uses Autotools; no Windows-vcpkg use on Linux"
+      ]
+    },
+    {
+      "name": "mpfr",
+      "role": "transitive_optional",
+      "latest_stable": {
+        "version": "4.2.2",
+        "release_date": "2025-03-20",
+        "source": "https://www.mpfr.org/mpfr-current/"
+      },
+      "selected": {
+        "version": "4.2.2",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "LGPL-3.0-or-later",
+      "last_tested": null,
+      "observed": null,
+      "requires": {
+        "gmp": ">=5.0.0"
+      }
+    },
+    {
+      "name": "actions/checkout",
+      "role": "ci",
+      "latest_stable": {
+        "version": "7.0.1",
+        "release_date": "2026-07-20",
+        "source": "https://github.com/actions/checkout/releases/tag/v7.0.1"
+      },
+      "selected": {
+        "version": "7.0.1",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "commit": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "runtime": "node24",
+      "minimum_runner": "2.327.1"
+    },
+    {
+      "name": "actions/upload-artifact",
+      "role": "ci",
+      "latest_stable": {
+        "version": "7.0.2",
+        "release_date": "2026-10-07",
+        "source": "https://github.com/actions/upload-artifact/releases/tag/v7.0.2"
+      },
+      "selected": {
+        "version": "7.0.2",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "commit": "cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+      "runtime": "node24",
+      "minimum_runner": "2.327.1"
+    },
+    {
+      "name": "numpy",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "2.5.4",
+        "release_date": "2026-10-10",
+        "source": "https://github.com/numpy/numpy/releases/tag/v2.5.4"
+      },
+      "selected": null,
+      "license": "BSD-3-Clause",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "pandas",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "3.1.0",
+        "release_date": "2026-10-22",
+        "source": "https://pandas.pydata.org/docs/whatsnew/v3.1.0.html"
+      },
+      "selected": null,
+      "license": "BSD-3-Clause",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "matplotlib",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "3.11.2",
+        "release_date": "2026-09-11",
+        "source": "https://github.com/matplotlib/matplotlib/releases/tag/v3.11.2"
+      },
+      "selected": null,
+      "license": "PSF-2.0",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "pytest",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "9.1.1",
+        "release_date": "2026-06-19",
+        "source": "https://docs.pytest.org/en/stable/changelog.html"
+      },
+      "selected": null,
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "scipy",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "1.18.1",
+        "release_date": "2026-08-21",
+        "source": "https://scipy.org/news/"
+      },
+      "selected": null,
+      "license": "BSD-3-Clause",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "PyYAML",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "6.0.3",
+        "release_date": "2025-09-25",
+        "source": "https://pypi.org/project/PyYAML/6.0.3/"
+      },
+      "selected": null,
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "ntl",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "11.6.0",
+        "release_date": "2025-11-07",
+        "source": "https://libntl.org/doc/tour-changes.html"
+      },
+      "selected": null,
+      "license": "LGPL-2.1-or-later",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "fflas-ffpack",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "2.5.0",
+        "release_date": "2021-12-14",
+        "source": "https://github.com/linbox-team/fflas-ffpack/releases/tag/v2.5.0"
+      },
+      "selected": null,
+      "license": "LGPL-2.1-or-later",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "linbox",
+      "role": "inventory_only",
+      "latest_stable": {
+        "version": "1.7.1",
+        "release_date": "2025-07-24",
+        "source": "https://github.com/linbox-team/linbox/releases/tag/v1.7.1"
+      },
+      "selected": null,
+      "license": "LGPL-2.1-or-later",
+      "last_tested": null,
+      "observed": null,
+      "reason": "Not required by RNS8 core/build; PyYAML only enables an optional documentation schema parse; no automatic installation"
+    },
+    {
+      "name": "actions/setup-python",
+      "role": "ci",
+      "latest_stable": {
+        "version": "7.1.0",
+        "release_date": "2026-10-22",
+        "source": "https://github.com/actions/setup-python/releases/tag/v7.1.0"
+      },
+      "selected": {
+        "version": "7.1.0",
+        "status": "candidate_pending_qualification"
+      },
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "commit": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "runtime": "node24",
+      "minimum_runner": "2.327.1"
+    },
+    {
+      "name": "ck",
+      "role": "accelerator",
+      "latest_stable": {
+        "version": "1.3.0",
+        "release_date": "2026-10-05",
+        "source": "https://rocm.docs.amd.com/en/docs-10.1.0/about/release-notes.html#rocm-core-sdk-components"
+      },
+      "selected": {
+        "version": "1.1.0",
+        "revision": "d9272218c4c59a58e41d3d346362cdaa707c30ce",
+        "status": "retained_user_deferred_upgrade"
+      },
+      "source": "https://github.com/ROCm/composable_kernel/tree/d9272218c4c59a58e41d3d346362cdaa707c30ce",
+      "path": "third_party/rocm/composable_kernel",
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "constraints": [
+        "Retained exact HIP7.1-era source pin; not the latest upstream/bundle version",
+        "Current retained rocWMMA CMake declares2.1.0; do not infer version from SDK release label"
+      ],
+      "exception": {
+        "reason": "User explicitly deferred ROCm10.1 migration; retain matching previously validated HIP7.1 source stack",
+        "owner": "issue60/user",
+        "revisit": "Resume only when the user authorizes ROCm10.1 migration"
+      }
+    },
+    {
+      "name": "rocwmma",
+      "role": "accelerator",
+      "latest_stable": {
+        "version": "2.2.1",
+        "release_date": "2026-10-05",
+        "source": "https://rocm.docs.amd.com/en/docs-10.1.0/about/release-notes.html#rocm-core-sdk-components"
+      },
+      "selected": {
+        "version": "2.1.0",
+        "revision": "1ab208f49945c38626b79e3f0c284d65ac44a781",
+        "status": "retained_user_deferred_upgrade"
+      },
+      "source": "https://github.com/ROCm/rocWMMA/tree/1ab208f49945c38626b79e3f0c284d65ac44a781",
+      "path": "third_party/rocm/rocWMMA",
+      "license": "MIT",
+      "last_tested": null,
+      "observed": null,
+      "constraints": [
+        "Retained exact HIP7.1-era source pin; not the latest upstream/bundle version",
+        "Current retained rocWMMA CMake declares2.1.0; do not infer version from SDK release label"
+      ],
+      "exception": {
+        "reason": "User explicitly deferred ROCm10.1 migration; retain matching previously validated HIP7.1 source stack",
+        "owner": "issue60/user",
+        "revisit": "Resume only when the user authorizes ROCm10.1 migration"
+      }
+    }
+  ],
+  "vcpkg": {
+    "registry": "https://github.com/microsoft/vcpkg",
+    "baseline": "b42e8ed051d17a7f95b9d2a3140c1f9296423712",
+    "baseline_manifest_sha256": "2b51ef7a34b6ddb5ea992109bfc319c70670d019a92d81b94608d35e426953b3",
+    "triplets": [
+      "x64-windows"
+    ],
+    "native_linux_vcpkg": false,
+    "closure_scope": "Conservative declared manifest/default-feature closure, retaining host/platform conditions; actual installed triplet/feature/ABI inventory must be captured separately",
+    "ports": {
+      "boost-assert": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "1b6daaa173a0a77aa92a1099cdad285eece0354f21319c0cd1ec5bb5b3b8bafa",
+        "portfile_sha256": "c68ca890e274854dacc4cea30c4c99926be9a73b7a5d2009e2e9587ea246bbec",
+        "source_sha512": [
+          "9814998329daddb87db3a7b59ec6d6c5c2a8b6bccfcf6626fb621b924c953990084be6fabea344a64f85af13a481546e2cef2270b7b5ff8c3437605d6654dfeb"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-assert/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-assert/portfile.cmake"
+      },
+      "boost-cmake": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-uninstall",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "vcpkg-boost",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "d7bf4e012b434ff7a939e68196a85d6d1b12d32e6351b61ede3cf0f5bc1a88a1",
+        "portfile_sha256": "7c94becfe66a932585c86e98e7f36119b6a78cab924ca7ebff241425128bcc15",
+        "source_sha512": [
+          "7b15f7f428666b60daccd37c860f139cf1bd3f9ad19dd391134127fa245daaac895248b3415067839f1f8ab029b39a9f8260d93497d9d943f281da15fa21c4e4",
+          "d6078467835dba8932314c1c1e945569a64b065474d7aced27c9a7acc391d52e9f234138ed9f1aa9cd576f25f12f557e0b733c14891d42c16ecdc4a7bd4d60b8"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-cmake/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-cmake/portfile.cmake"
+      },
+      "boost-compat": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "f23974070d93fb8502f8e3951b25ce978273c58c37f7d15ad5cf0b0d15517e87",
+        "portfile_sha256": "760a7dbf4936820d9985cd5e8bcc1916ddcac4329258a94d077eb7b67d70155e",
+        "source_sha512": [
+          "5baa26d4119a9b00ef12f0ca1bf49300a4d7f37dc16d96f4c2b89d5f341425a08337ccebced59dbb7a2f0da63e0b295f9e0462836e1dd0a2a28f8b87e02472f5"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-compat/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-compat/portfile.cmake"
+      },
+      "boost-concept-check": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-preprocessor",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-type-traits",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "84f5946e04dc779cb34347aa19906af848186f2e3d231e466bec0b9ba7582b04",
+        "portfile_sha256": "b297ef1acc43f766e018967d064572171e8331cb6b6720f2711d0ada5be376f5",
+        "source_sha512": [
+          "5db6791a932b7533ab11089c022bea54b29426d4d4d08f1e3f5ea2611a3603ecc1566e83c1ab17f15adf4526ac708cb46fa8e8cc04747245bca17ec7fdd6c1c5"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-concept-check/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-concept-check/portfile.cmake"
+      },
+      "boost-config": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "d3dc4cf21c21122810c38846774e33bea2f98d9df70e27430d586e4190a562fd",
+        "portfile_sha256": "786d1ccca588b7fc2d3a60a3a121a66a33ec3879c1d16de90bf271f68522f5ca",
+        "source_sha512": [
+          "fe36403a2292dfb3496027101e6d101d6553bc31e59393a2339248130553ed10d9153ed37591c6f1601b55059a23dc4a52babf6744e718cb314986049c2fab7c"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-config/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-config/portfile.cmake"
+      },
+      "boost-container": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-intrusive",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-move",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "d4bbbc9caef183e98e2b27534d7a898cff25df5567fb82af2a19f840ce3bc732",
+        "portfile_sha256": "7c1e63ae1c4f0b9214179ee8d432b9c72f4be207c45838ab9f6ee846e1492401",
+        "source_sha512": [
+          "f28ed9808b0ff143b979704fb2e432b9e22e86ebc1ceb3f6e7f9ed6be0d686b77e664193ace6bdeaffd6dfa20187bf0a4ae15d6c246040c92732268c0adabe56"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-container/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-container/portfile.cmake"
+      },
+      "boost-container-hash": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-describe",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-mp11",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "ddb3ecee11a0a2c0928b7779e0b1f8de43e88e18ec2df0cee324f6fa03d8c135",
+        "portfile_sha256": "709cbcf3ae77bae09e2e26a47f755131954abc2290393648093b1ef579cae792",
+        "source_sha512": [
+          "1616cb831e621a344b61dd78af9e894c1fe942da943936676ed1425ba0337a2842f2c57dfcf26de7dad4b77c5434585b1868b415ae157ddc4404288d19e95de5"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-container-hash/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-container-hash/portfile.cmake"
+      },
+      "boost-core": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "a646f6238c0de8346d06ae5a825a92c967d304f8bc02e63df7df9875f9db4e9f",
+        "portfile_sha256": "236b58c460343a9f500bfb1b6194da4d944ad0497f12de64978aa3fdd0b05f03",
+        "source_sha512": [
+          "b57c6559d374f6f2d26800a274bac61a7d7d4aa8f04c0a563c678d10130e2507f789ba6ebccf3f29311e66057dd1b1bf2d1e73dbf6d0b6cc2997fcc4f1d6f217"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-core/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-core/portfile.cmake"
+      },
+      "boost-describe": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-mp11",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "afa8b9aa9ca1a112076eecb91c74096972af8586cd347c8b8b45ef32c2a02825",
+        "portfile_sha256": "64448dca530fba5cc671e3776cb0f04c5c153579d7bfb2d6e2b9c677581765c7",
+        "source_sha512": [
+          "a8a93b488a119561be38594afb6de9c804164efcec3c35300d96cc699369dfc21c69b9533ec51a26a4335e7924fd52524e12beb49ad7a44eca9dc835e3378d2d"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-describe/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-describe/portfile.cmake"
+      },
+      "boost-dynamic-bitset": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-container-hash",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "dafa015e2abbcc5dafd9c49185ea611b95274a9266087b9fd8f5df3aa5c55c82",
+        "portfile_sha256": "7100dfbe1005b51fff304cfce9a2fc075828721afa3b9599473e68db3c23457b",
+        "source_sha512": [
+          "dbaa6b88ebef8406addca2200c6b30aa543f7a9a14952922dcc12b1131f0da610fb43739076274e10feeb5eda0ec89f050f1125ba39cb0ea5360aa574f4cca41"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-dynamic-bitset/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-dynamic-bitset/portfile.cmake"
+      },
+      "boost-headers": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "ad0ce907ec2d8679a41daa61a77bb395cf0fd1c42c7f6f184876b4b9e39d7912",
+        "portfile_sha256": "8dcccf3a0067e2ebd5460384efa6b7a78f1ae3f756704d08ea0b53e748070bc5",
+        "source_sha512": [
+          "13ca5b7a6fa51da40859635a316763b6efaa3097898b5122c2e8280648753768cb91b8a7a4a83e4aed7f2f06420ad6e1711779b3e96a77a2326ba5e04a4b5f87"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-headers/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-headers/portfile.cmake"
+      },
+      "boost-integer": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-type-traits",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "c5ed5adf9acd400d3e0c3b7074f032877473298eba0f8e3555782ec6e6ce401c",
+        "portfile_sha256": "9c1ae11ea0bcc081a135480956fd05e75beb1a29b355111080257938266da8d7",
+        "source_sha512": [
+          "8647bc08d172e193777a4c512c061f7358b884a58e70f7cbe88970d6329c4a762eb6de33ffef4345a8705f931c6bbe49da30f2ead2c1f313861ba0cb56b4943c"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-integer/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-integer/portfile.cmake"
+      },
+      "boost-intrusive": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-move",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "f1ffb10b6f300fc100a192058bed4b9dbbfe78d3720df54e64b2ad5abb43e3f2",
+        "portfile_sha256": "6af661d408454eb79c312fff3bd08cfc711b1e127d51724f5bface1f5f1c5334",
+        "source_sha512": [
+          "0354336128e7547e8bec8d1ec9f91e03bd36531af416e58cbea8778d363eebf4040a8a78d46166676fd40637818b517758fba436847a0a4655a7a2e0d4204203"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-intrusive/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-intrusive/portfile.cmake"
+      },
+      "boost-io": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "940a5066a7ac40f397a2cbc874eb81dea6b67ee8e4f965a198b1f5410d765109",
+        "portfile_sha256": "9ac0ce2a21f3804bec2bc78a38f56cc9d6690f17499105aff8dca4ad216db376",
+        "source_sha512": [
+          "fd5fc5ba728f0b2c68d865e738ebaf1c2298b04279d06689d49567706ed44d1bb3abfa2d753a5dae4a38faf4cb236953d98fb1c31feaaeadd0c780de9fa625bb"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-io/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-io/portfile.cmake"
+      },
+      "boost-lexical-cast": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-container",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "319d81297ee7dcf20a0c26883036594d3321c55e0a66da4121d0e1c046f64f05",
+        "portfile_sha256": "2a133b65fb54015357be1892e6c6327931394a00364bfbf881dadf826c299fdb",
+        "source_sha512": [
+          "0fe59bb233158219920c19aa1d4321ff69a5bfcd9ca6d491531e099d65106c5b135b1c81d0ebf38cf64959009f3c62c9197cc3af52330f154bd89fbe3af4418b"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-lexical-cast/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-lexical-cast/portfile.cmake"
+      },
+      "boost-math": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-concept-check",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-integer",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-lexical-cast",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-predef",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-random",
+            "platform": "!uwp",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "460efeeb317f70b3b672628287002392915ec3122a982221b156d61677279db5",
+        "portfile_sha256": "7817d2721c9e4a44c8e847ea04a0db556c1d249147bcb26b1a4c1a6476e43a98",
+        "source_sha512": [
+          "4cf430682081fd978a630d5140bebeb1d7a2c01285bb88df030022cc5abe60cca6e0b9c6b633d6c3d4b109a511815897e370fec4362f30111e9c6d5529e34068"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-math/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-math/portfile.cmake"
+      },
+      "boost-move": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "09b6fc5bf65f9465bff3f924730574273c7323df3794cec244b479ec039db7ad",
+        "portfile_sha256": "ddbda297994a4c34abe99ed222abf3ea0690fa0946c44f0fe866502ca157b59c",
+        "source_sha512": [
+          "0b84b7b583ac7dc89aa8340003351c613610b271e88d33ab2ce097274e349dcd54437c323622592d75944169fd6463ca930a04c52c81dd0807ffa6fc99313e45"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-move/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-move/portfile.cmake"
+      },
+      "boost-mp11": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "1bcce2555c1f4680c2dae3076717d4311862b1bba91ddb1974ff7b95d4fca906",
+        "portfile_sha256": "6a09df4236d4d313f267f304bc213512752b15caf2bc5de84f9d5364e14e5b18",
+        "source_sha512": [
+          "dc5a89370e2807534de85938c426252b9eeaa3c7f739871e4e57e3acb7e6507090036c96bc8d77f3ab698e1071f3e17935de36707463702fefe853a59378ff2b"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-mp11/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-mp11/portfile.cmake"
+      },
+      "boost-multiprecision": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-integer",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-lexical-cast",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-math",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-predef",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-random",
+            "platform": "!uwp",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "9fb3c3ee21dbcb7eaf36188f41ec402a6f17d2079b243ddabcaecfba49b3e23e",
+        "portfile_sha256": "93c64be70f37f14658d1ab8ad4376b147392518f0aba8626668fba5e0148222b",
+        "source_sha512": [
+          "f4358086999fb80e77196c85108f2f5948800bbbf2bdde1329ddc5237bb498eabf996e6be735b9e59335379236b6e7e71e9ee213f31dcb1117277e22f8fa5749"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-multiprecision/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-multiprecision/portfile.cmake"
+      },
+      "boost-predef": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "87ddda1296a47fbac5ab3ff42a3cb717d1358e1a9299135c64f49beb0a84d2a1",
+        "portfile_sha256": "d1896bb85a5e394ec3ca0ebdc05c8f1ccd26c1d64725c67db73cb4b1767c9987",
+        "source_sha512": [
+          "e64a7e6608e8c73e1ee4d73a54cbee178e90cba94fe88682badfea810dbbc4de5c312d6566e99dd3ec7e5c311c38a1abf945090c7acffd2f6518269f8ebc2709"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-predef/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-predef/portfile.cmake"
+      },
+      "boost-preprocessor": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "3eca66088cbb2f0193837afca2d021fc2ced89b1a4c036981ebf2b347c15d191",
+        "portfile_sha256": "eabd2232c6099bf2d2f1dd1d42e0b8c6bf18c2472507665974922d23000782d1",
+        "source_sha512": [
+          "c153ada75f4b2fe43d001e5a1e44dec082b51dde94c6ee02c998a30622fc40b691e0f71f9502df900de92fc9eec30640a12b28438c03710a6e17df996b047ed0"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-preprocessor/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-preprocessor/portfile.cmake"
+      },
+      "boost-random": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-dynamic-bitset",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-integer",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-io",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-system",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-type-traits",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-utility",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": "!uwp",
+        "manifest_sha256": "81cfe34956be275131dfa0b0b108b247e6c65b92cb3c5add942add0509796275",
+        "portfile_sha256": "c778331c9ad3ff2a9e9990df0720256ec34470eaef2559312d1c040f7ea74431",
+        "source_sha512": [
+          "1e30136fe0e2ff3350732b5e8a2626722d48c556af2da316395b0a23cfe84e03353cfdb5c8d5138f68934f9c874d0c5975160d2894286933fe1679dc708d0365"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-random/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-random/portfile.cmake"
+      },
+      "boost-system": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-compat",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-mp11",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-variant2",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-winapi",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "f961bad2334ae6630f2693b2ec8ff047e2755674ae825417e7ffba73f0deaf77",
+        "portfile_sha256": "a0da4fbcda1ae33a806952609bfaf594a0ce34fb8bfaef96ff59ee3441d1a4a3",
+        "source_sha512": [
+          "006359738833fdbca19a51c038e5d909527dea8c3262b40ec90841b0fc6117c615ebb351247203329f1580830bf6940c0bf89c640bffbfbc727773fd52089d7a"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-system/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-system/portfile.cmake"
+      },
+      "boost-throw-exception": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "dbb3778ecd1b93ddab0add2efa2f7326ee3ec3f56af86e4d2d5838288a77b0ef",
+        "portfile_sha256": "b39ce1cd4549bcabe669ff34014b093d14fcfc673ef0dc4069f066e3497591e6",
+        "source_sha512": [
+          "db8b60a1ed193056db2397eea2201784116c90023f7a7ba7a0e0a2968df38b247809f3f174c09969f8f891654e8ce1b2e125c21a4aba2e009a7dbcca65e65da5"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-throw-exception/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-throw-exception/portfile.cmake"
+      },
+      "boost-type-traits": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "977dd6489ac7d781407e50157077157ca342ce6f358175f39dd7502ac67e9ca7",
+        "portfile_sha256": "e8a70056a7aae039c73e1176bacaceb6b83dc0a2293d29d470261f8b3a08ff61",
+        "source_sha512": [
+          "3d0163fc99691e181c97f830a96b28e03e89209120bbba818795c18bc426cf90e91994925df15bcf48e75c26c253973a49af299f028a4ee71b824fcb212edc31"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-type-traits/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-type-traits/portfile.cmake"
+      },
+      "boost-uninstall": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "MIT",
+        "dependencies": [],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "7285612cb7657e4ba94691b5734cda9a580911c5ecba55152e870457e7b1e6f4",
+        "portfile_sha256": "851fc2e1346b2cf0902b98ee31b46e4ebdc28c8159e939e3e6b47578ecfd3c28",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-uninstall/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-uninstall/portfile.cmake"
+      },
+      "boost-utility": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-core",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-io",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-preprocessor",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-throw-exception",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-type-traits",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "c87cabe6ee60faf73db087056543ddb86639f837654c22043cb5fdc398b63d78",
+        "portfile_sha256": "c7c122e26dec16bef4c38719ca82996d566dd7d459ac49c6a322182fa19ed4cd",
+        "source_sha512": [
+          "887f5c18b939308facf307792a240e470c2224b16741f0b13df052f2760ad4692acb5992608168dd86d7542f219d4627c6fef8b28fe2da442b4bb2c17971f84d"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-utility/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-utility/portfile.cmake"
+      },
+      "boost-variant2": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-assert",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-mp11",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "29e76248cfbc345394ba5bb82f7db57d45c4f436879194846b78df795acd91fa",
+        "portfile_sha256": "01a8815dcdc2e751dbef98aa06c81db638ee6d08b47f911c094331573fe913cd",
+        "source_sha512": [
+          "30f1802a9cd43d7f9f42fcb60d638498c6550ebb1edc7c531be7fe3a0fdcb808abea7581f22935be4839ff9cd9384110d0369fee2b41d69c34c3a47b9c7b8a66"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-variant2/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-variant2/portfile.cmake"
+      },
+      "boost-winapi": {
+        "version": "1.92.0",
+        "port_version": 0,
+        "license": "BSL-1.0",
+        "dependencies": [
+          {
+            "name": "boost-cmake",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-config",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-headers",
+            "version>=": "1.92.0"
+          },
+          {
+            "name": "boost-predef",
+            "version>=": "1.92.0"
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "9eafca012246a77b8f487386d7feee28acd905024183f3b5908aa9e9b7c180bb",
+        "portfile_sha256": "a6db414afeb0dfcf4bc312a26f44285c9061e97b8f1a869ea775866ba68bdd28",
+        "source_sha512": [
+          "e25986ffa330706068ba38f69f42e25d4ddf4ea3b8240f934f6dbef3bd4d63d380fb63cf6a843e92793378588706d0f0564d7a2474f6d1e36c87e5579b8c4f9b"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-winapi/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/boost-winapi/portfile.cmake"
+      },
+      "catch2": {
+        "version": "3.16.1",
+        "port_version": 0,
+        "license": "BSL-1.0 AND BSD-3-Clause",
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake",
+            "host": true
+          },
+          {
+            "name": "vcpkg-cmake-config",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "c1e4d3f05346a2d4f83e0786c11076ec06519371f1f72f2ec28949e5df1d8db6",
+        "portfile_sha256": "64d2b8f5eb293245579222adaed6f4e4639fa218c4e12c933e5d82d8f043df27",
+        "source_sha512": [
+          "87a33d2a87dc68aac424b56089c6a41176f5db49c7192fa34b4311212a609db8b52554a0857fea19dcb96a6296087b146cecb675c1653ffaf95a48a0678658fb",
+          "a6b0f1d1bd9178382f06de9773b31e3efdcdfb20fc3b65b23d9675e0838da6f64c417a75e062bda918dd28781e5d11a78e7130cef2394e676c7bc2da9e49106b"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/catch2/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/catch2/portfile.cmake"
+      },
+      "flint": {
+        "version": "3.6.0",
+        "port_version": 0,
+        "license": "GPL-3.0-only",
+        "dependencies": [
+          "gettimeofday",
+          "gmp",
+          "mpfr",
+          {
+            "name": "pthreads",
+            "platform": "windows"
+          },
+          {
+            "name": "vcpkg-cmake",
+            "host": true,
+            "platform": "windows"
+          },
+          {
+            "name": "vcpkg-cmake-config",
+            "host": true,
+            "platform": "windows"
+          },
+          {
+            "name": "vcpkg-make",
+            "host": true,
+            "platform": "!windows"
+          }
+        ],
+        "default_features": [],
+        "supports": "!uwp & !(windows & arm64)",
+        "manifest_sha256": "be9e434459eb39d7383d9088fe8261b650f04d86ee9e56aaa82a2f147f3aaac0",
+        "portfile_sha256": "0fcc4c30fff72b95515cef528924a9233e69230e7f6bcecaa07a419301f9183a",
+        "source_sha512": [
+          "f1057affd37d2460522fbd4620454616571d3a8220d53fa6ee668d8cec25f7996275ec00decaf4b4d9a799db117419192b68f4c3b720f094d12d9b4cf2aa977a"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/flint/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/flint/portfile.cmake"
+      },
+      "gettimeofday": {
+        "version": "2017-10-14",
+        "port_version": 6,
+        "license": null,
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "96b3e2798c48a5178780ead21ac4496a03fa11165dbe2c8bb0c1d86075d11d06",
+        "portfile_sha256": "81bb4b3da4b02d01e7bf34ae43749eea43dd7ed0d1ba3860217095afe11d0b44",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/gettimeofday/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/gettimeofday/portfile.cmake"
+      },
+      "gmp": {
+        "version": "6.3.0",
+        "port_version": 5,
+        "license": "LGPL-3.0-only OR GPL-2.0-only",
+        "dependencies": [
+          {
+            "name": "gmp",
+            "host": true
+          },
+          {
+            "name": "vcpkg-cmake-get-vars",
+            "host": true
+          },
+          {
+            "name": "vcpkg-make",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": "!xbox",
+        "manifest_sha256": "3287390d51242725397727ddcbfe1e629e4be46d09ef7584524cdedb705243f4",
+        "portfile_sha256": "142a23bb7745edd141d6f99644f74aa8a0e01a1ee5f3b847a534707bbe8bb89c",
+        "source_sha512": [
+          "e85a0dab5195889948a3462189f0e0598d331d3457612e2d3350799dba2e244316d256f8161df5219538eb003e4b5343f989aaa00f96321559063ed8c8f29fd2"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/gmp/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/gmp/portfile.cmake"
+      },
+      "mpfr": {
+        "version": "4.2.2",
+        "port_version": 2,
+        "license": "LGPL-3.0-or-later",
+        "dependencies": [
+          "gmp",
+          {
+            "name": "vcpkg-make",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": "!xbox",
+        "manifest_sha256": "7d0e69a41e207046b74d2a48efc69e1351b934ded916f6c232b33fea50cdba85",
+        "portfile_sha256": "efc478fb6ad5f053b54c0c7ad797bf93a99dac0e3b8c09a41345dc346fee0b6e",
+        "source_sha512": [
+          "eb9e7f51b5385fb349cc4fba3a45ffdf0dd53be6dfc74932dc01258158a10514667960c530c47dd9dfc5aa18be2bd94859d80499844c5713710581e6ac6259a9"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/mpfr/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/mpfr/portfile.cmake"
+      },
+      "nlohmann-json": {
+        "version": "3.12.0",
+        "port_version": 2,
+        "license": "MIT",
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake",
+            "host": true
+          },
+          {
+            "name": "vcpkg-cmake-config",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "b576fa660ad7fcd9aa0324cc775b596d48aa7f14c993f63b23865a8673835310",
+        "portfile_sha256": "9bae6425097eb8d78e6f9a213de5258a3dfac57056e4c42e76a3a8d805fbdc1b",
+        "source_sha512": [
+          "6cc1e86261f8fac21cc17a33da3b6b3c3cd5c116755651642af3c9e99bb3538fd42c1bd50397a77c8fb6821bc62d90e6b91bcdde77a78f58f2416c62fc53b97d"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/nlohmann-json/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/nlohmann-json/portfile.cmake"
+      },
+      "pthreads": {
+        "version": "3.0.0",
+        "port_version": 14,
+        "license": "Apache-2.0",
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake-config",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "daefc887e20720da4ebfd6e10fbf93e974f0fa11822a880693f17d4fd92d6b39",
+        "portfile_sha256": "f1a9c2feb03dae457ffb60fe35128253e5b26ef7252d905051f6c86a316f3291",
+        "source_sha512": [
+          "49e541b66c26ddaf812edb07b61d0553e2a5816ab002edc53a38a897db8ada6d0a096c98a9af73a8f40c94283df53094f76b429b09ac49862465d8697ed20013"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/pthreads/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/pthreads/portfile.cmake"
+      },
+      "vcpkg-boost": {
+        "version": "2026-08-21",
+        "port_version": 0,
+        "license": "MIT",
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake",
+            "host": true
+          },
+          {
+            "name": "vcpkg-cmake-config",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "810a62cf22b3f26875932e34062b605eaed57ba2bede62c77f1a9195f931f49c",
+        "portfile_sha256": "ca10e0d23b1b68fc4f4160b8d631bdccd7dcd7e67ea4cbf75a87705de79c7607",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-boost/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-boost/portfile.cmake"
+      },
+      "vcpkg-cmake": {
+        "version": "2025-08-07",
+        "port_version": 0,
+        "license": "MIT",
+        "dependencies": [],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "24bb71d0549980d748fe1d49c2449d33ba0b1735ef8d6934d7af907abbaf9a89",
+        "portfile_sha256": "a711531b7f13b7da16fa1f25d7c5737a423d4a126465dc9e6689a0f043fcc1aa",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake/portfile.cmake"
+      },
+      "vcpkg-cmake-config": {
+        "version": "2026-07-21",
+        "port_version": 0,
+        "license": "MIT",
+        "dependencies": [],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "480420178eb38f67a7825d5e6776776ea072bcd14b1839e0f495344a529d9f58",
+        "portfile_sha256": "832b34e63f5af41ad1b2e4aa79c5bfa507a005b120b51548e674accc706837d7",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake-config/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake-config/portfile.cmake"
+      },
+      "vcpkg-cmake-get-vars": {
+        "version": "2025-05-29",
+        "port_version": 0,
+        "license": "MIT",
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": null,
+        "manifest_sha256": "c63654032f0c0f79ffc9932cfade8a13d68fc607e823d3ea17cc4d24b4e76bac",
+        "portfile_sha256": "0a6c61926f6d1af5ed6e02b8df4dd8df81d3988a263c2849a38cef364e290e81",
+        "source_sha512": [],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake-get-vars/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-cmake-get-vars/portfile.cmake"
+      },
+      "vcpkg-make": {
+        "version": "2026-07-09",
+        "port_version": 2,
+        "license": null,
+        "dependencies": [
+          {
+            "name": "vcpkg-cmake-get-vars",
+            "host": true
+          }
+        ],
+        "default_features": [],
+        "supports": "native",
+        "manifest_sha256": "cdea55b3c9cc927ec9a3cd3788ca7f722b9879455f1881111b9ecd076803370f",
+        "portfile_sha256": "c234e0c835ecaa6261b37fee498866ca60d01faa406409e3eb6886aec1fde19b",
+        "source_sha512": [
+          "11357dfab8cbf4b5d94d9d06e475732ca01df82bef1284888a34bd558afc37b1a239bed1b5eb18a9dbcc326344fb7b1b301f77bb8385131eb8e1e118b677883a"
+        ],
+        "source": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-make/vcpkg.json",
+        "recipe": "https://raw.githubusercontent.com/microsoft/vcpkg/b42e8ed051d17a7f95b9d2a3140c1f9296423712/ports/vcpkg-make/portfile.cmake"
+      }
+    }
+  },
+  "bootstrap": {
+    "requirements": "scripts/requirements-build-tools.txt",
+    "artifacts": [
+      {
+        "component": "pip",
+        "version": "26.2.2",
+        "filename": "pip-26.2.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl",
+        "sha256": "fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70",
+        "publisher_metadata": "https://pypi.org/pypi/pip/26.2.2/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      },
+      {
+        "component": "cmake",
+        "version": "4.4.4",
+        "filename": "cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/7e/d5/664ea06d01864f25d6067f09fa218404e4d588edd5e495135ac91429fecb/cmake-4.4.4-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "sha256": "f773a0544c66370408f451acd487c2c643b0dfebb48c5d64f3638bc1bb820238",
+        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      },
+      {
+        "component": "cmake",
+        "version": "4.4.4",
+        "filename": "cmake-4.4.4-py3-none-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/87/9c/a7918eeeed09b34aa5dc1b767367fb1a2dcbb56171be00be0fd1280fe752/cmake-4.4.4-py3-none-win_amd64.whl",
+        "sha256": "ad8e0a38b5707e27882701146bdfffecacd80e7703fa0fc36c77528518d545af",
+        "publisher_metadata": "https://pypi.org/pypi/cmake/4.4.4/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      },
+      {
+        "component": "ninja",
+        "version": "1.13.2",
+        "filename": "ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/6e/53/ebfed7b689c338dd8ebeec9c0730c8d56821292f14e2536e5f3ef1a05744/ninja-1.13.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "sha256": "65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c",
+        "publisher_metadata": "https://pypi.org/pypi/ninja/1.13.2/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      },
+      {
+        "component": "ninja",
+        "version": "1.13.2",
+        "filename": "ninja-1.13.2-py3-none-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/3f/dd/3766b5f4d32e8a9b97d195496b0b01fbbe2e1a41669dab0cd6492a6ce199/ninja-1.13.2-py3-none-win_amd64.whl",
+        "sha256": "1293f4078278b70d0ee4b6cc8f3a9e030656c9b2f59909970343c4fe76070118",
+        "publisher_metadata": "https://pypi.org/pypi/ninja/1.13.2/json",
+        "authentication": "publisher-index SHA256; signature not verified"
+      }
+    ],
+    "catch2_tag": "v3.16.1",
+    "catch2_commit": "08092139210881f01a34e60c5f2fd6afa0ea4024",
+    "catch2_source_sha512": "a6b0f1d1bd9178382f06de9773b31e3efdcdfb20fc3b65b23d9675e0838da6f64c417a75e062bda918dd28781e5d11a78e7130cef2394e676c7bc2da9e49106b"
+  },
+  "prior_supported": {
+    "vcpkg_baseline": "2979dbff1b38167a2a0d2b47b7c549c61273eabf",
+    "source_revision": "1bb5e33",
+    "validation": "Parent reported494registered,491pass,3target-inapplicable sparse skips;252.76seconds; current candidate stack not validated by this result"
+  },
+  "external_stack_owners": {
+    "gpu_sdk_and_vendor_llvm": "parent; coherent AMD platform/driver/SDK selection and real qualification required",
+    "host_llvm_msvc_gcc": "parent; exact compiler/STL/CRT/SDK/OpenMP identities pending"
+  },
+  "remaining_gates": [
+    "Actual resolved package/feature/ABI inventory and source integrity verification",
+    "Clean optimized/debug static/shared Windows and Linux builds; OpenMP ON/OFF; installed consumers",
+    "Python3.15.1 tooling and supported-minimum compatibility",
+    "Optional GMP/FLINT/MPFR compile/link/runtime and threading ABI",
+    "All enabled HIP correctness/ISA/resource gates on each actual target",
+    "Matched prior/new-stack timing and memory checks before promotion",
+    "Runtime-loaded library/driver/firmware/OS identities and Linux package/image locks"
+  ],
+  "source_pins": {
+    "ck": {
+      "path": "third_party/rocm/composable_kernel",
+      "url": "https://github.com/ROCm/composable_kernel.git",
+      "revision": "d9272218c4c59a58e41d3d346362cdaa707c30ce",
+      "qualification": "retained prior Windowsgfx1100 stack; newer SDK migration deferred by user"
+    },
+    "rocwmma": {
+      "path": "third_party/rocm/rocWMMA",
+      "url": "https://github.com/ROCm/rocWMMA.git",
+      "revision": "1ab208f49945c38626b79e3f0c284d65ac44a781",
+      "qualification": "retained prior Windowsgfx1100 stack; newer SDK migration deferred by user"
+    }
+  },
+  "deferred_gpu_candidate": {
+    "sdk": "ROCmCoreSDK10.1.0",
+    "source_revision": "39d8d60365d2272a5366f76ccb3bfba24b219eaf",
+    "source": "https://github.com/ROCm/rocm-libraries/tree/39d8d60365d2272a5366f76ccb3bfba24b219eaf",
+    "components": {
+      "ck": "1.3.0",
+      "rocwmma": "2.2.1"
+    },
+    "status": "deferred_by_explicit_user_instruction",
+    "installed_or_qualified": false
+  }
+}

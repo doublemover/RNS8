@@ -25,6 +25,16 @@ def print_human(report: dict[str, object]) -> None:
     print(f"platform: {system['platform']}")
     print(f"python:   {system['python']}")
     print()
+    policy = report.get("dependency_version_policy")
+    if isinstance(policy, dict):
+        print("Reviewed dependency candidate (version matches do not establish compatibility)")
+        print("  policy: " + str(policy["policy_sha256"]))
+        for item in policy["components"]:
+            if item["selected"]:
+                print(f"  {item['name']}: selected {item['selected']['version']}; observed {item['observed_version'] or 'unknown'}")
+        for error in policy["consistency_errors"]: print("  ERROR: " + error)
+        for name in policy.get("required_version_failures", []): print("  VERSION GATE: " + name)
+        print()
     resolution = report.get("dependency_resolution")
     if isinstance(resolution, dict):
         print("Shared filesystem selection (compatibility/runtime probes remain separate)")

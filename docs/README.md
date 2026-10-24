@@ -54,3 +54,5 @@ checkpoints, the resident-output proposal and superseded chronological status.
 Their dates and source revisions remain intact. Current setup and API guidance
 live in the guides above. Raw captures and disassembly stay in ignored `temp/`,
 `build/` or `out/` paths; durable reports summarize reviewed evidence.
+
+- [Dependency versions and upgrade gates](dependency-versions.md)

@@ -8,6 +8,10 @@ separately from Linux GPU qualification, which remains open.
 
 ## Prerequisites
 
+Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
+[version policy](dependency-versions.md). Their upgrade qualification remains
+pending; the user has deferred the separate ROCm10.1 migration.
+
 Check AMD's [release-specific GPU and OS matrix](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/reference/system-requirements.html),
 then follow its [Linux driver/runtime/development installation instructions](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/install/install-methods/package-manager/package-manager-ubuntu.html)
 for your distribution. Radeon graphics workloads also need the matching
