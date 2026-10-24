@@ -1242,6 +1242,10 @@ rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const Gra
 rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,void* destination,
     int64_t cells,uint32_t prefix,uint32_t mode,uint64_t budget,bool& commit_started);
 
+namespace word_mod {struct Problem;}
+rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b,void* c,
+    const word_mod::Problem& problem,uint64_t budget,bool& commit_started);
+
 }  // namespace rns8::detail
 
 #endif

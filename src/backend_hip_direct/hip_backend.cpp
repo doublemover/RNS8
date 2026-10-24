@@ -1,3 +1,4 @@
+#include "backend_common/word_mod_plan.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_common/operation_support.hpp"
 #include "backend_common/balanced_crt.hpp"
@@ -652,6 +653,7 @@ namespace rns8::detail {
 #include "hip_backend_wrap_radix.inc"
 #include "hip_backend_gram.inc"
 #include "hip_backend_fixed_conversion.inc"
+#include "hip_backend_word_mod.inc"
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"

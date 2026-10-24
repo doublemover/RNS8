@@ -2027,3 +2027,11 @@ The current private RDNA3 implementation uses a 16-term zero-initialized MMA
 per pair and includes a matched native unsigned IU8 control. See
 [the candidate contract](wrap64-signed-radix.md). Both remain unqualified;
 existing wrap64 shipping and evidence gates still apply.
+
+### Word-size modular baseline (source implementation, pending qualification)
+
+The private [word-modular research path](word-modular-research.md) has explicit
+ring/prime-field semantics, canonical uint64 storage, overflow-safe CPU/HIP
+double/add arithmetic and an exact host decomposition-bound planner. It does
+not extend finite-u8 storage or certify a floating/matrix instruction schedule.
+Full-width Boost differential fixtures are authored for the final campaign.
