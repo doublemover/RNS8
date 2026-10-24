@@ -69,3 +69,5 @@ namespace {
 #include "test_hip_direct_direct_crt_cases.inc"
 #include "test_hip_direct_strassen_cases.inc"
 #include "test_hip_direct_integrity_cases.inc"
+
+#include "test_hip_direct_wide_gemm_cases.inc"

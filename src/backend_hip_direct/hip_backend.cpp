@@ -638,6 +638,7 @@ namespace rns8::detail {
 #include "hip_backend_int4.inc"
 #include "hip_backend_native_wmma.inc"
 #include "hip_backend_native_tiled.inc"
+#include "hip_backend_wide_gemm.inc"
 #include "hip_backend_native_byte.inc"
 #include "hip_backend_native_queue.inc"
 #include "hip_backend_native_split_k.inc"

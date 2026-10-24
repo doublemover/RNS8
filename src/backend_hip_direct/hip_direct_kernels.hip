@@ -47,6 +47,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_pack_kernels.cuh"
 
 #include "hip_direct_gemm_kernels.cuh"
+#include "hip_direct_wide_gemm_kernels.cuh"
 
 #include "hip_direct_export_kernels.cuh"
 #include "hip_direct_lift_kernels.cuh"
@@ -312,5 +313,12 @@ extern "C" int rns8_hip_convert_residue_layout(
 extern "C" int rns8_hip_export_canonical_direct_crt(const int8_t* residues, uint64_t* limbs, int cells, int prefix) {
   hipLaunchKernelGGL(rns8_export_canonical_direct_crt_kernel, dim3((cells + 255) / 256), dim3(256), 0, nullptr,
                     residues, limbs, cells, prefix);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
+    uint64_t m,uint64_t n,uint64_t k,uint64_t lda,uint64_t ldb,uint64_t ldc,uint64_t count) {
+  const unsigned blocks=static_cast<unsigned>(count<262144 ? (count+255)/256 : 1024);
+  hipLaunchKernelGGL(rns8_wide_gemm_kernel,dim3(blocks),dim3(256),0,nullptr,a,b,c,m,n,k,lda,ldb,ldc,count);
   return static_cast<int>(hipGetLastError());
 }

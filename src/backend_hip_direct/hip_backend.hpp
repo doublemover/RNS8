@@ -11,6 +11,7 @@
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/native_tiled_resources.hpp"
 #include "backend_common/operation_support.hpp"
+#include "backend_common/wide_gemm_support.hpp"
 #include "backend_common/adaptive_native_support.hpp"
 #include "backend_common/native_wmma_queue.hpp"
 #include "backend_common/ragged_residues.hpp"
@@ -500,6 +501,10 @@ rns8_status hip_direct_ring_gemm_i8_device(
     uint16_t modulus,
     uint32_t modulus_index,
     uint32_t selected_prefix);
+// Private scalar u64-index residue control. Caller owns range proof and write
+// invalidation after execution failure; no public/default dispatch promotion.
+rns8_status hip_direct_gemm_rns_wide_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix);
 rns8_status hip_direct_gemm_rns_device(
     int device_id,
     const void* device_a_residues,

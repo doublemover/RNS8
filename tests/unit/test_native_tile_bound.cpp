@@ -276,3 +276,17 @@ TEST_CASE("shared epilogue and lift providers reject before pointer consumption"
   const auto large=query_exact_lift_support(INT64_MAX,1,20,UINT64_MAX);
   CHECK(large.constraint==OperationConstraint::address_span);
 }
+
+#include "backend_common/wide_gemm_support.hpp"
+TEST_CASE("wide residue support proves full spans without narrowed shape products") {
+  using namespace rns8::detail;
+  const auto wide=query_wide_gemm_support(65536,65536,1,1,65536,65536,1);
+  REQUIRE(wide.status==RNS8_SUCCESS);
+  CHECK(wide.logical_outputs==(uint64_t{1}<<32));
+  CHECK(wide.c.byte_extent==(uint64_t{1}<<32));
+  CHECK_FALSE(qualified_i32_gemm_address(65536,65536,1,1,65536,65536,1));
+  CHECK(query_wide_gemm_support(1,1,1,INT64_MAX,INT64_MAX,INT64_MAX,1).status==RNS8_SUCCESS);
+  CHECK(query_wide_gemm_support(1,1,1,INT64_MAX,INT64_MAX,INT64_MAX,2).status==RNS8_RANGE_ERROR);
+  CHECK(query_wide_gemm_support(INT64_MAX,2,1,1,2,2,1).status==RNS8_RANGE_ERROR);
+  CHECK(query_wide_gemm_support(1,1,1,1,1,1,0).status==RNS8_INVALID_ARGUMENT);
+}
