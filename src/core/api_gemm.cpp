@@ -166,7 +166,8 @@ rns8_status validate_wrap_gemm_operands(
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C,
+    bool require_current_inputs) {
   if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 || plan.prefix != 0) {
@@ -200,8 +201,8 @@ rns8_status validate_wrap_gemm_operands(
       !wrap_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!wrap_byte_limb_state_current_for_backend(A, plan.backend) ||
-      !wrap_byte_limb_state_current_for_backend(B, plan.backend)) {
+  if (require_current_inputs && (!wrap_byte_limb_state_current_for_backend(A, plan.backend) ||
+      !wrap_byte_limb_state_current_for_backend(B, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;

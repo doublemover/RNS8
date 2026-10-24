@@ -44,13 +44,18 @@ implementation and qualification work. No speedup is claimed.
 
 ## Explicit HIP submission
 
-Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide or
+Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide, strict wrap64, or
 finite-ring/field execution to allocate its completion event. The subset has fixed
 shape/basis/prefix or one explicit finite modulus, and no adaptive tile schedule.
 Other semantics/backends return unsupported. Finite operations use their existing
 enqueue-only finite kernel wrapper, including dynamic composite moduli and ordered
 safe K slabs. They require current operands with the plan's modulus and do not
-invent an exact-integer range proof.
+invent an exact-integer range proof. Strict wrap64 uses eight unsigned byte-limb
+planes and the existing 36-product kernels, with the same accumulator-width
+selection as synchronous execution. It never uses odd-modulus CRT. Completion
+publishes only byte-limb currentness, and graph replay binds byte-limb allocation
+addresses. These paths share the cancellation, reader reservation, generation,
+and grouped-submission contracts.
 `rns8_submit_prepared_hip` takes a caller-owned non-default HIP stream and checks
 its device and capture state. Keep that stream alive until completion is observed.
 Stream capture is explicitly unsupported; there is no synchronous fallback.
@@ -101,7 +106,7 @@ replacement capture preserves the previous executable graph.
 `rns8_submit_prepared_hip_graph` shares ordinary submission's range/generation
 preflight, reservations, epoch, event and query/wait publication. It verifies
 the captured A/B/C device addresses before enqueue. The immutable envelope is
-one fixed-shape dense exact-wide or finite operation, its fixed basis/prefix or
+one fixed-shape dense exact-wide, strict wrap64, or finite operation, its fixed basis/prefix or
 finite modulus, and all
 ordered K-slab launches. Shape, topology, layout, basis or address changes need
 a new prepared binding/capture. Input values can change at stable addresses
@@ -341,3 +346,20 @@ and retries those releases during context destruction. Context destruction also
 retains an unreleased hipBLASLt handle on backend failure. Creation still returns a
 null matrix output. These bookkeeping changes and CPU fixtures are authored for
 the consolidated batch; no device-fault or allocation-fault campaign was run.
+
+### Strict wrap64 resident edges
+
+Resident MatMul DAGs also accept `RNS8_WRAP_U64_MOD_2_64` on CPU reference and
+direct HIP. Preflight checks byte-limb storage and external input generations;
+intermediate edges carry the explicit wrap contract without an integer range
+proof. Synchronous execution, caller-stream submission and captured replay all
+use byte-limb products. Async completion publishes every output only after the
+whole DAG completes successfully; cancellation leaves outputs unavailable.
+Captured replay binds the byte-limb allocation addresses. Exact epilogues,
+base extension and wide-limb export nodes retain their exact-wide restrictions.
+
+The source regression cases cover unsigned full-width boundaries, CPU Boost
+references, non-square padded host buffers, K=4096/4097 accumulator selection,
+shared-reader groups observed in reverse order, stale generations, cancellation,
+and resident fan-out with unpublished intermediate values. Execution of these
+cases is pending the consolidated validation campaign.

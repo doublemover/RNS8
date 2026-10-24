@@ -7,9 +7,11 @@ rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) 
     if ((node.kind != RNS8_RESIDENT_MATMUL && node.kind != RNS8_RESIDENT_EXACT_AXPBY) ||
         node.plan->backend != RNS8_BACKEND_HIP_DIRECT || !node.plan->tile_schedule.empty() ||
         (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
-         !(node.kind==RNS8_RESIDENT_MATMUL && uses_finite_storage(node.plan->desc.semantics))) ||
+         !(node.kind==RNS8_RESIDENT_MATMUL && (uses_finite_storage(node.plan->desc.semantics) ||
+             node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64))) ||
         !rns8::detail::qualified_i32_gemm_address(node.plan->desc.m, node.plan->desc.n,
-            node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, uses_finite_storage(node.plan->desc.semantics)?1:node.plan->prefix))
+            node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64?8:
+            uses_finite_storage(node.plan->desc.semantics)?1:node.plan->prefix))
       return RNS8_UNSUPPORTED_BACKEND;
   }
   return RNS8_SUCCESS;
@@ -24,6 +26,10 @@ void invalidate_owned_graph_output(rns8_matrix& output) {
 }
 rns8_status enqueue_resident_node(const rns8_resident_node &node,
                                   void *stream) {
+  if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
+    return rns8::detail::wrap64_hip_enqueue_byte_limbs(
+        node.a->hip_byte_limbs,node.b->hip_byte_limbs,node.c->hip_byte_limbs,
+        node.plan->desc.m,node.plan->desc.n,node.plan->desc.k,stream);
   if(uses_finite_storage(node.plan->desc.semantics))
     return rns8::detail::hip_direct_enqueue_finite_no_publish(node.plan,node.a,node.b,node.c,stream);
   return node.kind == RNS8_RESIDENT_EXACT_AXPBY
@@ -35,6 +41,8 @@ rns8_status enqueue_resident_node(const rns8_resident_node &node,
 }
 std::array<const void *, 4>
 resident_node_addresses(const rns8_resident_node &node) {
+  if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
+    return {node.a->hip_byte_limbs,node.b->hip_byte_limbs,node.c->hip_byte_limbs,nullptr};
   return {node.a->hip_residues, node.b->hip_residues, node.c->hip_residues,
           node.d ? node.d->hip_residues : nullptr};
 }
@@ -49,6 +57,12 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
     const auto &node = graph.nodes[i];
     node.c->in_flight_writer = false;
     if (status == RNS8_SUCCESS) {
+      if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
+        mark_output_device_byte_limbs_current(*node.c);
+        node.c->finite_modulus=0;
+        node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();
+        continue;
+      }
       mark_output_device_residues_current(*node.c);
       if(uses_finite_storage(node.plan->desc.semantics)) {
         node.c->finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);

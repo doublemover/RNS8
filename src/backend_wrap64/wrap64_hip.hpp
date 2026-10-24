@@ -28,6 +28,12 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
     int64_t n,
     int64_t k);
 
+// Caller selects the device and retains buffers until its stream completes.
+// No allocation, synchronization, timing hooks, or output publication.
+rns8_status wrap64_hip_enqueue_byte_limbs(
+    const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, void* stream);
+
 rns8_status wrap64_hip_export_u64_device(
     int device_id,
     const void* device_byte_limbs,

@@ -25,6 +25,9 @@ extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device(
     int64_t n,
     int64_t k);
 
+extern "C" int rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(
+    const uint8_t*, const uint8_t*, uint8_t*, int64_t, int64_t, int64_t, void*);
+
 extern "C" int rns8_wrap64_hip_export_u64_device(
     const uint8_t* byte_limbs,
     uint64_t* dst,
@@ -269,6 +272,23 @@ rns8_status wrap64_hip_gemm_byte_limbs_device_resident(
   (void)a_layout;
   (void)b_layout;
   (void)c_layout;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status wrap64_hip_enqueue_byte_limbs(
+    const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, void* stream) {
+  Wrap64CompactLayout al, bl, cl;
+  if (!a || !b || !c || !stream ||
+      !checked_wrap64_gemm_compact_layouts(m, n, k, &al, &bl, &cl))
+    return RNS8_INVALID_ARGUMENT;
+#if RNS8_ENABLE_HIP
+  return rns8_wrap64_hip_gemm_byte_limbs_device_on_stream(
+      static_cast<const uint8_t*>(a), static_cast<const uint8_t*>(b),
+      static_cast<uint8_t*>(c), m, n, k, stream) == static_cast<int>(hipSuccess)
+      ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

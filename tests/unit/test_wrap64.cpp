@@ -21,3 +21,7 @@ namespace {
 #include "test_wrap64_oracle_cases.inc"
 #include "test_wrap64_public_cases.inc"
 #include "test_wrap64_residency_reject_cases.inc"
+
+#include "test_wrap64_prepared_hip_cases.inc"
+
+#include "test_wrap64_resident_graph_cases.inc"
