@@ -68,6 +68,32 @@ int main() {
             "full-width complex exact reference lost signed extrema");
     tiny.gram = true; data = make_data(tiny);
     require(exact_product(data, tiny) == std::vector<cpp_int>({14, -22, -22, 161}), "Gram transpose changed");
+    for(uint32_t reuse:{1u,3u}) for(const std::string policy:{"each","once"}) {
+      Options cohort=tiny;cohort.backend=RNS8_BACKEND_CPU_REFERENCE;cohort.device=-1;
+      cohort.gram_reuse=reuse;cohort.gram_export=policy;
+      cohort.memory=std::make_shared<MemoryBudget>();
+      Dataset input=make_data(cohort);
+      const cpp_int bound=cpp_int(cohort.k)*maximum_after_mutation(input)*maximum_after_change(input.b);
+      auto dense=dense_variant(input,cohort,bound);
+      auto single=gram_variant(input,cohort,bound,RNS8_GRAM_SCALAR);
+      const auto original=integer_words(exact_product(input,cohort),1);
+      for(auto* variant:{&dense,&single}) {
+        const auto first=verified_sample(*variant,1,original);
+        require(first["gram_products"]==reuse && first["rns_exports"]==(policy=="each"?reuse:1u),"Gram batch lost product/export counts");
+        Phases repeated;variant->execute(repeated,1);
+        require(variant->output()==original && !repeated.values.contains("pack_and_upload_ns"),"Gram reuse repacked or changed output");
+      }
+      mutate_input(input);input.b[0]=input.a[0];
+      const auto changed=integer_words(exact_product(input,cohort),1);
+      for(auto* variant:{&dense,&single}) {
+        Phases refreshed;variant->execute(refreshed,2);
+        require(variant->output()==changed && refreshed.values.contains("changed_input_pack_and_prepared_refresh_ns"),"Gram generation2 did not refresh");
+      }
+      require(dense.metadata["gram_batch"]["implementation"]=="public_prepared_dense" &&
+          single.metadata["gram_batch"]["prepared_gram_api"]==false,"Gram preparation boundary was mislabeled");
+      require(single.metadata["independent_integer_products_per_call"]==9*reuse &&
+          single.metadata["dense_equivalent_integer_products_per_call"]==12*reuse,"Gram mathematical work omitted batch reuse");
+    }
     Dataset full; full.a = {INT64_MIN, INT64_MAX}; full.b = {1, 1};
     Options edge; edge.m = edge.n = 1; edge.k = 2;
     require(exact_product(full, edge)[0] == -1, "full-width reference failed");

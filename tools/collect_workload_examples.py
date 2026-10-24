@@ -27,7 +27,7 @@ IDENTITY_KEYS = ("workload", "m", "n", "k", "bits", "seed", "pattern", "repeats"
                  "build_manifest", "workload_source_identity", "semantics", "output_contract", "dataset_recipe",
                  "input_checksum_u64", "checksum_u64", "changed_input_checksum_u64", "changed_checksum_u64",
                  "abs_partial_sum_bound", "bounds", "formula", "lifecycle", "work_definition", "logical_layout", "a_ld", "b_ld", "output_ld",
-                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes")
+                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch")
 MASK = (1 << 64) - 1
 
 
@@ -84,10 +84,25 @@ def dataset_identity(report: dict) -> dict:
     if gram:
         demand(m == n, "Gram recipe shape mismatch")
         operands[0] = [operands[1][q * n + row] for row in range(m) for q in range(k)]
+    if gram and report.get("gram_batch"):
+        changed_first=operands[1][0]+(-1 if operands[1][0]==(1 << 63)-1 else 1)
+        maximum=max(max(map(abs,operands[1])),abs(changed_first))
+        demand(report.get("abs_partial_sum_bound")==str(k*maximum*maximum),"Gram full-expression bound differs from replayed inputs")
+    def check_gram_output(key):
+        if not gram or not report.get("gram_batch"): return
+        limbs=report.get("output_limbs_per_cell")
+        wide=report.get("semantics")=="exact_wide_signed"
+        demand(type(limbs) is int and limbs==(3 if wide else 1) and report.get("semantics") in {"exact_wide_signed","bounded_i64"}
+            and report.get("output_contract")==("row_major_signed_three_u64_limbs_per_cell" if wide else "row_major_signed_i64"),"Gram batch native output semantics differ")
+        values=[sum(operands[0][row*k+q]*operands[1][q*n+col] for q in range(k)) for row in range(m) for col in range(n)]
+        demand(wide or all(-(1 << 63)<=value<(1 << 63) for value in values),"Gram bounded oracle exceeds native output")
+        demand(report.get(key)==checksum_bytes(canonical_words(values,limbs)),"Gram complete output differs from independently replayed integer reference")
+    check_gram_output("checksum_u64")
     data = canonical_words([value for operand in operands for value in operand])
     demand(checksum_bytes(data) == report.get("input_checksum_u64"), "input bytes differ from claimed recipe/checksum")
     operands[0][0] = (operands[0][0] + 1) % 251 if field else operands[0][0] + (-1 if operands[0][0] == (1 << 63) - 1 else 1)
     if gram: operands[1][0] = operands[0][0]
+    check_gram_output("changed_checksum_u64")
     changed = canonical_words([value for operand in operands for value in operand])
     demand(checksum_bytes(changed) == report.get("changed_input_checksum_u64"), "changed input bytes differ from generation2")
     return {"sha256": hashlib.sha256(data).hexdigest(), "changed_sha256": hashlib.sha256(changed).hexdigest(),
@@ -168,7 +183,88 @@ def exact_sample(sample: dict, expected: int) -> None:
                for value in sample["phases_ns"].values()), "invalid phase time")
 
 
-def validate_report(report: dict, run_id: str, backend: str, device: int) -> dict:
+
+def gram_batch_contract(products: int, policy: str) -> dict:
+    return {"version":1,"products_per_batch":products,"export_policy":policy,"reference_outputs_per_batch":1,
+            "input_preparation":"pack_once_per_generation",
+            "scope":"R identical products recomputed synchronously; complete final native host output"}
+
+
+def exact_value(actual, expected):
+    if type(actual) is not type(expected):return False
+    if isinstance(expected,dict):return actual.keys()==expected.keys() and all(exact_value(actual[key],value) for key,value in expected.items())
+    return actual==expected
+
+
+def requested_gram_batch(arguments: list[str]) -> dict:
+    controls={}
+    for key in ("--gram-reuse","--gram-export"):
+        if key in arguments:
+            demand(arguments.count(key)==1,"duplicate Gram batch option")
+            index=arguments.index(key);demand(index+1<len(arguments),"missing Gram batch value");controls[key]=arguments[index+1]
+    if not controls:return {}
+    demand("--gram" in arguments and "--gram-reuse" in controls,"Gram batch controls require --gram and --gram-reuse")
+    text=controls["--gram-reuse"]
+    demand(bool(re.fullmatch(r"[0-9]+",text)),"invalid Gram reuse integer")
+    products=int(text);policy=controls.get("--gram-export","once")
+    demand(1<=products<=256 and policy in {"each","once"},"invalid Gram batch controls")
+    return gram_batch_contract(products,policy)
+
+
+def validate_gram_batch(report: dict, variants: list[dict], requested=None):
+    batch=report.get("gram_batch",{})
+    if "gram_batch" in report:demand(type(batch) is dict and bool(batch),"Gram batch must be nonempty contract object")
+    if requested is not None:demand(exact_value(batch,requested),"requested Gram batch differs from capture")
+    if not batch:return
+    demand(report["workload"]=="integer_gram" and report["m"]==report["n"],"Gram batch requires single-source Gram workload")
+    products=batch.get("products_per_batch");policy=batch.get("export_policy")
+    demand(type(products) is int and 1<=products<=256 and type(policy) is str and policy in {"each","once"},"invalid Gram batch contract")
+    demand(exact_value(batch,gram_batch_contract(products,policy)),"invalid Gram preparation/materialization scope")
+    demand(report["m"]*report["n"]*report["k"]*products<=134217728,"Gram batch work limit exceeded")
+    dense_products=report["m"]*report["n"]*report["k"]*products
+    independent_products=report["n"]*(report["n"]+1)//2*report["k"]*products
+    demand(exact_value(report.get("useful_integer_products_per_call"),dense_products)
+        and exact_value(report.get("gram_dense_equivalent_integer_products_per_call"),dense_products)
+        and exact_value(report.get("gram_independent_integer_products_per_call"),independent_products),"Gram report mathematical work mismatch")
+    passed=[row for row in variants if row.get("status")=="passed"]
+    names={row["name"] for row in passed}
+    demand({"rns8_prepared_dense_gram_control","rns8_single_source_gram_scalar","blocked_cpp_int"}<=names,
+           "Gram batch requires prepared dense, single-source scalar and full exact blocked controls")
+    if int(report["abs_partial_sum_bound"])<=(1 << 63)-1:demand("blocked_native_i64" in names,"admitted native64 blocked comparator missing")
+    for row in passed:
+        name=row["name"];rns=name.startswith("rns8_")
+        demand(not rns or name in {"rns8_prepared_dense_gram_control","rns8_single_source_gram_scalar","rns8_single_source_gram_wmma"},"unexpected Gram implementation")
+        single=rns and name!="rns8_prepared_dense_gram_control";wmma=name=="rns8_single_source_gram_wmma"
+        expected=dict(batch,implementation="retained_single_source" if single else "public_prepared_dense" if rns else "cpu_native_comparator",
+            public_api="rns8_gram_residues" if single else "rns8_execute_prepared" if rns else None,
+            rns_exports_per_batch=(products if policy=="each" else 1) if rns else 0,
+            native_serializations_per_batch=0 if rns else products,prepared_gram_api=False,
+            job_list_allocated_per_call=single,capability_probed_per_call=wmma)
+        demand(exact_value(row.get("metadata",{}).get("gram_batch"),expected),"Gram variant preparation/export identity mismatch")
+        if single:
+            demand(exact_value(row["metadata"].get("independent_integer_products_per_call"),independent_products)
+                and exact_value(row["metadata"].get("dense_equivalent_integer_products_per_call"),dense_products),"Gram variant mathematical work mismatch")
+        demand(positive(row.get("median_gram_product_ns")) and math.isclose(row["median_gram_product_ns"]*products,row["median_steady_ns"],rel_tol=1e-12)
+            and positive(row.get("gram_products_per_second")) and math.isclose(row["gram_products_per_second"]*row["median_steady_ns"],1e9*products,rel_tol=1e-12)
+            and row.get("call_rate_unit")=="complete_R_product_application_batches_per_second","Gram batch rate unit mismatch")
+        for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+            demand(exact_value(sample.get("gram_products"),products)
+                and exact_value(sample.get("rns_exports"),expected["rns_exports_per_batch"])
+                and exact_value(sample.get("verified_outputs_after_interval"),1),"Gram sample work/verification count mismatch")
+        if rns:
+            for sample in row["samples"]:
+                demand(not {"pack_and_upload_ns","changed_input_pack_and_prepared_refresh_ns"}&sample["phases_ns"].keys(),"unchanged Gram samples must reuse packed input")
+            demand("changed_input_pack_and_prepared_refresh_ns" in row["changed_input"]["phases_ns"],"changed Gram generation must repack/refresh")
+        if report["sustained_ms"]:
+            burst=row["sustained"];count=burst["calls"]
+            demand(exact_value(burst.get("gram_products"),count*products)
+                and exact_value(burst.get("rns_exports"),count*expected["rns_exports_per_batch"])
+                and exact_value(burst.get("verified_outputs_after_interval"),1)
+                and positive(burst.get("mean_gram_product_ns"))
+                and math.isclose(burst["mean_gram_product_ns"]*count*products,burst["elapsed_ns"],rel_tol=1e-12),"Gram sustained work mismatch")
+
+
+def validate_report(report: dict, run_id: str, backend: str, device: int, gram_request=None) -> dict:
     demand(type(report) is dict and report.get("schema") == SCHEMA, "unexpected workload schema")
     demand(report.get("status") == "passed", "workload did not pass")
     demand(report.get("workload") in {"integer_cross_product", "integer_gram", "gf251_linear_transform",
@@ -286,6 +382,7 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
     order = report.get("sustained_order")
     demand(type(order) is list and len(order) == len(expected_order)
            and sorted(order) == sorted(expected_order), "sustained order must cover each measured variant exactly once")
+    validate_gram_batch(report,variants,gram_request)
     identity["variants"] = admitted
     return identity
 
@@ -313,6 +410,7 @@ def collect(executable: Path, arguments: list[str], runs: int, timeout: float) -
     demand(1 <= runs <= 100 and positive(timeout), "invalid process count/timeout")
     executable = executable.resolve(strict=True)
     backend, device = request_identity(arguments)
+    gram_request=requested_gram_batch(arguments)
     digest = sha(executable)
     tools = {Path(__file__).name: sha(Path(__file__))}
     record = {"schema": "rns8_workload_collection_v1", "executable": str(executable), "executable_sha256": digest,
@@ -334,7 +432,7 @@ def collect(executable: Path, arguments: list[str], runs: int, timeout: float) -
             demand(sha(executable) == digest, "executable changed during independent process")
             demand(result.returncode == 0, f"process returned {result.returncode}; unsupported is retained without fallback")
             report = json.loads(result.stdout)
-            identity = validate_report(report, run_id, backend, device)
+            identity = validate_report(report, run_id, backend, device, gram_request)
             row["observation"] = report
             if baseline is None: baseline = identity
             demand(identity == baseline, "workload/provenance/comparison identity changed across independent processes")

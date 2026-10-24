@@ -109,8 +109,8 @@ template<class State, class... Arguments> Variant state_variant(const std::strin
 }
 inline void add_integer_baselines(std::vector<Variant>& variants, Json& skipped, const Dataset& data,
     const Options& options, const cpp_int& bound, uint32_t limbs, bool chain = false) {
-  const uint64_t products = uint64_t(options.m) * options.n * options.k +
-      (chain ? uint64_t(options.m) * options.n * options.n : 0);
+  const uint64_t products = (uint64_t(options.m) * options.n * options.k +
+      (chain ? uint64_t(options.m) * options.n * options.n : 0))*std::max(options.gram_reuse,1u);
   if (products <= options.baseline_max_products)
     variants.push_back(state_variant<IntegerBaseline<cpp_int>>(chain ? "naive_cpp_int_chain" : "naive_cpp_int", data, options, false, chain, limbs));
   else skipped.push_back({{"name", "naive_cpp_int"}, {"status", "not_run"},

@@ -13,6 +13,9 @@ inline Json storage_info(const rns8::Matrix& matrix) {
           {"host_native_bytes", info.host_native_bytes}, {"device_native_bytes", info.device_native_bytes},
           {"layout", info.layout_version}, {"source_version", info.source_version}};
 }
+struct WorkloadPreparedDeleter {
+  void operator()(rns8_prepared_execution* value) const noexcept { (void)rns8_destroy_prepared_execution(value); }
+};
 struct DenseEngine {
   const Dataset& data;
   const Options& options;
@@ -20,6 +23,8 @@ struct DenseEngine {
   std::unique_ptr<rns8::Plan> plan;
   std::unique_ptr<rns8::Workspace> workspace;
   std::unique_ptr<rns8::Matrix> a, b, c;
+  std::unique_ptr<rns8_prepared_execution,WorkloadPreparedDeleter> prepared;
+  uint64_t packed_version=0;
   Words words;
   std::vector<int64_t> native;
   Json metadata;
@@ -51,37 +56,73 @@ struct DenseEngine {
     if (a) metadata["storage"]["a"] = storage_info(*a);
     metadata["single_source_gram"] = gram_method >= 0;
     if (gram_method >= 0) {
-      metadata["independent_integer_products_per_call"] = uint64_t(options.n)*(options.n+1)/2*options.k;
-      metadata["dense_equivalent_integer_products_per_call"] = uint64_t(options.n)*options.n*options.k;
+      metadata["independent_integer_products_per_call"] = uint64_t(options.n)*(options.n+1)/2*options.k*std::max(options.gram_reuse,1u);
+      metadata["dense_equivalent_integer_products_per_call"] = uint64_t(options.n)*options.n*options.k*std::max(options.gram_reuse,1u);
       metadata["gram_method"] = gram_method == RNS8_GRAM_WMMA ? "wmma" : "scalar";
     }
     metadata["modeled_device_storage_envelope_bytes"] = modeled_bytes;
+    if (options.gram_reuse) {
+      options.memory->reserve(4096,options.memory_mib*UINT64_C(1024)*1024,"Gram retained preparation metadata allowance");
+      pack(1);
+      if (gram_method < 0) {
+        rns8_prepared_execution* handle=nullptr;
+        rns8::check(rns8_prepare_gemm(context.get(),plan->get(),a->get(),b->get(),c->get(),workspace->get(),&handle));
+        prepared.reset(handle);
+      }
+      metadata["gram_batch"]=gram_batch_contract(options);
+      metadata["gram_batch"]["implementation"]=gram_method < 0 ? "public_prepared_dense" : "retained_single_source";
+      metadata["gram_batch"]["public_api"]=gram_method < 0 ? "rns8_execute_prepared" : "rns8_gram_residues";
+      metadata["gram_batch"]["rns_exports_per_batch"]=options.gram_export=="each"?options.gram_reuse:1;
+      metadata["gram_batch"]["native_serializations_per_batch"]=0;
+      metadata["gram_batch"]["prepared_gram_api"]=false;
+      metadata["gram_batch"]["job_list_allocated_per_call"]=gram_method>=0;
+      metadata["gram_batch"]["capability_probed_per_call"]=gram_method==RNS8_GRAM_WMMA;
+    }
   }
-  void execute(Phases& phases, uint64_t version) {
-    phases.measure("pack_and_upload_ns", [&] {
-      if (a) rns8::check(rns8_pack_i64(context.get(), a->get(), data.a.data(), options.k, version));
-      rns8::check(rns8_pack_i64(context.get(), b->get(), data.b.data(), options.n, options.gram ? version : 1));
+  void pack(uint64_t version) {
+    if (a) rns8::check(rns8_pack_i64(context.get(),a->get(),data.a.data(),options.k,version));
+    rns8::check(rns8_pack_i64(context.get(),b->get(),data.b.data(),options.n,options.gram?version:1));
+    packed_version=version;
+  }
+  void compute(Phases& phases) {
+    phases.measure("gemm_and_required_sync_ns",[&] {
+      if(gram_method>=0)
+        rns8::check(rns8_gram_residues(context.get(),b->get(),c->get(),RNS8_GRAM_TRANSPOSE_TIMES_SELF,
+            static_cast<rns8_gram_method>(gram_method),options.memory_mib*UINT64_C(1024)*1024));
+      else if(prepared) {
+        rns8_completion_token token{};rns8::check(rns8_execute_prepared(prepared.get(),&token));
+      } else rns8::check(rns8_gemm_rns(context.get(),plan->get(),a->get(),b->get(),c->get(),workspace->get()));
     });
-    phases.measure("gemm_and_required_sync_ns", [&] {
-      if (gram_method >= 0)
-        rns8::check(rns8_gram_residues(context.get(), b->get(), c->get(),
-            RNS8_GRAM_TRANSPOSE_TIMES_SELF, static_cast<rns8_gram_method>(gram_method),
-            options.memory_mib*UINT64_C(1024)*1024));
-      else rns8::check(rns8_gemm_rns(context.get(), plan->get(), a->get(), b->get(), c->get(), workspace->get()));
-    });
-    phases.measure("reconstruction_and_download_ns", [&] {
-      if (options.wide) rns8::check(rns8_export_exact_wide_signed_limbs(context.get(), plan->get(), c->get(), words.data(), options.n, 3));
+  }
+  void reconstruct(Phases& phases) {
+    phases.measure("reconstruction_and_download_ns",[&] {
+      if(options.wide) rns8::check(rns8_export_exact_wide_signed_limbs(context.get(),plan->get(),c->get(),words.data(),options.n,3));
       else {
-        rns8::check(rns8_export_i64(context.get(), plan->get(), c->get(), native.data(), options.n));
-        for (std::size_t index = 0; index < native.size(); ++index) words[index] = bits_of(native[index]);
+        rns8::check(rns8_export_i64(context.get(),plan->get(),c->get(),native.data(),options.n));
+        for(size_t index=0;index<native.size();++index) words[index]=bits_of(native[index]);
       }
     });
   }
+  void execute(Phases& phases,uint64_t version) {
+    if(options.gram_reuse) {
+      if(version!=packed_version) phases.measure("changed_input_pack_and_prepared_refresh_ns",[&] {
+        pack(version);if(prepared) rns8::check(rns8_refresh_prepared_inputs(prepared.get()));
+      });
+      for(uint32_t product=0;product<options.gram_reuse;++product) {
+        compute(phases);
+        if(options.gram_export=="each") reconstruct(phases);
+      }
+      if(options.gram_export=="once") reconstruct(phases);
+    } else {
+      phases.measure("pack_and_upload_ns",[&] {pack(version);});compute(phases);reconstruct(phases);
+    }
+  }
+
 };
 inline Variant dense_variant(const Dataset& data, const Options& options, const cpp_int& bound) {
   const auto start = Clock::now(); auto state = std::make_shared<DenseEngine>(data, options, bound);
   Variant result;
-  result.name = "rns8_" + std::string(backend_name(options.backend)); result.setup_ns = since(start);
+  result.name = options.gram_reuse ? "rns8_prepared_dense_gram_control" : "rns8_" + std::string(backend_name(options.backend)); result.setup_ns = since(start);
   result.metadata = state->metadata;
   result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
   result.output = [state]() -> const Words& { return state->words; };

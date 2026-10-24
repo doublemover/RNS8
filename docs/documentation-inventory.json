@@ -2311,6 +2311,17 @@
       ]
     },
     {
+      "path": "docs/gram-prepared-reuse.md",
+      "purpose": "Define retained Gram computation and output materialization cohorts",
+      "audience": "Benchmark authors and exact-integer application researchers",
+      "disposition": "keep",
+      "canonical": "docs/gram-prepared-reuse.md",
+      "owner": "examples/workloads/integer_cross_product.cpp",
+      "reason": "Public prepared dense versus retained single-source Gram contracts, per-generation preparation, repeated work/export accounting, full outside references and authored-only evidence boundary.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/joint-scheme-search.md",
       "purpose": "Joint basis and schedule oracle",
       "audience": "Planner/generator researchers",

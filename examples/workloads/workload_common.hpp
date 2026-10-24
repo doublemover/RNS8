@@ -71,12 +71,12 @@ struct MemoryBudget {
   }
 };
 struct Options {
-  uint32_t m = 64, n = 64, k = 96, bits = 8, repeats = 3, warmups = 1, sustained_ms = 0;
+  uint32_t m = 64, n = 64, k = 96, bits = 8, repeats = 3, warmups = 1, sustained_ms = 0, gram_reuse = 0;
   uint64_t seed = 3135, memory_mib = 256, baseline_max_products = 4000000;
   rns8_backend_kind backend = RNS8_BACKEND_HIP_DIRECT;
   int device = 0;
   bool json = false, wide = false, gram = false, reference_only = false;
-  std::string size = "modest", pattern = "seeded", run_id = "standalone";
+  std::string size = "modest", pattern = "seeded", run_id = "standalone", gram_export = "once";
   std::set<std::string> supplied;
   std::shared_ptr<MemoryBudget> memory = std::make_shared<MemoryBudget>();
 };
@@ -92,6 +92,7 @@ inline Options options(int argc, char** argv) {
           "--device 0..63 (CPU uses -1) --reference-only --json --run-id ID\n"
           "--size tiny|modest|large --m M --n N --k K (1..512) --bits 1..63\n"
           "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
+          "--gram-reuse 1..256 --gram-export each|once (explicit --gram batch only; default once)\n"
           "--sustained-ms 0..10000 (0 disables production-style repeated calls)\n"
           "--memory-mib 1..4096 --baseline-max-products 1..134217728 --wide --gram\n"
           "tiny uses a named hand-checkable fixture; large is explicit opt-in.\n"
@@ -114,6 +115,10 @@ inline Options options(int argc, char** argv) {
     else if (key == "--n") out.n = static_cast<uint32_t>(number(value, 1, 512, "n"));
     else if (key == "--k") out.k = static_cast<uint32_t>(number(value, 1, 512, "k"));
     else if (key == "--bits") out.bits = static_cast<uint32_t>(number(value, 1, 63, "bits"));
+    else if (key == "--gram-reuse") out.gram_reuse = static_cast<uint32_t>(number(value, 1, 256, "gram-reuse"));
+    else if (key == "--gram-export") {
+      require(value == "each" || value == "once", "invalid --gram-export"); out.gram_export = value;
+    }
     else if (key == "--seed") out.seed = number(value, 0, UINT64_MAX, "seed");
     else if (key == "--repeats") out.repeats = static_cast<uint32_t>(number(value, 1, 100, "repeats"));
     else if (key == "--warmups") out.warmups = static_cast<uint32_t>(number(value, 0, 20, "warmups"));
@@ -143,7 +148,18 @@ inline Options options(int argc, char** argv) {
   if (out.gram) {
     require(!out.supplied.count("--n") || out.n == out.m, "Gram requires N=M features"); out.n = out.m;
   }
+  require(!out.gram_reuse || out.gram, "--gram-reuse requires --gram");
+  require(!out.supplied.count("--gram-export") || out.gram_reuse, "--gram-export requires --gram-reuse");
+  if (out.gram_reuse)
+    require(uint64_t(out.m)*out.n*out.k*out.gram_reuse <= 134217728,
+            "Gram batch exceeds134217728 mathematical products; reduce shape/reuse");
   return out;
+}
+inline Json gram_batch_contract(const Options& options) {
+  return {{"version",1},{"products_per_batch",options.gram_reuse},
+          {"export_policy",options.gram_export},{"reference_outputs_per_batch",1},
+          {"input_preparation","pack_once_per_generation"},
+          {"scope","R identical products recomputed synchronously; complete final native host output"}};
 }
 inline void reject_options(const Options& options, std::initializer_list<const char*> keys) {
   for (const char* key : keys) require(!options.supplied.count(key), std::string(key) + " is irrelevant for this workload");

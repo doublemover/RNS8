@@ -94,6 +94,17 @@ actual request reports unsupported; a CPU run is never counted as GPU coverage.
 
 ## Range, comparators and resource limits
 
+For retained single-source Gram cohorts, use `integer-cross-product --gram
+--gram-reuse R --gram-export each|once`, with R in1..256. Inputs are packed once
+per generation, then every application call recomputes R complete products.
+The dense control uses a public prepared GEMM owner; the triangular scalar/WMMA
+paths call the synchronous public Gram API with retained matrices. `each`
+reconstructs/downloads R outputs; `once` reconstructs only the final output.
+CPU comparators still serialize their native result after each product and
+report that distinct boundary. The [Gram cohort guide](../../docs/gram-prepared-reuse.md)
+defines measured work, mutation refresh, sustained intervals and collector
+checks. These additions are authored only, pending consolidated validation.
+
 The complex workload computes `Cr=ArBr−AiBi`, `Ci=ArBi+AiBr` without conjugation.
 It uses only public `rns8_gemm_complex_exact_signed`, explicitly selecting 3M and
 4M on CPU reference or direct HIP; other named backends report unsupported.
@@ -226,7 +237,9 @@ Cold application total is explicitly the sum of measured common input/layout
 preparation, per-variant resource setup, first synchronous call and eventual
 resource teardown. Teardown occurs after the reuse experiment; this sum is not
 one contiguous wall-clock sample. Steady samples retain allocations and stable
-input generations, but recompute and export every result. Verification, report
+input generations, but recompute and export every result under the default
+single-product contract. Explicit Gram batches use their recorded `each`/`once`
+export policy. Verification, report
 formatting and I/O are outside both measured calls. Public APIs combine pack/
 upload and reconstruction/download, so isolated transfers, kernel-only timing
 and device events remain null with a reason. No invented timing separation is

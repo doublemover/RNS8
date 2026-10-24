@@ -3,7 +3,8 @@
 #include "workload_common.hpp"
 namespace rns8_workload {
 inline Json sustained_sample(Variant& variant, uint32_t target_ms, const Words& expected) {
-  // All variants recompute and serialize their complete output on every call.
+  // Each call completes its declared output policy. Gram batches may defer
+  // reconstruction until the final recomputation; native comparators serialize each.
   // Keep both reference work and diagnostic phase clocks outside this interval.
   Phases phases;
   phases.enabled = false;
@@ -18,12 +19,19 @@ inline Json sustained_sample(Variant& variant, uint32_t target_ms, const Words& 
   const auto verification_start = Clock::now();
   require(variant.output() == expected, "sustained final exact output mismatch: " + variant.name);
   const auto hash = checksum(variant.output());
-  return {{"calls", calls}, {"elapsed_ns", elapsed}, {"mean_call_ns", elapsed / calls},
+  Json result={{"calls", calls}, {"elapsed_ns", elapsed}, {"mean_call_ns", elapsed / calls},
           {"target_ms", target_ms}, {"call_limit", 4096},
           {"target_reached", elapsed >= double(target_ms) * 1e6},
           {"checksum_u64", hash}, {"final_exact_reference_passed", true},
           {"verification_ns", since(verification_start)}, {"phase_timing_enabled", false},
           {"scope", "same inputs/version and retained allocations; full synchronous application output every call; no reference, checksum or phase timing between calls; complete final output verified after timing"}};
+  if(variant.metadata.contains("gram_batch")) {
+    const auto& batch=variant.metadata["gram_batch"];
+    const uint64_t products=uint64_t(calls)*batch["products_per_batch"].get<uint32_t>();
+    result["gram_products"]=products;result["rns_exports"]=uint64_t(calls)*batch["rns_exports_per_batch"].get<uint32_t>();
+    result["mean_gram_product_ns"]=elapsed/products;result["verified_outputs_after_interval"]=1;
+  }
+  return result;
 }
 inline Json verified_sample(Variant& variant, uint64_t version, const Words& expected) {
   Phases phases;
@@ -32,8 +40,14 @@ inline Json verified_sample(Variant& variant, uint64_t version, const Words& exp
   require(variant.output() == expected, "full exact output mismatch: " + variant.name);
   const auto hash = checksum(variant.output());
   const double verification = since(verification_start);
-  return {{"application_ns", application}, {"phases_ns", phases.values}, {"verification_ns", verification},
+  Json result={{"application_ns", application}, {"phases_ns", phases.values}, {"verification_ns", verification},
           {"checksum_u64", hash}, {"exact_reference_passed", true}};
+  if(variant.metadata.contains("gram_batch")) {
+    result["gram_products"]=variant.metadata["gram_batch"]["products_per_batch"];
+    result["rns_exports"]=variant.metadata["gram_batch"]["rns_exports_per_batch"];
+    result["verified_outputs_after_interval"]=1;
+  }
+  return result;
 }
 template<class Data> inline void run_variants(Json& report, const Options& options, const Data& data, std::vector<Variant>& variants,
     const Words& expected, const std::function<Words()>& mutate_and_reference, Json skipped = Json::array()) {
@@ -80,6 +94,11 @@ template<class Data> inline void run_variants(Json& report, const Options& optio
     records[index]["min_steady_ns"] = times.front(); records[index]["max_steady_ns"] = times.back();
     records[index]["calls_per_second"] = 1e9 / median;
     records[index]["within_process_only"] = true;
+    if(options.gram_reuse) {
+      records[index]["median_gram_product_ns"]=median/options.gram_reuse;
+      records[index]["gram_products_per_second"]=1e9*options.gram_reuse/median;
+      records[index]["call_rate_unit"]="complete_R_product_application_batches_per_second";
+    }
     const auto teardown_start = Clock::now();
     variants[index].execute = {}; variants[index].output = {};
     const double teardown = since(teardown_start);

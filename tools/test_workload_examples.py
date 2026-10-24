@@ -82,6 +82,84 @@ def complex_fixture():
     return report
 
 
+def gram_batch_fixture(products=3,policy="once"):
+    report=fixture("integer_gram");batch=collector.gram_batch_contract(products,policy)
+    report.update(gram_batch=batch,output_limbs_per_cell=1,output_contract="row_major_signed_i64",abs_partial_sum_bound="243")
+    report.update(useful_integer_products_per_call=12*products,gram_dense_equivalent_integer_products_per_call=12*products,
+        gram_independent_integer_products_per_call=9*products)
+    before=collector.checksum_bytes(collector.canonical_words([14,-22,-22,161]));after=collector.checksum_bytes(collector.canonical_words([17,-14,-14,161]))
+    report.update(checksum_u64=before,checksum_hex=f"{before:016x}",changed_checksum_u64=after)
+    prototype=report["variants"][0];report["variants"]=[]
+    for name,implementation in (("blocked_cpp_int","cpu_native_comparator"),("rns8_prepared_dense_gram_control","public_prepared_dense"),("rns8_single_source_gram_scalar","retained_single_source"),("blocked_native_i64","cpu_native_comparator")):
+        row=copy.deepcopy(prototype);row["name"]=name;rns=name.startswith("rns8_");single=implementation=="retained_single_source"
+        metadata=dict(batch,implementation=implementation,public_api="rns8_gram_residues" if single else "rns8_execute_prepared" if rns else None,
+            rns_exports_per_batch=(products if policy=="each" else 1) if rns else 0,native_serializations_per_batch=0 if rns else products,
+            prepared_gram_api=False,job_list_allocated_per_call=single,capability_probed_per_call=False)
+        row["metadata"]["gram_batch"]=metadata
+        if single:row["metadata"].update(independent_integer_products_per_call=9*products,dense_equivalent_integer_products_per_call=12*products)
+        row.update(median_gram_product_ns=100/products,gram_products_per_second=1e9*products/100,call_rate_unit="complete_R_product_application_batches_per_second")
+        for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+            sample.update(checksum_u64=before,gram_products=products,rns_exports=metadata["rns_exports_per_batch"],verified_outputs_after_interval=1)
+        row["changed_input"].update(checksum_u64=after)
+        if rns:row["changed_input"]["phases_ns"]["changed_input_pack_and_prepared_refresh_ns"]=10
+        report["variants"].append(row)
+    return report
+
+
+class GramBatchReports(unittest.TestCase):
+    def test_matched_batch_export_policies_and_counts(self):
+        for products in (1,3,32,256):
+            for policy in ("each","once"):
+                report=gram_batch_fixture(products,policy)
+                identity=collector.validate_report(report,"run1","cpu-reference",-1,collector.gram_batch_contract(products,policy))
+                self.assertEqual(identity["gram_batch"]["products_per_batch"],products)
+        for controls in (["--gram-reuse","3"],["--gram","--gram-export","once"],["--gram","--gram-reuse","0"],
+            ["--gram","--gram-reuse","1.0"],["--gram","--gram-reuse","3","--gram-export","sometimes"],
+            ["--gram","--gram-reuse","3","--gram-reuse","3"]):
+            with self.assertRaises(ValueError):collector.requested_gram_batch(controls)
+        self.assertEqual(collector.requested_gram_batch(["--gram","--gram-reuse","3"]),collector.gram_batch_contract(3,"once"))
+
+    def test_malformed_preparation_materialization_and_oracle(self):
+        mutations=[lambda r:r["gram_batch"].update(products_per_batch=True),lambda r:r["gram_batch"].update(export_policy="late"),
+            lambda r:r.update(gram_batch={}),lambda r:r.update(checksum_u64=123,checksum_hex="000000000000007b"),
+            lambda r:r["variants"][0]["metadata"]["gram_batch"].update(native_serializations_per_batch=1),
+            lambda r:r["variants"][1]["metadata"]["gram_batch"].update(public_api="rns8_gemm_rns"),
+            lambda r:r["variants"][2]["metadata"]["gram_batch"].update(prepared_gram_api=True),
+            lambda r:r.update(useful_integer_products_per_call=12),
+            lambda r:r["variants"][2]["metadata"].update(dense_equivalent_integer_products_per_call=12),
+            lambda r:r["variants"][1]["samples"][0].update(gram_products=1),
+            lambda r:r["variants"][1]["samples"][0]["phases_ns"].update(pack_and_upload_ns=10),
+            lambda r:r["variants"][1]["changed_input"]["phases_ns"].pop("changed_input_pack_and_prepared_refresh_ns"),
+            lambda r:r["variants"][1].update(median_gram_product_ns=1)]
+        for mutate in mutations:
+            report=gram_batch_fixture();mutate(report)
+            with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+        report=gram_batch_fixture()
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1,collector.gram_batch_contract(3,"each"))
+
+    def test_sustained_batch_products_and_final_only_verification(self):
+        report=gram_batch_fixture();report["sustained_ms"]=1
+        report["sustained_order"]=[row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"]={"calls":16,"elapsed_ns":2000000,"mean_call_ns":125000,"target_ms":1,"call_limit":4096,
+                "target_reached":True,"checksum_u64":report["checksum_u64"],"final_exact_reference_passed":True,"verification_ns":2,
+                "phase_timing_enabled":False,"scope":"fixture final output only","gram_products":48,
+                "rns_exports":16*row["metadata"]["gram_batch"]["rns_exports_per_batch"],"mean_gram_product_ns":2000000/48,"verified_outputs_after_interval":1}
+        collector.validate_report(report,"run1","cpu-reference",-1)
+        report["variants"][0]["sustained"]["gram_products"]=16
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+
+    def test_requested_cohort_mismatch_retains_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable=Path(directory)/"fake.exe";executable.write_bytes(b"fixture")
+            def process(command,**kwargs):
+                report=gram_batch_fixture(3,"once");report["run_id"]=command[-1]
+                return subprocess.CompletedProcess(command,0,json.dumps(report),"")
+            with patch.object(collector.subprocess,"run",side_effect=process):
+                record=collector.collect(executable,["--reference-only","--gram","--gram-reuse","3","--gram-export","each"],1,10)
+            self.assertEqual(record["status"],"failed");self.assertIn("requested Gram batch",record["errors"][0]["reason"])
+
+
 class Reports(unittest.TestCase):
     def test_sustained_final_verification_and_bounded_duration(self):
         report = fixture()
@@ -299,7 +377,8 @@ class Compiled(unittest.TestCase):
                 self.assertEqual(len({row["run_id"] for row in result["runs"]}), 2)
 
     def test_gram_wide_patterns_and_generator_override(self):
-        cases = [("integer-cross-product", ["--gram"]), ("integer-cross-product", ["--wide", "--bits", "40"]),
+        cases = [("integer-cross-product", ["--gram"]), ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "once"]),
+                 ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "each"]), ("integer-cross-product", ["--wide", "--bits", "40"]),
                  ("integer-cross-product", ["--seed", "0"]), ("integer-cross-product", ["--pattern", "zero"]),
                  ("gf251-transform", ["--seed", "1"]), ("gf251-transform", ["--pattern", "sparse"]),
                  ("resident-chain", ["--pattern", "zero"]), ("resident-chain", ["--bits", "12"]),
@@ -322,7 +401,7 @@ class Compiled(unittest.TestCase):
                 self.assertEqual(result["status"], "passed", result["errors"])
 
     def test_invalid_cli_is_rejected_before_gpu_work(self):
-        invalid = (["--m", "0"], ["--n", "513"], ["--k", "-1"], ["--repeats", "0"], ["--warmups", "21"], ["--sustained-ms", "10001"],
+        invalid = (["--gram-reuse", "3"], ["--gram-export", "once"], ["--gram", "--gram-reuse", "0"], ["--gram", "--gram-reuse", "257"], ["--m", "0"], ["--n", "513"], ["--k", "-1"], ["--repeats", "0"], ["--warmups", "21"], ["--sustained-ms", "10001"],
                    ["--seed", "18446744073709551616"], ["--bits", "64"], ["--memory-mib", "0"],
                    ["--m", "2junk"], ["--repeats", "1", "--repeats", "1"], ["--unknown", "1"],
                    ["--backend", "auto"], ["--backend", "hip-direct"], ["--device", "0"], ["--m"])
@@ -336,6 +415,8 @@ class Compiled(unittest.TestCase):
                             ("integer-cross-product", ["--size", "tiny", "--bits", "63"]),
                             ("resident-chain", ["--size", "tiny", "--bits", "63"])):
             with self.subTest(program=name, flags=flags): self.invoke(name, flags, success=False)
+        for name in PROGRAMS[1:]:
+            self.invoke(name,["--gram","--gram-reuse","3","--gram-export","once"],success=False)
 
     def test_complex_specific_controls_and_unsupported_backend(self):
         for flags in (["--wide"], ["--gram"], ["--size", "large", "--memory-mib", "1"]):

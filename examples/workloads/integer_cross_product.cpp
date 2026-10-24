@@ -5,6 +5,8 @@
 using namespace rns8_workload;
 int main(int argc, char** argv) {
   return program(argc, argv, [](const Options& options) {
+    if(options.gram_reuse && options.backend!=RNS8_BACKEND_CPU_REFERENCE && options.backend!=RNS8_BACKEND_HIP_DIRECT)
+      throw rns8::Error(RNS8_UNSUPPORTED_BACKEND);
     memory_admission(options);
     Dataset data = make_data(options);
     // This envelope bounds every partial, including after the explicit mutation.
@@ -38,6 +40,25 @@ int main(int argc, char** argv) {
     std::vector<Variant> variants;
     Json skipped = Json::array();
     add_integer_baselines(variants, skipped, data, options, bound, limbs);
+    if(options.gram_reuse) {
+      report["gram_batch"]=gram_batch_contract(options);
+      report["bound_method"]="K * max_abs_X_including_changed_X0 squared; no cancellation assumption";
+      report["useful_integer_products_per_call"]=uint64_t(options.m)*options.n*options.k*options.gram_reuse;
+      report["work_definition"]="R complete identical Gram products per application batch; dense equivalent mathematical products, counted once each";
+      report["lifecycle"]="packed inputs and public dense preparation retained per generation; R complete products per batch; explicit each/once reconstruction; generation2 repacks and refreshes prepared dense inputs";
+      for(auto& variant:variants) {
+        const auto execute=variant.execute;const uint32_t reuse=options.gram_reuse;
+        variant.execute=[execute,reuse](Phases& phases,uint64_t version) {for(uint32_t product=0;product<reuse;++product) execute(phases,version);};
+        variant.metadata["gram_batch"]=gram_batch_contract(options);
+        variant.metadata["gram_batch"]["implementation"]="cpu_native_comparator";
+        variant.metadata["gram_batch"]["public_api"]=nullptr;
+        variant.metadata["gram_batch"]["rns_exports_per_batch"]=0;
+        variant.metadata["gram_batch"]["native_serializations_per_batch"]=reuse;
+        variant.metadata["gram_batch"]["prepared_gram_api"]=false;
+        variant.metadata["gram_batch"]["job_list_allocated_per_call"]=false;
+        variant.metadata["gram_batch"]["capability_probed_per_call"]=false;
+      }
+    }
     variants.push_back(dense_variant(data, options, bound));
     if (options.gram && (options.backend==RNS8_BACKEND_CPU_REFERENCE || options.backend==RNS8_BACKEND_HIP_DIRECT)) {
       variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR));
@@ -48,8 +69,8 @@ int main(int argc, char** argv) {
           variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA));
         else skipped.push_back({{"name","rns8_single_source_gram_wmma"},{"reason","requires RDNA3 IU8 target"}});
       }
-      report["gram_independent_integer_products_per_call"]=uint64_t(options.n)*(options.n+1)/2*options.k;
-      report["gram_dense_equivalent_integer_products_per_call"]=uint64_t(options.n)*options.n*options.k;
+      report["gram_independent_integer_products_per_call"]=uint64_t(options.n)*(options.n+1)/2*options.k*std::max(options.gram_reuse,1u);
+      report["gram_dense_equivalent_integer_products_per_call"]=uint64_t(options.n)*options.n*options.k*std::max(options.gram_reuse,1u);
     }
     run_variants(report, options, data, variants, expected, [&] {
       mutate_input(data);
