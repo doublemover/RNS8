@@ -179,6 +179,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
   add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
   add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
+  add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   foreach(_calibrator IN ITEMS
       rns8-crt-calibrate
       rns8-native-calibrate
@@ -188,7 +189,8 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-word-mod-calibrate
       rns8-instruction-roof-calibrate
       rns8-split-k-calibrate
-      rns8-ragged-calibrate)
+      rns8-ragged-calibrate
+      rns8-stream-panel-calibrate)
     rns8_bind_manifest(${_calibrator})
     target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
     target_link_libraries(${_calibrator} PRIVATE rns8_static nlohmann_json::nlohmann_json)

@@ -87,6 +87,28 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
   add_test(NAME split_k_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_split_k.py")
   add_test(NAME ragged_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_ragged.py")
+  add_test(NAME stream_panel_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_stream_panels.py")
+  if(TARGET rns8-stream-panel-calibrate)
+    set_tests_properties(stream_panel_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_STREAM_PANEL_EXE=$<TARGET_FILE:rns8-stream-panel-calibrate>"
+      LABELS "tools;stream-panels;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_stream_domain IN ITEMS signed unsigned)
+        foreach(_stream_mode IN ITEMS incore stream)
+          if(_stream_mode STREQUAL "stream")
+            set(_stream_panel_arguments 2 2 5 2048 192)
+          else()
+            set(_stream_panel_arguments 0 0 0 0 0)
+          endif()
+          add_test(NAME stream_panel_${_stream_domain}_${_stream_mode}_smoke
+            COMMAND rns8-stream-panel-calibrate 0 ${_stream_mode} 2 3 17 ${_stream_domain}
+              3 9 ${_stream_panel_arguments} 2 2 1 ctest-panels-${_stream_domain}-${_stream_mode})
+          set_tests_properties(stream_panel_${_stream_domain}_${_stream_mode}_smoke PROPERTIES
+            LABELS "hip;stream-panels;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   if(TARGET rns8-ragged-calibrate)
     set_tests_properties(ragged_collector_self_test PROPERTIES
       ENVIRONMENT "RNS8_RAGGED_EXE=$<TARGET_FILE:rns8-ragged-calibrate>"

@@ -1,0 +1,69 @@
+{
+  "schema": "rns8_stream_panel_cases_v1",
+  "cases": [
+    {
+      "device": 0,
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "signed",
+      "bits": 3,
+      "prefix": 9,
+      "reuse": 2,
+      "mode": "incore",
+      "panel_m": 0,
+      "panel_n": 0,
+      "panel_k": 0,
+      "device_budget_bytes": 0,
+      "host_budget_bytes": 0
+    },
+    {
+      "device": 0,
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "signed",
+      "bits": 3,
+      "prefix": 9,
+      "reuse": 2,
+      "mode": "stream",
+      "panel_m": 2,
+      "panel_n": 2,
+      "panel_k": 5,
+      "device_budget_bytes": 2048,
+      "host_budget_bytes": 192
+    },
+    {
+      "device": 0,
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "unsigned",
+      "bits": 3,
+      "prefix": 9,
+      "reuse": 2,
+      "mode": "incore",
+      "panel_m": 0,
+      "panel_n": 0,
+      "panel_k": 0,
+      "device_budget_bytes": 0,
+      "host_budget_bytes": 0
+    },
+    {
+      "device": 0,
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "unsigned",
+      "bits": 3,
+      "prefix": 9,
+      "reuse": 2,
+      "mode": "stream",
+      "panel_m": 2,
+      "panel_n": 2,
+      "panel_k": 5,
+      "device_budget_bytes": 2048,
+      "host_budget_bytes": 192
+    }
+  ]
+}

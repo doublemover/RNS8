@@ -68,9 +68,9 @@ completion and overflowing global spans. Public HIP fixtures force many M/N/K
 panels under a budget smaller than complete resident operands, compare full
 signed/unsigned output to Boost, preserve padding and reject violated bounds.
 All execution remains pending. Async overlap, exact-wide/finite/wrap extensions,
-calibrated panel selection and capacity/performance receipts
-remain development/qualification work; no throughput claim follows from the
-serial implementation.
+calibrated panel selection and reviewed capacity/performance receipts remain
+development/qualification work; no throughput claim follows from the serial
+implementation.
 
 An installed public-header consumer is available as
 `examples/downstream-cmake/stream_bounded_i64.cpp`. Its default mode checks
@@ -78,3 +78,75 @@ budget queries without a device; explicit `--hip` performs two full products,
 checks padding and generation/coverage receipts, and verifies BUSY ownership
 and preflight rejection. Installed CTest GPU execution is opt-in via
 `RNS8_DOWNSTREAM_GPU_TESTS`. This authored example is awaiting the final batch.
+
+## Public serial panel calibration
+
+`rns8-stream-panel-calibrate` compares the public serial owner with ordinary
+in-core direct-HIP GEMM under the same native host input to checked native host
+output boundary. In-core calls pack both inputs with source version zero on
+every call, compute the product and export it; the panel call includes its full
+input bound scan, panel copies, conversion, K accumulation and checked export.
+The in-core recipe's complete input bound is independently checked before timing.
+This is an application wall-cost control, not a kernel-only comparison.
+
+Both modes use explicit signed-i64 or unsigned-u64 semantics, a selected fixed
+RNS prefix and the conservative complete-expression bound
+`K * (2^BITS - 1)^2`. Cases that exceed the native output or selected CRT range
+are rejected before context creation. The versioned SplitMix64 recipe uses seed
+6811, records all three checksums, starts A[0] and B[0] at the declared maximum,
+then changes A[0] to zero in generation two. All input/output row strides include
+three padding cells. Every output and padding cell is compared outside timing
+with a full Boost int256 product, independently audited by cpp_int at both edge
+columns of every row. Fixed Boost operand buffers are released before timing.
+
+The first phase reports query, context/owner or plan/workspace/matrix setup, and
+the first native host-to-host batch separately. The same owner then runs warmups,
+sampled batches and an uninterrupted sustained interval, followed by changed
+input execution with the same plan. Sustained timing has no independent oracle
+inside it, targets 250 ms and stops after 16 to 4096 batches; a final full audit
+follows. Stream mode also measures checked destroy/create plus first execution,
+and probes a violated source bound to verify output and epoch preservation.
+Generation labels do not imply cached panels or a skipped input scan.
+
+Stream receipts report the public query's required device arena, host staging,
+minimum capacities, caller spans, output tiles and K panels per tile. The
+collector independently replays the eight 256-byte-aligned arena regions and
+checks observed completed-panel counts and epochs at every sampled audit.
+Device-budget-minus-one and host-budget-minus-one probes must preserve the
+query receipt and return `RNS8_WORKSPACE_TOO_SMALL`. Panels may be clipped to the
+logical shape, but insufficient budgets never shrink the requested panel.
+In-core receipts query matrix payload/staging capacities after audits and record
+plan workspace separately. The aggregate 512 MiB logical-payload admission
+charges all retained caller and reference output buffers, a conservative
+512-byte-per-logical-cell allowance, queried panel capacities and workspace.
+The allowance covers fixed Boost operands and public matrix/packing payloads;
+queried retained capacities are checked against it. Runtime/context internals,
+allocator bookkeeping and spare capacity remain outside that model. These are
+required or queried capacities, not measured process peak, HBM traffic or proof
+that an allocation exceeded device memory. The serial path asserts no overlap.
+
+After building with `RNS8_BUILD_BENCHMARKS=ON`, collect independent processes:
+
+```powershell
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/smoke.json --output temp/stream-panels-smoke --runs 5 --repeats 9 --warmups 3
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/tails.json --output temp/stream-panels-tails --runs 5 --repeats 9 --warmups 3
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/large-bounded.json --output temp/stream-panels-large --runs 5 --repeats 9 --warmups 3
+```
+
+Use the same executable names without `.exe` on Linux. The manifests explicitly
+select direct-HIP device 0; edit and retain a separate case manifest when another
+device is intended. `--help` lists the complete positional driver contract.
+`smoke.json` covers both signednesses and matched controls. `tails.json` adds
+clipped panels, uneven tiles and K=65535/65536/65537. `large-bounded.json` includes
+128, 256 and 512 square cases with fixed panel budgets; these remain within the
+bounded host reference domain, rather than claiming an out-of-VRAM workload.
+
+The collector rejects malformed or duplicate cases, metadata/binding/coverage
+mismatches and artifact changes; it retains raw failed receipts. It hashes the
+executable, collector and validator dependencies, interpreter and manifest around
+each child process, validates existing build provenance, and keeps dirty,
+unknown-dependency or diagnostic CRT builds ineligible for promotion. Summaries
+compare observed phase-matched independent processes, with panel sizes and
+budgets still visible; they do not extrapolate crossover or capacity claims.
+The suite and its fixtures are authored only; execution and measurements await
+the consolidated validation batch.
