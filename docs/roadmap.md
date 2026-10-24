@@ -75,25 +75,54 @@ Focused topic guides retain arithmetic proofs and remaining gates:
 | Work | Current boundary / next acceptance | Issue |
 |---|---|---|
 | Conversion-aware planning and roofs | Offline certified models/calibration; target measurements, memory/instruction roofs and held-out regret remain | [#30](https://github.com/doublemover/RNS8/issues/30), [#31](https://github.com/doublemover/RNS8/issues/31) |
-| Bound discovery and variable prefixes | Private device discovery/adaptive/ragged candidates; public generation-bound integration and measured cost tradeoffs remain | [#34](https://github.com/doublemover/RNS8/issues/34), [#35](https://github.com/doublemover/RNS8/issues/35) |
+| Bound discovery and variable prefixes | Device discovery/adaptive/ragged candidates, compact device-bucket workers and explicit matrix-owned adaptive API are authored; four-wave register/one-buffer/two-buffer native WMMA candidates are authored; summary reuse and measured cost tradeoffs remain | [#34](https://github.com/doublemover/RNS8/issues/34), [#35](https://github.com/doublemover/RNS8/issues/35) |
 | Scheduling | Private queue/split-K and logical locality models; measured configuration selection and broader target work remain | [#36](https://github.com/doublemover/RNS8/issues/36), [#37](https://github.com/doublemover/RNS8/issues/37), [#38](https://github.com/doublemover/RNS8/issues/38) |
-| Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives need performance/representation integration | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
-| Resident execution | Public synchronous DAGs and explicit fixed-prefix HIP stream/capture subsets; broader nodes, allocation reuse and latency/overlap qualification remain | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
-| Algebraic composition | Public exact-wide epilogue, private matrix-engine/block candidates; broader public contracts and measured routing remain | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
-| Low-bit/floating encodings | Scalar certificates and private subsets; public research semantics remain reserved, with target proof/ISA/performance gates | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives include an authored tile-major CRT consumer; performance and broader representation integration remain | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
+| Resident execution | Public synchronous DAGs and fixed-prefix HIP stream/capture subsets; cancellation, timed observation, failed-drain quarantine and synchronous paired-complex nodes are authored; broader async nodes, runtime allocation reuse and qualification remain | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
+| Algebraic composition | Public exact-wide epilogue and experimental paired complex 3M/4M; opt-in public one-level Strassen ownership is authored; rank-23 straight-line execution and measured routing remain | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. Floating hardware/public execution remains reserved, with target proof/ISA/performance gates | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Integrity/sparse/multi-GPU | Private check-residue/block-sparse candidates and explicit public Sparse-A; integration and true distributed execution remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Narrow/generated kernels | Checked research candidates/generator; public dispatch, target expansion and measured selection remain | [#53](https://github.com/doublemover/RNS8/issues/53), [#55](https://github.com/doublemover/RNS8/issues/55) |
 | Additional hardware | Future CDNA5 TDM/cluster and optional CPU matrix instruction work | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
 
 ## Setup and examples dependencies
 
-Current setup uses explicit roots and existing package/pin information.
-Automatic discovery is [#57](https://github.com/doublemover/RNS8/issues/57),
-bounded Linux GPU sessions are [#58](https://github.com/doublemover/RNS8/issues/58),
-and compatibility-gated upgrades/locks are [#60](https://github.com/doublemover/RNS8/issues/60).
-Practical GPU application examples are [#62](https://github.com/doublemover/RNS8/issues/62).
-Documentation consolidation [#61](https://github.com/doublemover/RNS8/issues/61)
-consumes existing functionality without implementing those dependencies.
+Shared write-free toolchain discovery is implemented under
+[#57](https://github.com/doublemover/RNS8/issues/57); explicit roots take precedence.
+[Dependency locks](dependency-versions.md) select the new non-GPU dependency stack
+under [#60](https://github.com/doublemover/RNS8/issues/60). Installation and lock
+selection are distinct from compilation and runtime qualification. Bounded Linux
+GPU sessions [#58](https://github.com/doublemover/RNS8/issues/58) now author bounded
+plans, isolated environments, checkpoints and resume through the existing runner;
+Linux rehearsal remains deferred. Public application examples and
+independent baselines are implemented under [#62](https://github.com/doublemover/RNS8/issues/62);
+the paired-complex fifth workload is authored, while sustained production-boundary
+measurements remain in the final validation batch. Documentation consolidation
+[#61](https://github.com/doublemover/RNS8/issues/61) consumes those concrete boundaries.
+
+### Current frontloaded batch
+
+The last completed local all-feature retry at `1bb5e33` passed 491 tests with
+three expected target-inapplicable sparse skips and no failures; its raw receipt
+is `temp/1bb5e33-tests-retry.log`. The separate 17-mode native smoke collection
+also passed. These results predate the new dependency and source changes.
+
+Subsequent commits author failed-drain quarantine, token-bound diagnostics,
+cooperative cancellation, timed observation, typed async support queries, an
+experimental public paired-complex API and resident graph node, compact adaptive
+workers, an explicit retained-native adaptive API, offline dependency-proven arena
+reuse, and direct tile-major CRT consumption with matched route calibration. Their
+fixtures are written; no new project validation or benchmark pass has run.
+The user requested all remaining implementation before one consolidated pass.
+Do not interpret a pushed implementation or an installed compiler as qualification.
+
+The user explicitly deferred ROCm 10.1 and hardware-dependent Linux multi-GPU,
+Instinct/CDNA and unavailable instruction-family qualification. Retain the
+HIP 7.1 accelerator pins for this local batch. VS 2026 18.11.1 and the isolated
+non-GPU dependency stack (including GMP/MPFR/FLINT) are installed; their project
+qualification remains pending. Git's installer update remains
+pending after automatic approval review blocked its command. These gaps cannot
+be represented as completed issue acceptance.
 
 ## Stop conditions for hardware work
 
@@ -118,3 +147,18 @@ Use the recorded baseline above for subsequent registered-test evidence.
 The chronological [implementation boundary](archive/implementation-checkpoints-2026-10-23.md#subsequent-implementation-boundary)
 is preserved with its original context; current public/private boundaries are
 owned by the linked topic guides.
+
+
+### Current source frontload
+
+Source additions after the last executed checkpoint include multiwave native WMMA,
+public one-level Strassen exact export ownership, floating rewrite host oracles and
+shared epilogue/lift admission providers. Their fixtures are authored, not executed.
+The final upgraded-stack campaign remains deferred until the implementation frontload
+ends. No new source commit inherits the old checkpoint's qualification.
+
+Concrete remaining development includes dependent-token async transfers/lift/export,
+runtime materialization/liveness allocation, broader runtime recipe providers,
+generation-owned encoded-B/narrow/block-sparse integration and rank-23 straight-line
+execution. These are code gaps, distinct from unavailable hardware and measured
+promotion gates. Completion of one validation batch cannot by itself close them.
