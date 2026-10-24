@@ -260,11 +260,18 @@ class Discovery(unittest.TestCase):
         if os.name == "nt": command += ["-DVCPKG_ROOT=" + str(self.vcpkg())]
         script = self.put(self.base, "handoff.cmake", 'include("' + (ROOT / "cmake/rns8_discovery.cmake").as_posix() + '")\n'
             'file(WRITE "bound-paths.txt" "${RNS8_HIP_ROOT}\\n${RNS8_HIP_HIPCC}\\n${RNS8_HIP_COMPILER_ENVIRONMENT}\\n${RNS8_HIP_COMMON_FLAGS}\\n${CMAKE_PREFIX_PATH}")\n')
-        command += ["-DCMAKE_PREFIX_PATH=" + str(sdk), "-P", str(script)]
+        # An existing cache can retain the broken path flags. The environment
+        # handoff must clear them rather than forwarding them to hipcc.
+        command += ["-DRNS8_HIP_COMMON_FLAGS=--hip-path=stale SDK with spaces", "-DCMAKE_PREFIX_PATH=" + str(sdk), "-P", str(script)]
         result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=40)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads((cwd / "dependency-discovery/resolution.json").read_text(encoding="utf-8"))
         self.assertEqual(Path(report["cmake_bindings"]["RNS8_HIP_ROOT"]), sdk)
+        bound = (cwd / "bound-paths.txt").read_text(encoding="utf-8")
+        self.assertNotIn("--hip-path", bound)
+        self.assertNotIn("--hip-device-lib-path", bound)
+        for name, value in report["compiler_environment"].items():
+            self.assertIn(name + "=" + value, bound)
         if os.name == "nt":
             self.assertNotIn("\\", (cwd / "bound-paths.txt").read_text(encoding="utf-8"))
             self.assertTrue(all("\\" not in value for value in report["cmake_bindings"].values()))

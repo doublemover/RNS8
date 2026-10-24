@@ -106,7 +106,6 @@ function(rns8_compile_hip_source out_var source)
     COMMAND
       "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
       "${RNS8_HIP_HIPCC}"
-      ${RNS8_HIP_COMMON_FLAGS}
       ${_arch_args}
       ${_host_runtime_args}
       ${_pic_args}

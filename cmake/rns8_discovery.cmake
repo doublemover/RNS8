@@ -122,9 +122,11 @@ if(RNS8_ENABLE_HIP)
     set(ENV{${_rns8_name}} "${_rns8_env_value}")
   endforeach()
   set(RNS8_HIP_COMPILER_ENVIRONMENT "${_rns8_hip_environment}" CACHE INTERNAL "Selected SDK environment for compiler child processes")
-  get_filename_component(_rns8_hip_prefix "${RNS8_HIP_INCLUDE_DIR}" DIRECTORY)
-  set(RNS8_HIP_COMMON_FLAGS "--hip-path=${_rns8_hip_prefix};--hip-device-lib-path=${RNS8_HIP_DEVICE_LIB_DIR}"
-      CACHE INTERNAL "Selected SDK compiler path flags")
+  # hipcc on Windows joins unknown --option=value arguments into a shell
+  # command without preserving spaces. Its supported environment variables
+  # select these exact paths without another command-line parsing boundary.
+  # Clear flags left by earlier configurations as well.
+  set(RNS8_HIP_COMMON_FLAGS "" CACHE INTERNAL "SDK paths are passed through the selected compiler environment" FORCE)
 endif()
 # Discovery/configure is not permission to bootstrap/download missing packages.
 # A user can deliberately select the existing vcpkg install workflow separately.

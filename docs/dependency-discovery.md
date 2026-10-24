@@ -103,9 +103,10 @@ unknown remains null. Selected compiler/header/library/runtime file hashes are
 identity artifacts, not a hash of every SDK header or proof of binary loading.
 
 The HIP compiler child processes receive the selected `HIP_PATH`, `ROCM_PATH`,
-`HIP_CLANG_PATH` and device-library directory. Real kernel commands also carry
-explicit HIP/device-library path flags, including overrides. These are process
-settings; the user's system environment remains unchanged. See the upstream
+`HIP_CLANG_PATH` and `HIP_DEVICE_LIB_PATH`, including component overrides.
+These paths pass through the child environment because the Windows HIP driver
+can lose spaces when forwarding joined path flags. These are process settings;
+the user's system environment remains unchanged. See the upstream
 [Clang HIP path rules](https://clang.llvm.org/docs/HIPSupport.html) and
 [HIPCC environment variables](https://rocm.docs.amd.com/projects/HIPCC/en/docs-6.0.2/env.html).
 The STL overlay probe uses the selected Clang driver rather than assuming it
