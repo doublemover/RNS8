@@ -1275,7 +1275,7 @@ rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,
 namespace word_mod {struct Problem;struct FloatingRequest;}
 rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b,void* c,
     const word_mod::Problem& problem,uint64_t budget,bool& commit_started,bool packed_dot4=false,
-    const word_mod::FloatingRequest* floating=nullptr);
+    const word_mod::FloatingRequest* floating=nullptr,bool byte_wmma=false);
 
 rns8_status hip_direct_native_view_bound(int device_id,const void* source,void* scratch,
     int64_t rows,int64_t cols,int64_t ld,bool signed_values,uint64_t& bound);

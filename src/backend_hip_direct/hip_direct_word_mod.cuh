@@ -106,3 +106,66 @@ extern "C" int rns8_hip_word_mod_floating(const void* a,const void* b,void* c,in
       m,n,k,lda,ldb,ldc,modulus,schedule);
   return int(hipGetLastError());
 }
+
+#if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) && __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
+#define RNS8_WORD_WMMA 1
+#else
+#define RNS8_WORD_WMMA 0
+#endif
+__global__ void rns8_word_mod_wmma_capability(int* flag) {*flag=RNS8_WORD_WMMA;}
+// Each wave owns 16x16 outputs. Process one byte diagonal at a time so the
+// 15 diagonal accumulators do not require 120 simultaneously live registers.
+// Native operands are reread for each diagonal; this is priced by calibration.
+__global__ __launch_bounds__(32) void rns8_word_mod_wmma_kernel(
+    const uint64_t* __restrict__ a,const uint64_t* __restrict__ b,uint64_t* __restrict__ c,
+    int m,int n,int k,int lda,int ldb,int ldc,uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
+#if RNS8_WORD_WMMA
+  using namespace rns8::detail::word_mod;
+  using fragment=int __attribute__((ext_vector_type(4)));
+  using accumulator=int __attribute__((ext_vector_type(8)));
+  const int lane=threadIdx.x,row=int(blockIdx.y)*16+(lane&15),col=int(blockIdx.x)*16+(lane&15);
+  uint64_t result[8]{};
+  unsigned bytes=1;for(uint64_t remaining=(modulus-1)>>8;remaining;remaining>>=8) ++bytes;
+  for(int64_t begin=0;begin<k;begin+=digit_slab_k) {
+    const int64_t end=begin+digit_slab_k<k?begin+digit_slab_k:k;
+    for(unsigned diagonal=0;diagonal<2*bytes-1;++diagonal) {
+      accumulator acc{};
+      const unsigned first=diagonal>=bytes?diagonal-bytes+1:0,last=diagonal<bytes?diagonal:bytes-1;
+      for(int64_t q=begin;q<end;q+=16) for(unsigned i=first;i<=last;++i) {
+        const unsigned j=diagonal-i;fragment av{},bv{};
+        for(unsigned word=0;word<4;++word) {
+          uint32_t ap=0,bp=0;
+          for(unsigned digit=0;digit<4;++digit) {
+            const int64_t h=q+word*4+digit;
+            const uint64_t va=row<m && h<end?a[int64_t(row)*lda+h]:0;
+            const uint64_t vb=col<n && h<end?b[h*ldb+col]:0;
+            ap|=uint32_t((va>>(8*i))&255)<<(8*digit);
+            bp|=uint32_t((vb>>(8*j))&255)<<(8*digit);
+          }
+          av[word]=int(ap);bv[word]=int(bp);
+        }
+        acc=__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32(false,av,false,bv,acc,false);
+      }
+      // 4096*8*255^2=2130739200 <= INT32_MAX; every term is nonnegative.
+      for(unsigned reg=0;reg<8;++reg)
+        result[reg]=add(result[reg],multiply(weights.values[diagonal],uint64_t(acc[reg])%modulus,modulus),modulus);
+    }
+  }
+  if(col<n) for(int reg=0;reg<8;++reg) {
+    const int output_row=int(blockIdx.y)*16+2*reg+(lane>>4);
+    if(output_row<m) c[int64_t(output_row)*ldc+col]=result[reg];
+  }
+#else
+  (void)a;(void)b;(void)c;(void)m;(void)n;(void)k;(void)lda;(void)ldb;(void)ldc;(void)modulus;(void)weights;
+#endif
+}
+extern "C" int rns8_hip_word_mod_wmma_capability(int* flag) {
+  hipLaunchKernelGGL(rns8_word_mod_wmma_capability,dim3(1),dim3(1),0,nullptr,flag);return int(hipGetLastError());
+}
+extern "C" int rns8_hip_word_mod_wmma(const void* a,const void* b,void* c,int m,int n,int k,int lda,int ldb,int ldc,
+    uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
+  hipLaunchKernelGGL(rns8_word_mod_wmma_kernel,dim3((uint64_t(n)+15)/16,(uint64_t(m)+15)/16),dim3(32),0,nullptr,
+      static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),static_cast<uint64_t*>(c),m,n,k,lda,ldb,ldc,modulus,weights);
+  return int(hipGetLastError());
+}
+#undef RNS8_WORD_WMMA

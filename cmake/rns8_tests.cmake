@@ -166,7 +166,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       ENVIRONMENT "RNS8_WORD_MOD_CALIBRATION_EXE=$<TARGET_FILE:rns8-word-mod-calibrate>"
       LABELS "tools;word-modular;cli")
     if(RNS8_ENABLE_HIP)
-      foreach(_word_method IN ITEMS baseline packed_dot4)
+      foreach(_word_method IN ITEMS baseline packed_dot4 byte_wmma)
         foreach(_word_scope IN ITEMS resident cold)
           foreach(_word_domain IN ITEMS ring prime_field)
             if(_word_domain STREQUAL "ring")
