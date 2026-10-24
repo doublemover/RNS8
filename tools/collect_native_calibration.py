@@ -13,6 +13,7 @@ from modulus_set_search import DEFAULT_MODULI
 
 
 CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
+              "complex_3m", "complex_4m",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
@@ -50,6 +51,8 @@ def validate_case(case):
     if narrow and (case["prefix"] != 1 or case["k"] > 32768
                    or (case["candidate"] == "narrow_scalar" and case["unsigned_inputs"])):
         raise ValueError("narrow cases require prefix=1, K<=32768; scalar is signed only")
+    if case["candidate"].startswith("complex_") and (case["prefix"] != 20 or case["unsigned_inputs"]):
+        raise ValueError("complex cases require signed inputs, prefix20 and group1")
     normalized = dict(case)
     if case["candidate"] in QUEUED:
         workers = case.get("workers", 32)
@@ -133,6 +136,20 @@ def capture_contract(case, run_id, repeats, warmups):
                     actual_hbm_bytes=None, timing_resolution_ns=None)
     expected.update(scheduling_contract(case))
     expected.update(narrow_contract(case))
+    if case["candidate"].startswith("complex_"):
+        m, n, k, prefix = (case[key] for key in ("m", "n", "k", "prefix"))
+        three = case["candidate"] == "complex_3m"
+        expected.update(dataset="split_complex_full_signed64_mt19937_3135_extrema_v1",
+                        input_domain="resident_split_complex_centered_residues",
+                        output_contract="paired_exact_signed_residues_no_integer_export",
+                        real_products=3 if three else 4,
+                        scratch_peak_bytes=((m*k+k*n)+5*m*n)*prefix if three else 6*m*n*prefix,
+                        native_input_storage_bytes=2*(m*k+k*n)*8,
+                        residue_input_storage_bytes=2*(m*k+k*n)*prefix,
+                        residue_output_bytes=2*m*n*prefix, component_bound=str(k*(1 << 127)),
+                        reference_method="boost_int256_four_products_all_outputs_with_cpp_int_boundary_columns",
+                        input_preparation_scope="native upload, four input packs and common allocations; outside resident repeated calls")
+        return expected
     if case["candidate"] in ("queue_prepared", "grid_prepared"):
         expected["queue_preparation_scope"] = "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls"
     if not case["candidate"].startswith("narrow_"):
@@ -168,6 +185,8 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
+    if case["candidate"].startswith("complex_") and not positive_number(capture.get("input_prepare_ns")):
+        raise ValueError("invalid complex input preparation timing")
     if case["candidate"] in ("queue_prepared", "grid_prepared"):
         if not positive_number(capture.get("queue_prepare_ns")):
             raise ValueError("invalid prepared queue setup timing")

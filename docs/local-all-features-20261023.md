@@ -1,8 +1,12 @@
 # RX 7900 XTX expanded validation — 2026-10-23
 
-The complete local optional-backend build at `c7f7e05` registered 471 tests:
-**468 passed, three target-inapplicable skips, zero failures**. The full repair
-pass took 158.83 seconds with `OMP_NUM_THREADS=3` and serial CTest scheduling.
+The latest complete local optional-backend build at `51ae8d8` registered 492 tests:
+**489 passed, three target-inapplicable skips, zero failures**. The pass took
+219.57 seconds with `OMP_NUM_THREADS=3` and serial CTest scheduling; no repair
+retry was needed. It includes prepared queue descriptors, private complex
+3M/four-product GPU differentials, the four public workload examples and both
+CPU/HIP consumers rebuilt against the installed package. All 14 native
+calibration modes also passed a separate smoke collection at this revision.
 
 | Configuration | Evidence |
 |---|---|
@@ -18,11 +22,14 @@ pass took 158.83 seconds with `OMP_NUM_THREADS=3` and serial CTest scheduling.
 The separate rocWMMA/OpenMP configuration at `8c79b2c` passed 431/431 tests.
 LLVM 22 CPU ASan at that revision registered 303 tests: 297 passed and six
 HIP-only tests skipped, with zero failures. Those earlier runs precede the
-hipBLASLt repair below; the all-feature repair pass is the latest GPU evidence.
+hipBLASLt repair below; the `51ae8d8` all-feature pass is the latest GPU evidence.
 
-GitHub CI at `c7f7e05` also passed all 18 push/PR check runs: the Ubuntu CPU job
+GitHub CI at `8cbf595` passed all 18 push/PR check runs: the Ubuntu CPU job
 and the GCC/Clang × OpenMP on/off × shared/static CPU matrix. These are Linux CPU
-results; the Linux GPU qualification boundary is unchanged.
+results; the Linux GPU qualification boundary is unchanged. That later revision
+also covers the sustained-workload controls and internal complex matrix owner
+on CPU. Their local HIP validation, the matched prepared ordinary-grid control
+and subsequent discovery/calibration changes await the next coordinated pass.
 
 ## Failure found and repaired
 
@@ -37,7 +44,9 @@ rejects cache hits for zero/exhausted generations, and updates the private
 metadata names and assertions. Regressions cover signed/unsigned chains,
 same-generation B-handle swaps, retained allocations and generation exhaustion.
 `c7f7e05` ensures the exhaustion fixture performs a fresh import before testing
-publication. The complete suite was then retried once, with the result above.
+publication. The complete suite was then retried once at `c7f7e05`: 468 passes,
+three expected skips across 471 registered tests in 158.83 seconds. Subsequent
+fresh passes expanded coverage to the latest result above.
 
 ## Reproduction
 

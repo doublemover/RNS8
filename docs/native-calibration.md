@@ -17,6 +17,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
 | `queue_prepared` | Reuse admitted device descriptors; reset cursor and execute | Resident native 64-bit and prepared descriptors |
 | `grid_prepared` | Reuse the same preparation; launch ordinary grids without a cursor | Same resident inputs and descriptor allocation |
+| `complex_3m`, `complex_4m` | Three/four real products with staged paired recombination | Four resident input components to two residue outputs |
 | `split_k` | Three fragments (or K if smaller), queue, canonicalize, merge/store | Resident native 64-bit |
 
 The product cases in this table produce the same default-basis residue planes for matched
@@ -99,6 +100,25 @@ intentionally matched control separates scheduling from allocation/capability
 overhead. It does not establish the minimum setup cost of an ordinary-only
 implementation. The tracked comparison now includes this control at both sizes;
 the earlier ten-case collection predates it.
+
+`complex_3m` and `complex_4m` compare the private split-complex compositions with
+identical full-width signed input recipes, prefix 20 and group 1. Both components
+are compared in full against four independent integer products; an exact
+256-bit reference covers every output and separate unbounded Boost arithmetic
+audits both boundary columns. The declared maximum K keeps each component
+below 2^145. Eight tail bytes per output detect out-of-range stores.
+
+The resident timing includes admission, scratch allocation/free, sum transforms,
+three or four real GEMMs, recombination, dual commit and synchronization.
+Native upload/packing is measured separately as `input_prepare_ns`; neither
+candidate performs final integer export. No transformed panel cache is used,
+including during the sustained reused-input interval. The report records both
+output storage and the actual admitted scratch peak: 3M needs two input-sum
+panels plus five output-sized planes; 4M needs six output-sized planes. Thus
+fewer products does not imply less memory. The
+[complex comparison cases](../benchmarks/native-calibration/complex-residues.json)
+include 32³, a 1×512×512 skinny case and 512³. These modes await compiled
+validation and measurement; no complex speedup is established yet.
 
 `collect_native_calibration.py` accepts an explicit JSON list of case objects
 with `candidate,m,n,k,prefix,group,unsigned_inputs`. Queue and split-K cases may

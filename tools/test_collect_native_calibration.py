@@ -27,6 +27,8 @@ def case_for(candidate, **changes):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
+    if candidate.startswith("complex_"):
+        case["prefix"] = 20
     return validate_case({**case, **changes})
 
 
@@ -34,6 +36,8 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
     capture = capture_contract(case, run_id, repeats, warmups)
     if case["candidate"] in ("queue_prepared", "grid_prepared"):
         capture.update(queue_prepare_ns=2000.25, queue_descriptor_storage_bytes=1024)
+    if case["candidate"].startswith("complex_"):
+        capture.update(input_prepare_ns=3000.5)
     synthetic_identity(capture)
     capture.update(device="synthetic mocked GPU", target="gfx1100", runtime_version=70100000,
                    timing_scope="synthetic scoped timing", cache_state="synthetic repeated inputs",
@@ -64,7 +68,7 @@ class CaseTest(unittest.TestCase):
     def test_all_modes_groups_and_signedness(self):
         for candidate in CANDIDATES:
             for unsigned in (False, True):
-                if candidate == "narrow_scalar" and unsigned:
+                if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
                 for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
@@ -132,6 +136,8 @@ class CaseTest(unittest.TestCase):
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
         malformed.append({**case_for("narrow_scalar"), "unsigned_inputs": True})
+        for candidate in ("complex_3m", "complex_4m"):
+            malformed += [{**case_for(candidate), "prefix": 19}, {**case_for(candidate), "unsigned_inputs": True}]
         for case in malformed:
             with self.subTest(case=case), self.assertRaises(ValueError):
                 validate_case(case)
@@ -154,6 +160,20 @@ class CaseTest(unittest.TestCase):
 
 
 class CaptureTest(unittest.TestCase):
+    def test_complex_costs_and_component_contract(self):
+        for candidate, products, scratch in (("complex_3m", 3, (17*257+257*19+5*17*19)*20),
+                                              ("complex_4m", 4, 6*17*19*20)):
+            case = case_for(candidate)
+            record = capture_for(case)
+            self.assertEqual(record["real_products"], products)
+            self.assertEqual(record["scratch_peak_bytes"], scratch)
+            self.assertEqual(record["residue_output_bytes"], 2*17*19*20)
+            self.assertEqual(record["component_bound"], str(257*(1 << 127)))
+            for invalid in (None, False, 0, -1, "100", float("nan")):
+                with self.subTest(candidate=candidate, invalid=invalid):
+                    record["input_prepare_ns"] = invalid
+                    with self.assertRaises(ValueError): validate_capture(record, case, "fixture-run", 3, 1)
+
     def test_every_required_metadata_field_is_checked_for_all_modes(self):
         for candidate in CANDIDATES:
             case = case_for(candidate)

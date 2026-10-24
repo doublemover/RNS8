@@ -1,5 +1,6 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"
 #include "core/hip_resources.hpp"
@@ -91,17 +92,19 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 }
 
 #include "native_narrow_calibration.inc"
+#include "complex_residue_calibration.inc"
 
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|"
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|complex_3m|complex_4m|"
         "narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
         "repeats:1..10000 warmups:1..1000; group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k.\n"
-        "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.";
+        "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
+        "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
     if (argc != 11 && argc != 12) throw std::invalid_argument(usage);
     // Preserve the original ten arguments; optional workers follows run identity.
@@ -115,6 +118,8 @@ int main(int argc, char** argv) {
     const uint32_t requested_workers = queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
     const bool native = candidate == "wmma" || queued || prepared;
+    if (candidate == "complex_3m" || candidate == "complex_4m")
+      return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
       return calibrate_narrow(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";

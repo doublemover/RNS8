@@ -9,7 +9,7 @@ preserves earlier work without duplicating current status.
 ## Recorded baseline
 
 The [expanded October 23 validation](local-all-features-20261023.md) records the
-`c7f7e05` Windows/gfx1100 all-feature build, 468 passes, three target-inapplicable
+`51ae8d8` Windows/gfx1100 all-feature build, 489 passes, three target-inapplicable
 sparse skips and zero failures. It supersedes older local pending-runtime notes
 for the registered applicable tests, including repaired hipBLASLt operand-cache
 identity. The [512³/1024³ report](7900xtx-large-throughput-2026-10-23.md) is the
