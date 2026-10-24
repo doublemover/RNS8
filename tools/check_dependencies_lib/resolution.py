@@ -44,6 +44,24 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def running_python_identity() -> dict:
+    """Identify the running executable without switching interpreter or venv."""
+    candidate = Path(sys.executable)
+    try:
+        executable_hash = digest(candidate)
+    except OSError as error:
+        raise ValueError("running Python executable is unreadable (Windows Store aliases are unsupported): "
+                         + str(candidate) + ". Select a readable directly runnable interpreter with "
+                         "-DPython3_EXECUTABLE=/path/to/python; no interpreter fallback was attempted. " + str(error)) from error
+    # Hashing follows symlinks, while invocation must retain a venv's lexical
+    # executable path instead of switching to its base binary.
+    path = str(candidate.absolute())
+    runtime = {"path": path, "version": ".".join(map(str, sys.version_info[:3])),
+               "implementation": sys.implementation.name, "prefix": canonical(sys.prefix),
+               "base_prefix": canonical(sys.base_prefix), "executable_sha256": executable_hash}
+    return {**runtime, "launcher": sys.executable, "runtime_identity": runtime}
+
+
 def split_paths(value: str, host: str) -> list[str]:
     # CMake cache lists use semicolons on every host. Native environment lists
     # can also use colons; never split a Windows drive letter on Linux/WSL.
@@ -527,15 +545,23 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
                 bindings[key.removesuffix("_ROOT") + "_LIBRARY"] = selected_optional["paths"]["library"]
             if selected_optional["paths"].get("cmake_package"): bindings["hipblaslt_DIR"] = selected_optional["paths"]["cmake_package"]
     tools = {}
+    try:
+        python_identity = running_python_identity()
+    except ValueError as error:
+        errors.append(str(error)); python_identity = None
     for name in ("cmake", "ninja", "git", "python", "host_cxx"):
         override = request.overrides.get("CMAKE_CXX_COMPILER") if name == "host_cxx" else None
         if override:
             path = canonical(override) if Path(override).is_file() else shutil.which(override, path=env.get("PATH", ""))
             if not path: errors.append("explicit CMAKE_CXX_COMPILER does not identify an executable: " + override)
+        elif name == "python":
+            path = python_identity["path"] if python_identity else None
         else:
-            path = sys.executable if name == "python" else shutil.which("cl" if request.host == "Windows" and name == "host_cxx" else "c++" if name == "host_cxx" else name, path=env.get("PATH", ""))
+            path = shutil.which("cl" if request.host == "Windows" and name == "host_cxx" else "c++" if name == "host_cxx" else name, path=env.get("PATH", ""))
         tools[name] = {"path": canonical(path) if path else None, "origin": "override:CMAKE_CXX_COMPILER" if override else "running_interpreter" if name == "python" else "PATH",
                        "version": None, "status": "discovered" if path else "missing", "compatibility": "not_run"}
+        if name == "python" and python_identity:
+            tools[name].update(python_identity)
     manifest = Path(request.source_root) / "vcpkg.json"
     report = {"schema": SCHEMA, "request": asdict(request), "status": "invalid" if errors else "resolved", "errors": errors,
               "hip": hip, "vcpkg": vcpkg, "toolchain": toolchain, "optional_components": optional, "tools": tools,
@@ -553,7 +579,8 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
     identity = {"host": request.host, "hip": selected_identity(hip) if request.require_hip else {"status": "disabled"},
                 "toolchain": toolchain, "vcpkg": selected_identity(vcpkg) if toolchain.get("provider") == "vcpkg" else {"status": "unused"},
                 "optional": {name: selected_identity(item) if item["feature_enabled"] else {"status": "disabled"} for name, item in optional.items()},
-                "tools": {name: {"path": item["path"], "version": item["version"]} for name, item in tools.items()},
+                "tools": {name: ({"runtime_identity": item["runtime_identity"]} if name == "python" and python_identity else
+                                  {"path": item["path"], "version": item["version"]}) for name, item in tools.items()},
                 "feature_policy": {key: request.features.get(key, False) for key in FEATURE_KEYS},
                 "targets": request.overrides.get("RNS8_AMDGPU_TARGETS", "gfx1100"),
                 "manifest_sha256": report["manifest_sha256"]}

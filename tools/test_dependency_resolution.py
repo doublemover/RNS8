@@ -240,6 +240,60 @@ class Discovery(unittest.TestCase):
         overrides, features = r.read_cache(cache)
         self.assertEqual(overrides, {"RNS8_HIP_ROOT": "/sdk path"}); self.assertTrue(features["RNS8_ENABLE_HIP"])
 
+    def test_readable_explicit_python_preserves_interpreter_and_venv(self):
+        executable = self.put(self.base, "venv/Scripts/python.exe", "venv executable")
+        prefix, base_prefix = executable.parent.parent, self.base / "base Python"
+        with patch.object(sys, "executable", str(executable)), patch.object(sys, "prefix", str(prefix)), \
+             patch.object(sys, "base_prefix", str(base_prefix)), patch.object(sys, "platform", "win32"):
+            identity = r.running_python_identity()
+        self.assertEqual(Path(identity["path"]), executable)
+        self.assertEqual(Path(identity["prefix"]), prefix)
+        self.assertRegex(identity["executable_sha256"], "^[0-9a-f]{64}$")
+
+    def test_unreadable_store_alias_is_rejected_without_prefix_or_path_fallback(self):
+        alias = self.put(self.base, "WindowsApps/python.exe")
+        effective = self.put(self.base, "Store Python 3.12/python.exe", "real Store executable")
+        original_digest = r.digest
+        def read_binary(path):
+            if path == alias: raise OSError(22, "Invalid argument")
+            return original_digest(path)
+        with patch.object(sys, "executable", str(alias)), patch.object(sys, "prefix", str(effective.parent)), \
+             patch.object(sys, "base_prefix", str(effective.parent)), patch.object(sys, "platform", "win32"), \
+             patch.object(r, "digest", side_effect=read_binary), patch.object(r.shutil, "which", side_effect=AssertionError("PATH fallback")), \
+             self.assertRaisesRegex(ValueError, "Store aliases are unsupported"):
+            r.running_python_identity()
+
+    def test_unreadable_venv_never_substitutes_base_python(self):
+        alias = self.base / "broken venv/Scripts/python.exe"
+        base = self.put(self.base, "base Python/python.exe")
+        with patch.object(sys, "executable", str(alias)), patch.object(sys, "prefix", str(alias.parent.parent)), \
+             patch.object(sys, "base_prefix", str(base.parent)), patch.object(sys, "platform", "win32"), \
+             self.assertRaisesRegex(ValueError, "no interpreter fallback"):
+            r.running_python_identity()
+
+    def test_linux_venv_invocation_path_does_not_resolve_to_base_binary(self):
+        venv = self.put(self.base, "linux venv/bin/python", "venv symlink contents")
+        base = self.put(self.base, "base/bin/python", "base executable")
+        original_canonical = r.canonical
+        def resolve_symlink(path):
+            return str(base) if Path(path) == venv else original_canonical(path)
+        # Model a Linux venv symlink even on Windows without symlink privilege.
+        with patch.object(sys, "executable", str(venv)), patch.object(sys, "prefix", str(venv.parent.parent)), \
+             patch.object(sys, "base_prefix", str(base.parent.parent)), patch.object(sys, "platform", "linux"), \
+             patch.object(r, "canonical", side_effect=resolve_symlink):
+            identity = r.running_python_identity()
+        self.assertEqual(Path(identity["path"]), venv)
+        self.assertNotEqual(Path(identity["path"]), base)
+
+    def test_cmake_invalid_explicit_python_never_falls_back(self):
+        cmake = shutil.which("cmake")
+        if not cmake: self.skipTest("CMake unavailable")
+        cwd = self.base / "invalid interpreter"; cwd.mkdir()
+        result = subprocess.run([cmake, "-DPython3_EXECUTABLE=" + str(self.base / "missing python.exe"),
+            "-P", str(ROOT / "cmake/rns8_discovery.cmake")], cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=40)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("shared dependency resolution failed", result.stdout + result.stderr)
+
     def test_cli_resolve_only_runs_no_probe_or_package_manager(self):
         sdk = self.sdk(host=platform.system())
         overrides = {"RNS8_HIP_ROOT": str(sdk)}
@@ -259,7 +313,8 @@ class Discovery(unittest.TestCase):
         command = [cmake, "-DRNS8_ENABLE_HIP=ON", "-DRNS8_HIP_ROOT=" + str(sdk), "-DPython3_EXECUTABLE=" + sys.executable]
         if os.name == "nt": command += ["-DVCPKG_ROOT=" + str(self.vcpkg())]
         script = self.put(self.base, "handoff.cmake", 'include("' + (ROOT / "cmake/rns8_discovery.cmake").as_posix() + '")\n'
-            'file(WRITE "bound-paths.txt" "${RNS8_HIP_ROOT}\\n${RNS8_HIP_HIPCC}\\n${RNS8_HIP_COMPILER_ENVIRONMENT}\\n${RNS8_HIP_COMMON_FLAGS}\\n${CMAKE_PREFIX_PATH}")\n')
+            'file(WRITE "bound-paths.txt" "${RNS8_HIP_ROOT}\\n${RNS8_HIP_HIPCC}\\n${RNS8_HIP_COMPILER_ENVIRONMENT}\\n${RNS8_HIP_COMMON_FLAGS}\\n${CMAKE_PREFIX_PATH}")\n'
+            'file(WRITE "selected-python.txt" "${Python3_EXECUTABLE}")\n')
         # An existing cache can retain the broken path flags. The environment
         # handoff must clear them rather than forwarding them to hipcc.
         command += ["-DRNS8_HIP_COMMON_FLAGS=--hip-path=stale SDK with spaces", "-DCMAKE_PREFIX_PATH=" + str(sdk), "-P", str(script)]
@@ -267,6 +322,10 @@ class Discovery(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads((cwd / "dependency-discovery/resolution.json").read_text(encoding="utf-8"))
         self.assertEqual(Path(report["cmake_bindings"]["RNS8_HIP_ROOT"]), sdk)
+        selected_python = Path((cwd / "selected-python.txt").read_text(encoding="utf-8"))
+        self.assertEqual(selected_python, Path(r.running_python_identity()["path"]))
+        self.assertEqual(Path(report["tools"]["python"]["path"]), selected_python)
+        self.assertTrue(selected_python.read_bytes())
         bound = (cwd / "bound-paths.txt").read_text(encoding="utf-8")
         self.assertNotIn("--hip-path", bound)
         self.assertNotIn("--hip-device-lib-path", bound)

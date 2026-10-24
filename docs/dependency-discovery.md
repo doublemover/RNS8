@@ -112,6 +112,15 @@ the user's system environment remains unchanged. See the upstream
 The STL overlay probe uses the selected Clang driver rather than assuming it
 lives beside `hipcc`.
 
+Host Python selection preserves an explicit interpreter or virtual environment.
+Windows autodiscovery tries `python` before `python3`. Unreadable Windows Store
+app-execution aliases are unsupported: select a readable interpreter explicitly,
+for example `-DPython3_EXECUTABLE=C:/Python313/python.exe` on a host with that
+installation. Discovery fails rather than switching interpreter versions.
+A virtual environment's invocation path stays intact even when its executable
+is a symlink to a base interpreter. The selected Python version, prefixes and
+readable executable digest are recorded in discovery identity.
+
 Windows vcpkg selection prefers an explicit `CMAKE_TOOLCHAIN_FILE` or
 `VCPKG_ROOT`, then environment `VCPKG_ROOT`, the executable's PATH root, and the
 bounded system-drive `vcpkg` root. The root must contain both the toolchain and a
