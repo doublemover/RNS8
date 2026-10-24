@@ -84,6 +84,23 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME planning_recipe_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_planning_recipe.py")
   add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
+  add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
+  if(TARGET rns8-instruction-roof-calibrate)
+    set_tests_properties(instruction_roof_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_INSTRUCTION_ROOF_EXE=$<TARGET_FILE:rns8-instruction-roof-calibrate>"
+      LABELS "tools;instruction-chain;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_roof_mode IN ITEMS raw reduce251)
+        foreach(_roof_chains IN ITEMS 1 2 4 8)
+          add_test(NAME instruction_roof_${_roof_mode}_${_roof_chains}_smoke
+            COMMAND rns8-instruction-roof-calibrate 0 ${_roof_mode} ${_roof_chains} 17 5 2 1
+              ctest-roof-${_roof_mode}-${_roof_chains})
+          set_tests_properties(instruction_roof_${_roof_mode}_${_roof_chains}_smoke PROPERTIES
+            LABELS "hip;instruction-chain;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   add_test(NAME word_mod_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_word_mod_calibration.py")
   if(TARGET rns8-word-mod-calibrate)
     set_tests_properties(word_mod_calibration_collector_self_test PROPERTIES

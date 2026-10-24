@@ -25,6 +25,7 @@ rules instead of creating independent public contracts.
 - [Native narrow](../native-narrow.md) and [public narrow owner](../narrow-native-owner.md): checked scalar/byte products with complete persistent RNS publication; new owner validation pending, #53
 - [Encoded B](../encoded-b-native.md): generation-bound materialization and explicit WMMA consumers; cold/warm reuse calibration authored, #54
 - [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register/LDS candidates and matched calibration; validation pending, #35
+- [Instruction-chain probes](../instruction-chain-calibration.md): private dependent/independent INT8 WMMA and centered-reduction controls; modeled work and unqualified event normalization, #31/#35
 - [Wide-index scalar control](../wide-index-gemm.md): private 64-bit offsets; large-span descriptors and small-allocation GPU fixtures authored, #24
 - [Native split-K](../native-split-k.md) and [persistent queues](../persistent-native-queue.md): private producer/merge scheduling, #37/#38
 - [Logical locality](../locality-schedules.md): offline permutations/model, #36

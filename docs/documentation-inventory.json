@@ -2322,6 +2322,17 @@
       "anchors": []
     },
     {
+      "path": "docs/instruction-chain-calibration.md",
+      "purpose": "Define exact INT8 instruction-chain probes and independent calibration receipts",
+      "audience": "GPU kernel researchers and calibration authors",
+      "disposition": "keep",
+      "canonical": "docs/instruction-chain-calibration.md",
+      "owner": "src/backend_common/instruction_roof_plan.hpp",
+      "reason": "Private signed-byte WMMA raw/centered251 dependency and wave-job controls, full int64 recurrence checks, modeled counts versus measured event/host scopes, immutable provenance and unqualified ISA/occupancy boundaries.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/joint-scheme-search.md",
       "purpose": "Joint basis and schedule oracle",
       "audience": "Planner/generator researchers",
