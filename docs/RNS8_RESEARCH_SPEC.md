@@ -2043,3 +2043,15 @@ synchronous borrowed i64/u64 views for direct-HIP import and staged native
 export. Typed spans, owner callbacks, conservative unique-range proof and
 failed-drain quarantine are explicit. It reuses existing pack/CRT kernels,
 transfers no host payload, and does not imply prepared async or DLPack support.
+
+
+### Reusable explicit split-K ownership (pending qualification)
+
+The public direct-HIP residue split-K owner retains generation-bound exact-wide
+inputs and a reusable canonical-byte partial/merge arena. The final range proof
+is separate from fragment accumulator safety: every fragment obeys the 65536
+product cap regardless of cancellation in the complete result, and each merge
+reduces before global storage. Failed work cannot publish an eligible output;
+uncertain device completion retains reservations and scratch for cleanup retry.
+See [split-K ownership](native-split-k.md). This does not promote split-K into
+AUTO or imply that the private native matrix-engine route shares this owner.

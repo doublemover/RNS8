@@ -86,3 +86,5 @@ TEST_CASE("public HIP product recipe rebinds owners without reallocating its are
   SKIP("HIP recipe execution unavailable in this build");
 #endif
 }
+
+#include "test_api_split_k_cases.inc"

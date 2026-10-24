@@ -58,3 +58,46 @@ rns8_status hip_direct_gemm_rns_split_k_device(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+// Reusable owner path: no helper-owned GPU allocation can disappear on failure.
+rns8_status hip_direct_gemm_rns_split_k_workspace(
+    int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
+    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started) {
+  commit_started=false;rns8_split_k_resources resources{};
+  const auto support=query_split_k_resources(m,n,k,lda,ldb,ldc,prefix,splits,scratch_bytes,resources);
+  if(support!=RNS8_SUCCESS) return support;
+  if(!a || !b || !c || !scratch) return RNS8_INVALID_ARGUMENT;
+  const uint64_t a_bytes=uint64_t(m)*lda*prefix,b_bytes=uint64_t(k)*ldb*prefix,c_bytes=uint64_t(m)*ldc*prefix;
+  if(!nonoverlapping_byte_ranges(a,a_bytes,c,c_bytes) || !nonoverlapping_byte_ranges(b,b_bytes,c,c_bytes) ||
+     !nonoverlapping_byte_ranges(scratch,resources.scratch_bytes,a,a_bytes) ||
+     !nonoverlapping_byte_ranges(scratch,resources.scratch_bytes,b,b_bytes) ||
+     !nonoverlapping_byte_ranges(scratch,resources.scratch_bytes,c,c_bytes)) return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
+  auto* first=static_cast<uint8_t*>(scratch);auto* second=first+resources.partial_bytes;
+  const auto run=[](const char* label,auto operation) {
+    const auto launch=timed_hip_operation(label,[&]() {
+      const auto error=static_cast<hipError_t>(operation());
+      return error==hipSuccess?hipDeviceSynchronize():error;
+    });
+    // Drain even after launch/event failure; the owner retains storage if this
+    // cannot establish completion. A timing failure cannot erase a launch.
+    const auto drained=hipDeviceSynchronize();
+    return launch==hipSuccess && drained==hipSuccess;
+  };
+  if(!run("split_k_producer_kernel",[&]() {return rns8_hip_split_k_produce(
+      static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),first,
+      int(m),int(n),int(k),int(lda),int(ldb),prefix,splits);})) return RNS8_BACKEND_FAILURE;
+  for(uint32_t fragments=splits;fragments>1;fragments=(fragments+127)/128) {
+    if(!run("split_k_merge_kernel",[&]() {return rns8_hip_split_k_merge(first,second,m*n,prefix,fragments);}))
+      return RNS8_BACKEND_FAILURE;
+    std::swap(first,second);
+  }
+  commit_started=true;
+  return run("split_k_store_kernel",[&]() {return rns8_hip_split_k_store(first,static_cast<int8_t*>(c),
+      int(m),int(n),int(ldc),prefix);})?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

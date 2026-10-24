@@ -1448,6 +1448,33 @@ RNS8_API rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,
 RNS8_API rns8_status rns8_destroy_ragged_materialization(rns8_ragged_materialization*);
 
 typedef struct rns8_product_recipe rns8_product_recipe;
+/* Explicit synchronous direct-HIP split-K owner. Inputs are exact-wide default
+ * RNS matrices with equal prefix and signedness. Preparation fixes generations
+ * and conservative bounds, retains input/context lifetimes and allocates scratch.
+ * No AUTO promotion or implicit prefix reduction. Repacking requires recreation. */
+typedef struct rns8_split_k rns8_split_k;
+typedef struct rns8_split_k_resources {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t fragments;
+  uint64_t partial_bytes;
+  uint64_t merge_bytes;
+  uint64_t scratch_bytes;
+  uint32_t merge_levels;
+  uint32_t reserved;
+} rns8_split_k_resources;
+/* Pure shape/resource query; no device access. Fragments must be in [1,4096],
+ * no larger than K, and each fragment must contain at most 65536 products. */
+RNS8_API rns8_status rns8_query_split_k(int64_t m,int64_t n,int64_t k,
+    uint32_t prefix,uint32_t fragments,uint64_t max_scratch_bytes,
+    rns8_split_k_resources* resources);
+RNS8_API rns8_status rns8_create_split_k(rns8_context* ctx,
+    const rns8_matrix* a,const rns8_matrix* b,uint32_t fragments,
+    uint64_t max_scratch_bytes,rns8_split_k** out);
+RNS8_API rns8_status rns8_execute_split_k(rns8_split_k* owner,rns8_matrix* output);
+/* Failed drain/free preserves owner and reservations for cleanup retry. */
+RNS8_API rns8_status rns8_destroy_split_k(rns8_split_k* owner);
+
 typedef enum rns8_product_prefix_policy RNS8_ENUM_BASE {
   RNS8_PRODUCT_FULL_PREFIX = 0,
   RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX = 1

@@ -1,3 +1,4 @@
+#include "backend_common/split_k_plan.hpp"
 #include "backend_common/word_mod_plan.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_common/operation_support.hpp"
