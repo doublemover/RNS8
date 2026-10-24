@@ -22,12 +22,13 @@ rules instead of creating independent public contracts.
 
 ## Kernels and scheduling
 
-- [Native narrow](../native-narrow.md): checked byte-domain/scalar candidates, #53
+- [Native narrow](../native-narrow.md) and [public narrow owner](../narrow-native-owner.md): checked scalar/byte products with complete persistent RNS publication; new owner validation pending, #53
+- [Encoded B](../encoded-b-native.md): generation-bound materialization and explicit WMMA consumers; cold/warm reuse calibration authored, #54
 - [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register/LDS candidates and matched calibration; validation pending, #35
 - [Wide-index scalar control](../wide-index-gemm.md): private 64-bit offsets; large-span descriptors and small-allocation GPU fixtures authored, #24
 - [Native split-K](../native-split-k.md) and [persistent queues](../persistent-native-queue.md): private producer/merge scheduling, #37/#38
 - [Logical locality](../locality-schedules.md): offline permutations/model, #36
-- [Block sparse](../block-sparse.md): private scalar baseline alongside explicit public structured Sparse-A, #51
+- [Block sparse](../block-sparse.md): private scalar control, generation-bound public block materializations and separate structured Sparse-A, #51
 - [Strassen](../strassen-device.md) and [rank-23](../rank23-device.md): opt-in public one-level Strassen, private coefficient control and pinned alternative-basis SLP; new SLP validation pending, #48
 - [Exact epilogues](../exact-epilogues.md): public exact-wide expression and separate private rocWMMA candidate, #47
 
@@ -40,6 +41,7 @@ keeps their retirement and production criteria.
 ## Planning and generation
 
 - [Typed planning recipes](../planning-recipes.md), #29/#30
+- [Runtime product arena](../runtime-product-arena.md): internal CPU/HIP exact product DAG execution with strict last-reader reuse; validation pending, #29/#30
 - [Distributed modulus plan and CPU mock](../distributed-mock.md), #50 M0; no GPU transport or qualification
 - [Joint basis/schedule search](../joint-scheme-search.md), #32
 - [Generated scalar encoding certificates](../generated-encodings.md), #44

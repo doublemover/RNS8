@@ -1601,10 +1601,19 @@
         {
           "source": "docs/research/README.md",
           "reference": "../block-sparse.md"
+        },
+        {
+          "source": "README.md",
+          "reference": "docs/block-sparse.md#public-generation-bound-owner"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "block-sparse.md#public-generation-bound-owner"
         }
       ],
       "anchors": [
-        "exact-block-sparse-research-baseline"
+        "exact-block-sparse-research-baseline",
+        "public-generation-bound-owner"
       ]
     },
     {
@@ -1989,6 +1998,41 @@
         "documentation-ownership-and-maintenance",
         "external-links-and-templates",
         "ownership-map"
+      ]
+    },
+    {
+      "path": "docs/encoded-b-native.md",
+      "purpose": "Generation-bound encoded B",
+      "audience": "Applications and kernel/runtime contributors",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#kernels-and-scheduling",
+      "owner": "src/core/api_encoded_b.inc",
+      "reason": "Preserve implemented public/private ownership, explicit resource scope, authored fixtures and pending consolidated validation.",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/encoded-b-native.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "encoded-b-native.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "encoded-b-native.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../encoded-b-native.md"
+        },
+        {
+          "source": "docs/native-calibration.md",
+          "reference": "encoded-b-native.md"
+        }
+      ],
+      "anchors": [
+        "generation-bound-encoded-b",
+        "synchronous-encoded-queue"
       ]
     },
     {
@@ -2706,6 +2750,36 @@
       ]
     },
     {
+      "path": "docs/narrow-native-owner.md",
+      "purpose": "Public narrow native products",
+      "audience": "Applications and kernel/runtime contributors",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#kernels-and-scheduling",
+      "owner": "src/core/api_exact_epilogue.cpp",
+      "reason": "Preserve implemented public/private ownership, explicit resource scope, authored fixtures and pending consolidated validation.",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/narrow-native-owner.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "narrow-native-owner.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "narrow-native-owner.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../narrow-native-owner.md"
+        }
+      ],
+      "anchors": [
+        "public-narrow-native-products"
+      ]
+    },
+    {
       "path": "docs/native-calibration.md",
       "purpose": "Native conversion and scheduling calibration",
       "audience": "Planner/generator researchers",
@@ -2735,7 +2809,8 @@
         "four-wave-register-and-lds-controls",
         "matched-native-integer-comparison",
         "matched-resident-epilogue-comparison",
-        "native-conversion-and-scheduling-calibration"
+        "native-conversion-and-scheduling-calibration",
+        "encoded-b-preparation-and-observed-reuse-break-even"
       ]
     },
     {
@@ -3318,8 +3393,8 @@
       "audience": "Kernel researchers",
       "disposition": "keep",
       "canonical": "docs/research/README.md#kernels-and-scheduling",
-        "owner": "src/backend_common/rank23_slp.hpp",
-        "reason": "Distinct original-coefficient control and actual pinned alternative-basis SLP, independent integer proof and bounded device schedule; issue #48; new SLP validation pending.",
+      "owner": "src/backend_common/rank23_slp.hpp",
+      "reason": "Distinct original-coefficient control and actual pinned alternative-basis SLP, independent integer proof and bounded device schedule; issue #48; new SLP validation pending.",
       "inbound_links": [
         {
           "source": "docs/archive/implementation-checkpoints-2026-10-23.md",
@@ -3339,9 +3414,9 @@
         }
       ],
       "anchors": [
-          "one-level-rank-23-modular-prototype",
-          "pinned-alternative-basis-slp",
-          "private-slp-device-schedule"
+        "one-level-rank-23-modular-prototype",
+        "pinned-alternative-basis-slp",
+        "private-slp-device-schedule"
       ]
     },
     {
@@ -3846,6 +3921,28 @@
         "setup-and-examples-dependencies",
         "stop-conditions-for-hardware-work",
         "subsequent-implementation-boundary"
+      ]
+    },
+    {
+      "path": "docs/runtime-product-arena.md",
+      "purpose": "Runtime product arena",
+      "audience": "Applications and kernel/runtime contributors",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#planning-and-generation",
+      "owner": "src/core/runtime_product_recipe.cpp",
+      "reason": "Preserve implemented public/private ownership, explicit resource scope, authored fixtures and pending consolidated validation.",
+      "inbound_links": [
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "runtime-product-arena.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../runtime-product-arena.md"
+        }
+      ],
+      "anchors": [
+        "runtime-product-arena"
       ]
     },
     {

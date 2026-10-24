@@ -156,7 +156,10 @@ resource lifetimes.
 Experimental public calls also expose [signed complex 3M/4M products](docs/complex-residue-composition.md),
 [retained-native adaptive exact products](docs/adaptive-native-product.md#explicit-matrix-owned-native-inputs)
 and [one-level Strassen](docs/strassen-device.md#public-owner-authored-validation-pending)
-under their documented subsets. These new bindings and their fixtures await the
+under their documented subsets. Explicit [narrow native products](docs/narrow-native-owner.md),
+[encoded B](docs/encoded-b-native.md) and [block-sparse materializations](docs/block-sparse.md#public-generation-bound-owner)
+also publish complete persistent RNS outputs with ordinary generation/proof checks.
+These new bindings and their fixtures await the
 consolidated validation batch; they inherit no device qualification from older kernels.
 
 Start with the [example index](examples/README.md) for complete checked API

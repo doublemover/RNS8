@@ -12,7 +12,8 @@ import unittest
 from unittest.mock import patch
 
 from collect_native_calibration import (
-    ADAPTIVE, CANDIDATES, QUEUED, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
+    ADAPTIVE, CANDIDATES, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
+    reuse_contract, summarize_encoded_reuse,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
 from test_capture_identity_support import synthetic_identity
@@ -23,7 +24,7 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
+    if candidate not in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
@@ -31,6 +32,8 @@ def case_for(candidate, **changes):
         case["prefix"] = 20
     if candidate in TILED:
         case.update(k_depth=16, lds_buffers=0 if candidate == "tiled_register" else 1)
+    if candidate in ENCODED:
+        case["reuse_count"] = 1
     if candidate in ADAPTIVE:
         case.update(prefix=20, bound_method="axis_l1")
         if candidate == "adaptive_compact": case["workers"] = 32
@@ -51,10 +54,41 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
                    samples=[dict(host_call_ns=1000.25, uninstrumented_host_call_ns=900.5,
                                  exact_reference_passed=True, uninstrumented_exact_reference_passed=True,
                                  events=[dict(label="synthetic event", elapsed_ns=500.25)]) for _ in range(repeats)])
+    if case["candidate"] in REUSE:
+        capture["encoded_b_prepare_ns"] = 4000.25 if case["candidate"] == "encoded_b_warm" else None
+        capture["sustained"].update(gemm_calls=16*case["reuse_count"],
+            mean_gemm_ns=20000000/case["reuse_count"],verified_outputs_per_batch=1)
     return capture
 
 
 class CaseTest(unittest.TestCase):
+    def test_encoded_reuse_controls_storage_and_irrelevant_arguments(self):
+        self.assertEqual(validate_case(BASE)["reuse_count"],1)
+        self.assertNotIn("reuse_count",BASE)
+        for candidate in REUSE:
+            for reuse in (1,2,8,32,256):
+                for group in (1,2,4):
+                    for unsigned in (False,True):
+                        case=case_for(candidate,reuse_count=reuse,group=group,unsigned_inputs=unsigned)
+                        contract=reuse_contract(case)
+                        self.assertEqual(contract["batch_gemm_calls"],reuse)
+                        encoded=candidate in ENCODED
+                        expected=(3*19*272+4) if encoded else 0
+                        self.assertEqual(contract["encoded_b_cache_logical_bytes"],expected)
+                        self.assertEqual(contract["encoded_b_k_words"],68 if encoded else 0)
+                        self.assertEqual(contract["encoded_b_preparation_in_batch"],candidate=="encoded_b_cold")
+                        self.assertFalse(contract["encoded_b_public_ownership_measured"])
+                        validate_capture(capture_for(case),case,"fixture-run",3,1)
+            for bad in (None,True,False,0,-1,257,1.0,"1",[],{}):
+                with self.subTest(candidate=candidate,bad=bad),self.assertRaises(ValueError):
+                    case_for(candidate,reuse_count=bad)
+        for candidate in ENCODED:
+            missing=case_for(candidate);del missing["reuse_count"]
+            with self.assertRaises(ValueError):validate_case(missing)
+        for candidate in set(CANDIDATES)-set(REUSE):
+            with self.subTest(candidate=candidate),self.assertRaisesRegex(ValueError,"reuse_count applies only"):
+                case_for(candidate,reuse_count=1)
+
     def test_prepared_queue_requires_setup_cost_and_storage(self):
         for candidate in ("queue_prepared", "grid_prepared"):
             case = case_for(candidate)
@@ -75,7 +109,7 @@ class CaseTest(unittest.TestCase):
             for unsigned in (False, True):
                 if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
+                for group in ((1, 2, 4) if candidate in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -210,6 +244,15 @@ class CaseTest(unittest.TestCase):
                     self.assertTrue({("wmma", None, None), ("tiled_register", 16, 0),
                                      ("tiled_lds", 16, 1), ("tiled_lds", 16, 2),
                                      ("tiled_lds", 32, 1), ("tiled_lds", 32, 2)} <= modes)
+        for filename in ("encoded-b-tail.json","encoded-b-512.json"):
+            rows=[validate_case(row) for row in strict_json((root/filename).read_text(encoding="utf-8"))]
+            self.assertEqual(len(rows),54)
+            self.assertEqual(len({json.dumps(row,sort_keys=True) for row in rows}),54)
+            for unsigned in (False,True):
+                for group in (1,2,4):
+                    for reuse in (1,8,32):
+                        self.assertEqual({row["candidate"] for row in rows if row["unsigned_inputs"]==unsigned
+                            and row["group"]==group and row["reuse_count"]==reuse},set(REUSE))
 
     def test_malformed_cases(self):
         malformed = [None, [], "case", {}, {**BASE, "extra": 1}, {k: v for k, v in BASE.items() if k != "k"}]
@@ -225,7 +268,7 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
+        for candidate in (c for c in CANDIDATES if c not in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
@@ -263,6 +306,27 @@ class CaseTest(unittest.TestCase):
 
 
 class CaptureTest(unittest.TestCase):
+    def test_encoded_preparation_and_gemm_count_scope_are_strict(self):
+        for candidate in REUSE:
+            case=case_for(candidate,reuse_count=8)
+            for key in ("encoded_b_prepare_ns",):
+                missing=capture_for(case);del missing[key]
+                with self.assertRaises(ValueError):validate_capture(missing,case,"fixture-run",3,1)
+                bad=(None,False,0,-1,"1",float("nan"),float("inf")) if candidate=="encoded_b_warm" else (0,False,1,"not_applicable")
+                for value in bad:
+                    capture=capture_for(case);capture[key]=value
+                    with self.subTest(candidate=candidate,key=key,value=value),self.assertRaises(ValueError):
+                        validate_capture(capture,case,"fixture-run",3,1)
+            for key in ("gemm_calls","mean_gemm_ns","verified_outputs_per_batch"):
+                for value in (None,True,0,-1,"1",float("nan"),float("inf")):
+                    capture=capture_for(case);capture["sustained"][key]=value
+                    with self.subTest(candidate=candidate,key=key,value=value),self.assertRaises(ValueError):
+                        validate_capture(capture,case,"fixture-run",3,1)
+                capture=capture_for(case);del capture["sustained"][key]
+                with self.assertRaises(ValueError):validate_capture(capture,case,"fixture-run",3,1)
+            capture=capture_for(case);capture["sustained"]["gemm_calls"]=16
+            with self.assertRaises(ValueError):validate_capture(capture,case,"fixture-run",3,1)
+
     def test_adaptive_never_substitutes_dense_count_for_device_compact_count(self):
         for candidate in ADAPTIVE:
             case = case_for(candidate)
@@ -377,6 +441,41 @@ class CaptureTest(unittest.TestCase):
                 strict_json(text)
 
 
+class EncodedComparisonTest(unittest.TestCase):
+    def observation(self,candidate,reuse,independent,value,**changes):
+        return {"case":case_for(candidate,reuse_count=reuse),"independent_repeat":independent,
+                "run_id":f"{candidate}-{reuse}-{independent}","sustained_batch_ns":value,
+                "prepare_ns":1000 if candidate=="encoded_b_warm" else None,**changes}
+
+    def test_even_median_no_winner_and_missing_or_unmatched_controls(self):
+        values=[self.observation(candidate,8,i,100+i*20) for candidate in REUSE for i in (0,1)]
+        row,=summarize_encoded_reuse(values)
+        point,=row["points"]
+        self.assertEqual(point["candidates"]["wmma"]["sustained_batch_ns_median"],110)
+        self.assertEqual(point["candidates"]["wmma"]["per_gemm_ns_from_batch_median"],110/8)
+        self.assertFalse(point["cold_faster_than_direct_median"])
+        self.assertIsNone(row["first_observed_cold_winning_reuse_count"])
+        missing,=summarize_encoded_reuse([value for value in values if value["case"]["candidate"]!="wmma"])
+        self.assertEqual(missing["points"][0]["status"],"incomplete_cohort")
+        self.assertEqual(missing["points"][0]["missing_candidates"],["wmma"])
+        unmatched,=summarize_encoded_reuse(values[:-1])
+        self.assertEqual(unmatched["points"][0]["status"],"unmatched_independent_repeats")
+        with self.assertRaisesRegex(ValueError,"duplicate independent"):
+            summarize_encoded_reuse(values+[values[0]])
+        for bad in (None,False,0,-1,float("nan"),float("inf")):
+            malformed=copy.deepcopy(values);malformed[0]["sustained_batch_ns"]=bad
+            with self.assertRaises(ValueError):summarize_encoded_reuse(malformed)
+
+    def test_shapes_groups_signs_and_reuse_do_not_silently_merge(self):
+        values=[]
+        for m,group,unsigned in ((1,1,False),(2,1,False),(1,2,False),(1,1,True)):
+            for candidate in REUSE:
+                value=self.observation(candidate,32,0,100)
+                value["case"]=case_for(candidate,m=m,group=group,unsigned_inputs=unsigned,reuse_count=32)
+                values.append(value)
+        self.assertEqual(len(summarize_encoded_reuse(values)),4)
+
+
 class CollectorTest(unittest.TestCase):
     def setUp(self):
         scratch = Path(__file__).resolve().parents[1] / "temp"
@@ -401,6 +500,7 @@ class CollectorTest(unittest.TestCase):
                                       unsigned_inputs=bool(int(command[7])),
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
                                       **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
+                                      **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
                                       **({"k_depth": int(command[11]), "lds_buffers": int(command[12])} if command[1] in TILED else {})))
             capture = capture_for(case, command[10])
             if mutate:
@@ -413,7 +513,8 @@ class CollectorTest(unittest.TestCase):
         return result, calls
 
     def records(self):
-        return [json.loads(p.read_text(encoding="utf-8")) for p in self.output.glob("*.json")]
+        return [json.loads(p.read_text(encoding="utf-8")) for p in self.output.glob("*.json")
+                if not p.name.startswith("encoded-b-reuse-comparison-")]
 
     def test_all_modes_end_to_end_and_distinct_worker_identity(self):
         cases = [case_for(name) for name in CANDIDATES]
@@ -461,6 +562,42 @@ class CollectorTest(unittest.TestCase):
         self.collect(cases)
         selections = {row["comparison_identity"]["tiled_kernel_selection"] for row in self.records()}
         self.assertEqual(len(selections), 5)
+
+    def test_encoded_batches_have_distinct_identity_and_complete_observed_comparison(self):
+        cases=[case_for(candidate,reuse_count=reuse) for candidate in REUSE for reuse in (1,8)]
+        def mutate(capture,count):
+            reuse=capture["reuse_count"]
+            mean={"wmma":20000000,"encoded_b_cold":30000000 if reuse==1 else 19000000,
+                  "encoded_b_warm":18000000}[capture["candidate"]]
+            capture["sustained"].update(elapsed_ns=16*mean,mean_call_ns=mean,mean_gemm_ns=mean/reuse)
+        self.collect(cases,mutate=mutate,runs=2)
+        records=self.records()
+        self.assertEqual(len(records),12)
+        for record in records:
+            self.assertEqual(record["command"][-1],str(record["case"]["reuse_count"]))
+            for key,value in reuse_contract(record["case"]).items():
+                self.assertEqual(record["comparison_identity"][key],value)
+        summary,=self.output.glob("encoded-b-reuse-comparison-*.json")
+        result=json.loads(summary.read_text(encoding="utf-8"))
+        self.assertFalse(result["promotion_eligible"])
+        self.assertTrue(result["provenance_complete"])
+        row,=result["groups"]
+        self.assertEqual(row["first_observed_cold_winning_reuse_count"],8)
+        self.assertEqual([point["status"] for point in row["points"]],["matched_independent_cohort"]*2)
+        self.assertEqual([point["cold_faster_than_direct_median"] for point in row["points"]],[False,True])
+        self.assertEqual(result["comparison_identity"]["artifact_sha256"],records[0]["artifact_sha256"])
+
+    def test_encoded_setup_and_batch_mismatches_retain_failed_captures(self):
+        for candidate,key,value in (("encoded_b_warm","encoded_b_prepare_ns",None),
+                                    ("encoded_b_cold","encoded_b_prepare_ns",100),
+                                    ("encoded_b_warm","encoded_b_cache_logical_bytes",1)):
+            self.output=self.root/(candidate+key)
+            def mutate(capture,count):capture[key]=value
+            with self.assertRaisesRegex(RuntimeError,"contract/reference mismatch"):
+                self.collect([case_for(candidate)],mutate=mutate)
+            record,=self.records()
+            self.assertFalse(record["validated"])
+            self.assertFalse(list(self.output.glob("encoded-b-reuse-comparison-*.json")))
 
     def test_omitted_workers_get_explicit_command_and_identity(self):
         result, calls = self.collect([{**BASE, "candidate": "queue"}])
@@ -574,7 +711,7 @@ class CompiledCliTest(unittest.TestCase):
         self.assertIn("default 32", result.stdout)
 
     def test_malformed_and_irrelevant_workers_fail_before_device_work(self):
-        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED)):
+        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED, *REUSE)):
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             workers = ("0", "1025", "-1", "1.0", "+1", "", "4294967296", "32x") if candidate in QUEUED else ("32",)
@@ -586,6 +723,19 @@ class CompiledCliTest(unittest.TestCase):
         result = self.invoke([])
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("usage:", result.stderr)
+
+    def test_encoded_invalid_reuse_never_runs_device_work(self):
+        for candidate in REUSE:
+            case=case_for(candidate)
+            base=[candidate,*(str(case[k]) for k in ("m","n","k","prefix","group")),
+                  "0","1","1","cli-reject"]
+            invalid=[[value] for value in ("0","257","-1","1.0","+1","", "4294967296","32x")]
+            invalid += [["1","1"]]
+            if candidate in ENCODED:invalid.append([])
+            for suffix in invalid:
+                with self.subTest(candidate=candidate,suffix=suffix):
+                    result=self.invoke([*base,*suffix])
+                    self.assertNotEqual(result.returncode,0)
 
     def test_adaptive_invalid_controls_fail_before_device_work(self):
         for candidate in ADAPTIVE:

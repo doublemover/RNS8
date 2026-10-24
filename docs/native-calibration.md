@@ -15,6 +15,8 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `packed_gemm` | Direct residue GEMM | Already packed residue planes |
 | `pack_gemm` | Pack both operands, then direct GEMM | Resident native 64-bit |
 | `wmma` | Fused native conversion/grouped WMMA | Resident native 64-bit |
+| `encoded_b_cold` | Allocate, probe, encode B, execute R cached GEMMs, release cache | Same resident native A/B; explicit R |
+| `encoded_b_warm` | R cached GEMMs; one measured allocation/preparation reported separately | Resident native A and immutable prepared B |
 | `adaptive_grid`, `adaptive_compact` | Fresh axis-L1 discovery, adaptive native WMMA, exact suffix and staged commit | Resident full-width native 64-bit to complete prefix20 residues |
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
 | `queue_prepared` | Reuse admitted device descriptors; reset cursor and execute | Resident native 64-bit and prepared descriptors |
@@ -33,7 +35,9 @@ Arguments are candidate, M, N, K, prefix, group, unsigned flag (0/1), repeat cou
 warmup count, and a unique run ID. `queue`, `queue_prepared` and `split_k` accept an optional final
 worker count in 1..1024; it defaults to 32 to preserve existing invocations.
 `adaptive_compact` has its own required worker/method suffix described below.
-Other candidates reject a worker argument, including an explicit zero. `--help`
+`wmma` interprets its optional suffix as a reuse count, not a worker count;
+the encoded-B candidates require that suffix, as described below. Other
+candidates reject a worker argument, including an explicit zero. `--help`
 lists every candidate and the argument domains. For example:
 
 ```powershell
@@ -364,3 +368,60 @@ Authored full-width-coefficient CPU/Boost differentials compare fused and unfuse
 paths with padded tails and K=65537. The extended calibration executable and tests compiled with VS2026/HIP 7.1,
 optional rocWMMA and gfx1100. Local differentials and the linked larger collection
 have passed; broader performance qualification remains pending.
+
+## Encoded-B preparation and observed reuse break-even
+
+The [encoded-B owner](encoded-b-native.md) has public proof/generation checks.
+This calibrator measures its private `hip_prepare_encoded_b` /
+`hip_gemm_encoded_b` raw-residue boundary. Public matrix creation, full-integer
+range admission, generation ownership and export are not included. Captures
+record `encoded_b_public_ownership_measured=false`; they cannot qualify the
+complete public call or automatic planner selection.
+
+`encoded_b_cold` and `encoded_b_warm` require an explicit `reuse_count` in 1..256.
+`wmma` accepts the same count and defaults to one for existing invocations. Each
+timed execute is one batch of R synchronous GEMMs at the same shape, prefix,
+group and signedness. Both input matrices stay unchanged during the process;
+every call writes the same full output. Cold includes allocation, capability
+probe, B conversion, R consumers and checked cache release in its host interval.
+Warm measures one allocation/probe/conversion as `encoded_b_prepare_ns`, then
+times batches of R consumers against that retained cache. Warm cache release
+occurs outside timing. The native grouped control performs R ordinary calls,
+including their existing per-call admission/capability policy.
+
+```powershell
+.\build\windows-msvc-hip-debug\rns8-native-calibrate.exe encoded_b_cold 17 19 257 9 2 0 9 3 cold-eight 8
+.\build\windows-msvc-hip-debug\rns8-native-calibrate.exe encoded_b_warm 17 19 257 9 2 0 9 3 warm-eight 8
+.\build\windows-msvc-hip-debug\rns8-native-calibrate.exe wmma 17 19 257 9 2 0 9 3 direct-eight 8
+python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases benchmarks/native-calibration/encoded-b-tail.json --output temp/encoded-b-tail --runs 5 --repeats 9 --warmups 3
+```
+
+The two tracked sets, `encoded-b-tail.json` (17x19x257) and
+`encoded-b-512.json` (512 cubed), each contain 54 matched cases: three candidates,
+groups 1/2/4, both signednesses, and R=1/8/32. These commands and new candidates
+are authored only; no measurements from them have been collected.
+
+Cache metadata records the actual K-word padding, retained capability word,
+logical cache bytes, resident versus transient bytes, selected group/signedness,
+dataset and preparation scope. The full-width reference and tail canaries are
+the same as the native grouped control. Verification runs after sampled batches
+and after the sustained burst, outside timing. It checks the final output of
+each batch, rather than reading it back between identical GEMMs. Sustained
+`calls` and `mean_call_ns` count batches; `gemm_calls`, `mean_gemm_ns` and
+`batch_gemm_calls` make the logical call count explicit.
+
+When encoded-B cases are present, the collector writes
+`encoded-b-reuse-comparison-<campaign-id>.json`. It uses one sustained batch
+mean per independent process, then reports the median and process min/max for
+each matched case. Warm preparation has its own median. A matched point needs
+all three candidates and the same independent-repeat set, artifact, build,
+device and runtime. Missing controls/repeats remain incomplete. The reported
+break-even is only the first tested R whose cold batch median is lower than the
+matched native grouped batch median. There is no interpolation, extrapolated
+threshold, confidence claim or promotion. Warm timing alone omits its setup
+cost and is not a setup-inclusive win.
+
+Fresh WMMA captures now carry this explicit batch contract even at R=1. Older
+records retain their original executable and collector identities; they are
+not rewritten or silently interpreted as new batch captures.
+

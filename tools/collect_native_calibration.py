@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import random
+import statistics
 import subprocess
 import time
 import uuid
@@ -15,12 +16,15 @@ from modulus_set_search import DEFAULT_MODULI
 CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
               "adaptive_grid", "adaptive_compact",
               "tiled_register", "tiled_lds",
+              "encoded_b_cold", "encoded_b_warm",
               "complex_3m", "complex_4m",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
 ADAPTIVE = ("adaptive_grid", "adaptive_compact")
 TILED = ("tiled_register", "tiled_lds")
+ENCODED = ("encoded_b_cold", "encoded_b_warm")
+REUSE = ("wmma", *ENCODED)
 
 
 def strict_json(text):
@@ -38,14 +42,14 @@ def strict_json(text):
 
 
 def validate_case(case):
-    """Return a new canonical case; only queue controls may be omitted."""
+    """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers"}:
-        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers")
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count"}:
+        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
+    native = case["candidate"] in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -71,6 +75,13 @@ def validate_case(case):
     elif "k_depth" in case or "lds_buffers" in case:
         raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
+    if case["candidate"] in REUSE:
+        reuse = case.get("reuse_count", 1 if case["candidate"] == "wmma" else None)
+        if type(reuse) is not int or not 1 <= reuse <= 256:
+            raise ValueError("encoded B requires explicit integer reuse_count1..256; wmma defaults1")
+        normalized["reuse_count"] = reuse
+    elif "reuse_count" in case:
+        raise ValueError("reuse_count applies only to wmma/encoded_b_cold/encoded_b_warm")
     if case["candidate"] == "adaptive_compact":
         workers = case.get("workers")
         if type(workers) is not int or not 1 <= workers <= 65535:
@@ -144,6 +155,29 @@ def epilogue_contract(case):
                            "d_dataset": "seed_3135_after_a_b"},
             "reserved_intermediate_bytes": size,
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
+
+
+def reuse_contract(case):
+    if case["candidate"] not in REUSE:
+        return {}
+    encoded, warm = case["candidate"] in ENCODED, case["candidate"] == "encoded_b_warm"
+    words = ((case["k"]+15)//16)*4 if encoded else 0
+    size = case["prefix"]*case["n"]*words*4+4 if encoded else 0
+    return {"reuse_count":case["reuse_count"], "batch_gemm_calls":case["reuse_count"],
+            "reuse_batch_boundary":"R_synchronous_calls_same_native_A_B_one_final_verified_output",
+            "reuse_comparison_boundary":"private_raw_residue_no_public_matrix_proof_or_generation",
+            "reuse_dataset":"full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+            "reference_method":"boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
+            "encoded_b_layout":"modulus_n_k_packed_word32_v1" if encoded else "none",
+            "encoded_b_k_words":words,"encoded_b_cache_logical_bytes":size,
+            "encoded_b_preparation_in_batch":encoded and not warm,
+            "encoded_b_preparation_scope": "one_preparation_outside_batches_cached_consume" if warm else
+                "per_batch_allocate_probe_encode_consume_release" if encoded else "none_direct_native_grouped_each_call",
+            "encoded_b_resident_cache_bytes":size if warm else 0,
+            "encoded_b_transient_cache_bytes":size if encoded and not warm else 0,
+            "encoded_b_same_B_immutable":True,"encoded_b_public_ownership_measured":False,
+            "encoded_b_kernel_selection":("encoded_b_grouped_g" if encoded else "native_grouped_g")
+                +str(case["group"])+("_unsigned" if case["unsigned_inputs"] else "_signed")}
 
 
 def positive_number(value):
@@ -221,6 +255,7 @@ def capture_contract(case, run_id, repeats, warmups):
                                          + (case["m"] * case["n"] if epilogue else 0)) * case["prefix"],
             residue_output_bytes=case["m"] * case["n"] * case["prefix"])
         expected.update(epilogue_contract(case))
+    expected.update(reuse_contract(case))
     return expected
 
 
@@ -243,6 +278,19 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
+    if case["candidate"] in REUSE:
+        warm = case["candidate"] == "encoded_b_warm"
+        setup = capture.get("encoded_b_prepare_ns")
+        if "encoded_b_prepare_ns" not in capture or (not positive_number(setup) if warm else setup is not None):
+            raise ValueError("invalid encoded B preparation timing/scope")
+        sustained = capture["sustained"]
+        calls = sustained["calls"]*case["reuse_count"]
+        if (type(sustained.get("gemm_calls")) is not int or sustained["gemm_calls"] != calls
+                or type(sustained.get("verified_outputs_per_batch")) is not int
+                or sustained["verified_outputs_per_batch"] != 1
+                or not positive_number(sustained.get("mean_gemm_ns"))
+                or not math.isclose(sustained["mean_gemm_ns"]*calls,sustained["elapsed_ns"],rel_tol=1e-12)):
+            raise ValueError("invalid encoded B batch/GEMM counts or timing")
     if case["candidate"].startswith("complex_") and not positive_number(capture.get("input_prepare_ns")):
         raise ValueError("invalid complex input preparation timing")
     if case["candidate"] in ("queue_prepared", "grid_prepared"):
@@ -293,11 +341,66 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     return {key: capture[key] for key in ("build_manifest", "device", "target", "runtime_version")}
 
 
+def summarize_encoded_reuse(observations):
+    """One sustained batch observation per independent process, no extrapolation.
+
+    Caller supplies only contract-validated records from one immutable artifact
+    and build/device/runtime cohort. Missing controls stay explicitly incomplete.
+    """
+    groups = {}
+    dimensions = ("m","n","k","prefix","group","unsigned_inputs")
+    for observation in observations:
+        case = observation["case"]
+        if case["candidate"] not in REUSE:
+            continue
+        key = tuple(case[field] for field in dimensions)
+        groups.setdefault(key,{}).setdefault(case["reuse_count"],{}).setdefault(case["candidate"],[]).append(observation)
+    result = []
+    for key, points in sorted(groups.items()):
+        row = {"case":dict(zip(dimensions,key)),"points":[],
+               "break_even_definition":"first_observed_cold_win_among_tested_reuse_counts_no_interpolation",
+               "first_observed_cold_winning_reuse_count":None}
+        for reuse_count, candidates in sorted(points.items()):
+            point = {"reuse_count":reuse_count,"candidates":{},"missing_candidates":sorted(set(REUSE)-set(candidates)),
+                     "status":"incomplete_cohort", "cold_faster_than_direct_median":None,
+                     "warm_faster_than_direct_median":None}
+            repeats = []
+            for candidate, records in sorted(candidates.items()):
+                ids = [record["independent_repeat"] for record in records]
+                if len(ids) != len(set(ids)):
+                    raise ValueError("duplicate independent encoded-B observation")
+                repeats.append(set(ids))
+                values = [record["sustained_batch_ns"] for record in records]
+                if not all(positive_number(value) for value in values):
+                    raise ValueError("invalid encoded-B comparison observation")
+                if candidate == "encoded_b_warm" and not all(positive_number(record["prepare_ns"]) for record in records):
+                    raise ValueError("invalid encoded-B comparison preparation observation")
+                median = statistics.median(values)
+                point["candidates"][candidate] = {
+                    "independent_processes":len(records),"run_ids":[record["run_id"] for record in records],
+                    "sustained_batch_ns_median":median,"sustained_batch_ns_min":min(values),
+                    "sustained_batch_ns_max":max(values),"per_gemm_ns_from_batch_median":median/reuse_count,
+                    "warm_prepare_ns_median":statistics.median(record["prepare_ns"] for record in records)
+                        if candidate == "encoded_b_warm" else None}
+            if not point["missing_candidates"] and all(ids == repeats[0] for ids in repeats):
+                point["status"]="matched_independent_cohort"
+                timing={name:entry["sustained_batch_ns_median"] for name,entry in point["candidates"].items()}
+                point["cold_faster_than_direct_median"]=timing["encoded_b_cold"] < timing["wmma"]
+                point["warm_faster_than_direct_median"]=timing["encoded_b_warm"] < timing["wmma"]
+                if point["cold_faster_than_direct_median"] and row["first_observed_cold_winning_reuse_count"] is None:
+                    row["first_observed_cold_winning_reuse_count"]=reuse_count
+            elif not point["missing_candidates"]:
+                point["status"]="unmatched_independent_repeats"
+            row["points"].append(point)
+        result.append(row)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--cases", type=Path, required=True,
-                        help="JSON cases; queue workers1..1024 default32; adaptive prefix20/bound_method=axis_l1; compact requires workers1..65535; tiled requires k_depth/lds_buffers")
+                        help="JSON cases; queue workers1..1024 default32; adaptive prefix20/bound_method=axis_l1; compact requires workers1..65535; tiled requires k_depth/lds_buffers; encoded B requires reuse_count1..256, wmma defaults1")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)
@@ -325,6 +428,7 @@ def main():
     jobs = [(c, independent) for independent in range(args.runs) for c in cases]
     random.Random(args.order_seed).shuffle(jobs)
     campaign_identity = None
+    reuse_observations = []
     for ordinal, (case, independent) in enumerate(jobs):
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed during collection")
@@ -337,6 +441,8 @@ def main():
             command.append(case["bound_method"])
         if case["candidate"] in TILED:
             command.extend(str(case[key]) for key in ("k_depth", "lds_buffers"))
+        if case["candidate"] in REUSE:
+            command.append(str(case["reuse_count"]))
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],
@@ -360,6 +466,7 @@ def main():
                                              "case": case, **scheduling_contract(case),
                                              **adaptive_contract(case),
                                              **tiled_contract(case),
+                                             **reuse_contract(case),
                                              "input_domain": capture["input_domain"],
                                              "output_contract": capture["output_contract"],
                                              "seed": capture["seed"], "repeats": args.repeats,
@@ -368,6 +475,10 @@ def main():
             record["provenance_complete"] = manifest_provenance_complete(
                 capture["build_manifest"], "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None)
             record["validated"] = True
+            if case["candidate"] in REUSE:
+                reuse_observations.append({"case":case,"independent_repeat":independent,"run_id":run_id,
+                    "sustained_batch_ns":capture["sustained"]["mean_call_ns"],
+                    "prepare_ns":capture["encoded_b_prepare_ns"],"provenance_complete":record["provenance_complete"]})
         except subprocess.TimeoutExpired as error:
             def timeout_text(value):
                 return value.decode(errors="replace") if isinstance(value, bytes) else value or ""
@@ -383,6 +494,16 @@ def main():
             json.dump(record, stream, indent=2)
         if failure:
             raise RuntimeError(f"{failure}; retained {run_id}")
+    if any(case["candidate"] in ENCODED for case in cases):
+        comparison = {"schema":"rns8_encoded_b_reuse_comparison_v1", "campaign_id":campaign,
+            "comparison_identity":{"artifact_sha256":artifact,**campaign_identity},
+            "collector_sources_sha256":collector_identity,
+            "observation":"one sustained batch mean per independent process; median across processes",
+            "boundary":"private raw residue calls; cold includes preparation/allocation/release; warm setup reported separately",
+            "promotion_eligible":False,"provenance_complete":all(row["provenance_complete"] for row in reuse_observations),
+            "groups":summarize_encoded_reuse(reuse_observations)}
+        with (args.output/("encoded-b-reuse-comparison-"+campaign+".json")).open("x",encoding="utf-8") as stream:
+            json.dump(comparison,stream,indent=2)
     print(f"Collected {len(jobs)} independent native microcase records; qualification remains pending")
     return 0
 

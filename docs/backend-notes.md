@@ -90,6 +90,9 @@ public API envelope.
 | Family | Current boundary | Owner |
 |---|---|---|
 | Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; four-wave register/LDS controls are authored; public default dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| Matrix-owned narrow native | Opt-in synchronous public exact-wide scalar/byte products; fresh domain/partial-sum scans and complete RNS output; validation pending | [Narrow owner](narrow-native-owner.md) |
+| Encoded B | Explicit generation-bound public cache of actual K-contiguous B residues with grouped WMMA consumers; new validation pending | [Encoded-B owner](encoded-b-native.md) |
+| Runtime product arena | Internal CPU/direct-HIP fixed exact-wide DAG; common-prefix storage and strict last-reader reuse; no public materialization planner | [Runtime arena](runtime-product-arena.md) |
 | Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; validation pending | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
 | Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; new binding validation pending | [Complex owner](complex-residue-composition.md) |
 | Wide-index residue control | Private scalar 64-bit global offsets; no public large-shape packing/export support or measured large allocation | [Wide-index control](wide-index-gemm.md) |
@@ -97,7 +100,7 @@ public API envelope.
 | Packed INT4/IU4 | Internal certified subset/prototypes; public research semantics rejected | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Floating encodings / Ozaki | Scalar certificates and host rational/binary32 rewrite oracle; no public floating backend | [Generated encodings](generated-encodings.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
-| Sparse/hybrid | Public explicit structured Sparse-A; private scalar block-sparse baseline | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Sparse/hybrid | Public explicit structured Sparse-A plus opt-in generation-bound scalar block-sparse materializations; no hybrid selection | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Multi-GPU | Independent device scripts plus authored CPU modulus-plan/mock; actual distributed GPU execution absent | [M0 plan/mock](distributed-mock.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
 The public Ozaki and Freivalds research entrypoints return

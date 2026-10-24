@@ -197,5 +197,25 @@
     "unsigned_inputs": true,
     "k_depth": 32,
     "lds_buffers": 2
+  },
+  {
+    "candidate": "encoded_b_cold",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "reuse_count": 1
+  },
+  {
+    "candidate": "encoded_b_warm",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "reuse_count": 1
   }
 ]

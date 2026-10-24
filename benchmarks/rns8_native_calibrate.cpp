@@ -1,5 +1,6 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_common/complex_residue_plan.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"
@@ -98,14 +99,15 @@ int main(int argc, char** argv) {
   try {
     const char* usage =
         "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|complex_3m|complex_4m|"
-        "tiled_register|tiled_lds|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
-        "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
+        "tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
+        "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
         "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
+        "encoded_b_cold/warm: append required reuse_count1..256; wmma accepts the same suffix (default1). Each timed execute is R GEMMs, one final verification. Cold includes allocate/prepare/free; warm reports one setup separately.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
         "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
-        "group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
+        "group=1 outside wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
@@ -119,13 +121,19 @@ int main(int argc, char** argv) {
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
     const bool compact = candidate == "adaptive_compact";
     const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
+    const bool encoded = candidate == "encoded_b_cold" || candidate == "encoded_b_warm";
+    const bool encoded_warm = candidate == "encoded_b_warm";
+    const bool reuse_batch = encoded || candidate == "wmma";
+    if (encoded && argc != 12)
+      throw std::invalid_argument("encoded_b cases require explicit reuse_count1..256 after run identity");
     if (adaptive && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
                      std::string(argv[compact ? 12 : 11]) != "axis_l1"))
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
     if (tiled && argc != 13)
       throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
-    if (!adaptive && !tiled && (argc > 12 || (argc == 12 && !queued)))
+    if (!adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
+    const uint32_t reuse_count = reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
     const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
     const uint32_t tiled_buffers = tiled ? number(argv[12],0,2) : 0;
     const uint64_t tiled_lds_budget = 65536;
@@ -139,7 +147,7 @@ int main(int argc, char** argv) {
     const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
         queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = candidate == "wmma" || queued || prepared || adaptive || tiled;
+    const bool native = candidate == "wmma" || encoded || queued || prepared || adaptive || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -222,6 +230,21 @@ int main(int argc, char** argv) {
     compare(ra.get(),expected_a); compare(rb.get(),expected_b);
     std::vector<NativeWmmaTask> tasks{{da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs}};
     NativeWmmaPreparedQueue prepared_queue;
+    EncodedBLayout encoded_layout;
+    hip_direct_device_buffer encoded_storage;
+    double encoded_prepare_ns = 0;
+    if (encoded) {
+      encoded_layout = encoded_b_layout(k,n,n,prefix,UINT64_MAX);
+      check(encoded_layout.status);
+      if (encoded_warm) {
+        hip_direct_timing_set_enabled(false);
+        const auto start=std::chrono::steady_clock::now();
+        check(encoded_storage.allocate(0,encoded_layout.total_bytes));
+        check(hip_prepare_encoded_b(0,db.get(),encoded_storage.get(),k,n,n,prefix,
+                                    unsigned_inputs,encoded_layout.total_bytes));
+        encoded_prepare_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-start).count();
+      }
+    }
     double queue_prepare_ns = 0;
     if (prepared) {
       hip_direct_timing_set_enabled(false);
@@ -239,7 +262,25 @@ int main(int argc, char** argv) {
         check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),intermediate.get(),m,n,k,k,n,n,prefix));
         check(hip_direct_axpby_residues_device(0,intermediate.get(),rd.get(),dc.get(),m,n,n,n,n,prefix,alpha,beta));
       }
-      else if (candidate == "wmma") check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
+      else if (candidate == "wmma") {
+        for (uint32_t reuse=0;reuse<reuse_count;++reuse)
+          check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
+      }
+      else if (encoded) {
+        hip_direct_device_buffer cold_storage;
+        void* storage=encoded_storage.get();
+        if (!encoded_warm) {
+          check(cold_storage.allocate(0,encoded_layout.total_bytes));
+          storage=cold_storage.get();
+          check(hip_prepare_encoded_b(0,db.get(),storage,k,n,n,prefix,unsigned_inputs,encoded_layout.total_bytes));
+        }
+        for (uint32_t reuse=0;reuse<reuse_count;++reuse) {
+          check(hip_gemm_encoded_b(0,da.get(),storage,dc.get(),m,n,k,k,n,prefix,group,unsigned_inputs,written));
+          if (!written) throw std::runtime_error("encoded B operation succeeded without committing output");
+        }
+        // Release stays inside the cold batch's host interval, including status.
+        if (!encoded_warm) check(cold_storage.reset());
+      }
       else if (tiled) {
         check(hip_direct_gemm_native_tiled_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
             m,n,k,k,n,n,prefix,group,unsigned_inputs,tiled_depth,tiled_buffers,tiled_lds_budget,written));
@@ -296,7 +337,13 @@ int main(int argc, char** argv) {
                          {"events",events},{"exact_reference_passed",true}});
     }
     hip_direct_timing_set_enabled(false);
-    const auto sustained = sustained_calls(prepare, execute, verify);
+    auto sustained = sustained_calls(prepare, execute, verify);
+    if (reuse_batch) {
+      const uint64_t gemm_calls=sustained["calls"].get<uint64_t>()*reuse_count;
+      sustained.update({{"gemm_calls",gemm_calls},
+          {"mean_gemm_ns",sustained["elapsed_ns"].get<double>()/gemm_calls},
+          {"verified_outputs_per_batch",1}});
+    }
     nlohmann::json report{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
         {"sustained",sustained},
         {"queue_prepare_ns",queue_prepare_ns},
@@ -322,6 +369,29 @@ int main(int argc, char** argv) {
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if (reuse_batch) {
+      report.update({{"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
+          {"reuse_batch_boundary","R_synchronous_calls_same_native_A_B_one_final_verified_output"},
+          {"reuse_comparison_boundary","private_raw_residue_no_public_matrix_proof_or_generation"},
+          {"reuse_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"encoded_b_layout",encoded ? "modulus_n_k_packed_word32_v1" : "none"},
+          {"encoded_b_k_words",encoded ? encoded_layout.k_words : 0},
+          {"encoded_b_cache_logical_bytes",encoded ? encoded_layout.total_bytes : 0},
+          {"encoded_b_preparation_in_batch",encoded && !encoded_warm},
+          {"encoded_b_preparation_scope",encoded_warm ? "one_preparation_outside_batches_cached_consume" :
+              encoded ? "per_batch_allocate_probe_encode_consume_release" : "none_direct_native_grouped_each_call"},
+          {"encoded_b_prepare_ns",encoded_warm ? nlohmann::json(encoded_prepare_ns) : nlohmann::json(nullptr)},
+          {"encoded_b_resident_cache_bytes",encoded_warm ? encoded_layout.total_bytes : 0},
+          {"encoded_b_transient_cache_bytes",encoded && !encoded_warm ? encoded_layout.total_bytes : 0},
+          {"encoded_b_same_B_immutable",true},{"encoded_b_public_ownership_measured",false},
+          {"encoded_b_kernel_selection",std::string(encoded ? "encoded_b_grouped_g" : "native_grouped_g")+
+              std::to_string(group)+(unsigned_inputs ? "_unsigned" : "_signed")}});
+      report["timing_scope"]=encoded_warm ?
+          "R synchronous private cached GEMMs per batch; one allocation/probe/B conversion reported separately; no upload, poison or verification in interval" : encoded ?
+          "one allocation/probe/B conversion, R synchronous private cached GEMMs and cache release per batch; no upload, poison or verification in interval" :
+          "R synchronous grouped native GEMMs per batch, including ordinary per-call capability/allocation policy; no upload, poison or verification in interval";
+      report["cache_state"]="same immutable native A/B; C poisoned before sampled batches and once before sustained burst";
+    }
     if (tiled) {
       report.update({{"k_depth",tiled_depth},{"lds_buffers",tiled_buffers},
           {"tiled_output_rows",tiled_resources.output_rows},{"tiled_output_cols",tiled_resources.output_cols},

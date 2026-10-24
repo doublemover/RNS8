@@ -21,6 +21,7 @@ Dated records identify the builds and devices actually checked.
 - [Prepared execution and completion](prepared-execution.md)
 - [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
 - [Experimental public exact complex composition](complex-residue-composition.md)
+- [Experimental public narrow native products](narrow-native-owner.md), [encoded B](encoded-b-native.md) and [block materializations](block-sparse.md#public-generation-bound-owner)
 - [Backend capabilities and selection](backend-notes.md)
 
 ## Understand and extend
