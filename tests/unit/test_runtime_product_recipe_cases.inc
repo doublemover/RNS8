@@ -15,6 +15,10 @@ TEST_CASE("runtime product arena respects every diamond reader") {
     }
     CHECK(plan_product_arena(inputs,nodes,20,plan.arena_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
   }
+  CHECK(plan_product_arena({{1,1},{1,PTRDIFF_MAX}},{{0,1}},1,UINT64_MAX).status==RNS8_RANGE_ERROR);
+  // Individually valid regions can exceed the whole-object difference domain.
+  const int64_t huge=(PTRDIFF_MAX/2)&~int64_t{255};
+  CHECK(plan_product_arena({{1,1},{1,huge}},{{0,1},{0,2},{0,2},{0,3}},1,UINT64_MAX).status==RNS8_RANGE_ERROR);
   CHECK(plan_product_arena(inputs,{{0,2}},20,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
   CHECK(plan_product_arena({{16,17},{16,16}},{{0,1}},20,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
 }

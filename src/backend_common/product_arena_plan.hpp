@@ -58,6 +58,10 @@ inline ProductArenaPlan plan_product_arena(const std::vector<ProductShape>& inpu
       if(slots[j].last_use<i && slots[j].capacity>=aligned &&
           (selected==slots.size() || slots[j].capacity<slots[selected].capacity)) selected=j;
     if(selected==slots.size()) {
+      const auto object_limit=static_cast<uint64_t>(PTRDIFF_MAX);
+      if(aligned>object_limit || plan.arena_bytes>object_limit-aligned) {
+        plan.status=RNS8_RANGE_ERROR; return plan;
+      }
       if(aligned>SIZE_MAX-plan.arena_bytes || aligned>budget || plan.arena_bytes>budget-aligned) {
         plan.status=RNS8_WORKSPACE_TOO_SMALL; return plan;
       }
