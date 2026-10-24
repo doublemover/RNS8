@@ -80,7 +80,13 @@ RNS storage, export stages native data and performs a D2D copy, and compact
 status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
 Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
-Installed producer/consumer examples, prepared async/graph binding, failed-drain
+Prepared async/graph binding, failed-drain
 mock fixtures, limb outputs, copy-owned mode, DLPack and matched performance
 receipts remain implementation/qualification work. No measured speedup or
 broader target support is claimed.
+
+The installed `examples/device-native` consumer supplies custom HIP producer and
+consumer kernels around public exact GEMM. It independently checks all output
+and padding and separately labels validation-only host payload readback. Its
+standalone CMake recipe uses explicit hipcc object compilation and exported
+static/shared targets; build/runtime qualification is pending the final batch.

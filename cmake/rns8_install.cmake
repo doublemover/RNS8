@@ -61,3 +61,8 @@ install(
   DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/downstream-cmake"
   COMPONENT Development
 )
+
+install(FILES examples/device-native/CMakeLists.txt examples/device-native/README.md
+    examples/device-native/main.cpp examples/device-native/producer_consumer.hip
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/device-native"
+  COMPONENT Development)
