@@ -83,3 +83,20 @@ TEST_CASE("native WMMA queue covers heterogeneous tiles exactly once") {
   CHECK(bytes == original_bytes);
   CHECK(work.size() == expected.size());
 }
+
+TEST_CASE("native queue admits encoded spans and rejects encoded output hazards") {
+  uint64_t a=1,b=2;
+  int8_t c=0;
+  uint32_t encoded[5]{};
+  NativeWmmaTask task{&a,&b,&c,1,1,1,1,1,1,1,1,0,encoded,4};
+  std::vector<NativeWmmaWork> work; uint64_t bytes=0;
+  CHECK(native_wmma_uniform_group({task})==0);
+  REQUIRE(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_SUCCESS);
+  task.encoded_k_words=3;
+  CHECK(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_INVALID_ARGUMENT);
+  task.encoded_k_words=4;
+  task.c=reinterpret_cast<int8_t*>(encoded)+16; // retained capability word also belongs to cache
+  CHECK(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_INVALID_ARGUMENT);
+  task.c=&c; task.encoded_b=nullptr;
+  CHECK(build_native_wmma_queue({task},1,UINT64_MAX,work,bytes)==RNS8_INVALID_ARGUMENT);
+}

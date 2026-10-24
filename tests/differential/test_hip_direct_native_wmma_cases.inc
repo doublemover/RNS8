@@ -240,8 +240,8 @@ template<class T> void check_public_encoded_b_owner() {
   REQUIRE(rns8_create_workspace(ctx,plan,&ws)==RNS8_SUCCESS);
   auto md=matrix_desc(n,n,semantics,RNS8_BOUND_NONE);
   md.max_prefix=20; md.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
-  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
-  for(auto** matrix:{&a,&b,&c}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr,*c2=nullptr;
+  for(auto** matrix:{&a,&b,&c,&c2}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
   std::vector<T> av(n*n,0),bv(n*n);
   for(int row=0;row<n;++row) {
     av[row*n+row]=2;
@@ -255,7 +255,7 @@ template<class T> void check_public_encoded_b_owner() {
   rns8_encoded_b* cache=nullptr;
   const auto cleanup=[&]() {
     rns8_destroy_encoded_b(cache);
-    for(auto* matrix:{a,b,c}) rns8_destroy_matrix(matrix);
+    for(auto* matrix:{a,b,c,c2}) rns8_destroy_matrix(matrix);
     rns8_destroy_workspace(ws); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
   };
   CHECK(rns8_prepare_encoded_b(ctx,b,0,&cache)==RNS8_WORKSPACE_TOO_SMALL);
@@ -280,9 +280,36 @@ template<class T> void check_public_encoded_b_owner() {
       CHECK(actual==cpp_int(2)*bv[cell]);
     }
   }
+  REQUIRE(pack(c,av)==RNS8_SUCCESS);
+  REQUIRE(pack(c2,av)==RNS8_SUCCESS);
+  rns8_encoded_b_task batch[2]{};
+  for(auto& task:batch) {
+    task.struct_size=sizeof(task); task.abi_version=RNS8_ABI_VERSION;
+    task.plan=plan; task.a=a; task.b=cache; task.workspace=ws;
+  }
+  batch[0].group=1; batch[0].c=c; batch[1].group=4; batch[1].c=c2;
+  const auto before0=c->content_generation,before1=c2->content_generation;
+  CHECK(rns8_gemm_encoded_b_grouped(ctx,batch,2,3,0)==RNS8_WORKSPACE_TOO_SMALL);
+  batch[1].a=c; // cross-task logical native/RNS alias despite disjoint byte allocations
+  CHECK(rns8_gemm_encoded_b_grouped(ctx,batch,2,3,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+  batch[1].a=a;
+  CHECK(c->content_generation==before0); CHECK(c2->content_generation==before1);
+  REQUIRE(rns8_gemm_encoded_b_grouped(ctx,batch,2,3,UINT64_MAX)==RNS8_SUCCESS);
+  std::vector<uint64_t> left(n*n*3),right(n*n*3);
+  if constexpr(u) {
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,left.data(),n,3)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c2,right.data(),n,3)==RNS8_SUCCESS);
+  } else {
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,left.data(),n,3)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c2,right.data(),n,3)==RNS8_SUCCESS);
+  }
+  CHECK(left==right);
   bv[0]=3; REQUIRE(pack(b,bv)==RNS8_SUCCESS);
   const auto changed=c->content_generation;
   CHECK(run(1)==RNS8_INVALID_ARGUMENT);
+  const auto c2_generation=c2->content_generation;
+  CHECK(rns8_gemm_encoded_b_grouped(ctx,batch,2,3,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+  CHECK(c2->content_generation==c2_generation);
   CHECK(c->content_generation==changed);
   REQUIRE(rns8_destroy_encoded_b(cache)==RNS8_SUCCESS); cache=nullptr;
   REQUIRE(rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&cache)==RNS8_SUCCESS);

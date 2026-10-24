@@ -105,21 +105,24 @@ __global__ __launch_bounds__(32) void rns8_native_grouped_wmma_kernel(
   rns8_native_grouped_wmma_tile<NativeT, Group>(a, b, c, m, n, k, lda, ldb, ldc, prefix,
       static_cast<int64_t>(blockIdx.y) * 16, static_cast<int64_t>(blockIdx.x) * 16, blockIdx.z * Group);
 }
-template <typename NativeT>
-__device__ __forceinline__ void rns8_native_queue_tile(
-    const rns8::detail::NativeWmmaTask& task, const rns8::detail::NativeWmmaWork& work) {
-  const auto* a = static_cast<const NativeT*>(task.a);
-  const auto* b = static_cast<const NativeT*>(task.b);
-  const int64_t row = static_cast<int64_t>(work.tile_row) * 16, col = static_cast<int64_t>(work.tile_col) * 16;
-  if (task.group == 1)
-    rns8_native_grouped_wmma_tile<NativeT, 1>(a, b, task.c, task.m, task.n, task.k,
-        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
-  else if (task.group == 2)
-    rns8_native_grouped_wmma_tile<NativeT, 2>(a, b, task.c, task.m, task.n, task.k,
-        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
+template<class T,int Group>
+__device__ __forceinline__ void rns8_native_queue_group_tile(
+    const rns8::detail::NativeWmmaTask& task,const rns8::detail::NativeWmmaWork& work) {
+  const int64_t row=int64_t(work.tile_row)*16,col=int64_t(work.tile_col)*16;
+  if(task.encoded_b)
+    rns8_native_grouped_wmma_tile<T,Group,true>(static_cast<const T*>(task.a),nullptr,task.c,
+        task.m,task.n,task.k,task.lda,task.ldb,task.ldc,task.prefix,row,col,work.first_plane,
+        task.encoded_b,task.encoded_k_words);
   else
-    rns8_native_grouped_wmma_tile<NativeT, 4>(a, b, task.c, task.m, task.n, task.k,
-        task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
+    rns8_native_grouped_wmma_tile<T,Group>(static_cast<const T*>(task.a),static_cast<const T*>(task.b),task.c,
+        task.m,task.n,task.k,task.lda,task.ldb,task.ldc,task.prefix,row,col,work.first_plane);
+}
+template<class T>
+__device__ __forceinline__ void rns8_native_queue_tile(
+    const rns8::detail::NativeWmmaTask& task,const rns8::detail::NativeWmmaWork& work) {
+  if(task.group==1) rns8_native_queue_group_tile<T,1>(task,work);
+  else if(task.group==2) rns8_native_queue_group_tile<T,2>(task,work);
+  else rns8_native_queue_group_tile<T,4>(task,work);
 }
 // Group zero retains heterogeneous dispatch. Uniform queues instantiate only
 // one tile body, so a group-one job need not reserve group-four registers.

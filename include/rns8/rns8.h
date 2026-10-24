@@ -1349,6 +1349,25 @@ RNS8_API rns8_status rns8_gemm_encoded_b_exact(rns8_context* ctx,const rns8_plan
     const rns8_matrix* a,const rns8_encoded_b* b,rns8_matrix* c,
     uint32_t group,rns8_workspace* workspace);
 
+typedef struct rns8_encoded_b_task {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t group;
+  const rns8_plan* plan;
+  const rns8_matrix* a;
+  const rns8_encoded_b* b;
+  rns8_matrix* c;
+  rns8_workspace* workspace;
+} rns8_encoded_b_task;
+/* Synchronous heterogeneous encoded-B queue; count1..4096, workers1..1024.
+ * All identities/proofs and cross-task logical aliases are checked before any
+ * output write. Read-only A/B sharing is legal. Descriptors/cursor are charged
+ * to max_scratch_bytes, separately from retained encoded B storage. Success
+ * publishes all outputs; possible launch failure invalidates all batch outputs.
+ * No async or independently observable per-task completion is supplied. */
+RNS8_API rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx,
+    const rns8_encoded_b_task* tasks,uint32_t count,uint32_t workers,uint64_t max_scratch_bytes);
+
 typedef struct rns8_block_sparse_operand rns8_block_sparse_operand;
 typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
   RNS8_BLOCK_SPARSE_LHS = 1,

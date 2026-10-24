@@ -98,10 +98,11 @@ rns8_status NativeWmmaPreparedQueue::execute_ordinary(bool& outputs_may_be_writt
     auto launch = hipSuccess;
     for (const auto& task : host_tasks_) {
       outputs_may_be_written = true;
-      launch = static_cast<hipError_t>(rns8_hip_native_wmma_grouped(
-          task.a, task.b, task.c, static_cast<int>(task.m), static_cast<int>(task.n),
-          static_cast<int>(task.k), static_cast<int>(task.lda), static_cast<int>(task.ldb),
-          static_cast<int>(task.ldc), task.prefix, task.group, task.unsigned_inputs != 0));
+      launch = static_cast<hipError_t>(task.encoded_b
+          ? rns8_hip_native_encoded_b_wmma(task.a,task.encoded_b,task.c,int(task.m),int(task.n),int(task.k),
+              int(task.lda),int(task.ldc),task.prefix,task.encoded_k_words,task.group,task.unsigned_inputs!=0)
+          : rns8_hip_native_wmma_grouped(task.a,task.b,task.c,int(task.m),int(task.n),int(task.k),
+              int(task.lda),int(task.ldb),int(task.ldc),task.prefix,task.group,task.unsigned_inputs!=0));
       if (launch != hipSuccess) break;
     }
     // Drain earlier grids even if a later launch failed. The whole batch is

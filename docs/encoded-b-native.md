@@ -33,7 +33,22 @@ rejection. These are unexecuted in the current frontload. Calibration must compa
 identical shapes/prefixes/native semantics and separate cold encoding+allocation
 from warm reuse, including a setup-inclusive break-even. No measured win is claimed.
 
-This owner currently launches ordinary grouped grids. Binding encoded storage into
-heterogeneous prepared queues, async completion slots and automatic materialization
-selection remains separate work. Existing descriptor-only queue reports do not
-measure this representation.
+## Synchronous encoded queue
+
+`rns8_gemm_encoded_b_grouped` admits up to 4096 tasks and 1..1024 persistent workers.
+It stages every exact proof and checks every cache generation before enqueue. It
+rejects duplicate outputs and cross-task output/input matrix aliases, including
+native/RNS representations with different allocation pointers. Read-only A/B
+sharing is legal. One successful queue completion publishes all outputs; a possible
+write failure invalidates all outputs. It has no per-task completion or async API.
+
+Private queue descriptors also accept encoded B alongside raw tasks; their builder
+checks encoded layout, full allocation spans and cross-task write hazards. Encoded
+queues use the heterogeneous kernel; original all-raw uniform specializations stay
+separate. The prepared ordinary-grid control consumes the same encoded storage.
+The queue caches descriptors; the public encoded-B handle owns the value payload.
+New fixtures cover mixed raw/encoded tasks, groups/signedness, K-slab tails, shared B,
+logical aliases and changed source rejection. They remain unexecuted.
+
+Async completion slots and automatic materialization selection remain separate
+work. Existing descriptor-only queue reports do not measure this representation.

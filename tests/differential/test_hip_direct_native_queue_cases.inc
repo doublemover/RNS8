@@ -4,11 +4,11 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
   using boost::multiprecision::cpp_int;
   // Mixed dispatch plus all six uniform specializations use the same independent
   // exact oracle, padded tails and cross-slab input. Shapes remain heterogeneous.
-  for (uint32_t variant = 0; variant < 7; ++variant) {
+  for (uint32_t variant = 0; variant < 9; ++variant) {
     DYNAMIC_SECTION("queue specialization " << variant) {
       struct Buffers {
-        void *a = nullptr, *b = nullptr, *c = nullptr;
-        ~Buffers() { hip_direct_free(0, c); hip_direct_free(0, b); hip_direct_free(0, a); }
+        void *a = nullptr, *b = nullptr, *c = nullptr, *encoded = nullptr;
+        ~Buffers() { hip_direct_free(0, encoded); hip_direct_free(0, c); hip_direct_free(0, b); hip_direct_free(0, a); }
       } buffers[4];
       std::vector<NativeWmmaTask> tasks;
       std::vector<std::vector<int8_t>> expected(4), actual(4);
@@ -23,8 +23,9 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         const int m = id == 3 ? 1 : 17 + id, n = id == 3 ? 1 : 19 - id;
         const int k = id == 3 ? 65537 : 15 + id, lda = k + 1, ldb = n + 2, ldc = n + 3;
         const uint32_t prefix = id == 0 ? 1 : id == 1 ? 3 : id == 2 ? 9 : 20;
-        const uint32_t group = variant ? (1u << ((variant - 1) % 3)) : (id == 0 ? 1 : id == 1 ? 2 : 4);
-        const bool is_unsigned = variant ? variant > 3 : id % 2 != 0;
+        const bool uniform=variant>0 && variant<7;
+        const uint32_t group = uniform ? (1u << ((variant - 1) % 3)) : (id == 0 ? 1 : id == 1 ? 2 : 4);
+        const bool is_unsigned = uniform ? variant > 3 : id % 2 != 0;
         const uint64_t values[] = {0, 1, UINT64_MAX, uint64_t{1} << 63, INT64_MAX, 127, 255};
         std::vector<uint64_t> a(m * lda), b(k * ldb);
         for (int row = 0; row < m; ++row)
@@ -53,6 +54,16 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         REQUIRE(hip_direct_copy_host_to_device(0, buffer.b, b.data(), b.size() * 8) == RNS8_SUCCESS);
         tasks.push_back({buffer.a, buffer.b, static_cast<int8_t*>(buffer.c), m, n, k, lda, ldb, ldc,
                          prefix, group, static_cast<uint32_t>(is_unsigned)});
+        if(variant==7 || (variant==8 && id%2)) {
+          const auto layout=encoded_b_layout(k,n,ldb,prefix,UINT64_MAX);
+          REQUIRE(layout.status==RNS8_SUCCESS);
+          REQUIRE(hip_direct_allocate(0,layout.total_bytes,&buffer.encoded)==RNS8_SUCCESS);
+          const auto status=hip_prepare_encoded_b(0,buffer.b,buffer.encoded,k,n,ldb,prefix,is_unsigned,layout.total_bytes);
+          if(status==RNS8_UNSUPPORTED_BACKEND) SKIP("compiled target lacks encoded B WMMA");
+          REQUIRE(status==RNS8_SUCCESS);
+          tasks.back().encoded_b=static_cast<const uint32_t*>(buffer.encoded);
+          tasks.back().encoded_k_words=layout.k_words;
+        }
       }
       for (uint32_t workers : {1u, 2u, 128u}) {
         for (uint32_t id = 0; id < tasks.size(); ++id) {

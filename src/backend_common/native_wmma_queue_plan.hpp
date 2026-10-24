@@ -2,6 +2,7 @@
 #define RNS8_NATIVE_WMMA_QUEUE_PLAN_HPP
 #include "native_wmma_queue.hpp"
 #include "address_domain.hpp"
+#include "encoded_b_layout.hpp"
 #include "rns8/status.h"
 #include <algorithm>
 #include <deque>
@@ -16,7 +17,7 @@ inline uint32_t native_wmma_uniform_group(const std::vector<NativeWmmaTask>& tas
   if ((first.group != 1 && first.group != 2 && first.group != 4) || first.unsigned_inputs > 1)
     return 0;
   return std::all_of(tasks.begin(), tasks.end(), [&](const NativeWmmaTask& task) {
-    return task.group == first.group && task.unsigned_inputs == first.unsigned_inputs;
+    return task.group == first.group && task.unsigned_inputs == first.unsigned_inputs && !task.encoded_b;
   }) ? first.group : 0;
 }
 // Host-only descriptor builder. No ownership assumption relies on a GPU's
@@ -28,7 +29,7 @@ inline rns8_status build_native_wmma_queue(const std::vector<NativeWmmaTask>& ta
     struct Span { uintptr_t begin, end; bool write; };
     std::vector<Span> spans;
     std::vector<uint32_t> counts, next(tasks.size());
-    spans.reserve(tasks.size() * 3); counts.reserve(tasks.size());
+    spans.reserve(tasks.size() * 4); counts.reserve(tasks.size());
     uint64_t total = 0;
     const auto span = [&](const void* pointer, uint64_t size, bool write) {
       const auto address = reinterpret_cast<uintptr_t>(pointer);
@@ -50,6 +51,12 @@ inline rns8_status build_native_wmma_queue(const std::vector<NativeWmmaTask>& ta
       if (!span(task.a, (static_cast<uint64_t>(task.m - 1) * task.lda + task.k) * 8, false) ||
           !span(task.b, (static_cast<uint64_t>(task.k - 1) * task.ldb + task.n) * 8, false) ||
           !span(task.c, (static_cast<uint64_t>(task.m) * task.prefix - 1) * task.ldc + task.n, true)) return RNS8_INVALID_ARGUMENT;
+      if(task.encoded_b) {
+        const auto encoded=encoded_b_layout(task.k,task.n,task.ldb,task.prefix,UINT64_MAX);
+        if(encoded.status!=RNS8_SUCCESS) return encoded.status;
+        if(reinterpret_cast<uintptr_t>(task.encoded_b)%4 || task.encoded_k_words!=encoded.k_words ||
+            !span(task.encoded_b,encoded.total_bytes,false)) return RNS8_INVALID_ARGUMENT;
+      } else if(task.encoded_k_words) return RNS8_INVALID_ARGUMENT;
       const uint64_t count = ((task.m + 15) / 16) * ((task.n + 15) / 16) *
                              ((task.prefix + task.group - 1) / task.group);
       if (count > UINT32_MAX - workers || total > UINT32_MAX - workers - count) return RNS8_RANGE_ERROR;

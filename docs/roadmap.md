@@ -160,7 +160,7 @@ ends. No new source commit inherits the old checkpoint's qualification.
 A one-producer token binding with explicit nonblocking progress is now authored.
 Concrete remaining development includes multi-producer/event-pipelined dependencies and async transfers/lift/export,
 runtime precision/layout materialization and public graph arena integration, broader runtime recipe providers,
-encoded-B queue/async integration, block-sparse hybrid scheduling, broader narrow scheduling and rank-23 straight-line
+encoded-B async integration, block-sparse hybrid scheduling, broader narrow scheduling and rank-23 straight-line
 execution. These are code gaps, distinct from unavailable hardware and measured
 promotion gates. Completion of one validation batch cannot by itself close them.
 
@@ -171,4 +171,5 @@ it does not supply the broader public precision/layout planner.
 
 A [generation-bound encoded-B owner](encoded-b-native.md) now authors actual
 K-contiguous residue storage and a direct fragment consumer. Ordinary grouped
-launches are implemented; heterogeneous queue and async binding remain separate.
+launches and a synchronous heterogeneous queue owner are authored; async binding
+remains separate.

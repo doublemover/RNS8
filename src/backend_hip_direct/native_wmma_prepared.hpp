@@ -7,8 +7,9 @@
 namespace rns8::detail {
 // Private synchronous descriptor owner, not a value/materialization cache.
 // All referenced allocations must stay alive at their original addresses and
-// layouts. Contents may change between completed calls: every execute rereads
-// them. Caller owns range proofs and exclusive output/input access during use.
+// layouts. Raw operand contents may change between completed calls and are reread.
+// Optional encoded-B payloads are caller-owned immutable materializations; their
+// logical generation binding must be maintained by the caller. Caller owns range proofs and exclusive output/input access during use.
 // Public matrix generation/reader/writer ownership is not supplied by this API.
 class NativeWmmaPreparedQueue {
  public:
