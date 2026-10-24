@@ -119,8 +119,14 @@ def verify_composition(nodes: tuple[Node, ...]) -> dict:
         except (ValueError, TypeError, ZeroDivisionError) as error:
             failures.append({"node": node.name, "obligation": str(error)})
             break
-    identity = hashlib.sha256(json.dumps([asdict(n) for n in nodes], sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"sha256": identity, "algebraically_verified": not failures, "failures": failures,
+    identity = hashlib.sha256(json.dumps({"checker_version": "composition-v2", "nodes": [asdict(n) for n in nodes]}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return {"sha256": identity, "checker_version": "composition-v2",
+            "verdicts": {"algebraic_value_equality": "proven" if not failures else "unknown",
+                         "floating_rewrite_equivalence": "unsupported",
+                         "finite_exact_recoverability": "proven" if not failures else "unknown",
+                         "physical_layout_correctness": "unknown", "target_execution": "not_run"},
+            "verdict_scope": "declared-integer-model-with-assumed-layout-permutations",
+            "algebraically_verified": not failures, "failures": failures,
             "domains": {name: {"interval": [d.low, d.high], "multiple": d.multiple,
                                 "modulus": d.modulus, "physical_scale": str(d.scale)} for name, d in domains.items()},
             "input_contracts_require_binding_validation": True,

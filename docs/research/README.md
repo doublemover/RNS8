@@ -74,3 +74,5 @@ performance need their own scoped records. Current matched scaling results are
 in the [larger-workload report](../7900xtx-large-throughput-2026-10-23.md).
 
 - [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register and staged LDS candidates, #35; validation pending.
+
+- [Floating rewrite oracle](../floating-rewrite-oracle.md): CPU binary32/rational comparisons and separate proof verdicts, #29/#45; no hardware qualification.

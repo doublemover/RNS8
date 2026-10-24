@@ -88,7 +88,7 @@ def _schema_failures(c: ArithmeticCertificate) -> list[str]:
 def certificate_hash(certificate: ArithmeticCertificate) -> str:
     if _schema_failures(certificate):
         raise ValueError("cannot hash a malformed arithmetic certificate")
-    payload = json.dumps(asdict(certificate), sort_keys=True, separators=(",", ":"), allow_nan=False)
+    payload = json.dumps({"checker_version": "integer-certificate-v2", "certificate": asdict(certificate)}, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -185,6 +185,12 @@ def verify(c: ArithmeticCertificate) -> dict:
 
 def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict], malformed: bool = False) -> dict:
     return {"schema": "rns8_arithmetic_certificate_v1", "sha256": None if malformed else certificate_hash(c),
+            "checker_version": "integer-certificate-v2",
+            "verdicts": {"algebraic_value_equality": "proven" if not failures else "unknown",
+                         "floating_rewrite_equivalence": "unsupported",
+                         "finite_exact_recoverability": "proven" if not failures else "unknown",
+                         "physical_layout_correctness": "not_run", "target_execution": "not_run"},
+            "verdict_scope": "declared-integer-model-and-bound-input-contract",
             "algebraically_verified": not failures, "proof_failures": sorted(set(failures)),
             "intervals": intervals, "simulator_verified": False,
             # An evidence string is a reference, not permission to self-certify.
