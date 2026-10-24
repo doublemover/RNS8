@@ -3340,6 +3340,7 @@
         }
       ],
       "anchors": [
+        "capture-resume-and-retired-reports",
         "commands",
         "current-evidence-boundary",
         "measurement-contract",
@@ -4983,6 +4984,35 @@
       ],
       "anchors": [
         "installed-native-hip-producerconsumer"
+      ]
+    },
+    {
+      "path": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "purpose": "Reviewed partial 7900 XTX campaign and stopped execution gates",
+      "audience": "Maintainers and hardware qualification reviewers",
+      "disposition": "historical",
+      "canonical": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "owner": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "reason": "Preserve the reviewed stopped campaign, exact source provenance and unresolved qualification without implying a completed campaign.",
+      "inbound_links": [
+        {
+          "source": "docs/roadmap.md",
+          "reference": "7900xtx-partial-campaign-2026-10-24.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/7900xtx-partial-campaign-2026-10-24.md"
+        }
+      ],
+      "anchors": [
+        "beneficial-results",
+        "disposition-and-scope",
+        "evidence-and-reproduction",
+        "measurement-and-comparison-rules",
+        "negative-and-incomplete-findings",
+        "qualified-configuration",
+        "representative-observed-ranges",
+        "rx-7900-xtx-reviewed-partial-campaign-october-24-2026"
       ]
     }
   ]

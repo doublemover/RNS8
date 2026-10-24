@@ -161,7 +161,10 @@ def validate_result(item: dict, result: dict, parent_info: dict | None = None) -
                 errors.append("runtime GPU target does not match the manifest")
             if info.get("backend") != item["inspect_backend"]:
                 errors.append("runtime backend does not match the manifest")
-            if info.get("hip_available") is not True or type(info.get("global_mem_bytes")) is not int or info["global_mem_bytes"] <= 0:
+            # rns8_device_info uses uint32_t and rns8-inspect emits numeric 0/1.
+            # Accept the earlier Boolean fixtures, but not arbitrary truthy values.
+            available = info.get("hip_available")
+            if not (available is True or (type(available) is int and available == 1)) or type(info.get("global_mem_bytes")) is not int or info["global_mem_bytes"] <= 0:
                 errors.append("runtime inspection did not establish an available GPU with positive memory")
             if info.get("device_id") != item["inspect_device"] or type(info.get("device_id")) is not int:
                 errors.append("runtime ordinal does not match the explicitly selected inspection ordinal")

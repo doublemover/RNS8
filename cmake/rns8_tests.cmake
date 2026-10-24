@@ -1,5 +1,6 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME tooling_contract_regressions COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_tooling_contracts.py")
   add_test(NAME dependency_policy_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_policy.py")
   add_test(NAME documentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_documentation.py")
   add_test(NAME documentation_links COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_documentation.py")
@@ -404,12 +405,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(report_capture_inputs_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME bounded_i64_1024_review_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bounded_i64_1024_review.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(bounded_i64_1024_review_self_test PROPERTIES LABELS "benchmark;evidence;autotune")
 
   add_test(
     NAME tile_shape_report_self_test
@@ -432,12 +427,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(adaptive_grouped_scheduler_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
-  add_test(
-    NAME streaming_overlap_report_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_overlap_report.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(streaming_overlap_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
   add_test(
     NAME perf_variance_report_self_test
@@ -453,12 +442,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(error_detection_policy_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME cache_promotion_closeout_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cache_promotion_closeout.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(cache_promotion_closeout_self_test PROPERTIES LABELS "tools;autotune;evidence")
 
   add_test(
     NAME fhe_workload_report_self_test

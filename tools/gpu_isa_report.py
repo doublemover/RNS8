@@ -124,7 +124,9 @@ def discover_objects(build_tree: Path, backend: str) -> list[Path]:
     return candidates
 
 
-def read_cmake_cache(build_tree: Path) -> dict[str, str]:
+def read_cmake_cache(build_tree: Path | None) -> dict[str, str]:
+    if build_tree is None:
+        return {}
     cache_path = build_tree / "CMakeCache.txt"
     if not cache_path.exists():
         return {}
@@ -138,7 +140,7 @@ def read_cmake_cache(build_tree: Path) -> dict[str, str]:
     return values
 
 
-def expected_backends_from_cmake_cache(build_tree: Path, backend: str) -> set[str]:
+def expected_backends_from_cmake_cache(build_tree: Path | None, backend: str) -> set[str]:
     if backend != "all":
         return {backend}
     cache = read_cmake_cache(build_tree)
@@ -607,12 +609,13 @@ def main() -> int:
     skipped_objects: list[dict[str, Any]] = []
     reported_backends: set[str] = set()
     expected_backends = expected_backends_from_cmake_cache(args.build_tree, args.backend)
+    if not expected_backends:
+        expected_backends = {backend_for_object(obj, args.backend) for obj in unique_objects}
+        expected_backends.discard("all")
     for obj in unique_objects:
         if not obj.exists():
             raise RuntimeError(f"HIP object does not exist: {obj}")
         backend = backend_for_object(obj, args.backend)
-        if not expected_backends and backend != "all":
-            expected_backends.add(backend)
         config = IsaToolConfig(host_object=obj, **config_template)
         try:
             report = report_object(config, backend, args.rga, readobj_path)

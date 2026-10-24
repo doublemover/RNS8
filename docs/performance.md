@@ -115,3 +115,20 @@ units are outside this scope; zero here cannot establish that such a route
 performed no transfer. Existing retained-native signed/unsigned differential
 fixtures check one compact logical upload for both compact and padded sources.
 The new counters and fixtures await the final validation campaign.
+
+## Capture resume and retired reports
+
+A resumed sweep satisfies a requested capture only when its versioned request
+receipt matches the complete arguments (including seed and sampling), relevant
+runtime environment and compiled executable digest. Matching captures are not
+relabelled or rewritten. Historical captures without this receipt remain valid
+review inputs, but are not a substitute for a new requested observation. Stale
+observations are retained beside a recollected capture; the sweep reports matched,
+stale, attempted and deferred counts separately. RNS8 linkage is static, as
+specified by the compiled build manifest; no checkout revision replaces this
+artifact identity.
+
+The golden suite records retired reports separately from attempted/tested cases.
+Its three retired legacy reports do not execute and do not contribute passes.
+Current sweep admission, scheduler evidence and autotune installation keep their
+own executable coverage.

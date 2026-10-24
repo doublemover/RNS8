@@ -321,13 +321,15 @@ with tempfile.TemporaryDirectory() as tmp:
         resume_args,
         capture_paths,
     )
-    assert capture_paths == [existing]
-    assert stats == {
+    assert capture_paths == []
+    assert stats["stale_existing_captures"] == 1
+    assert str(existing) in stats["stale_existing_reasons"]
+    assert {key: value for key, value in stats.items() if key not in {"stale_existing_captures", "stale_existing_reasons", "matched_existing_captures"}} == {
         "planned_captures": 2,
-        "skipped_existing_captures": 1,
+        "skipped_existing_captures": 0,
         "new_captures_attempted": 0,
         "new_captures_completed": 0,
         "deduped_cpu_captures": 0,
-        "deferred_captures": 1,
+        "deferred_captures": 2,
     }
 
