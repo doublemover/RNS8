@@ -91,3 +91,5 @@ TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
 }
 
 #include "test_hip_direct_stream_panels_cases.inc"
+
+#include "test_hip_direct_fixed_conversion_cases.inc"

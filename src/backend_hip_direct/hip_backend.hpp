@@ -1237,6 +1237,11 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const 
 rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const GramProblem& problem,
     uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started);
 
+// Private fixed-transform modes: 0 signed native import, 1 unsigned import,
+// 2 canonical three-limb CRT. Explicit RDNA3 packed-dot candidate only.
+rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,void* destination,
+    int64_t cells,uint32_t prefix,uint32_t mode,uint64_t budget,bool& commit_started);
+
 }  // namespace rns8::detail
 
 #endif
