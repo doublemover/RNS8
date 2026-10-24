@@ -12,9 +12,12 @@ allocation base/capacity, byte offset, rows/columns/leading dimension, device,
 owner identity, nonzero binding generation, explicit BORROW policy, producer
 completion and acquire/release callbacks. Signedness does not select arithmetic
 semantics: import/export independently admit bounded or exact-wide matching
-matrix semantics. Finite, wrap, native limb tensors and retained-native-input
-matrix imports are not admitted in V1. A retained-native matrix needs its own
-copy/binding policy rather than an implicit stale retained representation.
+matrix semantics. Finite, wrap and native limb tensors are not admitted in V1.
+A matrix created with `RNS8_MATRIX_RETAIN_NATIVE_INPUT` receives an owned compact
+device copy on import. Conversion reads that copy; native and residue currentness
+publish together after completion. Destroying the lease or recycling its source
+cannot change the owned snapshot. Reimport refreshes the same allocation. There
+is no borrowed external pointer stored as the matrix's native representation.
 
 The pure query validates the complete accessible view, pointer arithmetic,
 alignment, stride and qualified index domain, and returns compact output plus
@@ -42,7 +45,13 @@ storage. It certifies the complete native type envelope (2^63 signed magnitude
 or UINT64_MAX unsigned), checks unique CRT coverage before writes, and publishes
 that conservative scalar proof. It never treats a caller's small bound as a
 verified fact and never downloads input payload for a host scan. Every import
-reads the leased view, including a newly leased recycled address.
+reads the leased view, including a newly leased recycled address. Retained-native
+imports add a separately timed `interop_native_retain_d2d` logical-row copy and
+retain rows*cols*8 bytes in the matrix; no host native mirror or duplicate upload
+buffer is allocated. The normal matrix allocation report includes those bytes.
+Input/output leases overlapping either the matrix's residue or native allocation
+reject before writes, preserving both representations. A failed issued import
+invalidates both, and uncertain completion retains the existing matrix/lease pins.
 
 The opt-in verified import scans actual device magnitudes with the same block
 reduction used by narrow native admission, extended to unsigned values. It

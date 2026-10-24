@@ -2195,6 +2195,9 @@ RNS8_API rns8_status rns8_create_native_device_lease(rns8_context*,const rns8_na
 /* Failed drain/free preserves the lease; successful destruction releases its
  * owner exactly once. Callbacks must not throw or reenter this lease. */
 RNS8_API rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease*);
+/* Retained-native matrices receive an owned compact D2D copy before conversion.
+ * Both native and RNS representations publish together. The matrix owns that
+ * copy after lease destruction; no external address is retained as its storage. */
 RNS8_API rns8_status rns8_import_native_device(rns8_context*,rns8_matrix*,rns8_native_device_lease*);
 /* Device magnitude scan, eight-byte summary readback, then import. */
 RNS8_API rns8_status rns8_import_native_device_verified(rns8_context*,rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);

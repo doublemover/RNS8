@@ -15,16 +15,25 @@ rns8_status hip_direct_validate_native_allocation(int device_id,const void* base
 #endif
 }
 rns8_status hip_direct_import_native_view(int device_id,const void* source,void* residues,
-    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values) {
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,void* retained_native) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
+  if(retained_native) {
+    const auto copy=timed_hip_operation("interop_native_retain_d2d",[&]() {
+      const auto issued=hipMemcpy2D(retained_native,size_t(cols)*8,source,size_t(ld)*8,
+          size_t(cols)*8,size_t(rows),hipMemcpyDeviceToDevice);
+      const auto drain=hipDeviceSynchronize();return issued==hipSuccess?drain:issued;
+    });
+    if(copy!=hipSuccess) return RNS8_BACKEND_FAILURE;
+    source=retained_native;ld=cols;
+  }
   const auto error=timed_hip_operation("interop_native_import",[&]() {
     const int code=signed_values?rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(source),static_cast<int8_t*>(residues),int(rows),int(cols),int(ld),int(prefix)):
         rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(source),static_cast<int8_t*>(residues),int(rows),int(cols),int(ld),int(prefix));
     const auto drain=hipDeviceSynchronize();return code==int(hipSuccess)?drain:static_cast<hipError_t>(code);
   });return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
 #else
-  (void)device_id;(void)source;(void)residues;(void)rows;(void)cols;(void)ld;(void)prefix;(void)signed_values;return RNS8_UNSUPPORTED_BACKEND;
+  (void)device_id;(void)source;(void)residues;(void)rows;(void)cols;(void)ld;(void)prefix;(void)signed_values;(void)retained_native;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 rns8_status hip_direct_export_native_view(int device_id,const void* residues,void* destination,void* scratch,

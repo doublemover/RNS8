@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include "backend_common/native_device_contract.hpp"
 #include <mutex>
+#include <utility>
 using namespace rns8::detail;
 using namespace rns8::detail::api;
 struct rns8_native_device_lease {
@@ -40,6 +41,11 @@ rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* ma
   if(matrix->in_flight_writer || (writing && matrix->in_flight_readers)) return RNS8_BUSY;
   if(matrix->prepared_references==UINT64_MAX || (!writing && matrix->in_flight_readers==UINT64_MAX)) return RNS8_RANGE_ERROR;
   if(!nonoverlapping_byte_ranges(lease->view,lease->resources.view_span_bytes,matrix->hip_residues,matrix->hip_residue_bytes)) return RNS8_INVALID_ARGUMENT;
+  for(const auto storage:{std::pair<const void*,uint64_t>{matrix->hip_native_i64,matrix->hip_native_i64_bytes},
+                         std::pair<const void*,uint64_t>{matrix->hip_native_u64,matrix->hip_native_u64_bytes}})
+    if((storage.first || storage.second) &&
+       !nonoverlapping_byte_ranges(lease->view,lease->resources.view_span_bytes,storage.first,storage.second))
+      return RNS8_INVALID_ARGUMENT;
   return RNS8_SUCCESS;
 }
 void pin_native_matrix(rns8_native_device_lease& lease,rns8_matrix& matrix,bool writer) {
@@ -117,7 +123,7 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
     auto status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_READ) return RNS8_INVALID_ARGUMENT;
-    if(matrix->desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT) return RNS8_UNSUPPORTED_BACKEND;
+    const bool retain=(matrix->desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT)!=0;
     const bool signed_values=lease->desc.element_type==RNS8_NATIVE_DEVICE_I64;
     boost::multiprecision::cpp_int bound=signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX);
     if(verified) {
@@ -134,12 +140,28 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
     }
     const auto semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
     if(!exact_range_fits(semantics,bound,modulus_product(matrix->prefix))) return RNS8_RANGE_ERROR;
+    void* retained=nullptr;
+    if(retain) {
+      auto& storage=signed_values?matrix->hip_native_i64:matrix->hip_native_u64;
+      auto& bytes=signed_values?matrix->hip_native_i64_bytes:matrix->hip_native_u64_bytes;
+      const auto expected=lease->resources.compact_native_bytes;
+      if((storage || bytes) && (!storage || bytes!=expected)) return RNS8_INVALID_ARGUMENT;
+      if(!storage) {
+        // No memset: the upcoming logical-row copy writes the complete compact
+        // allocation. Matrix ownership survives any subsequent failed drain.
+        status=hip_direct_allocate(ctx->device_id,static_cast<size_t>(expected),&storage);
+        if(status!=RNS8_SUCCESS) return status;
+        bytes=static_cast<size_t>(expected);
+      }
+      retained=storage;
+    }
     // No cache lookup by pointer or source-version: every import reads this lease.
     NativeMatrixReservation write(*lease,*matrix,true,true);
     status=hip_direct_import_native_view(ctx->device_id,lease->view,matrix->hip_residues,
-        matrix->desc.rows,matrix->desc.cols,lease->desc.ld,matrix->prefix,signed_values);
+        matrix->desc.rows,matrix->desc.cols,lease->desc.ld,matrix->prefix,signed_values,retained);
     if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
     mark_device_residues_current(*matrix);clear_native_current(*matrix);
+    if(retain) mark_device_native_current(*matrix);
     matrix->exact_max_magnitude.swap(bound);matrix->exact_range_prefix=matrix->prefix;
     matrix->exact_axis_ranges.rows.clear();matrix->exact_axis_ranges.cols.clear();
     // External generation is not a host-pack source-version cache key.

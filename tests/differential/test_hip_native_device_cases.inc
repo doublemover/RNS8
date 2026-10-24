@@ -4,7 +4,7 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
   using namespace rns8::detail;
   using namespace native_device_fixture;
   auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool signed_values:{false,true}) {
+  for(bool signed_values:{false,true}) for(bool retain:{false,true}) {
     hip_direct_device_buffer input,output;
     std::vector<uint64_t> values(24,99),actual(24,77);
     const uint64_t edges[]={0,1,UINT64_MAX,UINT64_C(1)<<63,UINT64_C(0x7fffffffffffffff)};
@@ -22,11 +22,22 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     REQUIRE(rns8_destroy_context(ctx)==RNS8_BUSY);
     rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;
     md.rows=3;md.cols=5;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=20;
+    md.flags=retain?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
     md.semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;md.bound_kind=RNS8_BOUND_NONE;
     rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
     REQUIRE(rns8_import_native_device(ctx,matrix,write)==RNS8_INVALID_ARGUMENT);
     REQUIRE(rns8_import_native_device(ctx,matrix,read)==RNS8_SUCCESS);
     REQUIRE(matrix->device_residues_current);REQUIRE_FALSE(matrix->host_residues_current);
+    REQUIRE(matrix->device_native_current==retain);
+    REQUIRE(matrix->native_i64.empty());REQUIRE(matrix->native_u64.empty());
+    void* native=signed_values?matrix->hip_native_i64:matrix->hip_native_u64;
+    if(retain) {
+      REQUIRE(native!=input.get());REQUIRE(native!=nullptr);
+      std::vector<uint64_t> compact(15);
+      REQUIRE(hip_direct_copy_device_to_host(0,compact.data(),native,120)==RNS8_SUCCESS);
+      for(int row=0;row<3;++row) for(int col=0;col<5;++col)
+        REQUIRE(compact[row*5+col]==values[1+row*7+col]);
+    }
     REQUIRE_FALSE(matrix->in_flight_writer);REQUIRE(matrix->in_flight_readers==0);REQUIRE(matrix->prepared_references==0);
     REQUIRE(matrix->exact_range_prefix==20);REQUIRE_FALSE(matrix->imported_source);REQUIRE(matrix->source_version==matrix->content_generation);
     const auto before_verified=matrix->content_generation;
@@ -57,10 +68,25 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     REQUIRE(rns8_destroy_native_device_lease(read)==RNS8_SUCCESS);REQUIRE(reader.released==1);
     for(int row=0;row<3;++row) for(int col=0;col<5;++col) values[1+row*7+col]=2;
     values[1]=7;REQUIRE(hip_direct_copy_host_to_device(0,input.get(),values.data(),values.size()*8)==RNS8_SUCCESS);
+    if(retain) {
+      // Releasing/recycling the external source cannot alter the owned snapshot.
+      std::vector<uint64_t> compact(15);
+      REQUIRE(hip_direct_copy_device_to_host(0,compact.data(),native,120)==RNS8_SUCCESS);
+      for(int row=0;row<3;++row) for(int col=0;col<5;++col)
+        REQUIRE(compact[row*5+col]==edges[(row+col)%5]);
+    }
     in.owner_identity=303;in.generation=2;
     REQUIRE(rns8_create_native_device_lease(ctx,&in,&read)==RNS8_SUCCESS);
     REQUIRE(rns8_import_native_device_verified(ctx,matrix,read,8)==RNS8_SUCCESS);
     REQUIRE(matrix->exact_max_magnitude==7);
+    if(retain) {
+      REQUIRE((signed_values?matrix->hip_native_i64:matrix->hip_native_u64)==native);
+      REQUIRE(matrix->device_native_current);
+      std::vector<uint64_t> compact(15);
+      REQUIRE(hip_direct_copy_device_to_host(0,compact.data(),native,120)==RNS8_SUCCESS);
+      for(int row=0;row<3;++row) for(int col=0;col<5;++col)
+        REQUIRE(compact[row*5+col]==values[1+row*7+col]);
+    }
     REQUIRE(rns8_export_native_device(ctx,matrix,write,resources.export_scratch_bytes)==RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),output.get(),actual.size()*8)==RNS8_SUCCESS);REQUIRE(actual[1]==7);
     REQUIRE(rns8_destroy_native_device_lease(write)==RNS8_SUCCESS);REQUIRE(writer.released==1);
@@ -72,6 +98,21 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     REQUIRE(rns8_import_native_device(ctx,matrix,alias_lease)==RNS8_INVALID_ARGUMENT);
     REQUIRE(matrix->content_generation==generation);
     REQUIRE(rns8_destroy_native_device_lease(alias_lease)==RNS8_SUCCESS);REQUIRE(alias_owner.released==1);
+    if(retain) {
+      Owner native_owner;auto same=descriptor(native,120,native_owner);
+      same.element_type=in.element_type;same.byte_offset=0;same.ld=5;
+      rns8_native_device_lease* same_lease=nullptr;
+      REQUIRE(rns8_create_native_device_lease(ctx,&same,&same_lease)==RNS8_SUCCESS);
+      REQUIRE(rns8_import_native_device(ctx,matrix,same_lease)==RNS8_INVALID_ARGUMENT);
+      REQUIRE(matrix->content_generation==generation);
+      REQUIRE(rns8_destroy_native_device_lease(same_lease)==RNS8_SUCCESS);
+      same.access=RNS8_NATIVE_DEVICE_WRITE;
+      REQUIRE(rns8_create_native_device_lease(ctx,&same,&same_lease)==RNS8_SUCCESS);
+      REQUIRE(rns8_export_native_device(ctx,matrix,same_lease,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
+      REQUIRE(matrix->content_generation==generation);
+      REQUIRE(rns8_destroy_native_device_lease(same_lease)==RNS8_SUCCESS);
+      REQUIRE(native_owner.acquired==2);REQUIRE(native_owner.released==2);
+    }
     REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
     // Acquire rejection never transfers owner responsibility; ordinary host
     // memory rejection does transfer then immediately release the acquired ref.
