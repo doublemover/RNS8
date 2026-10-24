@@ -47,7 +47,8 @@ This slice supplies evidence plumbing and synthetic schema/algebra fixtures.
 Instruction-chain, LDS/cache/memory, conversion, launch/descriptor, reconstruction
 and interaction microbenchmark collection, ISA/resource evidence, sustainable
 clock verification and real held-out qualification remain open in #31. Tests
-for this addition are authored but have not yet run.
+for this addition are covered as registered applicable cases in the
+[dated validation](local-all-features-20261023.md).
 
 ## CRT collection executable
 
@@ -75,4 +76,4 @@ retain unknown timing resolution and actual HBM traffic as null, and ISA
 verification as false. No capture is automatically converted into an admitted
 rate or promoted. ISA/resource inspection, sustainable clock checks and a timing
 resolution campaign must supply the missing evidence. This executable and its
-collector are authored; compilation and execution are pending.
+collector are authored; registered applicable tests are covered by the [dated validation](local-all-features-20261023.md).

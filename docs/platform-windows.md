@@ -1,80 +1,96 @@
-# Windows HIP SDK Platform Notes
+# Windows HIP SDK setup
 
-Windows on Radeon RX 7900 XTX / `gfx1100` is the local bring-up path. Linux
-ROCm remains the production, profiling, multi-GPU, and Instinct validation
-path; Windows evidence does not validate those targets.
+Use this guide for native Windows Radeon builds. The [dependency guide](../third_party/README.md)
+owns common requirements and pins. The [readiness reference](platform-readiness.md)
+separates installed tools from compiled and device-validated paths.
 
-## Requirements
+## Prerequisites
 
-- Windows 11 x86-64.
-- AMD Radeon GPU supported by the Windows HIP SDK.
-- AMD HIP SDK for Windows.
-- Visual Studio 2026 Build Tools or Community with MSVC C++ and Windows SDK.
-- CMake, Ninja, Git, Python 3.11 or newer.
-- vcpkg at `C:\vcpkg` or `VCPKG_ROOT` with packages from `vcpkg.json`.
-- Optional Radeon Developer Tool Suite CLI utilities for ISA/profiling work.
+Install a GPU/driver combination supported by the selected
+[Windows HIP SDK release](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/reference/system-requirements.html)
+and the [HIP SDK development components](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/how-to/install.html).
+Install [Visual Studio's C++ desktop workload and Windows SDK](https://learn.microsoft.com/en-us/cpp/build/vscpp-step-0-installation),
+CMake, Ninja, Git, Python and vcpkg dependencies as described in the dependency
+guide. The measured local stack uses VS2026 and HIP 7.1; it includes the
+build-local LLVM math-header fix described below.
 
-Use `tools\check_dependencies.py` for the authoritative local readiness report:
-
-```powershell
-python tools\check_dependencies.py
-```
-
-The checker reports host tools, HIP SDK/device metadata, vcpkg packages, Python
-packages, preset coverage, optional accelerator discovery, and validation
-boundaries. Discovery and probes do not enable correctness backends by
-themselves.
-
-## Build And Test
-
-Use the Visual Studio wrapper from a plain PowerShell shell:
+From the repository root, inspect existing tools:
 
 ```powershell
-python tools\windows_dev.py cmake --preset windows-msvc-hip-debug
-python tools\windows_dev.py cmake --build --preset windows-debug
-python tools\windows_dev.py ctest --preset windows-debug --output-on-failure
-build\windows-msvc-hip-debug\rns8-inspect.exe --backend hip-direct --json
-build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
+python tools/check_dependencies.py
+python tools/windows_dev.py where cl
 ```
 
-The Windows build uses explicit HIP SDK compiler integration and does not rely
-on CMake `enable_language(HIP)`. The default local offload target is `gfx1100`.
+The checker reports optional profiling and accelerator components too. Its
+missing optional tools do not all block a direct-HIP build. It runs no installer;
+`--accelerator-probes` separately requests compile/run probes. Driver installation
+and system changes are explicit administrative tasks.
 
-CPU-only scaffold validation remains available:
+## Configure and build
+
+Point the current preset at the real SDK and vcpkg installations. These examples
+intentionally use nondefault roots with spaces:
 
 ```powershell
-cmake --preset cpu-debug
-cmake --build --preset cpu-debug
-ctest --preset cpu-debug --output-on-failure
+$env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
+$rns8HipRoot = 'D:/AMD SDK/ROCm/7.1'
+python tools/windows_dev.py cmake --preset windows-msvc-hip-debug "-DRNS8_HIP_ROOT=$rns8HipRoot" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DRNS8_AMDGPU_TARGETS=gfx1100
+python tools/windows_dev.py cmake --build --preset windows-debug --parallel 4
+.\build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
 ```
 
-## Optional Accelerators
+`gfx1100` selects the RX 7900 XTX target. For a different GPU, first check AMD's
+release matrix and set the matching target. The benchmark verifies its seeded
+integer result and emits JSON. This small checked workload is a first execution;
+[qualification](gpu-qualification.md) covers a broader campaign.
 
-hipBLASLt, CK, and rocWMMA are opt-in Windows `gfx1100` correctness backends.
-They are not required for CPU or direct-HIP correctness. Dedicated presets
-enable and test each one:
+The preset currently contains `C:/vcpkg` and
+`C:/Program Files/AMD/ROCm/7.1` defaults. Explicit overrides above take precedence;
+[#57](https://github.com/doublemover/RNS8/issues/57) tracks broader autodetection.
+`windows-msvc-hip-release` configures the corresponding Release tree; use the
+`windows-release` build preset. Optional roots include `RNS8_CK_ROOT`,
+`RNS8_ROCWMMA_ROOT`, `RNS8_ROCM_DEPS_BUILD_ROOT` and
+`RNS8_ROCM_DEPS_INSTALL_ROOT` when enabling those components.
+
+The wrapper loads the VS developer environment. Existing developer environments
+and `VSINSTALLDIR` overrides are honored. A fresh build directory is required
+when changing MSVC generations; cached compiler paths and newer STL headers
+must match. Windows uses explicit `hipcc` integration without CMake's HIP
+language. With HIP 7.1/MSVC 14.51, CMake applies
+[LLVM's declaration-order fix](https://github.com/llvm/llvm-project/pull/201563)
+to a build-local wrapper when needed, leaving the installed SDK intact.
+
+## Optional accelerators
+
+[Backend capabilities](backend-notes.md) describe the public opt-in paths.
+Each requires HIP plus discoverable compatible libraries/headers:
+
+| Component | Configure preset | Build/test preset | Explicit switch |
+|---|---|---|---|
+| hipBLASLt | `windows-msvc-hipblaslt-debug` | `windows-hipblaslt-debug` | `RNS8_ENABLE_HIPBLASLT=ON` |
+| CK | `windows-msvc-ck-debug` | `windows-ck-debug` | `RNS8_ENABLE_CK=ON` |
+| rocWMMA | `windows-msvc-rocwmma-debug` | `windows-rocwmma-debug` | `RNS8_ENABLE_ROCWMMA=ON` |
+| AMDGPU builtins | `windows-msvc-amdgpu-builtins-debug` | `windows-amdgpu-builtins-debug` | `RNS8_ENABLE_AMDGPU_BUILTINS=ON` |
+
+Pass the same HIP/toolchain overrides to these configure presets. The pinned
+CK/rocWMMA submodules can be initialized and probed explicitly:
 
 ```powershell
-python tools\windows_dev.py cmake --preset windows-msvc-hipblaslt-debug
-python tools\windows_dev.py cmake --build --preset windows-hipblaslt-debug
-python tools\windows_dev.py ctest --preset windows-hipblaslt-debug --output-on-failure
-
-python tools\windows_dev.py cmake --preset windows-msvc-ck-debug
-python tools\windows_dev.py cmake --build --preset windows-ck-debug
-python tools\windows_dev.py ctest --preset windows-ck-debug --output-on-failure
-
-python tools\windows_dev.py cmake --preset windows-msvc-rocwmma-debug
-python tools\windows_dev.py cmake --build --preset windows-rocwmma-debug
-python tools\windows_dev.py ctest --preset windows-rocwmma-debug --output-on-failure
+python tools/bootstrap_rocm_accelerators.py --dry-run --init --probe --target gfx1100 --json
+python tools/bootstrap_rocm_accelerators.py --init --probe --target gfx1100
 ```
 
-Dependency-only probes are separate from backend validation:
+The first command prints a plan. The second can fetch pinned submodules and
+compile probes; it does not install drivers or qualify backend arithmetic.
+[Third-party policy](../third_party/README.md) records the pins and overlay rules.
 
-```powershell
-python tools\bootstrap_rocm_accelerators.py --init --probe --target gfx1100
-python tools\check_dependencies.py --accelerator-probes --json
-python tools\windows_dev.py cmake --preset windows-msvc-hip-accelerator-probe
-```
+## Tests, packaging and evidence
 
-Probe artifacts belong under ignored `temp/`, `build/`, or `out/` paths. Do
-not clone CK or rocWMMA under `C:\`; use the pinned repo-local submodules.
+Follow [Contributing](../CONTRIBUTING.md) for CPU-only development, sanitizer,
+CTest and install/consumer commands. Use [GPU qualification](gpu-qualification.md)
+for target testing and [performance methodology](performance.md) for measurements.
+The [October 23 all-feature record](local-all-features-20261023.md) and
+[larger-workload report](7900xtx-large-throughput-2026-10-23.md) identify the
+specific compiled stack and observed subset. This guide's nondefault-root
+commands have been checked against current interfaces; a clean installation at
+those illustrative paths has not been exercised.

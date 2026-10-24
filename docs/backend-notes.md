@@ -1,64 +1,77 @@
 # Backend implementation and selection
 
-All backends preserve explicit semantic contracts. Hardware support depends on
-actual compiler/runtime support and successful execution on the selected device.
-The [audit](audit-2026-10-06.md) and [qualification guide](gpu-qualification.md)
-supersede earlier blanket "production" or "complete" labels.
+Select a backend explicitly in `rns8_context_options.requested_backend`, or use
+`AUTO` with the policy below. The benchmark accepts the names in this table;
+the [public enum](../include/rns8/semantics.h) defines C API identities.
+[Readiness](platform-readiness.md) separates availability, compiled declarations
+and actual device validation.
 
-| Backend | Contracts | Important limits |
-| --- | --- | --- |
-| CPU reference | bounded, exact-wide, finite | correctness reference; optional OpenMP |
-| CPU wrap64 byte-limb | wrap64 | explicit separate backend |
-| Direct HIP | bounded, exact-wide, finite, wrap64 | baseline for target qualification; no universal speed claim |
-| Native HIP vector ALU | bounded signed/unsigned | native exact comparator, not finite/wide/wrap routing |
-| hipBLASLt | bounded, exact-wide, finite | optional library, separate INT32 scratch/reduction; per-tile bounds unsupported |
-| CK | bounded including scheduled work, exact-wide, finite | optional headers/generated configuration; target/shape/static-modulus limits |
-| rocWMMA | bounded including scheduled work, exact-wide, finite | optional library; wrap byte-GEMM candidate is internal and separate |
-| AMDGPU builtins | dense RNS/finite and explicit sparse-A | target-specific WMMA/MFMA/SMFMAC/SWMMAC; K cap and modulus restrictions |
+## Public paths
 
-## Feature detection
+| Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
+|---|---|---|---|
+| `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |
+| `hip-direct` | Available public path with `RNS8_ENABLE_HIP=ON` | Bounded, wide, finite and separate byte-limb wrap64; target/address restrictions | [Local device validation](local-all-features-20261023.md) |
+| `hip-vector-alu-int64` | Available public HIP path | Bounded i64/u64 only; native storage and exact wide accumulation | [Matched measurements](7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
+| `hipblaslt` | Opt-in public path; `RNS8_ENABLE_HIPBLASLT=ON` | Fixed-prefix bounded, wide, finite; library availability; separate INT32 scratch/reduction; no adaptive tile bounds | [Implementation](../src/backend_hipblaslt/README.md) |
+| `ck` | Opt-in public path; `RNS8_ENABLE_CK=ON` | Bounded including adaptive schedules, wide, finite; headers, shapes and static moduli constrain admission | [Implementation](../src/backend_ck/README.md) |
+| `rocwmma` | Opt-in public path; `RNS8_ENABLE_ROCWMMA=ON` | Bounded including adaptive schedules, wide, finite; target matrix instructions and header compatibility | [Implementation](../src/backend_rocwmma/README.md) |
+| `amdgpu-builtins` | Opt-in public path; `RNS8_ENABLE_AMDGPU_BUILTINS=ON` | Target-specific dense RNS/finite and explicit Sparse-A; accumulation/modulus/device restrictions | [Source](../src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp), [validation](local-all-features-20261023.md) |
+| `wrap64-byte-limb` | Available public CPU context; direct HIP provides the GPU route | Strict modulo 2⁶⁴ only, distinct byte-limb storage | [Implementation](../src/backend_wrap64/README.md) |
 
-Enable optional backends with `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
-`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`. They require
-`RNS8_ENABLE_HIP=ON`. Discovery-only `RNS8_PROBE_ACCELERATORS` does not enable a
-backend. No optional accelerator is required for CPU or direct-HIP correctness.
+All optional GPU paths require HIP. CMake feature detection checks components;
+`RNS8_PROBE_ACCELERATORS` is discovery only. The direct-HIP and CPU paths do not
+require optional matrix libraries. Windows correctness and measurements are
+scoped in the linked dated records; Linux and other GPU families need their own
+execution evidence.
 
-The source contains RDNA3 WMMA, CDNA3 `gfx942` MFMA, and RDNA4 matrix/sparse
-builtins. That is source coverage, not a claim that all such targets compile or
-pass today. The recent scalar "WMMA skinny" candidates were removed: the dense
-RDNA3 route again uses the actual `rdna3_dense_wmma_kernel<Finite>` for skinny
-and ordinary shapes. It preserves finite/RNS semantics and leading dimensions.
+RDNA3 builtin kernels use actual WMMA instructions. CDNA3 `gfx942` MFMA and
+RDNA4 matrix/sparse variants also exist in source. Source coverage does not
+establish execution for an entire family. Sparse-A is an explicit public
+structured-sparsity contract with target restrictions; dense GEMM does not infer
+sparsity. Private block-sparse research is a separate path.
 
 ## AUTO and reviewed caches
 
-An AUTO context probes direct HIP and can fall back to CPU if HIP is unavailable.
-Within a HIP AUTO context, an eligible plan can select a compiled backend from a
-reviewed exact-match cache. Candidate checks include semantics, target/runtime
-identity, selected kernel, workspace, and the full plan key. No matching entry
-means the baseline context backend remains selected. There is no runtime timing
-search and no general shape-neighborhood interpolation.
+An AUTO context probes direct HIP and can use CPU when HIP is unavailable.
+Within a HIP AUTO context, an eligible plan may select a compiled backend from
+a reviewed exact-match cache. Admission binds semantics, target/runtime, kernel,
+workspace and the full plan key. Missing/rejected entries retain the baseline
+context backend. There is no runtime timing search or shape interpolation.
 
-`implementation_revision=2` is now part of the exact plan key. Historical cache
-entries cannot implicitly carry performance validation across the correctness
-repairs. Rebuild, qualify, measure, review, and explicitly reinstall entries.
-A cache label does not cryptographically attest to the source or evidence;
-keep the original capture and build provenance outside the cache.
+`implementation_revision=2` participates in that key. Earlier cache entries do
+not carry validation across implementation repairs. Reviewed caches are routing
+inputs, not cryptographic attestations; retain the original capture, artifact
+hash and build provenance. [Performance review](performance.md) owns promotion.
 
-## Metadata and lifetimes
+## Metadata, ownership and execution
 
-`rns8_get_backend_capability_info` reports compiled/source capability metadata;
-it does not run an on-device validation campaign. `rns8_get_plan_backend_info`
-adds the selected kernel, accumulation policy, workspace and autotune key.
-`rns8_get_plan_packing_info` describes input/output domains, currentness, and
-possible continuations. Distinguish these declarations from external hardware
-qualification results.
+`rns8_get_backend_capability_info` reports compiled/source metadata;
+`rns8_get_plan_backend_info` adds selected kernel, accumulation and workspace;
+`rns8_get_plan_packing_info` reports domains/currentness and continuations.
+These APIs describe the selected implementation without running a campaign.
 
-Public grouped APIs operate on already-current resident tasks. Graph replay,
-streaming overlap, several pack/export variants, and repeated-workload reports
-have benchmark-specific contracts. The actual graph implementation remains in
-the benchmark and graph-safe backend helpers; removed dead graph prototypes are
-not public APIs.
+Ordinary GEMM/grouped calls are synchronous and operate on compatible current
+resident resources. Public [prepared execution](prepared-execution.md) retains
+resources and binds generations. Explicit fixed-prefix direct-HIP stream
+submission, owned HIP capture/replay, same-device prepared groups and
+[resident DAG submission](resident-graphs.md#explicit-asynchronous-direct-hip-dags)
+have separate completion-token and reservation rules. Benchmark graph/streaming
+flags are separate experiments; their larger combinations do not extend the
+public API envelope.
 
-For backend-specific details also see the implementation READMEs under
-`src/backend_hipblaslt`, `src/backend_ck`, `src/backend_rocwmma`, and
-`src/backend_wrap64`. [Performance policy](performance.md) defines evidence gates.
+## Internal prototypes and reserved APIs
+
+| Family | Current boundary | Owner |
+|---|---|---|
+| Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; public dispatch unchanged | [Native narrow](native-narrow.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| Strassen / rank-23 | Private one-level modular prototypes; public `rns8_strassen_gemm_research` remains unsupported | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Packed INT4/IU4 | Internal certified subset/prototypes; public research semantics rejected | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Floating encodings / Ozaki | Scalar certificates and research integration; no public floating backend | [Generated encodings](generated-encodings.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
+| Sparse/hybrid | Public explicit structured Sparse-A; private scalar block-sparse baseline | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Multi-GPU | Independent per-device shard scripts; true modulus-sharded GEMM remains work | [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
+
+The public Ozaki, Strassen and Freivalds research entrypoints return
+`RNS8_UNSUPPORTED_BACKEND`; implemented private candidates do not change that
+contract. The [research index](research/README.md) groups focused technical notes.

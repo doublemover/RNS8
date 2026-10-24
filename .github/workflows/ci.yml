@@ -33,6 +33,8 @@ jobs:
 
       - name: Python tooling tests
         run: |
+          python tools/test_documentation.py
+          python tools/check_documentation.py
           python tools/test_check_dependencies.py
           python tools/test_benchmark_schema.py
           python tools/test_result_compare.py

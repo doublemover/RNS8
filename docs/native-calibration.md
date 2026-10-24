@@ -40,7 +40,15 @@ lists every candidate and the argument domains. For example:
 M/N are at most 1024, K at most 65537, and
 M*N*K at most 1073741824 to bound the independent CPU reference (up to 1024³). A fixed seed and
 full-width signed/unsigned extremes are included. Boost computes expected
-residues before timing; outputs are poisoned before each call, and every warmup
+residues before timing. Full-width product cases use
+preconverted/transposed Boost `int256_t` arithmetic: K<=65537 bounds the full
+product sum below 2^145, within that exact integer type. Independent `cpp_int`
+audits cover both edge columns of every row, and epilogue coefficient arithmetic
+remains `cpp_int`. Packing references use `cpp_int`. The emitted `reference_method`
+names the oracle method. Older compiled artifacts retain their original oracle
+identity; collection does not rewrite their evidence. Fixed-width Boost operand
+storage is reported as `reference_operand_storage_bytes` and released before
+timing. For every case, outputs are poisoned before each call, and every warmup
 and repeat checks output bytes outside the timed region. Product outputs also
 carry tail canaries; packing-only cases compare the complete operand planes.
 
@@ -120,8 +128,14 @@ a campaign. The executable digest is checked immediately before and after each
 process.
 
 Compiled provenance must have a valid v2 manifest structure and declared external
-header identities. Diagnostic dirty-source builds and manifests with
-`dependency_digest="unavailable"` are retained, with `provenance_complete=false`.
+header identities. Diagnostic dirty-source builds, experimental Garner-table
+configurations and
+manifests with `dependency_digest="unavailable"` are retained, with
+`provenance_complete=false`. The original compiled manifest remains intact.
+Each collection record also preserves `collector_sha256` and
+`collector_sources_sha256` for the collector, build-manifest validator and
+modulus-ladder dependency. These identify collection-tool changes independently
+of the executable artifact/source manifest.
 This flag reports the existing release-provenance checks; neither it nor
 `validated=true` qualifies performance or enables promotion. Every record keeps
 `promotion_eligible=false`. Invalid captures, child failures, launch errors and
@@ -129,7 +143,7 @@ timeouts retain raw stdout/stderr, commands and a failure reason; partial timeou
 output is preserved too.
 
 The tracked [queue worker sweep](../benchmarks/native-calibration/queue-workers.json)
-contains 14 explicit 512�/prefix-9 cases spanning ordinary WMMA groups, queue
+contains 14 explicit 512³/prefix-9 cases spanning ordinary WMMA groups, queue
 worker counts, split-K and direct pack+GEMM. To collect it after building the
 current executable:
 

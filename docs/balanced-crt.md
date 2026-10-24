@@ -29,6 +29,7 @@ The maintained public Garner route is unchanged.
 CPU fixtures verify every merge with Boost, all prefix products and inverse
 identities, tree depth, random values, zero, P-1 and centered thresholds. GPU
 fixtures compare direct and balanced candidates with the same exact values and
-tail canaries. Compilation and execution are pending. Quotient-assisted CRT,
+tail canaries. Registered applicable compilation/test evidence is recorded in the
+[October 23 all-feature validation](local-all-features-20261023.md). Quotient-assisted CRT,
 subgroup and tile-batched implementations, group-arrival scheduling, full export
 contracts and measured target/prefix selection remain open under issue #39.

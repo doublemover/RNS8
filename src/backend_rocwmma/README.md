@@ -1,7 +1,13 @@
 # rocWMMA And AMDGPU Builtin Backend
 
-Opt-in rocWMMA accelerator backend plus reserved AMDGPU builtin hot-kernel
-path.
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
+Opt-in rocWMMA matrix-engine backend. AMDGPU builtins are a separate
+implemented opt-in backend with target-specific runtime restrictions.
 
 The rocWMMA backend is compiled only with `RNS8_ENABLE_ROCWMMA=ON`. It uses the
 pinned repo-local rocWMMA headers and RNS8-owned HIP kernels to pack centered
@@ -34,13 +40,12 @@ it consumes compact byte-limb device buffers, uses signed matrix instructions
 plus high-bit correction terms to recover unsigned byte products, and writes
 compact byte-limb output for comparison against direct HIP and the CPU byte-pair
 oracle. That candidate is not a public backend and is not AUTO-selected.
-Benchmark fixtures currently record host wall-clock evidence only, so the
-backend keeps `performance_validated=false` until reviewed captures prove a
-target-shape win.
+The [larger-workload report](../../docs/7900xtx-large-throughput-2026-10-23.md)
+contains fresh public and private residue-epilogue comparisons with explicit
+host/event scopes. `performance_validated=false` metadata continues to distinguish
+measurement from reviewed automatic routing.
 
-Dependency discovery and primitive compile probes remain evidence only; they
-do not enable rocWMMA by themselves. `RNS8_ENABLE_AMDGPU_BUILTINS` now exposes
-the public AMDGPU builtin backend identity and disabled capability metadata,
-but runtime contexts and GEMM dispatch remain unsupported until target-specific
-MFMA/WMMA/SMFMAC/SWMMAC kernels have exact CPU parity, timing, and ISA
-evidence.
+Dependency discovery and primitive probes do not enable either runtime backend.
+`RNS8_ENABLE_AMDGPU_BUILTINS=ON` with HIP compiles the separate target-specific
+WMMA/MFMA/SMFMAC/SWMMAC path described in the backend reference. The source target,
+compiled configuration and device validation remain distinct evidence.

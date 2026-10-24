@@ -27,6 +27,7 @@ against caller-supplied identities; they are not a public proof owner.
 Authored tests compare CPU materialization and actual HIP products with exact
 Boost references, including full-width native values, all two-block presence
 combinations, empty structures, padded leading dimensions, K tails, stale
-generations and insufficient budgets. Compilation and execution are pending.
+generations and insufficient budgets. Registered applicable compilation/test evidence is recorded in the
+[October 23 all-feature validation](local-all-features-20261023.md).
 Public sparse ownership, hybrid dense/sparse scheduling, matrix-engine variants
 and end-to-end break-even measurements remain open under issue #51.

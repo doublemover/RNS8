@@ -67,7 +67,9 @@ a private blocked ring primitive internally, reusing one `4 * N` byte row
 accumulator across all selected modulus planes; ordinary CPU calls retain their
 parallel policy. Caller serialization of the involved handles remains required.
 The returned prefix supports an explicit fixed-prefix export plan without
-rewriting the original plan/workspace. Device-owned lifting remains unimplemented.
+rewriting the original plan/workspace. The public synchronous `rns8_lift_exact_wide_hip` route also exists for compatible
+direct-HIP device-resident values; [correctness](correctness.md#exact-wide-output)
+and [resident graphs](resident-graphs.md) describe its admission/publication rules.
 
 ## Reuse and grouping
 
@@ -76,15 +78,18 @@ Prepack caches add backend-specific operand identity and lifetime constraints.
 Result caches track source versions and explicitly dirty output regions; they
 are not general automatic incremental computation.
 
-The public grouped GEMM calls accept compatible already-resident tasks with
-independent matrices/workspaces. Grouped host packing, final export, graph
-capture, streaming experiments, and many benchmark workload combinations have
-narrower benchmark-owned contracts. Do not infer a public asynchronous or graph
-API from a benchmark flag.
+The ordinary public grouped GEMM calls accept compatible current resident tasks.
+[Prepared execution](prepared-execution.md) retains resources and generation
+bindings. Explicit fixed-prefix direct-HIP submission and owned capture/replay
+use caller streams, completion tokens and read/write reservations. Same-device
+prepared groups permit independent submissions; [resident DAGs](resident-graphs.md)
+retain intermediate values and validate whole-expression proofs before work.
+The synchronous and asynchronous subsets have distinct failure-publication rules.
 
-Actual graph replay lives in `benchmarks/rns8_bench_hip_graph_buffers.inc` and
-uses graph-safe internal launch helpers. The audit removed unused process-global
-and thread-local graph prototypes from backend implementation fragments.
+Benchmark-owned pack/export, graph, streaming and workload combinations remain
+separate experiments. Their flags do not enlarge the public API envelope. See
+[exact epilogues](exact-epilogues.md) for public complete-expression composition
+and [immutable plans](plan-validation.md) for reusable structural validation.
 
 ## Files and generated metadata
 

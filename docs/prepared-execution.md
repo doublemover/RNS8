@@ -80,7 +80,8 @@ fatal device-context errors remain backend failures and are not repaired here.
 CPU reservation fixtures and real HIP two-stream fixtures are authored for
 shared readers completed in reverse order, write/workspace collisions, pending
 destruction, rebinding, stale epochs, range rejection, tails and K-slab crossings.
-Compilation and execution are pending; no overlap or enqueue-time gain is claimed.
+Registered applicable execution is covered by the [dated validation](local-all-features-20261023.md);
+overlap and enqueue-time gains still require measurements.
 The lifetime/capture distinction follows the active
 [HIP 7.1 graph contract](https://rocm.docs.amd.com/projects/HIP/en/docs-7.1.0/how-to/hip_runtime_api/hipgraph.html).
 
@@ -108,7 +109,8 @@ capturing remains unsupported. The host preflight may allocate proof metadata,
 and runtime-internal HIP allocations are not asserted absent. Authored tests
 check capture without publication, repeated replay, stable-address rebinding,
 stale epochs and zero new allocations through RNS8's device-allocation helper
-during replay. Compilation and execution are pending; capture cost, overlap,
+during replay. Registered applicable tests are covered by the
+[dated validation](local-all-features-20261023.md); capture cost, overlap,
 leaks and replay break-even have not been measured.
 
 ## Heterogeneous prepared groups
@@ -177,7 +179,7 @@ cache equivalence by itself.
 
 Authored CPU/HIP differential cases cover extreme signed/unsigned coefficients,
 shared A/B/D lifetime counts, distinct addend reservations, stale D binding,
-stream and capture execution, and completion identities. Runtime qualification
-is pending. The ordinary async range-exhaustion fixture now uses a legal
+stream and capture execution, and completion identities. Registered applicable
+execution is covered by the [dated validation](local-all-features-20261023.md). The ordinary async range-exhaustion fixture now uses a legal
 full-width plan and creates a wider-than-native A with an exact outer product
 before replay, rather than requesting an inadmissibly small initial basis.

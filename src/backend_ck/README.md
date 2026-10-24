@@ -1,5 +1,11 @@
 # Composable Kernel Backend
 
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
 Opt-in Composable Kernel accelerator backend for the active HIP/ROCm target.
 
 The backend is compiled only with `RNS8_ENABLE_CK=ON`. It uses the pinned

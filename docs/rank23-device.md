@@ -45,8 +45,9 @@ The independent CPU scalar prototype covers every modulus 2-256 against Boost.
 Authored coefficient-mutation tests alter each A/B/C coefficient individually.
 HIP fixtures compare both bilinear candidates to classical Boost products with
 odd shapes, padded strides, full byte extrema, prefixes 1/3/9/20 and subproblem
-K above 65536. Zero-scratch admission preserves output canaries. Runtime
-execution, ISA/resources and matched end-to-end performance remain pending.
+K above 65536. Zero-scratch admission preserves output canaries. Registered
+applicable execution is covered by the [dated validation](local-all-features-20261023.md).
+Target ISA/resources and matched end-to-end performance remain separate gates.
 
 The research specification's >=1.15x speedup at N>=16384 and <=2.2x memory gate
 still applies to production consideration. Fewer products and an exact tensor

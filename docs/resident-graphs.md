@@ -69,25 +69,27 @@ The former MatMul-only node record is replaced by the typed record in this
 unreleased API; callers must rebuild and set its current struct size. Unknown
 kinds and mixed node fields fail closed. Authored CPU/HIP chain fixtures cover
 the full-native planner prefix -> fixed prefix 20, signed negative values, failed staging admission, missing
-or forward lifts, identity preservation and stale external bindings. Execution
-of these fixtures remains pending.
+or forward lifts, identity preservation and stale external bindings. Registered applicable execution evidence is recorded in the
+[dated validation](local-all-features-20261023.md).
 
 Liveness-based allocation reuse, native conversion IR nodes,
 ragged inputs, backwards materialization demand, cost-based representation
-selection and asynchronous completion remain open. Preflight and ordinary GEMM
+selection and broader asynchronous node support remain open. The explicit
+fixed-prefix direct-HIP asynchronous subset is described below. Preflight and ordinary GEMM
 both perform admission; this baseline exposes that setup cost rather than
 claiming a measured dispatch or proof-work reduction.
 
 Authored epilogue DAG fixtures cover signed/unsigned CPU/HIP chains with a
 produced addend, repeated execution, extreme coefficients, Boost differential
 exports, forward/alias rejection, and downstream range rejection before writes.
-These fixtures have not yet been executed.
+Registered applicable execution evidence is recorded in the
+[dated validation](local-all-features-20261023.md).
 
 Authored export-node fixtures cover CPU/HIP signed and unsigned GEMM/export,
 repeated execution, padded host destinations, an export-only reader preserving
 generation, forward and overlapping destinations, malformed fields, overflow
-and later-node width rejection before earlier output mutation. Runtime
-qualification remains pending.
+and later-node width rejection before earlier output mutation. Registered
+applicable execution is covered by the [dated validation](local-all-features-20261023.md).
 
 ## Explicit asynchronous direct-HIP DAGs
 
@@ -120,8 +122,9 @@ storage during submission. Proof construction can allocate host metadata.
 Authored signed/unsigned mixed MatMul/epilogue tests cover produced addends,
 diamonds, dependency chains, shared workspaces, reader overflow, stale tokens,
 busy lifetime rules and no early publication. CPU paths explicitly reject HIP
-preparation. Runtime correctness, leak/error recovery, overlap and submission
-latency measurements remain pending.
+preparation. Registered applicable runtime/lifetime cases are covered by the
+[dated validation](local-all-features-20261023.md). Broader failure/leak campaigns,
+overlap and submission-latency measurements remain separate gates.
 
 `rns8_capture_resident_graph_hip` owns a HIP graph containing the ordered kernels
 and `rns8_replay_resident_graph_hip` replays it with the same whole-DAG range,
@@ -138,8 +141,9 @@ Authored replay tests cover diamonds, produced addends, signed/unsigned extreme
 coefficients, replacement capture, address substitution rejection, no capture
 publication and zero new allocations through the RNS8 device-allocation helper
 during submission/wait. HIP-internal allocations are not covered by that
-counter. Execution, capture leaks, instruction qualification and replay
-break-even remain pending.
+counter. Registered applicable replay tests are covered by the
+[dated validation](local-all-features-20261023.md). Broader capture-leak/instruction
+qualification and replay break-even measurements remain separate gates.
 
 Fresh validation at `167aff0` exposed a reservation/invalidation ordering bug:
 submission reserved output writers, then generic invalidation rejected those

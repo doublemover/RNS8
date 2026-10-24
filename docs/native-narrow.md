@@ -34,5 +34,8 @@ must invalidate a destination if a launched backend operation fails.
 Authored CPU/Boost and HIP fixtures cover partial-sum cap boundaries, signed and
 unsigned byte endpoints, invalid full-width values, zero final products with
 invalid inputs, 16-wide tile tails, padded strides, long K and changed inputs
-at the same addresses. Runtime correctness, launched ISA and performance
-qualification remain pending; instruction availability is not qualification.
+at the same addresses. Registered applicable tests are covered by the
+[dated validation](local-all-features-20261023.md). The
+[larger-workload report](7900xtx-large-throughput-2026-10-23.md#native-bounded-integer-device-output)
+records scoped native-output timing. Broader target/ISA qualification and public
+dispatch integration remain separate gates.

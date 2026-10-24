@@ -2,16 +2,24 @@
 
 ## Current evidence boundary
 
-The repaired source has no new GPU timing claim. Previous Windows `gfx1100`
-summaries are retained in the [archive](archive/README.md), including the June
-243-capture/281-test assertions. The raw campaigns and installed user cache are
-not in this checkout, and the audit found executable defects that ordinary small
-random inputs did not establish away. Do not extrapolate those summaries to this
-revision, MI300X, Linux, or every matrix shape.
+The [October 23 larger-workload report](7900xtx-large-throughput-2026-10-23.md)
+is the current RX 7900 XTX scaling evidence, built at `c7f7e05` with the
+[recorded all-feature configuration](local-all-features-20261023.md). It compares
+native device output, resident residue epilogues and public host-output
+pipelines in separate tables. The [256³ diagnostic](7900xtx-throughput-2026-10-23.md)
+is retained as earlier small-workload evidence. Old June summaries remain in the
+[archive](archive/README.md).
 
-The next step is hardware correctness and compiler/ISA qualification. Only then
-should an accelerator be compared with the corrected baseline. A slower checked
-path is preferable to an unchecked, incorrect result.
+The public 1024³ bounded-i64 repack/export comparison records AMDGPU builtins
+at 6.736 ms versus direct HIP at 8.127 ms (1.21×). Internal native-byte WMMA
+and private fused residue epilogues have different output/measurement boundaries;
+the report states their matched baselines and ranges. These observations do not
+install AUTO routing or fill missing clock/counter/held-out calibration gates.
+Linux/Instinct and other devices require their own captures.
+
+Current [backend availability](backend-notes.md), dated correctness results and
+performance promotion are separate records. A new source/configuration identity
+must be checked before reusing an earlier result for routing decisions.
 
 ## Measurement contract
 

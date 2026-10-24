@@ -26,7 +26,8 @@ currentness. This follows the existing fallible-write publication rule.
 
 Private CPU/GPU fixtures cover mixed-prefix neighbors, 140-bit values, stale
 identities, insufficient target range and a later GEMM whose K panels cross
-source tile boundaries. These fixtures are authored but not executed yet.
+source tile boundaries. Registered applicable fixture execution is recorded in the
+[dated all-feature validation](local-all-features-20261023.md).
 The initial implementation reconstructs every active cell and stages full output;
 no conversion cost or speed advantage is asserted. Public proof ownership,
 device-produced directories, prepared reuse and resident-DAG integration remain

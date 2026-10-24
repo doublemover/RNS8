@@ -25,5 +25,5 @@ Authored independent Boost tests cover every source prefix 1-19, all suffix
 moduli through prefix 20, canonical boundaries and negative correction. HIP
 fixtures compare both candidates across every source/target prefix pair and
 signed/unsigned semantics, preserve untouched suffix canaries and verify that a
-false magnitude proof leaves all residues unchanged. Execution and performance
-qualification remain pending during frontloaded development.
+false magnitude proof leaves all residues unchanged. Registered applicable tests are covered by the [dated validation](local-all-features-20261023.md);
+performance and broader target qualification remain open.

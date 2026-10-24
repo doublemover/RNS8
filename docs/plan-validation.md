@@ -41,6 +41,6 @@ Thread-local diagnostic counters distinguish exhaustive validation, fingerprint
 traversal and distinct-plan structural comparison. Authored tests use a 16,384
 square, thin-K plan with 16,384 tiles and full all-false masks, repeated original/
 equivalent workspace checks, forced hash collisions, caller-array changes, stale
-workspace fingerprints and corrupted coverage/prefix/mask fields. Compilation
-and execution are pending. Zero traversal counts are a work-count assertion;
+workspace fingerprints and corrupted coverage/prefix/mask fields. Registered
+applicable execution is covered by the [dated validation](local-all-features-20261023.md). Zero traversal counts are a work-count assertion;
 first-preparation, steady-state host and end-to-end GPU timings remain unmeasured.

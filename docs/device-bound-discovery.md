@@ -25,8 +25,8 @@ matrix-engine consumers remain separate integration work.
 
 Authored Boost checks cover full-width sums/products, carry boundaries through
 UINT32_MAX K, signed minima, unsigned maxima, zeros, mutation, padded tails,
-outliers and both methods' exact bound/prefix/bucket outputs. Compilation and
-execution are pending; smaller proved prefixes do not establish a net speedup.
+outliers and both methods' exact bound/prefix/bucket outputs. Registered applicable cases are covered by the
+[dated all-feature validation](local-all-features-20261023.md); smaller proved prefixes do not establish a net speedup.
 
 ## Explicit K-panel L1 refinement
 

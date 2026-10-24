@@ -23,4 +23,5 @@ Synthetic fixtures use an explicit shared provenance builder with matching
 manifest/capture commits and complete artifact identities. Independent runs get
 new UUIDs; copying a capture preserves its UUID. Authored integration checks cover
 measured controls, schema-consistent censored data, unsupported phase states,
-mixed result kinds and a baseline changed after review. Execution is pending.
+mixed result kinds and a baseline changed after review. Registered applicable execution evidence is recorded in the
+[dated validation](local-all-features-20261023.md).

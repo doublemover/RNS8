@@ -1,8 +1,14 @@
 # hipBLASLt Backend
 
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
 Feature-detected hipBLASLt baseline accelerator path.
 
-`RNS8_ENABLE_HIPBLASLT=ON` builds an opt-in Windows HIP SDK baseline backend
+`RNS8_ENABLE_HIPBLASLT=ON` builds an opt-in HIP/ROCm baseline backend
 when `RNS8_ENABLE_HIP=ON` and AMD's `roc::hipblaslt` target or import archive
 is discoverable. The backend uses resident HIP RNS matrices, packs each selected
 residue plane into 16-aligned transposed INT8 buffers, runs hipBLASLt
@@ -11,7 +17,8 @@ residue plane into 16-aligned transposed INT8 buffers, runs hipBLASLt
 
 For fixed-prefix RNS GEMM with `k <= RNS8_SAFE_INT32_K_BLOCK`, the caller
 workspace keeps non-durable A and B prepack caches keyed by HIP device, operand
-source version, shape/leading-dimension metadata, prefix, and cache byte size.
+stable instance and content generation, shape/leading-dimension metadata, prefix,
+and cache byte size. Zero/exhausted generations cannot produce a cache hit.
 Stable repeated-A, repeated-B, or repeated-A/B calls skip the matching
 transpose-pack kernel after the first warmup/materialization. Finite-u8,
 adaptive schedules, and split-K calls still use the transient pack path.
@@ -26,11 +33,12 @@ Unsupported contracts:
 
 - Adaptive/per-tile bounded schedules.
 - Strict wrap64 byte-limb semantics.
-- Fused hipBLASLt epilogues or performance claims.
+- Fused hipBLASLt epilogues.
 - Durable public hipBLASLt prepack-cache objects.
 
-This is a correctness baseline only. It remains optional, is not required for
-CPU or direct-HIP correctness, and benchmark metadata reports
-`perf_validated=0` until reviewed captures prove otherwise. CK and rocWMMA
-accelerators remain opt-in, and AMDGPU builtin runtime dispatch remains
-unsupported until real kernels and exact differentials exist.
+This optional baseline is independent of CPU/direct-HIP correctness. The
+[October 23 report](../../docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse)
+records matched public calls and setup-inclusive operand reuse. Metadata retains
+`perf_validated=0` until the relevant reviewed routing gate is satisfied.
+CK, rocWMMA and AMDGPU builtins are separate opt-in implemented paths; consult
+the backend reference for their contract and target limits.

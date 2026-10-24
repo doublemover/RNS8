@@ -25,15 +25,18 @@ proof. An execution failure leaves C invalid; admission rejection preserves its
 previous value. The normal matrix write guard owns that state transition.
 
 The output currently retains a scalar magnitude proof, without inferred exact
-axis sums or covariance. Prepared/grouped/graph execution of this expression,
-bounded-i64/u64 and finite-ring public forms, additional algebraic operators and
-matrix-engine epilogue integration remain open under #47. The API does not
+axis sums or covariance. Public [prepared/grouped execution](prepared-execution.md) and
+[resident DAGs](resident-graphs.md) support this expression, including the
+explicit fixed-prefix direct-HIP asynchronous subset. Bounded-i64/u64 and
+finite-ring public forms, additional operators and public matrix-engine dispatch
+integration remain open under #47. The API does not
 automatically select this candidate for ordinary GEMM.
 
 CPU and HIP API fixtures cover positive/negative and extreme coefficients, zero
 terms, signed/unsigned exact exports, aliases and over-range rejection with
-preserved output generation. Compilation and execution are pending; no fused
-performance advantage has been measured.
+preserved output generation. Registered applicable tests are covered by the [dated validation](local-all-features-20261023.md).
+The private resident-residue comparison has measured results below; the public
+exact-wide API retains its separate output/range boundary.
 
 ## Explicit rocWMMA candidate
 
@@ -56,10 +59,11 @@ negative coefficients and signed-byte inputs do not imply a field inverse.
 Authored CPU/Boost differential fixtures cover prefix 1/3/20, complete and
 masked tiles, K 1/17/65535/65536/65537, zero/unit/extreme coefficients, negative
 D, aliases and output padding. The candidate and full test executable compiled
-with VS2026/HIP 7.1 for gfx1100. Instruction/resource inspection,
-runtime qualification and comparison with the direct scalar and unfused
-resident baselines remain required. LDS staging/barriers and D reads are real
-costs; no dispatch promotion or performance improvement is claimed.
+with VS2026/HIP 7.1 for gfx1100. The [512³ matched residue comparison](7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue)
+records a scoped improvement over the unfused direct baseline; applicable
+correctness/ISA checks are in the [dated validation](local-all-features-20261023.md).
+LDS staging/barriers and D reads remain real costs. Native exact-wide export,
+other targets and automatic dispatch promotion require their own evidence.
 
 VS2026/MSVC 14.51 marks standard type traits as non-specializable. The current
 rocWMMA dependency specializes them for its floating wrapper types even when

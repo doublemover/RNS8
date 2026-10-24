@@ -26,5 +26,7 @@ of an unused final pitch. This matters for a K fragment whose pointer starts
 inside a native row. A CPU fixture covers valid adjacent scratch and a real
 last-element overlap. Authored Boost GPU fixtures compare splits 1/3/129, groups
 1/2/4, signed/unsigned full-width inputs, prefixes 3/20, tile/pitch tails and
-K=257/65537. Split 129 exercises more than one merge level. Runtime execution
-and performance qualification remain pending; no scheduler default changes.
+K=257/65537. Split 129 exercises more than one merge level. Registered
+applicable tests are covered by the [dated validation](local-all-features-20261023.md).
+The [dense control measurements](7900xtx-large-throughput-2026-10-23.md#conversion-and-scheduling-controls)
+record specific configurations; measured selection and public integration remain open.

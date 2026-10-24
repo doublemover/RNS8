@@ -32,7 +32,8 @@ still limits supported shapes and prefixes.
 
 Authored GPU fixtures use a Boost classical reference over prefixes 1/3/9/20,
 signed extrema, odd output/K tails, K=131073 crossing a transformed GEMM slab,
-padding canaries and budget rejection. Both candidates compile; execution is pending.
+padding canaries and budget rejection. The [dated all-feature validation](local-all-features-20261023.md) records
+registered applicable compilation/execution evidence for these candidates.
 Grouped/persistent subproducts, matrix-engine comparisons, final integer export
 qualification and the specification's >=1.15x at N>=16384 with <=2.2x memory
 gate remain open under #48. Failure to meet those gates retains classical routing.

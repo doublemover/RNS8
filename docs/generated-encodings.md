@@ -25,7 +25,8 @@ plus a denominator-two variant that requires division before reduction. The
 authored C++ tests exhaust residue pairs and compare full-width signed/unsigned
 dots with Boost at K=0,1,17,65535,65536,65537. Python fixtures cover deterministic
 generation, invalid symbols, and certificates exceeding the generated widths.
-The VS2026/gfx1100 test executable compiles; test execution remains pending.
+The [dated all-feature validation](local-all-features-20261023.md) records
+execution of the registered applicable generated-reference tests.
 
 This is an executable scalar integer model for #44/#29, not an FP4 kernel.
 Actual floating encodings, scale bits, target instructions, resource usage and

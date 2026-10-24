@@ -30,5 +30,6 @@ variable-prefix matrix-engine work queue.
 Differential fixtures cover signed and unsigned full-width inputs, zero and
 nonzero neighboring tiles, all bound methods and group widths, same-address
 mutation, output padding, rejection without publication, and a second GEMM
-whose contraction crosses precision boundaries. Runtime qualification and
-performance measurements are pending; no speedup or automatic dispatch is claimed.
+whose contraction crosses precision boundaries. Registered applicable execution
+is covered by the [dated validation](local-all-features-20261023.md). Broader target
+qualification, performance and public dispatch remain separate work.

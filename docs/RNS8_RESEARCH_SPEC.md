@@ -1,7 +1,8 @@
-> This specification includes intended and research behavior. For the current
-> implementation and verified limits, read the [October 2026 audit](audit-2026-10-06.md)
-> and [release gates](roadmap.md). Source registration and historical completion
-> labels do not establish hardware qualification.
+> This specification owns normative architecture and research acceptance rules.
+> It includes proposals as well as implemented behavior. Current public contracts
+> live in the [API](../include/rns8/rns8.h) and [correctness guide](correctness.md);
+> [backend capabilities](backend-notes.md), [dated validation](local-all-features-20261023.md)
+> and the [roadmap](roadmap.md) identify implementation, evidence and remaining work.
 
 # RNS8 Technical Specification
 
@@ -1130,14 +1131,14 @@ matrix-engine backend can claim speedup. It must not be used for exact-wide,
 finite, or wrap64 semantics; strict `mod 2^64` wraparound remains a byte-limb
 backend responsibility.
 
-Feature detection does not enable a backend. hipBLASLt is the baseline
-correctness exception only under the explicit `RNS8_ENABLE_HIPBLASLT=ON`
-build/test preset; discovery still remains candidate evidence. CK and rocWMMA
-become opt-in correctness backends only after compiled kernels, explicit
-semantic coverage, exact CPU differentials, direct-HIP differentials,
-benchmark-schema coverage, and target ISA evidence exist. Production promotion
-still requires measured performance evidence. AMDGPU builtin paths remain
-accelerator candidates until the same correctness and evidence gates exist.
+Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA and
+AMDGPU builtins are implemented public opt-in paths under their explicit build
+flags. Their target/semantic restrictions and compiled capability declarations
+are listed in [backend capabilities](backend-notes.md). The
+[October 23 Windows/gfx1100 record](local-all-features-20261023.md) identifies
+applicable exact differentials and ISA checks actually executed. Linux/Instinct
+and other architecture families still require their own qualification. Production
+promotion additionally requires matched reviewed performance evidence.
 CK integration patches to pinned repo-local CK headers must be deterministic,
 exact-match guarded at configure time, emitted as build-tree include overlays,
 and tracked as source dependencies for the compiled HIP object they affect. If
@@ -1948,7 +1949,7 @@ Exit gate:
 
 - GEMMul8: https://github.com/RIKEN-RCCS/GEMMul8
 - ozIMMU: https://github.com/enp1s0/ozIMMU
-- OzBLAS: https://github.com/RIKEN-RCCS/ozblas
+- OzBLAS: https://www.r-ccs.riken.jp/labs/lpnctrt/projects/ozblas/
 - GRNS: https://github.com/kisupov/grns
 - MPRES-BLAS: https://github.com/kisupov/mpres-blas
 - FFLAS-FFPACK: https://linbox-team.github.io/fflas-ffpack/

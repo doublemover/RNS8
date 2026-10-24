@@ -1,0 +1,59 @@
+name: Hardware validation offer
+description: Volunteer to run checks, offer temporary compute, or discuss cloud credits.
+title: "[hardware offer] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping test RNS8 on real AMD GPUs. "Not sure" is a useful answer.
+        **Do not post passwords, SSH keys, tokens, account credentials, private connection endpoints, or billing data.**
+        Share a contact method for private coordination, never access credentials.
+        An offer does not authorize provisioning, using your server, or spending credits.
+        Financial sponsorship is separate: https://github.com/sponsors/doublemover.
+  - type: dropdown
+    id: offer_type
+    attributes:
+      label: What would you like to offer?
+      options:
+        - Volunteer to run checks myself
+        - Temporary server access (coordinate privately)
+        - Cloud credits (coordinate privately)
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: GPU and environment
+      description: GPU model(s), count, VRAM, operating system and installed HIP SDK/ROCm if known. "Not sure" is fine.
+    validations:
+      required: true
+  - type: textarea
+    id: availability
+    attributes:
+      label: Availability and limits
+      description: Approximate dates, time or credit budget, and access constraints. No private endpoints or billing information.
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: Preferred contact method
+      description: A public-safe way to arrange private coordination; a reply on this issue is fine. No credentials.
+    validations:
+      required: true
+  - type: dropdown
+    id: self_run
+    attributes:
+      label: Would you prefer a self-run bundle and sanitized upload instructions?
+      options:
+        - "Yes"
+        - No, let's coordinate privately
+        - Not sure
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        A maintainer will agree on a bounded run plan, expected duration/storage, exact commands,
+        sanitization and the artifact checklist before a run. The reproducible remote-session
+        bundle is tracked in https://github.com/doublemover/RNS8/issues/58.
