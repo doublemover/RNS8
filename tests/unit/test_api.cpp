@@ -48,7 +48,7 @@ namespace {
 #include "../support/ragged_owner_fixture.hpp"
 TEST_CASE("public ragged owner preserves exact values across differently tiled consumers on CPU") {
   auto* ctx=create_cpu_context();
-  for(bool u:{false,true}) ragged_owner_fixture::roundtrip(ctx,u);
+  for(bool u:{false,true}) {ragged_owner_fixture::roundtrip(ctx,u);ragged_owner_fixture::wide_roundtrip(ctx,u);}
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
 

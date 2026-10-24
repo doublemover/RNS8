@@ -1426,7 +1426,9 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
 
 /* Explicit generation-bound compact residue materialization. Preparation scans
  * current exact-wide residues to derive exact per-tile magnitude bounds; HIP
- * preparation includes a device-to-host snapshot and a compact payload upload.
+ * preparation discovers bounds and compacts payload on device; only its tile
+ * directory crosses the host. Budget covers payload plus the host directory,
+ * and on HIP a second device directory and four-byte proof status.
  * No implicit adaptive execution or zero-fill of absent planes is performed. */
 typedef struct rns8_ragged_materialization rns8_ragged_materialization;
 typedef struct rns8_ragged_resources {
@@ -1436,7 +1438,9 @@ typedef struct rns8_ragged_resources {
   uint32_t maximum_prefix;
   uint64_t tile_count;
   uint64_t payload_bytes;
-  uint64_t directory_bytes;
+  uint64_t directory_bytes; /* host directory payload */
+  uint64_t device_metadata_bytes; /* retained directory plus status */
+  uint64_t materialization_capacity_bytes; /* reusable device staging */
   uint64_t source_instance;
   uint64_t source_generation;
 } rns8_ragged_resources;
@@ -1451,6 +1455,7 @@ RNS8_API rns8_status rns8_get_ragged_resources(const rns8_ragged_materialization
  * caller excludes concurrent mutation/destruction. */
 RNS8_API rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,
     const rns8_ragged_materialization* source, rns8_matrix* output,uint64_t max_scratch_bytes);
+/* Backend cleanup failure retains this handle for destruction retry only. */
 RNS8_API rns8_status rns8_destroy_ragged_materialization(rns8_ragged_materialization*);
 
 typedef struct rns8_product_recipe rns8_product_recipe;

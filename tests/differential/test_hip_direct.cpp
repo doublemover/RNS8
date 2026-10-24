@@ -80,7 +80,7 @@ namespace {
 TEST_CASE("public ragged owner extends compact tiles before a HIP GEMM consumer") {
   if(!hip_available()) SKIP("no HIP device for public ragged owner");
   auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool u:{false,true}) ragged_owner_fixture::roundtrip(ctx,u);
+  for(bool u:{false,true}) {ragged_owner_fixture::roundtrip(ctx,u);ragged_owner_fixture::wide_roundtrip(ctx,u);}
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
 

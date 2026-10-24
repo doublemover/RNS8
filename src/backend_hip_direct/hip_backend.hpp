@@ -65,10 +65,17 @@ rns8_status hip_direct_gemm_block_sparse_device(
     uint32_t method = 0,uint32_t scalar_intersection_limit = 0);
 // Private exact ragged-to-uniform materialization. Caller owns generation/proof
 // binding and must invalidate destination on any failure after commit_started.
+// Borrowed scratch must remain alive until a successful drain, including failures.
+rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source,
+    uint32_t prefix, const uint64_t bound[3], RaggedResidueLayout& layout,
+    void* device_directory, void* device_status);
+rns8_status hip_direct_compact_ragged_residues(int device_id, const void* source,
+    uint32_t prefix, const RaggedResidueLayout& layout, void* destination, void* device_directory);
 rns8_status hip_direct_materialize_ragged_residues(
     int device_id, const void* source, const RaggedResidueLayout& layout,
     void* destination, const ResidueLayout& target, uint64_t instance, uint64_t generation,
-    uint64_t max_scratch_bytes, bool& commit_started);
+    uint64_t max_scratch_bytes, bool& commit_started,
+    void* staged, void* directory, void* device_status);
 // Synchronous private discovery for fixed 16x16 output tiles. Caller allocates
 // ceil(m/16)*ceil(n/16) bounds/indices and 22 offsets. Bucket 0 is proven zero;
 // buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.

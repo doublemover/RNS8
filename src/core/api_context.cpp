@@ -196,6 +196,10 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 
 rns8_status rns8_destroy_context(rns8_context* ctx) {
   if (ctx && ctx->prepared_references) return RNS8_BUSY;
+  if (ctx) {
+    const auto status = drain_failed_ragged_cleanup(*ctx);
+    if (status != RNS8_SUCCESS) return status;
+  }
   while (ctx && ctx->failed_matrix_cleanup) {
     auto* matrix = ctx->failed_matrix_cleanup;
     const auto status = free_hip_matrix_storage(*matrix);

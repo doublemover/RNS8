@@ -199,6 +199,25 @@ extern "C" int rns8_hip_block_sparse_gemm(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_discover_ragged_bounds(const int8_t* source, int rows, int cols,
+    int prefix, int tile_rows, int tile_cols, int grid_cols, bool signed_value,
+    uint64_t bound0, uint64_t bound1, uint64_t bound2,
+    rns8::detail::RaggedResidueTile* directory, int* status) {
+  const uint64_t tiles = ((uint64_t(rows) + tile_rows - 1) / tile_rows) * grid_cols;
+  hipLaunchKernelGGL(rns8_discover_ragged_bounds_kernel, dim3(tiles), dim3(128), 0, nullptr,
+      source, rows, cols, prefix, tile_rows, tile_cols, grid_cols, signed_value,
+      (rns8_u192_device{bound0, bound1, bound2}), directory, status);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_compact_ragged(const int8_t* source, int rows, int cols,
+    const rns8::detail::RaggedResidueTile* directory, int tile_rows, int tile_cols,
+    int grid_cols, int8_t* destination) {
+  const uint64_t tiles = ((uint64_t(rows) + tile_rows - 1) / tile_rows) * grid_cols;
+  hipLaunchKernelGGL(rns8_compact_ragged_kernel, dim3(tiles), dim3(128), 0, nullptr,
+      source, rows, cols, directory, tile_rows, tile_cols, grid_cols, destination);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_materialize_ragged(
     const int8_t* source, const rns8::detail::RaggedResidueTile* tiles,
     int tile_rows, int tile_cols, int grid_cols, bool signed_value,

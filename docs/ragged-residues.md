@@ -17,8 +17,9 @@ residues from that integer value. Existing planes may be copied after checking
 their centered alphabet. Destination layout can differ from the source tiling.
 
 CPU materialization stages the complete destination and preserves all padding.
-The HIP route separately allocates the directory, status and staged destination;
-the supplied budget covers all three. Source/destination byte spans cannot
+The private HIP route borrows the directory, status and staged destination;
+the public owner retains these allocations for reuse. The supplied budget covers
+all three, including a larger staging capacity retained by an earlier call. Source/destination byte spans cannot
 overlap. Metadata, range and kernel failures before commit leave destination
 bytes unchanged. `commit_started` becomes true immediately before the final
 device copy; a failure then requires the caller to invalidate destination
@@ -30,5 +31,43 @@ source tile boundaries. Registered applicable fixture execution is recorded in t
 [dated all-feature validation](local-all-features-20261023.md).
 The initial implementation reconstructs every active cell and stages full output;
 no conversion cost or speed advantage is asserted. Public proof ownership,
-device-produced directories, prepared reuse and resident-DAG integration remain
+prepared reuse and resident-DAG integration remain
 required before exposing this representation as a reusable public matrix.
+
+
+## Public device-side preparation (authored, execution pending)
+
+The public generation-bound owner now discovers each tile's exact magnitude on
+HIP. A 128-thread block reconstructs cells with the current full prefix, checks
+the centered alphabet and source proof, then reduces the maximum in shared memory.
+Only the directory is copied to the host for checked prefix selection and a
+checked offset scan. A second kernel compacts the original device residues and
+zeros spatial padding directly into the retained payload. No full residue
+snapshot or compact payload upload is needed. The CPU path retains its independent
+Boost reconstruction. This is a hybrid directory builder: prefix selection and
+layout offsets still run on the host.
+
+The preparation budget covers the compact payload and host directory; HIP adds
+one device directory and a four-byte proof status. These device scratch allocations
+remain owned until destruction, and are included in that budget. Source readers
+remain pinned during discovery and compaction. Failed drains retain unpublished
+owners on the poisoned context for cleanup retry, including the source reference;
+failed releases preserve each remaining allocation and the owner then accepts
+cleanup retry only. Successful preparation ends
+the reader reservation but retains the source handle and generation binding.
+
+Authored shared CPU/HIP fixtures cover exact preparation-budget boundaries,
+signed/unsigned 140-bit values, zero cells, partial tiles, a forged smaller source
+bound, every reconstructed residue and subsequent Boost-checked GEMM. No speedup
+or new execution qualification is claimed before the final campaign.
+
+
+Materialization now uses owner-retained staging, directory and status buffers.
+Repeated same-capacity exports allocate no new device buffers through the RNS8
+allocator. Resource queries report device metadata and staging capacity separately.
+A failed final drain keeps the output writer/reference and all scratch reserved,
+poisons further context arithmetic, and requires owner destruction to retry the
+drain before releasing anything. Failures after publication starts invalidate the
+output; earlier staged failures preserve its previous value. The private borrowed
+interface documents the same caller drain obligation. These are authored lifecycle
+and reuse changes, with counter assertions queued for the final validation pass.
