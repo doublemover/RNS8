@@ -164,6 +164,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(cdna_env_summary_self_test PROPERTIES LABELS "benchmark;evidence;targets")
+  add_test(NAME cdna_scripts_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cdna_scripts.py")
+  set_tests_properties(cdna_scripts_self_test PROPERTIES LABELS "tools;qualification")
 
   add_test(
     NAME report_capture_inputs_self_test

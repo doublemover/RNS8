@@ -108,72 +108,40 @@ correctness/ISA checks and [performance](performance.md) for recorded comparison
 
 ## Existing bounded host scripts
 
-The following scripts already exist. A reproducible remote preflight/setup/run
-bundle with explicit budgets remains [#58](https://github.com/doublemover/RNS8/issues/58).
-Review commands and host access before executing these current helpers.
-
-The one-command first-pass path captures the host environment and topology
-before any benchmark evidence:
-
-```bash
-bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
-```
-
-Optional CDNA follow-up scenario groups can be queued after the first smoke
-without making them default smoke blockers. The current CDNA-prep closeout
-groups are `wrap64-carry`, `k-block-tile-variants`, `layout-search`,
-`finite-distributions`, and `vector-to-rns-chain`:
+The CDNA entrypoints use the existing
+[qualification runner](gpu-qualification.md#native-linux-session-receipts).
+They default to plan-only and require a target plus explicit unmasked parent
+HIP runtime ordinals. No missing-device or architecture fallback is permitted.
+The same shared dependency resolver supplies configure bindings; the scripts do
+not install packages or dump the complete process environment.
 
 ```bash
-bash scripts/cdna_first_pass.sh \
-  --out-dir temp/cdna-first-pass-rank-followup \
-  --rank-scenarios wrap64-carry,k-block-tile-variants,layout-search,finite-distributions,vector-to-rns-chain
+bash scripts/cdna_first_pass.sh --target mi300x --devices 0 \
+  --set RNS8_HIP_ROOT=/opt/rocm --out-dir temp/cdna-first-pass-plan
+bash scripts/cdna_multigpu_smoke.sh --target mi300x --devices 4,7 \
+  --set RNS8_HIP_ROOT=/opt/rocm --out-dir temp/cdna-selected-lanes-plan
 ```
 
-For an independent per-GPU shard smoke on an eight-GPU host:
+Review `manifest.json`, `dependency-resolution.json` and the allowlisted
+environment receipt before adding `--execute` on the actual host. Select
+`--total-seconds`, `--timeout-seconds`, `--jobs` and `--min-free-gib` for that
+allocation. `--accelerators` explicitly selects optional backend lanes.
+Inherited visibility masks and diagnostic HSA overrides block execution; a
+scheduler's device namespace requires explicit integration rather than guessing
+or blindly clearing its mask. Logical device 0 is used only inside the child
+isolated from an explicitly selected parent ordinal.
 
-```bash
-bash scripts/cdna_multigpu_smoke.sh --devices 0,1,2,3,4,5,6,7 --out-dir temp/cdna-multigpu-smoke-real
-```
+Multiple lanes run sequentially as independent processes within the bounded
+session. Their runtime ordinals are not physical SMI indices; PCI/UUID/NUMA
+correlation remains unknown. No distributed GEMM, RCCL collective, scaling
+qualification or profiler readiness is implied. Arbitrary benchmark/rank strings
+and reuse of unrelated build trees were removed from this bounded path.
+Run separately reviewed follow-up campaigns after smoke.
 
-The scripts always run `scripts/cdna_env_probe.sh` first and write raw logs plus
-`cdna-env-summary.json`. The summary records `HIP_VISIBLE_DEVICES`,
-`ROCR_VISIBLE_DEVICES`, `GPU_DEVICE_ORDINAL`, `ROCM_PATH`, `HIP_PATH`,
-`LD_LIBRARY_PATH`, rocminfo `gfx*` targets, SMI device names, ROCm/HIP versions,
-visible and node GPU counts, a `physical_devices` array keyed by physical GPU
-index with target arch/name/BDF/NUMA/visibility metadata where discoverable,
-`rocprofv3` readiness, RCCL readiness, and `rccl-tests` readiness.
-
-The multi-GPU smoke remains embarrassingly parallel: one process per physical
-device with `ROCR_VISIBLE_DEVICES=<physical_id>` and mirrored
-`HIP_VISIBLE_DEVICES=<physical_id>`. `scripts/cdna_multigpu_smoke.sh` writes
-per-shard captures under `shards/gpu*/` and then runs
-`tools/multigpu_shard_report.py`; the report lists rank, world size, physical
-device id, target arch, device name, BDF, NUMA node, schema status, checksum,
-timing outliers, missing shards, profiler readiness, and RCCL/`rccl-tests`
-readiness. Partial lists such as `--devices 4,5,6,7` are recorded by physical
-device id, not by rank position.
-
-Raw `rns8-bench` captures also record optional `RNS8_MULTI_GPU_MODE`,
-`RNS8_RANK`, and `RNS8_WORLD_SIZE` runtime environment fields when a shard
-launcher sets them. The `target-status.json` sidecar remains the richer source
-for BDF, NUMA, profiler, RCCL, and physical-device topology.
-
-`scripts/cdna_smoke.sh` is the minimal single-device smoke wrapper:
-
-```bash
-bash scripts/cdna_smoke.sh --devices 0 --out-dir temp/cdna-smoke-real
-```
-
-Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
-`--bench-args`, `--skip-build`, and `--dry-run`. `--accelerators` selects the
-clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
-That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
-real Instinct host with `RNS8_ENABLE_AMDGPU_BUILTINS=ON`,
-`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx942`, and no
-Windows vcpkg or local workstation paths. It is a configure/build surface only;
-CDNA performance readiness still requires target-validation and release-review
-captures.
+These source changes and no-GPU fixtures await the consolidated validation run.
+Native Linux rehearsal, scheduler integration, physical topology, profiler/ISA
+collection and real Instinct execution remain explicit
+[#58](https://github.com/doublemover/RNS8/issues/58) acceptance gaps.
 
 GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`
 internals on some optimization levels. Treat those as non-blocking compiler
