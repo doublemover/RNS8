@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "backend_common/wrap64_signed_radix.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 

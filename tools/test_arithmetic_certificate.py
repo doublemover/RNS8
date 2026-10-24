@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify
+from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify, verify_wrap64_recode
 
 
 def main() -> int:
@@ -72,6 +72,15 @@ def main() -> int:
     planes = (replace(base.planes[0], weight=2), replace(base.planes[0], weight=-1))
     ordered = replace(base, planes=planes, recombination_min=-(1 << 31), recombination_max=(1 << 31) - 1)
     assert "plane_0_coefficient_overflow" in verify(ordered)["proof_failures"]
+    recode=json.loads((Path(__file__).parent / "data/wrap64_signed_radix_certificate.json").read_text())
+    assert verify_wrap64_recode(recode)["algebraically_verified"]
+    assert not verify_wrap64_recode(recode)["runtime_dispatch_eligible"]
+    for field,value in (("bias",0),("carry_before_xor",False),("signed_operands",False),
+                        ("clamp",True),("prior_accumulator",1),("pair_count",35),
+                        ("fold","int32_diagonal_sum"),("shift","i_plus_j"),
+                        ("instruction_padded_k",131072),("instruction_padded_k",True)):
+        assert not verify_wrap64_recode(dict(recode,**{field:value}))["algebraically_verified"]
+    assert verify_wrap64_recode(dict(recode,instruction_padded_k=131071))["algebraically_verified"]
     print("arithmetic certificate self-test: PASS")
     return 0
 

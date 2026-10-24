@@ -2012,3 +2012,18 @@ portable CPU and direct HIP paths first, then earn production status per target
 family by amortizing packing, fusing reduction, and selecting the fastest
 available AMD matrix-engine backend on that OS and GPU.
 ```
+
+### Strict wrap64 signed compute view
+
+Canonical persistent wrap64 storage retains unsigned byte semantics. A private
+carry-recoded signed radix256 compute view is permitted when its ring identity
+and exact per-pair accumulator bound are certified. Version 1 computes
+`(x + 0x8080808080808080) ^ 0x8080808080808080` with unsigned 64-bit wrapping,
+then feeds its signed bytes to 36 low-product WMMA pairs. Each pair is folded
+into a uint64 ring accumulator before combining diagonals; negative signed
+shifts and unchecked INT32 diagonal fusion are forbidden. This view establishes
+no bounded/exact-wide CRT proof and changes no public storage contract.
+The current private RDNA3 implementation uses a 16-term zero-initialized MMA
+per pair and includes a matched native unsigned IU8 control. See
+[the candidate contract](wrap64-signed-radix.md). Both remain unqualified;
+existing wrap64 shipping and evidence gates still apply.

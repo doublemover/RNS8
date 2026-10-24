@@ -1228,6 +1228,11 @@ rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device
     uint32_t limb_count);
 rns8_status hip_direct_synchronize(int device_id);
 
+// Private strict wrap64 research candidates: signed carry-recode or native U8.
+// Compact canonical byte inputs/output; no public dispatch or AUTO promotion.
+rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,bool signed_digits,uint64_t max_scratch_bytes,bool& commit_started);
+
 }  // namespace rns8::detail
 
 #endif

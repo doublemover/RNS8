@@ -649,6 +649,7 @@ namespace rns8::detail {
 #include "hip_backend_bounds.inc"
 #include "hip_backend_ragged.inc"
 #include "hip_backend_block_sparse.inc"
+#include "hip_backend_wrap_radix.inc"
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"

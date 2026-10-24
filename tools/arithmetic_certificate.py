@@ -217,6 +217,39 @@ def from_json(data: dict) -> ArithmeticCertificate:
     return ArithmeticCertificate(**data)
 
 
+def verify_wrap64_recode(data: dict) -> dict:
+    """Structural ring proof, independent of C++ digit helpers and device code.
+
+    sum(y_i-128)*256**i = (x+H mod 2**64)-H = x mod 2**64.
+    Terms with i+j>=8 vanish in the ring; each retained pair is exact INT32
+    before its unsigned ring fold. This proves algebra, never an opcode run.
+    """
+    expected = {"schema": "rns8_wrap64_signed_radix_v1", "radix": 256,
+                "digits": 8, "bias": sum(128*256**i for i in range(8)),
+                "carry_before_xor": True, "signed_operands": True,
+                "clamp": False, "prior_accumulator": 0,
+                "pair_count": 36, "fold": "unsigned64_after_each_pair",
+                "shift": "8_times_i_plus_j", "layout": "tile16_canonical_bytes_recode_v1"}
+    failures = []
+    if not isinstance(data, dict):
+        return {"algebraically_verified": False, "runtime_dispatch_eligible": False,
+                "proof_failures": ["invalid_certificate_structure"]}
+    for name, value in expected.items():
+        if type(data.get(name)) is not type(value) or data.get(name) != value:
+            failures.append(name)
+    count = data.get("instruction_padded_k")
+    if type(count) is not int or count <= 0 or count*16384 > (1 << 31)-1:
+        failures.append("exact_pair_int32_bound")
+    if len(data) != len(expected)+1:
+        failures.append("unknown_or_missing_fields")
+    digest = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"),
+                                      allow_nan=False).encode()).hexdigest()
+    return {"algebraically_verified": not failures, "runtime_dispatch_eligible": False,
+            "proof_failures": failures, "sha256": digest,
+            "semantics": "wrap_u64_mod_2_64", "signed_pair_k_cap": 131071,
+            "unsigned_pair_k_cap": 33025, "matrix_products_per_k_tile": 36}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("certificate", type=Path)
@@ -226,7 +259,9 @@ def main() -> int:
         raise ValueError(f"non-finite JSON constant: {value}")
     try:
         data = json.loads(args.certificate.read_text(encoding="utf-8"), parse_constant=reject_constant)
-        if data.get("schema") == "rns8_arithmetic_composition_v1":
+        if data.get("schema") == "rns8_wrap64_signed_radix_v1":
+            result = verify_wrap64_recode(data)
+        elif data.get("schema") == "rns8_arithmetic_composition_v1":
             from arithmetic_composition import Node, verify_composition
             result = verify_composition(tuple(Node(**node) for node in data["nodes"]))
         else:
