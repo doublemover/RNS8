@@ -148,9 +148,15 @@ extern "C" int rns8_hip_strassen_commit(const int8_t* stage,int8_t* output,int m
 }
 
 extern "C" int rns8_hip_export_canonical_balanced_crt(
-    const int8_t* residues,uint64_t* limbs,int cells,const rns8::detail::balanced_crt::Plan* plan) {
-  hipLaunchKernelGGL(rns8_export_canonical_balanced_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,
-      residues,limbs,cells,*plan);
+    const int8_t* residues,uint64_t* limbs,int cells,const rns8::detail::balanced_crt::Plan* plan,
+    rns8::detail::ResidueLayout source) {
+  if (source.kind == rns8::detail::ResidueLayoutKind::modulus_major && source.ld == source.cols) {
+    hipLaunchKernelGGL((rns8_export_canonical_balanced_crt_kernel<false>),dim3((cells+255)/256),dim3(256),0,nullptr,
+        residues,limbs,cells,*plan,source);
+  } else {
+    hipLaunchKernelGGL((rns8_export_canonical_balanced_crt_kernel<true>),dim3((cells+255)/256),dim3(256),0,nullptr,
+        residues,limbs,cells,*plan,source);
+  }
   return static_cast<int>(hipGetLastError());
 }
 

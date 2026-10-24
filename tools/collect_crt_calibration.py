@@ -16,7 +16,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cells", type=int, nargs="+", default=[1, 257, 4096])
     parser.add_argument("--prefixes", type=int, nargs="+", default=list(range(1, 21)))
-    parser.add_argument("--candidates", nargs="+", choices=["garner", "direct", "balanced"], default=["garner", "direct", "balanced"])
+    parser.add_argument("--candidates", nargs="+", choices=["garner", "direct", "balanced", "tile_balanced", "tile_convert_balanced", "tile_convert_garner"], default=["garner", "direct", "balanced"])
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--warmups", type=int, default=3)
@@ -63,6 +63,11 @@ def main() -> int:
                 or len(case.get("samples", [])) != args.repeats
                 or any(sample.get("exact_reference_passed") is not True for sample in case["samples"])):
             raise RuntimeError(f"CRT microcase metadata/reference mismatch; retained run {run_id}")
+        tile_input = candidate.startswith("tile_")
+        if (case.get("source_layout") != ("tile_major_8x16_v1" if tile_input else "modulus_major_v1")
+                or case.get("conversion_inside_call") is not (tile_input and candidate != "tile_balanced")
+                or case.get("conversion_scratch_bytes") != (cells * prefix if tile_input and candidate != "tile_balanced" else 0)):
+            raise RuntimeError(f"CRT source layout/boundary mismatch; retained run {run_id}")
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("executable changed while running; current capture is ineligible")
     print(f"Collected {len(cases)} independent process records in {args.output}; qualification remains pending")

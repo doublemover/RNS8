@@ -33,3 +33,35 @@ tail canaries. Registered applicable compilation/test evidence is recorded in th
 [October 23 all-feature validation](local-all-features-20261023.md). Quotient-assisted CRT,
 subgroup and tile-batched implementations, group-arrival scheduling, full export
 contracts and measured target/prefix selection remain open under issue #39.
+
+## Tile-major consumer candidate
+
+The private `hip_direct_export_canonical_balanced_crt_layout_device` accepts the
+versioned uniform-prefix `ResidueLayout` directly. It reads tile-major 8-bit
+residues or padded modulus-major rows and emits the same canonical three-limb
+logical row-major cells. Descriptor validation, complete input/output range
+non-overlap and launch/index limits precede device writes. Basis/version mismatch
+rejects; the consumer never treats padding or missing channels as values.
+
+A cell computes its physical base and plane stride once before reconstruction.
+The existing tightly packed modulus-major route retains a separate compile-time
+addressing specialization. The alternative route allocates no intermediate
+modulus-major buffer and performs no conversion launch. This is a real CRT
+consumer, but remains a private candidate with the existing canonical output
+contract; it does not change public matrix layout or default Garner export.
+
+`rns8-crt-calibrate` adds `tile_balanced`, `tile_convert_balanced` and
+`tile_convert_garner`. All three start with identical tile-major inputs and end
+with identical canonical device limbs; the latter two include conversion and
+its synchronization inside each timed call. Input construction/upload and
+verification are outside the measured interval and are identified as setup.
+Records report logical shape, source physical bytes, conversion scratch and
+whether conversion occurs in the call. Compare these three routes to each other;
+plain-input candidates have a different starting boundary. The collector accepts
+these modes explicitly and rejects mismatched layout/boundary metadata.
+
+New Boost GPU fixtures cover every prefix, 17-by-19 tails, padded rows,
+tile padding, zero/threshold/P-1 representatives, malformed descriptors,
+alias rejection and input/output canaries. These fixtures and matched route
+measurements await the final consolidated validation; no layout speedup or
+public promotion is established yet.

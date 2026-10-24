@@ -37,12 +37,13 @@ int main(int argc, char **argv) {
   try {
     if (argc != 7)
       throw std::invalid_argument(
-          "usage: rns8-crt-calibrate <garner|direct|balanced> <cells "
+          "usage: rns8-crt-calibrate <garner|direct|balanced|tile_balanced|tile_convert_balanced|tile_convert_garner> <cells "
           "1..1048576> <prefix 1..20> <repeats 1..10000> <warmups 1..1000> "
           "<unique-run-id>");
     const std::string candidate = argv[1], run_id = argv[6];
     if ((candidate != "garner" && candidate != "direct" &&
-         candidate != "balanced") ||
+         candidate != "balanced" && candidate != "tile_balanced" &&
+         candidate != "tile_convert_balanced" && candidate != "tile_convert_garner") ||
         run_id.empty())
       throw std::invalid_argument("candidate and unique run ID required");
     const auto cells = number(argv[2], 1, 1048576),
@@ -75,20 +76,40 @@ int main(int argc, char **argv) {
         value >>= 64;
       }
     }
-    hip_direct_device_buffer input, output;
-    check(input.allocate(0, residues.size()));
+    const bool tile_input = candidate.rfind("tile_", 0) == 0;
+    const uint64_t cols = cells % 256 == 0 ? 256 : cells, rows = cells / cols;
+    ResidueLayout plain, tiled;
+    if (!make_residue_layout(ResidueLayoutKind::modulus_major, rows, cols, cols, prefix, 0, 0, plain) ||
+        !make_residue_layout(ResidueLayoutKind::tile_major, rows, cols, cols, prefix, 8, 16, tiled))
+      throw std::runtime_error("CRT layout construction failed");
+    std::vector<int8_t> tile_residues;
+    if (tile_input) {
+      tile_residues.assign(tiled.bytes, 99);
+      if (!convert_residue_layout_host(residues.data(), plain, tile_residues.data(), tiled))
+        throw std::runtime_error("CRT input layout conversion failed");
+    }
+    hip_direct_device_buffer input, output, tile_storage;
+    if (candidate != "tile_balanced") check(input.allocate(0, residues.size()));
     check(output.allocate(0, expected.size() * 8));
-    check(hip_direct_copy_host_to_device(0, input.get(), residues.data(),
-                                         residues.size()));
+    if (candidate != "tile_balanced")
+      check(hip_direct_copy_host_to_device(0, input.get(), residues.data(), residues.size()));
     std::fill(observed.begin(), observed.end(), UINT64_MAX);
     check(hip_direct_copy_host_to_device(0, output.get(), observed.data(),
                                          observed.size() * 8));
+    if (tile_input) {
+      check(tile_storage.allocate(0, tiled.bytes));
+      check(hip_direct_copy_host_to_device(0,tile_storage.get(),tile_residues.data(),tile_residues.size()));
+    }
     StatusStorage status;
     const auto execute = [&] {
+      if (candidate == "tile_balanced")
+        return hip_direct_export_canonical_balanced_crt_layout_device(0,tile_storage.get(),tiled,output.get());
+      if (tile_input)
+        check(hip_direct_convert_residue_layout(0,tile_storage.get(),tiled,input.get(),plain));
       if (candidate == "direct")
         return hip_direct_export_canonical_direct_crt_device(
             0, input.get(), output.get(), cells, prefix);
-      if (candidate == "balanced")
+      if (candidate == "balanced" || candidate == "tile_convert_balanced")
         return hip_direct_export_canonical_balanced_crt_device(
             0, input.get(), output.get(), cells, prefix);
       return hip_direct_export_exact_wide_unsigned_limbs_to_device(
@@ -148,6 +169,11 @@ int main(int argc, char **argv) {
                       {"build_manifest",
                        nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON)},
                       {"source_bytes_modeled", std::size_t{cells} * prefix},
+                      {"source_layout", tile_input ? "tile_major_8x16_v1" : "modulus_major_v1"},
+                      {"source_physical_bytes", tile_input ? tiled.bytes : plain.bytes},
+                      {"logical_rows", rows}, {"logical_cols", cols},
+                      {"conversion_inside_call", tile_input && candidate != "tile_balanced"},
+                      {"conversion_scratch_bytes", tile_input && candidate != "tile_balanced" ? plain.bytes : 0},
                       {"output_bytes_modeled", std::size_t{cells} * 24},
                       {"actual_hbm_bytes", nullptr},
                       {"timing_resolution_ns", nullptr},
