@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include <atomic>
+#include <array>
 #include <memory>
 #include <unordered_set>
 #include <unordered_map>
@@ -25,8 +26,9 @@ struct rns8_prepared_execution {
   bool cancel_requested = false;
   uint64_t group_references = 0;
   uint64_t dependent_references = 0;
-  rns8_prepared_execution* producer = nullptr;
-  rns8_completion_token producer_token{};
+  struct Dependency {rns8_prepared_execution* producer=nullptr;rns8_completion_token token{};};
+  std::array<Dependency,3> producers{};
+  uint32_t producer_count=0;
   bool hip_submission_prepared = false;
   void* pending_stream = nullptr;
   boost::multiprecision::cpp_int pending_bound;
@@ -153,60 +155,74 @@ static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stre
              : rns8::detail::hip_direct_enqueue_rns_no_publish(e.plan, e.a, e.b, e.c, stream);
 }
 static void release_prepared_dependency(rns8_prepared_execution& e) {
-  if (e.producer) --e.producer->dependent_references;
-  e.producer=nullptr;
-  e.producer_token={};
+  for(uint32_t i=0;i<e.producer_count;++i) --e.producers[i].producer->dependent_references;
+  e.producers={};e.producer_count=0;
 }
-rns8_status rns8_bind_prepared_dependency(rns8_prepared_execution* consumer,
-    rns8_prepared_execution* producer, rns8_completion_token token) {
+rns8_status rns8_bind_prepared_dependencies(rns8_prepared_execution* consumer,
+    rns8_prepared_execution* const* producers,const rns8_completion_token* tokens,uint32_t count) {
   return guard_api([&]() -> rns8_status {
-    if (!consumer || consumer==producer) return RNS8_INVALID_ARGUMENT;
-    if (consumer->running || consumer->group_references) return RNS8_BUSY;
-    if (!producer) {
-      if (token.prepared_id || token.epoch) return RNS8_INVALID_ARGUMENT;
-      release_prepared_dependency(*consumer);
-      return RNS8_SUCCESS;
+    if(!consumer || count>3 || (count && (!producers || !tokens))) return RNS8_INVALID_ARGUMENT;
+    if(consumer->running || consumer->group_references) return RNS8_BUSY;
+    std::array<rns8_prepared_execution::Dependency,3> bindings{};
+    for(uint32_t i=0;i<count;++i) {
+      auto* producer=producers[i];const auto token=tokens[i];
+      if(!producer || producer==consumer || producer->ctx!=consumer->ctx || token.prepared_id!=producer->id ||
+         !token.epoch || token.epoch!=producer->epoch ||
+         (producer->c!=consumer->a && producer->c!=consumer->b && producer->c!=consumer->d)) return RNS8_INVALID_ARGUMENT;
+      for(uint32_t j=0;j<i;++j)
+        if(producers[j]==producer || producers[j]->c==producer->c) return RNS8_INVALID_ARGUMENT;
+      // Walk the complete dependency DAG, including branches not on a first-
+      // producer chain. All allocation/validation precedes reference mutation.
+      std::vector<rns8_prepared_execution*> pending{producer};
+      std::unordered_set<rns8_prepared_execution*> visited;
+      while(!pending.empty()) {
+        auto* node=pending.back();pending.pop_back();
+        if(node==consumer) return RNS8_INVALID_ARGUMENT;
+        if(!visited.insert(node).second) continue;
+        for(uint32_t j=0;j<node->producer_count;++j) pending.push_back(node->producers[j].producer);
+      }
+      if(producer->dependent_references==UINT64_MAX) return RNS8_RANGE_ERROR;
+      bindings[i]={producer,token};
     }
-    if (producer->ctx != consumer->ctx || token.prepared_id != producer->id ||
-        !token.epoch || token.epoch != producer->epoch ||
-        (producer->c != consumer->a && producer->c != consumer->b && producer->c != consumer->d))
-      return RNS8_INVALID_ARGUMENT;
-    for (auto* ancestor=producer; ancestor; ancestor=ancestor->producer)
-      if (ancestor==consumer) return RNS8_INVALID_ARGUMENT;
-    if (producer->dependent_references==UINT64_MAX) return RNS8_RANGE_ERROR;
-    ++producer->dependent_references;
-    release_prepared_dependency(*consumer);
-    consumer->producer=producer;
-    consumer->producer_token=token;
+    for(uint32_t i=0;i<count;++i) ++bindings[i].producer->dependent_references;
+    release_prepared_dependency(*consumer);consumer->producers=bindings;consumer->producer_count=count;
     return RNS8_SUCCESS;
   });
 }
+rns8_status rns8_bind_prepared_dependency(rns8_prepared_execution* consumer,
+    rns8_prepared_execution* producer,rns8_completion_token token) {
+  if(!producer) {
+    if(token.prepared_id || token.epoch) return RNS8_INVALID_ARGUMENT;
+    return rns8_bind_prepared_dependencies(consumer,nullptr,nullptr,0);
+  }
+  return rns8_bind_prepared_dependencies(consumer,&producer,&token,1);
+}
 static rns8_status resolve_prepared_dependency(rns8_prepared_execution& e) {
-  if (!e.producer) return RNS8_SUCCESS;
-  auto& producer=*e.producer;
-  rns8_completion_info completion{};
-  completion.struct_size=sizeof(completion); completion.abi_version=RNS8_ABI_VERSION;
-  const auto status = producer.running && producer.hip_submission_prepared
-      ? rns8_query_prepared_hip(&producer,e.producer_token,&completion)
-      : rns8_get_prepared_completion(&producer,e.producer_token,&completion);
-  if (status!=RNS8_SUCCESS) return status;
-  if (completion.operation_status!=RNS8_SUCCESS) return completion.operation_status;
-  if (!completion.completed || !completion.output_is_current) return RNS8_INVALID_ARGUMENT;
-  // Only producer-owned input generations may advance through this binding.
-  const auto unchanged = [&](const rns8_matrix* matrix,uint64_t instance,uint64_t generation) {
-    return matrix==producer.c || (matrix->matrix_instance_id==instance && matrix->content_generation==generation);
+  if(!e.producer_count) return RNS8_SUCCESS;
+  for(uint32_t i=0;i<e.producer_count;++i) {
+    const auto binding=e.producers[i];auto& producer=*binding.producer;
+    rns8_completion_info completion{};
+    completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+    const auto status=producer.running && producer.hip_submission_prepared
+        ?rns8_query_prepared_hip(&producer,binding.token,&completion)
+        :rns8_get_prepared_completion(&producer,binding.token,&completion);
+    if(status!=RNS8_SUCCESS) return status;
+    if(completion.operation_status!=RNS8_SUCCESS) return completion.operation_status;
+    if(!completion.completed || !completion.output_is_current) return RNS8_INVALID_ARGUMENT;
+  }
+  const auto unchanged=[&](const rns8_matrix* matrix,uint64_t instance,uint64_t generation) {
+    for(uint32_t i=0;i<e.producer_count;++i) if(matrix==e.producers[i].producer->c) return true;
+    return matrix->matrix_instance_id==instance && matrix->content_generation==generation;
   };
-  if (!unchanged(e.a,e.a_instance,e.a_generation) || !unchanged(e.b,e.b_instance,e.b_generation) ||
-      (e.d && !unchanged(e.d,e.d_instance,e.d_generation))) return RNS8_INVALID_ARGUMENT;
-  const auto valid=validate_prepared(e);
-  if (valid!=RNS8_SUCCESS) return valid;
-  bind_inputs(e);
-  return RNS8_SUCCESS;
+  if(!unchanged(e.a,e.a_instance,e.a_generation) || !unchanged(e.b,e.b_instance,e.b_generation) ||
+     (e.d && !unchanged(e.d,e.d_instance,e.d_generation))) return RNS8_INVALID_ARGUMENT;
+  const auto valid=validate_prepared(e);if(valid!=RNS8_SUCCESS) return valid;
+  bind_inputs(e);return RNS8_SUCCESS;
 }
 rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* e) {
   return guard_api([&]() -> rns8_status {
     if (!e) return RNS8_INVALID_ARGUMENT;
-    if (e->running || e->producer) return RNS8_BUSY;
+    if (e->running || e->producer_count) return RNS8_BUSY;
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
     bind_inputs(*e);
@@ -294,7 +310,7 @@ rns8_status rns8_create_prepared_group(
     writers.reserve(count); readers.reserve(static_cast<std::size_t>(count) * 3);
     for (auto* e : group->executions) {
       if (!e) return RNS8_INVALID_ARGUMENT;
-      if (e->running || e->producer || e->dependent_references) return RNS8_BUSY;
+      if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       if (e->group_references == UINT64_MAX) return RNS8_RANGE_ERROR;
       auto status = validate_prepared(*e);
       if (status != RNS8_SUCCESS) return status;
@@ -313,7 +329,7 @@ rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
     if (!group) return RNS8_INVALID_ARGUMENT;
     if (group->running) return RNS8_BUSY;
     for (auto* e : group->executions) {
-      if (e->running || e->producer || e->dependent_references) return RNS8_BUSY;
+      if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       auto status = validate_prepared(*e);
       if (status != RNS8_SUCCESS) return status;
     }
@@ -329,7 +345,7 @@ rns8_status rns8_execute_prepared_group(
     *out_executed = 0;
     if (group->running) return RNS8_BUSY;
     for (auto* e : group->executions) {
-      if (e->running || e->producer || e->dependent_references) return RNS8_BUSY;
+      if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       if (e->epoch == UINT64_MAX) return RNS8_RANGE_ERROR;
       const auto status = validate_prepared(*e);
       if (status != RNS8_SUCCESS) return status;

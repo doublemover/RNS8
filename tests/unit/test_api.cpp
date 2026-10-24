@@ -62,3 +62,15 @@ TEST_CASE("public ragged owner preserves exact values across differently tiled c
 #include "test_word_mod_cases.inc"
 
 #include "test_native_device_contract_cases.inc"
+
+#include "../support/prepared_multi_dependency_fixture.hpp"
+TEST_CASE("three prepared producer epochs feed one exact epilogue on CPU") {
+  check_prepared_multi_dependencies(RNS8_BACKEND_CPU_REFERENCE);
+}
+TEST_CASE("three HIP producer publications feed an exact epilogue in reverse observation order") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT);
+#else
+  SKIP("HIP dependency execution unavailable in this build");
+#endif
+}

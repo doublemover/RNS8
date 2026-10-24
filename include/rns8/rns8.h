@@ -246,7 +246,7 @@ RNS8_API rns8_status rns8_prepare_exact_axpby(
     rns8_prepared_execution** out);
 RNS8_API rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* execution);
 /* Bind one producer token to every consumer input slot using its output matrix.
- * Same context, one dependency, externally serialized handles; groups reject
+ * Same context, externally serialized handles; groups reject
  * bound members. Retains producer and its latest epoch until accepted consumer
  * execution or explicit unbind/destruction. Producer reexecution/destruction is
  * BUSY meanwhile. Submit/execute advances producer observation without waiting:
@@ -256,6 +256,13 @@ RNS8_API rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* execu
  * unrelated changed inputs reject. This does not enqueue an event-only wait.
  * Unbind with producer=NULL and a zero token. Ordinary refresh is BUSY while bound.
  * Prepare HIP event resources before binding a pending producer. */
+/* Atomic replacement of up to three distinct producer-output dependencies
+ * covering A/B/D. All successful current publications must be observed before
+ * any consumer launch. Reject duplicate output owners and cycles across all
+ * branches. count=0 unbinds. The single-producer API is a convenience wrapper. */
+RNS8_API rns8_status rns8_bind_prepared_dependencies(
+    rns8_prepared_execution* consumer,rns8_prepared_execution* const* producers,
+    const rns8_completion_token* tokens,uint32_t count);
 RNS8_API rns8_status rns8_bind_prepared_dependency(
     rns8_prepared_execution* consumer, rns8_prepared_execution* producer,
     rns8_completion_token producer_token);

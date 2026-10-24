@@ -271,8 +271,12 @@ do not extend the supported asynchronous semantic subset.
 ## Token-qualified producer binding (authored, validation pending)
 
 `rns8_bind_prepared_dependency(consumer, producer, token)` retains one exact
-producer epoch whose output occupies one or more consumer input slots. Bindings
-require the same context and reject cycles. Bound producers cannot start another
+producer epoch whose output occupies one or more consumer input slots.
+`rns8_bind_prepared_dependencies` atomically replaces up to three distinct
+producer-output bindings for A, B and epilogue D. All tokens, output owners and
+complete dependency branches are checked before any reference change. Duplicate
+producers/outputs and cycles reject without dropping the old binding set.
+Bindings require the same context. Bound producers cannot start another
 epoch or be destroyed. Consumer execution/submission performs nonblocking producer
 observation; `RNS8_BUSY` leaves the consumer token, epoch and output untouched.
 Retry explicitly after progress. No background worker or hidden host wait is used.
@@ -287,14 +291,18 @@ it does not promise an event-only cross-stream pipeline before status is known.
 After consumer acceptance, its normal matrix-reader reservations retain the value
 and the producer binding is released. Before acceptance, explicit unbind with a null
 producer/zero token or consumer destruction releases it. Ordinary refresh is BUSY
-while bound. Prepared groups reject dependent members; multi-producer joins remain
-resident-DAG work. Prepare HIP event resources before binding a pending producer.
+while bound. Prepared groups reject dependent members. A multi-producer consumer
+requires every successful current publication; BUSY, failure or stale publication
+from any branch prevents launch. A zero-count plural call unbinds all producers.
+Prepare HIP event resources before binding pending producers.
 Shared handles still require external host serialization, and borrowed streams must
 survive completion. A completion token alone never retains an owner.
 
 CPU fixtures cover epoch retention, stale receipts and unrelated mutations. HIP
-fixtures use two streams and cover successful publication and canceled-producer
-rejection. All newly authored cases remain queued for the consolidated campaign.
+fixtures cover successful publication and canceled-producer rejection. Additional
+CPU/HIP joins bind three producers, observe HIP completion in reverse order,
+execute an exact epilogue, reject an invalid rebind without dropping holds, and
+reject a cycle reachable through the second dependency branch. All newly authored cases remain queued for the consolidated campaign.
 
 
 C++ owners expose `close()` returning the C destruction status. `RNS8_BUSY`

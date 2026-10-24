@@ -157,11 +157,11 @@ shared epilogue/lift admission providers and a [public narrow native owner](narr
 The final upgraded-stack campaign remains deferred until the implementation frontload
 ends. No new source commit inherits the old checkpoint's qualification.
 
-A one-producer token binding with explicit nonblocking progress is now authored.
-Concrete remaining development includes multi-producer/event-pipelined dependencies and async transfers/lift/export,
+A multi-producer token join with explicit nonblocking progress is now authored.
+Concrete remaining development includes event-pipelined dependencies and async transfers/lift/export,
 runtime layout/cost selection and broader resident-graph arena integration, broader runtime recipe providers,
-encoded-B async integration, block-sparse hybrid scheduling, broader narrow scheduling and rank-23 straight-line
-execution. These are code gaps, distinct from unavailable hardware and measured
+encoded-B async integration and broader narrow scheduling. Block-sparse hybrid and rank-23 straight-line
+execution are now authored and await the final qualification campaign. These are code gaps, distinct from unavailable hardware and measured
 promotion gates. Completion of one validation batch cannot by itself close them.
 
 The [runtime product arena](runtime-product-arena.md) now authors a real internal
