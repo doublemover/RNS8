@@ -14,11 +14,13 @@ from modulus_set_search import DEFAULT_MODULI
 
 CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
               "adaptive_grid", "adaptive_compact",
+              "tiled_register", "tiled_lds",
               "complex_3m", "complex_4m",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
 ADAPTIVE = ("adaptive_grid", "adaptive_compact")
+TILED = ("tiled_register", "tiled_lds")
 
 
 def strict_json(text):
@@ -38,12 +40,12 @@ def strict_json(text):
 def validate_case(case):
     """Return a new canonical case; only queue controls may be omitted."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method"}:
-        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method")
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers"}:
+        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE)
+    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -60,6 +62,14 @@ def validate_case(case):
             raise ValueError("adaptive cases require prefix20 and explicit bound_method=axis_l1")
     elif "bound_method" in case:
         raise ValueError("bound_method applies only to adaptive cases")
+    if case["candidate"] in TILED:
+        depth, buffers = case.get("k_depth"), case.get("lds_buffers")
+        if (type(depth) is not int or type(buffers) is not int
+                or (case["candidate"] == "tiled_register" and (depth != 16 or buffers != 0))
+                or (case["candidate"] == "tiled_lds" and (depth not in (16, 32) or buffers not in (1, 2)))):
+            raise ValueError("tiled_register requires integer k_depth16/lds_buffers0; tiled_lds depth16|32/buffers1|2")
+    elif "k_depth" in case or "lds_buffers" in case:
+        raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
     if case["candidate"] == "adaptive_compact":
         workers = case.get("workers")
@@ -103,6 +113,24 @@ def adaptive_contract(case):
             "adaptive_kernel_selection": ("compact_group_" if compact else "grid_group_") + str(case["group"])
                 + ("_unsigned_axis_l1" if case["unsigned_inputs"] else "_signed_axis_l1"),
             "adaptive_output_scope": "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}
+
+
+def tiled_contract(case):
+    if case["candidate"] not in TILED:
+        return {}
+    depth, buffers = case["k_depth"], case["lds_buffers"]
+    return {"tiled_output_rows": 32, "tiled_output_cols": 32, "tiled_waves": 4,
+            "tiled_raw_lds_bytes": buffers * (32 * (depth + 1) + depth * 33) * 8,
+            "tiled_lds_budget_bytes": 65536, "tiled_resource_query_is_device_qualification": False,
+            "tiled_dataset": "full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+            "reference_method": "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
+            "tiled_storage": "raw_native_padded_lds_encoded_fragments_in_registers" if buffers else "direct_native_register_loads",
+            "tiled_prefetch": ("next_disjoint_buffer_loaded_before_current_arithmetic" if buffers == 2 else
+                               "single_buffer_load_barrier_reuse" if buffers else "direct_native_register_loads"),
+            "tiled_kernel_selection": (f"native32x32_w4_g{case['group']}_"
+                                       + ("unsigned" if case["unsigned_inputs"] else "signed")
+                                       + f"_d{depth}_b{buffers}"),
+            "tiled_control_scope": "four_wave_32x32_same_output_residency_reference_and_slab_cap"}
 
 
 def epilogue_contract(case):
@@ -164,6 +192,7 @@ def capture_contract(case, run_id, repeats, warmups):
                     actual_hbm_bytes=None, timing_resolution_ns=None)
     expected.update(scheduling_contract(case))
     expected.update(adaptive_contract(case))
+    expected.update(tiled_contract(case))
     expected.update(narrow_contract(case))
     if case["candidate"].startswith("complex_"):
         m, n, k, prefix = (case[key] for key in ("m", "n", "k", "prefix"))
@@ -268,7 +297,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--cases", type=Path, required=True,
-                        help="JSON cases; queue workers1..1024 default32; adaptive prefix20/bound_method=axis_l1; compact requires workers1..65535")
+                        help="JSON cases; queue workers1..1024 default32; adaptive prefix20/bound_method=axis_l1; compact requires workers1..65535; tiled requires k_depth/lds_buffers")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)
@@ -306,6 +335,8 @@ def main():
             command.append(str(case["workers"]))
         if case["candidate"] in ADAPTIVE:
             command.append(case["bound_method"])
+        if case["candidate"] in TILED:
+            command.extend(str(case[key]) for key in ("k_depth", "lds_buffers"))
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],
@@ -328,6 +359,7 @@ def main():
             record["comparison_identity"] = {"artifact_sha256": artifact, **identity,
                                              "case": case, **scheduling_contract(case),
                                              **adaptive_contract(case),
+                                             **tiled_contract(case),
                                              "input_domain": capture["input_domain"],
                                              "output_contract": capture["output_contract"],
                                              "seed": capture["seed"], "repeats": args.repeats,

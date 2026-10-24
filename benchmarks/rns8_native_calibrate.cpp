@@ -98,13 +98,14 @@ int main(int argc, char** argv) {
   try {
     const char* usage =
         "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|complex_3m|complex_4m|"
-        "narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
+        "tiled_register|tiled_lds|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
+        "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
         "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
-        "group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k/adaptive cases.\n"
+        "group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
@@ -117,15 +118,28 @@ int main(int argc, char** argv) {
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
     const bool compact = candidate == "adaptive_compact";
+    const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
     if (adaptive && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
                      std::string(argv[compact ? 12 : 11]) != "axis_l1"))
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
-    if (!adaptive && (argc > 12 || (argc == 12 && !queued)))
+    if (tiled && argc != 13)
+      throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
+    if (!adaptive && !tiled && (argc > 12 || (argc == 12 && !queued)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
+    const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
+    const uint32_t tiled_buffers = tiled ? number(argv[12],0,2) : 0;
+    const uint64_t tiled_lds_budget = 65536;
+    NativeTiledResources tiled_resources;
+    if (tiled) {
+      tiled_resources = query_native_tiled_resources(tiled_depth,tiled_buffers,tiled_lds_budget);
+      if (tiled_resources.status != RNS8_SUCCESS ||
+          (candidate == "tiled_register" ? tiled_buffers != 0 : tiled_buffers == 0))
+        throw std::invalid_argument("tiled_register requires depth16/buffers0; tiled_lds requires depth16|32/buffers1|2 within64KiB LDS");
+    }
     const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
         queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = candidate == "wmma" || queued || prepared || adaptive;
+    const bool native = candidate == "wmma" || queued || prepared || adaptive || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -226,6 +240,11 @@ int main(int argc, char** argv) {
         check(hip_direct_axpby_residues_device(0,intermediate.get(),rd.get(),dc.get(),m,n,n,n,n,prefix,alpha,beta));
       }
       else if (candidate == "wmma") check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
+      else if (tiled) {
+        check(hip_direct_gemm_native_tiled_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+            m,n,k,k,n,n,prefix,group,unsigned_inputs,tiled_depth,tiled_buffers,tiled_lds_budget,written));
+        if (!written) throw std::runtime_error("tiled operation returned success without committing output");
+      }
       else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
       else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
@@ -303,6 +322,20 @@ int main(int argc, char** argv) {
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if (tiled) {
+      report.update({{"k_depth",tiled_depth},{"lds_buffers",tiled_buffers},
+          {"tiled_output_rows",tiled_resources.output_rows},{"tiled_output_cols",tiled_resources.output_cols},
+          {"tiled_waves",tiled_resources.waves},{"tiled_raw_lds_bytes",tiled_resources.raw_lds_bytes},
+          {"tiled_lds_budget_bytes",tiled_lds_budget},{"tiled_resource_query_is_device_qualification",false},
+          {"tiled_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"tiled_storage",tiled_buffers ? "raw_native_padded_lds_encoded_fragments_in_registers" : "direct_native_register_loads"},
+          {"tiled_prefetch",tiled_buffers == 2 ? "next_disjoint_buffer_loaded_before_current_arithmetic" :
+              tiled_buffers == 1 ? "single_buffer_load_barrier_reuse" : "direct_native_register_loads"},
+          {"tiled_kernel_selection",std::string("native32x32_w4_g") + std::to_string(group) +
+              (unsigned_inputs ? "_unsigned_d" : "_signed_d") + std::to_string(tiled_depth) +
+              "_b" + std::to_string(tiled_buffers)},
+          {"tiled_control_scope","four_wave_32x32_same_output_residency_reference_and_slab_cap"}});
+    }
     if (adaptive) {
       const auto support = query_adaptive_native_support(m,n,k,k,n,n,prefix,group,
           NativeBoundMethod::axis_l1,256,compact ? requested_workers : 0,UINT64_MAX);

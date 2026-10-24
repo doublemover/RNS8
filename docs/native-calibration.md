@@ -10,6 +10,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 
 | Candidate | Timed work | Input boundary |
 | --- | --- | --- |
+| tiled_register, tiled_lds | Four-wave 32x32 native WMMA register control or one/two raw-native LDS buffers | Resident full-width native 64-bit |
 | `pack_pair` | Pack both native operands | Resident native 64-bit |
 | `packed_gemm` | Direct residue GEMM | Already packed residue planes |
 | `pack_gemm` | Pack both operands, then direct GEMM | Resident native 64-bit |
@@ -256,6 +257,48 @@ per-capture ISA and counter evidence remain absent; raw records cannot promote a
 candidate. Instruction-dependency/throughput roofs,
 dedicated HBM/LDS probes, measured reuse break-even and held-out planner regret
 remain separate #31 acceptance work.
+
+## Four-wave register and LDS controls
+
+The tiled_register and tiled_lds candidates use the
+[private native tiled family](native-tiled-wmma.md). Both append two arguments
+after the run ID: k_depth and lds_buffers. The register control requires 16 and
+0. Staged cases require depth 16 or 32 and one or two buffers. Controls are
+required; irrelevant worker or bound-method fields reject.
+
+    .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe tiled_register 17 19 257 20 2 0 9 3 tiled-register 16 0
+    .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe tiled_lds 17 19 257 20 2 0 9 3 tiled-two-buffer 32 2
+
+Every case uses four waves and a 32x32 output tile, with groups 1/2/4 and explicit
+signedness. Static raw LDS reservation is
+buffers*(32*(depth+1)+depth*33)*8 bytes, within an explicit 65536-byte per-block
+budget. Register, depth16/buffer1, depth16/buffer2, depth32/buffer1 and
+depth32/buffer2 reserve 0, 8576, 17152, 16896 and 33792 bytes respectively.
+This is source resource admission, not measured compiled LDS, register usage,
+occupancy or device qualification.
+
+Reports bind exact depth/buffers, raw LDS, output tile/wave count, storage,
+prefetch policy and kernel-selection identity. Two buffers mean the next tile
+loads into disjoint storage before current arithmetic; asynchronous DMA overlap
+is not claimed. Full-width inputs, the int256/cpp_int oracle, complete output
+canaries, paired calls and sustained intervals use the same existing scopes.
+Checked capability/status/synchronization remains inside host call timing.
+
+The tracked [tail campaign](../benchmarks/native-calibration/tiled-native-tail.json)
+uses 17x19x257; the [512 campaign](../benchmarks/native-calibration/tiled-native-512.json)
+uses 512 cubed. Each has 38 cases: all five four-wave storage variants plus the
+single-wave wmma control for every signedness/group, and a pack-plus-direct
+control per signedness. Storage variants compare against the identical four-wave
+register control; the single-wave case separately measures the output-tile/wave
+change. Do not attribute that change to LDS staging.
+
+    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases benchmarks/native-calibration/tiled-native-tail.json --output temp/native-tiled-tail --runs 5 --repeats 9 --warmups 3
+    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases benchmarks/native-calibration/tiled-native-512.json --output temp/native-tiled-512 --runs 5 --repeats 9 --warmups 3
+
+These are reproducible candidate commands, not executed results. Both manifests,
+collector metadata/identity fixtures and no-GPU malformed CLI checks are authored
+for the final consolidated campaign. No performance or resource improvement is
+claimed.
 
 ## Matched native integer comparison
 

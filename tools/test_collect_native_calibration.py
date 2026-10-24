@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from collect_native_calibration import (
-    ADAPTIVE, CANDIDATES, QUEUED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract,
+    ADAPTIVE, CANDIDATES, QUEUED, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
 from test_capture_identity_support import synthetic_identity
@@ -23,12 +23,14 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE):
+    if candidate not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
     if candidate.startswith("complex_"):
         case["prefix"] = 20
+    if candidate in TILED:
+        case.update(k_depth=16, lds_buffers=0 if candidate == "tiled_register" else 1)
     if candidate in ADAPTIVE:
         case.update(prefix=20, bound_method="axis_l1")
         if candidate == "adaptive_compact": case["workers"] = 32
@@ -73,7 +75,7 @@ class CaseTest(unittest.TestCase):
             for unsigned in (False, True):
                 if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE) else (1,)):
+                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -130,6 +132,52 @@ class CaseTest(unittest.TestCase):
         missing = case_for("adaptive_compact"); del missing["workers"]
         with self.assertRaises(ValueError): validate_case(missing)
 
+    def test_tiled_storage_controls_and_exact_static_resources(self):
+        for group in (1, 2, 4):
+            for unsigned in (False, True):
+                for candidate, depth, buffers, lds in (
+                        ("tiled_register", 16, 0, 0),
+                        ("tiled_lds", 16, 1, 8576), ("tiled_lds", 16, 2, 17152),
+                        ("tiled_lds", 32, 1, 16896), ("tiled_lds", 32, 2, 33792)):
+                    case = case_for(candidate, group=group, unsigned_inputs=unsigned,
+                                    k_depth=depth, lds_buffers=buffers)
+                    with self.subTest(case=case):
+                        contract = tiled_contract(case)
+                        self.assertEqual(contract["tiled_raw_lds_bytes"], lds)
+                        self.assertEqual(contract["tiled_waves"], 4)
+                        self.assertEqual(contract["tiled_lds_budget_bytes"], 65536)
+                        self.assertFalse(contract["tiled_resource_query_is_device_qualification"])
+                        self.assertTrue(contract["tiled_kernel_selection"].endswith(f"_d{depth}_b{buffers}"))
+                        validate_capture(capture_for(case), case, "fixture-run", 3, 1)
+        for candidate in TILED:
+            for key in ("k_depth", "lds_buffers"):
+                missing = case_for(candidate); del missing[key]
+                with self.assertRaises(ValueError): validate_case(missing)
+        for candidate in TILED:
+            for depth in (None, True, False, 0, 15, 17, 31, 33, 64, "16", 16.0, [], {}):
+                with self.assertRaises(ValueError): case_for(candidate, k_depth=depth)
+            for buffers in (None, True, False, -1, 3, "1", 1.0, [], {}):
+                with self.assertRaises(ValueError): case_for(candidate, lds_buffers=buffers)
+        for depth, buffers in ((32, 0), (16, 1), (16, 2)):
+            with self.assertRaises(ValueError): case_for("tiled_register", k_depth=depth, lds_buffers=buffers)
+        with self.assertRaises(ValueError): case_for("tiled_lds", lds_buffers=0)
+        for candidate in set(CANDIDATES) - set(TILED):
+            for changes in (dict(k_depth=16), dict(lds_buffers=0)):
+                with self.assertRaises(ValueError): case_for(candidate, **changes)
+
+    def test_tiled_resources_and_storage_identity_cannot_be_rounded_or_invented(self):
+        case = case_for("tiled_lds", k_depth=32, lds_buffers=2)
+        for key, values in (
+                ("k_depth", (16, True, 32.0)), ("lds_buffers", (1, True, 2.0)),
+                ("tiled_raw_lds_bytes", (0, 32768, True, 33792.0)),
+                ("tiled_resource_query_is_device_qualification", (True, 0)),
+                ("tiled_prefetch", ("asynchronous_dma_overlap", "direct_native_register_loads")),
+                ("tiled_waves", (1, 2, 4.0)), ("tiled_output_rows", (16, True, 32.0))):
+            for value in values:
+                capture = capture_for(case); capture[key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    validate_capture(capture, case, "fixture-run", 3, 1)
+
     def test_shape_boundaries(self):
         for key, high in (("m", 1024), ("n", 1024), ("k", 65537), ("prefix", 20)):
             for value in (1, high):
@@ -151,6 +199,17 @@ class CaseTest(unittest.TestCase):
                     self.assertTrue(any(row["candidate"] == candidate and row["group"] == group
                                         and row["unsigned_inputs"] == unsigned for row in adaptive))
         self.assertEqual({row["workers"] for row in adaptive if row["candidate"] == "adaptive_compact"}, {32, 512})
+        for filename in ("tiled-native-tail.json", "tiled-native-512.json"):
+            rows = [validate_case(row) for row in strict_json((root / filename).read_text(encoding="utf-8"))]
+            self.assertLessEqual(len(rows), 64)
+            self.assertEqual(len({json.dumps(row, sort_keys=True) for row in rows}), len(rows))
+            for group in (1, 2, 4):
+                for unsigned in (False, True):
+                    modes = {(row["candidate"], row.get("k_depth"), row.get("lds_buffers"))
+                             for row in rows if row["group"] == group and row["unsigned_inputs"] == unsigned}
+                    self.assertTrue({("wmma", None, None), ("tiled_register", 16, 0),
+                                     ("tiled_lds", 16, 1), ("tiled_lds", 16, 2),
+                                     ("tiled_lds", 32, 1), ("tiled_lds", 32, 2)} <= modes)
 
     def test_malformed_cases(self):
         malformed = [None, [], "case", {}, {**BASE, "extra": 1}, {k: v for k, v in BASE.items() if k != "k"}]
@@ -166,7 +225,7 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE)):
+        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
@@ -341,7 +400,8 @@ class CollectorTest(unittest.TestCase):
                                       k=int(command[4]), prefix=int(command[5]), group=int(command[6]),
                                       unsigned_inputs=bool(int(command[7])),
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
-                                      **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {})))
+                                      **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
+                                      **({"k_depth": int(command[11]), "lds_buffers": int(command[12])} if command[1] in TILED else {})))
             capture = capture_for(case, command[10])
             if mutate:
                 mutate(capture, len(calls))
@@ -390,6 +450,17 @@ class CollectorTest(unittest.TestCase):
             self.assertIsNone(record["comparison_identity"]["adaptive_actual_compact_groups"])
         compact = next(r for r in adaptive if r["case"].get("workers") == 65535)
         self.assertEqual(compact["comparison_identity"]["effective_workers"], 65535)
+        for record in (r for r in records if r["case"]["candidate"] in TILED):
+            self.assertEqual(record["command"][-2:], [str(record["case"][key]) for key in ("k_depth", "lds_buffers")])
+            for key, value in tiled_contract(record["case"]).items():
+                self.assertEqual(record["comparison_identity"][key], value)
+
+    def test_all_tiled_storage_variants_have_distinct_comparison_identity(self):
+        cases = [case_for("tiled_register"), *(case_for("tiled_lds", k_depth=depth, lds_buffers=buffers)
+                  for depth in (16, 32) for buffers in (1, 2))]
+        self.collect(cases)
+        selections = {row["comparison_identity"]["tiled_kernel_selection"] for row in self.records()}
+        self.assertEqual(len(selections), 5)
 
     def test_omitted_workers_get_explicit_command_and_identity(self):
         result, calls = self.collect([{**BASE, "candidate": "queue"}])
@@ -503,7 +574,7 @@ class CompiledCliTest(unittest.TestCase):
         self.assertIn("default 32", result.stdout)
 
     def test_malformed_and_irrelevant_workers_fail_before_device_work(self):
-        for candidate in (name for name in CANDIDATES if name not in ADAPTIVE):
+        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED)):
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             workers = ("0", "1025", "-1", "1.0", "+1", "", "4294967296", "32x") if candidate in QUEUED else ("32",)
@@ -522,6 +593,19 @@ class CompiledCliTest(unittest.TestCase):
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             invalid = [[], ["tile_max"], ["32"]] if candidate == "adaptive_grid" else [[], ["32"], ["axis_l1"],
                 ["0", "axis_l1"], ["65536", "axis_l1"], ["1.0", "axis_l1"], ["32", "panel_l1"]]
+            for suffix in invalid:
+                with self.subTest(candidate=candidate, suffix=suffix):
+                    result = self.invoke([*base, *suffix])
+                    self.assertNotEqual(result.returncode, 0)
+
+    def test_tiled_invalid_controls_fail_before_device_work(self):
+        for candidate in TILED:
+            case = case_for(candidate)
+            base = [candidate, *(str(case[key]) for key in ("m", "n", "k", "prefix", "group")),
+                    "0", "1", "1", "cli-reject"]
+            invalid = [[], ["16"], ["17", "1"], ["64", "2"], ["16", "3"], ["16", "-1"],
+                       ["16.0", "1"], ["16", "true"], ["16", "+1"]]
+            invalid += [["32", "0"], ["16", "1"]] if candidate == "tiled_register" else [["16", "0"]]
             for suffix in invalid:
                 with self.subTest(candidate=candidate, suffix=suffix):
                     result = self.invoke([*base, *suffix])
