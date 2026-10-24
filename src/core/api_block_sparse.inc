@@ -77,12 +77,15 @@ rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand
   delete operand;
   return status;
 }
-rns8_status rns8_gemm_block_sparse_exact(
+rns8_status rns8_gemm_block_sparse_exact_with_method(
     rns8_context* ctx, const rns8_plan* plan,
     const rns8_block_sparse_operand* a, const rns8_block_sparse_operand* b,
-    rns8_matrix* c, uint64_t max_scratch_bytes, rns8_workspace* workspace) {
+    rns8_matrix* c,rns8_block_sparse_method method,uint32_t scalar_intersection_limit,
+    uint64_t max_scratch_bytes, rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
+    if (method<RNS8_BLOCK_SPARSE_SCALAR || method>RNS8_BLOCK_SPARSE_HYBRID ||
+        (method!=RNS8_BLOCK_SPARSE_HYBRID && scalar_intersection_limit)) return RNS8_INVALID_ARGUMENT;
     if (!ctx || !plan || !a || !b || !c || !workspace || a->ctx!=ctx || b->ctx!=ctx ||
         a->layout.role!=BlockSparseRole::lhs || b->layout.role!=BlockSparseRole::rhs)
       return RNS8_INVALID_ARGUMENT;
@@ -111,11 +114,17 @@ rns8_status rns8_gemm_block_sparse_exact(
     status=hip_direct_gemm_block_sparse_device(ctx->device_id,a->payload.get(),a->layout,
         a->source->matrix_instance_id,a->source->content_generation,b->payload.get(),b->layout,
         b->source->matrix_instance_id,b->source->content_generation,c->hip_residues,c->desc.cols,
-        max_scratch_bytes,&commit_started);
+        max_scratch_bytes,&commit_started,static_cast<uint32_t>(method),scalar_intersection_limit);
     if (status!=RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*c);
     commit_exact_range(*c,*plan,bound,&ranges);
     write.published=true;
     return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_gemm_block_sparse_exact(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_block_sparse_operand* a,const rns8_block_sparse_operand* b,rns8_matrix* c,
+    uint64_t budget,rns8_workspace* workspace) {
+  return rns8_gemm_block_sparse_exact_with_method(ctx,plan,a,b,c,RNS8_BLOCK_SPARSE_SCALAR,0,budget,workspace);
 }

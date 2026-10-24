@@ -186,11 +186,16 @@ extern "C" int rns8_hip_export_canonical_balanced_crt(
 extern "C" int rns8_hip_block_sparse_gemm(
     const int8_t* a,const uint32_t* ao,const uint32_t* ai,
     const int8_t* b,const uint32_t* bo,const uint32_t* bi,
-    int8_t* c,int m,int n,int k,int ldc,int prefix) {
+    int8_t* c,int m,int n,int k,int ldc,int prefix,int method,uint32_t scalar_limit) {
   const uint64_t tile_cols=(static_cast<uint64_t>(n)+15)/16;
   const uint64_t tiles=((static_cast<uint64_t>(m)+15)/16)*tile_cols;
-  hipLaunchKernelGGL(rns8_block_sparse_gemm_kernel,dim3(tiles,prefix),dim3(256),0,nullptr,
-      a,ao,ai,b,bo,bi,c,m,n,k,ldc,prefix,static_cast<int>(tile_cols));
+  if(method==0) hipLaunchKernelGGL((rns8_block_sparse_gemm_kernel<0>),dim3(tiles,prefix),dim3(256),0,nullptr,
+      a,ao,ai,b,bo,bi,c,m,n,k,ldc,prefix,static_cast<int>(tile_cols),scalar_limit);
+  else if(method==1) hipLaunchKernelGGL((rns8_block_sparse_gemm_kernel<1>),dim3(tiles,prefix),dim3(32),0,nullptr,
+      a,ao,ai,b,bo,bi,c,m,n,k,ldc,prefix,static_cast<int>(tile_cols),scalar_limit);
+  else if(method==2) hipLaunchKernelGGL((rns8_block_sparse_gemm_kernel<2>),dim3(tiles,prefix),dim3(256),0,nullptr,
+      a,ao,ai,b,bo,bi,c,m,n,k,ldc,prefix,static_cast<int>(tile_cols),scalar_limit);
+  else return static_cast<int>(hipErrorInvalidValue);
   return static_cast<int>(hipGetLastError());
 }
 

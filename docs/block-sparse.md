@@ -52,13 +52,47 @@ Execution uses the existing scalar intersection kernel after shared public
 shape/semantic/reservation and exact-range proof checks. Successful output is a
 complete ordinary persistent RNS matrix. Preflight, metadata allocation and upload
 failures preserve C; failure after its kernel launch invalidates C. Source instance,
-generation, role, prefix and context must all match. There is no AUTO promotion or
-claim of matrix-engine execution. Source matrices must remain current, even though
+generation, role, prefix and context must all match. There is no AUTO promotion. The original entrypoint remains the scalar control;
+the explicit method entrypoint below adds matrix-engine execution. Source matrices must remain current, even though
 the handle has an independent packed payload.
 
 New public fixtures cover full-width signed/unsigned values, tails, Boost export,
 source lifetime, stale generation rejection, empty sparse payloads and output
 preservation on scratch/BUSY errors. These additions are authored and unexecuted;
-the older private baseline receipt above does not qualify this owner. Hybrid
-dense/sparse scheduling, matrix-engine variants and end-to-end break-even
-measurements remain open under issue #51.
+the older private baseline receipt above does not qualify this owner. The authored
+WMMA/hybrid extension below also needs fresh qualification and end-to-end
+break-even measurements under issue #51.
+
+
+## Explicit WMMA and hybrid tile dispatch
+
+`rns8_gemm_block_sparse_exact_with_method` adds two opt-in implementations beside
+the unchanged scalar control. WMMA uses one full wave per 16x16 output tile and
+four signed INT8 matrix operations per intersecting 64-wide K block. It reduces
+every accumulator after each block, so every partial is bounded by
+64*128*128 plus a carried residue. Packed zero tails are consumed as zeros and
+stores mask logical output tails. The current target guard covers gfx1100/1101/
+1102 with the required compiler builtin; other targets reject before output writes.
+
+HYBRID counts the exact intersection of the prepared CSR/CSC block lists for
+each output tile. It runs the scalar path at or below the explicit caller-chosen
+intersection threshold and the WMMA path above it. The decision is uniform across
+the workgroup before scalar barriers. This is a work-count dispatch experiment,
+not a calibrated universal crossover or pruning of small nonzero values. Setting
+threshold zero or UINT32_MAX supplies useful all-nonempty-WMMA/all-scalar controls.
+Non-hybrid methods require threshold zero. Both accelerated modes positively
+probe matrix-instruction capability before publishing any output and account for
+the extra capability status word in scratch.
+
+The public owners retain the same source-generation, range, alias, workspace and
+transaction checks. Dense public GEMM and AUTO do not select these modes. Existing
+packed blocks are reused; preparation/metadata/probe costs belong in whole-call
+measurements. The hybrid kernel reserves scalar shared-memory resources even
+when a particular tile chooses WMMA, so it may lose to the explicit WMMA route.
+No positive performance claim is made before the final campaign.
+
+Authored differentials cover all block-intersection masks, zero payloads, odd
+M/N/K tails, padded destinations, prefixes1/9/20, signed full-width products and
+K=65535/65536/65537. Public signed/unsigned owners exercise both added modes with
+independent Boost export checks and the existing failure/lifetime cases. These
+fixtures have not run during frontloaded development.

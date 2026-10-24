@@ -60,7 +60,8 @@ rns8_status hip_direct_gemm_rank23_slp_device(
 rns8_status hip_direct_gemm_block_sparse_device(
     int device_id,const void* a,const BlockSparseOperand& lhs,uint64_t a_instance,uint64_t a_generation,
     const void* b,const BlockSparseOperand& rhs,uint64_t b_instance,uint64_t b_generation,
-    void* c,int64_t ldc,uint64_t max_scratch_bytes,bool* commit_started = nullptr);
+    void* c,int64_t ldc,uint64_t max_scratch_bytes,bool* commit_started = nullptr,
+    uint32_t method = 0,uint32_t scalar_intersection_limit = 0);
 // Private exact ragged-to-uniform materialization. Caller owns generation/proof
 // binding and must invalidate destination on any failure after commit_started.
 rns8_status hip_direct_materialize_ragged_residues(

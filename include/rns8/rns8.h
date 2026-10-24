@@ -1467,6 +1467,21 @@ RNS8_API rns8_status rns8_gemm_block_sparse_exact(
     const rns8_block_sparse_operand* a, const rns8_block_sparse_operand* b,
     rns8_matrix* c, uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
+typedef enum rns8_block_sparse_method RNS8_ENUM_BASE {
+  RNS8_BLOCK_SPARSE_SCALAR = 0,
+  RNS8_BLOCK_SPARSE_WMMA = 1,
+  RNS8_BLOCK_SPARSE_HYBRID = 2
+} rns8_block_sparse_method;
+/* Explicit alternatives to the scalar control. WMMA requires a positive target
+ * capability probe before output writes. HYBRID dispatches each output tile to
+ * scalar when its exact K-block intersection count <= scalar_intersection_limit,
+ * otherwise to WMMA. Non-hybrid methods require limit=0. No AUTO/promotion.
+ * Device scratch includes the extra capability word for WMMA/hybrid. */
+RNS8_API rns8_status rns8_gemm_block_sparse_exact_with_method(
+    rns8_context* ctx,const rns8_plan* plan,const rns8_block_sparse_operand* a,
+    const rns8_block_sparse_operand* b,rns8_matrix* c,rns8_block_sparse_method method,
+    uint32_t scalar_intersection_limit,uint64_t max_scratch_bytes,rns8_workspace* workspace);
+
 typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
   RNS8_NARROW_SCALAR_I64 = 0,
   RNS8_NARROW_BYTE_WMMA = 1

@@ -3,17 +3,21 @@ TEST_CASE("direct HIP block sparse intersections match exact dense products") {
     SKIP("no HIP device for block-sparse differential");
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
-  auto run = [](int m, int n, int k, int mask_a, int mask_b, uint32_t prefix) {
+  auto* capability_ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  const std::string target=capability_ctx->device_info.gcn_arch;
+  const bool expected_wmma=target.find("gfx1100")==0 || target.find("gfx1101")==0 || target.find("gfx1102")==0;
+  REQUIRE(rns8_destroy_context(capability_ctx)==RNS8_SUCCESS);
+  auto run = [expected_wmma](int m, int n, int k, int mask_a, int mask_b, uint32_t prefix) {
     const int lda = k + 1, ldb = n + 2, ldc = n + 1;
     std::vector<int64_t> a(m * lda, 99), b(k * ldb, 99);
     for (int row = 0; row < m; ++row)
       for (int q = 0; q < k; ++q)
         a[row * lda + q] =
-            (mask_a & (1 << (q / 64))) ? ((row + q) % 2 ? INT64_MIN : 256) : 0;
+            (mask_a & (1 << ((q / 64)%3))) ? ((row + q) % 2 ? INT64_MIN : 256) : 0;
     for (int q = 0; q < k; ++q)
       for (int col = 0; col < n; ++col)
         b[q * ldb + col] =
-            (mask_b & (1 << (q / 64))) ? ((q + col) % 2 ? INT64_MAX : -3) : 0;
+            (mask_b & (1 << ((q / 64)%3))) ? ((q + col) % 2 ? INT64_MAX : -3) : 0;
     BlockSparseOperand lhs, rhs;
     std::vector<int8_t> pa, pb;
     REQUIRE(pack_block_sparse_i64(a.data(), m, k, lda, prefix,
@@ -46,12 +50,23 @@ TEST_CASE("direct HIP block sparse intersections match exact dense products") {
               RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, c.data(), c.size()) ==
             RNS8_SUCCESS);
-    REQUIRE(hip_direct_gemm_block_sparse_device(0, da, lhs, 11, 2, db, rhs, 12,
-                                                3, dc, ldc,
-                                                4096) == RNS8_SUCCESS);
-    REQUIRE(hip_direct_copy_device_to_host(0, c.data(), dc, c.size()) ==
-            RNS8_SUCCESS);
-    REQUIRE(c == expected);
+    for(uint32_t method:{0u,1u,2u}) for(uint32_t threshold:{0u,1u,UINT32_MAX}) {
+      if(method!=2 && threshold) continue;
+      std::fill(c.begin(),c.end(),99);
+      REQUIRE(hip_direct_copy_host_to_device(0,dc,c.data(),c.size())==RNS8_SUCCESS);
+      bool started=false;
+      const auto status=hip_direct_gemm_block_sparse_device(0,da,lhs,11,2,db,rhs,12,3,dc,ldc,
+          UINT64_MAX,&started,method,threshold);
+      if(status==RNS8_UNSUPPORTED_BACKEND && method && !expected_wmma) {
+        CHECK_FALSE(started);
+        REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc,c.size())==RNS8_SUCCESS);
+        CHECK(std::all_of(c.begin(),c.end(),[](int8_t v){return v==99;}));
+        continue;
+      }
+      REQUIRE(status==RNS8_SUCCESS);CHECK(started);
+      REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc,c.size())==RNS8_SUCCESS);
+      REQUIRE(c==expected);
+    }
     REQUIRE(hip_direct_gemm_block_sparse_device(0, da, lhs, 11, 9, db, rhs, 12,
                                                 3, dc, ldc,
                                                 4096) == RNS8_INVALID_ARGUMENT);
@@ -69,9 +84,10 @@ TEST_CASE("direct HIP block sparse intersections match exact dense products") {
     run(17, 19, 129, 5, 6, prefix);
     run(17, 19, 129, 7, 7, prefix);
   }
+  for(int k:{65535,65536,65537}) run(1,1,k,7,7,20);
 }
 
-template<class T> void check_public_block_sparse_owner() {
+template<class T> void check_public_block_sparse_owner(rns8_block_sparse_method method=RNS8_BLOCK_SPARSE_SCALAR) {
   using boost::multiprecision::cpp_int;
   constexpr bool u=std::is_unsigned_v<T>;
   constexpr int m=17,n=19,k=65;
@@ -106,7 +122,7 @@ template<class T> void check_public_block_sparse_owner() {
   REQUIRE(rns8_prepare_block_sparse_operand(ctx,b,RNS8_BLOCK_SPARSE_RHS,UINT64_MAX,&sb)==RNS8_SUCCESS);
   CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);
   const auto run=[&](uint64_t budget=UINT64_MAX) {
-    return rns8_gemm_block_sparse_exact(ctx,plan,sa,sb,c,budget,ws);
+    return rns8_gemm_block_sparse_exact_with_method(ctx,plan,sa,sb,c,method,method==RNS8_BLOCK_SPARSE_HYBRID?1u:0u,budget,ws);
   };
   auto generation=c->content_generation;
   CHECK(run(0)==RNS8_WORKSPACE_TOO_SMALL);
@@ -149,4 +165,17 @@ TEST_CASE("public block sparse handles retain sources and reject stale generatio
   if(!hip_available()) SKIP("no HIP device for public block sparse ownership");
   SECTION("signed") { check_public_block_sparse_owner<int64_t>(); }
   SECTION("unsigned") { check_public_block_sparse_owner<uint64_t>(); }
+}
+
+TEST_CASE("public block sparse matrix-engine and hybrid owners preserve exact semantics") {
+  if(!hip_available()) SKIP("no HIP device for block-sparse WMMA");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  const std::string target=ctx->device_info.gcn_arch;
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  if(target.find("gfx1100")!=0 && target.find("gfx1101")!=0 && target.find("gfx1102")!=0)
+    SKIP("block-sparse WMMA target not in compiled RDNA3 implementation");
+  for(auto method:{RNS8_BLOCK_SPARSE_WMMA,RNS8_BLOCK_SPARSE_HYBRID}) {
+    check_public_block_sparse_owner<int64_t>(method);
+    check_public_block_sparse_owner<uint64_t>(method);
+  }
 }

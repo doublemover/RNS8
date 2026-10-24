@@ -1,15 +1,17 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_wmma_capability(int*);
 extern "C" int rns8_hip_block_sparse_gemm(const int8_t *, const uint32_t *,
                                           const uint32_t *, const int8_t *,
                                           const uint32_t *, const uint32_t *,
-                                          int8_t *, int, int, int, int, int);
+                                          int8_t *, int, int, int, int, int, int, uint32_t);
 #endif
 rns8_status hip_direct_gemm_block_sparse_device(
     int device_id, const void *a, const BlockSparseOperand &lhs,
     uint64_t a_instance, uint64_t a_generation, const void *b,
     const BlockSparseOperand &rhs, uint64_t b_instance, uint64_t b_generation,
-    void *c, int64_t ldc, uint64_t max_scratch_bytes, bool* commit_started) {
+    void *c, int64_t ldc, uint64_t max_scratch_bytes, bool* commit_started, uint32_t method, uint32_t scalar_intersection_limit) {
   if (commit_started) *commit_started=false;
+  if (method>2 || (method!=2 && scalar_intersection_limit)) return RNS8_INVALID_ARGUMENT;
   if (!valid_block_sparse_operand(lhs, a_instance, a_generation) ||
       !valid_block_sparse_operand(rhs, b_instance, b_generation) ||
       lhs.role != BlockSparseRole::lhs || rhs.role != BlockSparseRole::rhs ||
@@ -28,7 +30,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
        !nonoverlapping_byte_ranges(c, c_bytes, b, rhs.payload_bytes)))
     return RNS8_INVALID_ARGUMENT;
   const uint64_t words = uint64_t{lhs.offsets.size()} + lhs.k_blocks.size() +
-                         rhs.offsets.size() + rhs.k_blocks.size();
+                         rhs.offsets.size() + rhs.k_blocks.size() + (method?1:0);
   if (words > SIZE_MAX / sizeof(uint32_t))
     return RNS8_RANGE_ERROR;
   if (words * sizeof(uint32_t) > max_scratch_bytes)
@@ -56,6 +58,16 @@ rns8_status hip_direct_gemm_block_sparse_device(
       if (status != RNS8_SUCCESS)
         return status;
     }
+  if(method) {
+    auto* capability=static_cast<int*>(metadata.get())+words-1;
+    const auto launched=static_cast<hipError_t>(rns8_hip_native_wmma_capability(capability));
+    const auto completed=hipDeviceSynchronize();
+    if(launched!=hipSuccess || completed!=hipSuccess) return RNS8_BACKEND_FAILURE;
+    int supported=0;
+    status=hip_direct_copy_device_to_host(device_id,&supported,capability,sizeof(supported));
+    if(status!=RNS8_SUCCESS) return status;
+    if(!supported) return RNS8_UNSUPPORTED_BACKEND;
+  }
   const auto error =
       timed_hip_operation("block_sparse_intersection_gemm_kernel", [&]() {
         if (commit_started) *commit_started=true;
@@ -63,7 +75,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
             static_cast<const int8_t *>(a), ao, ai,
             static_cast<const int8_t *>(b), bo, bi, static_cast<int8_t *>(c),
             static_cast<int>(lhs.rows), static_cast<int>(rhs.cols),
-            static_cast<int>(lhs.cols), static_cast<int>(ldc), lhs.prefix));
+            static_cast<int>(lhs.cols), static_cast<int>(ldc), lhs.prefix,static_cast<int>(method),scalar_intersection_limit));
         return launch == hipSuccess ? hipDeviceSynchronize() : launch;
       });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
