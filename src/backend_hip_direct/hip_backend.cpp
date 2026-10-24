@@ -627,16 +627,21 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_grouped_limbs_device(
 
 namespace rns8::detail {
 namespace {
-std::atomic<hip_deferred_buffer_cleanup*> deferred_probe_buffers{nullptr};
+std::atomic<hip_deferred_buffer_cleanup*> deferred_buffers{nullptr};
 // Caller has already established device-wide completion. Failed frees remain
 // queued, including their allocation record; another device's nodes stay live.
-rns8_status release_completed_probe_buffers(int device_id,hip_deferred_buffer_cleanup* node,bool completed) {
+rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup* node,bool completed) {
   rns8_status result=RNS8_SUCCESS;
   while(node) {
     auto* next=node->next;
     if(!completed || node->device_id!=device_id) hip_direct_defer_buffer_cleanup(node);
     else {
-      const auto status=hip_direct_free(device_id,node->pointer);
+      auto status=RNS8_UNSUPPORTED_BACKEND;
+      if(node->kind==hip_deferred_allocation_kind::device) status=hip_direct_free(device_id,node->pointer);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      else if(node->kind==hip_deferred_allocation_kind::pinned_host)
+        status=hipHostFree(node->pointer)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#endif
       if(status==RNS8_SUCCESS) delete node;
       else {if(result==RNS8_SUCCESS) result=status;hip_direct_defer_buffer_cleanup(node);}
     }
@@ -646,12 +651,12 @@ rns8_status release_completed_probe_buffers(int device_id,hip_deferred_buffer_cl
 }
 }
 void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup* node) noexcept {
-  auto* head=deferred_probe_buffers.load(std::memory_order_relaxed);
-  do {node->next=head;} while(!deferred_probe_buffers.compare_exchange_weak(
+  auto* head=deferred_buffers.load(std::memory_order_relaxed);
+  do {node->next=head;} while(!deferred_buffers.compare_exchange_weak(
       head,node,std::memory_order_release,std::memory_order_relaxed));
 }
 rns8_status hip_direct_collect_deferred_buffers(int device_id) {
-  if(!deferred_probe_buffers.load(std::memory_order_acquire)) return RNS8_SUCCESS;
+  if(!deferred_buffers.load(std::memory_order_acquire)) return RNS8_SUCCESS;
   return hip_direct_synchronize(device_id);
 }
 
@@ -703,9 +708,9 @@ rns8_status hip_direct_synchronize(int device_id) {
   }
   // Capture before the drain. Nodes queued by later concurrent submissions
   // cannot be freed using completion of this earlier device snapshot.
-  auto* pending=deferred_probe_buffers.exchange(nullptr,std::memory_order_acquire);
+  auto* pending=deferred_buffers.exchange(nullptr,std::memory_order_acquire);
   const hipError_t err = hipDeviceSynchronize();
-  const auto cleanup=release_completed_probe_buffers(device_id,pending,err==hipSuccess);
+  const auto cleanup=release_completed_buffers(device_id,pending,err==hipSuccess);
   return err==hipSuccess?cleanup:RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

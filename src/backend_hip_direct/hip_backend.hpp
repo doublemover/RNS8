@@ -307,7 +307,9 @@ struct hip_direct_grouped_device_resources {
 
 // Preallocated cleanup record for private scratch whose device completion is
 // uncertain. Queue insertion cannot allocate; successful device drains reclaim it.
+enum class hip_deferred_allocation_kind { device, pinned_host };
 struct hip_deferred_buffer_cleanup {
+  hip_deferred_allocation_kind kind=hip_deferred_allocation_kind::device;
   int device_id=-1;
   void* pointer=nullptr;
   hip_deferred_buffer_cleanup* next=nullptr;

@@ -31,6 +31,7 @@ namespace {
 
 }  // namespace
 
+#include "test_hip_direct_buffer_ownership_cases.inc"
 #include "test_hip_direct_ring_cases.inc"
 #include "test_hip_direct_finite_native_cases.inc"
 #include "test_hip_direct_finite_persistent_cases.inc"

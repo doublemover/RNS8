@@ -415,3 +415,15 @@ The authored join fixture submits three independent producers and an axpby
 consumer before observing any producer, verifies unpublished storage and retained
 owners, checks the exact output, and repeats with late producer cancellation.
 These fixtures await the consolidated campaign.
+
+Private direct-HIP device and pinned-host temporary buffer owners retain their
+pointer and capacity if an explicit reset/free fails. A replacement allocation then reports the failure
+without replacing that owner. Destruction or move replacement hands a failed
+free to the existing device-drain retry queue using a cleanup record allocated
+before device allocation. The cleanup record distinguishes device and pinned-host allocations; the retry
+queue uses the corresponding release API. Successful device drain/free is required to retire
+that record; another device's records remain queued. The small host ownership
+record is metadata, separate from requested device payload capacity. Invalid
+zero-size or negative-device replacement preserves the current allocation.
+This cleanup bookkeeping does not authorize freeing resources with live public
+reservations or establish a new asynchronous execution path.
