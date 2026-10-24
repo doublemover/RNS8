@@ -60,3 +60,48 @@ def synthetic_isa_index(capture: dict, histogram: dict) -> dict:
     report = synthetic_static_isa_report(capture, {"matrix_instruction_histogram": histogram})
     return {f"{normalized_backend(capture['backend_selected'])}|{capture['device']['gcn_arch']}":
             [summarize_isa_report(Path("synthetic-isa-summary.json"), report)]}
+
+
+def synthetic_independent_runs(captures: list[dict], count: int = 2) -> list[dict]:
+    """Author repeated-process controls; never apply to collected evidence."""
+    from copy import deepcopy
+    result = []
+    for source in captures:
+        base = deepcopy(source)
+        synthetic_identity(base, commit="a" * 40)
+        # Report unit fixtures can define medians directly. Materialize explicit
+        # synthetic samples rather than pretending stale arrays match them.
+        for phase, summary in (base.get("timing_summary_us") or {}).items():
+            if not isinstance(summary, dict) or type(summary.get("median")) not in (int, float): continue
+            value = summary["median"]
+            length = 1 if phase in ("planning", "scheduling", "tile_bound_scan", "global_bound_scan", "matrix_alloc", "prepack_setup") else base.get("repeats", 9)
+            base.setdefault("raw_timings_us", {})[phase] = [value] * length
+            summary.update(avg=value, median=value, p95=value)
+            base[f"avg_{phase}_us"] = value
+        synthetic_host_measurements(base)
+        for ordinal in range(count):
+            capture = deepcopy(base)
+            capture["execution_id"] = str(uuid.uuid4())
+            capture["_authored_process_ordinal"] = ordinal
+            result.append(capture)
+    return result
+
+
+def write_independent_fixture_pair(path, capture: dict):
+    import json
+    from pathlib import Path
+    path = Path(path)
+    for ordinal, record in enumerate(synthetic_independent_runs([capture])):
+        target = path if ordinal == 0 else path.with_name(path.stem + ".independent.json")
+        target.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def independent_fixture_paths(paths):
+    from pathlib import Path
+    result = []
+    for value in paths:
+        path = Path(value); result.append(path)
+        sibling = path.with_name(path.stem + ".independent.json")
+        if path.is_file() and sibling.exists(): result.append(sibling)
+    return result

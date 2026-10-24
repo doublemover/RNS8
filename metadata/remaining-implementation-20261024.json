@@ -48,6 +48,12 @@
             "tools/evidence_database_lib/outputs.py",
             "tools/benchmark_sweep_lib/review.py"
           ]
+        },
+        {
+          "summary": "Counter-report selected ISA resources now consume the same artifact-target-symbol association; unbound ISA stays inventory-only.",
+          "files": [
+            "tools/gpu_counter_report.py"
+          ]
         }
       ],
       "regressions": [
@@ -55,7 +61,9 @@
         "tools/test_evidence_database.py",
         "tools/test_benchmark_sweep_case_review_metadata.py"
       ],
-      "commits": [],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+      ],
       "remaining": [
         "Regression execution and real artifact/code-object inspection deferred; static association explicitly does not prove dynamic execution."
       ],
@@ -86,7 +94,9 @@
       "regressions": [
         "tools/test_result_compare.py"
       ],
-      "commits": [],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+      ],
       "remaining": [
         "Authored regression execution deferred; no measured proof-policy speedup or default change."
       ],
@@ -127,7 +137,7 @@
       "issue": 27,
       "title": "[P2] Count independent same-environment executions in the performance variance gate",
       "url": "https://github.com/doublemover/RNS8/issues/27",
-      "state": "implementation_in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
       "implementation": [
         {
@@ -138,14 +148,32 @@
             "tools/timing_eligibility.py",
             "tools/host_api_batch_report.py"
           ]
+        },
+        {
+          "summary": "Shared independent-process cohort aggregation for adaptive, finite, layout, bound-discovery and FHE consumers; order-invariant qualified implementation selection, explicit CPU/GPU anchors, all-observation receipts, setup-inclusive per-process estimator, unit/kernel/execution-aware weighted profiler imports.",
+          "files": [
+            "tools/observation_cohorts.py",
+            "tools/adaptive_grouped_scheduler_report.py",
+            "tools/finite_modulus_map_report.py",
+            "tools/finite_distribution_report.py",
+            "tools/layout_search_report.py",
+            "tools/bound_discovery_report.py",
+            "tools/fhe_workload_report.py",
+            "tools/gpu_counter_report.py"
+          ]
         }
       ],
       "regressions": [
-        "tools/test_result_compare.py"
+        "tools/test_result_compare.py",
+        "tools/test_observation_cohorts.py",
+        "tools/test_adaptive_grouped_scheduler_report.py",
+        "tools/test_gpu_counter_report.py"
       ],
-      "commits": [],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+      ],
       "remaining": [
-        "Shared independent-run aggregation still required in adaptive/finite/layout/bound/FHE reports and profiler metric partition aggregation."
+        "Execute authored report/fixture regressions later; real independent observations, profiler captures and qualification remain unverified."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1075,7 +1103,8 @@
         "tools/test_measurement_evidence_contracts.py (object-only complete CLI flow)"
       ],
       "commits": [
-        "319a7f5"
+        "319a7f5",
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
       ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."

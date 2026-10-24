@@ -76,6 +76,7 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
                  "device", "cpu_parallel", "clock_policy", "warmups")}
     timing = capture.get("timing_metadata") or {}
+    identity["captured_environment_sha256"] = (capture.get("request_identity") or {}).get("environment_sha256")
     identity["exact_proof_policy"] = exact_proof_policy(capture)
     identity["host_batch_contract"] = host_batch_contract(capture)
     identity["timing_contract"] = {key: timing.get(key) for key in

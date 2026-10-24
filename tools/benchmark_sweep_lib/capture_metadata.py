@@ -143,6 +143,9 @@ def capture_reconstruction_variant_name(capture: dict[str, Any]) -> str:
 
 
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
+    aggregate = capture.get("_observation_aggregate")
+    if isinstance(aggregate, dict):
+        return aggregate.get("phase_medians_us", {}).get(phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None

@@ -156,3 +156,35 @@ inner repetitions describe work per observation, not the number of observations.
 The host-batch scaling report intentionally compares separately labeled aggregate
 and per-task values; ordinary strict comparisons do not call batch4 and batch8
 the same work. Regression fixtures are authored; their execution is deferred.
+
+## Independent observations and profiler partitions
+
+Adaptive, finite-modulus, finite-distribution, layout, bound-discovery and FHE
+proxy reports share `observation_cohorts.py`. They aggregate **process medians**
+within an exact arithmetic/work, implementation, artifact and execution cohort
+before selecting an implementation. Copied captures do not add weight; reused
+execution IDs with conflicting records block qualification. Reports retain all
+submitted hashes/paths, distinct-run counts and process spread. Raw capture
+arrays are not rewritten. Legacy observations remain descriptive, with no
+qualified winner or promotion implication.
+
+The default admission requires two independent processes, three warmups, nine
+within-process observations, measured uncensored end-to-end samples, at most
+15% within-process p95/median spread and at most 10% process-median range. Those
+checks are necessary, not sufficient, for scientific qualification. Same-source
+CPU arithmetic controls are matched by complete work contract; GPU performance
+controls additionally match device/runtime/configuration/timing policy. Explicit
+layout or bound-discovery A/B reports name their permitted contract differences.
+Bound-discovery setup-inclusive comparisons sum setup and execution **within
+each process before taking the median**. Host batch tasks are work per sample,
+not independent observations. FHE recommendations carry shape/work/environment
+identity and retain their proxy-only status.
+
+Profiler imports retain per-metric totals, present counts, ranges and units,
+partitioned by kernel, phase, device and execution identity. Uneven export-file
+partitions no longer give small files extra statistical weight. Mixed-kernel
+means are diagnostic inventories, not a kernel's register requirement; occupancy
+observation means are not duration-weighted occupancy. Selected scalar resources
+require execution/symbol association and an unambiguous phase/unit group. Raw
+ISA inventories likewise cannot supply selected-kernel resources without the
+artifact/target/symbol association described above.
