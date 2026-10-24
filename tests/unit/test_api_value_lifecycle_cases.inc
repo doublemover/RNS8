@@ -42,6 +42,29 @@ TEST_CASE("resident writers reject aliases and publish mutation identities", "[a
     CHECK(a->byte_limbs==old_a.byte_limbs); CHECK(b->byte_limbs==old_b.byte_limbs);
     CHECK(a->content_generation==old_a.content_generation); CHECK(b->source_version==old_b.source_version);
     REQUIRE(gemm(a,b,c)==RNS8_SUCCESS);
+    const auto preserved=*c;
+    for (int conflict=0; conflict<4; ++conflict) {
+      if (conflict==0) a->in_flight_writer=true;
+      if (conflict==1) b->in_flight_writer=true;
+      if (conflict==2) c->in_flight_writer=true;
+      if (conflict==3) c->in_flight_readers=1;
+      CHECK(gemm(a,b,c)==RNS8_BUSY);
+      CHECK(c->content_generation==preserved.content_generation);
+      CHECK(c->source_version==preserved.source_version);
+      CHECK(c->residues==preserved.residues);
+      CHECK(c->byte_limbs==preserved.byte_limbs);
+      CHECK(c->host_residues_current==preserved.host_residues_current);
+      CHECK(c->device_residues_current==preserved.device_residues_current);
+      CHECK(c->host_byte_limbs_current==preserved.host_byte_limbs_current);
+      CHECK(c->device_byte_limbs_current==preserved.device_byte_limbs_current);
+      a->in_flight_writer=b->in_flight_writer=c->in_flight_writer=false;
+      c->in_flight_readers=0;
+    }
+    a->in_flight_readers=b->in_flight_readers=1;
+    REQUIRE(gemm(a,b,c)==RNS8_SUCCESS);
+    CHECK(a->in_flight_readers==1);
+    CHECK(b->in_flight_readers==1);
+    a->in_flight_readers=b->in_flight_readers=0;
     const auto first=c->source_version, generation=c->content_generation;
     REQUIRE(pack(a,2,0)==RNS8_SUCCESS); REQUIRE(gemm(a,b,c)==RNS8_SUCCESS);
     CHECK(c->source_version!=first); CHECK(c->content_generation>generation);
@@ -166,4 +189,24 @@ TEST_CASE("reimported exact chains match Boost at every step and reject CRT over
       rns8_destroy_workspace(ws); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
     }
   }
+}
+
+TEST_CASE("prepacked operation preflight reports reservation conflicts before backend admission") {
+  using namespace rns8::detail::api;
+  // CPU-only metadata fixture: no device objects or kernel execution are claimed.
+  rns8_context context;
+  rns8_plan plan;
+  rns8_matrix a,c;
+  rns8_prepack_cache b;
+  for (int conflict=0; conflict<3; ++conflict) {
+    a.in_flight_writer=conflict==0;
+    c.in_flight_writer=conflict==1;
+    c.in_flight_readers=conflict==2 ? 1 : 0;
+    CHECK(validate_rns_gemm_prepacked_b_operands(context,plan,a,b,c)==RNS8_BUSY);
+  }
+  a.in_flight_writer=c.in_flight_writer=false;
+  c.in_flight_readers=0;
+  a.in_flight_readers=1;
+  CHECK(validate_rns_gemm_prepacked_b_operands(context,plan,a,b,c)!=RNS8_BUSY);
+  CHECK(a.in_flight_readers==1);
 }

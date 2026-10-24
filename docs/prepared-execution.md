@@ -258,3 +258,11 @@ requirement, possible host proof allocation, owned-graph, cancellation and timed
 observation support. Unsupported records contain zero feature flags. This query
 does not admit current values or a caller stream and is not hardware qualification.
 Preparation reuses the same support predicate, then performs current admission.
+
+Synchronous dense, finite, wrap and prepacked-B preflight now reports `RNS8_BUSY`
+consistently for pending input writers or output readers/writers, before backend
+admission or output invalidation. Shared input readers remain legal. Sparse
+preflight follows the same rule. This is early admission/status parity; the
+existing write guard also rejects conflicting output reservations at mutation.
+The new all-semantics lifecycle fixtures are authored for the final batch and
+do not extend the supported asynchronous semantic subset.
