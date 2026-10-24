@@ -19,6 +19,7 @@ import sys
 from typing import Mapping
 
 SCHEMA = "rns8_dependency_resolution_v1"
+NATIVE_PACKAGE_POLICY = "Linux/UNIX builds must use native system packages and native CMake discovery. "
 ACTIVE_RESOLUTION = ContextVar("rns8_dependency_resolution", default=None)
 ROOT_KEYS = ("RNS8_HIP_ROOT", "RNS8_CK_ROOT", "RNS8_ROCWMMA_ROOT", "RNS8_HIPBLASLT_ROOT", "RNS8_GMP_ROOT", "RNS8_FLINT_ROOT")
 HIP_PATH_KEYS = {"RNS8_HIP_HIPCC": "compiler", "RNS8_HIP_INCLUDE_DIR": "include", "RNS8_HIP_LIBRARY": "library",
@@ -384,10 +385,10 @@ def resolve_vcpkg(request: Request, environment: Mapping[str, str]) -> tuple[dic
     if toolchain and not Path(toolchain).is_file(): external["status"] = "invalid"; external["error"] = "explicit CMAKE_TOOLCHAIN_FILE does not exist: " + toolchain
     if request.host != "Windows":
         errors = []
-        if toolchain and (is_vcpkg or "vcpkg" in toolchain.lower()): errors.append("native Linux/WSL uses native packages; vcpkg toolchains are unsupported")
+        if toolchain and (is_vcpkg or "vcpkg" in toolchain.lower()): errors.append(NATIVE_PACKAGE_POLICY + "vcpkg toolchains are unsupported")
         for key in ("CMAKE_PREFIX_PATH", "CMAKE_INCLUDE_PATH", "CMAKE_LIBRARY_PATH", "CMAKE_FIND_ROOT_PATH", "CMAKE_SYSROOT", "VCPKG_TARGET_TRIPLET"):
             if any(forbidden_windows_path(value) for value in split_paths(request.overrides.get(key, ""), request.host)):
-                errors.append(key + " contains Windows artifacts forbidden on native Linux/WSL")
+                errors.append(NATIVE_PACKAGE_POLICY + key + " contains Windows artifacts forbidden on native Linux/WSL")
         if external.get("error"): errors.append(external["error"])
         return {"status": "unsupported", "requested": False, "selected": None, "candidates": [], "errors": errors,
                 "selection_reason": "native Linux/WSL package policy; no Linux-vcpkg lane introduced", "compatibility": "not_run"}, external
@@ -501,7 +502,7 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
     if request.host != "Windows":
         for key in ("CMAKE_PREFIX_PATH", "CMAKE_INCLUDE_PATH", "CMAKE_LIBRARY_PATH"):
             if any(forbidden_windows_path(value) for value in split_paths(env.get(key, ""), request.host)):
-                errors.append("environment:" + key + " contains Windows artifacts forbidden on native Linux/WSL")
+                errors.append(NATIVE_PACKAGE_POLICY + "environment:" + key + " contains Windows artifacts forbidden on native Linux/WSL")
     hip = resolve_hip(request, env)
     vcpkg, toolchain = resolve_vcpkg(request, env)
     optional = optional_components(request, env, hip, vcpkg)
@@ -538,7 +539,7 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
     manifest = Path(request.source_root) / "vcpkg.json"
     report = {"schema": SCHEMA, "request": asdict(request), "status": "invalid" if errors else "resolved", "errors": errors,
               "hip": hip, "vcpkg": vcpkg, "toolchain": toolchain, "optional_components": optional, "tools": tools,
-              "cmake_bindings": bindings, "feature_policy": request.features,
+              "cmake_bindings": {key: value.replace("\\", "/") if request.host == "Windows" else value for key, value in bindings.items()}, "feature_policy": request.features,
               "manifest_sha256": digest(manifest) if manifest.is_file() else None,
               "validation_scope": "write-free filesystem discovery only; no compiler/package/runtime probes or installation",
               "remaining_gaps": ["compiler and host/runtime ABI compatibility", "all-target CK/rocWMMA/builtin API probes",
@@ -567,8 +568,13 @@ def compiler_environment(report: dict) -> dict[str, str]:
     selected = report["hip"].get("selected")
     if not selected: return {}
     paths = selected["paths"]
-    return {"HIP_PATH": str(Path(paths["include"]).parent), "ROCM_PATH": selected["canonical_root"],
-            "HIP_CLANG_PATH": str(Path(paths["clang"]).parent), "HIP_DEVICE_LIB_PATH": paths["device_libraries"]}
+    environment = {"HIP_PATH": str(Path(paths["include"]).parent), "ROCM_PATH": selected["canonical_root"],
+                   "HIP_CLANG_PATH": str(Path(paths["clang"]).parent), "HIP_DEVICE_LIB_PATH": paths["device_libraries"]}
+    # CMake macro wrappers can reparse arguments as source. Native backslashes
+    # in paths such as C:\\Program Files become invalid CMake escapes there.
+    if report["request"]["host"] == "Windows":
+        environment = {key: value.replace("\\", "/") for key, value in environment.items()}
+    return environment
 
 
 def read_cache(path: Path) -> tuple[dict[str, str], dict[str, bool]]:

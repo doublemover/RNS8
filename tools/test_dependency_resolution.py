@@ -178,7 +178,7 @@ class Discovery(unittest.TestCase):
         toolchain = self.put(self.base, "custom toolchain.cmake", "# user toolchain\n")
         report = self.resolve(self.request(overrides={"CMAKE_TOOLCHAIN_FILE": str(toolchain)}, vcpkg=True))
         self.assert_clean(report); self.assertEqual(report["toolchain"]["provider"], "external")
-        self.assertEqual(report["cmake_bindings"]["CMAKE_TOOLCHAIN_FILE"], str(toolchain))
+        self.assertEqual(Path(report["cmake_bindings"]["CMAKE_TOOLCHAIN_FILE"]), toolchain)
 
     def test_native_linux_and_wsl_reject_windows_artifacts(self):
         for overrides in ({"CMAKE_TOOLCHAIN_FILE": str(self.vcpkg() / "scripts/buildsystems/vcpkg.cmake")},
@@ -208,7 +208,7 @@ class Discovery(unittest.TestCase):
         for root in (one, two): self.put(root, "include/gmp.h"); self.put(root, "lib/gmp.lib")
         report = self.resolve(self.request(overrides={"RNS8_GMP_INCLUDE_DIR": str(one / "include"), "RNS8_GMP_LIBRARY": str(one / "lib/gmp.lib")}))
         self.assert_clean(report)
-        self.assertEqual(report["cmake_bindings"]["RNS8_GMP_LIBRARY"], str(one / "lib/gmp.lib"))
+        self.assertEqual(Path(report["cmake_bindings"]["RNS8_GMP_LIBRARY"]), one / "lib/gmp.lib")
         bad = self.resolve(self.request(overrides={"RNS8_GMP_ROOT": str(one), "RNS8_GMP_LIBRARY": str(two / "lib/gmp.lib")}))
         self.assertTrue(bad["errors"])
         with r.selection_context(report):
@@ -258,12 +258,55 @@ class Discovery(unittest.TestCase):
         sdk = self.sdk(host=platform.system()); cwd = self.base / "script build"; cwd.mkdir()
         command = [cmake, "-DRNS8_ENABLE_HIP=ON", "-DRNS8_HIP_ROOT=" + str(sdk), "-DPython3_EXECUTABLE=" + sys.executable]
         if os.name == "nt": command += ["-DVCPKG_ROOT=" + str(self.vcpkg())]
-        command += ["-P", str(ROOT / "cmake/rns8_discovery.cmake")]
+        script = self.put(self.base, "handoff.cmake", 'include("' + (ROOT / "cmake/rns8_discovery.cmake").as_posix() + '")\n'
+            'file(WRITE "bound-paths.txt" "${RNS8_HIP_ROOT}\\n${RNS8_HIP_HIPCC}\\n${RNS8_HIP_COMPILER_ENVIRONMENT}\\n${RNS8_HIP_COMMON_FLAGS}\\n${CMAKE_PREFIX_PATH}")\n')
+        command += ["-DCMAKE_PREFIX_PATH=" + str(sdk), "-P", str(script)]
         result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=40)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         report = json.loads((cwd / "dependency-discovery/resolution.json").read_text(encoding="utf-8"))
-        self.assertEqual(report["cmake_bindings"]["RNS8_HIP_ROOT"], str(sdk))
+        self.assertEqual(Path(report["cmake_bindings"]["RNS8_HIP_ROOT"]), sdk)
+        if os.name == "nt":
+            self.assertNotIn("\\", (cwd / "bound-paths.txt").read_text(encoding="utf-8"))
+            self.assertTrue(all("\\" not in value for value in report["cmake_bindings"].values()))
+            self.assertTrue(all("\\" not in value for value in report["compiler_environment"].values()))
         self.assertFalse((cwd / "CMakeCache.txt").exists())
+
+    def test_cmake_linux_guard_preserves_ci_diagnostic(self):
+        cmake = shutil.which("cmake")
+        if not cmake: self.skipTest("CMake unavailable")
+        cwd = self.base / "guard"; cwd.mkdir()
+        result = subprocess.run([cmake, "-DRNS8_FORCE_LINUX_NATIVE_DISCOVERY_GUARD=ON",
+            "-DCMAKE_PREFIX_PATH=/mnt/c/vcpkg/installed/x64-windows", "-DPython3_EXECUTABLE=" + sys.executable,
+            "-P", str(ROOT / "cmake/rns8_discovery.cmake")], cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=40)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Linux/UNIX builds must use native system packages", result.stdout + result.stderr)
+        self.assertNotIn('"candidates"', result.stderr)
+        report = json.loads((cwd / "dependency-discovery/resolution.json").read_text(encoding="utf-8"))
+        self.assertEqual(report["status"], "invalid")
+
+    def test_hipblaslt_selected_root_does_not_import_alternate_package(self):
+        cmake = shutil.which("cmake")
+        if not cmake: self.skipTest("CMake unavailable")
+        selected, alternate = self.base / "selected SDK", self.base / "alternate SDK"
+        self.put(selected, "include/hipblaslt/hipblaslt.h")
+        library = self.put(selected, "lib/hipblaslt.lib")
+        self.put(alternate, "lib/cmake/hipblaslt/hipblaslt-config.cmake", 'message(FATAL_ERROR "imported alternate SDK package")\n')
+        script = self.put(self.base, "hipblaslt.cmake", '\n'.join((
+            'set(RNS8_DISCOVERY_IDENTITY_SHA256 fixture)',
+            'set(RNS8_HIPBLASLT_ROOT "' + selected.as_posix() + '")',
+            'set(RNS8_HIPBLASLT_INCLUDE_DIR "' + (selected / 'include').as_posix() + '")',
+            'set(RNS8_HIPBLASLT_LIBRARY "' + library.as_posix() + '")',
+            'set(RNS8_HIP_ROOT "' + alternate.as_posix() + '")',
+            'set(CMAKE_PREFIX_PATH "' + alternate.as_posix() + '")',
+            'function(rns8_append_windows_vcpkg_hints list_var)', 'endfunction()',
+            'function(rns8_assert_no_linux_windows_vcpkg_paths)', 'endfunction()',
+            'include("' + (ROOT / 'cmake/modules/FindRNS8HIPBLASLT.cmake').as_posix() + '")',
+            'if(hipblaslt_FOUND)', 'message(FATAL_ERROR "unexpected package outside selected root")', 'endif()',
+            'if(NOT _RNS8_HIPBLASLT_HINTS STREQUAL RNS8_HIPBLASLT_ROOT)',
+            'message(FATAL_ERROR "alternate hints retained")', 'endif()',
+        )))
+        result = subprocess.run([cmake, "-P", str(script)], cwd=self.base, capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_wrapper_dry_run_preserves_configure_arguments(self):
         args = ["windows_dev.py", "--dry-run", "cmake", "--preset", "windows-msvc-hip-debug", "-DRNS8_HIP_ROOT=D:/SDK with spaces"]
