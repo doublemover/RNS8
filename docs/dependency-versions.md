@@ -141,3 +141,12 @@ workflow pins together; run the offline consistency check and then the applicabl
 compatibility gates. A failed candidate needs a concrete exception and revisit
 condition. There is no automatic install, merge, driver change or backend/cache
 promotion.
+
+
+Explicit GMP/FLINT enablement now performs a compile/link API probe against the
+selected imported targets, including when project tests are disabled. The probe
+uses the same small signed multiprecision arithmetic program as the runtime smoke;
+configure never executes it. Compiler/link diagnostics are retained in
+`exact-reference-link-probe.log` under the build directory. Successful linkage
+is distinct from the runtime arithmetic check in the final campaign. These newly
+authored probes have not yet qualified the upgraded stack.

@@ -64,3 +64,39 @@ if(RNS8_FLINT_INCLUDE_DIR AND RNS8_FLINT_LIBRARY)
 endif()
 
 set(RNS8ThirdParty_FOUND TRUE)
+
+# Opt-in reference libraries must compile/link the APIs actually used by the
+# smoke program, even when the main build disables tests. Never execute here.
+set(_RNS8_EXACT_PROBE_LIBRARIES)
+set(_RNS8_EXACT_PROBE_DEFINITIONS)
+if(RNS8_ENABLE_GMP AND RNS8_GMP_FOUND)
+  list(APPEND _RNS8_EXACT_PROBE_LIBRARIES RNS8::GMP)
+  list(APPEND _RNS8_EXACT_PROBE_DEFINITIONS -DRNS8_ENABLE_GMP=1)
+endif()
+if(RNS8_ENABLE_FLINT AND RNS8_FLINT_FOUND)
+  list(PREPEND _RNS8_EXACT_PROBE_LIBRARIES RNS8::FLINT)
+  if(TARGET RNS8::GMP)
+    list(APPEND _RNS8_EXACT_PROBE_LIBRARIES RNS8::GMP)
+  endif()
+  list(APPEND _RNS8_EXACT_PROBE_DEFINITIONS -DRNS8_ENABLE_FLINT=1)
+endif()
+set(RNS8_EXACT_REFERENCE_LINK_PROBE "not_run")
+if(_RNS8_EXACT_PROBE_LIBRARIES)
+  list(REMOVE_DUPLICATES _RNS8_EXACT_PROBE_LIBRARIES)
+  unset(_RNS8_EXACT_REFERENCE_LINK_PASSED CACHE)
+  try_compile(_RNS8_EXACT_REFERENCE_LINK_PASSED
+    "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe"
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_optional_exact_libs.cpp"
+    CXX_STANDARD 17
+    COMPILE_DEFINITIONS ${_RNS8_EXACT_PROBE_DEFINITIONS}
+    LINK_LIBRARIES ${_RNS8_EXACT_PROBE_LIBRARIES}
+    OUTPUT_VARIABLE RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe.log"
+       "${RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT}")
+  if(_RNS8_EXACT_REFERENCE_LINK_PASSED)
+    set(RNS8_EXACT_REFERENCE_LINK_PROBE "passed")
+  else()
+    set(RNS8_EXACT_REFERENCE_LINK_PROBE "failed")
+    message(FATAL_ERROR "Selected optional exact-reference headers/libraries failed the compiler/link API probe. See ${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe.log; select a coherent compiler/ABI/dependency prefix.")
+  endif()
+endif()
