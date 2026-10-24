@@ -1265,6 +1265,13 @@ rns8_status hip_direct_import_native_view(int device_id,const void* source,void*
 rns8_status hip_direct_export_native_view(int device_id,const void* residues,void* destination,void* scratch,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,uint64_t bound,bool signed_values,bool& external_write_started);
 
+struct InstructionRoofProblem;
+// Borrowed calibration buffers: a/b contain chains signed bytes, output contains
+// waves*chains*256 int32 cells, capability is four bytes. On any failure the
+// caller must drain before releasing borrowed storage; no routing is affected.
+rns8_status hip_direct_instruction_roof(int device_id,const void* a,const void* b,void* output,
+    void* capability,const InstructionRoofProblem& problem);
+
 }  // namespace rns8::detail
 
 #endif

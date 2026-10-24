@@ -88,3 +88,5 @@ TEST_CASE("public HIP product recipe rebinds owners without reallocating its are
 }
 
 #include "test_api_split_k_cases.inc"
+
+#include "test_instruction_roof_cases.inc"

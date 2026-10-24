@@ -1,3 +1,4 @@
+#include "backend_common/instruction_roof_plan.hpp"
 #include "backend_common/split_k_plan.hpp"
 #include "backend_common/word_mod_plan.hpp"
 #include "backend_common/address_domain.hpp"
@@ -656,6 +657,7 @@ namespace rns8::detail {
 #include "hip_backend_fixed_conversion.inc"
 #include "hip_backend_word_mod.inc"
 #include "hip_backend_native_interop.inc"
+#include "hip_backend_instruction_roof.inc"
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"
