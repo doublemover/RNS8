@@ -290,3 +290,27 @@ TEST_CASE("wide residue support proves full spans without narrowed shape product
   CHECK(query_wide_gemm_support(INT64_MAX,2,1,1,2,2,1).status==RNS8_RANGE_ERROR);
   CHECK(query_wide_gemm_support(1,1,1,1,1,1,0).status==RNS8_INVALID_ARGUMENT);
 }
+
+TEST_CASE("narrow persistent provider charges simultaneous staging and scan storage") {
+  using namespace rns8::detail;
+  for (bool wmma : {false,true}) for (uint32_t prefix=1;prefix<=20;++prefix) {
+    const auto support=query_narrow_rns_support(17,19,31,32,20,prefix,wmma,UINT64_MAX);
+    REQUIRE(support.status==RNS8_SUCCESS);
+    CHECK(support.payload_bytes==17*19*8);
+    CHECK(support.scratch_bytes==17*19*8+(wmma?32:16));
+    CHECK_FALSE(support.device_qualified);
+    CHECK(query_narrow_rns_support(17,19,31,32,20,prefix,wmma,support.scratch_bytes).status==RNS8_SUCCESS);
+    const auto tight=query_narrow_rns_support(17,19,31,32,20,prefix,wmma,support.scratch_bytes-1);
+    CHECK(tight.status==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(tight.constraint==OperationConstraint::scratch_budget);
+    int64_t a=1,b=2;
+    int8_t c=3;
+    bool started=true;
+    CHECK(hip_direct_gemm_narrow_rns_device(-1,&a,&b,&c,17,19,31,32,20,prefix,false,wmma,
+        support.scratch_bytes-1,started)==tight.status);
+    CHECK_FALSE(started);
+    CHECK(c==3);
+  }
+  CHECK(query_narrow_rns_support(1,1,1,1,1,0,false,100).constraint==OperationConstraint::prefix);
+  CHECK(query_narrow_rns_support(INT64_MAX,1,1,1,1,20,false,UINT64_MAX).constraint==OperationConstraint::address_span);
+}

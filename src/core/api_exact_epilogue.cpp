@@ -21,6 +21,60 @@ rns8_status rns8_gemm_complex_exact_signed(
       max_scratch_bytes, workspace);
 }
 
+rns8_status rns8_gemm_narrow_exact(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
+    rns8_narrow_product_method method, uint64_t max_scratch_bytes,
+    rns8_workspace* workspace) {
+  return guard_api([&]() -> rns8_status {
+    using namespace rns8::detail;
+    if (!ctx || !plan || !A || !B || !C || !workspace || A==C || B==C ||
+        (method!=RNS8_NARROW_SCALAR_I64 && method!=RNS8_NARROW_BYTE_WMMA))
+      return RNS8_INVALID_ARGUMENT;
+    if (plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics) ||
+        (method==RNS8_NARROW_SCALAR_I64 && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
+      return RNS8_UNSUPPORTED_BACKEND;
+    auto status=validate_plan_context_workspace(*ctx,*plan,*workspace);
+    if (status!=RNS8_SUCCESS) return status;
+    status=validate_rns_gemm_operands(*ctx,*plan,*A,*B,*C,true);
+    if (status!=RNS8_SUCCESS) return status;
+    if (C->generation_exhausted) return RNS8_RANGE_ERROR;
+    const bool unsigned_inputs=plan->desc.semantics==RNS8_EXACT_WIDE_UNSIGNED;
+    const auto support=query_narrow_rns_support(plan->desc.m,plan->desc.n,plan->desc.k,
+        A->desc.cols,B->desc.cols,plan->prefix,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes);
+    if (support.status!=RNS8_SUCCESS) return support.status;
+    const auto native=[&](const rns8_matrix& input) -> const void* {
+      if (!(input.desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT) || !input.device_native_current ||
+          input.generation_exhausted || input.hip_device_id!=ctx->device_id) return nullptr;
+      const uint64_t bytes=uint64_t(input.desc.rows)*uint64_t(input.desc.cols)*sizeof(uint64_t);
+      return unsigned_inputs ? (input.hip_native_u64_bytes==bytes ? input.hip_native_u64 : nullptr)
+                             : (input.hip_native_i64_bytes==bytes ? input.hip_native_i64 : nullptr);
+    };
+    const void* a=native(*A);
+    const void* b=native(*B);
+    if (!a || !b) return RNS8_INVALID_ARGUMENT;
+    cpp_int bound;
+    rns8_exact_matrix_ranges ranges;
+    status=exact_gemm_range(*plan,*A,*B,bound,&ranges);
+    if (status!=RNS8_SUCCESS) return status;
+    bool commit_started=false;
+    struct CommitGuard {
+      rns8_matrix& output;
+      bool& started;
+      bool published=false;
+      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
+    } write{*C,commit_started};
+    status=hip_direct_gemm_narrow_rns_device(ctx->device_id,a,b,C->hip_residues,
+        plan->desc.m,plan->desc.n,plan->desc.k,A->desc.cols,B->desc.cols,plan->prefix,
+        unsigned_inputs,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes,commit_started);
+    if (status!=RNS8_SUCCESS) return status;
+    mark_output_device_residues_current(*C);
+    commit_exact_range(*C,*plan,bound,&ranges);
+    write.published=true;
+    return RNS8_SUCCESS;
+  });
+}
+
 rns8_status rns8_gemm_adaptive_exact(
     rns8_context* ctx, const rns8_plan* plan,
     const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,

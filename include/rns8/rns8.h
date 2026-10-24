@@ -1332,6 +1332,26 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
 
+typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
+  RNS8_NARROW_SCALAR_I64 = 0,
+  RNS8_NARROW_BYTE_WMMA = 1
+} rns8_narrow_product_method;
+
+/* Experimental synchronous direct-HIP exact-wide product with persistent RNS
+ * output. Both inputs require current RNS8_MATRIX_RETAIN_NATIVE_INPUT copies.
+ * SCALAR_I64 accepts signed semantics and proves every partial within INT64_MAX;
+ * BYTE_WMMA accepts signed/unsigned semantics, requires actual byte-domain values
+ * and proves every partial within INT32_MAX. Target support is feature-detected.
+ * Actual device values are scanned on every call. There is no fallback or AUTO
+ * selection. max_scratch_bytes includes the staged native output and scan words;
+ * encoding the staged result into the complete output prefix is part of the call.
+ * Admission failures preserve C; failure during encoding invalidates C. */
+RNS8_API rns8_status rns8_gemm_narrow_exact(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
+    rns8_narrow_product_method method, uint64_t max_scratch_bytes,
+    rns8_workspace* workspace);
+
 typedef enum rns8_adaptive_bound_method RNS8_ENUM_BASE {
   RNS8_ADAPTIVE_TILE_MAX = 0,
   RNS8_ADAPTIVE_AXIS_L1 = 1,

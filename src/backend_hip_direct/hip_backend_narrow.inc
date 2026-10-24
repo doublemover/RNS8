@@ -52,3 +52,48 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+rns8_status hip_direct_gemm_narrow_rns_device(
+    int device_id, const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
+    uint32_t prefix, bool unsigned_inputs, bool byte_wmma,
+    uint64_t budget, bool& commit_started) {
+  commit_started=false;
+  if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
+  if (unsigned_inputs && !byte_wmma) return RNS8_UNSUPPORTED_BACKEND;
+  const auto support=query_narrow_rns_support(m,n,k,lda,ldb,prefix,byte_wmma,budget);
+  if (support.status!=RNS8_SUCCESS) return support.status;
+  const uint64_t output_bytes=uint64_t(m)*uint64_t(n)*prefix;
+  if (!nonoverlapping_byte_ranges(c,output_bytes,a,uint64_t(m)*uint64_t(lda)*8) ||
+      !nonoverlapping_byte_ranges(c,output_bytes,b,uint64_t(k)*uint64_t(ldb)*8))
+    return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hip_direct_device_buffer product;
+  auto status=product.allocate(device_id,static_cast<size_t>(support.payload_bytes));
+  if (status!=RNS8_SUCCESS) return status;
+  uint64_t bound=0;
+  if (byte_wmma)
+    status=hip_direct_gemm_native_byte_wmma_checked_device(device_id,a,b,product.get(),
+        m,n,k,lda,ldb,n,unsigned_inputs,&bound);
+  else
+    status=hip_direct_gemm_i64_narrow_checked_device(device_id,
+        static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),
+        static_cast<int64_t*>(product.get()),m,n,k,lda,ldb,n,&bound);
+  if (status!=RNS8_SUCCESS) return status;
+  // The owner's independent complete-expression proof admits the CRT capacity.
+  // The device scan above separately admits every native accumulation partial.
+  commit_started=true;
+  const auto error=timed_hip_operation("narrow_native_encode_rns",[&]() {
+    const int code=unsigned_inputs
+        ? rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(product.get()),
+            static_cast<int8_t*>(c),int(m),int(n),int(n),int(prefix))
+        : rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(product.get()),
+            static_cast<int8_t*>(c),int(m),int(n),int(n),int(prefix));
+    return code==int(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+  });
+  return error==hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
