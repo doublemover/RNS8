@@ -27,7 +27,8 @@ IDENTITY_KEYS = ("workload", "m", "n", "k", "bits", "seed", "pattern", "repeats"
                  "build_manifest", "workload_source_identity", "semantics", "output_contract", "dataset_recipe",
                  "input_checksum_u64", "checksum_u64", "changed_input_checksum_u64", "changed_checksum_u64",
                  "abs_partial_sum_bound", "bounds", "formula", "lifecycle", "work_definition", "logical_layout", "a_ld", "b_ld", "output_ld",
-                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch", "gram_prepared_owner_cohort")
+                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch", "gram_prepared_owner_cohort",
+                 "optional_reference_cohort", "optional_references")
 MASK = (1 << 64) - 1
 
 
@@ -90,14 +91,16 @@ def dataset_identity(report: dict) -> dict:
         maximum=max(max(map(abs,operands[1])),abs(changed_first))
         demand(report.get("abs_partial_sum_bound")==str(k*maximum*maximum),"Gram full-expression bound differs from replayed inputs")
     def check_gram_output(key):
-        if not gram or not report.get("gram_batch"): return
+        if not (gram and report.get("gram_batch")) and not report.get("optional_reference_cohort"): return
         limbs=report.get("output_limbs_per_cell")
         wide=report.get("semantics")=="exact_wide_signed"
         demand(type(limbs) is int and limbs==(3 if wide else 1) and report.get("semantics") in {"exact_wide_signed","bounded_i64"}
             and report.get("output_contract")==("row_major_signed_three_u64_limbs_per_cell" if wide else "row_major_signed_i64"),"Gram batch native output semantics differ")
         values=[sum(operands[0][row*k+q]*operands[1][q*n+col] for q in range(k)) for row in range(m) for col in range(n)]
+        if chain:
+            values=[sum(values[row*n+q]*operands[2][q*n+col] for q in range(n)) for row in range(m) for col in range(n)]
         demand(wide or all(-(1 << 63)<=value<(1 << 63) for value in values),"Gram bounded oracle exceeds native output")
-        demand(report.get(key)==checksum_bytes(canonical_words(values,limbs)),"Gram complete output differs from independently replayed integer reference")
+        demand(report.get(key)==checksum_bytes(canonical_words(values,limbs)),"complete output differs from independently replayed integer reference")
     check_gram_output("checksum_u64")
     data = canonical_words([value for operand in operands for value in operand])
     demand(checksum_bytes(data) == report.get("input_checksum_u64"), "input bytes differ from claimed recipe/checksum")
@@ -298,6 +301,77 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None,datas
                 and math.isclose(burst["mean_gram_product_ns"]*count*products,burst["elapsed_ns"],rel_tol=1e-12),"Gram sustained work mismatch")
 
 
+def optional_reference_contract(library: str, chain: bool, limbs: int, reuse: int = 1) -> dict:
+    return dict(version=1,library=library,arithmetic="blocked_mpz_addmul_tile32" if library=="gmp" else "fmpz_mat_mul_library_dispatch",
+        application_boundary="native_signed64_host_inputs_to_complete_signed_host_words",input_conversion_per_call=True,
+        retained_result_reuse=False,retained_allocations=True,intermediate_serialization=False,chain=chain,
+        real_gemm_products_per_call=2 if chain else reuse,output_limbs_per_cell=limbs,threads=1,
+        output_conversion="checked_twos_complement_u64_limbs",library_private_peak_bytes=None,actual_peak_measured=False)
+
+
+def validate_optional_references(report: dict, variants: list[dict]) -> None:
+    if "optional_reference_cohort" not in report:
+        demand(not any(row["name"].startswith(("gmp_","flint_")) for row in variants),"optional comparator missing cohort contract")
+        return
+    demand(exact_value(report["optional_reference_cohort"],1),"invalid optional reference cohort")
+    demand(report["workload"] in {"integer_cross_product","integer_gram","resident_integer_chain"},"optional exact adapter on unsupported workload")
+    libraries=report.get("optional_references")
+    demand(type(libraries) is dict and set(libraries)=={"version","gmp","flint"} and exact_value(libraries["version"],1),"invalid optional library identity")
+    chain=report["workload"]=="resident_integer_chain";limbs=report.get("output_limbs_per_cell")
+    demand({"workload_optional_references.hpp","optional_references.cmake"}<=report["workload_source_identity"].keys(),"optional adapter source/configuration identity missing")
+    demand(type(limbs) is int and limbs in {1,3},"invalid optional comparator output width")
+    demand(exact_value(report.get("cpu_comparator_threads"),1),"optional exact comparators require serial thread identity")
+    def artifacts(value,library):
+        headers={"gmp.h"} if library=="gmp" else {"flint/flint.h","flint/fmpz.h","flint/fmpz_mat.h"}
+        demand(type(value) is dict and set(value)=={"headers_sha256","link_input_sha256","extra_link_inputs_sha256","runtime_binary_sha256","runtime_binary_verified"},"invalid optional artifact fields")
+        demand(type(value["headers_sha256"]) is dict and set(value["headers_sha256"])==headers and
+            all(type(digest) is str and DIGEST.fullmatch(digest) for digest in value["headers_sha256"].values()) and
+            type(value["link_input_sha256"]) is str and DIGEST.fullmatch(value["link_input_sha256"]),"optional configured artifact hash missing")
+        demand(value["runtime_binary_sha256"] is None and value["runtime_binary_verified"] is False,"configured link input is not loaded-runtime attestation")
+        demand(type(value["extra_link_inputs_sha256"]) is list and all(type(digest) is str and DIGEST.fullmatch(digest)
+            for digest in value["extra_link_inputs_sha256"]),"invalid explicit static link dependency hashes")
+        demand(library=="flint" or not value["extra_link_inputs_sha256"],"unexpected GMP extra link dependencies")
+    def version(header,runtime):
+        demand(type(header) is str and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+",header) and header==runtime,"optional header/runtime version mismatch")
+    names={row["name"]:row for row in variants}
+    expected_names=set()
+    reserved=0
+    for library in ("gmp","flint"):
+        item=libraries[library]
+        demand(type(item) is dict and type(item.get("enabled")) is bool,"invalid optional enablement")
+        name=("gmp_mpz_blocked" if library=="gmp" else "flint_fmpz_mat_mul")+("_chain" if chain else "")
+        expected_names.add(name);demand(name in names,"optional enabled/unavailable row missing")
+        row=names[name]
+        if not item["enabled"]:
+            demand(set(item)=={"enabled","status","reason"} and item["status"]=="unavailable" and
+                type(item["reason"]) is str and bool(item["reason"]) and row.get("status")=="unavailable" and
+                row.get("reason")==item["reason"],"disabled optional adapter must remain unavailable")
+            continue
+        fields={"enabled","status","header_version","runtime_version","artifacts"}
+        if library=="flint":fields|={"gmp_header_version","gmp_runtime_version","gmp_artifacts"}
+        demand(set(item)==fields and item["status"]=="available" and row.get("status")=="passed","enabled optional adapter did not execute")
+        version(item["header_version"],item["runtime_version"]);artifacts(item["artifacts"],library)
+        if library=="flint":
+            version(item["gmp_header_version"],item["gmp_runtime_version"]);artifacts(item["gmp_artifacts"],"gmp")
+            if libraries["gmp"]["enabled"]:
+                demand(item["gmp_runtime_version"]==libraries["gmp"]["runtime_version"] and
+                    exact_value(item["gmp_artifacts"],libraries["gmp"]["artifacts"]),"FLINT/GMP support dependency identity differs")
+        reuse=report.get("gram_batch",{}).get("products_per_batch",1)
+        expected=optional_reference_contract(library,chain,limbs,reuse)
+        expected["identity"]=item
+        m,n,k=(report[key] for key in ("m","n","k"))
+        cells=m*k+k*n+m*n+(n*n+m*n if chain else 0)
+        expected["modeled_memory_allowance_bytes"]=1024*cells+m*n*3*8+4096
+        reserved+=expected["modeled_memory_allowance_bytes"]
+        demand(exact_value(row.get("metadata",{}).get("optional_exact_reference"),expected),"optional comparator boundary/resource identity differs")
+        for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+            demand(set(sample["phases_ns"])=={"optional_input_conversion_ns","optional_exact_gemm_ns","optional_output_serialization_ns"},"optional host-to-host conversion/arithmetic/serialization phases missing")
+    demand({name for name in names if name.startswith(("gmp_","flint_"))}==expected_names,"unexpected optional comparator identity")
+    demand(type(report.get("aggregate_memory_envelope_bytes")) is int and
+        type(report.get("declared_memory_budget_bytes")) is int and
+        reserved<=report["aggregate_memory_envelope_bytes"]<=report["declared_memory_budget_bytes"],"optional aggregate memory admission missing")
+
+
 def validate_report(report: dict, run_id: str, backend: str, device: int, gram_request=None) -> dict:
     demand(type(report) is dict and report.get("schema") == SCHEMA, "unexpected workload schema")
     demand(report.get("status") == "passed", "workload did not pass")
@@ -417,6 +491,7 @@ def validate_report(report: dict, run_id: str, backend: str, device: int, gram_r
     demand(type(order) is list and len(order) == len(expected_order)
            and sorted(order) == sorted(expected_order), "sustained order must cover each measured variant exactly once")
     validate_gram_batch(report,variants,gram_request,identity["dataset_bytes"])
+    validate_optional_references(report,variants)
     identity["variants"] = admitted
     return identity
 
@@ -440,7 +515,7 @@ def request_identity(arguments: list[str]) -> tuple[str, int]:
     return backend, (-1 if backend == "cpu-reference" else 0) if device is None else device
 
 
-def collect(executable: Path, arguments: list[str], runs: int, timeout: float) -> dict:
+def collect(executable: Path, arguments: list[str], runs: int, timeout: float, *, case_file=None, case_identity=None) -> dict:
     demand(1 <= runs <= 100 and positive(timeout), "invalid process count/timeout")
     executable = executable.resolve(strict=True)
     backend, device = request_identity(arguments)
@@ -451,6 +526,8 @@ def collect(executable: Path, arguments: list[str], runs: int, timeout: float) -
               "collector_source_sha256": tools, "requested_backend": backend, "requested_device": device,
               "arguments": arguments, "runs": [], "errors": [], "promotion_eligible": False,
               "qualification_note": "application-scope host observations; no schema-4 benchmark pass, ISA verification or runtime route promotion"}
+    demand((case_file is None)==(case_identity is None),"case identity/file must be supplied together")
+    if case_identity is not None:record["case_manifest"]=case_identity
     record["host"] = {"platform": platform.platform(), "machine": platform.machine(), "processor": platform.processor(),
                       "logical_threads": os.cpu_count(), "OMP_NUM_THREADS": os.environ.get("OMP_NUM_THREADS"),
                       "OMP_DYNAMIC": os.environ.get("OMP_DYNAMIC")}
@@ -461,11 +538,14 @@ def collect(executable: Path, arguments: list[str], runs: int, timeout: float) -
         row = {"run_id": run_id, "command": command, "started_unix_ns": time.time_ns()}
         try:
             demand(sha(executable) == digest, "executable changed before independent process")
+            if case_file is not None:demand(sha(case_file)==case_identity["sha256"],"case manifest changed before independent process")
             result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=timeout, check=False)
             row.update(returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
             demand(sha(executable) == digest, "executable changed during independent process")
+            if case_file is not None:demand(sha(case_file)==case_identity["sha256"],"case manifest changed during independent process")
             demand(result.returncode == 0, f"process returned {result.returncode}; unsupported is retained without fallback")
             report = json.loads(result.stdout)
+            if case_identity is not None:demand(exact_value(report.get("optional_reference_cohort"),1),"selected optional case requires explicit enabled/unavailable adapter cohort")
             identity = validate_report(report, run_id, backend, device, gram_request)
             row["observation"] = report
             if baseline is None: baseline = identity
@@ -515,6 +595,41 @@ def calibration_adapter(record: dict, isa_file: Path, variant: str, instruction:
     return result
 
 
+def load_optional_case(path: Path, case_id: str, executable: Path) -> tuple[list[str], dict]:
+    raw=path.read_bytes()
+    def object_pairs(pairs):
+        result={}
+        for key,value in pairs:
+            demand(key not in result,"duplicate case manifest key");result[key]=value
+        return result
+    manifest=json.loads(raw,object_pairs_hook=object_pairs)
+    demand(type(manifest) is dict and set(manifest)=={"schema","cases"} and manifest["schema"]=="rns8_optional_reference_cases_v1","invalid optional case manifest")
+    cases=manifest["cases"];demand(type(cases) is list and 1<=len(cases)<=256,"invalid optional case count")
+    names=set();selected=None
+    for case in cases:
+        demand(type(case) is dict and set(case)=={"id","program","arguments"},"invalid optional case fields")
+        name=case["id"];demand(type(name) is str and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}",name) and name not in names,"invalid or duplicate optional case id")
+        names.add(name)
+        demand(type(case["program"]) is str and case["program"] in {"integer-cross-product","resident-chain"},"unsupported optional workload program")
+        arguments=case["arguments"]
+        demand(type(arguments) is list and all(type(arg) is str and arg and len(arg)<=128 for arg in arguments),"invalid optional workload arguments")
+        demand("--reference-only" in arguments and request_identity(arguments)==("cpu-reference",-1),"optional cases use explicit CPU host control")
+        # The executable owns full shape/range admission; reject ambiguous or
+        # collector-owned CLI controls before constructing any process command.
+        flags={"--reference-only","--wide","--gram"};values={"--size","--m","--n","--k","--bits","--seed","--pattern","--repeats","--warmups","--sustained-ms","--memory-mib","--baseline-max-products","--gram-reuse","--gram-export"}
+        seen=set();index=0
+        while index<len(arguments):
+            key=arguments[index];demand(key in flags|values and key not in seen,"unknown or duplicate optional case option");seen.add(key);index+=1
+            if key in values:
+                demand(index<len(arguments) and not arguments[index].startswith("--"),"missing optional case value");index+=1
+        requested_gram_batch(arguments)
+        demand("--sustained-ms" in seen,"optional cases require explicit sustained scope")
+        if name==case_id:selected=case
+    demand(selected is not None,"optional case id not found")
+    demand(executable.stem=="rns8-workload-"+selected["program"],"case program differs from selected executable")
+    return selected["arguments"],dict(schema=manifest["schema"],case=selected,sha256=hashlib.sha256(raw).hexdigest())
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -526,13 +641,20 @@ def main() -> int:
     parser.add_argument("--instruction")
     parser.add_argument("--clocks-policy")
     parser.add_argument("--power-policy")
+    parser.add_argument("--case-file",type=Path,help="frozen optional exact-reference workload case manifest")
+    parser.add_argument("--case",help="explicit case id from --case-file; replaces trailing workload arguments")
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
         arguments = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
+        demand(bool(args.case_file)==bool(args.case),"--case-file and --case must be supplied together")
+        case_identity=None
+        if args.case_file:
+            demand(not arguments,"case manifest conflicts with trailing workload arguments")
+            arguments,case_identity=load_optional_case(args.case_file,args.case,args.exe)
         if not args.isa_file:
             demand(not any((args.variant, args.instruction, args.clocks_policy, args.power_policy)), "adapter controls require --isa-file")
-        result = collect(args.exe, arguments, args.runs, args.timeout)
+        result = collect(args.exe, arguments, args.runs, args.timeout,case_file=args.case_file,case_identity=case_identity)
         if args.isa_file:
             try:
                 result["calibration"] = calibration_adapter(result, args.isa_file, args.variant or "", args.instruction or "",

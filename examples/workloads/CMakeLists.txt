@@ -9,6 +9,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   find_package(nlohmann_json CONFIG REQUIRED)
 endif()
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/optional_references.cmake")
+
 option(RNS8_WORKLOAD_USE_SHARED "Link workloads against the exported shared RNS8 target" OFF)
 option(RNS8_WORKLOAD_GPU_TESTS "Run explicit direct-HIP workload smoke cases" ${RNS8_ENABLE_HIP})
 if(RNS8_WORKLOAD_USE_SHARED)
@@ -31,7 +33,7 @@ set(RNS8_WORKLOAD_TARGETS
 # Bind example code/data separately: the library manifest does not hash examples/.
 file(GLOB _workload_inputs CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/recipes.json" "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt")
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.json" "${CMAKE_CURRENT_SOURCE_DIR}/*.cmake" "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_workload_inputs})
 set(_workload_identity "{}")
 foreach(_input IN LISTS _workload_inputs)
@@ -40,6 +42,7 @@ foreach(_input IN LISTS _workload_inputs)
   string(JSON _workload_identity SET "${_workload_identity}" "${_name}" "\"${_hash}\"")
 endforeach()
 set(_identity_header "#pragma once\ninline constexpr char rns8_workload_source_identity_json[] = R\"rns8(${_workload_identity})rns8\";\n#define RNS8_WORKLOAD_SOURCE_IDENTITY_JSON rns8_workload_source_identity_json\n")
+string(APPEND _identity_header "inline constexpr char rns8_workload_reference_identity_json[] = R\"rns8(${_workload_reference_identity})rns8\";\n#define RNS8_WORKLOAD_REFERENCE_IDENTITY_JSON rns8_workload_reference_identity_json\n")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rns8_library_manifest.json")
   file(READ "${CMAKE_CURRENT_SOURCE_DIR}/rns8_library_manifest.json" _library_manifest)
   string(APPEND _identity_header "inline constexpr char rns8_workload_library_manifest_json[] = R\"rns8(${_library_manifest})rns8\";\n#define RNS8_WORKLOAD_LIBRARY_MANIFEST_JSON rns8_workload_library_manifest_json\n")
@@ -53,6 +56,9 @@ foreach(_name IN LISTS RNS8_WORKLOAD_TARGETS)
   target_include_directories("rns8-workload-${_name}" PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
   target_include_directories("rns8-workload-${_name}" SYSTEM PRIVATE "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
   target_compile_features("rns8-workload-${_name}" PRIVATE cxx_std_17)
+  if(_name STREQUAL "integer-cross-product" OR _name STREQUAL "resident-chain")
+    rns8_bind_workload_optional_references("rns8-workload-${_name}")
+  endif()
   if(COMMAND rns8_bind_manifest)
     rns8_bind_manifest("rns8-workload-${_name}")
   endif()
@@ -79,6 +85,14 @@ foreach(_name IN LISTS RNS8_WORKLOAD_TARGETS)
 endforeach()
 
 if(BUILD_TESTING)
+  if(RNS8_WORKLOAD_ENABLE_GMP OR RNS8_WORKLOAD_ENABLE_FLINT)
+    add_test(NAME workload_optional_exact_wide_cpu COMMAND rns8-workload-integer-cross-product
+      --reference-only --size tiny --m 3 --n 5 --k 17 --wide --bits 63 --repeats 2 --warmups 1 --sustained-ms 1 --json)
+    set_tests_properties(workload_optional_exact_wide_cpu PROPERTIES LABELS "examples;workloads;cpu;optional-exact" TIMEOUT 120)
+    add_test(NAME workload_optional_exact_chain_cpu COMMAND rns8-workload-resident-chain
+      --reference-only --size tiny --m 3 --n 5 --k 17 --bits 20 --repeats 2 --warmups 1 --sustained-ms 1 --json)
+    set_tests_properties(workload_optional_exact_chain_cpu PROPERTIES LABELS "examples;workloads;cpu;optional-exact" TIMEOUT 120)
+  endif()
   foreach(_gram_export IN ITEMS each once)
     add_test(NAME workload_gram_reuse_${_gram_export}_cpu COMMAND rns8-workload-integer-cross-product
       --reference-only --size tiny --gram --gram-reuse 3 --gram-export ${_gram_export}
@@ -104,6 +118,8 @@ if(BUILD_TESTING)
   add_executable(rns8-workload-self-test workload_self_test.cpp)
   target_link_libraries(rns8-workload-self-test PRIVATE ${_workload_library} nlohmann_json::nlohmann_json)
   target_include_directories(rns8-workload-self-test SYSTEM PRIVATE "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
+  target_include_directories(rns8-workload-self-test PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+  rns8_bind_workload_optional_references(rns8-workload-self-test)
   target_compile_features(rns8-workload-self-test PRIVATE cxx_std_17)
   if(COMMAND rns8_copy_windows_clang_asan_runtime)
     rns8_copy_windows_clang_asan_runtime(rns8-workload-self-test)
@@ -114,7 +130,7 @@ endif()
 
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/" DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/workloads"
-    COMPONENT Development FILES_MATCHING PATTERN "*.hpp" PATTERN "*.cpp" PATTERN "*.json" PATTERN "CMakeLists.txt" PATTERN "README.md")
+    COMPONENT Development FILES_MATCHING PATTERN "*.hpp" PATTERN "*.cpp" PATTERN "*.json" PATTERN "*.cmake" PATTERN "CMakeLists.txt" PATTERN "README.md")
   string(REGEX REPLACE "\\.hpp$" ".json" _library_manifest_json "${RNS8_MANIFEST_HEADER}")
   install(FILES "${_library_manifest_json}" DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/workloads"
     RENAME rns8_library_manifest.json COMPONENT Development)

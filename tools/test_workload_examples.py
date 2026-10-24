@@ -236,6 +236,172 @@ class GramBatchReports(unittest.TestCase):
             self.assertEqual(record["status"],"failed");self.assertIn("requested Gram batch",record["errors"][0]["reason"])
 
 
+def optional_fixture(gmp=True,flint=True,chain=False):
+    report=fixture("resident_integer_chain" if chain else "integer_cross_product")
+    expected=[67,-34,22,-24] if chain else [20,-27,4,-14]
+    changed=[61,-17,22,-24] if chain else [21,-19,4,-14]
+    limbs=3 if chain else 1
+    before=collector.checksum_bytes(collector.canonical_words(expected,limbs))
+    after=collector.checksum_bytes(collector.canonical_words(changed,limbs))
+    report.update(optional_reference_cohort=1,output_limbs_per_cell=limbs,
+        output_contract="row_major_signed_three_u64_limbs_per_cell" if chain else "row_major_signed_i64",
+        checksum_u64=before,checksum_hex=f"{before:016x}",changed_checksum_u64=after,
+        declared_memory_budget_bytes=1<<26,aggregate_memory_envelope_bytes=1<<20)
+    report["workload_source_identity"].update({"workload_optional_references.hpp":"b"*64,"optional_references.cmake":"c"*64})
+    base=report["variants"][0]
+    for sample in [base["cold_call"],*base["samples"]]:sample["checksum_u64"]=before
+    base["changed_input"]["checksum_u64"]=after
+    identities={"version":1}
+    def artifacts(library):
+        headers=["gmp.h"] if library=="gmp" else ["flint/flint.h","flint/fmpz.h","flint/fmpz_mat.h"]
+        return dict(headers_sha256={header:"d"*64 for header in headers},link_input_sha256="e"*64,extra_link_inputs_sha256=[],
+            runtime_binary_sha256=None,runtime_binary_verified=False)
+    for library,enabled in (("gmp",gmp),("flint",flint)):
+        name=("gmp_mpz_blocked" if library=="gmp" else "flint_fmpz_mat_mul")+("_chain" if chain else "")
+        if not enabled:
+            reason=library.upper()+" workload adapter not enabled in this executable"
+            identities[library]=dict(enabled=False,status="unavailable",reason=reason)
+            report["variants"].append(dict(name=name,status="unavailable",reason=reason));continue
+        version="6.3.1" if library=="gmp" else "3.6.0"
+        item=dict(enabled=True,status="available",header_version=version,runtime_version=version,artifacts=artifacts(library))
+        if library=="flint":item.update(gmp_header_version="6.3.1",gmp_runtime_version="6.3.1",gmp_artifacts=artifacts("gmp"))
+        identities[library]=item
+        row=copy.deepcopy(base);row["name"]=name
+        contract=collector.optional_reference_contract(library,chain,limbs)
+        cells=2*3+3*2+2*2+(2*2+2*2 if chain else 0)
+        contract.update(identity=item,modeled_memory_allowance_bytes=1024*cells+2*2*3*8+4096)
+        row["metadata"]={"optional_exact_reference":contract}
+        for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+            sample["phases_ns"]={"optional_input_conversion_ns":10,"optional_exact_gemm_ns":70,"optional_output_serialization_ns":10}
+        report["variants"].append(row)
+    report["optional_references"]=identities
+    return report
+
+
+class OptionalReferences(unittest.TestCase):
+    def test_gram_batch_optional_conversion_counts_and_sustained_scope(self):
+        for products in (1,3):
+            for policy in ("each","once"):
+                report=gram_batch_fixture(products,policy);optional=optional_fixture()
+                report.update(optional_reference_cohort=1,optional_references=optional["optional_references"],output_limbs_per_cell=1,
+                    output_contract="row_major_signed_i64",declared_memory_budget_bytes=1<<26,aggregate_memory_envelope_bytes=1<<20)
+                report["workload_source_identity"]=optional["workload_source_identity"]
+                for row in optional["variants"][1:]:
+                    contract=row["metadata"]["optional_exact_reference"];contract["real_gemm_products_per_call"]=products
+                    row["metadata"]["gram_batch"]=copy.deepcopy(report["variants"][0]["metadata"]["gram_batch"])
+                    row.update(median_gram_product_ns=100/products,gram_products_per_second=1e9*products/100,
+                        call_rate_unit="complete_R_product_application_batches_per_second")
+                    for sample in [row["cold_call"],*row["samples"]]:sample["checksum_u64"]=report["checksum_u64"]
+                    row["changed_input"]["checksum_u64"]=report["changed_checksum_u64"]
+                    for sample in [row["cold_call"],*row["samples"],row["changed_input"]]:
+                        sample.update(gram_products=products,rns_exports=0,verified_outputs_after_interval=1)
+                    report["variants"].append(row)
+                collector.validate_report(report,"run1","cpu-reference",-1)
+                bad=copy.deepcopy(report);bad["variants"][-1]["metadata"]["optional_exact_reference"]["real_gemm_products_per_call"]=products+1
+                with self.assertRaises(ValueError):collector.validate_report(bad,"run1","cpu-reference",-1)
+        report=optional_fixture();report["sustained_ms"]=1
+        report["sustained_order"]=[row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"]=dict(calls=16,elapsed_ns=2000000,mean_call_ns=125000,target_ms=1,call_limit=4096,
+                target_reached=True,checksum_u64=report["checksum_u64"],final_exact_reference_passed=True,verification_ns=2,
+                phase_timing_enabled=False,scope="fixture final output only")
+        collector.validate_report(report,"run1","cpu-reference",-1)
+        report["variants"][-1]["sustained"]["final_exact_reference_passed"]=False
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+
+    def test_enabled_disabled_and_chain_cohorts_replay_complete_outputs(self):
+        for chain in (False,True):
+            for gmp in (False,True):
+                for flint in (False,True):
+                    report=optional_fixture(gmp,flint,chain)
+                    identity=collector.validate_report(report,"run1","cpu-reference",-1)
+                    self.assertEqual(identity["optional_references"]["gmp"]["enabled"],gmp)
+                    self.assertEqual(identity["optional_references"]["flint"]["enabled"],flint)
+                    for key in ("checksum_u64","changed_checksum_u64"):
+                        bad=copy.deepcopy(report);bad[key]^=1
+                        if key=="checksum_u64":bad["checksum_hex"]=f"{bad[key]:016x}"
+                        with self.assertRaises(ValueError):collector.validate_report(bad,"run1","cpu-reference",-1)
+
+    def test_boundary_artifact_thread_and_unavailable_fixtures(self):
+        mutations=[lambda r:r.update(optional_reference_cohort=True),
+            lambda r:r.pop("optional_reference_cohort"),lambda r:r["variants"].pop(),
+            lambda r:r["workload_source_identity"].pop("optional_references.cmake"),
+            lambda r:r["optional_references"]["gmp"].update(runtime_version="6.2.1"),
+            lambda r:r["optional_references"]["gmp"]["artifacts"].update(link_input_sha256="bad"),
+            lambda r:r["optional_references"]["gmp"]["artifacts"].update(runtime_binary_verified=True),
+            lambda r:r["optional_references"]["flint"].update(gmp_runtime_version="6.2.1"),
+            lambda r:r["variants"][1]["metadata"]["optional_exact_reference"].update(input_conversion_per_call=False),
+            lambda r:r["variants"][1]["metadata"]["optional_exact_reference"].update(retained_result_reuse=True),
+            lambda r:r["variants"][1]["metadata"]["optional_exact_reference"].update(threads=8),
+            lambda r:r["variants"][1]["metadata"]["optional_exact_reference"].update(modeled_memory_allowance_bytes=0),
+            lambda r:r["variants"][2]["metadata"]["optional_exact_reference"].update(arithmetic="fake_native128"),
+            lambda r:r["variants"][2]["samples"][0]["phases_ns"].pop("optional_input_conversion_ns"),
+            lambda r:r.update(aggregate_memory_envelope_bytes=1),lambda r:r.update(declared_memory_budget_bytes=1)]
+        for mutate in mutations:
+            report=optional_fixture();mutate(report)
+            with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+        report=optional_fixture(False,False);report["variants"][1].update(status="not_run")
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+
+    def test_optional_identity_change_is_retained_across_independent_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable=Path(directory)/"fake.exe";executable.write_bytes(b"fixture executable")
+            calls=0
+            def process(command,**kwargs):
+                nonlocal calls
+                report=optional_fixture();report["run_id"]=command[-1]
+                if calls:
+                    report["optional_references"]["gmp"]["artifacts"]["link_input_sha256"]="f"*64
+                    report["optional_references"]["flint"]["gmp_artifacts"]["link_input_sha256"]="f"*64
+                calls+=1
+                return subprocess.CompletedProcess(command,0,json.dumps(report),"")
+            with patch.object(collector.subprocess,"run",side_effect=process):
+                result=collector.collect(executable,["--reference-only","--size","tiny"],2,10)
+            self.assertEqual(result["status"],"failed");self.assertEqual(len(result["runs"]),2)
+            self.assertIn("comparison identity changed",result["errors"][0]["reason"])
+            self.assertTrue(result["runs"][1]["stdout"])
+
+    def test_frozen_optional_cases_and_malformed_manifests(self):
+        path=ROOT/"examples/workloads/optional-reference-cases.json"
+        value=json.loads(path.read_text(encoding="utf-8"));self.assertEqual(len(value["cases"]),18)
+        for case in value["cases"]:
+            arguments,identity=collector.load_optional_case(path,case["id"],Path("rns8-workload-"+case["program"]+".exe"))
+            self.assertEqual(arguments,case["arguments"]);self.assertEqual(identity["case"],case)
+            if case["id"] in {"cross-512","gram-512"}:
+                self.assertEqual(arguments[arguments.index("--memory-mib")+1],"4096")
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/"cases.json"
+            one={"schema":value["schema"],"cases":[copy.deepcopy(value["cases"][0])]}
+            mutations=[lambda v:v.update(schema="unknown"),lambda v:v.update(cases=[]),
+                lambda v:v["cases"].append(copy.deepcopy(v["cases"][0])),
+                lambda v:v["cases"][0].update(program={}),lambda v:v["cases"][0].update(id="../escape"),
+                lambda v:v["cases"][0]["arguments"].extend(["--json"]),
+                lambda v:v["cases"][0]["arguments"].extend(["--run-id","owned"]),
+                lambda v:v["cases"][0]["arguments"].extend(["--repeats","3"]),
+                lambda v:v["cases"][0]["arguments"].extend(["--unknown","1"]),
+                lambda v:v["cases"][0]["arguments"].pop()]
+            for mutate in mutations:
+                malformed=copy.deepcopy(one);mutate(malformed);target.write_text(json.dumps(malformed))
+                with self.assertRaises(ValueError):collector.load_optional_case(target,one["cases"][0]["id"],Path("rns8-workload-integer-cross-product.exe"))
+            target.write_text('{"schema":"bad","schema":"rns8_optional_reference_cases_v1","cases":[]}')
+            with self.assertRaisesRegex(ValueError,"duplicate"):collector.load_optional_case(target,"missing",Path("fake.exe"))
+            with self.assertRaises(ValueError):collector.load_optional_case(path,"missing",Path("fake.exe"))
+            with self.assertRaises(ValueError):collector.load_optional_case(path,"cross-tiny",Path("rns8-workload-resident-chain.exe"))
+
+    def test_case_manifest_mutation_retains_raw_failure_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);executable=root/"rns8-workload-integer-cross-product.exe";executable.write_bytes(b"fixture")
+            cases=root/"cases.json";cases.write_bytes((ROOT/"examples/workloads/optional-reference-cases.json").read_bytes())
+            arguments,identity=collector.load_optional_case(cases,"cross-tiny",executable)
+            def process(command,**kwargs):
+                report=optional_fixture();report["run_id"]=command[-1];cases.write_text("changed")
+                return subprocess.CompletedProcess(command,0,json.dumps(report),"")
+            with patch.object(collector.subprocess,"run",side_effect=process):
+                result=collector.collect(executable,arguments,1,10,case_file=cases,case_identity=identity)
+            self.assertEqual(result["status"],"failed");self.assertTrue(result["runs"][0]["stdout"])
+            self.assertIn("case manifest changed",result["errors"][0]["reason"])
+
+
 class Reports(unittest.TestCase):
     def test_sustained_final_verification_and_bounded_duration(self):
         report = fixture()

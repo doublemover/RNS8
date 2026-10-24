@@ -1,6 +1,7 @@
 #include "workload_baselines.hpp"
 #include "workload_engine.hpp"
 #include "workload_report.hpp"
+#include "workload_optional_references.hpp"
 
 using namespace rns8_workload;
 namespace {
@@ -116,6 +117,9 @@ int main(int argc, char** argv) {
     Json skipped = Json::array();
     // A zero T cannot waive safety of the still-executed AB stage.
     add_integer_baselines(variants, skipped, data, options, std::max(first_bound, final_bound), 3, true);
+    report["optional_reference_cohort"]=1;
+    report["optional_references"]=optional_reference_identity();
+    add_optional_integer_baselines(variants,skipped,data,options,3,true);
     variants.push_back(chain_variant(data, options, false));
     variants.push_back(chain_variant(data, options, true));
     run_variants(report, options, data, variants, expected, [&] {

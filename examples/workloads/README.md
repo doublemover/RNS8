@@ -159,8 +159,9 @@ Integer baselines include straightforward `cpp_int`, blocked `cpp_int`, blocked
 native64 where the entire expression fits, and genuine native128 where supported
 and sufficient. Their measured loops include conversion to the same final word
 format as RNS8. They are serial C++ comparators, not vendor-tuned BLAS or a claim
-of the fastest possible CPU implementation. No GMP/FLINT application adapter is
-implemented; each report says `not_run` for these optional references. The
+of the fastest possible CPU implementation. Optional GMP and FLINT adapters add
+real exact matrix products to cross-product, Gram and resident-chain reports;
+their contracts are described below. The
 field compares reduction after every product with a blocked u32 implementation
 reducing every256 K terms. Its partial maximum is
 `250 + 256*250² = 16000250 < 2^32`. GF(251) is neither GF(2^8) nor the mod256 ring.
@@ -188,7 +189,7 @@ those matrices/workspaces. Both resident and roundtrip candidates are charged,
 including the latter's extra imported matrix. The aggregate reservation must
 fit `--memory-mib` (default256, range1..4096), and is emitted in the report.
 For a large chain, explicitly raise the budget, for example `--size large
---memory-mib 1024`. Device envelopes also check total device memory. These are
+--memory-mib 2048` when both optional exact adapters are enabled. Device envelopes also check total device memory. These are
 estimated admission envelopes, not free-memory measurements; allocation
 failures remain real errors. There
 is no machine-independent time bound. The collector timeout bounds each process
@@ -208,6 +209,99 @@ which is not a minimum-scratch query or an allocator-independent peak bound.
 All these reservations contribute to the reported aggregate budget. Large
 complex inputs need an explicit larger budget, for example `--size large
 --memory-mib 1024`. Free device memory remains runtime checked.
+
+## Optional GMP and FLINT comparisons
+
+Build with the existing `RNS8_ENABLE_GMP=ON` and `RNS8_ENABLE_FLINT=ON` dependency
+options to enable the corresponding workload adapters by default. The narrower
+`RNS8_WORKLOAD_ENABLE_GMP` and `RNS8_WORKLOAD_ENABLE_FLINT` options can disable
+either adapter without changing library semantics. Missing explicitly selected
+headers or libraries fail configure; a disabled adapter remains an `unavailable`
+row with a reason. Neither optional library is required for RNS8 correctness.
+GF251, complex and exactness programs do not claim these integer adapters.
+
+`gmp_mpz_blocked` uses actual GMP integers and a serial 32-by-32 blocked
+`mpz_addmul` loop. `flint_fmpz_mat_mul` calls FLINT's exact matrix multiplication
+dispatcher with one FLINT worker. Both retain their matrix allocations, convert
+the same signed64 native A/B inputs on every call, recompute the full product,
+and serialize every result to the same checked signed one/three-limb output as
+RNS8. Windows `unsigned long` width is never used to truncate64-bit input:
+conversion uses `mpz_import`, including signed extrema. Negative output uses
+checked two's-complement serialization; arbitrary-width results are not relabeled
+native128. Chain variants retain AB in the optional library's integer matrices,
+compute `(AB)T`, and serialize only the full final output. Gram batches recompute
+R products and serialize R native outputs, as do the other CPU comparators.
+
+Input conversion, exact GEMM and output serialization have separate diagnostic
+phase times. They all remain inside the full application interval. Allocation
+setup, first call and eventual teardown contribute to the existing cold lifecycle
+total. Stable input calls, actual changed-input conversion and sustained intervals
+use the same harness; every complete output is compared with the independent
+Boost reference outside timing. Sustained loops contain no oracle or checksum.
+These adapters always charge native conversion per product; a separate retained
+GMP/FLINT input-conversion cohort is not implemented or inferred from these rows.
+
+Reports record header/runtime versions, configured header hashes, link-input
+hashes and optional explicit static-link dependency hashes. Header/runtime
+version mismatch fails the run. Configured link files may be import libraries;
+their hashes do not attest the binary actually loaded by the OS. Therefore
+`runtime_binary_sha256` stays null and `runtime_binary_verified` stays false.
+The collector additionally binds executable, adapter source/configuration and
+independent-process identities, replays all integer outputs in Python, and
+rejects changed library identities, missing conversion phases or false available
+rows. Raw reports remain ineligible for promotion.
+
+Each enabled adapter reserves its own modeled memory allowance before allocating:
+`1024*(MK+KN+MN) + 24*MN + 4096` bytes for a product, or
+`1024*(MK+KN+NN+2*MN) + 24*MN + 4096` for a chain. These charges are added to the
+common host/reference allowance and every retained RNS8 candidate in the shared
+budget. Allowed native inputs and admitted chain bounds keep exact arithmetic
+within192 output bits; each value is checked again before serialization. GMP
+buffers begin with256-bit capacity. FLINT may choose internal multiplication
+temporaries and grow integer capacities, so its library-private peak is unknown;
+the allowance is a reproducible admission model, not a measured or allocator-
+independent peak guarantee. No observed memory traffic or speedup is claimed.
+
+Installed workload sources ship the optional helper and consume the same explicit
+components. For example, after configuring the normal RNS8 installed consumer:
+
+```powershell
+cmake -S PATH_TO_INSTALLED_WORKLOADS -B build/optional-workloads -G Ninja `
+  -DCMAKE_PREFIX_PATH=PATH_TO_RNS8_INSTALL `
+  -DRNS8_WORKLOAD_ENABLE_GMP=ON -DRNS8_WORKLOAD_ENABLE_FLINT=ON `
+  -DRNS8_GMP_INCLUDE_DIR=PATH_TO_SELECTED_INCLUDE -DRNS8_GMP_LIBRARY=PATH_TO_SELECTED_GMP_LIBRARY `
+  -DRNS8_FLINT_INCLUDE_DIR=PATH_TO_SELECTED_INCLUDE -DRNS8_FLINT_LIBRARY=PATH_TO_SELECTED_FLINT_LIBRARY
+```
+
+This consumes selected files and performs no package installation or alternative
+SDK search. Keep optional shared runtime libraries available through the selected
+toolchain/runtime deployment. Existing imported-target transitive dependencies
+are preserved. Static FLINT installations that need extra link inputs such as
+MPFR can pass their exact files in `RNS8_WORKLOAD_FLINT_EXTRA_LIBRARIES`, a quoted
+semicolon-separated CMake list; these files are hashed and linked before GMP.
+The installed-consumer fixture forwards the parent's explicit components and
+optional-adapter enablement, with vcpkg installation disabled.
+
+`optional-reference-cases.json` freezes18 CPU application cohorts: tiny, zero,
+sparse, tail, wide40/full64, Gram/reuse and two-stage chain cases, including bounded
+larger shapes. The explicit512-cubed cross/Gram cohorts request4096MiB because
+all retained references, both optional adapters and RNS8 states are charged
+together;2048MiB is insufficient for that modeled aggregate. It does not require
+a GPU. Select the executable and case explicitly:
+
+```powershell
+python tools/collect_workload_examples.py `
+  --exe build/issues-all/rns8-workload-integer-cross-product.exe `
+  --case-file examples/workloads/optional-reference-cases.json --case cross-full64-wide `
+  --runs 5 --timeout 600 --output temp/optional-cross-full64.json
+```
+
+Use `rns8-workload-resident-chain` for `chain-*` cases. The collector checks the
+program name, retains the case-file digest, and detects manifest changes around
+every process. Large cases use sustained250ms intervals with explicit memory
+budgets; each process remains an independent observation. New adapter fixtures,
+smoke registrations and installed-consumer coverage are authored only, awaiting
+the consolidated validation campaign.
 
 ## Measurement and independent collection
 

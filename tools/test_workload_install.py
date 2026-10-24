@@ -64,8 +64,13 @@ def main() -> int:
                 "CMAKE_CXX_FLAGS_DEBUG", "CMAKE_CXX_FLAGS_RELEASE", "CMAKE_CXX_FLAGS_RELWITHDEBINFO", "CMAKE_CXX_FLAGS_MINSIZEREL",
                 "CMAKE_MSVC_RUNTIME_LIBRARY", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET", "VCPKG_HOST_TRIPLET",
                 "VCPKG_INSTALLED_DIR",
+                "RNS8_GMP_INCLUDE_DIR", "RNS8_GMP_LIBRARY", "RNS8_FLINT_INCLUDE_DIR", "RNS8_FLINT_LIBRARY",
+                "RNS8_WORKLOAD_FLINT_EXTRA_LIBRARIES",
                 "RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR", "nlohmann_json_DIR"):
         if values.get(key): command.append("-D" + key + "=" + values[key])
+    for library in ("GMP","FLINT"):
+        enabled=values.get("RNS8_WORKLOAD_ENABLE_"+library,values.get("RNS8_ENABLE_"+library,"OFF"))
+        command.append("-DRNS8_WORKLOAD_ENABLE_"+library+"="+enabled)
     run(command)
     run([cmake, "--build", str(consumer), "--parallel", "2", *config], timeout=300)
     for name in PROGRAMS:

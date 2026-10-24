@@ -2,6 +2,7 @@
 #include "workload_engine.hpp"
 #include "workload_report.hpp"
 #include "workload_complex.hpp"
+#include "workload_optional_references.hpp"
 #include <cstdlib>
 using namespace rns8_workload;
 int main() {
@@ -18,6 +19,23 @@ int main() {
     bool exceeded = false;
     try { budget.reserve(11, 100, "third retained state"); } catch (const std::invalid_argument&) { exceeded = true; }
     require(exceeded && budget.reserved == 90, "aggregate memory reservation was not checked transactionally");
+    {
+      Options malformed;malformed.m=UINT32_MAX;const auto reserved=malformed.memory->reserved;
+      bool rejected=false;try {optional_reference_memory(malformed,true);} catch(const std::invalid_argument&) {rejected=true;}
+      require(rejected && malformed.memory->reserved==reserved,"optional memory arithmetic accepted an invalid shape");
+    }
+#if defined(RNS8_WORKLOAD_HAVE_GMP) || defined(RNS8_WORKLOAD_HAVE_FLINT)
+    {
+      bool rejected=false;try {OptionalWordEncoder invalid(0);} catch(const std::invalid_argument&) {rejected=true;}
+      require(rejected,"optional zero-width encoder was accepted");
+      OptionalWordEncoder encoder(3);WorkloadMpz one;mpz_set_ui(one.value,1);Words short_output{77};
+      rejected=false;try {encoder.store(one.value,short_output,0);} catch(const std::invalid_argument&) {rejected=true;}
+      require(rejected && short_output==Words{77},"optional encoder wrote past a malformed capacity");
+      Words words(3,77);rejected=false;
+      try {encoder.store(one.value,words,1);} catch(const std::invalid_argument&) {rejected=true;}
+      require(rejected && words==Words(3,77),"optional encoder accepted an out-of-range cell");
+    }
+#endif
     uint64_t state = 0;
     require(next_word(state) == UINT64_C(0xe220a8397b1dcdaf), "splitmix64 version changed");
     const Words encoded = integer_words({cpp_int(-1), cpp_int(0), (cpp_int(1) << 129)}, 3);
@@ -33,6 +51,15 @@ int main() {
       std::vector<cpp_int> wide(expected.size());
       blocked_product(data.a, data.b, options.m, options.n, options.k, wide);
       require(wide == expected, "blocked cpp_int baseline differs");
+      std::vector<Variant> optional; Json omitted=Json::array();
+      add_optional_integer_baselines(optional,omitted,data,options,3);
+      for(auto& variant:optional) {
+        Phases phases; variant.execute(phases,1);
+        require(variant.output()==integer_words(expected,3),"optional exact matrix comparator differs from Boost");
+        mutate_input(data); variant.execute(phases,2);
+        require(variant.output()==integer_words(exact_product(data,options),3),"optional changed native inputs were not converted");
+        data=make_data(options);
+      }
 #if defined(__SIZEOF_INT128__)
       std::vector<Native128> native128(expected.size());
       blocked_product(data.a, data.b, options.m, options.n, options.k, native128);
@@ -113,6 +140,24 @@ int main() {
     Dataset full; full.a = {INT64_MIN, INT64_MAX}; full.b = {1, 1};
     Options edge; edge.m = edge.n = 1; edge.k = 2;
     require(exact_product(full, edge)[0] == -1, "full-width reference failed");
+    {
+      Options wide; wide.m=wide.n=wide.k=2;
+      Dataset input; input.a={INT64_MIN,INT64_MAX,INT64_MAX,INT64_MIN};
+      input.b={INT64_MIN,INT64_MAX,INT64_MAX,INT64_MIN};
+      std::vector<Variant> optional; Json omitted=Json::array();
+      add_optional_integer_baselines(optional,omitted,input,wide,3);
+      const auto exact=integer_words(exact_product(input,wide),3);
+      for(auto& variant:optional) {Phases phases;variant.execute(phases,1);require(variant.output()==exact,"optional full64 product lost information");}
+    }
+    {
+      Options chain; chain.m=1;chain.n=8;chain.k=1;
+      Dataset input;input.a={INT64_C(1)<<31};input.b.assign(8,INT64_C(1)<<31);input.t.assign(64,INT64_MAX);
+      const auto exact=integer_words(exact_product(input,chain,true),3);
+      require(decode(exact,0,3)>(cpp_int(1)<<127),"optional chain witness does not exceed native128");
+      std::vector<Variant> optional;Json omitted=Json::array();
+      add_optional_integer_baselines(optional,omitted,input,chain,3,true);
+      for(auto& variant:optional) {Phases phases;variant.execute(phases,1);require(variant.output()==exact,"optional complete chain differs from Boost");}
+    }
     bool rejected = false;
     try { integer_words({cpp_int(1) << 70}, 1); } catch (const std::invalid_argument&) { rejected = true; }
     require(rejected, "narrow serialization silently truncated");

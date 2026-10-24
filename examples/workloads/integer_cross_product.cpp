@@ -1,6 +1,7 @@
 #include "workload_baselines.hpp"
 #include "workload_engine.hpp"
 #include "workload_report.hpp"
+#include "workload_optional_references.hpp"
 
 using namespace rns8_workload;
 int main(int argc, char** argv) {
@@ -40,6 +41,10 @@ int main(int argc, char** argv) {
     std::vector<Variant> variants;
     Json skipped = Json::array();
     add_integer_baselines(variants, skipped, data, options, bound, limbs);
+    report["optional_reference_cohort"]=1;
+    report["optional_references"]=optional_reference_identity();
+    add_optional_integer_baselines(variants,skipped,data,options,limbs);
+    report["estimated_host_comparator_envelope_bytes"]=options.memory->reserved;
     if(options.gram_reuse) {
       report["gram_batch"]=gram_batch_contract(options);
       report["gram_prepared_owner_cohort"]=1;
