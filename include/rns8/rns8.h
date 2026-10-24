@@ -2201,7 +2201,8 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
  * callbacks run on the calling host thread, never a HIP runtime callback. */
 typedef struct rns8_native_device_lease rns8_native_device_lease;
 typedef enum rns8_native_device_type {
-  RNS8_NATIVE_DEVICE_I64=1, RNS8_NATIVE_DEVICE_U64=2
+  RNS8_NATIVE_DEVICE_I64=1, RNS8_NATIVE_DEVICE_U64=2,
+  RNS8_NATIVE_DEVICE_SIGNED_LIMBS=3, RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS=4
 } rns8_native_device_type;
 typedef enum rns8_native_device_access {
   RNS8_NATIVE_DEVICE_READ=1, RNS8_NATIVE_DEVICE_WRITE=2
@@ -2228,6 +2229,11 @@ typedef struct rns8_native_device_desc {
   rns8_native_owner_acquire acquire;
   rns8_native_owner_release release;
   uint64_t snapshot_budget_bytes; /* zero for BORROW; compact bytes for COPY_OWNED */
+  /* Scalar types require zero. Limb types are export-only, 1..32 uint64 words
+   * per element, least-significant word first, native byte order within words.
+   * Signed values use two's complement at exactly 64*limb_count bits.
+   * rows/cols/ld count whole integers, not words. Limb leases require BORROW/WRITE. */
+  uint32_t limb_count;
 } rns8_native_device_desc;
 typedef struct rns8_native_device_resources {
   uint32_t struct_size,abi_version;

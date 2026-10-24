@@ -40,3 +40,32 @@ TEST_CASE("copy-owned native leases require a read snapshot budget before owner 
   REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_INVALID_ARGUMENT);
   REQUIRE(owner.acquired==0);REQUIRE(owner.released==0);
 }
+
+TEST_CASE("native limb descriptors bind integer widths and reject unsupported ownership") {
+  using namespace native_device_fixture;
+  alignas(8) uint64_t words[2048]{}; Owner owner;
+  for (auto type : {RNS8_NATIVE_DEVICE_SIGNED_LIMBS, RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS})
+    for (uint32_t width : {1u, 2u, 3u, 32u}) {
+      auto d=descriptor(words,sizeof(words),owner);
+      d.element_type=type; d.limb_count=width; d.access=RNS8_NATIVE_DEVICE_WRITE;
+      rns8_native_device_resources r{}; r.struct_size=sizeof(r); r.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_query_native_device(&d,&r)==RNS8_SUCCESS);
+      CHECK(r.view_span_bytes==19*8*width);
+      CHECK(r.export_scratch_bytes==15*8*width+4);
+      CHECK(r.verified_import_scratch_bytes==0);
+      for (unsigned bad=0;bad<7;++bad) {
+        auto invalid=d;
+        switch(bad) {
+          case 0: invalid.limb_count=0; break;
+          case 1: invalid.limb_count=33; break;
+          case 2: invalid.access=RNS8_NATIVE_DEVICE_READ; break;
+          case 3: invalid.policy=RNS8_NATIVE_DEVICE_COPY_OWNED; break;
+          case 4: invalid.element_type=RNS8_NATIVE_DEVICE_I64; break;
+          case 5: invalid.allocation_bytes=d.byte_offset+r.view_span_bytes-1; break;
+          case 6: invalid.ld=INT64_MAX; break;
+        }
+        CHECK(rns8_query_native_device(&invalid,&r)!=RNS8_SUCCESS);
+      }
+    }
+  CHECK(owner.acquired==0); CHECK(owner.released==0);
+}

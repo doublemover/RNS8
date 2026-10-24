@@ -12,7 +12,8 @@ allocation base/capacity, byte offset, rows/columns/leading dimension, device,
 owner identity, nonzero binding generation, explicit BORROW or COPY_OWNED policy, producer
 completion and acquire/release callbacks. Signedness does not select arithmetic
 semantics: import/export independently admit bounded or exact-wide matching
-matrix semantics. Finite, wrap and native limb tensors are not admitted in V1.
+matrix semantics. Finite and wrap semantics are not admitted. Explicit exact-wide limb output is
+supported as described below.
 A matrix created with `RNS8_MATRIX_RETAIN_NATIVE_INPUT` receives an owned compact
 device copy on import. Conversion reads that copy; native and residue currentness
 publish together after completion. Destroying the lease or recycling its source
@@ -95,7 +96,7 @@ status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
 Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
 Prepared async/graph binding, failed-drain
-mock fixtures, limb outputs, DLPack and matched performance
+mock fixtures, DLPack and matched performance
 receipts remain implementation/qualification work. No measured speedup or
 broader target support is claimed.
 
@@ -130,3 +131,30 @@ CPU descriptor tests and GPU signed/unsigned padded-view differential cases are
 authored for budget rejection, early external release, source overwrite/free,
 repeated verified import and exactly-once callback release. Execution remains
 pending the final consolidated campaign; no copy-mode speedup is claimed.
+
+## Explicit multiword device output
+
+The same lease/export API accepts `RNS8_NATIVE_DEVICE_SIGNED_LIMBS` and
+`RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS` for exact-wide matrices. Set `limb_count`
+to 1..32, access to WRITE, and policy to BORROW. Scalar I64/U64 descriptors
+require a zero limb count. Limb import and copy-owned limb leases reject.
+Each logical integer occupies that many contiguous native-byte-order uint64
+words, least-significant word first. Signed output is two's complement at
+exactly 64*limb_count bits; unsigned output is a magnitude. Rows, columns and
+leading dimension count integers. Byte offsets still count bytes and require
+eight-byte alignment. This is an explicit word tensor, not a native int128 type.
+
+The resource query checks the complete padded byte span and charges compact
+rows*cols*limb_count*8 staging plus four status bytes. Export requires the full
+materialized basis and a unique scalar magnitude proof fitting the requested
+width. The symmetric signed admission conservatively excludes the signed
+minimum when its sign is not separately proven. Too-small widths and budgets
+reject before external writes. Existing signed/unsigned CRT kernels write the
+staging allocation; four-byte status observation precedes logical-row D2D
+commit. Padding stays untouched. Ownership, failed-drain retention and external
+consumer readiness follow the scalar lease contract.
+
+Authored descriptor and GPU/Boost fixtures cover widths 1, 2, 3 and 32,
+full-width input products, signed negative results, range rejection, padding,
+owner release and exact payload/status transfer counters. Execution is deferred
+to the consolidated campaign.

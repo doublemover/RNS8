@@ -40,8 +40,10 @@ rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* ma
   if(ctx->hip_failure_poisoned || lease->quarantined) return RNS8_BACKEND_FAILURE;
   if(ctx->backend!=RNS8_BACKEND_HIP_DIRECT || matrix->backend!=ctx->backend || matrix->hip_device_id!=ctx->device_id ||
      matrix->desc.rows!=lease->desc.rows || matrix->desc.cols!=lease->desc.cols || matrix->generation_exhausted ||
-     !native_semantics(matrix->desc.semantics,lease->desc.element_type==RNS8_NATIVE_DEVICE_I64) ||
+     !native_semantics(matrix->desc.semantics,native_device_signed_type(lease->desc.element_type)) ||
      !rns_matrix_storage_matches(*matrix,ctx->backend,matrix->desc.rows,matrix->desc.cols,matrix->prefix)) return RNS8_INVALID_ARGUMENT;
+  if(native_device_limb_type(lease->desc.element_type) &&
+      (writing || !exact_wide_semantics(matrix->desc.semantics))) return RNS8_INVALID_ARGUMENT;
   if(matrix->in_flight_writer || (writing && matrix->in_flight_readers)) return RNS8_BUSY;
   if(matrix->prepared_references==UINT64_MAX || (!writing && matrix->in_flight_readers==UINT64_MAX)) return RNS8_RANGE_ERROR;
   if(!nonoverlapping_byte_ranges(lease->view,lease->snapshot?lease->resources.compact_native_bytes:lease->resources.view_span_bytes,matrix->hip_residues,matrix->hip_residue_bytes)) return RNS8_INVALID_ARGUMENT;
@@ -155,7 +157,7 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
     auto status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_READ) return RNS8_INVALID_ARGUMENT;
     const bool retain=(matrix->desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT)!=0;
-    const bool signed_values=lease->desc.element_type==RNS8_NATIVE_DEVICE_I64;
+    const bool signed_values=native_device_signed_type(lease->desc.element_type);
     boost::multiprecision::cpp_int bound=signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX);
     if(verified) {
       if(budget<lease->resources.verified_import_scratch_bytes) return RNS8_WORKSPACE_TOO_SMALL;
@@ -207,8 +209,13 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
     auto status=native_matrix_contract(ctx,matrix,lease,false);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_WRITE || !matrix->device_residues_current) return RNS8_INVALID_ARGUMENT;
     if(!materialized_rns_prefix_covers(*matrix,matrix->prefix)) return RNS8_RANGE_ERROR;
-    const bool signed_values=lease->desc.element_type==RNS8_NATIVE_DEVICE_I64;
-    const boost::multiprecision::cpp_int limit=signed_values?(boost::multiprecision::cpp_int(1)<<63):boost::multiprecision::cpp_int(UINT64_MAX);
+    const bool signed_values=native_device_signed_type(lease->desc.element_type);
+    const bool limbs=native_device_limb_type(lease->desc.element_type);
+    boost::multiprecision::cpp_int limit;
+    if(limbs) limit=(boost::multiprecision::cpp_int(1)<<
+        (64*lease->desc.limb_count-(signed_values?1:0)))-1;
+    else if(signed_values) limit=boost::multiprecision::cpp_int(1)<<63;
+    else limit=UINT64_MAX;
     if(!matrix->exact_range_prefix || matrix->exact_range_prefix!=matrix->prefix || matrix->exact_max_magnitude<0 ||
        matrix->exact_max_magnitude>limit || !exact_range_fits(signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED,
            matrix->exact_max_magnitude,modulus_product(matrix->exact_range_prefix))) return RNS8_RANGE_ERROR;
@@ -217,10 +224,10 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
       status=hip_direct_allocate(ctx->device_id,lease->resources.export_scratch_bytes,&lease->scratch);
       if(status!=RNS8_SUCCESS) return status;
     }
-    const auto bound=matrix->exact_max_magnitude.convert_to<uint64_t>();
+    const auto bound=limbs?uint64_t{0}:matrix->exact_max_magnitude.convert_to<uint64_t>();
     NativeMatrixReservation read(*lease,*const_cast<rns8_matrix*>(matrix),false,false);bool external_started=false;
     status=hip_direct_export_native_view(ctx->device_id,matrix->hip_residues,lease->view,lease->scratch,
-        matrix->desc.rows,matrix->desc.cols,lease->view_ld,matrix->prefix,bound,signed_values,external_started);
+        matrix->desc.rows,matrix->desc.cols,lease->view_ld,matrix->prefix,bound,signed_values,external_started,lease->desc.limb_count);
     if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
     read.complete();return RNS8_SUCCESS;
   });

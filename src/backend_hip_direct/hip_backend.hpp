@@ -1299,7 +1299,7 @@ rns8_status hip_direct_validate_native_allocation(int device_id,const void* base
 rns8_status hip_direct_import_native_view(int device_id,const void* source,void* residues,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,void* retained_native=nullptr);
 rns8_status hip_direct_export_native_view(int device_id,const void* residues,void* destination,void* scratch,
-    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,uint64_t bound,bool signed_values,bool& external_write_started);
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,uint64_t bound,bool signed_values,bool& external_write_started,uint32_t limb_count=0);
 
 struct InstructionRoofProblem;
 // Borrowed calibration buffers: a/b contain chains signed bytes, output contains

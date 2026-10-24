@@ -167,3 +167,67 @@ TEST_CASE("copy-owned native HIP leases survive external mutation and deallocati
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("native HIP limb exports preserve exact wide products and padded destinations") {
+  if(!hip_available()) SKIP("no HIP device for limb leases");
+  using namespace rns8::detail; using namespace native_device_fixture;
+  using boost::multiprecision::cpp_int;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool sign:{false,true}) {
+    auto gd=sign?exact_signed_desc(2,2,1,RNS8_BACKEND_HIP_DIRECT):
+                 exact_unsigned_desc(2,2,1,RNS8_BACKEND_HIP_DIRECT);
+    gd.max_prefix=20; gd.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
+    rns8_plan* plan=nullptr; rns8_workspace* workspace=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&gd,&plan)==RNS8_SUCCESS);
+    REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+    rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+    auto md=matrix_desc(2,1,gd.semantics,RNS8_BOUND_NONE); md.max_prefix=20;
+    REQUIRE(rns8_create_matrix(ctx,&md,&a)==RNS8_SUCCESS);
+    md.rows=1;md.cols=2;md.logical_ld=2; REQUIRE(rns8_create_matrix(ctx,&md,&b)==RNS8_SUCCESS);
+    md.rows=2; REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
+    const int64_t sa[]{INT64_MIN,INT64_MAX}, sb[]{INT64_MIN,-1};
+    const uint64_t ua[]{UINT64_MAX,UINT64_C(1)<<63}, ub[]{UINT64_MAX,1};
+    REQUIRE((sign?rns8_pack_i64(ctx,a,sa,1,0):rns8_pack_u64(ctx,a,ua,1,0))==RNS8_SUCCESS);
+    REQUIRE((sign?rns8_pack_i64(ctx,b,sb,2,0):rns8_pack_u64(ctx,b,ub,2,0))==RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx,plan,a,b,c,workspace)==RNS8_SUCCESS);
+    for(uint32_t width:{1u,2u,3u,32u}) {
+      std::vector<uint64_t> actual(1+6*width,77),expected=actual;
+      hip_direct_device_buffer output;
+      REQUIRE(output.allocate(0,actual.size()*8)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,output.get(),actual.data(),actual.size()*8)==RNS8_SUCCESS);
+      Owner owner; auto d=descriptor(output.get(),actual.size()*8,owner);
+      d.rows=2;d.cols=2;d.ld=3;d.access=RNS8_NATIVE_DEVICE_WRITE;d.limb_count=width;
+      d.element_type=sign?RNS8_NATIVE_DEVICE_SIGNED_LIMBS:RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS;
+      rns8_native_device_resources r{};r.struct_size=sizeof(r);r.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_query_native_device(&d,&r)==RNS8_SUCCESS);
+      rns8_native_device_lease* lease=nullptr;
+      REQUIRE(rns8_create_native_device_lease(ctx,&d,&lease)==RNS8_SUCCESS);
+      CHECK(rns8_import_native_device(ctx,c,lease)==RNS8_INVALID_ARGUMENT);
+      if(width==1) CHECK(rns8_export_native_device(ctx,c,lease,r.export_scratch_bytes)==RNS8_RANGE_ERROR);
+      else {
+        CHECK(rns8_export_native_device(ctx,c,lease,r.export_scratch_bytes-1)==RNS8_WORKSPACE_TOO_SMALL);
+        const auto before=hip_direct_allocation_counters_snapshot();
+        REQUIRE(rns8_export_native_device(ctx,c,lease,r.export_scratch_bytes)==RNS8_SUCCESS);
+        const auto after=hip_direct_allocation_counters_snapshot();
+        CHECK(after.h2d_bytes==before.h2d_bytes);
+        CHECK(after.d2h_bytes-before.d2h_bytes==4);
+        CHECK(after.d2d_bytes-before.d2d_bytes==4*width*8);
+        for(int row=0;row<2;++row) for(int col=0;col<2;++col) {
+          cpp_int value=(sign?cpp_int(sa[row]):cpp_int(ua[row]))*
+                        (sign?cpp_int(sb[col]):cpp_int(ub[col]));
+          if(value<0) value+=cpp_int(1)<<(64*width);
+          for(uint32_t word=0;word<width;++word)
+            expected[1+(row*3+col)*width+word]=((value>>(64*word))&UINT64_MAX).convert_to<uint64_t>();
+        }
+      }
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),output.get(),actual.size()*8)==RNS8_SUCCESS);
+      CHECK(actual==expected);
+      REQUIRE(rns8_destroy_native_device_lease(lease)==RNS8_SUCCESS);
+      CHECK(owner.acquired==1);CHECK(owner.released==1);
+    }
+    for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
