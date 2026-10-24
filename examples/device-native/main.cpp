@@ -50,6 +50,9 @@ int main() {
     rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;
     gd.semantics=RNS8_EXACT_WIDE_SIGNED;gd.bound_kind=RNS8_BOUND_NONE;gd.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     gd.m=3;gd.n=2;gd.k=5;gd.max_prefix=20;
+    // Device-native export consumes the complete matrix basis, not a reduced
+    // plan prefix. Materialize all twenty planes before crossing that boundary.
+    gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
     rns8_plan* plan=nullptr;rns8_workspace* workspace=nullptr;
     check(rns8_create_plan(ctx,&gd,&plan));check(rns8_create_workspace(ctx,plan,&workspace));
     check(rns8_gemm_rns(ctx,plan,matrices[0],matrices[1],matrices[2],workspace));

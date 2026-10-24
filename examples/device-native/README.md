@@ -4,7 +4,9 @@ This standalone consumer uses only installed RNS8 public headers/targets and
 HIP's public runtime API. Its HIP producer initializes padded device-native A/B
 and C canaries. Borrowed read leases certify A/B magnitudes on device, import
 into exact-wide signed RNS matrices, run public exact GEMM, and reconstruct into
-a borrowed device-native C view. Only after successful host-observed export
+a borrowed device-native C view. The GEMM uses a fixed 20-plane prefix matching
+the matrices: native-device export requires a complete basis rather than unused
+capacity above a reduced-prefix result. Only after successful host-observed export
 does a custom HIP consumer compare every result and padding cell.
 
 The application path transfers no host payload: two eight-byte magnitude
@@ -39,5 +41,5 @@ must retain and retry quarantined owners through the public destruction rules.
 Producer readiness is explicitly synchronized before leases are created; this
 is not a prepared asynchronous/graph integration demonstration.
 
-The source is authored for the final campaign and has not yet been built or
-executed against the upgraded toolchain.
+The installed static and shared variants are checked with the public HIP
+producer/consumer test, including the full host oracle and padding canaries.
