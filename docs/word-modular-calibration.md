@@ -1,11 +1,12 @@
 # Canonical word-modular calibration
 
 `rns8-word-mod-calibrate` compares the private direct-HIP binary double/add
-baseline with the opt-in packed-dot4 lowering from
-[word-modular research](word-modular-research.md). Both compute the same complete
-canonical uint64 product in an explicit ring or prime field. This driver does
-not implement or measure the asymmetric floating decomposition, a WMMA schedule,
-public finite-u8 storage, a default route or a decomposition cache. Source,
+baseline, opt-in packed-dot4 lowering and explicit scalar binary64 asymmetric
+schedule from [word-modular research](word-modular-research.md). All compute the
+same complete canonical uint64 product in an explicit ring or prime field.
+The binary64 candidate has explicit digit/slab admission; it is not a WMMA
+schedule. This driver does not measure public finite-u8 storage, a default route
+or a decomposition cache. Source,
 fixtures and manifests are authored; compilation, execution and measurements
 await the consolidated batch.
 
@@ -15,9 +16,12 @@ The CLI is:
 
 ```text
 rns8-word-mod-calibrate DEVICE METHOD SCOPE M N K DOMAIN MODULUS REPEATS WARMUPS RUN_ID
+rns8-word-mod-calibrate DEVICE asymmetric_binary64 SCOPE M N K DOMAIN MODULUS REPEATS WARMUPS LEFT_DIGITS RIGHT_DIGITS SLAB_K RUN_ID
 ```
 
-Device is0..63, method is `baseline` or `packed_dot4`, scope is `resident` or
+The first form accepts method `baseline` or `packed_dot4`. The second form
+requires both digit counts and the slab; integer methods reject these extra
+controls. Device is0..63, scope is `resident` or
 `cold`, and domain is `ring` or `prime_field`. No device/backend fallback occurs.
 M/N are1..512, K1..65537, M*N*K<=134217728, and the aggregate logical payload
 must fit512MiB. Repeats are1..10000 and warmups1..1000. The run ID is1..128 ASCII
@@ -41,6 +45,38 @@ facts, not measured occupancy or ISA. The baseline's digit/slab fields are zero
 or null as appropriate. Packed dot4 admits only gfx1100/1101/1102 with the actual
 builtin. An unsupported route returns77 and is retained as an unsuccessful
 collector record; it cannot silently produce a baseline observation.
+
+## Explicit scalar binary64 schedules
+
+`asymmetric_binary64` takes left/right digit counts in1..4 and slab K in1..65536.
+The host derives integer ceil roots `alpha=ceil(p^(1/left))` and
+`beta=ceil(p^(1/right))`, then requires the sufficient certificate
+`slab_k*alpha*beta+p-1 <= 2^53`. Roots and admission are exact integer operations,
+with no trusted caller proof or floating root approximation. An inadmissible
+request fails before context probing or oracle allocation. Full64-bit moduli
+remain available to the integer controls and are rejected for binary64.
+
+Each digit-pair coefficient uses scalar binary64 FMA over nonnegative integer
+digits. The certificate bounds every partial sum within the exact binary64
+integer range. Fixed radix weights and overflow-safe integer modular arithmetic
+recombine all pairs between slabs; no ring inverse is used. The method remains
+valid for admitted composite rings as well as primes. This is distinct from
+the packed-dot4 path and from unimplemented matrix-engine concatenation layouts.
+
+Every floating call recomputes roots, admission and weights inside the checked
+private operation. Those costs, canonical scan, four-byte flag allocation,
+status transfer and required synchronization stay in both timing scopes.
+There is no decomposition cache. Coefficient arrays can spill; actual register
+counts, compiler private memory and useful throughput remain unmeasured.
+
+The receipt records left/right orientation and slab, both roots,53-bit limit,
+exact decimal admission lhs and coefficient cap, and all16 integer weights in
+a stride4 array (unused positions zero). The collector independently derives
+these values using Python integer roots/powers. It rejects altered orientation,
+slab, weights, certificates, types and irrelevant floating fields on integer
+methods. `asymmetric_floating_schedule_implemented` identifies the selected
+floating route in this observation; it never certifies compilation, ISA or
+qualification by itself. The receipt explicitly says `matrix_engine=false`.
 
 ## Numerical and memory controls
 
@@ -110,13 +146,30 @@ Versioned manifests provide [small controls](../benchmarks/word-mod-calibration/
 [13 widths with17x19 tails](../benchmarks/word-mod-calibration/widths-tail.json),
 [K4095/4096/4097/8193](../benchmarks/word-mod-calibration/slab-boundaries.json), and
 [32..512 output orders](../benchmarks/word-mod-calibration/large.json). They pair
-both methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
+both integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
 31,35,39,42,48,50,52 and64; moduli are explicit in each case, with no latest-prime
 lookup at execution time.
+
+Additional manifests retain matched integer controls and paired swapped digit
+orientations: [16 small cases](../benchmarks/word-mod-calibration/floating-smoke.json),
+[392 digit/slab/width cases](../benchmarks/word-mod-calibration/floating-pairs.json),
+[144 K-tail cases](../benchmarks/word-mod-calibration/floating-slabs.json), and
+[192 larger cases](../benchmarks/word-mod-calibration/floating-large.json).
+The pair set covers slabs1/17/257 at admitted widths through52bits, while64-bit
+cohorts retain only the two integer controls. Tail cases span K16/17/18,
+256/257/258 and65535/65536/65537 with explicit slabs17/257/65536. Larger cases
+use output orders32/128/256/512, K257,26/52-bit prime/composite contracts and
+slabs17/257. The swapped choices recompute the same complete product with the
+same input recipe and oracle. They do not reinterpret A/B storage or transpose
+the mathematical operation. Authored negative fixtures cover the exact
+certificate boundary, invalid/missing/irrelevant digits/slabs, full64 rejection,
+preserved failure records and schedule metadata mismatches.
 
 ```powershell
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/widths-tail.json --output temp/word-mod-widths --runs 5 --repeats 9 --warmups 3
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/slab-boundaries.json --output temp/word-mod-slabs --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-pairs.json --output temp/word-mod-floating-pairs --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-large.json --output temp/word-mod-floating-large --runs 5 --repeats 9 --warmups 3
 ```
 
 Collection shuffles independent case/process order with a recorded seed. It
@@ -131,7 +184,8 @@ original provenance eligibility is preserved. Promotion is always false.
 The summary retains actual per-process sustained means and medians of production
 samples. It does not infer a speedup, extrapolate unmeasured shapes or qualify a
 route. Correctness execution, ISA/resource inspection, clocks, memory counters,
-timing resolution and target-specific measurements remain gates. The asymmetric
-floating schedule, derived concatenation layouts and INT8/multiword WMMA
-candidates remain separate implementation work; CDNA qualification still needs
+timing resolution and target-specific measurements remain gates. The scalar
+binary64 schedule is authored, with execution still pending. Derived
+concatenation layouts and INT8/multiword WMMA candidates remain separate
+implementation work; CDNA qualification still needs
 the deferred hardware.

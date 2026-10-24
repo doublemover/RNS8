@@ -34,18 +34,27 @@ struct Buffers {
 }
 int main(int argc,char** argv) {
  try {
-  const char* usage="usage: rns8-word-mod-calibrate DEVICE baseline|packed_dot4 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS RUN_ID\nDEVICE0..63; M,N1..512 K1..65537 M*N*K<=134217728; modulus2..UINT64_MAX; repeats1..10000 warmups1..1000; no fallback. Private canonical uint64 ring/prime-field route; no asymmetric floating/WMMA schedule.";
+  const char* usage="usage: rns8-word-mod-calibrate DEVICE baseline|packed_dot4 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS RUN_ID\n       rns8-word-mod-calibrate DEVICE asymmetric_binary64 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS LEFT_DIGITS RIGHT_DIGITS SLAB_K RUN_ID\nDEVICE0..63; M,N1..512 K1..65537 M*N*K<=134217728; modulus2..UINT64_MAX; repeats1..10000 warmups1..1000; digits1..4 slab1..65536. Floating requests must satisfy exact integer lambda*alpha*beta+p-1<=2^53. Private canonical uint64 ring/prime-field route; scalar binary64 FMA, no WMMA or fallback.";
   if(argc==2 && std::string(argv[1])=="--help") {std::cout<<usage<<'\n';return 0;}
-  if(argc!=12) throw std::invalid_argument(usage);
-  const int device=int(number(argv[1],0,63));const std::string method=argv[2],scope=argv[3],domain=argv[7],run_id=argv[11];
+  if(argc!=12 && argc!=15) throw std::invalid_argument(usage);
+  const int device=int(number(argv[1],0,63));const std::string method=argv[2],scope=argv[3],domain=argv[7];
+  const bool floating=method=="asymmetric_binary64";
+  if(argc!=(floating?15:12)) throw std::invalid_argument("floating method requires explicit left/right digits and slab; other methods reject them");
+  const std::string run_id=argv[floating?14:11];
   const uint64_t m=number(argv[4],1,512),n=number(argv[5],1,512),k=number(argv[6],1,65537),modulus=number(argv[8],2,UINT64_MAX);
   const uint32_t repeats=uint32_t(number(argv[9],1,10000)),warmups=uint32_t(number(argv[10],1,1000));
-  if((method!="baseline" && method!="packed_dot4") || (scope!="resident" && scope!="cold") || (domain!="ring" && domain!="prime_field") ||
+  if((method!="baseline" && method!="packed_dot4" && !floating) || (scope!="resident" && scope!="cold") || (domain!="ring" && domain!="prime_field") ||
      m*n*k>134217728 || run_id.empty() || run_id.size()>128 || run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)
     throw std::invalid_argument("invalid method/scope/domain/reference work/run identity");
   word_mod::Problem p;p.domain=domain=="ring"?word_mod::Domain::ring:word_mod::Domain::prime_field;
   p.modulus=modulus;p.m=m;p.n=n;p.k=k;p.lda=k+2;p.ldb=n+3;p.ldc=n+3;
   const auto support=word_mod::query(p,true);if(support.status!=RNS8_SUCCESS) throw std::invalid_argument("word modular shape/domain is not admitted");
+  word_mod::FloatingRequest request{};word_mod::FloatingSchedule schedule{};
+  if(floating) {
+    request={uint32_t(number(argv[11],1,4)),uint32_t(number(argv[12],1,4)),uint32_t(number(argv[13],1,65536))};
+    if(word_mod::floating_schedule(modulus,request,schedule)!=RNS8_SUCCESS)
+      throw std::invalid_argument("binary64 schedule rejected: exact lambda*alpha*beta+p-1 exceeds2^53");
+  }
   const uint64_t ac=m*p.lda,bc=k*p.ldb,cc=m*p.ldc+8,envelope=(3*(ac+bc)+4*cc)*8+16384;
   constexpr uint64_t budget=UINT64_C(512)*1024*1024;if(envelope>budget) throw std::invalid_argument("aggregate logical payload exceeds512MiB");
   const auto oracle_start=Clock::now();uint64_t state=6651;
@@ -69,7 +78,7 @@ int main(int argc,char** argv) {
   const auto initialize=[&](Buffers& buffers) {buffers.allocate(device,ac,bc,cc);
     check(hip_direct_copy_host_to_device(device,buffers.a.get(),a.data(),ac*8));check(hip_direct_copy_host_to_device(device,buffers.b.get(),b.data(),bc*8));
     check(hip_direct_copy_host_to_device(device,buffers.c.get(),poison.data(),cc*8));};
-  const auto compute=[&](Buffers& buffers) {bool started=false;check(hip_direct_word_mod_device(device,buffers.a.get(),buffers.b.get(),buffers.c.get(),p,4,started,method=="packed_dot4"));
+  const auto compute=[&](Buffers& buffers) {bool started=false;check(hip_direct_word_mod_device(device,buffers.a.get(),buffers.b.get(),buffers.c.get(),p,4,started,method=="packed_dot4",floating?&request:nullptr));
     if(!started) throw std::runtime_error("successful method did not report issued output");};
   const auto audit_inputs=[&](Buffers& buffers) {check(hip_direct_copy_device_to_host(device,audit_a.data(),buffers.a.get(),ac*8));
     check(hip_direct_copy_device_to_host(device,audit_b.data(),buffers.b.get(),bc*8));if(audit_a!=a || audit_b!=b) throw std::runtime_error("word-modular inputs/padding changed");};
@@ -102,15 +111,27 @@ int main(int argc,char** argv) {
     {"a_allocation_bytes",ac*8},{"b_allocation_bytes",bc*8},{"output_allocation_bytes",cc*8},{"explicit_scratch_peak_bytes",4},{"compiler_private_scratch_bytes",nullptr},{"canary_bytes",64},
     {"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},{"oracle_and_dataset_ns",oracle_ns},
     {"resident_setup_ns",scope=="resident"?nlohmann::json(setup_ns):nlohmann::json(nullptr)},
-    {"slab_k",method=="packed_dot4"?nlohmann::json(4096):nlohmann::json(nullptr)},
+    {"slab_k",floating?nlohmann::json(request.slab_k):method=="packed_dot4"?nlohmann::json(4096):nlohmann::json(nullptr)},
     {"digit_diagonals",method=="packed_dot4"?15:0},{"max_diagonal_accumulator",method=="packed_dot4"?nlohmann::json(UINT64_C(2130739200)):nlohmann::json(nullptr)},
-    {"arithmetic_kernel",method=="packed_dot4"?"word_mod_byte_dot4":"word_mod_double_add"},
+    {"arithmetic_kernel",floating?"word_mod_asymmetric_binary64":method=="packed_dot4"?"word_mod_byte_dot4":"word_mod_double_add"},
     {"timing_scope",scope=="cold"?"allocate_upload_checked_compute_readback_checked_free":"resident_checked_compute_including_canonical_scan_and_domain_admission"},
     {"input_preservation_scope",scope=="cold"?"one_separate_resident_audit_before_warmups":"outside_each_verified_call_and_final_burst"},
     {"timer","std_chrono_steady_clock_nanoseconds"},{"production_timing_hooks_enabled",false},{"public_ownership_measured",false},
-    {"asymmetric_floating_schedule_implemented",false},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},{"isa_verified",false},{"promotion_eligible",false},
+    {"asymmetric_floating_schedule_implemented",floating},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},{"isa_verified",false},{"promotion_eligible",false},
     {"samples",samples},{"sustained",{{"calls",calls},{"elapsed_ns",elapsed},{"mean_call_ns",elapsed/calls},{"minimum_calls",16},{"maximum_calls",4096},{"target_ns",250000000},
       {"independent_audit_inside_interval",false},{"final_exact_reference_passed",true}}}};
+  if(floating) {
+    const cpp_int lhs=cpp_int(request.slab_k)*schedule.alpha*schedule.beta+modulus-1;
+    const cpp_int coefficient=cpp_int(request.slab_k)*(schedule.alpha-1)*(schedule.beta-1);
+    nlohmann::json weights=nlohmann::json::array();for(auto weight:schedule.weights) weights.push_back(weight);
+    report["left_digits"]=request.left_digits;report["right_digits"]=request.right_digits;
+    report["floating_schedule"]={{"version",1},{"arithmetic","scalar_binary64_fma_integer_coefficients"},
+      {"left_digits",request.left_digits},{"right_digits",request.right_digits},{"slab_k",request.slab_k},
+      {"alpha",schedule.alpha},{"beta",schedule.beta},{"mantissa_bits",53},
+      {"admission_lhs_decimal",lhs.str()},{"admission_limit_decimal","9007199254740992"},
+      {"coefficient_max_decimal",coefficient.str()},{"weights_stride",4},{"weights",weights},
+      {"weighting","overflow_safe_integer_modular_recombination"},{"matrix_engine",false}};
+  }
   resident.release();std::cout<<report.dump(2)<<'\n';return 0;
  } catch(const Unsupported& error) {hip_direct_timing_set_enabled(false);std::cerr<<error.what()<<'\n';return 77;}
  catch(const std::exception& error) {hip_direct_timing_set_enabled(false);std::cerr<<error.what()<<'\n';return 1;}

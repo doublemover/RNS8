@@ -40,7 +40,7 @@ issue links.
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
 - [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; authored, validation pending
 - [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; authored, validation pending
-- [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4, prime/composite and slab controls; authored, validation pending
+- [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4 and admitted scalar binary64 digit/slab controls; authored, validation pending
 - [Retained Gram cohorts](gram-prepared-reuse.md): prepared dense and single-source controls, repeated computation and each/once reconstruction; authored, validation pending
 - [Exact import and CRT calibration](conversion-calibration.md): scalar/dot4, every-prefix and resident/cold controls; authored, validation pending
 - [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; authored, validation pending

@@ -1,4 +1,4 @@
-"""Collect private canonical word-modular baseline/dot4 controls; no promotion."""
+"""Collect private canonical word-modular integer/scalar-binary64 controls; no promotion."""
 from __future__ import annotations
 import argparse
 from functools import lru_cache
@@ -17,11 +17,13 @@ import uuid
 from build_manifest import manifest_provenance_complete
 from collect_finite_verify import demand, integer, positive, same, strict_json, checksum, validate_provenance
 
-METHODS=("baseline","packed_dot4")
+INTEGER_METHODS=("baseline","packed_dot4")
+METHODS=(*INTEGER_METHODS,"asymmetric_binary64")
 SCOPES=("resident","cold")
 MASK=(1 << 64)-1
 BUDGET=512*1024*1024
 KEYS={"device","method","scope","m","n","k","domain","modulus"}
+FLOAT_KEYS={"left_digits","right_digits","slab_k"}
 
 
 def prime(n):
@@ -43,7 +45,10 @@ def prime(n):
 
 
 def validate_case(case):
-    demand(type(case) is dict and set(case)==KEYS,"case requires exactly documented controls")
+    demand(type(case) is dict,"case must be object")
+    floating=case.get("method")=="asymmetric_binary64"
+    expected_keys=KEYS|FLOAT_KEYS if floating else KEYS
+    demand(set(case)==expected_keys,"case requires exactly documented controls; floating digits/slab are explicit and method-specific")
     demand(integer(case["device"],0,63) and case["method"] in METHODS and case["scope"] in SCOPES,"invalid device/method/scope")
     demand(all(integer(case[key],1,65537 if key=="k" else 512) for key in ("m","n","k"))
         and case["m"]*case["n"]*case["k"]<=134217728,"shape/reference work exceeds limits")
@@ -51,6 +56,31 @@ def validate_case(case):
     demand(case["domain"]!="prime_field" or prime(case["modulus"]),"prime field requires a prime modulus")
     demand(contract(case,"validation",1,1)["logical_payload_envelope_bytes"]<=BUDGET,"aggregate logical payload exceeds cap")
     return dict(case)
+
+
+def ceil_root(value,degree):
+    """Independent exact root: no float approximation or imported planner proof."""
+    low,high=1,value
+    while low<high:
+        middle=(low+high)//2
+        if middle**degree>=value:high=middle
+        else:low=middle+1
+    return low
+
+
+def floating_schedule(case):
+    left,right,slab=(case[key] for key in ("left_digits","right_digits","slab_k"))
+    demand(integer(left,1,4) and integer(right,1,4) and integer(slab,1,65536),"invalid floating digit/slab request")
+    p=case["modulus"];alpha=ceil_root(p,left);beta=ceil_root(p,right)
+    lhs=slab*alpha*beta+p-1
+    demand(lhs<=1 << 53,"binary64 schedule fails exact lambda*alpha*beta+p-1<=2^53")
+    weights=[0]*16
+    for i in range(left):
+        for j in range(right):weights[i*4+j]=(pow(alpha,i,p)*pow(beta,j,p))%p
+    return dict(version=1,arithmetic="scalar_binary64_fma_integer_coefficients",left_digits=left,right_digits=right,slab_k=slab,
+        alpha=alpha,beta=beta,mantissa_bits=53,admission_lhs_decimal=str(lhs),admission_limit_decimal=str(1 << 53),
+        coefficient_max_decimal=str(slab*(alpha-1)*(beta-1)),weights_stride=4,weights=weights,
+        weighting="overflow_safe_integer_modular_recombination",matrix_engine=False)
 
 
 def load_cases(path):
@@ -63,20 +93,22 @@ def load_cases(path):
 
 def contract(case,run_id,repeats,warmups):
     m,n,k,p=case["m"],case["n"],case["k"],case["modulus"];ac=m*(k+2);bc=k*(n+3);cc=m*(n+3)+8
-    dot=case["method"]=="packed_dot4";cold=case["scope"]=="cold"
-    return {"schema":"rns8_word_mod_microcase_v1","run_id":run_id,**case,"lda":k+2,"ldb":n+3,"ldc":n+3,
+    dot=case["method"]=="packed_dot4";floating=case["method"]=="asymmetric_binary64";cold=case["scope"]=="cold"
+    result={"schema":"rns8_word_mod_microcase_v1","run_id":run_id,**case,"lda":k+2,"ldb":n+3,"ldc":n+3,
         "operand_bits":(p-1).bit_length(),"modulus_bits":p.bit_length(),"device_requested":case["device"],"device_actual":case["device"],
         "backend_requested":"hip-direct","backend_actual":"hip-direct","seed":6651,
         "dataset_recipe":"splitmix64_word_mod_seed6651_canonical_extrema_padding_v1","repeats":repeats,"warmups":warmups,
         "input_contract":"canonical_u64_padded_rows","output_contract":"canonical_u64_modulus_with_padding","output_boundary":"host" if cold else "device",
         "reference_method":"boost_int256_all_products_modulus_with_cpp_int_row_edge_audits","a_allocation_bytes":ac*8,"b_allocation_bytes":bc*8,
         "output_allocation_bytes":cc*8,"explicit_scratch_peak_bytes":4,"compiler_private_scratch_bytes":None,"canary_bytes":64,"logical_payload_envelope_bytes":(3*(ac+bc)+4*cc)*8+16384,
-        "memory_budget_bytes":BUDGET,"slab_k":4096 if dot else None,"digit_diagonals":15 if dot else 0,
-        "max_diagonal_accumulator":2130739200 if dot else None,"arithmetic_kernel":"word_mod_byte_dot4" if dot else "word_mod_double_add",
+        "memory_budget_bytes":BUDGET,"slab_k":case["slab_k"] if floating else 4096 if dot else None,"digit_diagonals":15 if dot else 0,
+        "max_diagonal_accumulator":2130739200 if dot else None,"arithmetic_kernel":"word_mod_asymmetric_binary64" if floating else "word_mod_byte_dot4" if dot else "word_mod_double_add",
         "timing_scope":"allocate_upload_checked_compute_readback_checked_free" if cold else "resident_checked_compute_including_canonical_scan_and_domain_admission",
         "input_preservation_scope":"one_separate_resident_audit_before_warmups" if cold else "outside_each_verified_call_and_final_burst",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,"public_ownership_measured":False,
-        "asymmetric_floating_schedule_implemented":False,"actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
+        "asymmetric_floating_schedule_implemented":floating,"actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
+    if floating:result["floating_schedule"]=floating_schedule(case)
+    return result
 
 
 def dataset(case):
@@ -107,6 +139,8 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     demand(type(capture) is dict,"capture must be object")
     for key,value in contract(case,run_id,repeats,warmups).items():
         demand(key in capture and same(capture[key],value),f"metadata mismatch: {key}")
+    if case["method"]!="asymmetric_binary64":
+        demand(not {"floating_schedule","left_digits","right_digits"}&capture.keys(),"irrelevant floating schedule on integer method")
     for key in ("device_name","target"):
         demand(type(capture.get(key)) is str and bool(capture[key].strip()),f"missing identity: {key}")
     demand(re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"invalid target")
@@ -152,7 +186,9 @@ def collect(args):
         and all(digest(path)==identities[path.name] for path in sources),"artifact/tools/cases changed during collection")
     for ordinal,(case,repeat) in enumerate(tasks):
         unchanged();run_id=str(uuid.uuid4())
-        command=[str(exe),str(case["device"]),case["method"],case["scope"],*(str(case[key]) for key in ("m","n","k")),case["domain"],str(case["modulus"]),str(args.repeats),str(args.warmups),run_id]
+        command=[str(exe),str(case["device"]),case["method"],case["scope"],*(str(case[key]) for key in ("m","n","k")),case["domain"],str(case["modulus"]),str(args.repeats),str(args.warmups)]
+        if case["method"]=="asymmetric_binary64":command.extend(str(case[key]) for key in ("left_digits","right_digits","slab_k"))
+        command.append(run_id)
         record=dict(schema="rns8_word_mod_collection_v1",campaign_id=campaign,run_id=run_id,case=case,command=command,ordinal=ordinal,
             independent_repeat=repeat,order_seed=args.order_seed,started_unix_ns=time.time_ns(),artifact_sha256=artifact,collector_sha256=identities[Path(__file__).name],
             tool_dependencies_sha256=identities,cases_sha256=case_hash,python_executable=sys.executable,python_sha256=python_hash,python_version=platform.python_version(),
@@ -183,7 +219,7 @@ def collect(args):
     summary=dict(schema="rns8_word_mod_campaign_v1",campaign_id=campaign,promotion_eligible=False,artifact_sha256=artifact,
         tool_dependencies_sha256=identities,cases_sha256=case_hash,cohort=cohort,independent_processes=len(observations),
         provenance_complete=manifest_provenance_complete(cohort["build_manifest"]),observations=observations,
-        comparison_rule="same shape/modulus/domain/scope/source boundary; independent processes only; no extrapolated speedup or floating schedule claim")
+        comparison_rule="same shape/modulus/domain/scope/source boundary; floating digit orientation/slab stays explicit; independent processes only; scalar binary64 is not WMMA; no extrapolated speedup")
     with (output/f"{campaign}.summary.json").open("x",encoding="utf-8") as stream:json.dump(summary,stream,indent=2,allow_nan=False)
     return summary
 

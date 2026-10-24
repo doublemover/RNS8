@@ -63,11 +63,11 @@ floating decomposition. Independent host digit-product fixtures and GPU
 register traffic and modular recombination costs require measurement; no
 speedup or AUTO selection is claimed.
 
-The [word-modular calibration driver](word-modular-calibration.md) now supplies
-explicit baseline/packed-dot4, ring/prime-field and resident/cold controls, full
-independent exact references, slab-tail/bit-width cases and strict provenance
-collection. These are authored interfaces and fixtures, not execution evidence.
-They do not implement or qualify the separate asymmetric floating/WMMA schedule.
+The [word-modular calibration driver](word-modular-calibration.md) supplies
+explicit baseline/packed-dot4 and admitted scalar binary64 schedules, ring/prime-field
+and resident/cold controls, full independent exact references, swapped digit/slab
+and bit-width cases, and strict provenance collection. These are authored
+interfaces and fixtures, not execution evidence or a matrix-engine schedule.
 
 
 ## Explicit scalar binary64 asymmetric schedule
