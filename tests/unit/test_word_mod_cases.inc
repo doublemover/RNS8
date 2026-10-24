@@ -8,6 +8,7 @@ TEST_CASE("word modular arithmetic and decompositions preserve arbitrary rings")
     for(auto a:values) for(auto b:values) {
       const auto expected=(cpp_int(a)*b%modulus).convert_to<uint64_t>();
       REQUIRE(multiply(a,b,modulus)==expected);
+      REQUIRE(digit_product(a,b,modulus)==expected);
       REQUIRE(add(a,b,modulus)==((cpp_int(a)+b)%modulus).convert_to<uint64_t>());
       for(const auto& d:candidates(modulus,65537,53)) {
         REQUIRE(decomposed_product(a,b,modulus,d.left_digits,d.right_digits)==expected);

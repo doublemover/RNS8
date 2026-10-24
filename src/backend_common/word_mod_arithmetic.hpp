@@ -7,6 +7,10 @@
 #define RNS8_WORD_HD
 #endif
 namespace rns8::detail::word_mod {
+struct DigitWeights {uint64_t values[15]{};};
+inline constexpr uint32_t digit_slab_k=4096;
+static_assert(uint64_t(digit_slab_k)*8*255*255<=INT32_MAX,
+              "eight byte-pair terms per diagonal must fit signed INT32");
 // Preconditions: modulus >= 2 and both operands canonical. No overflowing
 // sum or product is formed, including at modulus UINT64_MAX.
 RNS8_WORD_HD inline uint64_t add(uint64_t a,uint64_t b,uint64_t modulus) {
@@ -16,6 +20,18 @@ RNS8_WORD_HD inline uint64_t multiply(uint64_t a,uint64_t b,uint64_t modulus) {
   uint64_t result=0;
   while(b) {if(b&1) result=add(result,a,modulus);b>>=1;if(b) a=add(a,a,modulus);}
   return result;
+}
+inline DigitWeights digit_weights(uint64_t modulus) {
+  DigitWeights weights;weights.values[0]=1;
+  for(unsigned d=1;d<15;++d) weights.values[d]=multiply(weights.values[d-1],256%modulus,modulus);
+  return weights;
+}
+inline uint64_t digit_product(uint64_t a,uint64_t b,uint64_t modulus) {
+  const auto weights=digit_weights(modulus);uint32_t diagonal[15]{};
+  for(unsigned i=0;i<8;++i) for(unsigned j=0;j<8;++j)
+    diagonal[i+j]+=uint32_t((a>>(8*i))&255)*uint32_t((b>>(8*j))&255);
+  uint64_t sum=0;for(unsigned d=0;d<15;++d) sum=add(sum,multiply(weights.values[d],diagonal[d]%modulus,modulus),modulus);
+  return sum;
 }
 inline uint64_t power(uint64_t a,uint64_t exponent,uint64_t modulus) {
   uint64_t result=1;

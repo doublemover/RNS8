@@ -37,8 +37,28 @@ and complete Boost GEMM comparisons at bit widths 8, 16, 23, 26, 27, 31, 35,
 39, 42, 48, 50, 52 and 64. They remain unexecuted during development frontload.
 
 Still required before promotion: exact floating schedule proof, concatenation
-layouts and lambda derivation, INT8/multiword GPU decomposition, matched cold
+layouts and lambda derivation, asymmetric matrix-engine decomposition, matched cold
 and warm calibration, resource/ISA receipts, and target-specific qualification.
 No decomposition cache or public ABI is introduced. CDNA FP64 qualification
 requires the deferred hardware; that does not substitute for implementing the
 remaining host and GPU candidates.
+
+## Explicit packed-byte dot-product candidate
+
+An opt-in gfx1100-family candidate lowers each canonical word into eight
+unsigned bytes, forms all 64 byte-pair dot products, and groups them into 15
+radix-256 diagonals. UDOT4 consumes four K terms per instruction with zero tail
+lanes. Each fixed 4096-term slab bounds the largest diagonal by
+`4096*8*255*255 = 2130739200 < INT32_MAX`; the hardware accumulator therefore
+cannot wrap or saturate. Every slab is reduced modulo the actual target before
+weighted recombination using overflow-safe modular multiply/add. Precomputed
+15 radix weights are kernel arguments, not a persistent decomposition cache.
+The target guard and capability probe reject unsupported hardware before writes.
+
+The method works for composite rings and primes without inverses and retains
+the canonical scan, alias checks and four-byte scratch of the baseline. It is
+a packed-dot control, not a claimed WMMA implementation of the asymmetric
+floating decomposition. Independent host digit-product fixtures and GPU
+4095/4096/4097/8193 slab-boundary/full-width fixtures are authored. Its launch,
+register traffic and modular recombination costs require measurement; no
+speedup or AUTO selection is claimed.
