@@ -67,8 +67,8 @@ rns8_status validate_rns_gemm_operands(
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
-      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend, allow_pending_input_writers) ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend, allow_pending_input_writers) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }

@@ -341,6 +341,7 @@ hip_direct_allocation_counters hip_direct_allocation_counters_snapshot();
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
 rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);
 rns8_status hip_direct_free(int device_id, void* ptr);
+// Completes the zero-fill before returning, including for cross-stream reuse.
 rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes);
 rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src, std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src, std::size_t bytes);

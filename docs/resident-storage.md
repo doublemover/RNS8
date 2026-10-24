@@ -2,8 +2,9 @@
 
 HIP residue, finite-ring/field, and wrap matrices derive device payload capacity
 from their checked logical dimensions and representation. Creation allocates no
-full-sized host residue or byte-limb mirror. Device allocations remain zeroed,
-but fresh device capacity is not a published current value. CPU matrices retain
+full-sized host residue or byte-limb mirror. Device allocations remain zeroed;
+initialization finishes before creation returns, including for subsequent use on
+nonblocking streams. Fresh device capacity is not a published current value. CPU matrices retain
 their previous host allocation and initial-value behavior, including the exact
 zero proof for fresh exact-wide CPU matrices and the unbound finite modulus.
 

@@ -268,6 +268,7 @@ TEST_CASE("direct HIP bounded i64 native prefix9 colpair path matches CPU") {
   rns8::test::set_device_byte_limbs_current(*hip_c, false);
   rns8::test::set_host_native_current(*hip_c, false);
   rns8::test::set_device_native_current(*hip_c, false);
+  rns8::detail::api::mark_output_device_residues_current(*hip_c, hip_plan);
   REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {

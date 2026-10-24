@@ -108,8 +108,13 @@ rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes) {
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  // hipMemset may return before its default-stream write completes. A caller
+  // can immediately hand this storage to a nonblocking stream, which has no
+  // implicit dependency on that write. Finish initialization before publishing
+  // the allocation; synchronizing only its stream avoids a device-wide fence.
   const hipError_t err = hipMemset(ptr, 0, bytes);
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
+  return hipStreamSynchronize(nullptr) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)ptr;

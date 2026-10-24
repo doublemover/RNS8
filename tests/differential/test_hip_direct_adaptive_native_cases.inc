@@ -267,7 +267,7 @@ TEST_CASE("direct HIP matrices allocate only the requested device payload") {
        RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED,
        RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8,RNS8_WRAP_U64_MOD_2_64}) {
     const bool bounded=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64;
-    auto md=matrix_desc(2,3,semantics,bounded?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_NONE);
+    auto md=matrix_desc(2,3,semantics,bounded?(semantics==RNS8_BOUNDED_I64?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_GLOBAL_MAX_UNSIGNED):RNS8_BOUND_NONE);
     rns8_matrix* matrix=nullptr;
     REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
     CHECK(matrix->residues.capacity()==0);

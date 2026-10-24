@@ -157,7 +157,7 @@ rns8_status validate_exact_axpby_operands(
   if (D.in_flight_writer && !allow_pending_input_writers)
     return RNS8_BUSY;
   const auto prefix = rns_storage_prefix_for_plan(plan);
-  if (!matrix_backend_compatible_with_plan(ctx, D, plan.backend) ||
+  if (!matrix_backend_compatible_with_plan(ctx, D, plan.backend, allow_pending_input_writers) ||
       !matrix_descriptor_matches(D, plan.desc.semantics,
                                  storage_bound_kind_for_plan(plan), plan.desc.m,
                                  plan.desc.n, prefix, plan.desc.tile_m,

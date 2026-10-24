@@ -130,9 +130,9 @@ bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend)
 bool matrix_backend_compatible_with_plan(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
-    rns8_backend_kind plan_backend) {
+    rns8_backend_kind plan_backend, bool allow_pending_writer) {
   if (ctx.hip_failure_poisoned) return false;
-  if (matrix.in_flight_writer) return false;
+  if (matrix.in_flight_writer && !allow_pending_writer) return false;
   if (matrix.backend == plan_backend) {
     return true;
   }
