@@ -26,6 +26,15 @@ differ. Mixed queues retain the general dispatch kernel. This avoids reserving
 registers for larger modulus groups when a uniform group-one queue executes;
 the selection does not change arithmetic or the round-robin work order.
 
+Native conversion uses a per-channel reciprocal and the remainder of `2^32`,
+initialized before the K loop. Each 64-bit input is split into two unsigned
+32-bit words. Reducing each word and then their radix-weighted sum needs only
+32-bit reciprocal reductions: the recombination is at most 65280 for a byte
+modulus. Signed inputs subtract `2^64 mod m` when negative, including `INT64_MIN`.
+This avoids a large constant-division switch inside each encoded product.
+The CPU reducer fixture checks every modulus from 2 through 256 against Boost;
+GPU fixtures include word carries, full-width boundaries and safe K-slab splits.
+
 The synchronous backend probes the compiled device capability before touching
 outputs. Descriptor upload, capability probing, and persistent execution have
 separate timing labels. `outputs_may_be_written` becomes true immediately before
@@ -37,8 +46,9 @@ CPU mapping, admission, collision, and budget fixtures and a Boost-based GPU
 differential fixture cover heterogeneous shapes, full-width signed/unsigned
 values, prefix/group tails, padding, K=65537, and varying worker counts. These
 fixtures passed the local all-feature campaign at `c7f7e05`; the uniform-kernel
-extension adds all six signedness/group combinations to the same differential
-fixture and requires fresh validation. Public prepared
+extension passed all six signedness/group combinations at `6d8ab25` (469 passes,
+three target-inapplicable skips across the full configuration). The subsequent
+reciprocal-conversion extension requires its own fresh validation. Public prepared
 groups still execute sequentially. Public integration, asynchronous ownership,
 descriptor reuse, ISA/resource inspection, and measured scheduling benefits
 remain open under issue #38; no throughput improvement is claimed.

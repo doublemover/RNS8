@@ -145,13 +145,33 @@ int main(int argc, char** argv) {
     for (uint32_t p = 0; p < prefix; ++p)
       for (std::size_t i = 0; i < d.size(); ++i)
         expected_d[p*d.size()+i] = centered_residue(native_value(d[i],unsigned_inputs),kDefaultModuli[p]);
-    if (candidate != "pack_pair")
+    if (candidate != "pack_pair") {
+      // K <= 65537 and |input| < 2^64 bound every dot product below 2^145.
+      // Even the full-width alpha/beta expression is below 2^209. Fixed Boost
+      // 256-bit arithmetic is therefore exact, with no per-product allocation.
+      // Transpose the reference B only; GPU inputs and timed work are unchanged.
+      using boost::multiprecision::int256_t;
+      std::vector<int256_t> reference_a(a.size()), reference_bt(b.size());
+      for (std::size_t i = 0; i < a.size(); ++i) reference_a[i] = int256_t(native_value(a[i], unsigned_inputs));
+      for (uint32_t col = 0; col < n; ++col)
+        for (uint32_t q = 0; q < k; ++q)
+          reference_bt[std::size_t{col} * k + q] = int256_t(native_value(b[std::size_t{q} * n + col], unsigned_inputs));
       for (uint32_t row = 0; row < m; ++row) for (uint32_t col = 0; col < n; ++col) {
-        cpp_int sum = 0;
-        for (uint32_t q = 0; q < k; ++q) sum += native_value(a[row*k+q],unsigned_inputs)*native_value(b[q*n+col],unsigned_inputs);
+        int256_t fixed_sum = 0;
+        for (uint32_t q = 0; q < k; ++q)
+          fixed_sum += reference_a[std::size_t{row} * k + q] * reference_bt[std::size_t{col} * k + q];
+        cpp_int sum = fixed_sum;
+        // Independent unbounded audit of both edge columns in every row.
+        if (col == 0 || col + 1 == n) {
+          cpp_int audit = 0;
+          for (uint32_t q = 0; q < k; ++q)
+            audit += native_value(a[row*k+q], unsigned_inputs) * native_value(b[q*n+col], unsigned_inputs);
+          if (audit != sum) throw std::runtime_error("fixed-width reference differs from unbounded audit");
+        }
         if (epilogue) sum = cpp_int(alpha) * sum + cpp_int(beta) * native_value(d[row*n+col],unsigned_inputs);
         for (uint32_t p = 0; p < prefix; ++p) expected[(std::size_t{p}*m+row)*n+col] = centered_residue(sum,kDefaultModuli[p]);
       }
+    }
     hip_direct_device_buffer da, db, ra, rb, rd, intermediate, dc;
     check(da.allocate(0,a.size()*8)); check(db.allocate(0,b.size()*8));
     check(ra.allocate(0,expected_a.size())); check(rb.allocate(0,expected_b.size())); check(dc.allocate(0,expected.size()));
@@ -240,6 +260,10 @@ int main(int argc, char** argv) {
         {"materialized_intermediate_bytes",candidate=="epilogue_unfused" ? std::size_t{m}*n*prefix : 0},
         {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},
         {"build_manifest",nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON)},
+        {"reference_method",candidate=="pack_pair" ? "boost_cpp_int_operand_residues" :
+            "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue"},
+        {"reference_operand_storage_bytes",candidate=="pack_pair" ? std::size_t{0} :
+            (a.size()+b.size())*sizeof(boost::multiprecision::int256_t)},
         {"native_input_storage_bytes",(a.size()+b.size())*8},{"residue_input_storage_bytes",expected_a.size()+expected_b.size()+expected_d.size()},
         {"residue_output_bytes",std::size_t{m}*n*prefix},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},

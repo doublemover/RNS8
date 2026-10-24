@@ -8,6 +8,15 @@ __global__ void rns8_native_wmma_capability_kernel(int* supported) {
   *supported = RNS8_DEVICE_NATIVE_WMMA;
 }
 
+__device__ __forceinline__ int8_t rns8_native_wmma_center(
+    int64_t value, const rns8::detail::finite_u8::Native64Reducer& reducer) {
+  return rns8::detail::finite_u8::center_native_i64(value, reducer);
+}
+__device__ __forceinline__ int8_t rns8_native_wmma_center(
+    uint64_t value, const rns8::detail::finite_u8::Native64Reducer& reducer) {
+  return rns8::detail::finite_u8::center_native_u64(value, reducer);
+}
+
 // Each wave owns one output tile and Group consecutive default-basis planes.
 // Native loads are outside the channel loop; channels have separate encoded
 // fragments and accumulators. No INT32 or packed-input global workspace exists.
@@ -22,10 +31,12 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
   const int lane = threadIdx.x;
   const int64_t ar = tile_row + (lane & 15), bc = tile_col + (lane & 15);
   accumulator acc[Group]{};
-  int moduli[Group]{};
+  rns8::detail::finite_u8::Native64Reducer reducers[Group]{};
+#pragma unroll
   for (int channel = 0; channel < Group; ++channel)
     if (first_plane + channel < prefix)
-      moduli[channel] = rns8_default_moduli_device[first_plane + channel];
+      reducers[channel] = rns8::detail::finite_u8::native64_reducer(
+          rns8_default_moduli_device[first_plane + channel]);
   for (int64_t kk = 0; kk < k; kk += 16) {
     fragment av[Group]{}, bv[Group]{};
     for (int word = 0; word < 4; ++word) {
@@ -34,13 +45,14 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
         const int64_t q = kk + word * 4 + byte;
         const NativeT raw_a = ar < m && q < k ? a[ar * lda + q] : NativeT{};
         const NativeT raw_b = bc < n && q < k ? b[q * ldb + bc] : NativeT{};
+#pragma unroll
         for (int channel = 0; channel < Group; ++channel) {
           const int plane = first_plane + channel;
           if (plane >= prefix) continue;
           ap[channel] |= static_cast<uint32_t>(static_cast<uint8_t>(
-              rns8_center_native_operand_device(raw_a, plane, moduli[channel]))) << (8 * byte);
+              rns8_native_wmma_center(raw_a, reducers[channel]))) << (8 * byte);
           bp[channel] |= static_cast<uint32_t>(static_cast<uint8_t>(
-              rns8_center_native_operand_device(raw_b, plane, moduli[channel]))) << (8 * byte);
+              rns8_native_wmma_center(raw_b, reducers[channel]))) << (8 * byte);
         }
       }
       for (int channel = 0; channel < Group; ++channel) {
@@ -55,14 +67,14 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
       // |every partial| <= 65536*128*128+255 < INT32_MAX.
       // Signed remainder carries at most 255 into the next safe slab.
       if (((kk + 16) % 65536) == 0)
-        for (int reg = 0; reg < 8; ++reg) acc[channel][reg] %= moduli[channel];
+        for (int reg = 0; reg < 8; ++reg) acc[channel][reg] %= static_cast<int>(reducers[channel].modulus);
     }
   }
   const int64_t col = tile_col + (lane & 15);
   for (int channel = 0; channel < Group; ++channel) {
     const int plane = first_plane + channel;
     if (plane >= prefix) continue;
-    const int modulus = moduli[channel];
+    const int modulus = static_cast<int>(reducers[channel].modulus);
     for (int reg = 0; reg < 8; ++reg) {
       const int64_t row = tile_row + 2 * reg + (lane >> 4);
       if (row < m && col < n) {

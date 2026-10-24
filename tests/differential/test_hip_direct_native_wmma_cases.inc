@@ -5,12 +5,15 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
   const NativeT lo = std::numeric_limits<NativeT>::min(), hi = std::numeric_limits<NativeT>::max();
-  const NativeT values[] = {lo, hi, NativeT{0}, NativeT{1}, NativeT{127}, NativeT{128}, NativeT{255}};
+  const NativeT values[] = {lo, hi, NativeT{0}, NativeT{1}, NativeT{127}, NativeT{128}, NativeT{255},
+      NativeT{UINT32_MAX}, NativeT{uint64_t{1} << 32}, NativeT{(uint64_t{1} << 32) + 1},
+      NativeT{0x123456789abcdefULL}, static_cast<NativeT>(lo + 1), static_cast<NativeT>(hi - 1)};
+  constexpr auto value_count = sizeof(values) / sizeof(values[0]);
   std::vector<NativeT> a(m * lda, hi), b(k * ldb, hi);
   for (int row = 0; row < m; ++row)
-    for (int q = 0; q < k; ++q) a[row * lda + q] = values[(row * 3 + q) % 7];
+    for (int q = 0; q < k; ++q) a[row * lda + q] = values[(row * 3 + q) % value_count];
   for (int q = 0; q < k; ++q)
-    for (int col = 0; col < n; ++col) b[q * ldb + col] = values[(q * 5 + col) % 7];
+    for (int col = 0; col < n; ++col) b[q * ldb + col] = values[(q * 5 + col) % value_count];
   // The extra plane catches accidental execution of a partial group's suffix.
   std::vector<int8_t> expected((prefix + 1) * m * ldc, 99), actual(expected.size(), 99);
   constexpr int moduli[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167};
