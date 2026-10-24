@@ -183,7 +183,8 @@ The large prepared queue overlaps ordinary WMMA and loses to pack + direct
 GEMM. Already-packed direct GEMM starts at a different input boundary. None
 of these observations establishes a queue scheduling advantage: ordinary WMMA
 still includes allocation/capability checks per call. The new `grid_prepared`
-control reuses identical preparation with ordinary grids and awaits measurement.
+control reuses identical preparation with ordinary grids; its subsequent
+measurement is below.
 
 Executable SHA-256:
 `24c620d120d0332cc16e6aa0b4ed577c0c825a47d7479b48e561221c1e707f3e`.
@@ -192,6 +193,35 @@ and `.sha256.txt` files. The command used `prepared-queue.json` at `51ae8d8`,
 `--runs 5 --repeats 9 --warmups 3 --timeout 900`; that tracked manifest now
 also includes the two new ordinary-grid controls. Validation logs are
 `temp/complex-workloads-build.log` and `temp/complex-workloads-tests.log`.
+
+## Matched prepared ordinary grid at 1bb5e33
+
+Five independent processes for each of twelve cases retain the same seed,
+prefix nine, group one, three warmups and nine measured pairs. All 1,080 paired
+calls and the final outputs of 60 sustained bursts passed exact comparisons;
+the bursts contain 61,179 calls. This uses the pre-upgrade HIP 7.1 stack.
+
+| Approach | 32³ median µs [process range] | 512³ median µs [process range] |
+|---|---:|---:|
+| Pack + direct GEMM | 177.10 [160.73, 187.06] | 747.62 [736.25, 754.58] |
+| Already-packed direct GEMM | 78.25 [72.05, 81.42] | 663.18 [649.51, 959.47] |
+| Ordinary native WMMA | 257.91 [232.46, 303.86] | 1547.47 [1521.77, 1558.13] |
+| One-shot queue, requested 1024 workers | 519.09 [452.21, 564.34] | 2143.28 [2115.76, 2253.17] |
+| Prepared queue, requested 1024 workers | 102.47 [100.43, 119.71] | 1510.66 [1506.74, 1530.65] |
+| Ordinary grid with identical prepared state | 101.69 [91.90, 113.81] | 1391.68 [1384.09, 1528.95] |
+
+Prepared queue reuse improves steady latency by **5.07× and 1.42×** versus
+the one-shot queue. The matched ordinary grid has a lower median at both
+sizes, with overlapping process ranges. There is no demonstrated persistent
+queue scheduling advantage. Direct GEMM remains faster on the large case.
+
+The fresh validation retry passed 491 tests, with three expected sparse-target
+skips and no failures across 494 registered tests. All seventeen native modes
+also passed a separate smoke collection. Raw records, SHA-256 index and
+summary are under `temp/1bb5e33-prepared-queue`; the command uses
+`prepared-queue.json --runs 5 --repeats 9 --warmups 3 --timeout 900`.
+Validation logs are `temp/1bb5e33-tests-retry.log` and
+`temp/1bb5e33-native-smoke.log`.
 
 ## Reproduction and retained evidence
 
