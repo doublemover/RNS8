@@ -48,7 +48,8 @@ __device__ __forceinline__ void rns8_block_sparse_scalar_tile(
 __device__ __forceinline__ void rns8_block_sparse_wmma_tile(
     const int8_t* a,const uint32_t* ao,const uint32_t* ai,const int8_t* b,
     const uint32_t* bo,const uint32_t* bi,int8_t* c,int m,int n,int ldc,int prefix,int tile_cols) {
-#if RNS8_DEVICE_NATIVE_WMMA
+#if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) && \
+    __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
   // One complete wave owns the 16x16 output; no divergent lane participates
   // in the intrinsic. The packed blocks already contain masked zero tails.
   if(threadIdx.x>=32) return;
