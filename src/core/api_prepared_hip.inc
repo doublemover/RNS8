@@ -1,4 +1,7 @@
 namespace {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+#include "api_prepared_pipeline.inc"
+#endif
 uint32_t prepared_storage_planes(const rns8_prepared_execution& e) {
   if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) return 8;
   return uses_finite_storage(e.plan->desc.semantics)?1:e.plan->prefix;
@@ -55,6 +58,7 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   record_epilogue_completion(e);
   e.running = false;
   e.pending_stream = nullptr;
+  if(e.event_dependencies) {release_prepared_dependency(e);e.event_dependencies=false;e.event_dependency_depth=0;}
 }
 rns8_status observe_prepared_hip(rns8_prepared_execution *e,
                                  rns8_completion_token token,
@@ -72,6 +76,9 @@ rns8_status observe_prepared_hip(rns8_prepared_execution *e,
     rns8::detail::hip_scoped_device device(e->ctx->device_id);
     if (!e->pending_stream || device.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+    rns8_status dependency_operation=RNS8_SUCCESS;
+    const auto dependency_status=observe_pipeline_inputs(*e,wait,dependency_operation);
+    if(dependency_status!=RNS8_SUCCESS) return dependency_status;
     if (e->async_failure.stage != RNS8_ASYNC_FAILURE_NONE) {
       if (!wait) return RNS8_BACKEND_FAILURE;
       if (!record_async_drain(*e->ctx, e->async_failure,
@@ -96,7 +103,7 @@ rns8_status observe_prepared_hip(rns8_prepared_execution *e,
               hipStreamSynchronize(static_cast<hipStream_t>(e->pending_stream))))
         return RNS8_BACKEND_FAILURE;
     }
-    finish_prepared_hip(*e, error == hipSuccess ? RNS8_SUCCESS
+    finish_prepared_hip(*e, error == hipSuccess ? dependency_operation
                                                 : RNS8_BACKEND_FAILURE);
     return rns8_get_prepared_completion(e, token, out);
 #else
@@ -135,6 +142,7 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
 struct PreparedHipProof {
   boost::multiprecision::cpp_int bound;
   rns8_exact_matrix_ranges ranges;
+  bool pipeline=false;
 };
 static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              void *stream, bool graph,
@@ -143,22 +151,29 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
     return RNS8_INVALID_ARGUMENT;
   if (e->running || e->dependent_references)
     return RNS8_BUSY;
-  const auto dependency = resolve_prepared_dependency(*e);
-  if (dependency != RNS8_SUCCESS) return dependency;
+  if(!proof.pipeline) {
+    const auto dependency = resolve_prepared_dependency(*e);
+    if (dependency != RNS8_SUCCESS) return dependency;
+  }
   if (!e->hip_submission_prepared)
     return RNS8_UNSUPPORTED_BACKEND;
   if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
       e->b->in_flight_readers == UINT64_MAX ||
       (e->d && e->d->in_flight_readers == UINT64_MAX))
     return RNS8_RANGE_ERROR;
-  auto status = validate_prepared(*e);
-  if (status != RNS8_SUCCESS)
-    return status;
-  if (!inputs_match(*e))
-    return RNS8_INVALID_ARGUMENT;
-  status = prepared_range(*e, proof.bound, proof.ranges);
-  if (status != RNS8_SUCCESS)
-    return status;
+  rns8_status status=RNS8_SUCCESS;
+  if(proof.pipeline) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    status=prove_pipeline_inputs(*e,proof.bound,proof.ranges);
+#else
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  } else {
+    status=validate_prepared(*e);
+    if(status==RNS8_SUCCESS && !inputs_match(*e)) status=RNS8_INVALID_ARGUMENT;
+    if(status==RNS8_SUCCESS) status=prepared_range(*e,proof.bound,proof.ranges);
+  }
+  if(status!=RNS8_SUCCESS) return status;
   if (!rns8::detail::qualified_i32_gemm_address(
           e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
           e->b->desc.cols, e->c->desc.cols, prepared_storage_planes(*e)))
@@ -216,13 +231,25 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   e->cancel_requested = false;
   ++e->epoch;
   *token = {e->id, e->epoch};
-  release_prepared_dependency(*e); // matrix readers now retain the produced value
+  e->event_dependencies=proof.pipeline;
+  e->event_dependency_depth=0;
+  if(proof.pipeline) for(uint32_t i=0;i<e->producer_count;++i)
+    e->event_dependency_depth=std::max(e->event_dependency_depth,e->producers[i].producer->event_dependency_depth+1);
+  if(!proof.pipeline) release_prepared_dependency(*e); // readers retain already published values
   hipError_t launch_error = hipSuccess;
-  rns8_status status;
-  if (graph) {
+  rns8_status status=RNS8_SUCCESS;
+  if(proof.pipeline) {
+    for(uint32_t i=0;i<e->producer_count;++i) {
+      const auto* producer=e->producers[i].producer;
+      if(!producer->running) continue;
+      launch_error=hipStreamWaitEvent(static_cast<hipStream_t>(stream),producer->completion_event.get(),0);
+      if(launch_error!=hipSuccess) {status=RNS8_BACKEND_FAILURE;break;}
+    }
+  }
+  if (status==RNS8_SUCCESS && graph) {
     launch_error = hipGraphLaunch(e->graph_executable, static_cast<hipStream_t>(stream));
     status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-  } else {
+  } else if(status==RNS8_SUCCESS) {
     status = enqueue_prepared(*e, stream);
   }
   if (status != RNS8_SUCCESS)
@@ -238,7 +265,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   }
   if (status != RNS8_SUCCESS) {
     if (record_async_drain(*e->ctx, e->async_failure,
-                          hipStreamSynchronize(static_cast<hipStream_t>(stream))))
+                          hipStreamSynchronize(static_cast<hipStream_t>(stream))) && !proof.pipeline)
       finish_prepared_hip(*e, status);
   }
   return status;
@@ -254,11 +281,11 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
 static rns8_status submit_prepared_hip_impl(rns8_prepared_execution *e,
                                             void *stream,
                                             rns8_completion_token *token,
-                                            bool graph) {
+                                            bool graph, bool pipeline=false) {
   return guard_api([&]() -> rns8_status {
     if (!token)
       return RNS8_INVALID_ARGUMENT;
-    PreparedHipProof proof;
+    PreparedHipProof proof;proof.pipeline=pipeline;
     const auto status = prove_prepared_submission(e, stream, graph, proof);
     if (status != RNS8_SUCCESS)
       return status;
@@ -273,6 +300,9 @@ rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution *e,
                                            void *stream,
                                            rns8_completion_token *token) {
   return submit_prepared_hip_impl(e, stream, token, true);
+}
+rns8_status rns8_submit_prepared_hip_pipeline(rns8_prepared_execution* e,void* stream,rns8_completion_token* token) {
+  return submit_prepared_hip_impl(e,stream,token,false,true);
 }
 rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
   return guard_api([&]() -> rns8_status {

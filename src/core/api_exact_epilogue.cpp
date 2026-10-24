@@ -142,7 +142,7 @@ namespace rns8::detail::api {
 rns8_status validate_exact_axpby_operands(
     const rns8_context &ctx, const rns8_plan &plan, const rns8_matrix &A,
     const rns8_matrix &B, const rns8_matrix &D, const rns8_matrix &C,
-    int64_t alpha, int64_t beta, bool require_current_inputs) {
+    int64_t alpha, int64_t beta, bool require_current_inputs, bool allow_pending_input_writers) {
   if (!exact_wide_semantics(plan.desc.semantics) || &D == &C ||
       (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED &&
        (alpha < 0 || beta < 0)))
@@ -151,10 +151,10 @@ rns8_status validate_exact_axpby_operands(
       plan.backend != RNS8_BACKEND_HIP_DIRECT)
     return RNS8_UNSUPPORTED_BACKEND;
   auto status =
-      validate_rns_gemm_operands(ctx, plan, A, B, C, require_current_inputs);
+      validate_rns_gemm_operands(ctx, plan, A, B, C, require_current_inputs, allow_pending_input_writers);
   if (status != RNS8_SUCCESS)
     return status;
-  if (D.in_flight_writer)
+  if (D.in_flight_writer && !allow_pending_input_writers)
     return RNS8_BUSY;
   const auto prefix = rns_storage_prefix_for_plan(plan);
   if (!matrix_backend_compatible_with_plan(ctx, D, plan.backend) ||

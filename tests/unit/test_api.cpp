@@ -97,3 +97,15 @@ TEST_CASE("public HIP product recipe rebinds owners without reallocating its are
 #include "test_api_resident_finite_cases.inc"
 
 #include "test_api_matrix_cleanup_cases.inc"
+
+
+TEST_CASE("HIP event-dependent joins submit before producer observation", "[api][async][pipeline]") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT,true,false);
+  check_prepared_multi_dependencies(RNS8_BACKEND_HIP_DIRECT,true,true);
+#else
+  SKIP("HIP event-dependent submission is unavailable in this build");
+#endif
+}
+
+#include "test_api_pipeline_bounded_cases.inc"

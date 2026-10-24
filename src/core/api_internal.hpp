@@ -583,13 +583,13 @@ rns8_status validate_rns_gemm_operands(
     const rns8_matrix& A,
     const rns8_matrix& B,
     const rns8_matrix& C,
-    bool require_current_inputs = true);
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_exact_axpby_operands(
     const rns8_context& ctx, const rns8_plan& plan,
     const rns8_matrix& A, const rns8_matrix& B, const rns8_matrix& D,
     const rns8_matrix& C, int64_t alpha, int64_t beta,
-    bool require_current_inputs = true);
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_finite_gemm_operands(
     const rns8_context& ctx,

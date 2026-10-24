@@ -29,6 +29,8 @@ struct rns8_prepared_execution {
   struct Dependency {rns8_prepared_execution* producer=nullptr;rns8_completion_token token{};};
   std::array<Dependency,3> producers{};
   uint32_t producer_count=0;
+  bool event_dependencies = false;
+  uint32_t event_dependency_depth = 0;
   bool hip_submission_prepared = false;
   void* pending_stream = nullptr;
   boost::multiprecision::cpp_int pending_bound;

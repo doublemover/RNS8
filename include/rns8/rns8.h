@@ -288,6 +288,19 @@ RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* ex
  * These calls reject stream capture; no implicit synchronous fallback. */
 RNS8_API rns8_status rns8_prepare_hip_submission(rns8_prepared_execution* execution);
 RNS8_API rns8_status rns8_submit_prepared_hip(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
+/* Explicit event-dependent direct-HIP submission for bounded i64/u64 or
+ * exact-wide GEMM/ExactAxpby. Bind one to three producer tokens first and prepare
+ * all event resources before producers start. Pending producers need not be
+ * host-observed: their recorded events order this stream. No host wait occurs on
+ * successful submission. All inputs retain semantic/prefix/proof checks.
+ * Producer handles/epochs and input readers stay reserved through consumer
+ * observation. Query/wait also observes producers; producer failure/cancellation
+ * prevents consumer publication, even if its kernel completed. No transfers,
+ * finite/wrap semantics, external capture or distributed streams are inferred.
+ * At most 64 nested pending dependency levels are admitted. A failed accepted
+ * submission still requires wait on its issued token. */
+RNS8_API rns8_status rns8_submit_prepared_hip_pipeline(
+    rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 RNS8_API rns8_status rns8_query_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
 RNS8_API rns8_status rns8_wait_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
 /* Poll-based deadline in microseconds (zero performs one poll). RNS8_TIMEOUT

@@ -58,8 +58,9 @@ rns8_status validate_rns_gemm_operands(
     const rns8_matrix& A,
     const rns8_matrix& B,
     const rns8_matrix& C,
-    bool require_current_inputs) {
-  if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers)
+    bool require_current_inputs, bool allow_pending_input_writers) {
+  if ((!allow_pending_input_writers && (A.in_flight_writer || B.in_flight_writer)) ||
+      C.in_flight_writer || C.in_flight_readers)
     return RNS8_BUSY;
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0) {

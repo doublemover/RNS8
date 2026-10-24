@@ -1,6 +1,6 @@
 #pragma once
 #include <array>
-inline void check_prepared_multi_dependencies(rns8_backend_kind backend) {
+inline void check_prepared_multi_dependencies(rns8_backend_kind backend,bool pipeline=false,bool cancel_producer=false) {
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=backend;
   rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(backend==RNS8_BACKEND_HIP_DIRECT?0:-1,&options,&ctx)==RNS8_SUCCESS);
   auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);desc.requested_backend=backend;
@@ -36,12 +36,35 @@ inline void check_prepared_multi_dependencies(rns8_backend_kind backend) {
   if(backend==RNS8_BACKEND_HIP_DIRECT) {
     // Observe independent producers in reverse binding order, then consume all
     // publications. No assumption that completion order equals submission order.
-    for(int i=2;i>=0;--i) REQUIRE(rns8_wait_prepared_hip(producers[i],tokens[i],&info)==RNS8_SUCCESS);
-    REQUIRE(rns8_submit_prepared_hip(consumer,streams[3].get(),&result)==RNS8_SUCCESS);
+    if(pipeline) {
+      REQUIRE(rns8_bind_prepared_dependencies(consumer,producers.data(),tokens.data(),2)==RNS8_SUCCESS);
+      const auto generation=matrix[6]->content_generation;
+      REQUIRE(rns8_submit_prepared_hip_pipeline(consumer,streams[3].get(),&result)==RNS8_BUSY);
+      REQUIRE(result.prepared_id==77);REQUIRE(result.epoch==88);
+      REQUIRE(matrix[6]->content_generation==generation);
+      REQUIRE(rns8_bind_prepared_dependencies(consumer,producers.data(),tokens.data(),3)==RNS8_SUCCESS);
+      REQUIRE(rns8_submit_prepared_hip_pipeline(consumer,streams[3].get(),&result)==RNS8_SUCCESS);
+      for(auto* p:producers) REQUIRE(rns8_destroy_prepared_execution(p)==RNS8_BUSY);
+      for(int i=3;i<7;++i) REQUIRE_FALSE(matrix[i]->device_residues_current);
+      if(cancel_producer) REQUIRE(rns8_cancel_prepared_hip(producers[1],tokens[1])==RNS8_SUCCESS);
+    } else {
+      for(int i=2;i>=0;--i) REQUIRE(rns8_wait_prepared_hip(producers[i],tokens[i],&info)==RNS8_SUCCESS);
+      REQUIRE(rns8_submit_prepared_hip(consumer,streams[3].get(),&result)==RNS8_SUCCESS);
+    }
     REQUIRE(rns8_wait_prepared_hip(consumer,result,&info)==RNS8_SUCCESS);
   } else
 #endif
   {REQUIRE(rns8_execute_prepared(consumer,&result)==RNS8_SUCCESS);REQUIRE(rns8_get_prepared_completion(consumer,result,&info)==RNS8_SUCCESS);}
+  if(cancel_producer) {
+    REQUIRE(info.operation_status==RNS8_CANCELED);REQUIRE_FALSE(info.output_is_current);
+    REQUIRE_FALSE(matrix[6]->device_residues_current);
+    REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);
+    for(auto* p:producers) REQUIRE(rns8_destroy_prepared_execution(p)==RNS8_SUCCESS);
+    for(auto* m:matrix) REQUIRE(rns8_destroy_matrix(m)==RNS8_SUCCESS);
+    for(auto* w:work) REQUIRE(rns8_destroy_workspace(w)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+    return;
+  }
   REQUIRE(info.operation_status==RNS8_SUCCESS);REQUIRE(info.output_is_current);
   uint64_t value=0;REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,matrix[6],&value,1,1)==RNS8_SUCCESS);REQUIRE(value==52);
   // A cycle reachable only through the second join branch must reject.

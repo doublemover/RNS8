@@ -377,3 +377,33 @@ submission. Other backends and bounded resident DAGs remain unsupported by this
 asynchronous surface. Source fixtures cover narrow and full-width declared
 bounds, signed extrema, unsigned maxima, pitched export, replay, refresh
 and cancellation; execution is pending the final campaign.
+
+## Event-dependent prepared submission
+
+`rns8_submit_prepared_hip_pipeline` explicitly consumes the existing token
+bindings without waiting for host publication. Prepare each owner's HIP event
+before producers start, bind up to three producer tokens, then submit the consumer
+on a non-default stream. Pending producer events become `hipStreamWaitEvent`
+dependencies. Successful submission performs no host wait or device-wide drain.
+The current envelope is direct-HIP bounded i64/u64 or exact-wide GEMM and exact
+axpby, with fixed prefixes; finite/wrap and external capture are unsupported here.
+
+Before issuing work, preflight checks each producer's identity, latest epoch,
+semantic contract, written prefix, failure state and pending proof. Only inputs
+bound to those producers may have an active writer. Unbound inputs must still
+match their original generations and be current. Exact admission uses copies of
+producer proof metadata without copying device payloads or publishing values.
+
+Consumer observation also observes its producers and records their actual
+published generations. Producer cancellation or failure invalidates the consumer
+result even if its kernel ran successfully. Producer handles, epochs and input
+readers stay reserved until consumer completion or safe failure cleanup. A failed
+accepted submission issues a token and still requires blocking observation;
+failed drains retain ownership. Up to 64 nested pending event-dependency levels
+are admitted to bound host observation recursion. Independent siblings do not
+consume that depth limit. This path makes no measured overlap or speedup claim.
+
+The authored join fixture submits three independent producers and an axpby
+consumer before observing any producer, verifies unpublished storage and retained
+owners, checks the exact output, and repeats with late producer cancellation.
+These fixtures await the consolidated campaign.
