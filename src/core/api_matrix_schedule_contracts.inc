@@ -265,15 +265,17 @@ bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind ba
     return false;
   }
   if (!matrix.residues.empty() || matrix.hip_residues || matrix.hip_residue_bytes != 0 ||
-      matrix.byte_limbs.size() != expected_bytes || matrix.host_residues_current ||
+      matrix.host_residues_current ||
       matrix.device_residues_current) {
     return false;
   }
   if (backend == RNS8_BACKEND_HIP_DIRECT) {
-    return !matrix.host_byte_limbs_current && matrix.hip_byte_limbs != nullptr &&
+    return (matrix.byte_limbs.empty() || matrix.byte_limbs.size() == expected_bytes) &&
+           !matrix.host_byte_limbs_current && matrix.hip_byte_limbs != nullptr &&
            matrix.hip_byte_limb_bytes == expected_bytes;
   }
-  return matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0 &&
+  return matrix.byte_limbs.size() == expected_bytes &&
+         matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0 &&
          matrix.hip_upload_buffer == nullptr && matrix.hip_upload_bytes == 0 &&
          matrix.hip_export_buffer == nullptr && matrix.hip_export_bytes == 0 &&
          matrix.hip_status_buffer == nullptr && matrix.hip_status_bytes == 0 &&

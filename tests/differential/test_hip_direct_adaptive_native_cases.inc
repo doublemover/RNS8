@@ -137,6 +137,9 @@ template<class T> void check_public_adaptive_owner() {
   // Both padded and compact retained packs use one native allocation and no
   // second full input upload staging allocation.
   const auto check_single_upload_owner = [&](rns8_matrix* matrix) {
+    CHECK(matrix->residues.empty());
+    CHECK(matrix->residues.capacity() == 0);
+    CHECK_FALSE(matrix->host_residues_current);
     CHECK(matrix->hip_upload_buffer == nullptr);
     CHECK(matrix->hip_upload_bytes == 0);
     CHECK(matrix->device_native_current);
@@ -210,4 +213,41 @@ TEST_CASE("public adaptive exact products own native inputs and retire stale cop
   if (!hip_available()) SKIP("no HIP device for public adaptive ownership");
   check_public_adaptive_owner<int64_t>();
   check_public_adaptive_owner<uint64_t>();
+}
+
+TEST_CASE("direct HIP matrices allocate only the requested device payload") {
+  if (!hip_available()) SKIP("no HIP device for storage admission");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (auto semantics : {RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,
+       RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED,
+       RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8,RNS8_WRAP_U64_MOD_2_64}) {
+    const bool bounded=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64;
+    auto md=matrix_desc(2,3,semantics,bounded?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_NONE);
+    rns8_matrix* matrix=nullptr;
+    REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    CHECK(matrix->residues.capacity()==0);
+    CHECK(matrix->byte_limbs.capacity()==0);
+    CHECK_FALSE(matrix->host_residues_current);
+    CHECK_FALSE(matrix->device_residues_current);
+    CHECK_FALSE(matrix->host_byte_limbs_current);
+    CHECK_FALSE(matrix->device_byte_limbs_current);
+    rns8_matrix_storage_info info{};
+    info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_matrix_storage_info(matrix,&info)==RNS8_SUCCESS);
+    CHECK(info.host_residue_bytes==0);
+    CHECK(info.host_byte_limb_bytes==0);
+    const int64_t signed_values[]={INT64_MIN,0,INT64_MAX,1,-1,2};
+    const uint64_t unsigned_values[]={UINT64_MAX,0,1,2,3,4};
+    const uint8_t finite_values[]={0,1,249,2,3,4};
+    if (semantics==RNS8_FINITE_RING_U8 || semantics==RNS8_FINITE_FIELD_U8)
+      REQUIRE(rns8_pack_finite_u8(ctx,matrix,semantics==RNS8_FINITE_RING_U8?250:251,
+                                 finite_values,3,0)==RNS8_SUCCESS);
+    else if (semantics==RNS8_BOUNDED_I64 || semantics==RNS8_EXACT_WIDE_SIGNED)
+      REQUIRE(rns8_pack_i64(ctx,matrix,signed_values,3,0)==RNS8_SUCCESS);
+    else REQUIRE(rns8_pack_u64(ctx,matrix,unsigned_values,3,0)==RNS8_SUCCESS);
+    CHECK(matrix->residues.capacity()==0);
+    CHECK(matrix->byte_limbs.capacity()==0);
+    REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

@@ -387,15 +387,20 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(
                                                     matrix.desc.cols, bound);
     if (!rns8::detail::exact_range_fits(expected, bound, rns8::detail::modulus_product(matrix.prefix)))
       return RNS8_RANGE_ERROR;
+    // Arbitrary-width imports are explicitly host-converted. Keep that staging
+    // local to the call instead of retaining a full mirror on a device matrix.
+    std::vector<int8_t> staging;
+    if (matrix.hip_residues) staging.resize(matrix.hip_residue_bytes);
+    auto* destination = matrix.hip_residues ? staging.data() : matrix.residues.data();
     MatrixWriteGuard write(matrix);
     for (uint32_t p = 0; p < matrix.prefix; ++p)
       for (std::size_t cell = 0; cell < cells; ++cell)
-        matrix.residues[p * cells + cell] =
+        destination[p * cells + cell] =
             rns8::detail::centered_residue(values[cell], rns8::detail::kDefaultModuli[p]);
     if (matrix.hip_residues) {
       const auto status = run_timed_api_status("pack_h2d", [&]() {
         return rns8::detail::hip_direct_copy_host_to_device(ctx.device_id, matrix.hip_residues,
-                                                          matrix.residues.data(), matrix.hip_residue_bytes);
+                                                          destination, matrix.hip_residue_bytes);
       });
       if (status != RNS8_SUCCESS) return status;
       mark_device_residues_current(matrix);

@@ -78,15 +78,17 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         delete matrix;
         return RNS8_RANGE_ERROR;
       }
-      matrix->byte_limbs.assign(bytes, 0);
-      mark_host_byte_limbs_current(*matrix);
+      if (!hip_resident_rns_backend(ctx->backend)) {
+        matrix->byte_limbs.assign(bytes, 0);
+        mark_host_byte_limbs_current(*matrix);
+      }
     } else if (uses_finite_storage(matrix->desc.semantics)) {
       std::size_t cells = 0;
       if (!matrix_cell_count(desc->rows, desc->cols, cells)) {
         delete matrix;
         return RNS8_RANGE_ERROR;
       }
-      matrix->residues.assign(cells, 0);
+      if (!hip_resident_rns_backend(ctx->backend)) matrix->residues.assign(cells, 0);
       matrix->finite_modulus = 0;
       clear_residue_current(*matrix);
       clear_byte_limb_current(*matrix);
@@ -96,7 +98,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         delete matrix;
         return RNS8_RANGE_ERROR;
       }
-      matrix->residues.assign(elements, 0);
+      if (!hip_resident_rns_backend(ctx->backend)) matrix->residues.assign(elements, 0);
       if (rns8::detail::exact_wide_semantics(matrix->desc.semantics) &&
           ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
         matrix->exact_range_prefix = prefix;  // The freshly created host matrix is zero.

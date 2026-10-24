@@ -102,10 +102,8 @@ rns8_status free_hip_matrix_storage(rns8_matrix& matrix) {
 rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) {
   matrix.hip_device_id = ctx.device_id;
   if (matrix.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-    if (matrix.byte_limbs.empty()) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    matrix.hip_byte_limb_bytes = matrix.byte_limbs.size() * sizeof(uint8_t);
+    if (!wrap_byte_limb_bytes(matrix.desc.rows, matrix.desc.cols, matrix.hip_byte_limb_bytes))
+      return RNS8_RANGE_ERROR;
     rns8_status status =
         rns8::detail::hip_direct_allocate(ctx.device_id, matrix.hip_byte_limb_bytes, &matrix.hip_byte_limbs);
     if (status != RNS8_SUCCESS) {
@@ -120,10 +118,10 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
     clear_byte_limb_current(matrix);
     return RNS8_SUCCESS;
   }
-  if (matrix.residues.empty()) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  matrix.hip_residue_bytes = matrix.residues.size() * sizeof(int8_t);
+  const bool valid_capacity = uses_finite_storage(matrix.desc.semantics)
+      ? matrix_cell_count(matrix.desc.rows, matrix.desc.cols, matrix.hip_residue_bytes)
+      : rns_residue_count(matrix.desc.rows, matrix.desc.cols, matrix.prefix, matrix.hip_residue_bytes);
+  if (!valid_capacity) return RNS8_RANGE_ERROR;
   rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, matrix.hip_residue_bytes, &matrix.hip_residues);
   if (status != RNS8_SUCCESS) {
     return status;

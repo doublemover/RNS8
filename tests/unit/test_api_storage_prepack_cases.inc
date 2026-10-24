@@ -526,3 +526,35 @@ TEST_CASE("C++ prepack cache key helper exposes validated key material") {
   CHECK(key.cache_key_hash != 0);
 }
 
+
+TEST_CASE("resident capacity admission does not require a host mirror") {
+  using namespace rns8::detail::api;
+  int8_t dummy = 0;  // Admission checks addresses, never dereferences this mock.
+  rns8_matrix matrix{};
+  matrix.prefix = 9;
+  matrix.host_residues_current = false;
+  matrix.hip_residues = &dummy;
+  matrix.hip_residue_bytes = 2*3*9;
+  CHECK(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_CPU_REFERENCE,2,3,9));
+  matrix.host_residues_current = true;
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  matrix.host_residues_current = false;
+  --matrix.hip_residue_bytes;
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  matrix.prefix = 0;
+  matrix.hip_residue_bytes = 6;
+  CHECK(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  matrix.hip_residues = nullptr;
+  matrix.hip_residue_bytes = 0;
+  CHECK_FALSE(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  matrix.hip_byte_limbs = &dummy;
+  matrix.hip_byte_limb_bytes = 48;
+  CHECK(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_WRAP64_BYTE_LIMB,2,3));
+  matrix.host_byte_limbs_current = true;
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  std::size_t bytes = 0;
+  CHECK_FALSE(rns_residue_count(INT64_MAX,INT64_MAX,20,bytes));
+  CHECK_FALSE(wrap_byte_limb_bytes(INT64_MAX,INT64_MAX,bytes));
+}

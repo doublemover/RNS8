@@ -330,15 +330,18 @@ bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind bac
   if (matrix.prefix < prefix || !rns_residue_count(rows, cols, matrix.prefix, expected_residues)) {
     return false;
   }
-  if (matrix.residues.size() != expected_residues || !matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
+  if (!matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
       matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current || matrix.device_byte_limbs_current) {
     return false;
   }
   const std::size_t expected_bytes = expected_residues * sizeof(int8_t);
   if (hip_resident_rns_backend(backend)) {
-    return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
+    return (matrix.residues.size() == expected_bytes ||
+            (matrix.residues.empty() && !matrix.host_residues_current)) &&
+           matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
-  return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
+  return matrix.residues.size() == expected_bytes && matrix.hip_residues == nullptr &&
+         matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
 bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
@@ -346,16 +349,19 @@ bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind 
   if (!matrix_cell_count(rows, cols, expected_cells)) {
     return false;
   }
-  if (matrix.prefix != 0 || matrix.residues.size() != expected_cells || !matrix.byte_limbs.empty() ||
+  if (matrix.prefix != 0 || !matrix.byte_limbs.empty() ||
       matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current ||
       matrix.device_byte_limbs_current) {
     return false;
   }
   const std::size_t expected_bytes = expected_cells * sizeof(int8_t);
   if (hip_resident_rns_backend(backend)) {
-    return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
+    return (matrix.residues.size() == expected_bytes ||
+            (matrix.residues.empty() && !matrix.host_residues_current)) &&
+           matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
-  return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
+  return matrix.residues.size() == expected_bytes && matrix.hip_residues == nullptr &&
+         matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
 bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backend_kind backend) {
