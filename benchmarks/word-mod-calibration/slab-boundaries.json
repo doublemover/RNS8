@@ -480,6 +480,166 @@
       "k": 8193,
       "domain": "prime_field",
       "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4095,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4095,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4095,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4095,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4096,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4096,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4096,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4096,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4097,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4097,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 4097,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 4097,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 8193,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 8193,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "resident",
+      "m": 3,
+      "n": 5,
+      "k": 8193,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "canonical_dot4",
+      "scope": "cold",
+      "m": 3,
+      "n": 5,
+      "k": 8193,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
     }
   ]
 }

@@ -311,7 +311,8 @@
         "tools/test_collect_native_calibration.py"
       ],
       "commits": [
-        "cb4e2bebc2e1718cbc494f7127dd5516ed320491"
+        "cb4e2bebc2e1718cbc494f7127dd5516ed320491",
+        "b5ed9b9f2d51514b8743858c9c9810942c21b7a8"
       ],
       "remaining": [
         "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
@@ -879,12 +880,30 @@
       "issue": 66,
       "title": "[Research P3] Prototype word-size modular GEMM with certified asymmetric multiword lowering",
       "url": "https://github.com/doublemover/RNS8/issues/66",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Word-mod descriptor/oracle and real scalar/UDOT4/WMMA kernel candidates implemented. Latest packed-dot canonical-width specialization absent: always extracts eight bytes and 8x8 products, unlike width-bounded WMMA sibling.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Canonical-width B=1..8 UDOT4 instantiations share exact modulus-derived width with WMMA, retain full-width control, reduce live digit/diagonal arrays and preserve canonical scan/4096-term slab. Paired cold/resident calibration contracts/manifests retain source-count versus measured-ISA distinction.",
+          "files": [
+            "src/backend_common/word_mod_arithmetic.hpp",
+            "src/backend_hip_direct/hip_direct_word_mod.cuh",
+            "src/backend_hip_direct/hip_backend_word_mod.inc",
+            "benchmarks/rns8_word_mod_calibrate.cpp",
+            "tools/collect_word_mod_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_word_mod_cases.inc",
+        "tests/differential/test_hip_direct_word_mod_cases.inc",
+        "tools/test_collect_word_mod_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Review original CDNA FP64 matrix-engine candidate scope against scalar-binary64 implementation; scalar exactness does not establish a CDNA matrix backend.",
+        "Execute authored regressions and obtain launched ISA/cold-resident target evidence later; no measured profitable cohort claimed."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29

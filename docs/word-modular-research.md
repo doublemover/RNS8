@@ -46,7 +46,7 @@ remaining host and GPU candidates.
 ## Explicit packed-byte dot-product candidate
 
 An opt-in gfx1100-family candidate lowers each canonical word into eight
-unsigned bytes, forms all 64 byte-pair dot products, and groups them into 15
+unsigned bytes in the retained full-width control, forms all 64 byte-pair dot products, and groups them into 15
 radix-256 diagonals. UDOT4 consumes four K terms per instruction with zero tail
 lanes. Each fixed 4096-term slab bounds the largest diagonal by
 `4096*8*255*255 = 2130739200 < INT32_MAX`; the hardware accumulator therefore
@@ -113,3 +113,9 @@ arrays may spill; register pressure, emitted instructions and useful throughput
 need actual compiler/device evidence. CPU bound/weight fixtures and complete
 Boost HIP comparisons cover asymmetric pairs and slab tails with padding and
 rejected-output preservation. All remain unexecuted in the development frontload.
+
+
+The opt-in canonical-width dot4 sibling now specializes B=1..8 from the checked
+modulus. It omits provably zero high-byte terms without changing integer product
+semantics; the full-width dot4 and byte-WMMA controls remain distinct. See the
+[matched calibration boundary](word-modular-calibration.md#canonical-width-packed-dot-control).

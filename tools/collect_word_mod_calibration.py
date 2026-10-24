@@ -17,7 +17,7 @@ import uuid
 from build_manifest import manifest_provenance_complete
 from collect_finite_verify import demand, integer, positive, same, strict_json, checksum, validate_provenance
 
-INTEGER_METHODS=("baseline","packed_dot4","byte_wmma")
+INTEGER_METHODS=("baseline","packed_dot4","canonical_dot4","byte_wmma")
 METHODS=(*INTEGER_METHODS,"asymmetric_binary64")
 SCOPES=("resident","cold")
 MASK=(1 << 64)-1
@@ -93,7 +93,7 @@ def load_cases(path):
 
 def contract(case,run_id,repeats,warmups):
     m,n,k,p=case["m"],case["n"],case["k"],case["modulus"];ac=m*(k+2);bc=k*(n+3);cc=m*(n+3)+8
-    dot=case["method"]=="packed_dot4";wmma=case["method"]=="byte_wmma";floating=case["method"]=="asymmetric_binary64";cold=case["scope"]=="cold"
+    canonical=case["method"]=="canonical_dot4";dot=canonical or case["method"]=="packed_dot4";wmma=case["method"]=="byte_wmma";floating=case["method"]=="asymmetric_binary64";cold=case["scope"]=="cold"
     operand_bytes=((p-1).bit_length()+7)//8
     result={"schema":"rns8_word_mod_microcase_v1","run_id":run_id,**case,"lda":k+2,"ldb":n+3,"ldc":n+3,
         "operand_bits":(p-1).bit_length(),"modulus_bits":p.bit_length(),"device_requested":case["device"],"device_actual":case["device"],
@@ -102,14 +102,19 @@ def contract(case,run_id,repeats,warmups):
         "input_contract":"canonical_u64_padded_rows","output_contract":"canonical_u64_modulus_with_padding","output_boundary":"host" if cold else "device",
         "reference_method":"boost_int256_all_products_modulus_with_cpp_int_row_edge_audits","a_allocation_bytes":ac*8,"b_allocation_bytes":bc*8,
         "output_allocation_bytes":cc*8,"explicit_scratch_peak_bytes":4,"compiler_private_scratch_bytes":None,"canary_bytes":64,"logical_payload_envelope_bytes":(3*(ac+bc)+4*cc)*8+16384,
-        "memory_budget_bytes":BUDGET,"slab_k":case["slab_k"] if floating else 4096 if dot or wmma else None,"digit_diagonals":2*operand_bytes-1 if wmma else 15 if dot else 0,
-        "max_diagonal_accumulator":4096*operand_bytes*65025 if wmma else 2130739200 if dot else None,
-        "arithmetic_kernel":"word_mod_byte_wmma" if wmma else "word_mod_asymmetric_binary64" if floating else "word_mod_byte_dot4" if dot else "word_mod_double_add",
+        "memory_budget_bytes":BUDGET,"slab_k":case["slab_k"] if floating else 4096 if dot or wmma else None,"digit_diagonals":2*operand_bytes-1 if wmma or canonical else 15 if dot else 0,
+        "max_diagonal_accumulator":4096*operand_bytes*65025 if wmma or canonical else 2130739200 if dot else None,
+        "arithmetic_kernel":"word_mod_byte_dot4_canonical_width" if canonical else "word_mod_byte_wmma" if wmma else "word_mod_asymmetric_binary64" if floating else "word_mod_byte_dot4" if dot else "word_mod_double_add",
         "timing_scope":"allocate_upload_checked_compute_readback_checked_free" if cold else "resident_checked_compute_including_canonical_scan_and_domain_admission",
         "input_preservation_scope":"one_separate_resident_audit_before_warmups" if cold else "outside_each_verified_call_and_final_burst",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,"public_ownership_measured":False,
         "asymmetric_floating_schedule_implemented":floating,"actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
     if floating:result["floating_schedule"]=floating_schedule(case)
+    if canonical:
+        result["canonical_dot4_schedule"]=dict(version=1,bytes_per_operand=operand_bytes,diagonals=2*operand_bytes-1,
+            source_dot4_updates_per_four_k=operand_bytes**2,slab_k=4096,maximum_accumulator=4096*operand_bytes*65025,
+            width_proof="canonical_inputs_less_than_modulus",zero_pad_k_tail=True,full_width_control="packed_dot4",
+            issued_instruction_count_measured=False)
     if wmma:
         result["operand_bytes"]=operand_bytes
         result["byte_wmma_schedule"]=dict(version=1,arithmetic="unsigned_radix256_wmma_diagonal_integer_recombination",bytes_per_operand=operand_bytes,
@@ -153,7 +158,7 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     for key in ("device_name","target"):
         demand(type(capture.get(key)) is str and bool(capture[key].strip()),f"missing identity: {key}")
     demand(re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"invalid target")
-    if case["method"] in ("packed_dot4","byte_wmma"):demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"byte-instruction target not admitted")
+    if case["method"] in ("packed_dot4","canonical_dot4","byte_wmma"):demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"byte-instruction target not admitted")
     demand(integer(capture.get("runtime_version"),1,(1 << 31)-1),"invalid runtime identity")
     demand(positive(capture.get("oracle_and_dataset_ns")),"invalid oracle timing")
     demand(positive(capture.get("resident_setup_ns")) if case["scope"]=="resident" else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")

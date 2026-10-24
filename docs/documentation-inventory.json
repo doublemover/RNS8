@@ -4407,11 +4407,16 @@
           "reference": "word-modular-calibration.md"
         },
         {
+          "source": "docs/word-modular-research.md",
+          "reference": "word-modular-calibration.md#canonical-width-packed-dot-control"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/word-modular-calibration.md"
         }
       ],
       "anchors": [
+        "canonical-width-packed-dot-control",
         "canonical-word-modular-calibration",
         "collection-and-remaining-gates",
         "explicit-contract",

@@ -3,17 +3,19 @@ extern "C" int rns8_hip_word_mod_floating(const void*,const void*,void*,int,int,
 extern "C" int rns8_hip_word_mod_wmma_capability(int*);
 extern "C" int rns8_hip_word_mod_wmma(const void*,const void*,void*,int,int,int,int,int,int,uint64_t,word_mod::DigitWeights);
 extern "C" int rns8_hip_word_mod_dot4_capability(int*);
+extern "C" int rns8_hip_word_mod_dot4_width(const void*,const void*,void*,int,int,int,int,int,int,uint64_t,word_mod::DigitWeights);
 extern "C" int rns8_hip_word_mod_dot4(const void*,const void*,void*,int,int,int,int,int,int,uint64_t,word_mod::DigitWeights);
 extern "C" int rns8_hip_word_mod_validate(const void*,const void*,int,int,int,int,int,uint64_t,int*);
 extern "C" int rns8_hip_word_mod_gemm(const void*,const void*,void*,int,int,int,int,int,int,uint64_t);
 #endif
 rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b,void* c,
-    const word_mod::Problem& p,uint64_t budget,bool& commit_started,bool packed_dot4,const word_mod::FloatingRequest* floating,bool byte_wmma) {
+    const word_mod::Problem& p,uint64_t budget,bool& commit_started,bool packed_dot4,const word_mod::FloatingRequest* floating,bool byte_wmma,bool canonical_dot4) {
   commit_started=false;const auto s=word_mod::query(p,true);if(s.status!=RNS8_SUCCESS) return s.status;
   if(!a || !b || !c || reinterpret_cast<uintptr_t>(a)%8 || reinterpret_cast<uintptr_t>(b)%8 ||
      reinterpret_cast<uintptr_t>(c)%8 || !nonoverlapping_byte_ranges(a,s.a_bytes,c,s.c_bytes) ||
      !nonoverlapping_byte_ranges(b,s.b_bytes,c,s.c_bytes)) return RNS8_INVALID_ARGUMENT;
   if(budget<4) return RNS8_WORKSPACE_TOO_SMALL;
+  if(canonical_dot4 && (!packed_dot4 || floating || byte_wmma))return RNS8_INVALID_ARGUMENT;
   if(byte_wmma && (packed_dot4 || floating)) return RNS8_INVALID_ARGUMENT;
   word_mod::FloatingSchedule schedule;
   if(floating) {
@@ -47,11 +49,11 @@ rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b
   flag.mark_completed();
   if(invalid) return RNS8_INVALID_ARGUMENT;
   commit_started=true;
-  const auto error=timed_hip_operation(byte_wmma?"word_mod_byte_wmma":floating?"word_mod_asymmetric_binary64":packed_dot4?"word_mod_byte_dot4":"word_mod_double_add",[&]() {
+  const auto error=timed_hip_operation(canonical_dot4?"word_mod_byte_dot4_canonical_width":byte_wmma?"word_mod_byte_wmma":floating?"word_mod_asymmetric_binary64":packed_dot4?"word_mod_byte_dot4":"word_mod_double_add",[&]() {
     const auto issued=static_cast<hipError_t>(floating?
         rns8_hip_word_mod_floating(a,b,c,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),int(p.ldc),p.modulus,schedule):byte_wmma?
         rns8_hip_word_mod_wmma(a,b,c,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),int(p.ldc),p.modulus,weights):packed_dot4?
-        rns8_hip_word_mod_dot4(a,b,c,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),int(p.ldc),p.modulus,weights):
+        (canonical_dot4?rns8_hip_word_mod_dot4_width:rns8_hip_word_mod_dot4)(a,b,c,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),int(p.ldc),p.modulus,weights):
         rns8_hip_word_mod_gemm(a,b,c,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),int(p.ldc),p.modulus));
     const auto completed=hipDeviceSynchronize();return issued==hipSuccess?completed:issued;
   });

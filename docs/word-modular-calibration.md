@@ -179,15 +179,15 @@ Versioned manifests provide [small controls](../benchmarks/word-mod-calibration/
 [13 widths with17x19 tails](../benchmarks/word-mod-calibration/widths-tail.json),
 [K4095/4096/4097/8193](../benchmarks/word-mod-calibration/slab-boundaries.json), and
 [32..512 output orders](../benchmarks/word-mod-calibration/large.json). They pair
-all three integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
+all four integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
 31,35,39,42,48,50,52 and64; moduli are explicit in each case, with no latest-prime
 lookup at execution time.
 
-The integer sets contain 12 small, 156 width/tail, 48 slab-boundary and 144 large
-cases. [84 matched tile-tail cases](../benchmarks/word-mod-calibration/tile-tails.json)
+The integer sets contain 16 small, 208 width/tail, 64 slab-boundary and 192 large
+cases. [112 matched tile-tail cases](../benchmarks/word-mod-calibration/tile-tails.json)
 add output extents 1,15,16,17,19,31,32,33 around the 16x16 boundaries and modulus
 256/257 at the one-byte/two-byte transition. All integer cohorts use identical
-inputs, oracle, scope and mathematical product across the three methods.
+inputs, oracle, scope and mathematical product across the four methods.
 
 Additional manifests retain matched integer controls and paired swapped digit
 orientations: [16 small cases](../benchmarks/word-mod-calibration/floating-smoke.json),
@@ -230,3 +230,22 @@ binary64 schedule is authored, with execution still pending. Derived
 asymmetric concatenation layouts and floating matrix-engine schedules remain separate
 implementation work; CDNA qualification still needs
 the deferred hardware.
+
+
+## Canonical-width packed-dot control
+
+`canonical_dot4` preserves the full-width `packed_dot4` control and derives its
+compile-time byte count B from the admitted modulus, never a caller hint. The
+same canonical input scan proves x<p<=256^B; omitted high-byte products are zero
+as integers before modular recombination. Eight kernel instantiations retain
+only B digits per operand and 2B−1 diagonals, with B² source UDOT4 updates per
+four K terms. The unchanged 4096-term slab bounds each diagonal by
+4096·B·255²<=2,130,739,200<INT32_MAX, including full-width B=8. Partial K groups
+are zero filled and integer modular merging is unchanged.
+
+Receipts bind B, diagonal count, source update count, exact accumulator bound
+and canonical-width proof identity. The paired manifests keep identical
+resident/cold ownership and canonical-scan costs. Host and device regressions
+cover every byte width, powers of 256, odd tails, padded outputs and slab±1.
+These are authored code/fixtures, not executed GPU evidence. Emitted UDOT4 count,
+register pressure, total call cost and any speedup remain unverified.

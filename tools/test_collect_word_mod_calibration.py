@@ -41,6 +41,23 @@ def successful(command,**kwargs):
     return subprocess.CompletedProcess(command,0,json.dumps(fixture(case,command[-1],int(command[9]),int(command[10]))),"")
 
 
+class CanonicalWidthContracts(unittest.TestCase):
+    def test_canonical_width_schedule_is_proof_bound(self):
+        for width in range(1,9):
+            modulus=(1 << (8*width))-1
+            case=dict(BASE,method="canonical_dot4",modulus=modulus,domain="ring")
+            capture=fixture(case);validate_capture(capture,case,"fixture-run",2,1)
+            schedule=capture["canonical_dot4_schedule"]
+            self.assertEqual(schedule["bytes_per_operand"],width)
+            self.assertEqual(schedule["source_dot4_updates_per_four_k"],width*width)
+            self.assertEqual(schedule["diagonals"],2*width-1)
+            self.assertLessEqual(schedule["maximum_accumulator"],(1<<31)-1)
+            self.assertFalse(schedule["issued_instruction_count_measured"])
+            for field in ("bytes_per_operand","maximum_accumulator","width_proof"):
+                wrong=deepcopy(capture);wrong["canonical_dot4_schedule"][field]=None
+                with self.assertRaises(ValueError):validate_capture(wrong,case,"fixture-run",2,1)
+
+
 class Captures(unittest.TestCase):
     def test_all_methods_scopes_domains_widths_and_slab_tails(self):
         for bits in (8,16,23,26,27,31,35,39,42,48,50,52,64):
@@ -62,7 +79,7 @@ class Captures(unittest.TestCase):
 
     def test_tracked_manifests_and_full_width_boundary_words(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks"/"word-mod-calibration"
-        for name,count in (("smoke",12),("widths-tail",156),("slab-boundaries",48),("large",144),("tile-tails",84)):
+        for name,count in (("smoke",16),("widths-tail",208),("slab-boundaries",64),("large",192),("tile-tails",112)):
             cases=load_cases(root/(name+".json"));self.assertEqual(len(cases),count)
             self.assertEqual({case["method"] for case in cases},set(INTEGER_METHODS));self.assertEqual({case["scope"] for case in cases},set(SCOPES))
         case=dict(BASE,m=1,n=1,k=4,domain="ring",modulus=(1 << 64)-1)
