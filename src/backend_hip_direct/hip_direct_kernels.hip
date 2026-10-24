@@ -343,3 +343,5 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
   hipLaunchKernelGGL(rns8_wide_gemm_kernel,dim3(blocks),dim3(256),0,nullptr,a,b,c,m,n,k,lda,ldb,ldc,count);
   return static_cast<int>(hipGetLastError());
 }
+
+#include "hip_direct_finite_verify.cuh"

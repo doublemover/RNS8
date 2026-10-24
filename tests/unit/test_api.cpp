@@ -42,3 +42,5 @@ namespace {
 #include "test_api_plan_validation_cache_cases.inc"
 
 #include "test_runtime_product_recipe_cases.inc"
+
+#include "test_api_finite_verify_cases.inc"

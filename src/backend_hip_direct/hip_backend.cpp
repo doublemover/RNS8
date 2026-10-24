@@ -7,6 +7,7 @@
 #include "backend_common/complex_residue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/encoded_b_backend.hpp"
+#include "backend_hip_direct/finite_verify_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 
 #include "core/api_internal.hpp"
@@ -654,6 +655,7 @@ namespace rns8::detail {
 #include "hip_backend_rank23_slp.inc"
 #include "hip_backend_adaptive_native.inc"
 #include "hip_backend_integrity.inc"
+#include "hip_backend_finite_verify.inc"
 
 rns8_status hip_direct_synchronize(int device_id) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

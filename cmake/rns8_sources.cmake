@@ -16,6 +16,7 @@ set(RNS8_SOURCES
   src/core/api_export.cpp
   src/core/api_exact_lift.cpp
   src/core/api_exact_epilogue.cpp
+  src/core/api_finite_verify.cpp
   src/core/api_gemm.cpp
   src/core/api_matrix_workspace.cpp
   src/core/api_oneshot.cpp

@@ -73,3 +73,5 @@ namespace {
 #include "test_hip_direct_wide_gemm_cases.inc"
 
 #include "test_hip_runtime_product_recipe_cases.inc"
+
+#include "test_hip_finite_verify_cases.inc"

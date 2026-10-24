@@ -1616,8 +1616,17 @@ RNS8_API rns8_status rns8_freivalds_verify(
     uint64_t random_seed,
     int repetition_count,
     double* out_failure_probability) {
-  (void)ctx; (void)A; (void)B; (void)C;
-  (void)random_seed; (void)repetition_count; (void)out_failure_probability;
-  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+  if (!ctx || !A || !B || !C) return RNS8_UNSUPPORTED_BACKEND;
+  if (!out_failure_probability || repetition_count < 1) return RNS8_INVALID_ARGUMENT;
+  rns8_finite_verify_options options{};
+  options.struct_size = sizeof(options); options.abi_version = RNS8_ABI_VERSION;
+  options.repetition_count = static_cast<uint32_t>(repetition_count);
+  options.random_seed = random_seed; options.max_workspace_bytes = UINT64_MAX;
+  options.sampler = RNS8_VERIFY_SPLITMIX64_BINARY_V1;
+  rns8_finite_verify_report report{};
+  report.struct_size = sizeof(report); report.abi_version = RNS8_ABI_VERSION;
+  const auto status = rns8_verify_finite_product(ctx, A, B, C, &options, &report);
+  if (status == RNS8_SUCCESS || status == RNS8_VERIFICATION_FAILED)
+    *out_failure_probability = report.ideal_failure_probability;
+  return status;
 }
-

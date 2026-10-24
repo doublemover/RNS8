@@ -1865,6 +1865,55 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
     int strassen_level,
     double* out_memory_overhead_ratio);
 
+/* Read-only finite-ring Freivalds verification. SplitMix64-v1 produces binary
+ * challenges from an explicit replay seed. This is reproducible pseudorandom
+ * sampling, NOT fresh unpredictable randomness. Ideal independent uniform bits
+ * give false acceptance <= 2^-trials for a fixed nonzero error over any ring.
+ * A known seed permits adversarial false acceptance. No integer-equality claim.
+ * Options require 1..1048576 trials; flags=0 or CHECK_GENERATIONS. Report is
+ * published only on SUCCESS (passed=1) or VERIFICATION_FAILED (passed=0).
+ * Other failures preserve it. Matrices are never modified; caller excludes
+ * concurrent mutation/destruction throughout this synchronous call.
+ * Workspace budget covers logical host/device array payload, not allocator
+ * overhead. Only CPU_REFERENCE and HIP_DIRECT finite storage are supported.
+ */
+#define RNS8_VERIFY_CHECK_GENERATIONS 1u
+#define RNS8_VERIFY_SPLITMIX64_BINARY_V1 1u
+typedef struct rns8_finite_verify_options {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t repetition_count;
+  uint64_t random_seed;
+  uint64_t max_workspace_bytes;
+  uint32_t flags;
+  uint32_t sampler;
+  uint64_t expected_generations[3];
+} rns8_finite_verify_options;
+typedef struct rns8_finite_verify_report {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t passed;
+  rns8_semantics semantics;
+  uint32_t modulus;
+  uint32_t sampler;
+  uint32_t completed_trials;
+  uint64_t random_seed;
+  uint64_t matrix_instance_ids[3];
+  uint64_t generations[3];
+  uint64_t workspace_bytes;
+  /* Exact ideal bound exponent, not a guarantee for deterministic replay.
+   * Double is rounded conservatively up to the smallest positive normal value
+   * when too small. Neither field asserts certainty or cryptographic security. */
+  uint32_t ideal_failure_bound_exponent;
+  double ideal_failure_probability;
+} rns8_finite_verify_report;
+RNS8_API rns8_status rns8_verify_finite_product(
+    rns8_context* ctx, const rns8_matrix* A, const rns8_matrix* B,
+    const rns8_matrix* C, const rns8_finite_verify_options* options,
+    rns8_finite_verify_report* report);
+
+/* Legacy adapter: same finite-only replay contract; probability is the ideal
+ * independent-bit bound above. Other semantics remain unsupported. */
 RNS8_API rns8_status rns8_freivalds_verify(
     rns8_context* ctx,
     const rns8_matrix* A,
