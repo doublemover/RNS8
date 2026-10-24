@@ -1,4 +1,5 @@
 #include "backend_common/native_tile_bound.hpp"
+#include "backend_common/adaptive_native_support.hpp"
 #include "backend_common/garner_constants.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -171,4 +172,42 @@ TEST_CASE("compact adaptive scheduling covers each admitted channel group exactl
   CHECK(last.compact_index == UINT32_MAX - 1);
   CHECK(last.first_plane == 19);
   CHECK(last.prefix == 20);
+}
+
+TEST_CASE("adaptive static support reports checked resources without device qualification") {
+  using namespace rns8::detail;
+  const auto query = [](uint64_t budget, uint32_t workers=3) {
+    return query_adaptive_native_support(35,33,17,19,36,37,20,2,NativeBoundMethod::axis_l1,256,workers,budget);
+  };
+  const auto valid=query(UINT64_MAX);
+  REQUIRE(valid.status==RNS8_SUCCESS);
+  CHECK(valid.constraint==AdaptiveNativeConstraint::none);
+  CHECK(valid.version==1);
+  CHECK(valid.resource_requirement_known);
+  CHECK(valid.requires_device_capability_check);
+  CHECK(valid.tiles==9);
+  CHECK(valid.stage_bytes==35*33*20);
+  CHECK(valid.bound_bytes==9*sizeof(NativeTileBound));
+  CHECK(valid.metadata_bytes==32*sizeof(uint32_t));
+  CHECK(valid.discovery_bytes==6*sizeof(NativeAxisSummary)+43*sizeof(uint32_t));
+  CHECK(valid.peak_scratch_bytes==valid.reserved_bytes+valid.discovery_bytes);
+  CHECK(query(valid.peak_scratch_bytes).status==RNS8_SUCCESS);
+  const auto tight=query(valid.peak_scratch_bytes-1);
+  CHECK(tight.status==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(tight.constraint==AdaptiveNativeConstraint::scratch_budget);
+  CHECK(tight.resource_requirement_known);
+  CHECK(tight.peak_scratch_bytes==valid.peak_scratch_bytes);
+  CHECK(query(UINT64_MAX,0).peak_scratch_bytes==valid.peak_scratch_bytes);
+  CHECK(query(UINT64_MAX,65536).constraint==AdaptiveNativeConstraint::workers);
+  for (int bad=0; bad<8; ++bad) {
+    const auto result=query_adaptive_native_support(bad==0?0:35,33,17,bad==1?16:19,36,
+        bad==2?INT64_MAX:37,bad==3?21:20,bad==4?3:2,
+        bad==5?static_cast<NativeBoundMethod>(99):NativeBoundMethod::panel_l1,bad==6?0:7,bad==7?65536:3,UINT64_MAX);
+    CHECK(result.status!=RNS8_SUCCESS);
+    CHECK_FALSE(result.resource_requirement_known);
+    CHECK(result.requires_device_capability_check);
+  }
+  const auto panels=query_adaptive_native_support(1,1,65536,65536,1,1,20,1,NativeBoundMethod::panel_l1,1,1,UINT64_MAX);
+  CHECK(panels.status==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(panels.constraint==AdaptiveNativeConstraint::panel_count);
 }

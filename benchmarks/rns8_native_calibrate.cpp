@@ -304,6 +304,12 @@ int main(int argc, char** argv) {
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
     if (adaptive) {
+      const auto support = query_adaptive_native_support(m,n,k,k,n,n,prefix,group,
+          NativeBoundMethod::axis_l1,256,compact ? requested_workers : 0,UINT64_MAX);
+      check(support.status);
+      report.update({{"adaptive_peak_scratch_bytes", support.peak_scratch_bytes},
+          {"adaptive_static_support_version", support.version},
+          {"adaptive_static_support_is_device_qualification", false}});
       report.update({{"bound_method", "axis_l1"}, {"adaptive_launch", compact ? "compact_workers" : "dense_grid"},
           {"adaptive_dataset", "full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
           {"adaptive_dense_group_upper_bound", uint64_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)},

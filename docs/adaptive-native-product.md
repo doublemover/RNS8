@@ -88,3 +88,22 @@ cold/end-to-end measurements. New CPU rejection and signed/unsigned Boost GPU
 fixtures cover descriptor admission, padded source packing, native mutation,
 staged rejection, full-width tails, export and retirement/repack after ordinary
 resident GEMM. They await the consolidated validation batch.
+
+## Shared static preflight
+
+`query_adaptive_native_support` is the internal version-1 owner of argument,
+full padded address-span and peak scratch admission. The raw device dispatcher
+uses its result before allocation or output writes; the calibrator records the
+same resource requirement. The typed result names the failing constraint and
+separates an unknown requirement from a known requirement that exceeds budget.
+Grid and compact workers share the same peak allocation calculation.
+
+A successful static query is deliberately incomplete runtime admission: its
+`requires_device_capability_check` and `requires_data_bound_check` fields stay
+true. Actual compiled-target capability and exact input bounds are established
+by the existing device path before commit. Pointer non-overlap and public
+matrix generation/proof ownership are checked at their respective dispatch
+boundaries. The query launches nothing and does not mutate routing or evidence.
+CPU fixtures cover exact budget boundaries, malformed parameters, panel-count
+limits, padded address overflow and invariant scratch across launch policies;
+they await the final batch.

@@ -10,35 +10,17 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     bool unsigned_inputs, uint32_t capacity, uint32_t group,
     uint64_t max_scratch_bytes, bool& commit_started, NativeBoundMethod method, uint32_t panel_k, uint32_t compact_workers) {
   commit_started = false;
-  if (compact_workers > 65535 || !a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
-      !capacity || capacity > 20 || (group != 1 && group != 2 && group != 4) ||
-      (method != NativeBoundMethod::tile_max && method != NativeBoundMethod::axis_l1 && method != NativeBoundMethod::panel_l1) ||
-      (method == NativeBoundMethod::panel_l1 && (!panel_k || panel_k > 65536)))
-    return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_matrix_address(m, k, lda, 1, 8) ||
-      !qualified_i32_matrix_address(k, n, ldb, 1, 8) ||
-      !qualified_i32_matrix_address(m, n, ldc, capacity)) return RNS8_UNSUPPORTED_BACKEND;
+  if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
+  const auto support = query_adaptive_native_support(m,n,k,lda,ldb,ldc,capacity,group,
+      method,panel_k,compact_workers,max_scratch_bytes);
+  if (support.status != RNS8_SUCCESS) return support.status;
   const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * capacity;
   if (!nonoverlapping_byte_ranges(c, output_bytes, a, static_cast<uint64_t>(m) * lda * 8) ||
       !nonoverlapping_byte_ranges(c, output_bytes, b, static_cast<uint64_t>(k) * ldb * 8))
     return RNS8_INVALID_ARGUMENT;
-  // The qualified i32 domains bound all products below UINT64_MAX, including
-  // panel summaries. No scratch region aliases native inputs or caller output.
-  const uint64_t rows = (static_cast<uint64_t>(m) + 15) / 16;
-  const uint64_t cols = (static_cast<uint64_t>(n) + 15) / 16;
-  const uint64_t tiles = rows * cols;
-  const uint64_t stage_bytes = static_cast<uint64_t>(m) * n * capacity;
-  const uint64_t bound_bytes = tiles * sizeof(NativeTileBound);
-  const uint64_t metadata_bytes = (tiles + 23) * sizeof(uint32_t);
-  const uint64_t reserved = stage_bytes + bound_bytes + metadata_bytes;
-  const uint64_t extent = method == NativeBoundMethod::panel_l1 ? panel_k : static_cast<uint64_t>(k);
-  const uint64_t panels = (static_cast<uint64_t>(k) + extent - 1) / extent;
-  if (panels > 65535) return RNS8_UNSUPPORTED_BACKEND;
-  const uint64_t discovery_bytes = (rows + cols) * panels *
-      (method == NativeBoundMethod::tile_max ? sizeof(uint64_t) : sizeof(NativeAxisSummary)) + 43 * sizeof(uint32_t);
-  if (reserved > SIZE_MAX || discovery_bytes > SIZE_MAX - reserved) return RNS8_RANGE_ERROR;
-  if (reserved > max_scratch_bytes || discovery_bytes > max_scratch_bytes - reserved)
-    return RNS8_WORKSPACE_TOO_SMALL;
+  const auto tiles = support.tiles, stage_bytes = support.stage_bytes;
+  const auto bound_bytes = support.bound_bytes, metadata_bytes = support.metadata_bytes;
+  const auto reserved = support.reserved_bytes;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
