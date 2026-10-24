@@ -153,11 +153,17 @@ and [resident DAGs](docs/resident-graphs.md) additionally support explicit
 fixed-prefix direct-HIP stream/capture subsets with completion tokens and retained
 resource lifetimes.
 
+Experimental public calls also expose [signed complex 3M/4M products](docs/complex-residue-composition.md),
+[retained-native adaptive exact products](docs/adaptive-native-product.md#explicit-matrix-owned-native-inputs)
+and [one-level Strassen](docs/strassen-device.md#public-owner-authored-validation-pending)
+under their documented subsets. These new bindings and their fixtures await the
+consolidated validation batch; they inherit no device qualification from older kernels.
+
 Start with the [example index](examples/README.md) for complete checked API
 programs and their execution boundaries. The [practical GPU workload catalogue](examples/workloads/README.md)
 adds integer Gram/cross-products, GF(251) transforms, resident versus
-export/reimport chains and an exactness walkthrough, using explicit backend and
-device requests. Their application performance and installed-platform
+export/reimport chains, split-complex products and an exactness walkthrough, using
+explicit backend and device requests. Their application performance and installed-platform
 qualification remain pending execution; existing measured kernel results above
 do not establish their application speedups.
 

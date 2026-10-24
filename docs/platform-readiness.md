@@ -22,9 +22,10 @@ without device evidence. A measured result may still lack promotion gates.
 ## Recorded platform boundary
 
 The [October 23 expanded record](local-all-features-20261023.md) documents
-`c7f7e05`, Windows, VS2026/HIP 7.1 and RX 7900 XTX/gfx1100 with the locally
-available optional backends enabled. It identifies the target-inapplicable
-sparse skips and distinguishes earlier sanitizer/rocWMMA configurations.
+`51ae8d8`, Windows, VS2026/HIP 7.1 and RX 7900 XTX/gfx1100 with the locally
+available optional backends enabled: 489 passes and three expected
+target-inapplicable sparse skips. Earlier sanitizer/rocWMMA configurations retain
+their own separate scope.
 The [larger-workload measurements](7900xtx-large-throughput-2026-10-23.md) use that
 recorded stack and keep public/native/residue boundaries separate. A later source
 revision requires its own evidence for changed paths.
@@ -59,8 +60,9 @@ sparse instructions, with runtime restrictions described in the backend guide.
 
 `rns8_get_backend_capability_info` reports compiled/source declarations.
 `rns8_get_plan_backend_info` adds the selected kernel, accumulation and workspace.
-Neither runs validation. Use the recorded test configuration to establish what
-was actually exercised.
+Neither runs validation. Context-free exact/performance validation flags are zero
+without a bound receipt; a reviewed-plan cache entry can carry its separately
+admitted evidence. Use dated test configurations to establish what was exercised.
 
 ## Exact-wide ABI owner
 
@@ -77,6 +79,9 @@ storage semantics.
 dependency-root discovery, [#58](https://github.com/doublemover/RNS8/issues/58)
 owns reproducible bounded Linux GPU sessions, and
 [#60](https://github.com/doublemover/RNS8/issues/60) owns compatibility-gated
-upgrades and locks. Current setup uses explicit overrides and installed/pinned
-components. Documentation checks verify names, paths and links; clean-install
+upgrades and locks. Shared discovery selects coherent existing components;
+explicit overrides take precedence. Bounded session plans and the new non-GPU
+version policy are authored, while native Linux rehearsal and the upgraded-stack
+validation remain pending. ROCm 10.1 migration is deferred by the user.
+Documentation checks verify names, paths and links; clean-install
 configure/build/example execution still needs each matching supported OS/GPU.

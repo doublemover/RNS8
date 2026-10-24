@@ -6,11 +6,11 @@ signed exact-wide matrix handles, explicit three/four-product selection and a
 scratch budget. The new public binding awaits the final coordinated validation;
 its underlying matrix owner passed the earlier `1bb5e33` pass.
 
-The private `hip_direct_gemm_complex_residues` primitive
-It accepts split real/imaginary residue views with a common explicit basis and
-domain, independent component pitches, and either three or four real products.
-supports additional raw bounded/finite experiments. Neither interface changes
-automatic routing.
+The private `hip_direct_gemm_complex_residues` primitive accepts split
+real/imaginary residue views with a common explicit basis/domain, independent
+component pitches, and either three or four real products. It also supports raw
+bounded/finite experiments outside the public signed exact-wide subset. Neither
+interface changes automatic routing.
 
 ## Arithmetic contract
 
@@ -80,9 +80,9 @@ against both independently computed complex components.
 
 The matched resident measurements below charge transformed panels, all launches,
 scratch and joint commit. Final dual integer export is outside their contract.
-Public ownership/generation integration, fault-path qualification, explicit
-operation metadata and complete exported application measurements remain open
-under #59.
+The new public ownership binding and synchronous graph node await their own
+validation. Fault-path qualification, broader prepared/async integration and
+complete exported application measurements remain open under #59.
 
 ## Internal matrix ownership integration
 

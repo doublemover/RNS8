@@ -9,6 +9,7 @@ Dated records identify the builds and devices actually checked.
 - [Windows HIP SDK](platform-windows.md): prerequisites, explicit roots, configure and build
 - [Native Linux ROCm](platform-linux.md): Radeon and Instinct selection; WSL boundary
 - [Dependencies and pins](../third_party/README.md): shared requirements and installation sources
+- [Dependency versions and upgrade gates](dependency-versions.md): selected candidates, installed artifacts and qualification
 - [Shared discovery](dependency-discovery.md): root precedence, early configure handoff, evidence and remaining probe gates
 - [Readiness terminology](platform-readiness.md): discovery, implementation, compilation and hardware evidence
 
@@ -19,7 +20,7 @@ Dated records identify the builds and devices actually checked.
 - [Architecture and ownership](design.md), [immutable plans](plan-validation.md)
 - [Prepared execution and completion](prepared-execution.md)
 - [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
-- [Private exact complex residue composition](complex-residue-composition.md)
+- [Experimental public exact complex composition](complex-residue-composition.md)
 - [Backend capabilities and selection](backend-notes.md)
 
 ## Understand and extend
@@ -54,5 +55,3 @@ checkpoints, the resident-output proposal and superseded chronological status.
 Their dates and source revisions remain intact. Current setup and API guidance
 live in the guides above. Raw captures and disassembly stay in ignored `temp/`,
 `build/` or `out/` paths; durable reports summarize reviewed evidence.
-
-- [Dependency versions and upgrade gates](dependency-versions.md)

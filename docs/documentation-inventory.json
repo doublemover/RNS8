@@ -130,11 +130,11 @@
           "reference": "../CHANGELOG.md"
         },
         {
-          "source": "docs/documentation-maintenance.md",
+          "source": "docs/documentation-inventory.json",
           "reference": "../CHANGELOG.md"
         },
         {
-          "source": "docs/documentation-inventory.json",
+          "source": "docs/documentation-maintenance.md",
           "reference": "../CHANGELOG.md"
         }
       ],
@@ -171,6 +171,34 @@
           "reference": "../CONTRIBUTING.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#cpu-oracle-development"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#make-a-focused-change"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../CONTRIBUTING.md"
         },
@@ -181,34 +209,6 @@
         {
           "source": "docs/platform-windows.md",
           "reference": "../CONTRIBUTING.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#pull-requests-and-compute-offers"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#make-a-focused-change"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../CONTRIBUTING.md#cpu-oracle-development"
         }
       ],
       "anchors": [
@@ -236,11 +236,11 @@
           "reference": "LICENSE"
         },
         {
-          "source": "docs/documentation-maintenance.md",
+          "source": "docs/documentation-inventory.json",
           "reference": "../LICENSE"
         },
         {
-          "source": "docs/documentation-inventory.json",
+          "source": "docs/documentation-maintenance.md",
           "reference": "../LICENSE"
         }
       ],
@@ -256,15 +256,15 @@
       "reason": "Preserve legal/attribution/security text and dated release facts; navigation points here.",
       "inbound_links": [
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../NOTICE"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../NOTICE"
         },
         {
           "source": "third_party/README.md",
-          "reference": "../NOTICE"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
           "reference": "../NOTICE"
         }
       ],
@@ -280,6 +280,10 @@
       "reason": "Product introduction and GPU quickstart; developer recipes move to Contributing.",
       "inbound_links": [
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../README.md#hardware-tested-and-hardware-wanted"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../README.md"
         },
@@ -289,10 +293,6 @@
         },
         {
           "source": "docs/roadmap.md",
-          "reference": "../README.md#hardware-tested-and-hardware-wanted"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
           "reference": "../README.md#hardware-tested-and-hardware-wanted"
         }
       ],
@@ -327,11 +327,11 @@
           "reference": "../SECURITY.md"
         },
         {
-          "source": "docs/documentation-maintenance.md",
+          "source": "docs/documentation-inventory.json",
           "reference": "../SECURITY.md"
         },
         {
-          "source": "docs/documentation-inventory.json",
+          "source": "docs/documentation-maintenance.md",
           "reference": "../SECURITY.md"
         }
       ],
@@ -357,7 +357,7 @@
         },
         {
           "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
+          "reference": "docs/7900xtx-large-throughput-2026-10-23.md"
         },
         {
           "source": "README.md",
@@ -365,15 +365,15 @@
         },
         {
           "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue"
-        },
-        {
-          "source": "README.md",
-          "reference": "docs/7900xtx-large-throughput-2026-10-23.md"
+          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
         },
         {
           "source": "README.md",
           "reference": "docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
+        },
+        {
+          "source": "README.md",
+          "reference": "docs/7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue"
         },
         {
           "source": "docs/7900xtx-throughput-2026-10-23.md",
@@ -390,6 +390,10 @@
         {
           "source": "docs/backend-notes.md",
           "reference": "7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/7900xtx-large-throughput-2026-10-23.md"
         },
         {
           "source": "docs/exact-epilogues.md",
@@ -438,10 +442,6 @@
         {
           "source": "src/backend_rocwmma/README.md",
           "reference": "../../docs/7900xtx-large-throughput-2026-10-23.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/7900xtx-large-throughput-2026-10-23.md"
         }
       ],
       "anchors": [
@@ -470,6 +470,10 @@
           "reference": "../7900xtx-throughput-2026-10-23.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/7900xtx-throughput-2026-10-23.md"
+        },
+        {
           "source": "docs/native-calibration.md",
           "reference": "7900xtx-throughput-2026-10-23.md"
         },
@@ -480,10 +484,6 @@
         {
           "source": "docs/roadmap.md",
           "reference": "7900xtx-throughput-2026-10-23.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/7900xtx-throughput-2026-10-23.md"
         }
       ],
       "anchors": [
@@ -511,16 +511,16 @@
           "reference": "../README.md"
         },
         {
-          "source": "docs/documentation-maintenance.md",
-          "reference": "README.md"
-        },
-        {
-          "source": "docs/documentation-maintenance.md",
-          "reference": "README.md"
-        },
-        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/README.md#build"
+        },
+        {
+          "source": "docs/documentation-maintenance.md",
+          "reference": "README.md"
+        },
+        {
+          "source": "docs/documentation-maintenance.md",
+          "reference": "README.md"
         }
       ],
       "anchors": [
@@ -563,6 +563,10 @@
           "reference": "RNS8_RESEARCH_SPEC.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/RNS8_RESEARCH_SPEC.md#1-executive-decision-register"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "RNS8_RESEARCH_SPEC.md"
         },
@@ -573,10 +577,6 @@
         {
           "source": "docs/roadmap.md",
           "reference": "RNS8_RESEARCH_SPEC.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/RNS8_RESEARCH_SPEC.md#1-executive-decision-register"
         }
       ],
       "anchors": [
@@ -670,12 +670,31 @@
       "reason": "Keep focused private proof/layout/reconstruction contract; issue #34; dated validation owns evidence.",
       "inbound_links": [
         {
+          "source": "README.md",
+          "reference": "docs/adaptive-native-product.md#explicit-matrix-owned-native-inputs"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "adaptive-native-product.md#explicit-matrix-owned-native-inputs"
+        },
+        {
+          "source": "docs/design.md",
+          "reference": "adaptive-native-product.md#explicit-matrix-owned-native-inputs"
+        },
+        {
+          "source": "docs/device-bound-discovery.md",
+          "reference": "adaptive-native-product.md"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../adaptive-native-product.md"
         }
       ],
       "anchors": [
-        "adaptive-native-product-with-complete-residue-output"
+        "adaptive-native-product-with-complete-residue-output",
+        "compact-bounded-workers",
+        "explicit-matrix-owned-native-inputs",
+        "shared-static-preflight"
       ]
     },
     {
@@ -692,6 +711,118 @@
           "reference": "archive/README.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "archive/README.md"
         },
@@ -702,118 +833,6 @@
         {
           "source": "docs/roadmap.md",
           "reference": "archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/archive/README.md#dated-implementation-and-local-evidence"
         }
       ],
       "anchors": [
@@ -1464,6 +1483,26 @@
           "reference": "backend-notes.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/backend-notes.md#public-paths"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/backend-notes.md#public-paths"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/backend-notes.md#public-paths"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/backend-notes.md#public-paths"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/backend-notes.md#public-paths"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "backend-notes.md"
         },
@@ -1510,32 +1549,12 @@
         {
           "source": "src/backend_wrap64/README.md",
           "reference": "../../docs/backend-notes.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/backend-notes.md#public-paths"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/backend-notes.md#public-paths"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/backend-notes.md#public-paths"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/backend-notes.md#public-paths"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/backend-notes.md#public-paths"
         }
       ],
       "anchors": [
         "auto-and-reviewed-caches",
         "backend-implementation-and-selection",
-        "internal-prototypes-and-reserved-apis",
+        "experimental-paths-and-reserved-apis",
         "metadata-ownership-and-execution",
         "public-paths"
       ]
@@ -1629,7 +1648,19 @@
       "reason": "Private experiment and explicit arithmetic/admission contract; no public ownership/generation guarantee or performance qualification.",
       "inbound_links": [
         {
+          "source": "README.md",
+          "reference": "docs/complex-residue-composition.md"
+        },
+        {
           "source": "docs/README.md",
+          "reference": "complex-residue-composition.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "complex-residue-composition.md"
+        },
+        {
+          "source": "docs/design.md",
           "reference": "complex-residue-composition.md"
         },
         {
@@ -1641,6 +1672,7 @@
         "arithmetic-contract",
         "exact-complex-residue-composition",
         "internal-matrix-ownership-integration",
+        "matched-resident-measurements-at-1bb5e33",
         "memory-and-publication",
         "validation-and-remaining-work"
       ]
@@ -1704,6 +1736,10 @@
           "reference": "correctness.md#exact-wide-output"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/correctness.md#exact-wide-output"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "correctness.md"
         },
@@ -1722,10 +1758,6 @@
         {
           "source": "docs/research/README.md",
           "reference": "../correctness.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/correctness.md#exact-wide-output"
         }
       ],
       "anchors": [
@@ -1757,6 +1789,10 @@
           "reference": "dependency-discovery.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/dependency-discovery.md"
+        },
+        {
           "source": "docs/platform-linux.md",
           "reference": "dependency-discovery.md"
         },
@@ -1766,10 +1802,6 @@
         },
         {
           "source": "third_party/README.md",
-          "reference": "../docs/dependency-discovery.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
           "reference": "../docs/dependency-discovery.md"
         }
       ],
@@ -1789,8 +1821,18 @@
       "canonical": "docs/dependency-versions.md",
       "owner": "tools/check_dependencies_lib/version_policy.py",
       "reason": "Separate latest/selected/observed/tested evidence, immutable package/action/source pins, reproducible bootstrap inputs and explicit pending compatibility gates.",
-      "inbound_links": [],
-      "anchors": []
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "dependency-versions.md"
+        }
+      ],
+      "anchors": [
+        "dependency-versions-and-upgrade-gates",
+        "inspect-and-enforce-the-selection",
+        "qualification-and-maintenance",
+        "selected-sources-and-artifacts"
+      ]
     },
     {
       "path": "docs/design.md",
@@ -1814,24 +1856,25 @@
           "reference": "../design.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/design.md#handles-and-ownership"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/design.md#handles-and-ownership"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "design.md"
         },
         {
           "source": "docs/research/resident-output-api-draft.md",
           "reference": "../design.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/design.md#handles-and-ownership"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/design.md#handles-and-ownership"
         }
       ],
       "anchors": [
         "arithmetic-layers",
+        "experimental-public-composition-and-storage",
         "explicit-cpu-exact-wide-lifting",
         "files-and-generated-metadata",
         "handles-and-ownership",
@@ -1897,6 +1940,14 @@
       "owner": "src/backend_common/distributed_plan.hpp",
       "reason": "Issue #50 M0: explicit rank/plane coverage, resource reservations, mock transport/epochs and unsupported real hardware boundary; no validation claimed.",
       "inbound_links": [
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "distributed-mock.md"
+        },
+        {
+          "source": "docs/design.md",
+          "reference": "distributed-mock.md"
+        },
         {
           "source": "docs/research/README.md",
           "reference": "../distributed-mock.md"
@@ -1966,17 +2017,39 @@
           "reference": "exact-epilogues.md"
         },
         {
-          "source": "docs/research/README.md",
-          "reference": "../exact-epilogues.md"
-        },
-        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/exact-epilogues.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../exact-epilogues.md"
         }
       ],
       "anchors": [
         "exact-wide-linear-gemm-epilogue",
         "explicit-rocwmma-candidate"
+      ]
+    },
+    {
+      "path": "docs/floating-rewrite-oracle.md",
+      "purpose": "Offline floating rewrite oracle",
+      "audience": "Arithmetic researchers and contributors",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#planning-and-generation",
+      "owner": "tools/floating_rewrite_oracle.py",
+      "reason": "Host exact-rational/binary32 model and distinct proof verdicts; no floating hardware qualification; #29/#45.",
+      "inbound_links": [
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "floating-rewrite-oracle.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../floating-rewrite-oracle.md"
+        }
+      ],
+      "anchors": [
+        "offline-floating-rewrite-oracle"
       ]
     },
     {
@@ -2045,16 +2118,16 @@
           "reference": "glossary.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/glossary.md"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "glossary.md"
         },
         {
           "source": "docs/research/README.md",
           "reference": "../glossary.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/glossary.md"
         }
       ],
       "anchors": [
@@ -2083,6 +2156,10 @@
           "reference": "gpu-qualification.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/gpu-qualification.md#prerequisites-and-execution"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "gpu-qualification.md"
         },
@@ -2109,10 +2186,6 @@
         {
           "source": "docs/roadmap.md",
           "reference": "gpu-qualification.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/gpu-qualification.md#prerequisites-and-execution"
         }
       ],
       "anchors": [
@@ -2121,6 +2194,7 @@
         "external-accelerator-build-identity",
         "generate-the-manifests-anywhere",
         "hardware-qualification-mi300x-and-rx-7900-xtx",
+        "native-linux-session-receipts",
         "prerequisites-and-execution",
         "required-arithmetic-cases",
         "what-the-runner-actually-checks"
@@ -2338,6 +2412,10 @@
         {
           "source": "docs/timing-admission.md",
           "reference": "local-all-features-20261023.md"
+        },
+        {
+          "source": "examples/README.md",
+          "reference": "../docs/local-all-features-20261023.md"
         },
         {
           "source": "src/backend_ck/README.md",
@@ -2654,6 +2732,7 @@
         }
       ],
       "anchors": [
+        "four-wave-register-and-lds-controls",
         "matched-native-integer-comparison",
         "matched-resident-epilogue-comparison",
         "native-conversion-and-scheduling-calibration"
@@ -2699,16 +2778,16 @@
           "reference": "native-queue-performance-2026-10-23.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/native-queue-performance-2026-10-23.md"
+        },
+        {
           "source": "docs/persistent-native-queue.md",
           "reference": "native-queue-performance-2026-10-23.md"
         },
         {
           "source": "examples/workloads/README.md",
           "reference": "../../docs/native-queue-performance-2026-10-23.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/native-queue-performance-2026-10-23.md"
         }
       ],
       "anchors": [
@@ -2745,6 +2824,32 @@
       ],
       "anchors": [
         "native-matrix-engine-split-k"
+      ]
+    },
+    {
+      "path": "docs/native-tiled-wmma.md",
+      "purpose": "Native multiwave WMMA candidates",
+      "audience": "Kernel researchers",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#kernels-and-scheduling",
+      "owner": "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+      "reason": "Private four-wave register/LDS staging, static resources and authored validation boundary; #35.",
+      "inbound_links": [
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "native-tiled-wmma.md"
+        },
+        {
+          "source": "docs/native-calibration.md",
+          "reference": "native-tiled-wmma.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../native-tiled-wmma.md"
+        }
+      ],
+      "anchors": [
+        "native-multiwave-wmma-candidates"
       ]
     },
     {
@@ -2829,6 +2934,10 @@
           "reference": "performance.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/performance.md#measurement-contract"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "performance.md"
         },
@@ -2851,10 +2960,6 @@
         {
           "source": "docs/roadmap.md",
           "reference": "performance.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/performance.md#measurement-contract"
         }
       ],
       "anchors": [
@@ -2940,6 +3045,7 @@
         }
       ],
       "anchors": [
+        "dependency-proven-arena-reuse",
         "offline-typed-recipe-admission"
       ]
     },
@@ -2977,6 +3083,10 @@
           "reference": "platform-linux.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/platform-linux.md#radeon-build-and-first-execution"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-linux.md"
         },
@@ -2991,10 +3101,6 @@
         {
           "source": "third_party/README.md",
           "reference": "../docs/platform-linux.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/platform-linux.md#radeon-build-and-first-execution"
         }
       ],
       "anchors": [
@@ -3030,16 +3136,16 @@
           "reference": "platform-readiness.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/platform-readiness.md#evidence-classes"
+        },
+        {
           "source": "docs/platform-linux.md",
           "reference": "platform-readiness.md"
         },
         {
           "source": "docs/platform-windows.md",
           "reference": "platform-readiness.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/platform-readiness.md#evidence-classes"
         }
       ],
       "anchors": [
@@ -3077,6 +3183,10 @@
           "reference": "platform-windows.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/platform-windows.md#configure-and-build"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-windows.md"
         },
@@ -3091,10 +3201,6 @@
         {
           "source": "third_party/README.md",
           "reference": "../docs/platform-windows.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/platform-windows.md#configure-and-build"
         }
       ],
       "anchors": [
@@ -3143,24 +3249,28 @@
           "reference": "prepared-execution.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/prepared-execution.md"
+        },
+        {
           "source": "docs/exact-epilogues.md",
           "reference": "prepared-execution.md"
         },
         {
           "source": "docs/research/resident-output-api-draft.md",
           "reference": "../prepared-execution.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/prepared-execution.md"
         }
       ],
       "anchors": [
+        "bounded-completion-observation",
+        "cooperative-result-discard",
         "explicit-hip-submission",
+        "failed-stream-cleanup",
         "heterogeneous-prepared-groups",
         "owned-fixed-envelope-hip-graph",
         "prepared-exact-epilogues",
-        "prepared-execution-and-completion-ownership"
+        "prepared-execution-and-completion-ownership",
+        "token-qualified-producer-binding-authored-validation-pending"
       ]
     },
     {
@@ -3258,6 +3368,106 @@
           "reference": "research/README.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#application-context-and-primary-sources"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#application-context-and-primary-sources"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#application-context-and-primary-sources"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#application-context-and-primary-sources"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#application-context-and-primary-sources"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#kernels-and-scheduling"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#planning-and-generation"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/research/README.md#representation-and-reconstruction"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "research/README.md"
         },
@@ -3272,106 +3482,6 @@
         {
           "source": "examples/workloads/README.md",
           "reference": "../../docs/research/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#planning-and-generation"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#application-context-and-primary-sources"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#representation-and-reconstruction"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#application-context-and-primary-sources"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#application-context-and-primary-sources"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#application-context-and-primary-sources"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#application-context-and-primary-sources"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/research/README.md#kernels-and-scheduling"
         }
       ],
       "anchors": [
@@ -3608,21 +3718,25 @@
           "reference": "resident-graphs.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/resident-graphs.md"
+        },
+        {
           "source": "docs/exact-epilogues.md",
           "reference": "resident-graphs.md"
         },
         {
           "source": "docs/research/resident-output-api-draft.md",
           "reference": "../resident-graphs.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/resident-graphs.md"
         }
       ],
       "anchors": [
+        "bounded-completion-observation",
+        "cooperative-result-discard",
         "exact-resident-dag-execution",
-        "explicit-asynchronous-direct-hip-dags"
+        "explicit-asynchronous-direct-hip-dags",
+        "failed-stream-cleanup",
+        "paired-complex-nodes"
       ]
     },
     {
@@ -3703,16 +3817,16 @@
           "reference": "../roadmap.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/roadmap.md#research-and-integration-gaps"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "roadmap.md"
         },
         {
           "source": "docs/research/README.md",
           "reference": "../roadmap.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../docs/roadmap.md#research-and-integration-gaps"
         }
       ],
       "anchors": [
@@ -3720,7 +3834,9 @@
         "2-rx-7900-xtx--gfx1100-gate",
         "3-mi300x--gfx942-gate",
         "4-release-decision",
+        "current-frontloaded-batch",
         "current-roadmap-and-release-gates",
+        "current-source-frontload",
         "october-23-issue-repair-qualification",
         "pending-issue-batch-qualification-2026-10-23",
         "recorded-baseline",
@@ -3740,6 +3856,10 @@
       "reason": "Keep distinct private kernel/scheduling arithmetic and public boundary; issue #48; evidence stays dated.",
       "inbound_links": [
         {
+          "source": "README.md",
+          "reference": "docs/strassen-device.md#public-owner-authored-validation-pending"
+        },
+        {
           "source": "docs/archive/implementation-checkpoints-2026-10-23.md",
           "reference": "../strassen-device.md"
         },
@@ -3748,12 +3868,17 @@
           "reference": "strassen-device.md"
         },
         {
+          "source": "docs/design.md",
+          "reference": "strassen-device.md#public-owner-authored-validation-pending"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../strassen-device.md"
         }
       ],
       "anchors": [
-        "one-level-modular-strassen-baseline"
+        "one-level-modular-strassen-baseline",
+        "public-owner-authored-validation-pending"
       ]
     },
     {
@@ -3783,6 +3908,28 @@
       ]
     },
     {
+      "path": "docs/wide-index-gemm.md",
+      "purpose": "Generic 64-bit-index residue control",
+      "audience": "Kernel researchers",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#kernels-and-scheduling",
+      "owner": "src/backend_hip_direct/hip_direct_wide_gemm_kernels.cuh",
+      "reason": "Private scalar 64-bit offset control; descriptor spans and authored small-allocation GPU fixtures do not prove actual >2GiB traffic; #24.",
+      "inbound_links": [
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "wide-index-gemm.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../wide-index-gemm.md"
+        }
+      ],
+      "anchors": [
+        "generic-64-bit-index-residue-control"
+      ]
+    },
+    {
       "path": "examples/README.md",
       "purpose": "Checked examples",
       "audience": "API users",
@@ -3800,16 +3947,16 @@
           "reference": "../examples/README.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../examples/README.md"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../examples/README.md"
         },
         {
           "source": "docs/research/README.md",
           "reference": "../../examples/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../examples/README.md"
         }
       ],
       "anchors": [
@@ -3842,16 +3989,16 @@
           "reference": "../examples/downstream-cmake/README.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../examples/downstream-cmake/README.md"
+        },
+        {
           "source": "examples/README.md",
           "reference": "downstream-cmake/README.md"
         },
         {
           "source": "examples/workloads/README.md",
           "reference": "../downstream-cmake/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../examples/downstream-cmake/README.md"
         }
       ],
       "anchors": [
@@ -3873,12 +4020,12 @@
           "reference": "examples/workloads/README.md"
         },
         {
-          "source": "examples/README.md",
-          "reference": "workloads/README.md"
-        },
-        {
           "source": "docs/documentation-inventory.json",
           "reference": "../examples/workloads/README.md"
+        },
+        {
+          "source": "examples/README.md",
+          "reference": "workloads/README.md"
         }
       ],
       "anchors": [
@@ -4004,6 +4151,10 @@
           "reference": "../third_party/README.md"
         },
         {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../third_party/README.md#shared-prerequisites"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "../third_party/README.md"
         },
@@ -4026,10 +4177,6 @@
         {
           "source": "examples/workloads/README.md",
           "reference": "../../third_party/README.md"
-        },
-        {
-          "source": "docs/documentation-inventory.json",
-          "reference": "../third_party/README.md#shared-prerequisites"
         }
       ],
       "anchors": [

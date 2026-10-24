@@ -10,7 +10,7 @@ and [public headers](../../include/rns8/rns8.h) identify public support; the
 
 | Topic | Boundary / owner |
 |---|---|
-| [Device bounds](../device-bound-discovery.md) and [adaptive native product](../adaptive-native-product.md) | Private synchronous scans/variable-prefix candidates; #34/#35 integration |
+| [Device bounds](../device-bound-discovery.md) and [adaptive native product](../adaptive-native-product.md) | Device scans and opt-in public retained-native exact products; new ownership validation pending, #34/#35 |
 | [Ragged materialization](../ragged-residues.md) | Private mixed-prefix storage and exact completion; #40 |
 | [Mixed-radix lift](../mixed-radix-lift.md) | Private suffix arithmetic alternative; public lift keeps its default; #41 |
 | [Balanced CRT](../balanced-crt.md) | Private reconstruction candidate; public Garner remains default; #39 |
@@ -23,6 +23,8 @@ rules instead of creating independent public contracts.
 ## Kernels and scheduling
 
 - [Native narrow](../native-narrow.md): checked byte-domain/scalar candidates, #53
+- [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register/LDS candidates and matched calibration; validation pending, #35
+- [Wide-index scalar control](../wide-index-gemm.md): private 64-bit offsets; large-span descriptors and small-allocation GPU fixtures authored, #24
 - [Native split-K](../native-split-k.md) and [persistent queues](../persistent-native-queue.md): private producer/merge scheduling, #37/#38
 - [Logical locality](../locality-schedules.md): offline permutations/model, #36
 - [Block sparse](../block-sparse.md): private scalar baseline alongside explicit public structured Sparse-A, #51
@@ -41,6 +43,7 @@ keeps their retirement and production criteria.
 - [Distributed modulus plan and CPU mock](../distributed-mock.md), #50 M0; no GPU transport or qualification
 - [Joint basis/schedule search](../joint-scheme-search.md), #32
 - [Generated scalar encoding certificates](../generated-encodings.md), #44
+- [Floating rewrite oracle](../floating-rewrite-oracle.md): host rational/binary32 checks and separate proof verdicts; no hardware qualification, #29/#45
 - [Generated native WMMA family](../generated-native-wmma.md), #55
 - [Calibration identities/rates](../calibration.md) and [native microcases](../native-calibration.md), #31
 
@@ -69,11 +72,7 @@ application integrations. The former resident-output proposal has moved to
 
 The [expanded all-feature record](../local-all-features-20261023.md) supersedes
 earlier pending-runtime notes for the registered target-applicable tests it ran
-at `c7f7e05` on Windows/gfx1100. Topic-local mathematical claims and authored
+at `51ae8d8` on Windows/gfx1100. Topic-local mathematical claims and authored
 fixtures describe their source; later changes, other targets, resources/ISA and
 performance need their own scoped records. Current matched scaling results are
 in the [larger-workload report](../7900xtx-large-throughput-2026-10-23.md).
-
-- [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register and staged LDS candidates, #35; validation pending.
-
-- [Floating rewrite oracle](../floating-rewrite-oracle.md): CPU binary32/rational comparisons and separate proof verdicts, #29/#45; no hardware qualification.

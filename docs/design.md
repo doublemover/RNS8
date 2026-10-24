@@ -91,6 +91,26 @@ separate experiments. Their flags do not enlarge the public API envelope. See
 [exact epilogues](exact-epilogues.md) for public complete-expression composition
 and [immutable plans](plan-validation.md) for reusable structural validation.
 
+## Experimental public composition and storage
+
+The [experimental complex composition](complex-residue-composition.md) connects
+paired exact-wide signed values to CPU/direct-HIP execution and synchronous
+resident graphs. Each component retains its own bound and logical generation.
+The [retained-native adaptive operation](adaptive-native-product.md#explicit-matrix-owned-native-inputs)
+uses an explicit matrix flag to own native device inputs alongside residues;
+other value-producing writes retire that native materialization. These public
+bindings are authored for the current batch and are distinct from the earlier
+private-kernel validation.
+
+The opt-in [public Strassen owner](strassen-device.md#public-owner-authored-validation-pending)
+uses ordinary exact-wide signed/unsigned plans on direct HIP. It validates the
+complete product and publishes through existing matrix ownership before export.
+Rank-23 straight-line execution and default routing remain separate work.
+
+The [distributed M0 plan/mock](distributed-mock.md) models exact tile/plane
+membership, transport phases and whole-epoch publication on the CPU. It supplies
+neither a public distributed matrix nor actual GPU transport.
+
 ## Files and generated metadata
 
 Several C++ translation units include `.inc` fragments to keep related APIs or

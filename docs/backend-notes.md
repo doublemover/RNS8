@@ -85,17 +85,20 @@ have separate completion-token and reservation rules. Benchmark graph/streaming
 flags are separate experiments; their larger combinations do not extend the
 public API envelope.
 
-## Internal prototypes and reserved APIs
+## Experimental paths and reserved APIs
 
 | Family | Current boundary | Owner |
 |---|---|---|
-| Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; public dispatch unchanged | [Native narrow](native-narrow.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; four-wave register/LDS controls are authored; public default dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; validation pending | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
+| Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; new binding validation pending | [Complex owner](complex-residue-composition.md) |
+| Wide-index residue control | Private scalar 64-bit global offsets; no public large-shape packing/export support or measured large allocation | [Wide-index control](wide-index-gemm.md) |
 | Strassen / rank-23 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23; new public qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Packed INT4/IU4 | Internal certified subset/prototypes; public research semantics rejected | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Floating encodings / Ozaki | Scalar certificates and research integration; no public floating backend | [Generated encodings](generated-encodings.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Floating encodings / Ozaki | Scalar certificates and host rational/binary32 rewrite oracle; no public floating backend | [Generated encodings](generated-encodings.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
 | Sparse/hybrid | Public explicit structured Sparse-A; private scalar block-sparse baseline | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
-| Multi-GPU | Independent per-device shard scripts; true modulus-sharded GEMM remains work | [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
+| Multi-GPU | Independent device scripts plus authored CPU modulus-plan/mock; actual distributed GPU execution absent | [M0 plan/mock](distributed-mock.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
 The public Ozaki and Freivalds research entrypoints return
 `RNS8_UNSUPPORTED_BACKEND`. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.

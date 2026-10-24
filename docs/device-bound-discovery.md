@@ -17,11 +17,14 @@ axis scan; L1 summaries occupy 24 bytes per axis tile versus eight for maxima.
 
 The caller explicitly selects the method and supplies its scratch budget. No
 benefit-based default selection is claimed. Scan, prefix selection and device
-bucket compaction have distinct timing labels. The existing synchronous rejected
-count readback remains; an indirect consumer is still pending. Raw records are
-usable only while the exact inputs remain unchanged; generation-bound public
-proof ownership, reusable summaries, selected conversion and
-matrix-engine consumers remain separate integration work.
+bucket compaction have distinct timing labels. This standalone diagnostic retains
+its synchronous rejected-count readback. The composed
+[adaptive native consumer](adaptive-native-product.md) now uses device offsets for
+its optional compact worker traversal, completes missing planes exactly and
+commits full residue output. Its explicit public retained-native owner binds the
+input materialization to matrix generations; raw discovery records alone remain
+usable only while exact inputs are unchanged. Reusable summary caches and general
+planner-selected consumers are still separate integration work.
 
 Authored Boost checks cover full-width sums/products, carry boundaries through
 UINT32_MAX K, signed minima, unsigned maxima, zeros, mutation, padded tails,
@@ -52,4 +55,6 @@ cost-based default or net speedup is asserted. Authored CPU multiword and GPU
 Boost fixtures include signed minima/unsigned maxima, exact carries, partial
 panels, disjoint K support, mutation, canaries and invalid panel/budget rejection.
 The extension and test executable compiled with VS2026/HIP 7.1 for gfx1100.
-Runtime qualification remains pending.
+The dated record owns applicable tests at its named source/configuration. New
+compiler/source changes await the consolidated campaign; per-method performance
+and broader target qualification remain separate gates.

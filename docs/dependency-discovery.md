@@ -157,8 +157,12 @@ Catch2 remains conditional on test targets and OpenMP on the existing CPU option
 Their actual `find_package`/header checks consume the selected toolchain and
 prefix context. The shared resolver does not replace CMake's native package
 solver. Unrelated Python/scientific packages remain inventory entries. GMP/FLINT
-package inventory versions are reported separately and never labeled usable
-without their missing compatibility probes.
+package inventory versions are reported separately from usability. Explicit
+enablement now compiles and links a tiny arithmetic API program through the
+selected imported targets, including builds with project tests disabled. Configure
+does not execute it. The separately registered smoke test checks runtime arithmetic
+when tests are enabled. Those authored checks do not establish complete transitive
+ABI or upgraded-stack qualification.
 
 ## Installation and remaining gates
 
@@ -173,10 +177,13 @@ fresh build when switching compiler generations or installations; invalid cached
 paths fail rather than silently selecting another release.
 
 This slice does not close all of[#57](https://github.com/doublemover/RNS8/issues/57).
-Remaining gates include all-target CK/rocWMMA/builtin API probes, release-aware
-CK generated-header compatibility, complete hipBLASLt/GMP/FLINT link/runtime and
-transitive ABI checks, core-package version/lock compatibility, disposable
-installer qualification, and real fresh-prefix Windows/Linux/WSL runs.
+Existing CK XDL/WMMA probes instantiate the actual DeviceGemm, MakeArgument and
+Invoker path; rocWMMA probes compile the required MMA primitive. These are
+source/target compile checks, not complete backend differentials. Remaining gates
+include broader target/release API compatibility, builtin signature coverage,
+hipBLASLt runtime/transitive ABI checks, optional-reference platform qualification,
+core-package version/lock compatibility, disposable installer qualification, and
+real fresh-prefix Windows/Linux/WSL runs.
 [#60](https://github.com/doublemover/RNS8/issues/60) owns upgrade qualification and the maintained version policy;
 [#58](https://github.com/doublemover/RNS8/issues/58) owns Linux session rehearsal.
 Filesystem fixtures and a CMake script-mode handoff test do not compile a kernel
