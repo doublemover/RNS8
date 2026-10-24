@@ -57,8 +57,9 @@ is claimed. Those are required before a public paired-value operation can ship.
 
 ## Validation and remaining work
 
-The new implementation awaits its post-commit build and validation. Authored
-CPU tests cover independently derived real/imaginary bounds, strict uniqueness
+The implementation passed its post-commit all-feature Windows build and full
+validation at `51ae8d8`: 489 passes and three expected target skips across 492
+registered tests. CPU tests cover independently derived real/imaginary bounds, strict uniqueness
 boundaries, scratch limits, cross-component aliases, invalid bases and the 3M
 identity over every byte ring with native extrema and values beyond 64 bits.
 Incorrect input-sum and recombination signs must be detected by the reference.
@@ -66,7 +67,7 @@ The GPU differential compares both algorithms to independent four-product Boost
 arithmetic, covering zero/pure-real/pure-imaginary products, strong cancellation,
 full-width signed extrema, 70-bit resident components, odd tails, distinct strides,
 padding/canaries, moduli 2/4/6/127/251/256 and K=65537. Default-basis outputs also
-pass through the actual signed wide CRT export and are compared as full integers
+passed through the actual signed wide CRT export and were compared as full integers
 against both independently computed complex components.
 
 No performance benefit is asserted from three products alone. Matched fresh and

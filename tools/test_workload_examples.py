@@ -31,7 +31,7 @@ def fixture(workload="integer_cross_product"):
     changed_input = collector.checksum_bytes(collector.canonical_words(a + b + t))
     result = {"schema": collector.SCHEMA, "status": "passed", "run_id": "run1", "workload": workload,
               "m": 2, "n": 2, "k": 3, "bits": 8, "seed": 3135, "pattern": "seeded", "size": "tiny",
-              "repeats": 2, "warmups": 0, "backend_requested": "cpu-reference", "device_requested": -1,
+              "repeats": 2, "warmups": 0, "sustained_ms": 0, "sustained_order": [], "backend_requested": "cpu-reference", "device_requested": -1,
               "compiler": "fixture compiler", "os": "fixture", "cpu_comparator_threads": 1,
               "build_manifest": {"source": "fixture"}, "workload_source_identity": {"recipes.json": "a" * 64},
               "semantics": "finite_u8_field" if field else "exact_wide_signed" if chain else "bounded_i64",
@@ -52,6 +52,30 @@ def fixture(workload="integer_cross_product"):
 
 
 class Reports(unittest.TestCase):
+    def test_sustained_final_verification_and_bounded_duration(self):
+        report = fixture()
+        report.update(sustained_ms=250, sustained_order=["rns8_cpu-reference"])
+        burst = {"calls": 100, "elapsed_ns": 250000000, "mean_call_ns": 2500000,
+                 "target_ms": 250, "call_limit": 4096, "target_reached": True,
+                 "checksum_u64": 123, "final_exact_reference_passed": True,
+                 "verification_ns": 10, "phase_timing_enabled": False, "scope": "full application"}
+        report["variants"][0]["sustained"] = burst
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        for key, value in (("calls", True), ("calls", 4097), ("mean_call_ns", 1),
+                           ("elapsed_ns", float("nan")), ("target_reached", False),
+                           ("target_ms", 1), ("call_limit", 1), ("checksum_u64", 456),
+                           ("final_exact_reference_passed", False), ("phase_timing_enabled", True),
+                           ("verification_ns", -1), ("scope", "")):
+            with self.subTest(key=key, value=value):
+                bad = copy.deepcopy(report); bad["variants"][0]["sustained"][key] = value
+                with self.assertRaises(ValueError): collector.validate_report(bad, "run1", "cpu-reference", -1)
+        burst.update(calls=4096, elapsed_ns=4096000, mean_call_ns=1000, target_reached=False)
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        bad = copy.deepcopy(report); bad["sustained_order"] = []
+        with self.assertRaises(ValueError): collector.validate_report(bad, "run1", "cpu-reference", -1)
+        burst.update(calls=4095, elapsed_ns=4095000)
+        with self.assertRaises(ValueError): collector.validate_report(report, "run1", "cpu-reference", -1)
+
     def test_exactness_witness_validation(self):
         report = fixture(); report.update(workload="exactness_walkthrough", dataset_recipe="exactness_five_witnesses_v1")
         values = [int(value) for value in RECIPES["fixtures"]["exactness_five_witnesses_v1"]["output_decimal"]]
@@ -221,8 +245,15 @@ class Compiled(unittest.TestCase):
                 result = collector.collect(self.exe(name), ["--reference-only", "--size", "tiny", "--repeats", "2", "--warmups", "0", *flags], 1, 45)
                 self.assertEqual(result["status"], "passed", result["errors"])
 
+    def test_sustained_application_modes(self):
+        for name in PROGRAMS[:-1]:
+            with self.subTest(program=name):
+                result = collector.collect(self.exe(name), ["--reference-only", "--size", "tiny", "--repeats", "1",
+                    "--warmups", "0", "--sustained-ms", "1"], 1, 45)
+                self.assertEqual(result["status"], "passed", result["errors"])
+
     def test_invalid_cli_is_rejected_before_gpu_work(self):
-        invalid = (["--m", "0"], ["--n", "513"], ["--k", "-1"], ["--repeats", "0"], ["--warmups", "21"],
+        invalid = (["--m", "0"], ["--n", "513"], ["--k", "-1"], ["--repeats", "0"], ["--warmups", "21"], ["--sustained-ms", "10001"],
                    ["--seed", "18446744073709551616"], ["--bits", "64"], ["--memory-mib", "0"],
                    ["--m", "2junk"], ["--repeats", "1", "--repeats", "1"], ["--unknown", "1"],
                    ["--backend", "auto"], ["--backend", "hip-direct"], ["--device", "0"], ["--m"])
@@ -231,6 +262,7 @@ class Compiled(unittest.TestCase):
                 with self.subTest(program=name, flags=flags): self.invoke(name, flags, success=False)
         for name, flags in (("gf251-transform", ["--wide"]), ("resident-chain", ["--gram"]),
                             ("exactness-walkthrough", ["--bits", "8"]), ("exactness-walkthrough", ["--repeats", "2"]),
+                            ("exactness-walkthrough", ["--sustained-ms", "1"]),
                             ("integer-cross-product", ["--size", "large", "--memory-mib", "1"]),
                             ("integer-cross-product", ["--size", "tiny", "--bits", "63"]),
                             ("resident-chain", ["--size", "tiny", "--bits", "63"])):

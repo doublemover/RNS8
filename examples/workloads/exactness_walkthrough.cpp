@@ -100,7 +100,7 @@ Json wider_than_128(const Options& options) {
 }
 int main(int argc, char** argv) {
   return program(argc, argv, [](const Options& common) {
-    reject_options(common, {"--m", "--n", "--k", "--bits", "--seed", "--memory-mib", "--gram", "--wide", "--pattern", "--baseline-max-products"});
+    reject_options(common, {"--m", "--n", "--k", "--bits", "--seed", "--memory-mib", "--gram", "--wide", "--pattern", "--baseline-max-products", "--sustained-ms"});
     require(common.size != "large", "exactness walkthrough is deliberately tiny; --size large is irrelevant");
     require((!common.supplied.count("--repeats") || common.repeats == 1)
         && (!common.supplied.count("--warmups") || common.warmups == 0),

@@ -2,6 +2,29 @@
 #define RNS8_WORKLOAD_REPORT_HPP
 #include "workload_common.hpp"
 namespace rns8_workload {
+inline Json sustained_sample(Variant& variant, uint32_t target_ms, const Words& expected) {
+  // All variants recompute and serialize their complete output on every call.
+  // Keep both reference work and diagnostic phase clocks outside this interval.
+  Phases phases;
+  phases.enabled = false;
+  uint32_t calls = 0;
+  double elapsed = 0;
+  const auto start = Clock::now();
+  do {
+    variant.execute(phases, 1);
+    ++calls;
+    elapsed = since(start);
+  } while (calls < 4096 && elapsed < double(target_ms) * 1e6);
+  const auto verification_start = Clock::now();
+  require(variant.output() == expected, "sustained final exact output mismatch: " + variant.name);
+  const auto hash = checksum(variant.output());
+  return {{"calls", calls}, {"elapsed_ns", elapsed}, {"mean_call_ns", elapsed / calls},
+          {"target_ms", target_ms}, {"call_limit", 4096},
+          {"target_reached", elapsed >= double(target_ms) * 1e6},
+          {"checksum_u64", hash}, {"final_exact_reference_passed", true},
+          {"verification_ns", since(verification_start)}, {"phase_timing_enabled", false},
+          {"scope", "same inputs/version and retained allocations; full synchronous application output every call; no reference, checksum or phase timing between calls; complete final output verified after timing"}};
+}
 inline Json verified_sample(Variant& variant, uint64_t version, const Words& expected) {
   Phases phases;
   const auto start = Clock::now(); variant.execute(phases, version); const double application = since(start);
@@ -33,6 +56,15 @@ inline void run_variants(Json& report, const Options& options, const Dataset& da
     }
     order.push_back({{"warmup", repeat < options.warmups}, {"order", iteration}});
   }
+  Json sustained_order = Json::array();
+  if (options.sustained_ms) {
+    for (std::size_t slot = 0; slot < variants.size(); ++slot) {
+      const auto index = (slot + options.seed % variants.size()) % variants.size();
+      records[index]["sustained"] = sustained_sample(variants[index], options.sustained_ms, expected);
+      sustained_order.push_back(variants[index].name);
+    }
+  }
+  report["sustained_order"] = sustained_order;
   const auto reference_start = Clock::now();
   const Words changed = mutate_and_reference();
   report["changed_input_reference_ns"] = since(reference_start);

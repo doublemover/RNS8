@@ -54,8 +54,11 @@ remain alive at the original addresses and layouts. Contents can change between
 completed calls because this object caches no operand values or transformed
 panels. Callers own range proofs and exclusive buffer access. This private owner
 does not supply public matrix generations, reader/writer reservations or graph
-publication semantics. Its new differential tests and timing mode still require
-validation after the implementation commit.
+publication semantics. Its differential fixture passed at `51ae8d8`, including
+changed input values, transactional preparation failure and all six uniform
+signedness/group combinations. All 14 native calibration modes passed their
+smoke collection at that revision; sustained prepared-path measurements are
+being collected separately.
 
 CPU mapping, admission, collision, and budget fixtures and a Boost-based GPU
 differential fixture cover heterogeneous shapes, full-width signed/unsigned
@@ -67,7 +70,7 @@ conversion passed the fresh `436d235` campaign: 472 passes and three expected
 skips across 475 registered tests, with all 13 calibration modes also passing.
 Public prepared
 groups still execute sequentially. Public integration, asynchronous ownership,
-prepared-path validation and measurements remain open under issue #38.
+matched prepared-path performance qualification remain open under issue #38.
 The [worker sweep and resource inspection](native-queue-performance-2026-10-23.md)
 record the completed scheduling experiment without claiming a win over the
 best ordinary launch.

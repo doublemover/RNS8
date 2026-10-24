@@ -7,7 +7,8 @@ an all-output checksum. GPU execution requests a named backend and device;
 unsupported requests return status `unsupported`, exit77, and never fall back
 to CPU. `--reference-only` explicitly selects CPU reference, device−1.
 
-The programs and measurement paths are new. Application timings and Windows/
+The four programs and their Windows installed consumers passed CPU and direct
+HIP checks at `51ae8d8` on the RX 7900 XTX. Large application measurements and
 Linux installed-consumer qualification remain pending execution. Existing
 [kernel measurements](../../docs/native-queue-performance-2026-10-23.md) describe
 different scopes and do not establish an application speedup here.
@@ -148,6 +149,24 @@ debug/reference builds.
 
 ## Measurement and independent collection
 
+Use `--sustained-ms 250` to add a production-style repeated-call interval for
+each implemented comparator. Every call recomputes and exports the full result
+with stable input versions and retained allocations. Reference comparisons,
+checksums and diagnostic phase clocks are disabled inside that interval; the
+complete final output is checked afterward. Public API admission, proof work,
+transfers and required synchronization remain part of each application call.
+The harness stops at the requested duration or 4096 calls and records which
+limit ended the interval, its actual elapsed time and mean time per call.
+A slow call may exceed the target duration. The collector's process timeout
+provides the external bound. The option defaults to zero (disabled), accepts
+at most 10000 ms, and does not apply to the fixed exactness walkthrough.
+
+These bursts complement the individually verified diagnostic samples below.
+Use the same duration, input recipe, output boundary and independent process
+count for both sides of a sustained comparison. A burst is one observation,
+not thousands of independent samples; allocation and first-call costs remain
+available in the cold lifecycle report.
+
 Each JSON observation keeps the raw host monotonic samples, clock calibration,
 nominal resolution, timer-pair median/p95, warmup count, order, setup, teardown,
 phase scopes, complete reference cost, and separately measured verification.
@@ -169,7 +188,7 @@ Collect independent processes rather than treating inner repetitions as
 independent experiments:
 
 ```powershell
-python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/cross-modest.json --runs 5 --timeout 120 -- --backend hip-direct --device 0 --size modest --bits 12 --seed 3135 --repeats 9 --warmups 3
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/cross-modest.json --runs 5 --timeout 120 -- --backend hip-direct --device 0 --size modest --bits 12 --seed 3135 --repeats 9 --warmups 3 --sustained-ms 250
 python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-resident-chain.exe --output temp/workloads/chain-tiny.json --runs 5 -- --backend hip-direct --device 0 --size tiny --repeats 9 --warmups 3
 ```
 

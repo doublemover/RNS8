@@ -1,5 +1,6 @@
 #include "workload_baselines.hpp"
 #include "workload_engine.hpp"
+#include "workload_report.hpp"
 #include <cstdlib>
 using namespace rns8_workload;
 int main() {
@@ -50,6 +51,22 @@ int main() {
     bool rejected = false;
     try { integer_words({cpp_int(1) << 70}, 1); } catch (const std::invalid_argument&) { rejected = true; }
     require(rejected, "narrow serialization silently truncated");
+    Words produced{0};
+    uint32_t executions = 0;
+    Variant measured;
+    measured.name = "sustained_fixture";
+    measured.execute = [&](Phases& phases, uint64_t version) {
+      require(version == 1 && !phases.enabled, "sustained call changed source identity or enabled phase clocks");
+      phases.measure("disabled", [&] { produced[0] = 42; ++executions; });
+      require(phases.values.empty(), "disabled phase timing still recorded a sample");
+    };
+    measured.output = [&]() -> const Words& { return produced; };
+    const auto sustained = sustained_sample(measured, 1, Words{42});
+    require(sustained["calls"] == executions && executions > 0 && executions <= 4096,
+            "sustained report lost application calls");
+    rejected = false;
+    try { sustained_sample(measured, 1, Words{43}); } catch (const std::invalid_argument&) { rejected = true; }
+    require(rejected, "sustained measurement accepted an incorrect final output");
     std::cout << "workload independent baselines: PASS\n";
     return EXIT_SUCCESS;
   } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return EXIT_FAILURE; }

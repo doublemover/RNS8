@@ -23,7 +23,7 @@ import uuid
 SCHEMA = "rns8_workload_observation_v1"
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 IDENTITY_KEYS = ("workload", "m", "n", "k", "bits", "seed", "pattern", "repeats", "warmups",
-                 "size", "backend_requested", "device_requested", "os", "compiler", "cpu_comparator_threads",
+                 "size", "sustained_ms", "backend_requested", "device_requested", "os", "compiler", "cpu_comparator_threads",
                  "build_manifest", "workload_source_identity", "semantics", "output_contract", "dataset_recipe",
                  "input_checksum_u64", "checksum_u64", "changed_input_checksum_u64", "changed_checksum_u64",
                  "abs_partial_sum_bound", "bounds", "formula", "lifecycle", "work_definition", "logical_layout", "a_ld", "b_ld", "output_ld",
@@ -134,6 +134,8 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
     for key in ("m", "n", "k", "repeats"):
         demand(type(report.get(key)) is int and report[key] > 0, f"invalid {key}")
     demand(type(report.get("warmups")) is int and report["warmups"] >= 0, "invalid warmups")
+    sustained_ms = report.get("sustained_ms")
+    demand(type(sustained_ms) is int and 0 <= sustained_ms <= 10000, "invalid sustained duration")
     source = report.get("workload_source_identity")
     demand(type(source) is dict and bool(source), "compiled example source identity missing")
     demand(all(type(key) is str and type(value) is str and DIGEST.fullmatch(value)
@@ -149,6 +151,7 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
     identity = {key: report.get(key) for key in IDENTITY_KEYS}
     identity["dataset_bytes"] = dataset_identity(report)
     if report.get("workload") == "exactness_walkthrough":
+        demand(sustained_ms == 0, "fixed exactness witnesses cannot supply sustained timing")
         rows = report.get("witnesses", [])
         demand(len(rows) == 5 and all(row.get("exact_reference_passed") is True for row in rows),
                "walkthrough witnesses missing")
@@ -187,6 +190,24 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
         for sample in samples:
             exact_sample(sample, report["checksum_u64"])
         exact_sample(row["changed_input"], report["changed_checksum_u64"])
+        if sustained_ms:
+            burst = row.get("sustained", {})
+            count = burst.get("calls")
+            elapsed = burst.get("elapsed_ns")
+            demand(type(count) is int and 1 <= count <= 4096 and positive(elapsed), "invalid sustained call count/time")
+            demand(burst.get("target_ms") == sustained_ms and burst.get("call_limit") == 4096,
+                   "sustained controls differ from requested bounds")
+            demand(positive(burst.get("mean_call_ns")) and math.isclose(burst["mean_call_ns"], elapsed / count, rel_tol=1e-12),
+                   "sustained mean differs from elapsed/count")
+            reached = elapsed >= sustained_ms * 1e6
+            demand(burst.get("target_reached") is reached and (reached or count == 4096), "sustained burst stopped early")
+            demand(burst.get("final_exact_reference_passed") is True
+                   and burst.get("checksum_u64") == report["checksum_u64"], "sustained final exact comparison missing")
+            demand(burst.get("phase_timing_enabled") is False and bool(burst.get("scope")), "sustained timing scope missing")
+            demand(type(burst.get("verification_ns")) in (int, float) and math.isfinite(burst["verification_ns"])
+                   and burst["verification_ns"] >= 0, "invalid sustained verification time")
+        else:
+            demand("sustained" not in row, "unexpected unrequested sustained measurement")
         demand(row["changed_input"].get("source_version") == 2, "changed-input generation missing")
         demand(positive(row.get("cold_application_total_ns")) and bool(row.get("cold_total_scope")), "cold lifecycle scope missing")
         metadata = row.get("metadata", {})
@@ -198,6 +219,10 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
         admitted.append({"name": row["name"], "status": row["status"], "metadata": metadata,
                          "phase_scopes": sorted(samples[0]["phases_ns"]), "cold_total_scope": row["cold_total_scope"]})
     demand(bool(candidates), "requested RNS8 implementation missing")
+    expected_order = [row["name"] for row in variants if row.get("status") == "passed"] if sustained_ms else []
+    order = report.get("sustained_order")
+    demand(type(order) is list and len(order) == len(expected_order)
+           and sorted(order) == sorted(expected_order), "sustained order must cover each measured variant exactly once")
     identity["variants"] = admitted
     return identity
 

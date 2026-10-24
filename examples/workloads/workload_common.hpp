@@ -71,7 +71,7 @@ struct MemoryBudget {
   }
 };
 struct Options {
-  uint32_t m = 64, n = 64, k = 96, bits = 8, repeats = 3, warmups = 1;
+  uint32_t m = 64, n = 64, k = 96, bits = 8, repeats = 3, warmups = 1, sustained_ms = 0;
   uint64_t seed = 3135, memory_mib = 256, baseline_max_products = 4000000;
   rns8_backend_kind backend = RNS8_BACKEND_HIP_DIRECT;
   int device = 0;
@@ -92,6 +92,7 @@ inline Options options(int argc, char** argv) {
           "--device 0..63 (CPU uses -1) --reference-only --json --run-id ID\n"
           "--size tiny|modest|large --m M --n N --k K (1..512) --bits 1..63\n"
           "--seed U64 --pattern seeded|zero|sparse --repeats 1..100 --warmups 0..20\n"
+          "--sustained-ms 0..10000 (0 disables production-style repeated calls)\n"
           "--memory-mib 1..4096 --baseline-max-products 1..134217728 --wide --gram\n"
           "tiny uses a named hand-checkable fixture; large is explicit opt-in.\n"
           "Field/resident/exactness programs reject irrelevant controls.\n";
@@ -116,6 +117,7 @@ inline Options options(int argc, char** argv) {
     else if (key == "--seed") out.seed = number(value, 0, UINT64_MAX, "seed");
     else if (key == "--repeats") out.repeats = static_cast<uint32_t>(number(value, 1, 100, "repeats"));
     else if (key == "--warmups") out.warmups = static_cast<uint32_t>(number(value, 0, 20, "warmups"));
+    else if (key == "--sustained-ms") out.sustained_ms = static_cast<uint32_t>(number(value, 0, 10000, "sustained-ms"));
     else if (key == "--memory-mib") out.memory_mib = number(value, 1, 4096, "memory-mib");
     else if (key == "--baseline-max-products") out.baseline_max_products = number(value, 1, 134217728, "baseline-max-products");
     else if (key == "--pattern") {
@@ -294,7 +296,9 @@ inline Json plan_info(const rns8::Plan& plan) {
 }
 struct Phases {
   Json values = Json::object();
+  bool enabled = true;
   template<class Function> void measure(const char* name, Function&& function) {
+    if (!enabled) { function(); return; }
     const auto start = Clock::now(); function(); values[name] = values.value(name, 0.0) + since(start);
   }
 };
@@ -344,6 +348,7 @@ inline Json base_report(const Options& options, const std::string& workload) {
           {"m", options.m}, {"n", options.n}, {"k", options.k}, {"bits", options.bits}, {"seed", options.seed},
           {"logical_layout", "row_major"}, {"a_ld", options.k}, {"b_ld", options.n}, {"output_ld", options.n},
           {"pattern", options.pattern}, {"repeats", options.repeats}, {"warmups", options.warmups}, {"size", options.size},
+          {"sustained_ms", options.sustained_ms},
           {"declared_memory_budget_bytes", options.memory_mib * 1024 * 1024},
           {"os", os}, {"compiler", compiler}, {"cpu_comparator_threads", 1}, {"host_logical_threads", std::thread::hardware_concurrency()},
           {"build_manifest", manifest}, {"workload_source_identity", source}, {"clock", clock_info()},
