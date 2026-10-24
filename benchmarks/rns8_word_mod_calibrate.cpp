@@ -27,23 +27,36 @@ std::string checksum(const std::vector<uint64_t>& values) {
 }
 unsigned bits(uint64_t value) {unsigned n=0;while(value){++n;value>>=1;}return n;}
 struct Buffers {
-  hip_direct_device_buffer a,b,c;
-  void allocate(int device,size_t ac,size_t bc,size_t cc) {check(a.allocate(device,ac*8));check(b.allocate(device,bc*8));check(c.allocate(device,cc*8));}
-  void release() {check(c.reset());check(b.reset());check(a.reset());}
+  struct Allocation {void* pointer=nullptr;void* get()const noexcept{return pointer;}} a,b,c;
+  int device=-1;
+  Buffers()=default;Buffers(const Buffers&)=delete;Buffers& operator=(const Buffers&)=delete;
+  ~Buffers() noexcept {
+    if(!a.pointer&&!b.pointer&&!c.pointer)return;
+    // Failed borrowed-buffer operations do not prove device completion. Keep
+    // uncertain allocations until process exit instead of freeing live storage.
+    if(hip_direct_synchronize(device)!=RNS8_SUCCESS)return;
+    for(auto** pointer:{&c.pointer,&b.pointer,&a.pointer})
+      if(*pointer&&hip_direct_free(device,*pointer)==RNS8_SUCCESS)*pointer=nullptr;
+  }
+  void allocate(int selected,size_t ac,size_t bc,size_t cc) {
+    if(a.pointer||b.pointer||c.pointer)throw std::runtime_error("buffers already allocated");device=selected;
+    check(hip_direct_allocate(device,ac*8,&a.pointer));check(hip_direct_allocate(device,bc*8,&b.pointer));check(hip_direct_allocate(device,cc*8,&c.pointer));
+  }
+  void release() {for(auto** pointer:{&c.pointer,&b.pointer,&a.pointer})if(*pointer){check(hip_direct_free(device,*pointer));*pointer=nullptr;}}
 };
 }
 int main(int argc,char** argv) {
  try {
-  const char* usage="usage: rns8-word-mod-calibrate DEVICE baseline|packed_dot4 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS RUN_ID\n       rns8-word-mod-calibrate DEVICE asymmetric_binary64 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS LEFT_DIGITS RIGHT_DIGITS SLAB_K RUN_ID\nDEVICE0..63; M,N1..512 K1..65537 M*N*K<=134217728; modulus2..UINT64_MAX; repeats1..10000 warmups1..1000; digits1..4 slab1..65536. Floating requests must satisfy exact integer lambda*alpha*beta+p-1<=2^53. Private canonical uint64 ring/prime-field route; scalar binary64 FMA, no WMMA or fallback.";
+  const char* usage="usage: rns8-word-mod-calibrate DEVICE baseline|packed_dot4|byte_wmma resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS RUN_ID\n       rns8-word-mod-calibrate DEVICE asymmetric_binary64 resident|cold M N K ring|prime_field MODULUS REPEATS WARMUPS LEFT_DIGITS RIGHT_DIGITS SLAB_K RUN_ID\nDEVICE0..63; M,N1..512 K1..65537 M*N*K<=134217728; modulus2..UINT64_MAX; repeats1..10000 warmups1..1000; digits1..4 slab1..65536. Floating requests must satisfy exact integer lambda*alpha*beta+p-1<=2^53. byte_wmma uses explicit unsigned radix256 diagonals and 16x16 output tiles; scalar binary64 remains separate. No fallback.";
   if(argc==2 && std::string(argv[1])=="--help") {std::cout<<usage<<'\n';return 0;}
   if(argc!=12 && argc!=15) throw std::invalid_argument(usage);
   const int device=int(number(argv[1],0,63));const std::string method=argv[2],scope=argv[3],domain=argv[7];
-  const bool floating=method=="asymmetric_binary64";
+  const bool floating=method=="asymmetric_binary64",wmma=method=="byte_wmma";
   if(argc!=(floating?15:12)) throw std::invalid_argument("floating method requires explicit left/right digits and slab; other methods reject them");
   const std::string run_id=argv[floating?14:11];
   const uint64_t m=number(argv[4],1,512),n=number(argv[5],1,512),k=number(argv[6],1,65537),modulus=number(argv[8],2,UINT64_MAX);
   const uint32_t repeats=uint32_t(number(argv[9],1,10000)),warmups=uint32_t(number(argv[10],1,1000));
-  if((method!="baseline" && method!="packed_dot4" && !floating) || (scope!="resident" && scope!="cold") || (domain!="ring" && domain!="prime_field") ||
+  if((method!="baseline" && method!="packed_dot4" && !wmma && !floating) || (scope!="resident" && scope!="cold") || (domain!="ring" && domain!="prime_field") ||
      m*n*k>134217728 || run_id.empty() || run_id.size()>128 || run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)
     throw std::invalid_argument("invalid method/scope/domain/reference work/run identity");
   word_mod::Problem p;p.domain=domain=="ring"?word_mod::Domain::ring:word_mod::Domain::prime_field;
@@ -78,7 +91,7 @@ int main(int argc,char** argv) {
   const auto initialize=[&](Buffers& buffers) {buffers.allocate(device,ac,bc,cc);
     check(hip_direct_copy_host_to_device(device,buffers.a.get(),a.data(),ac*8));check(hip_direct_copy_host_to_device(device,buffers.b.get(),b.data(),bc*8));
     check(hip_direct_copy_host_to_device(device,buffers.c.get(),poison.data(),cc*8));};
-  const auto compute=[&](Buffers& buffers) {bool started=false;check(hip_direct_word_mod_device(device,buffers.a.get(),buffers.b.get(),buffers.c.get(),p,4,started,method=="packed_dot4",floating?&request:nullptr));
+  const auto compute=[&](Buffers& buffers) {bool started=false;check(hip_direct_word_mod_device(device,buffers.a.get(),buffers.b.get(),buffers.c.get(),p,4,started,method=="packed_dot4",floating?&request:nullptr,wmma));
     if(!started) throw std::runtime_error("successful method did not report issued output");};
   const auto audit_inputs=[&](Buffers& buffers) {check(hip_direct_copy_device_to_host(device,audit_a.data(),buffers.a.get(),ac*8));
     check(hip_direct_copy_device_to_host(device,audit_b.data(),buffers.b.get(),bc*8));if(audit_a!=a || audit_b!=b) throw std::runtime_error("word-modular inputs/padding changed");};
@@ -111,9 +124,10 @@ int main(int argc,char** argv) {
     {"a_allocation_bytes",ac*8},{"b_allocation_bytes",bc*8},{"output_allocation_bytes",cc*8},{"explicit_scratch_peak_bytes",4},{"compiler_private_scratch_bytes",nullptr},{"canary_bytes",64},
     {"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},{"oracle_and_dataset_ns",oracle_ns},
     {"resident_setup_ns",scope=="resident"?nlohmann::json(setup_ns):nlohmann::json(nullptr)},
-    {"slab_k",floating?nlohmann::json(request.slab_k):method=="packed_dot4"?nlohmann::json(4096):nlohmann::json(nullptr)},
-    {"digit_diagonals",method=="packed_dot4"?15:0},{"max_diagonal_accumulator",method=="packed_dot4"?nlohmann::json(UINT64_C(2130739200)):nlohmann::json(nullptr)},
-    {"arithmetic_kernel",floating?"word_mod_asymmetric_binary64":method=="packed_dot4"?"word_mod_byte_dot4":"word_mod_double_add"},
+    {"slab_k",floating?nlohmann::json(request.slab_k):(method=="packed_dot4" || wmma)?nlohmann::json(4096):nlohmann::json(nullptr)},
+    {"digit_diagonals",wmma?2*((bits(modulus-1)+7)/8)-1:method=="packed_dot4"?15:0},
+    {"max_diagonal_accumulator",wmma?nlohmann::json(UINT64_C(4096)*((bits(modulus-1)+7)/8)*65025):method=="packed_dot4"?nlohmann::json(UINT64_C(2130739200)):nlohmann::json(nullptr)},
+    {"arithmetic_kernel",wmma?"word_mod_byte_wmma":floating?"word_mod_asymmetric_binary64":method=="packed_dot4"?"word_mod_byte_dot4":"word_mod_double_add"},
     {"timing_scope",scope=="cold"?"allocate_upload_checked_compute_readback_checked_free":"resident_checked_compute_including_canonical_scan_and_domain_admission"},
     {"input_preservation_scope",scope=="cold"?"one_separate_resident_audit_before_warmups":"outside_each_verified_call_and_final_burst"},
     {"timer","std_chrono_steady_clock_nanoseconds"},{"production_timing_hooks_enabled",false},{"public_ownership_measured",false},
@@ -131,6 +145,16 @@ int main(int argc,char** argv) {
       {"admission_lhs_decimal",lhs.str()},{"admission_limit_decimal","9007199254740992"},
       {"coefficient_max_decimal",coefficient.str()},{"weights_stride",4},{"weights",weights},
       {"weighting","overflow_safe_integer_modular_recombination"},{"matrix_engine",false}};
+  }
+  if(wmma) {
+    const unsigned bytes=(bits(modulus-1)+7)/8;
+    report["operand_bytes"]=bytes;
+    report["byte_wmma_schedule"]={{"version",1},{"arithmetic","unsigned_radix256_wmma_diagonal_integer_recombination"},
+      {"bytes_per_operand",bytes},{"diagonals",2*bytes-1},{"slab_k",4096},
+      {"maximum_accumulator",UINT64_C(4096)*bytes*65025},{"tile_m",16},{"tile_n",16},{"tile_k",16},{"threads_per_block",32},
+      {"output_tile_count",((m+15)/16)*((n+15)/16)},{"zero_pad_spatial_and_k_tails",true},
+      {"left_signed",false},{"right_signed",false},{"saturating_accumulator",false},
+      {"native_operands_reread_per_diagonal",true},{"asymmetric_floating_decomposition",false}};
   }
   resident.release();std::cout<<report.dump(2)<<'\n';return 0;
  } catch(const Unsupported& error) {hip_direct_timing_set_enabled(false);std::cerr<<error.what()<<'\n';return 77;}

@@ -80,6 +80,46 @@
       "k": 17,
       "domain": "prime_field",
       "modulus": 251
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "ring",
+      "modulus": 256
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "ring",
+      "modulus": 256
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "prime_field",
+      "modulus": 251
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 2,
+      "n": 3,
+      "k": 17,
+      "domain": "prime_field",
+      "modulus": 251
     }
   ]
 }

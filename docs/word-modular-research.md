@@ -64,10 +64,29 @@ register traffic and modular recombination costs require measurement; no
 speedup or AUTO selection is claimed.
 
 The [word-modular calibration driver](word-modular-calibration.md) supplies
-explicit baseline/packed-dot4 and admitted scalar binary64 schedules, ring/prime-field
+explicit baseline/packed-dot4/byte-WMMA and admitted scalar binary64 schedules, ring/prime-field
 and resident/cold controls, full independent exact references, swapped digit/slab
 and bit-width cases, and strict provenance collection. These are authored
-interfaces and fixtures, not execution evidence or a matrix-engine schedule.
+interfaces and fixtures, with execution evidence pending.
+
+## Unsigned byte-WMMA integer candidate
+
+The private opt-in byte-WMMA candidate uses one wave per 16x16 output tile.
+Canonical words use `ceil(bit_length(p-1)/8)` unsigned bytes, all byte pairs and
+`2*bytes-1` radix-256 diagonals. A 4096-term slab bounds every diagonal by
+`4096*bytes*65025`, at most 2130739200. Zero-filled K and spatial tails preserve
+the complete product. Overflow-safe integer modular weights recombine diagonals
+and slabs; prime and composite rings use the same exact arithmetic without
+inverses. Both intrinsic operand signedness flags are false.
+
+Only one diagonal's eight accumulators stay live at once. The implementation
+rereads native operands for successive diagonals rather than retaining a packed
+tile cache. Its target/builtin probe, canonical scan, integer weight generation,
+status transfers and required drains remain part of each checked invocation.
+Matched calibration records this full boundary alongside baseline and packed
+dot4 controls. Tail, slab, full-width Boost, preservation and metadata fixtures
+are authored, with no execution or performance qualification yet. This integer
+candidate does not implement asymmetric floating matrix-engine decomposition.
 
 
 ## Explicit scalar binary64 asymmetric schedule

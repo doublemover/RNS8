@@ -1,7 +1,7 @@
 # Canonical word-modular calibration
 
 `rns8-word-mod-calibrate` compares the private direct-HIP binary double/add
-baseline, opt-in packed-dot4 lowering and explicit scalar binary64 asymmetric
+baseline, opt-in packed-dot4 and byte-WMMA lowerings, and explicit scalar binary64 asymmetric
 schedule from [word-modular research](word-modular-research.md). All compute the
 same complete canonical uint64 product in an explicit ring or prime field.
 The binary64 candidate has explicit digit/slab admission; it is not a WMMA
@@ -19,7 +19,7 @@ rns8-word-mod-calibrate DEVICE METHOD SCOPE M N K DOMAIN MODULUS REPEATS WARMUPS
 rns8-word-mod-calibrate DEVICE asymmetric_binary64 SCOPE M N K DOMAIN MODULUS REPEATS WARMUPS LEFT_DIGITS RIGHT_DIGITS SLAB_K RUN_ID
 ```
 
-The first form accepts method `baseline` or `packed_dot4`. The second form
+The first form accepts method `baseline`, `packed_dot4` or `byte_wmma`. The second form
 requires both digit counts and the slab; integer methods reject these extra
 controls. Device is0..63, scope is `resident` or
 `cold`, and domain is `ring` or `prime_field`. No device/backend fallback occurs.
@@ -45,6 +45,33 @@ facts, not measured occupancy or ISA. The baseline's digit/slab fields are zero
 or null as appropriate. Packed dot4 admits only gfx1100/1101/1102 with the actual
 builtin. An unsupported route returns77 and is retained as an unsuccessful
 collector record; it cannot silently produce a baseline observation.
+
+## Unsigned byte-WMMA diagonals
+
+`byte_wmma` uses one wave per 16x16 output tile and unsigned byte fragments with
+zero padding in spatial and K tails. Its canonical operand width is
+`bytes=ceil(bit_length(modulus-1)/8)`, so modulus 256 uses one byte and modulus
+257 uses two. The method forms all byte pairs across `2*bytes-1` radix-256
+diagonals. Each 4096-term slab bounds every nonnegative accumulator by
+`4096*bytes*65025 <= 2130739200 < INT32_MAX`. Fixed integer radix weights and
+overflow-safe modular multiply/add recombine diagonals and slabs for both rings
+and prime fields. There are no floating coefficients or residue inverses.
+
+The receipt records byte count, diagonal count, slab, exact accumulator bound and
+a versioned tile/signedness schedule. The collector derives these independently;
+integer methods reject caller-supplied digit/slab controls or unrelated floating
+metadata. The wrapper checks the real gfx1100/1101/1102 builtin capability, scans
+canonical inputs and derives weights inside the checked call. The event label is
+`word_mod_byte_wmma`; missing event instrumentation remains unavailable and null
+durations remain censored. A duplicate event or a different word-mod arithmetic
+label rejects the receipt. Production host wall cost retains the complete call.
+
+Native operands are reread for each diagonal. This is the initial exact unsigned
+byte-WMMA candidate, with no slab packing cache or claimed traffic optimization.
+It does not implement the asymmetric floating matrix-engine schedule. Tile and
+wave dimensions are source facts, not occupancy, ISA qualification or measured
+hardware-cycle latency. CPU/GPU reference fixtures and calibration wiring are
+authored; no compilation, execution or speedup is claimed.
 
 ## Explicit scalar binary64 schedules
 
@@ -112,6 +139,12 @@ and process RSS are excluded. Explicit scratch is the requested four-byte flag;
 compiler-generated register spills and observed allocation peak remain unknown.
 Actual HBM traffic and timing resolution stay null, ISA verification false.
 
+The driver preserves each device pointer until its checked release succeeds.
+On exceptional exit it first attempts a device drain; an unsuccessful drain
+retains the borrowed operands/output until process exit. Failed cleanup cannot
+produce a successful capture. These are failure-lifetime safeguards, with no
+allocation-fault or hardware-error campaign claimed.
+
 ## Resident and cold timing
 
 Resident setup allocates/uploads A/B/C once and is reported separately. Timed
@@ -146,9 +179,15 @@ Versioned manifests provide [small controls](../benchmarks/word-mod-calibration/
 [13 widths with17x19 tails](../benchmarks/word-mod-calibration/widths-tail.json),
 [K4095/4096/4097/8193](../benchmarks/word-mod-calibration/slab-boundaries.json), and
 [32..512 output orders](../benchmarks/word-mod-calibration/large.json). They pair
-both integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
+all three integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
 31,35,39,42,48,50,52 and64; moduli are explicit in each case, with no latest-prime
 lookup at execution time.
+
+The integer sets contain 12 small, 156 width/tail, 48 slab-boundary and 144 large
+cases. [84 matched tile-tail cases](../benchmarks/word-mod-calibration/tile-tails.json)
+add output extents 1,15,16,17,19,31,32,33 around the 16x16 boundaries and modulus
+256/257 at the one-byte/two-byte transition. All integer cohorts use identical
+inputs, oracle, scope and mathematical product across the three methods.
 
 Additional manifests retain matched integer controls and paired swapped digit
 orientations: [16 small cases](../benchmarks/word-mod-calibration/floating-smoke.json),
@@ -156,7 +195,8 @@ orientations: [16 small cases](../benchmarks/word-mod-calibration/floating-smoke
 [144 K-tail cases](../benchmarks/word-mod-calibration/floating-slabs.json), and
 [192 larger cases](../benchmarks/word-mod-calibration/floating-large.json).
 The pair set covers slabs1/17/257 at admitted widths through52bits, while64-bit
-cohorts retain only the two integer controls. Tail cases span K16/17/18,
+cohorts retain only their original baseline/packed-dot4 controls. These floating
+manifests are unchanged by the byte-WMMA addition. Tail cases span K16/17/18,
 256/257/258 and65535/65536/65537 with explicit slabs17/257/65536. Larger cases
 use output orders32/128/256/512, K257,26/52-bit prime/composite contracts and
 slabs17/257. The swapped choices recompute the same complete product with the
@@ -168,6 +208,7 @@ preserved failure records and schedule metadata mismatches.
 ```powershell
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/widths-tail.json --output temp/word-mod-widths --runs 5 --repeats 9 --warmups 3
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/slab-boundaries.json --output temp/word-mod-slabs --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/tile-tails.json --output temp/word-mod-tiles --runs 5 --repeats 9 --warmups 3
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-pairs.json --output temp/word-mod-floating-pairs --runs 5 --repeats 9 --warmups 3
 python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-large.json --output temp/word-mod-floating-large --runs 5 --repeats 9 --warmups 3
 ```
@@ -186,6 +227,6 @@ samples. It does not infer a speedup, extrapolate unmeasured shapes or qualify a
 route. Correctness execution, ISA/resource inspection, clocks, memory counters,
 timing resolution and target-specific measurements remain gates. The scalar
 binary64 schedule is authored, with execution still pending. Derived
-concatenation layouts and INT8/multiword WMMA candidates remain separate
+asymmetric concatenation layouts and floating matrix-engine schedules remain separate
 implementation work; CDNA qualification still needs
 the deferred hardware.

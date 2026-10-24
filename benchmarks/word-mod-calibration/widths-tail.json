@@ -1040,6 +1040,526 @@
       "k": 257,
       "domain": "prime_field",
       "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 256
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 256
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 251
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 251
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 65536
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 65536
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 65521
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 65521
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 8388608
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 8388608
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 8388593
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 8388593
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 67108864
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 67108864
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 67108859
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 67108859
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 134217728
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 134217728
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 134217689
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 134217689
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 2147483648
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 2147483648
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 2147483647
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 2147483647
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 34359738368
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 34359738368
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 34359738337
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 34359738337
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 549755813888
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 549755813888
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 549755813881
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 549755813881
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 4398046511104
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 4398046511104
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 4398046511093
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 4398046511093
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 281474976710656
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 281474976710656
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 281474976710597
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 281474976710597
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 1125899906842624
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 1125899906842624
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 1125899906842597
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 1125899906842597
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 4503599627370496
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 4503599627370496
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 4503599627370449
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 4503599627370449
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "ring",
+      "modulus": 18446744073709551615
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "resident",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
+    },
+    {
+      "device": 0,
+      "method": "byte_wmma",
+      "scope": "cold",
+      "m": 17,
+      "n": 19,
+      "k": 257,
+      "domain": "prime_field",
+      "modulus": 18446744073709551557
     }
   ]
 }
