@@ -42,7 +42,7 @@ infer omitted kernels.
 Workspace queries return success, unsupported, overflow or unknown. Failure
 never becomes zero scratch. Successful queries assign aligned nonoverlapping
 arena regions with checked 64-bit arithmetic; padding counts against the
-budget. This arena is conservative and does not reuse storage across lifetimes.
+budget. The default arena is conservative and does not reuse storage across lifetimes.
 Each region names its producer and direct consumers, while prediction retains
 the producer allocation through all dependent consumers. A retained region
 survives to the end of the graph. The model's lifetime peak and the arena's
@@ -60,3 +60,26 @@ changes, missing instructions/calibration, stale bindings, insufficient CRT
 range, incomplete/duplicate coverage, workspace fallback, alignment overflow,
 unknown query results and malformed numerical stage fields. Execution remains
 pending during frontloaded development.
+
+
+## Dependency-proven arena reuse
+
+A provider can explicitly set `ResourcePlan.reuse_ordered_lifetimes=True` to
+reuse temporary bytes. The allocator proves a strict dependency path from the
+old producer and every declared reader to the new producer. Unordered branches,
+a consumer writing during its own read, and retained values cannot share those
+bytes. It does not rely on predicted completion times, equal timestamps, stage
+list order or incidental serialization on a resource.
+
+Allocation uses deterministic aligned first-fit placement against all conflicting
+regions. Counts and aligned endpoints remain checked against uint64 capacity;
+large mutually exclusive regions need not fail because their unshared sum would
+overflow. The result exposes each region's offset and the physical high-water
+size. The predictor charges one retained arena of that size, rather than counting
+aliased regions as independent allocations. No runtime allocator or route is
+changed by this offline option.
+
+Authored fixtures cover ordered reuse, forks, retained results, producer/consumer
+overlap, reversed declarations, uint64 limits, cyclic graphs and predictor
+accounting. They await the consolidated validation pass. Runtime adapters and
+measured planner promotion remain separate work.

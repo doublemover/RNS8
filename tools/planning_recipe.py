@@ -86,6 +86,7 @@ class ResourcePlan:
     status: str  # success, unsupported, overflow, unknown
     regions: tuple[TemporaryRegion, ...] = ()
     reason: str = ""
+    reuse_ordered_lifetimes: bool = False
 
 
 @dataclass(frozen=True)
@@ -162,16 +163,73 @@ def _problem(problem: ProblemContract) -> None:
         raise ValueError("finite semantics require one named modulus")
 
 
+def _ordered_arena(regions: tuple[TemporaryRegion, ...], stages: tuple[Stage, ...], budget: int) -> dict:
+    """Reuse only after every declared reader is strictly before the next writer.
+
+    This is a dependency proof, independent of predicted timing or incidental
+    resource serialization. Unordered branches cannot borrow each other's bytes.
+    """
+    by_name = {stage.name: stage for stage in stages}
+    ancestors = {}
+    pending = set(by_name)
+    while pending:
+        ready = sorted(name for name in pending if all(dep in ancestors for dep in by_name[name].dependencies))
+        if not ready:
+            return {"status": "unknown", "reason": "cyclic_or_unknown_workspace_dependency"}
+        for name in ready:
+            dependencies = by_name[name].dependencies
+            ancestors[name] = set(dependencies).union(*(ancestors[dep] for dep in dependencies))
+            pending.remove(name)
+
+    def before(left, right):
+        if left.retained or by_name[left.producer].retain_output:
+            return False
+        return all(reader in ancestors[right.producer]
+                   for reader in (left.producer, *left.consumers))
+
+    placed, high_water = [], 0
+    for region in regions:
+        occupied = sorted((offset, offset + prior.bytes) for prior, offset in placed
+                          if prior.bytes and not (before(prior, region) or before(region, prior)))
+        offset = 0
+        if region.bytes:
+            for start, end in occupied:
+                offset = (offset + region.alignment - 1) & -region.alignment
+                if offset + region.bytes <= start:
+                    break
+                if offset < end:
+                    offset = end
+            offset = (offset + region.alignment - 1) & -region.alignment
+        end = offset + region.bytes
+        if end > U64_MAX:
+            return {"status": "overflow", "reason": "aligned_workspace_overflow"}
+        placed.append((region, offset))
+        high_water = max(high_water, end)
+    if high_water > budget:
+        return {"status": "unsupported", "reason": "workspace_budget", "required_bytes": high_water}
+    # One preallocated arena is resident for the entire recipe. Charge it once,
+    # retained, rather than treating aliased regions as independent allocations.
+    priced = tuple(replace(stage, bytes_allocated=high_water if index == 0 else 0,
+                           retain_output=True if index == 0 else stage.retain_output)
+                   for index, stage in enumerate(stages))
+    return {"status": "success", "required_bytes": high_water,
+            "allocation_policy": "dependency_proven_shared_arena",
+            "regions": [{"name": region.name, "offset": offset, "bytes": region.bytes}
+                        for region, offset in placed], "stages": priced}
+
+
 def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int) -> dict:
     if type(plan) is not ResourcePlan or plan.status not in {"success", "unsupported", "overflow", "unknown"}:
         return {"status": "unknown", "reason": "invalid_workspace_query"}
     if plan.status != "success":
         return {"status": plan.status, "reason": plan.reason}
+    if type(plan.reuse_ordered_lifetimes) is not bool:
+        return {"status": "unknown", "reason": "invalid_reuse_policy"}
     if not _uint(budget):
         return {"status": "overflow", "reason": "invalid_budget"}
     names = {s.name for s in stages}
     stages_by_name = {s.name: s for s in stages}
-    if len(names) != len(stages) or any(s.bytes_allocated for s in stages):
+    if not stages or len(names) != len(stages) or any(s.bytes_allocated for s in stages):
         return {"status": "unknown", "reason": "duplicate_stage_or_unowned_allocation"}
     seen, offsets, cursor = set(), [], 0
     allocation = {s.name: 0 for s in stages}
@@ -186,7 +244,7 @@ def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int
         seen.add(region.name)
         offset = (cursor + region.alignment - 1) & -region.alignment
         end = offset + region.bytes
-        if end > U64_MAX:
+        if end > U64_MAX and not plan.reuse_ordered_lifetimes:
             return {"status": "overflow", "reason": "aligned_workspace_overflow"}
         # A nonoverlapping arena is intentionally conservative. Padding belongs
         # to its producer too; it cannot disappear from the resource accounting.
@@ -195,6 +253,8 @@ def checked_resources(plan: ResourcePlan, stages: tuple[Stage, ...], budget: int
         cursor = end
         if region.retained:
             retained.add(region.producer)
+    if plan.reuse_ordered_lifetimes:
+        return _ordered_arena(plan.regions, stages, budget)
     if cursor > budget:
         return {"status": "unsupported", "reason": "workspace_budget", "required_bytes": cursor}
     priced_stages = tuple(replace(s, bytes_allocated=allocation[s.name], retain_output=s.retain_output or s.name in retained) for s in stages)

@@ -114,6 +114,36 @@ def main() -> int:
             pass
         else:
             raise AssertionError("malformed stage admitted")
+    # Physical byte reuse requires all readers to happen before the next writer.
+    # Timing estimates or a shared stream/resource name cannot prove this.
+    chain_stages = (replace(stages[0], name="produce", dependencies=()),
+                    replace(stages[0], name="read", dependencies=("produce",)),
+                    replace(stages[0], name="next", dependencies=("read",)))
+    reuse_regions = (TemporaryRegion("first", "produce", ("read",), 32, 16),
+                     TemporaryRegion("second", "next", (), 32, 16))
+    reused = checked_resources(ResourcePlan("success", reuse_regions, reuse_ordered_lifetimes=True), chain_stages, 32)
+    assert reused["status"] == "success" and reused["required_bytes"] == 32
+    assert [region["offset"] for region in reused["regions"]] == [0, 0]
+    assert predict(reused["stages"], dict(profile.rates), certificate, 32, target.target)["peak_workspace_bytes"] == 32
+    # A later declaration is not proof that the reader is finished.
+    fork_stages = (*chain_stages[:2], replace(chain_stages[2], dependencies=("produce",)))
+    forked = checked_resources(ResourcePlan("success", reuse_regions, reuse_ordered_lifetimes=True), fork_stages, 64)
+    assert forked["required_bytes"] == 64
+    assert [region["offset"] for region in forked["regions"]] == [0, 32]
+    retained = (replace(reuse_regions[0], retained=True), reuse_regions[1])
+    assert checked_resources(ResourcePlan("success", retained, reuse_ordered_lifetimes=True), chain_stages, 32)["status"] == "unsupported"
+    retained_stage = (replace(chain_stages[0], retain_output=True), *chain_stages[1:])
+    assert checked_resources(ResourcePlan("success", reuse_regions, reuse_ordered_lifetimes=True), retained_stage, 32)["status"] == "unsupported"
+    # The consumer itself may still read its input while writing its output.
+    same_stage = (reuse_regions[0], replace(reuse_regions[1], producer="read"))
+    assert checked_resources(ResourcePlan("success", same_stage, reuse_ordered_lifetimes=True), chain_stages, 64)["required_bytes"] == 64
+    reversed_regions = tuple(reversed(reuse_regions))
+    assert checked_resources(ResourcePlan("success", reversed_regions, reuse_ordered_lifetimes=True), chain_stages, 32)["required_bytes"] == 32
+    huge = tuple(replace(region, bytes=U64_MAX, alignment=1) for region in reuse_regions)
+    assert checked_resources(ResourcePlan("success", huge, reuse_ordered_lifetimes=True), chain_stages, U64_MAX)["required_bytes"] == U64_MAX
+    cyclic = (replace(chain_stages[0], dependencies=("next",)), *chain_stages[1:])
+    assert checked_resources(ResourcePlan("success", reuse_regions, reuse_ordered_lifetimes=True), cyclic, 64)["status"] == "unknown"
+    assert checked_resources(ResourcePlan("success", reuse_regions, reuse_ordered_lifetimes=1), chain_stages, 64)["status"] == "unknown"
     print("typed recipe provider self-test: PASS (mock targets only)")
     return 0
 
