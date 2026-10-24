@@ -1,3 +1,18 @@
+rns8_status hip_direct_copy_native_view(int device_id,const void* source,void* destination,
+    int64_t rows,int64_t cols,int64_t ld) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
+  const auto error=timed_hip_operation("interop_lease_snapshot_d2d",[&]() {
+    const auto issued=hipMemcpy2D(destination,size_t(cols)*8,source,size_t(ld)*8,
+        size_t(cols)*8,size_t(rows),hipMemcpyDeviceToDevice);
+    const auto drain=hipDeviceSynchronize();return issued==hipSuccess?drain:issued;
+  });
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;(void)source;(void)destination;(void)rows;(void)cols;(void)ld;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 rns8_status hip_direct_validate_native_allocation(int device_id,const void* base,uint64_t bytes) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;

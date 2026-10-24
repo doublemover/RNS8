@@ -17,6 +17,7 @@ struct rns8_context {
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
+  rns8_native_device_lease* failed_native_cleanup = nullptr;
   mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;

@@ -2172,7 +2172,8 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
 
 
 /* Synchronous native HIP interop. The caller completes all external producer
- * work before binding and holds the allocation immutable while leased. Owner
+ * work before binding and holds borrowed allocations immutable while leased.
+ * COPY_OWNED read snapshots release external ownership after completed creation. Owner
  * callbacks run on the calling host thread, never a HIP runtime callback. */
 typedef struct rns8_native_device_lease rns8_native_device_lease;
 typedef enum rns8_native_device_type {
@@ -2181,7 +2182,11 @@ typedef enum rns8_native_device_type {
 typedef enum rns8_native_device_access {
   RNS8_NATIVE_DEVICE_READ=1, RNS8_NATIVE_DEVICE_WRITE=2
 } rns8_native_device_access;
-typedef enum rns8_native_device_policy { RNS8_NATIVE_DEVICE_BORROW=1 } rns8_native_device_policy;
+typedef enum rns8_native_device_policy {
+  RNS8_NATIVE_DEVICE_BORROW=1,
+  /* Read-only compact D2D snapshot; external lease ends after completed copy. */
+  RNS8_NATIVE_DEVICE_COPY_OWNED=2
+} rns8_native_device_policy;
 typedef rns8_status (*rns8_native_owner_acquire)(void* owner);
 typedef void (*rns8_native_owner_release)(void* owner);
 typedef struct rns8_native_device_desc {
@@ -2193,15 +2198,17 @@ typedef struct rns8_native_device_desc {
   int64_t rows,cols,ld;
   int32_t device_id;
   uint32_t producer_complete; /* must be 1: explicit caller readiness contract */
-  rns8_native_device_policy policy; /* only explicit borrowed ownership in V1 */
+  rns8_native_device_policy policy;
   uint64_t owner_identity,generation;
   void* owner;
   rns8_native_owner_acquire acquire;
   rns8_native_owner_release release;
+  uint64_t snapshot_budget_bytes; /* zero for BORROW; compact bytes for COPY_OWNED */
 } rns8_native_device_desc;
 typedef struct rns8_native_device_resources {
   uint32_t struct_size,abi_version;
   uint64_t view_span_bytes,compact_native_bytes,export_scratch_bytes,verified_import_scratch_bytes;
+  uint64_t snapshot_bytes; /* retained device bytes; zero for BORROW */
 } rns8_native_device_resources;
 RNS8_API rns8_status rns8_query_native_device(const rns8_native_device_desc*,rns8_native_device_resources*);
 RNS8_API rns8_status rns8_create_native_device_lease(rns8_context*,const rns8_native_device_desc*,rns8_native_device_lease**);

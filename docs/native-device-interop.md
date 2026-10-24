@@ -9,7 +9,7 @@ API accepts a device pointer implicitly.
 
 A versioned descriptor names native i64/u64 dtype, read OR write access,
 allocation base/capacity, byte offset, rows/columns/leading dimension, device,
-owner identity, nonzero binding generation, explicit BORROW policy, producer
+owner identity, nonzero binding generation, explicit BORROW or COPY_OWNED policy, producer
 completion and acquire/release callbacks. Signedness does not select arithmetic
 semantics: import/export independently admit bounded or exact-wide matching
 matrix semantics. Finite, wrap and native limb tensors are not admitted in V1.
@@ -90,7 +90,7 @@ status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
 Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
 Prepared async/graph binding, failed-drain
-mock fixtures, limb outputs, copy-owned mode, DLPack and matched performance
+mock fixtures, limb outputs, DLPack and matched performance
 receipts remain implementation/qualification work. No measured speedup or
 broader target support is claimed.
 
@@ -99,3 +99,29 @@ consumer kernels around public exact GEMM. It independently checks all output
 and padding and separately labels validation-only host payload readback. Its
 standalone CMake recipe uses explicit hipcc object compilation and exported
 static/shared targets; build/runtime qualification is pending the final batch.
+
+## Copy-owned read leases
+
+`RNS8_NATIVE_DEVICE_COPY_OWNED` is an explicit synchronous read-only alternative
+to borrowing. Set `snapshot_budget_bytes` to at least the queried compact native
+size. Creation acquires the external owner, validates its actual device allocation,
+and copies only logical rows into a new compact D2D allocation. It releases the
+external owner exactly once after successful copy completion. The caller may then
+mutate or free the original source; repeated ordinary or verified imports read
+the immutable snapshot. Creating a fresh lease is the refresh operation. Export
+requires a borrowed WRITE lease; copied destinations are rejected.
+
+Query reports `snapshot_bytes` separately from import/export scratch. BORROW
+requires a zero snapshot budget and retains the original lifetime contract.
+Snapshot traffic is exactly rows*cols*8 logical D2D bytes, not zero-copy. It adds
+one retained compact allocation; operation scratch budgets remain separate.
+An unpublished snapshot whose copy/drain/free fails remains owned by the poisoned
+context, including the external owner reference when it may still be in use.
+Context destruction retries cleanup and returns failure until safe release.
+Public handles remain BUSY lifetime references to the context. Host callbacks
+must not throw or reenter the lease.
+
+CPU descriptor tests and GPU signed/unsigned padded-view differential cases are
+authored for budget rejection, early external release, source overwrite/free,
+repeated verified import and exactly-once callback release. Execution remains
+pending the final consolidated campaign; no copy-mode speedup is claimed.

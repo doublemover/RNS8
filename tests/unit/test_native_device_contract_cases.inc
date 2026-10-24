@@ -24,3 +24,19 @@ TEST_CASE("native device query checks view spans without touching device or owne
   REQUIRE(rns8_create_native_device_lease(ctx,&valid,&lease)==RNS8_UNSUPPORTED_BACKEND);REQUIRE(lease==nullptr);
   REQUIRE(owner.acquired==0);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("copy-owned native leases require a read snapshot budget before owner acquisition") {
+  using namespace native_device_fixture;
+  alignas(8) uint64_t words[32]{};Owner owner;auto d=descriptor(words,sizeof(words),owner);
+  rns8_native_device_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_SUCCESS);REQUIRE(resources.snapshot_bytes==0);
+  d.policy=RNS8_NATIVE_DEVICE_COPY_OWNED;
+  REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_WORKSPACE_TOO_SMALL);
+  d.snapshot_budget_bytes=119;REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_WORKSPACE_TOO_SMALL);
+  d.snapshot_budget_bytes=120;REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_SUCCESS);
+  REQUIRE(resources.snapshot_bytes==120);REQUIRE(resources.view_span_bytes==152);
+  d.access=RNS8_NATIVE_DEVICE_WRITE;REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_INVALID_ARGUMENT);
+  d.access=RNS8_NATIVE_DEVICE_READ;d.policy=RNS8_NATIVE_DEVICE_BORROW;
+  REQUIRE(rns8_query_native_device(&d,&resources)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(owner.acquired==0);REQUIRE(owner.released==0);
+}

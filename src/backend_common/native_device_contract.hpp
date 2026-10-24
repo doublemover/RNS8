@@ -8,7 +8,9 @@ inline rns8_status query_native_device_contract(const rns8_native_device_desc& d
      (d.element_type!=RNS8_NATIVE_DEVICE_I64 && d.element_type!=RNS8_NATIVE_DEVICE_U64) ||
      (d.access!=RNS8_NATIVE_DEVICE_READ && d.access!=RNS8_NATIVE_DEVICE_WRITE) ||
      !d.allocation_base || !d.owner_identity || !d.generation || !d.acquire || !d.release ||
-     d.device_id<0 || d.policy!=RNS8_NATIVE_DEVICE_BORROW || d.producer_complete!=1 || d.rows<=0 || d.cols<=0 || d.ld<d.cols ||
+     d.device_id<0 || (d.policy!=RNS8_NATIVE_DEVICE_BORROW && d.policy!=RNS8_NATIVE_DEVICE_COPY_OWNED) ||
+     (d.policy==RNS8_NATIVE_DEVICE_COPY_OWNED && d.access!=RNS8_NATIVE_DEVICE_READ) ||
+     (d.policy==RNS8_NATIVE_DEVICE_BORROW && d.snapshot_budget_bytes!=0) || d.producer_complete!=1 || d.rows<=0 || d.cols<=0 || d.ld<d.cols ||
      d.byte_offset%8 || reinterpret_cast<uintptr_t>(d.allocation_base)%8 ||
      !checked_host_plane_address(d.rows,d.cols,d.ld,1,8,view) ||
      !checked_host_plane_address(d.rows,d.cols,d.cols,1,8,compact) ||
@@ -16,8 +18,11 @@ inline rns8_status query_native_device_contract(const rns8_native_device_desc& d
      d.allocation_bytes>UINTPTR_MAX-reinterpret_cast<uintptr_t>(d.allocation_base) ||
      compact.byte_extent>uint64_t(PTRDIFF_MAX)-4) return RNS8_INVALID_ARGUMENT;
   if(!qualified_i32_matrix_address(d.rows,d.cols,d.ld,1,8)) return RNS8_UNSUPPORTED_BACKEND;
+  if(d.policy==RNS8_NATIVE_DEVICE_COPY_OWNED && d.snapshot_budget_bytes<compact.byte_extent)
+    return RNS8_WORKSPACE_TOO_SMALL;
   out={};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;
   out.view_span_bytes=view.byte_extent;out.compact_native_bytes=compact.byte_extent;
-  out.export_scratch_bytes=compact.byte_extent+4;out.verified_import_scratch_bytes=8;return RNS8_SUCCESS;
+  out.export_scratch_bytes=compact.byte_extent+4;out.verified_import_scratch_bytes=8;
+  out.snapshot_bytes=d.policy==RNS8_NATIVE_DEVICE_COPY_OWNED?compact.byte_extent:0;return RNS8_SUCCESS;
 }
 }

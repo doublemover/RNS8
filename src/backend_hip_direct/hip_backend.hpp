@@ -1268,6 +1268,8 @@ rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b
 
 rns8_status hip_direct_native_view_bound(int device_id,const void* source,void* scratch,
     int64_t rows,int64_t cols,int64_t ld,bool signed_values,uint64_t& bound);
+rns8_status hip_direct_copy_native_view(int device_id,const void* source,void* destination,
+    int64_t rows,int64_t cols,int64_t ld);
 rns8_status hip_direct_validate_native_allocation(int device_id,const void* base,uint64_t bytes);
 rns8_status hip_direct_import_native_view(int device_id,const void* source,void* residues,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,void* retained_native=nullptr);

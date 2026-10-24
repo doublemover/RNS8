@@ -200,6 +200,10 @@ rns8_status rns8_destroy_context(rns8_context* ctx) {
     const auto status = drain_failed_ragged_cleanup(*ctx);
     if (status != RNS8_SUCCESS) return status;
   }
+  if (ctx) {
+    const auto status = drain_failed_native_cleanup(*ctx);
+    if (status != RNS8_SUCCESS) return status;
+  }
   while (ctx && ctx->failed_matrix_cleanup) {
     auto* matrix = ctx->failed_matrix_cleanup;
     const auto status = free_hip_matrix_storage(*matrix);

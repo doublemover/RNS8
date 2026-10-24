@@ -124,3 +124,46 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("copy-owned native HIP leases survive external mutation and deallocation") {
+  if(!hip_available()) SKIP("no HIP device for native snapshots");
+  using namespace rns8::detail;using namespace native_device_fixture;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool signed_values:{false,true}) {
+    hip_direct_device_buffer input;std::vector<uint64_t> values(24,99);
+    const uint64_t edges[]{0,UINT64_MAX,UINT64_C(1)<<63,127,UINT64_C(0x80ff7f0100feffff)};
+    for(int row=0;row<3;++row) for(int col=0;col<5;++col) values[1+row*7+col]=edges[(row+col)%5];
+    REQUIRE(input.allocate(0,values.size()*8)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,input.get(),values.data(),values.size()*8)==RNS8_SUCCESS);
+    Owner owner;auto d=descriptor(input.get(),values.size()*8,owner);
+    d.element_type=signed_values?RNS8_NATIVE_DEVICE_I64:RNS8_NATIVE_DEVICE_U64;
+    d.policy=RNS8_NATIVE_DEVICE_COPY_OWNED;d.snapshot_budget_bytes=119;
+    rns8_native_device_lease* lease=nullptr;
+    REQUIRE(rns8_create_native_device_lease(ctx,&d,&lease)==RNS8_WORKSPACE_TOO_SMALL);
+    REQUIRE(lease==nullptr);REQUIRE(owner.acquired==0);
+    d.snapshot_budget_bytes=120;
+    REQUIRE(rns8_create_native_device_lease(ctx,&d,&lease)==RNS8_SUCCESS);
+    REQUIRE(owner.acquired==1);REQUIRE(owner.released==1);
+    REQUIRE(rns8_destroy_context(ctx)==RNS8_BUSY);
+    std::vector<uint64_t> changed(values.size(),7);
+    REQUIRE(hip_direct_copy_host_to_device(0,input.get(),changed.data(),changed.size()*8)==RNS8_SUCCESS);
+    REQUIRE(input.reset()==RNS8_SUCCESS); // library now owns an independent allocation
+    rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;
+    md.rows=3;md.cols=5;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=20;md.bound_kind=RNS8_BOUND_NONE;
+    md.semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
+    rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    for(bool verified:{false,true}) {
+      REQUIRE((verified?rns8_import_native_device_verified(ctx,matrix,lease,8):rns8_import_native_device(ctx,matrix,lease))==RNS8_SUCCESS);
+      std::vector<int8_t> residues(300);
+      REQUIRE(hip_direct_copy_device_to_host(0,residues.data(),matrix->hip_residues,residues.size())==RNS8_SUCCESS);
+      for(int row=0;row<3;++row) for(int col=0;col<5;++col) {
+        const auto raw=values[1+row*7+col];boost::multiprecision::cpp_int value=raw;
+        if(signed_values && (raw>>63)) value-=boost::multiprecision::cpp_int(1)<<64;
+        for(unsigned p=0;p<20;++p) REQUIRE(residues[p*15+row*5+col]==centered_residue(value,kDefaultModuli[p]));
+      }
+    }
+    REQUIRE(rns8_destroy_native_device_lease(lease)==RNS8_SUCCESS);REQUIRE(owner.released==1);
+    REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
