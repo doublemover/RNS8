@@ -18,6 +18,7 @@ Dated records identify the builds and devices actually checked.
 - [Architecture and ownership](design.md), [immutable plans](plan-validation.md)
 - [Prepared execution and completion](prepared-execution.md)
 - [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
+- [Private exact complex residue composition](complex-residue-composition.md)
 - [Backend capabilities and selection](backend-notes.md)
 
 ## Understand and extend
@@ -35,7 +36,7 @@ issue links.
 - [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
 - [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
-- [Native queue worker sweep and `6d8ab25` validation](native-queue-performance-2026-10-23.md)
+- [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
 - [Expanded local correctness record](local-all-features-20261023.md)
 
 ## Contribute

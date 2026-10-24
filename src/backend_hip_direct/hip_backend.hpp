@@ -16,6 +16,17 @@
 #include "backend_common/native_narrow.hpp"
 
 namespace rns8::detail {
+template<class Byte> struct ComplexResiduePair;
+struct ComplexMagnitudeBounds;
+enum class ComplexProductMethod;
+// Private split-complex composition. Before commit_started, both outputs are
+// preserved; after a commit failure, caller must invalidate BOTH components.
+// Caller owns input certificates, lifetimes and joint publication/ownership.
+rns8_status hip_direct_gemm_complex_residues(
+    int device_id, const ComplexResiduePair<const int8_t>& a,
+    const ComplexResiduePair<const int8_t>& b, const ComplexResiduePair<int8_t>& c,
+    const ComplexMagnitudeBounds& bounds, ComplexProductMethod method,
+    uint64_t max_scratch_bytes, bool& commit_started);
 // Private synchronous heterogeneous native-input queue. Caller owns integer
 // range proofs and output invalidation once outputs_may_be_written is set.
 rns8_status hip_direct_gemm_native_wmma_queue(

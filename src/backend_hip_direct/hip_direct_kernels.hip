@@ -52,6 +52,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_lift_kernels.cuh"
 #include "hip_direct_split_k_kernels.cuh"
 #include "hip_direct_epilogue_kernels.cuh"
+#include "hip_direct_complex_kernels.cuh"
 #include "hip_direct_narrow_kernels.cuh"
 #include "hip_direct_native_byte_kernels.cuh"
 #include "hip_direct_layout_kernels.cuh"
@@ -67,6 +68,8 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_block_sparse_kernels.cuh"
 
 }  // namespace
+
+#include "hip_direct_complex_wrappers.inc"
 
 extern "C" int rns8_hip_native_byte_domain(const void* source, int rows, int cols,
     int ld, uint64_t* maximum, uint64_t* invalid, bool unsigned_inputs) {

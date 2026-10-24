@@ -651,6 +651,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_native_wmma_queue.cpp
     tests/unit/test_native64_reducer.cpp
+    tests/unit/test_complex_residue_plan.cpp
     tests/unit/test_ragged_residues.cpp
     tests/unit/test_block_sparse.cpp
     tests/unit/test_generated_reducers.cpp

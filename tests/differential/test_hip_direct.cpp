@@ -14,6 +14,7 @@
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
@@ -52,6 +53,7 @@ namespace {
 #include "test_hip_direct_exact_lift_cases.inc"
 #include "test_hip_direct_split_k_cases.inc"
 #include "test_hip_direct_epilogue_cases.inc"
+#include "test_hip_direct_complex_cases.inc"
 #include "test_hip_direct_narrow_cases.inc"
 #include "test_hip_direct_int4_cases.inc"
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)

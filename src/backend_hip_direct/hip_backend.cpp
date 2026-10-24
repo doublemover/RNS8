@@ -3,6 +3,7 @@
 #include "backend_common/bilinear_resources.hpp"
 #include "backend_common/garner_constants.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 
@@ -632,6 +633,7 @@ namespace rns8::detail {
 #include "hip_backend_lift.inc"
 #include "hip_backend_split_k.inc"
 #include "hip_backend_epilogue.inc"
+#include "hip_backend_complex.inc"
 #include "hip_backend_narrow.inc"
 #include "hip_backend_int4.inc"
 #include "hip_backend_native_wmma.inc"
