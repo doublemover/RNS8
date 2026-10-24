@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"

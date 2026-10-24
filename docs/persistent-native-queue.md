@@ -39,16 +39,35 @@ The synchronous backend probes the compiled device capability before touching
 outputs. Descriptor upload, capability probing, and persistent execution have
 separate timing labels. `outputs_may_be_written` becomes true immediately before
 the compute launch; callers must treat outputs as invalid after a subsequent
-failure. Device descriptor storage is allocated once per invocation and freed
-on return. This is not yet a reusable prepared queue.
+failure. The one-shot entry point allocates device descriptors per invocation
+and frees them on return.
+
+The private `NativeWmmaPreparedQueue` additionally retains admitted descriptors
+and device storage across synchronous calls. Preparation performs admission,
+allocation, capability probing and upload before replacing any prior prepared
+state. Its preparation budget charges both old and replacement descriptor
+allocations at the transactional peak. Execution resets the cursor and launches
+against the retained descriptors.
+Concurrent preparation/execution returns `RNS8_BUSY`; a device execution failure
+poisons the object until successful re-preparation. Referenced allocations must
+remain alive at the original addresses and layouts. Contents can change between
+completed calls because this object caches no operand values or transformed
+panels. Callers own range proofs and exclusive buffer access. This private owner
+does not supply public matrix generations, reader/writer reservations or graph
+publication semantics. Its new differential tests and timing mode still require
+validation after the implementation commit.
 
 CPU mapping, admission, collision, and budget fixtures and a Boost-based GPU
 differential fixture cover heterogeneous shapes, full-width signed/unsigned
 values, prefix/group tails, padding, K=65537, and varying worker counts. These
 fixtures passed the local all-feature campaign at `c7f7e05`; the uniform-kernel
 extension passed all six signedness/group combinations at `6d8ab25` (469 passes,
-three target-inapplicable skips across the full configuration). The subsequent
-reciprocal-conversion extension requires its own fresh validation. Public prepared
+three target-inapplicable skips across the full configuration). The reciprocal
+conversion passed the fresh `436d235` campaign: 472 passes and three expected
+skips across 475 registered tests, with all 13 calibration modes also passing.
+Public prepared
 groups still execute sequentially. Public integration, asynchronous ownership,
-descriptor reuse, ISA/resource inspection, and measured scheduling benefits
-remain open under issue #38; no throughput improvement is claimed.
+prepared-path validation and measurements remain open under issue #38.
+The [worker sweep and resource inspection](native-queue-performance-2026-10-23.md)
+record the completed scheduling experiment without claiming a win over the
+best ordinary launch.

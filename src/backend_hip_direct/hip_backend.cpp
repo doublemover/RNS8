@@ -4,6 +4,7 @@
 #include "backend_common/garner_constants.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
 
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"

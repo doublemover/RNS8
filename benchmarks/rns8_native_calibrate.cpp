@@ -1,4 +1,5 @@
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"
 #include "core/hip_resources.hpp"
@@ -94,12 +95,12 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|queue|split_k|"
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|queue|queue_prepared|split_k|"
         "narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
-        "workers: queue/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
+        "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
-        "repeats:1..10000 warmups:1..1000; group=1 outside wmma/queue/split_k.\n"
+        "repeats:1..10000 warmups:1..1000; group=1 outside wmma/queue/queue_prepared/split_k.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
     if (argc != 11 && argc != 12) throw std::invalid_argument(usage);
@@ -108,9 +109,9 @@ int main(int argc, char** argv) {
     const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
-    const bool queued = candidate == "queue" || candidate == "split_k";
+    const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     if (argc == 12 && !queued)
-      throw std::invalid_argument("workers applies only to queue/split_k candidates");
+      throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k candidates");
     const uint32_t requested_workers = queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool native = candidate == "wmma" || queued;
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -192,6 +193,14 @@ int main(int argc, char** argv) {
     };
     compare(ra.get(),expected_a); compare(rb.get(),expected_b);
     std::vector<NativeWmmaTask> tasks{{da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs}};
+    NativeWmmaPreparedQueue prepared_queue;
+    double queue_prepare_ns = 0;
+    if (candidate == "queue_prepared") {
+      hip_direct_timing_set_enabled(false);
+      const auto start = std::chrono::steady_clock::now();
+      check(prepared_queue.prepare(0, tasks, requested_workers, UINT64_MAX));
+      queue_prepare_ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
+    }
     const auto execute = [&]() {
       if (candidate == "pack_pair" || candidate == "pack_gemm") pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
       if (candidate == "pack_pair") return;
@@ -204,6 +213,7 @@ int main(int argc, char** argv) {
       }
       else if (candidate == "wmma") check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
       else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
+      else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written));
       else check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
     };
@@ -249,6 +259,9 @@ int main(int argc, char** argv) {
     const auto sustained = sustained_calls(prepare, execute, verify);
     std::cout << nlohmann::json{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
         {"sustained",sustained},
+        {"queue_prepare_ns",queue_prepare_ns},
+        {"queue_preparation_scope",candidate=="queue_prepared" ? "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls" : "not_applicable"},
+        {"queue_descriptor_storage_bytes",queued ? std::size_t(splits)*sizeof(NativeWmmaTask)+std::size_t(queue_descriptors)*sizeof(NativeWmmaWork)+sizeof(uint32_t) : 0},
         {"m",m},{"n",n},{"k",k},{"prefix",prefix},{"group",group},{"unsigned_inputs",bool(unsigned_inputs)},
         {"splits",splits},{"requested_workers",requested_workers},{"effective_workers",effective_workers},
         {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
@@ -267,7 +280,7 @@ int main(int argc, char** argv) {
         {"native_input_storage_bytes",(a.size()+b.size())*8},{"residue_input_storage_bytes",expected_a.size()+expected_b.size()+expected_d.size()},
         {"residue_output_bytes",std::size_t{m}*n*prefix},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
-        {"timing_scope","resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
+        {"timing_scope",candidate=="queue_prepared" ? "resident inputs and prepared descriptors; host calls include cursor reset and synchronous execution; one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}}.dump(2) << '\n';
     return 0;
   } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

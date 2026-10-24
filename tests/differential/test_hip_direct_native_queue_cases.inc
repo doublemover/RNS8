@@ -79,6 +79,49 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         }
         REQUIRE(status == RNS8_SUCCESS);
         REQUIRE(touched);
+        NativeWmmaPreparedQueue prepared;
+        CHECK(prepared.execute(touched) == RNS8_INVALID_ARGUMENT);
+        CHECK_FALSE(touched);
+        uint64_t descriptor_bytes = tasks.size() * sizeof(NativeWmmaTask) + sizeof(uint32_t);
+        for (const auto& task : tasks)
+          descriptor_bytes += ((task.m + 15) / 16) * ((task.n + 15) / 16) *
+              ((task.prefix + task.group - 1) / task.group) * sizeof(NativeWmmaWork);
+        REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes) == RNS8_SUCCESS);
+        // Admission failures are transactional: the earlier descriptors survive.
+        CHECK(prepared.prepare(0, tasks, workers, 0) == RNS8_WORKSPACE_TOO_SMALL);
+        CHECK(prepared.prepare(0, tasks, workers, descriptor_bytes * 2 - 1) == RNS8_WORKSPACE_TOO_SMALL);
+        CHECK(prepared.prepare(0, collision, workers, UINT64_MAX) == RNS8_INVALID_ARGUMENT);
+        for (int repeat = 0; repeat < 2; ++repeat) {
+          for (uint32_t id = 0; id < tasks.size(); ++id) {
+            std::fill(actual[id].begin(), actual[id].end(), 99);
+            REQUIRE(hip_direct_copy_host_to_device(0, tasks[id].c, actual[id].data(), actual[id].size()) == RNS8_SUCCESS);
+          }
+          REQUIRE(prepared.execute(touched) == RNS8_SUCCESS);
+          REQUIRE(touched);
+          for (uint32_t id = 0; id < tasks.size(); ++id) {
+            REQUIRE(hip_direct_copy_device_to_host(0, actual[id].data(), tasks[id].c, actual[id].size()) == RNS8_SUCCESS);
+            REQUIRE(actual[id] == expected[id]);
+          }
+        }
+        REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes * 2) == RNS8_SUCCESS);
+        if (workers == 128) {
+          // Contents are reread, not cached under the pointer. Mutate each A
+          // after prior executions; unchanged layout needs no descriptor upload.
+          for (uint32_t id = 0; id < tasks.size(); ++id) {
+            const auto& task = tasks[id];
+            REQUIRE(hip_direct_zero(0, const_cast<void*>(task.a), std::size_t(task.m * task.lda) * 8) == RNS8_SUCCESS);
+            for (uint32_t p = 0; p < task.prefix; ++p)
+              for (int64_t row = 0; row < task.m; ++row)
+                for (int64_t col = 0; col < task.n; ++col)
+                  expected[id][(p * task.m + row) * task.ldc + col] = 0;
+          }
+          REQUIRE(prepared.execute(touched) == RNS8_SUCCESS);
+          REQUIRE(touched);
+          for (uint32_t id = 0; id < tasks.size(); ++id) {
+            REQUIRE(hip_direct_copy_device_to_host(0, actual[id].data(), tasks[id].c, actual[id].size()) == RNS8_SUCCESS);
+            REQUIRE(actual[id] == expected[id]);
+          }
+        }
       }
     }
   }

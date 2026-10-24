@@ -15,6 +15,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `pack_gemm` | Pack both operands, then direct GEMM | Resident native 64-bit |
 | `wmma` | Fused native conversion/grouped WMMA | Resident native 64-bit |
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
+| `queue_prepared` | Reuse admitted device descriptors; reset cursor and execute | Resident native 64-bit and prepared descriptors |
 | `split_k` | Three fragments (or K if smaller), queue, canonicalize, merge/store | Resident native 64-bit |
 
 The product cases in this table produce the same default-basis residue planes for matched
@@ -25,7 +26,7 @@ pipelines without accounting for missing stages. Group must be one for the
 packing/direct baseline cases; WMMA candidates accept one, two or four.
 
 Arguments are candidate, M, N, K, prefix, group, unsigned flag (0/1), repeat count,
-warmup count, and a unique run ID. `queue` and `split_k` accept an optional final
+warmup count, and a unique run ID. `queue`, `queue_prepared` and `split_k` accept an optional final
 worker count in 1..1024; it defaults to 32 to preserve existing invocations.
 Other candidates reject this argument, including an explicit zero. `--help`
 lists every candidate and the argument domains. For example:
@@ -76,6 +77,19 @@ mean latency. It measures repeated resident execution, including required
 admission/status work, rather than transfer-inclusive one-shot latency. Per-call
 verification and burst verification are reported as different evidence scopes.
 
+`queue_prepared` separately reports `queue_prepare_ns`: host admission,
+allocation, capability probing and descriptor upload before warmups. Its timed
+calls retain cursor reset, checked launch and synchronization but reuse that
+prepared storage. Report setup-inclusive cost for a declared reuse count R as
+`queue_prepare_ns + R * sustained.mean_call_ns`; compare against R matched
+one-shot calls before claiming amortization. `queue_descriptor_storage_bytes`
+records descriptor/cursor storage, not input or output allocations. The tracked
+[prepared-queue comparison](../benchmarks/native-calibration/prepared-queue.json)
+includes 32³ and 512³ workloads, ordinary native WMMA and both packed/direct
+controls. Already-packed input is a distinct boundary, so charge packing when
+comparing native-input workloads. The prepared mode remains a private
+synchronous experiment, not public prepared-group integration.
+
 `collect_native_calibration.py` accepts an explicit JSON list of case objects
 with `candidate,m,n,k,prefix,group,unsigned_inputs`. Queue and split-K cases may
 also specify `"workers": 8`; omitting it normalizes to `"workers": 32` in the
@@ -108,7 +122,7 @@ A request for 32 workers launches eight workers; the same split-K case at K>=3
 has 24 descriptors and launches 24. This is a clamp to available descriptors,
 not an occupancy or hardware-resource measurement. Every calibration queue is
 homogeneous in group and signedness, so `queue_kernel_selection` reports
-`homogeneous_group_<1|2|4>_<signed|unsigned>` for both queue candidates. Other
+`homogeneous_group_<1|2|4>_<signed|unsigned>` for all queue candidates. Other
 candidates report zero for the three worker/descriptor fields,
 `not_applicable` for kernel selection and one split. The former misleading
 `workers=32` field is removed.

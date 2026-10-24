@@ -12,10 +12,10 @@ from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
 
 
-CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "queue", "split_k",
+CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "queue", "queue_prepared", "split_k",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
-QUEUED = ("queue", "split_k")
+QUEUED = ("queue", "queue_prepared", "split_k")
 
 
 def strict_json(text):
@@ -36,7 +36,7 @@ def validate_case(case):
     """Return a new canonical case; only queue controls may be omitted."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
     if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers"}:
-        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; optional workers for queue/split_k")
+        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; optional workers for queue/queue_prepared/split_k")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
@@ -54,10 +54,10 @@ def validate_case(case):
     if case["candidate"] in QUEUED:
         workers = case.get("workers", 32)
         if type(workers) is not int or not 1 <= workers <= 1024:
-            raise ValueError("queue/split_k workers must be an integer in 1..1024")
+            raise ValueError("queue/queue_prepared/split_k workers must be an integer in 1..1024")
         normalized["workers"] = workers
     elif "workers" in case:
-        raise ValueError("workers applies only to queue/split_k candidates")
+        raise ValueError("workers applies only to queue/queue_prepared/split_k candidates")
     return normalized
 
 
@@ -133,6 +133,8 @@ def capture_contract(case, run_id, repeats, warmups):
                     actual_hbm_bytes=None, timing_resolution_ns=None)
     expected.update(scheduling_contract(case))
     expected.update(narrow_contract(case))
+    if case["candidate"] == "queue_prepared":
+        expected["queue_preparation_scope"] = "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls"
     if not case["candidate"].startswith("narrow_"):
         epilogue = case["candidate"].startswith("epilogue_")
         expected.update(
@@ -166,6 +168,12 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
+    if case["candidate"] == "queue_prepared":
+        if not positive_number(capture.get("queue_prepare_ns")):
+            raise ValueError("invalid prepared queue setup timing")
+        size = capture.get("queue_descriptor_storage_bytes")
+        if type(size) is not int or size <= 0:
+            raise ValueError("invalid prepared queue descriptor storage")
     samples = capture.get("samples")
     if not isinstance(samples, list) or len(samples) != repeats:
         raise ValueError("invalid sample count")
@@ -212,7 +220,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--cases", type=Path, required=True,
-                        help="JSON list: candidate,m,n,k,prefix,group,unsigned_inputs; optional workers=1..1024 for queue/split_k (default 32)")
+                        help="JSON list: candidate,m,n,k,prefix,group,unsigned_inputs; optional workers=1..1024 for queue/queue_prepared/split_k (default 32)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)

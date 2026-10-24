@@ -32,6 +32,8 @@ def case_for(candidate, **changes):
 
 def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
     capture = capture_contract(case, run_id, repeats, warmups)
+    if case["candidate"] == "queue_prepared":
+        capture.update(queue_prepare_ns=2000.25, queue_descriptor_storage_bytes=1024)
     synthetic_identity(capture)
     capture.update(device="synthetic mocked GPU", target="gfx1100", runtime_version=70100000,
                    timing_scope="synthetic scoped timing", cache_state="synthetic repeated inputs",
@@ -44,6 +46,20 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
 
 
 class CaseTest(unittest.TestCase):
+    def test_prepared_queue_requires_setup_cost_and_storage(self):
+        case = case_for("queue_prepared")
+        for key in ("queue_prepare_ns", "queue_descriptor_storage_bytes"):
+            for value in (None, False, 0, -1, "100", float("nan"), float("inf")):
+                with self.subTest(key=key, value=value):
+                    capture = capture_for(case)
+                    capture[key] = value
+                    with self.assertRaises(ValueError):
+                        validate_capture(capture, case, "fixture-run", 3, 1)
+            capture = capture_for(case)
+            del capture[key]
+            with self.assertRaises(ValueError):
+                validate_capture(capture, case, "fixture-run", 3, 1)
+
     def test_all_modes_groups_and_signedness(self):
         for candidate in CANDIDATES:
             for unsigned in (False, True):
@@ -63,7 +79,7 @@ class CaseTest(unittest.TestCase):
             for workers in (1, 2, 32, 1024):
                 self.assertEqual(case_for(candidate, workers=workers)["workers"], workers)
         for candidate in set(CANDIDATES) - set(QUEUED):
-            with self.subTest(candidate=candidate), self.assertRaisesRegex(ValueError, "only to queue/split_k"):
+            with self.subTest(candidate=candidate), self.assertRaisesRegex(ValueError, "only to queue/queue_prepared/split_k"):
                 case_for(candidate, workers=32)
 
     def test_schedule_count_clamping_and_split_boundaries(self):

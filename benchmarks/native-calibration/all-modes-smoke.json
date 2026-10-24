@@ -46,6 +46,16 @@
     "workers": 1024
   },
   {
+    "candidate": "queue_prepared",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "workers": 1024
+  },
+  {
     "candidate": "split_k",
     "m": 17,
     "n": 19,

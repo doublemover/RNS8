@@ -2594,6 +2594,10 @@
           "reference": "native-queue-performance-2026-10-23.md"
         },
         {
+          "source": "docs/persistent-native-queue.md",
+          "reference": "native-queue-performance-2026-10-23.md"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/native-queue-performance-2026-10-23.md"
         }
@@ -2601,8 +2605,9 @@
       "anchors": [
         "compiled-resource-inspection",
         "configuration-and-validation",
+        "reciprocal-conversion-follow-up",
         "reproduction-and-retained-evidence",
-        "rx-7900-xtx-native-queue-worker-sweep",
+        "rx-7900-xtx-native-wmma-and-queue-measurements",
         "sustained-call-measurements"
       ]
     },
