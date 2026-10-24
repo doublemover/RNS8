@@ -46,6 +46,30 @@ void pin_native_matrix(rns8_native_device_lease& lease,rns8_matrix& matrix,bool 
   lease.pinned=&matrix;lease.writer=writer;++matrix.prepared_references;
   if(writer) matrix.in_flight_writer=true;else ++matrix.in_flight_readers;
 }
+// Owns an already-admitted reservation. Generic MatrixWriteGuard is unsuitable:
+// it checks writability again, including our own writer, during destruction.
+struct NativeMatrixReservation {
+  rns8_native_device_lease& lease;
+  rns8_matrix& matrix;
+  bool mutating=false,finished=false;
+  NativeMatrixReservation(rns8_native_device_lease& owner,rns8_matrix& value,bool writer,bool writes)
+      :lease(owner),matrix(value),mutating(writes) {
+    if(mutating) invalidate_output_currentness(matrix); // before our writer exists
+    pin_native_matrix(lease,matrix,writer);
+  }
+  NativeMatrixReservation(const NativeMatrixReservation&)=delete;
+  ~NativeMatrixReservation() noexcept {
+    if(finished) return;
+    if(mutating) {
+      clear_residue_current(matrix);clear_byte_limb_current(matrix);clear_native_current(matrix);
+    }
+    if(!lease.pinned || lease.quarantined) return;
+    // Even an unexpected host exception cannot prove device completion.
+    try { (void)native_failure(lease,RNS8_INTERNAL_ERROR); }
+    catch(...) {lease.quarantined=true;lease.ctx->hip_failure_poisoned=true;}
+  }
+  void complete() noexcept {release_native_matrix(lease);finished=true;}
+};
 }
 rns8_status rns8_query_native_device(const rns8_native_device_desc* desc,rns8_native_device_resources* out) {
   return guard_api([&]() -> rns8_status {
@@ -75,7 +99,7 @@ rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease* lease) {
   return guard_api([&]() -> rns8_status {
     if(!lease) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
-    if(lease->quarantined) {
+    if(lease->quarantined || lease->pinned) {
       if(hip_direct_synchronize(lease->ctx->device_id)!=RNS8_SUCCESS) return RNS8_BACKEND_FAILURE;
       lease->quarantined=false;release_native_matrix(*lease);
     }
@@ -102,16 +126,16 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
         status=hip_direct_allocate(ctx->device_id,lease->resources.verified_import_scratch_bytes,&lease->scratch);
         if(status!=RNS8_SUCCESS) return status;
       }
-      uint64_t magnitude=0;pin_native_matrix(*lease,*matrix,true);
+      uint64_t magnitude=0;NativeMatrixReservation scan(*lease,*matrix,true,false);
       status=hip_direct_native_view_bound(ctx->device_id,lease->view,lease->scratch,
           matrix->desc.rows,matrix->desc.cols,lease->desc.ld,signed_values,magnitude);
       if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
-      release_native_matrix(*lease);bound=magnitude;
+      scan.complete();bound=magnitude;
     }
     const auto semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
     if(!exact_range_fits(semantics,bound,modulus_product(matrix->prefix))) return RNS8_RANGE_ERROR;
     // No cache lookup by pointer or source-version: every import reads this lease.
-    pin_native_matrix(*lease,*matrix,true);MatrixWriteGuard write(*matrix);
+    NativeMatrixReservation write(*lease,*matrix,true,true);
     status=hip_direct_import_native_view(ctx->device_id,lease->view,matrix->hip_residues,
         matrix->desc.rows,matrix->desc.cols,lease->desc.ld,matrix->prefix,signed_values);
     if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
@@ -119,7 +143,7 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
     matrix->exact_max_magnitude.swap(bound);matrix->exact_range_prefix=matrix->prefix;
     matrix->exact_axis_ranges.rows.clear();matrix->exact_axis_ranges.cols.clear();
     // External generation is not a host-pack source-version cache key.
-    publish_matrix_value(*matrix,false,0);write.committed=true;release_native_matrix(*lease);
+    publish_matrix_value(*matrix,false,0);write.complete();
     return RNS8_SUCCESS;
   });
 }
@@ -140,11 +164,11 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
       if(status!=RNS8_SUCCESS) return status;
     }
     const auto bound=matrix->exact_max_magnitude.convert_to<uint64_t>();
-    pin_native_matrix(*lease,*const_cast<rns8_matrix*>(matrix),false);bool external_started=false;
+    NativeMatrixReservation read(*lease,*const_cast<rns8_matrix*>(matrix),false,false);bool external_started=false;
     status=hip_direct_export_native_view(ctx->device_id,matrix->hip_residues,lease->view,lease->scratch,
         matrix->desc.rows,matrix->desc.cols,lease->desc.ld,matrix->prefix,bound,signed_values,external_started);
     if(status!=RNS8_SUCCESS) return native_failure(*lease,status);
-    release_native_matrix(*lease);return RNS8_SUCCESS;
+    read.complete();return RNS8_SUCCESS;
   });
 }
 

@@ -27,7 +27,8 @@ TEST_CASE("native HIP leases import and export full-width padded views without h
     REQUIRE(rns8_import_native_device(ctx,matrix,write)==RNS8_INVALID_ARGUMENT);
     REQUIRE(rns8_import_native_device(ctx,matrix,read)==RNS8_SUCCESS);
     REQUIRE(matrix->device_residues_current);REQUIRE_FALSE(matrix->host_residues_current);
-    REQUIRE(matrix->exact_range_prefix==20);REQUIRE(matrix->source_version==0);
+    REQUIRE_FALSE(matrix->in_flight_writer);REQUIRE(matrix->in_flight_readers==0);REQUIRE(matrix->prepared_references==0);
+    REQUIRE(matrix->exact_range_prefix==20);REQUIRE_FALSE(matrix->imported_source);REQUIRE(matrix->source_version==matrix->content_generation);
     const auto before_verified=matrix->content_generation;
     REQUIRE(rns8_import_native_device_verified(ctx,matrix,read,7)==RNS8_WORKSPACE_TOO_SMALL);
     REQUIRE(matrix->content_generation==before_verified);
