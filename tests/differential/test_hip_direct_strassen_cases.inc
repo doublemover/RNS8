@@ -103,9 +103,9 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
     av[r*19+q] = r<16 ? T(2) : std::numeric_limits<T>::max();
     bv[r*19+q] = q<16 ? T(3) : std::numeric_limits<T>::max();
   }
-  if constexpr (!is_unsigned) av[16*19+1] = std::numeric_limits<T>::min();
+  if constexpr (!std::is_unsigned_v<T>) av[16*19+1] = std::numeric_limits<T>::min();
   const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
-    if constexpr (is_unsigned) return rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
+    if constexpr (std::is_unsigned_v<T>) return rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
     else return rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
   };
   double overhead=-1;
@@ -137,7 +137,7 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
       REQUIRE(run(1)==RNS8_SUCCESS);
       CHECK(overhead>0);
       std::vector<uint64_t> limbs(17*17*3);
-      if constexpr (is_unsigned)
+      if constexpr (std::is_unsigned_v<T>)
         REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
       else
         REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
@@ -146,7 +146,7 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
         for (int q=0; q<17; ++q) expected += cpp_int(av[r*19+q])*bv[q*19+col];
         const int at=(r*17+col)*3;
         cpp_int actual = cpp_int(limbs[at])+(cpp_int(limbs[at+1])<<64)+(cpp_int(limbs[at+2])<<128);
-        if constexpr (!is_unsigned) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
+        if constexpr (!std::is_unsigned_v<T>) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
         REQUIRE(actual == expected);
       }
     }

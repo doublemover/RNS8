@@ -257,7 +257,7 @@ template<class T> void check_public_encoded_b_owner() {
     for(int col=0;col<n;++col) bv[row*n+col]=(row+col)%2?std::numeric_limits<T>::max():std::numeric_limits<T>::min();
   }
   const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& values) {
-    if constexpr(u) return rns8_pack_u64(ctx,matrix,values.data(),n,0);
+    if constexpr (std::is_unsigned_v<T>) return rns8_pack_u64(ctx,matrix,values.data(),n,0);
     else return rns8_pack_i64(ctx,matrix,values.data(),n,0);
   };
   REQUIRE(pack(a,av)==RNS8_SUCCESS); REQUIRE(pack(b,bv)==RNS8_SUCCESS); REQUIRE(pack(c,av)==RNS8_SUCCESS);
@@ -281,11 +281,11 @@ template<class T> void check_public_encoded_b_owner() {
   for(uint32_t group:{1u,2u,4u}) {
     REQUIRE(run(group)==RNS8_SUCCESS);
     std::vector<uint64_t> limbs(n*n*3);
-    if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+    if constexpr (std::is_unsigned_v<T>) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
     else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
     for(int cell=0;cell<n*n;++cell) {
       cpp_int actual=cpp_int(limbs[cell*3])+(cpp_int(limbs[cell*3+1])<<64)+(cpp_int(limbs[cell*3+2])<<128);
-      if constexpr(!u) if(limbs[cell*3+2]>>63) actual-=cpp_int(1)<<192;
+      if constexpr (!std::is_unsigned_v<T>) if(limbs[cell*3+2]>>63) actual-=cpp_int(1)<<192;
       CHECK(actual==cpp_int(2)*bv[cell]);
     }
   }
@@ -305,7 +305,7 @@ template<class T> void check_public_encoded_b_owner() {
   CHECK(c->content_generation==before0); CHECK(c2->content_generation==before1);
   REQUIRE(rns8_gemm_encoded_b_grouped(ctx,batch,2,3,UINT64_MAX)==RNS8_SUCCESS);
   std::vector<uint64_t> left(n*n*3),right(n*n*3);
-  if constexpr(u) {
+  if constexpr (std::is_unsigned_v<T>) {
     REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,left.data(),n,3)==RNS8_SUCCESS);
     REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c2,right.data(),n,3)==RNS8_SUCCESS);
   } else {

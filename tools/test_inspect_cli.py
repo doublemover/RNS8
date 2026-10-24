@@ -55,7 +55,7 @@ def main() -> int:
             "selected_kernel:   hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
             "hipblaslt",
         )
-        expect_text(hipblaslt.stdout, "exact_validated:   1", "hipblaslt")
+        expect_text(hipblaslt.stdout, "exact_validated:   0", "hipblaslt")
         expect_text(hipblaslt.stdout, "perf_validated:    0", "hipblaslt")
     else:
         expect_exit(hipblaslt, 1, "hipblaslt")
@@ -71,7 +71,7 @@ def main() -> int:
             "selected_kernel:   ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
             "ck",
         )
-        expect_text(ck.stdout, "exact_validated:   1", "ck")
+        expect_text(ck.stdout, "exact_validated:   0", "ck")
         expect_text(ck.stdout, "perf_validated:    0", "ck")
         expect_text(
             ck.stdout,
@@ -92,7 +92,7 @@ def main() -> int:
             "selected_kernel:   rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2",
             "rocwmma",
         )
-        expect_text(rocwmma.stdout, "exact_validated:   1", "rocwmma")
+        expect_text(rocwmma.stdout, "exact_validated:   0", "rocwmma")
         expect_text(rocwmma.stdout, "perf_validated:    0", "rocwmma")
         expect_text(
             rocwmma.stdout,

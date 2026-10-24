@@ -123,11 +123,11 @@ template<class T> void check_public_adaptive_owner() {
     av[r*19+q] = r<16 ? T(2) : std::numeric_limits<T>::max();
     bv[r*19+q] = q<16 ? T(3) : std::numeric_limits<T>::max();
   }
-  if constexpr (!is_unsigned) av[16*19+1] = std::numeric_limits<T>::min();
+  if constexpr (!std::is_unsigned_v<T>) av[16*19+1] = std::numeric_limits<T>::min();
   const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
     const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
     rns8_status status;
-    if constexpr (is_unsigned) status=rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
+    if constexpr (std::is_unsigned_v<T>) status=rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
     else status=rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
     const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();
     if(status==RNS8_SUCCESS) {
@@ -153,7 +153,7 @@ template<class T> void check_public_adaptive_owner() {
     CHECK(matrix->hip_upload_bytes == 0);
     CHECK(matrix->device_native_current);
     CHECK(matrix->device_residues_current);
-    if constexpr (is_unsigned) {
+    if constexpr (std::is_unsigned_v<T>) {
       CHECK(matrix->hip_native_u64 != nullptr);
       CHECK(matrix->hip_native_u64_bytes == 17*17*sizeof(T));
       CHECK(matrix->hip_native_i64 == nullptr);
@@ -186,7 +186,7 @@ template<class T> void check_public_adaptive_owner() {
       REQUIRE(status == RNS8_SUCCESS);
       CHECK_FALSE(c->device_native_current);
       std::vector<uint64_t> limbs(17*17*3);
-      if constexpr (is_unsigned)
+      if constexpr (std::is_unsigned_v<T>)
         REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
       else
         REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
@@ -195,7 +195,7 @@ template<class T> void check_public_adaptive_owner() {
         for (int q=0; q<17; ++q) expected += cpp_int(av[r*19+q])*bv[q*19+col];
         const int at=(r*17+col)*3;
         cpp_int actual = cpp_int(limbs[at])+(cpp_int(limbs[at+1])<<64)+(cpp_int(limbs[at+2])<<128);
-        if constexpr (!is_unsigned) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
+        if constexpr (!std::is_unsigned_v<T>) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
         REQUIRE(actual == expected);
       }
     }
@@ -210,7 +210,7 @@ template<class T> void check_public_adaptive_owner() {
   for (int row=0; row<17; ++row)
     std::copy_n(av.data()+row*19,17,compact.data()+row*17);
   const auto compact_before=rns8::detail::hip_direct_allocation_counters_snapshot();
-  if constexpr (is_unsigned)
+  if constexpr (std::is_unsigned_v<T>)
     REQUIRE(rns8_pack_u64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
   else
     REQUIRE(rns8_pack_i64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
@@ -240,7 +240,7 @@ template<class T> void check_public_adaptive_owner() {
   CHECK((c->hip_native_i64 ? c->hip_native_i64 : c->hip_native_u64)==retained_native);
   // Rebuilding export staging must preserve the complete exact value.
   std::vector<uint64_t> rebuilt(17*17*3);
-  if constexpr (is_unsigned)
+  if constexpr (std::is_unsigned_v<T>)
     REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,rebuilt.data(),17,3)==RNS8_SUCCESS);
   else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,rebuilt.data(),17,3)==RNS8_SUCCESS);
   for (int r=0;r<17;++r) for (int col=0;col<17;++col) {
@@ -248,7 +248,7 @@ template<class T> void check_public_adaptive_owner() {
     for (int q=0;q<17;++q) expected+=cpp_int(av[r*19+q])*bv[q*19+col];
     const int at=(r*17+col)*3;
     cpp_int actual=cpp_int(rebuilt[at])+(cpp_int(rebuilt[at+1])<<64)+(cpp_int(rebuilt[at+2])<<128);
-    if constexpr (!is_unsigned) if (rebuilt[at+2]>>63) actual-=cpp_int(1)<<192;
+    if constexpr (!std::is_unsigned_v<T>) if (rebuilt[at+2]>>63) actual-=cpp_int(1)<<192;
     REQUIRE(actual==expected);
   }
   rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);

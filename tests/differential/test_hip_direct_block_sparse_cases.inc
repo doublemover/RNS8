@@ -108,10 +108,10 @@ template<class T> void check_public_block_sparse_owner(rns8_block_sparse_method 
   std::vector<T> av(m*k,T(0)),bv(k*n,T(0)),cv(m*n,T(1));
   av[0]=std::numeric_limits<T>::max(); av[16*k+64]=T(3);
   bv[0]=T(5); bv[64*n+18]=std::numeric_limits<T>::max();
-  if constexpr(!u) av[1]=std::numeric_limits<T>::min();
+  if constexpr (!std::is_unsigned_v<T>) av[1]=std::numeric_limits<T>::min();
   bv[n]=T(7);
   const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& data,int ld) {
-    if constexpr(u) return rns8_pack_u64(ctx,matrix,data.data(),ld,0);
+    if constexpr (std::is_unsigned_v<T>) return rns8_pack_u64(ctx,matrix,data.data(),ld,0);
     else return rns8_pack_i64(ctx,matrix,data.data(),ld,0);
   };
   REQUIRE(pack(a,av,k)==RNS8_SUCCESS); REQUIRE(pack(b,bv,n)==RNS8_SUCCESS); REQUIRE(pack(c,cv,n)==RNS8_SUCCESS);
@@ -133,14 +133,14 @@ template<class T> void check_public_block_sparse_owner(rns8_block_sparse_method 
   c->in_flight_readers=0;
   REQUIRE(run()==RNS8_SUCCESS);
   std::vector<uint64_t> limbs(m*n*3);
-  if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  if constexpr (std::is_unsigned_v<T>) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
   else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
   for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
     cpp_int expected=0;
     for(int q=0;q<k;++q) expected+=cpp_int(av[row*k+q])*bv[q*n+col];
     const int i=(row*n+col)*3;
     cpp_int actual=cpp_int(limbs[i])+(cpp_int(limbs[i+1])<<64)+(cpp_int(limbs[i+2])<<128);
-    if constexpr(!u) if(limbs[i+2]>>63) actual-=cpp_int(1)<<192;
+    if constexpr (!std::is_unsigned_v<T>) if(limbs[i+2]>>63) actual-=cpp_int(1)<<192;
     CHECK(actual==expected);
   }
   generation=c->content_generation;
@@ -151,7 +151,7 @@ template<class T> void check_public_block_sparse_owner(rns8_block_sparse_method 
   REQUIRE(rns8_destroy_block_sparse_operand(sa)==RNS8_SUCCESS);
   REQUIRE(rns8_prepare_block_sparse_operand(ctx,a,RNS8_BLOCK_SPARSE_LHS,UINT64_MAX,&sa)==RNS8_SUCCESS);
   REQUIRE(run()==RNS8_SUCCESS); // empty payload is a real exact-zero operand
-  if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  if constexpr (std::is_unsigned_v<T>) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
   else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
   for(auto word:limbs) CHECK(word==0);
   REQUIRE(rns8_destroy_block_sparse_operand(sb)==RNS8_SUCCESS);

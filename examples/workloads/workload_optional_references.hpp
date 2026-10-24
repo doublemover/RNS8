@@ -6,6 +6,7 @@
 #endif
 #if defined(RNS8_WORKLOAD_HAVE_FLINT)
 #include <flint/flint.h>
+#include <flint/fmpz.h>
 #include <flint/fmpz_mat.h>
 #endif
 
@@ -30,7 +31,7 @@ inline Json optional_reference_identity() {
 #if defined(RNS8_WORKLOAD_HAVE_FLINT)
   require(std::string(FLINT_VERSION)==flint_version,"selected FLINT headers/runtime version differ");
   result["flint"]={{"enabled",true},{"status","available"},{"header_version",FLINT_VERSION},
-    {"runtime_version",flint_version},{"artifacts",configured.at("FLINT")},
+    {"runtime_version",std::string(flint_version)},{"artifacts",configured.at("FLINT")},
     {"gmp_header_version",gmp_header},{"gmp_runtime_version",gmp_version},{"gmp_artifacts",configured.at("GMP")}};
 #endif
   return result;

@@ -82,7 +82,7 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
     bv[r*host_ld+q]=u?T((r+q)%3?251:1):T((r+q)%3?-127:126);
   }
   const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& data) {
-    if constexpr(u) return rns8_pack_u64(ctx,matrix,data.data(),host_ld,0);
+    if constexpr (std::is_unsigned_v<T>) return rns8_pack_u64(ctx,matrix,data.data(),host_ld,0);
     else return rns8_pack_i64(ctx,matrix,data.data(),host_ld,0);
   };
   const auto run=[&](uint64_t budget=UINT64_MAX) {
@@ -105,14 +105,14 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
     REQUIRE(status==RNS8_SUCCESS);
     CHECK_FALSE(c->device_native_current);
     std::vector<uint64_t> limbs(side*side*3);
-    if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),side,3)==RNS8_SUCCESS);
+    if constexpr (std::is_unsigned_v<T>) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),side,3)==RNS8_SUCCESS);
     else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),side,3)==RNS8_SUCCESS);
     for(int r=0;r<side;++r) for(int col=0;col<side;++col) {
       cpp_int expected=0;
       for(int q=0;q<side;++q) expected+=cpp_int(av[r*host_ld+q])*bv[q*host_ld+col];
       const int i=(r*side+col)*3;
       cpp_int actual=cpp_int(limbs[i])+(cpp_int(limbs[i+1])<<64)+(cpp_int(limbs[i+2])<<128);
-      if constexpr(!u) if(limbs[i+2]>>63) actual-=cpp_int(1)<<192;
+      if constexpr (!std::is_unsigned_v<T>) if(limbs[i+2]>>63) actual-=cpp_int(1)<<192;
       CHECK(actual==expected);
     }
   }

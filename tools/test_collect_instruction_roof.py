@@ -20,6 +20,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
         a_checksum=checksum(a),b_checksum=checksum(b),output_checksum=checksum(gold),oracle_and_dataset_ns=1000,
         resident_setup_ns=1000,resource_release_ns=1000,
         samples=[dict(host_call_ns=150+index,uninstrumented_host_call_ns=100+index,
+            capability_events=[dict(label="residue_d2h_sync",elapsed_ns=10.)],
             events=[dict(label=capture["kernel_event_label"],elapsed_ns=50.)],kernel_event_ns=50.,kernel_event_state="measured",
             event_ns_per_modeled_wave_instruction=50./instructions,exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,
@@ -108,7 +109,13 @@ class Captures(unittest.TestCase):
                 sample.update(kernel_event_ns=None,kernel_event_state=state,event_ns_per_modeled_wave_instruction=None)
                 sample["events"]=[] if state=="unavailable" else [dict(label=capture["kernel_event_label"],elapsed_ns=None)]
             validate_capture(capture,BASE,"fixture-run",2,1)
-        changes=[lambda s:s.update(kernel_event_ns=True),lambda s:s.update(kernel_event_state="unavailable"),
+        for transfer in ([], [dict(label="residue_d2h_sync",elapsed_ns=None)]):
+            capture=fixture();capture["samples"][0]["capability_events"]=transfer
+            validate_capture(capture,BASE,"fixture-run",2,1)
+        changes=[lambda s:s["capability_events"][0].update(label="instruction_roof_wmma_raw"),
+            lambda s:s["capability_events"][0].update(elapsed_ns=-1),
+            lambda s:s["capability_events"].append(dict(s["capability_events"][0])),
+            lambda s:s.update(kernel_event_ns=True),lambda s:s.update(kernel_event_state="unavailable"),
             lambda s:s.update(event_ns_per_modeled_wave_instruction=1),lambda s:s["events"][0].update(label="capability_probe"),
             lambda s:s["events"][0].update(elapsed_ns=0),lambda s:s["events"].append(dict(s["events"][0])),
             lambda s:s.update(uninstrumented_exact_reference_passed=False),lambda s:s.update(host_call_ns=float("nan"))]

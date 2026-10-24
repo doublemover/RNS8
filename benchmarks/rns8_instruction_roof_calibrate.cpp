@@ -100,15 +100,20 @@ int main(int argc,char** argv) {
   for(uint32_t repeat=0;repeat<repeats;++repeat) {
     prepare();hip_direct_timing_reset();hip_direct_timing_set_enabled(true);auto start=Clock::now();execute();
     const double instrumented=std::chrono::duration<double,std::nano>(Clock::now()-start).count();
-    hip_direct_timing_flush_pending_events();Json events=Json::array();Json kernel_ns=nullptr;std::string event_state="unavailable";
+    hip_direct_timing_flush_pending_events();Json events=Json::array(),capability_events=Json::array();Json kernel_ns=nullptr;std::string event_state="unavailable";
     for(const auto& event:hip_direct_timing_snapshot()) {
+      if(event.label=="residue_d2h_sync") {
+        if(!capability_events.empty()) throw std::runtime_error("duplicate capability transfer timing event");
+        capability_events.push_back({{"label",event.label},{"elapsed_ns",event.microseconds>0?Json(event.microseconds*1000):Json(nullptr)}});
+        continue;
+      }
       if(event.label!=label || !events.empty()) throw std::runtime_error("unexpected instruction kernel timing events");
       kernel_ns=event.microseconds>0?Json(event.microseconds*1000):Json(nullptr);
       event_state=event.microseconds>0?"measured":"below_resolution";events.push_back({{"label",event.label},{"elapsed_ns",kernel_ns}});
     }
     hip_direct_timing_set_enabled(false);verify();prepare();start=Clock::now();execute();
     const double production=std::chrono::duration<double,std::nano>(Clock::now()-start).count();verify();
-    samples.push_back({{"host_call_ns",instrumented},{"uninstrumented_host_call_ns",production},{"events",events},
+    samples.push_back({{"host_call_ns",instrumented},{"uninstrumented_host_call_ns",production},{"events",events},{"capability_events",capability_events},
       {"kernel_event_ns",kernel_ns},{"kernel_event_state",event_state},
       {"event_ns_per_modeled_wave_instruction",kernel_ns.is_null()?Json(nullptr):Json(kernel_ns.get<double>()/resources.instructions)},
       {"exact_reference_passed",true},{"uninstrumented_exact_reference_passed",true}});

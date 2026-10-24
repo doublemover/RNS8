@@ -109,6 +109,12 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     for sample in samples:
         demand(type(sample) is dict and positive(sample.get("host_call_ns")) and positive(sample.get("uninstrumented_host_call_ns"))
             and sample.get("exact_reference_passed") is True and sample.get("uninstrumented_exact_reference_passed") is True,"invalid paired sample")
+        capability=sample.get("capability_events")
+        demand(type(capability) is list and len(capability)<=1,"at most one capability transfer event required")
+        for event in capability:
+            demand(type(event) is dict and set(event)=={"label","elapsed_ns"} and event["label"]=="residue_d2h_sync",
+                   "capability transfer event label mismatch")
+            demand(event["elapsed_ns"] is None or positive(event["elapsed_ns"]),"invalid capability transfer duration")
         events=sample.get("events");demand(type(events) is list and len(events)<=1,"one kernel event or explicit unavailable state required")
         kernel=sample.get("kernel_event_ns","missing");normalized=sample.get("event_ns_per_modeled_wave_instruction","missing")
         if events:
