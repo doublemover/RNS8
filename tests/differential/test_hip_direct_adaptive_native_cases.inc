@@ -174,7 +174,13 @@ template<class T> void check_public_adaptive_owner() {
   const auto generation = c->content_generation;
   CHECK(run(a,UINT64_MAX,3) == RNS8_INVALID_ARGUMENT);
   CHECK(c->content_generation == generation);
-  REQUIRE(pack(a,av) == RNS8_SUCCESS);
+  std::vector<T> compact(17*17);
+  for (int row=0; row<17; ++row)
+    std::copy_n(av.data()+row*19,17,compact.data()+row*17);
+  if constexpr (is_unsigned)
+    REQUIRE(rns8_pack_u64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
+  else
+    REQUIRE(rns8_pack_i64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
   REQUIRE(run(a,UINT64_MAX,3) == RNS8_SUCCESS);
   rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
   rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);

@@ -202,14 +202,19 @@ rns8_status upload_native_i64(rns8_context& ctx, rns8_matrix& matrix, const int6
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  std::vector<int64_t> staged(static_cast<std::size_t>(matrix.desc.rows) * static_cast<std::size_t>(matrix.desc.cols));
-  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
-    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
-      staged[static_cast<std::size_t>(row * matrix.desc.cols + col)] = src[row * ld + col];
-    }
+  // Compact caller storage is already the required upload layout. Avoid a
+  // second host allocation/copy on every native-backed pack in that common case.
+  std::vector<int64_t> staged;
+  const int64_t* upload = src;
+  if (ld != matrix.desc.cols) {
+    staged.resize(static_cast<std::size_t>(matrix.desc.rows) * static_cast<std::size_t>(matrix.desc.cols));
+    for (int64_t row = 0; row < matrix.desc.rows; ++row)
+      std::copy_n(src + row * ld, static_cast<std::size_t>(matrix.desc.cols),
+                  staged.data() + row * matrix.desc.cols);
+    upload = staged.data();
   }
   status = rns8::detail::hip_direct_copy_host_to_device(
-      ctx.device_id, matrix.hip_native_i64, staged.data(), staged.size() * sizeof(int64_t));
+      ctx.device_id, matrix.hip_native_i64, upload, matrix.hip_native_i64_bytes);
   if (status != RNS8_SUCCESS) {
     clear_device_native_current(matrix);
     return status;
@@ -227,14 +232,19 @@ rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  std::vector<uint64_t> staged(static_cast<std::size_t>(matrix.desc.rows) * static_cast<std::size_t>(matrix.desc.cols));
-  for (int64_t row = 0; row < matrix.desc.rows; ++row) {
-    for (int64_t col = 0; col < matrix.desc.cols; ++col) {
-      staged[static_cast<std::size_t>(row * matrix.desc.cols + col)] = src[row * ld + col];
-    }
+  // Compact caller storage is already the required upload layout. Avoid a
+  // second host allocation/copy on every native-backed pack in that common case.
+  std::vector<uint64_t> staged;
+  const uint64_t* upload = src;
+  if (ld != matrix.desc.cols) {
+    staged.resize(static_cast<std::size_t>(matrix.desc.rows) * static_cast<std::size_t>(matrix.desc.cols));
+    for (int64_t row = 0; row < matrix.desc.rows; ++row)
+      std::copy_n(src + row * ld, static_cast<std::size_t>(matrix.desc.cols),
+                  staged.data() + row * matrix.desc.cols);
+    upload = staged.data();
   }
   status = rns8::detail::hip_direct_copy_host_to_device(
-      ctx.device_id, matrix.hip_native_u64, staged.data(), staged.size() * sizeof(uint64_t));
+      ctx.device_id, matrix.hip_native_u64, upload, matrix.hip_native_u64_bytes);
   if (status != RNS8_SUCCESS) {
     clear_device_native_current(matrix);
     return status;
