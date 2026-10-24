@@ -90,6 +90,7 @@ typedef struct rns8_graph_completion_token {
 } rns8_graph_completion_token;
 
 /* Ordered exact-wide MatMul/BaseExtend/ExactAxpby/ComplexMatMul DAG, CPU or direct HIP.
+ * MATMUL also admits explicit finite ring/field edges with matching moduli.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
  * matrix/plan/workspace storage must match each edge. Explicit BASE_EXTEND
@@ -111,7 +112,8 @@ RNS8_API rns8_status rns8_execute_resident_graph(
     rns8_resident_graph* graph, rns8_graph_execution_info* out);
 RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
 
-/* Explicit single-stream fixed-prefix direct-HIP MatMul/ExactAxpby DAGs.
+/* Explicit single-stream direct-HIP fixed-prefix exact-wide MatMul/ExactAxpby
+ * and finite ring/field MatMul DAGs.
  * Prepare completion resources first. BaseExtend/Export nodes and adaptive
  * schedules are unsupported. Submission preflights the complete DAG, reserves
  * external readers and all output/workspace writers, and issues one token.
@@ -273,7 +275,8 @@ RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
-/* Explicit direct-HIP exact-wide, fixed-prefix dense submission. Prepare the
+/* Explicit direct-HIP exact-wide fixed-prefix or finite ring/field dense submission.
+ * Finite operations retain their explicit modulus and never infer integer semantics. Prepare the
  * event resource outside submission; submit uses a caller-owned non-default
  * hipStream_t passed as void*. Keep the stream alive through wait/query.
  * Shared handles require serialized host calls. Inputs are read-reserved and

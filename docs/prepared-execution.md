@@ -44,9 +44,13 @@ implementation and qualification work. No speedup is claimed.
 
 ## Explicit HIP submission
 
-Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide
-execution to allocate its completion event. The subset has fixed shape/basis/
-prefix and no adaptive tile schedule. Other semantics/backends return unsupported.
+Call `rns8_prepare_hip_submission` on a prepared dense direct-HIP exact-wide or
+finite-ring/field execution to allocate its completion event. The subset has fixed
+shape/basis/prefix or one explicit finite modulus, and no adaptive tile schedule.
+Other semantics/backends return unsupported. Finite operations use their existing
+enqueue-only finite kernel wrapper, including dynamic composite moduli and ordered
+safe K slabs. They require current operands with the plan's modulus and do not
+invent an exact-integer range proof.
 `rns8_submit_prepared_hip` takes a caller-owned non-default HIP stream and checks
 its device and capture state. Keep that stream alive until completion is observed.
 Stream capture is explicitly unsupported; there is no synchronous fallback.
@@ -97,7 +101,8 @@ replacement capture preserves the previous executable graph.
 `rns8_submit_prepared_hip_graph` shares ordinary submission's range/generation
 preflight, reservations, epoch, event and query/wait publication. It verifies
 the captured A/B/C device addresses before enqueue. The immutable envelope is
-one fixed-shape dense exact-wide operation, its fixed basis/prefix, and all
+one fixed-shape dense exact-wide or finite operation, its fixed basis/prefix or
+finite modulus, and all
 ordered K-slab launches. Shape, topology, layout, basis or address changes need
 a new prepared binding/capture. Input values can change at stable addresses
 between completed submissions with explicit input refresh. No adaptive growth
@@ -314,3 +319,12 @@ workspace, then destroy prepared/graph/dependency owners before closing those
 resources. Destructors do not wait for asynchronous work and cannot report BUSY;
 use explicit successful `close()` when lifetime order is not guaranteed. Do not
 let a busy owner leave scope and lose the handle needed for later cleanup.
+
+
+Finite prepared submission also uses the existing independent-group, cancellation
+and owned-graph paths. Successful observation publishes the plan modulus and
+clears exact-range/axis metadata; cancellation leaves the output unavailable.
+Authored HIP fixtures cover moduli 2/250/251/256, padded inputs/outputs, K=17 and
+65537, two-stream shared readers observed in reverse order, grouped graph replay,
+stale source generations, refresh, pending ownership and cancellation. This
+extension is source-only pending the final consolidated validation campaign.

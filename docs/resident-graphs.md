@@ -1,7 +1,9 @@
-# Exact resident DAG execution
+# Resident DAG execution
 
-`rns8_create_resident_graph` accepts an ordered list of 1-4096 typed exact-wide
-`rns8_resident_node` records on CPU or direct HIP. MatMul nodes reference an existing plan,
+`rns8_create_resident_graph` accepts an ordered list of 1-4096 typed
+`rns8_resident_node` records on CPU or direct HIP. MatMul supports exact-wide
+and explicit finite ring/field semantics; other node kinds remain exact-wide.
+MatMul nodes reference an existing plan,
 workspace, input matrices and distinct output matrix. ExactAxpby nodes also
 reference an addend in `d` and signed integer `alpha`/`beta` coefficients and
 compute `alpha*a*b + beta*d`. Unsigned semantics reject negative coefficients.
@@ -18,8 +20,9 @@ materialization of the same logical value, so it does not create a second writer
 or change content generation. Its position must follow the value's producer and
 precede any consumer needing the additional planes.
 
-Creation and execution propagate every node's exact bound through the existing
-axis/moment/scalar proof implementation before arithmetic begins. Proof metadata
+Creation and execution propagate exact-wide bounds through the existing
+axis/moment/scalar proof implementation and finite moduli through each finite
+edge before arithmetic begins. Proof metadata
 is copied once per external input; matrix payloads are never copied for planning.
 This catches downstream range exhaustion and insufficient extension capacity or
 staging budget before earlier nodes overwrite outputs. Proof propagation updates
@@ -93,8 +96,8 @@ applicable execution is covered by the [dated validation](local-all-features-202
 
 ## Explicit asynchronous direct-HIP DAGs
 
-`rns8_prepare_resident_graph_hip` prepares a completion event for a fixed-prefix
-dense MatMul/ExactAxpby graph. `rns8_submit_resident_graph_hip` preflights every
+`rns8_prepare_resident_graph_hip` prepares a completion event for a dense graph
+of fixed-prefix exact-wide MatMul/ExactAxpby or finite ring/field MatMul nodes. `rns8_submit_resident_graph_hip` preflights every
 binding and propagates every intermediate proof, then enqueues the ordered DAG
 on one caller-owned nondefault stream. Internal dependencies follow stream
 order. BaseExtend/Export nodes and adaptive tile schedules reject as unsupported
@@ -108,7 +111,7 @@ binds graph identity and epoch; another graph's or an earlier submission's token
 cannot observe this execution.
 
 No intermediate is publicly current while the DAG is pending. Query/wait
-observes the final event, publishes every output with its precomputed bound and
+observes the final event, publishes every output with its precomputed bound or finite modulus and
 new generation, and releases all reservations. Publication swaps already
 computed proofs rather than allocating after GPU completion. An enqueue or
 event failure requires a successful stream drain before releasing reservations without publishing
@@ -250,3 +253,22 @@ Authored CPU/Boost and direct-HIP fixtures cover both methods, downstream real
 GEMM consuming both components, stale input refresh, retained output ownership,
 aliased output and scratch rejection. New execution remains pending the final
 consolidated validation pass.
+
+
+## Finite ring and field products
+
+MATMUL nodes also accept explicit finite-ring or finite-field plans. The graph
+propagates each produced value's modulus through its metadata-only preflight;
+every consumer must match that modulus and semantic contract. Unpublished
+intermediates need no invented integer range proof. External inputs still require
+current storage and bound generations. Modulus changes reject refresh and all
+execution before writes. Exact axpby, lift, complex and limb-export node contracts
+remain exact-wide; finite support does not reinterpret those operations.
+
+CPU and ordinary HIP execution use the public finite GEMM. HIP asynchronous and
+owned-capture execution use the existing finite enqueue-only kernel, including
+its ordered K slabs. Final event observation publishes all node generations and
+explicit moduli; cancellation/failure retains the existing graph invalidation and
+reservation rules. Authored CPU/HIP diamond fixtures compare every intermediate
+and output under moduli 2/250/251/256, replay captured graphs, check unpublished
+intermediates and reject changed-modulus bindings. Execution remains pending.

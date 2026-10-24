@@ -592,6 +592,8 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
 // Enqueue only: no matrix currentness or generation publication.
 rns8_status hip_direct_enqueue_axpby_no_publish(const rns8_plan*, const rns8_matrix*,
     const rns8_matrix*, const rns8_matrix*, rns8_matrix*, int64_t alpha, int64_t beta, void* stream);
+rns8_status hip_direct_enqueue_finite_no_publish(const rns8_plan*,const rns8_matrix*,
+    const rns8_matrix*,rns8_matrix*,void* stream);
 rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*,void* stream);
 rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
     int device_id,

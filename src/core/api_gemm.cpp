@@ -120,7 +120,7 @@ rns8_status validate_finite_gemm_operands(
     uint16_t modulus,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C, bool require_current_inputs) {
   if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_finite_storage(plan.desc.semantics) ||
@@ -153,9 +153,9 @@ rns8_status validate_finite_gemm_operands(
       !finite_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!rns_residue_state_current_for_backend(A, plan.backend) ||
+  if (require_current_inputs && (!rns_residue_state_current_for_backend(A, plan.backend) ||
       !rns_residue_state_current_for_backend(B, plan.backend) || A.finite_modulus != modulus ||
-      B.finite_modulus != modulus) {
+      B.finite_modulus != modulus)) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;

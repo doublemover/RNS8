@@ -2,10 +2,11 @@ namespace {
 rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   if (e.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
   if (!direct_hip_compiled() || e.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
-      !rns8::detail::exact_wide_semantics(e.plan->desc.semantics) ||
+      (!rns8::detail::exact_wide_semantics(e.plan->desc.semantics) &&
+       !uses_finite_storage(e.plan->desc.semantics)) ||
       !e.plan->tile_schedule.empty() ||
       !rns8::detail::qualified_i32_gemm_address(e.plan->desc.m, e.plan->desc.n,
-          e.plan->desc.k, e.a->desc.cols, e.b->desc.cols, e.c->desc.cols, e.plan->prefix))
+          e.plan->desc.k, e.a->desc.cols, e.b->desc.cols, e.c->desc.cols, uses_finite_storage(e.plan->desc.semantics)?1:e.plan->prefix))
     return RNS8_UNSUPPORTED_BACKEND;
   return RNS8_SUCCESS;
 }
@@ -20,8 +21,10 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   e.workspace->in_flight = false;
   if (operation == RNS8_SUCCESS) {
     mark_output_device_residues_current(*e.c);
-    rns8::detail::commit_exact_range(*e.c, *e.plan, e.pending_bound,
-                                     &e.pending_ranges);
+    if(uses_finite_storage(e.plan->desc.semantics)) {
+      e.c->finite_modulus=static_cast<uint16_t>(e.plan->desc.finite_modulus);
+      e.c->exact_axis_ranges.rows.clear();e.c->exact_axis_ranges.cols.clear();
+    } else rns8::detail::commit_exact_range(*e.c, *e.plan, e.pending_bound,&e.pending_ranges);
   }
   e.completion = {};
   e.completion.operation_status = operation;
@@ -141,7 +144,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
     return status;
   if (!rns8::detail::qualified_i32_gemm_address(
           e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
-          e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
+          e->b->desc.cols, e->c->desc.cols, uses_finite_storage(e->plan->desc.semantics)?1:e->plan->prefix))
     return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (graph &&
@@ -261,7 +264,7 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
       return preparation;
     if (!rns8::detail::qualified_i32_gemm_address(
             e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
-            e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
+            e->b->desc.cols, e->c->desc.cols, uses_finite_storage(e->plan->desc.semantics)?1:e->plan->prefix))
       return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     rns8::detail::hip_scoped_device device(e->ctx->device_id);

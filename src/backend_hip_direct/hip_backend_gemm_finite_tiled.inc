@@ -694,3 +694,22 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+    const int8_t*,const int8_t*,int8_t*,int,int,int,int,int,int,int,uint32_t,int,void*);
+#endif
+rns8_status hip_direct_enqueue_finite_no_publish(const rns8_plan* plan,const rns8_matrix* a,
+    const rns8_matrix* b,rns8_matrix* c,void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto modulus=static_cast<uint16_t>(plan->desc.finite_modulus);
+  const int code=rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+      static_cast<const int8_t*>(a->hip_residues),static_cast<const int8_t*>(b->hip_residues),
+      static_cast<int8_t*>(c->hip_residues),static_cast<int>(plan->desc.m),static_cast<int>(plan->desc.n),
+      static_cast<int>(plan->desc.k),static_cast<int>(a->desc.cols),static_cast<int>(b->desc.cols),
+      static_cast<int>(c->desc.cols),modulus,modulus_reciprocal_u32(modulus),RNS8_SAFE_INT32_K_BLOCK,stream);
+  return code==int(hipSuccess)?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)plan;(void)a;(void)b;(void)c;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

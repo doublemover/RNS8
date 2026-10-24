@@ -6,9 +6,10 @@ rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) 
   for (const auto& node : graph.nodes) {
     if ((node.kind != RNS8_RESIDENT_MATMUL && node.kind != RNS8_RESIDENT_EXACT_AXPBY) ||
         node.plan->backend != RNS8_BACKEND_HIP_DIRECT || !node.plan->tile_schedule.empty() ||
-        !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
+        (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
+         !(node.kind==RNS8_RESIDENT_MATMUL && uses_finite_storage(node.plan->desc.semantics))) ||
         !rns8::detail::qualified_i32_gemm_address(node.plan->desc.m, node.plan->desc.n,
-            node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, node.plan->prefix))
+            node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, uses_finite_storage(node.plan->desc.semantics)?1:node.plan->prefix))
       return RNS8_UNSUPPORTED_BACKEND;
   }
   return RNS8_SUCCESS;
@@ -23,6 +24,8 @@ void invalidate_owned_graph_output(rns8_matrix& output) {
 }
 rns8_status enqueue_resident_node(const rns8_resident_node &node,
                                   void *stream) {
+  if(uses_finite_storage(node.plan->desc.semantics))
+    return rns8::detail::hip_direct_enqueue_finite_no_publish(node.plan,node.a,node.b,node.c,stream);
   return node.kind == RNS8_RESIDENT_EXACT_AXPBY
              ? rns8::detail::hip_direct_enqueue_axpby_no_publish(
                    node.plan, node.a, node.b, node.d, node.c, node.alpha,
@@ -47,9 +50,11 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
     node.c->in_flight_writer = false;
     if (status == RNS8_SUCCESS) {
       mark_output_device_residues_current(*node.c);
-      rns8::detail::commit_exact_range(*node.c, *node.plan,
-                                       graph.pending_proofs[i].bound,
-                                       &graph.pending_proofs[i].ranges);
+      if(uses_finite_storage(node.plan->desc.semantics)) {
+        node.c->finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);
+        node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();
+      } else rns8::detail::commit_exact_range(*node.c,*node.plan,
+          graph.pending_proofs[i].bound,&graph.pending_proofs[i].ranges);
     }
   }
   graph.completion = {};

@@ -122,6 +122,12 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     if (m.generation_exhausted || !rns_residue_state_current_for_backend(m, graph.ctx->backend) ||
         (check_bindings && (m.matrix_instance_id != input.instance || m.content_generation != input.generation)))
       return RNS8_INVALID_ARGUMENT;
+    if(uses_finite_storage(m.desc.semantics)) {
+      if(!rns8::detail::valid_finite_modulus_for_semantics(m.desc.semantics,m.finite_modulus))
+        return RNS8_INVALID_ARGUMENT;
+      proofs.try_emplace(input.matrix).first->second.finite_modulus=m.finite_modulus;
+      continue;
+    }
     if (!m.exact_range_prefix || m.exact_range_prefix > m.prefix ||
         !rns8::detail::exact_range_fits(m.desc.semantics, m.exact_max_magnitude,
                                       rns8::detail::modulus_product(m.exact_range_prefix)))
@@ -150,7 +156,10 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     }
     auto status = validate_plan_context_workspace(*graph.ctx, *node.plan, *node.workspace);
     if (status != RNS8_SUCCESS) return status;
-    status = node.kind == RNS8_RESIDENT_EXACT_AXPBY
+    status = uses_finite_storage(node.plan->desc.semantics)
+        ? validate_finite_gemm_operands(*graph.ctx,*node.plan,static_cast<uint16_t>(node.plan->desc.finite_modulus),
+            *node.a,*node.b,*node.c,false)
+        : node.kind == RNS8_RESIDENT_EXACT_AXPBY
         ? validate_exact_axpby_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.d,
                                         *node.c, node.alpha, node.beta, false)
         : validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a, *node.b, *node.c, false);
@@ -158,6 +167,13 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     if (node.c->generation_exhausted) return RNS8_RANGE_ERROR;
     auto ai = proofs.find(node.a), bi = proofs.find(node.b);
     if (ai == proofs.end() || bi == proofs.end()) return RNS8_INVALID_ARGUMENT;
+    if(uses_finite_storage(node.plan->desc.semantics)) {
+      if(node.kind!=RNS8_RESIDENT_MATMUL || ai->second.finite_modulus!=node.plan->desc.finite_modulus ||
+          bi->second.finite_modulus!=node.plan->desc.finite_modulus) return RNS8_INVALID_ARGUMENT;
+      proofs.try_emplace(node.c).first->second.finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);
+      if(pending) pending->push_back({{}, {}});
+      continue;
+    }
     if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
       if (pending) return RNS8_UNSUPPORTED_BACKEND;
       status = validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a_imag, *node.b_imag, *node.c_imag, false);
@@ -246,7 +262,8 @@ rns8_status rns8_create_resident_graph(
         if (node.kind == RNS8_RESIDENT_EXACT_AXPBY ? !node.d : (node.d || node.alpha || node.beta))
           return RNS8_INVALID_ARGUMENT;
         if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
-            !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
+            (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
+             !(node.kind==RNS8_RESIDENT_MATMUL && uses_finite_storage(node.plan->desc.semantics))) ||
             !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
         if (!node.plan || !node.a || !node.a_imag || !node.b || !node.b_imag || !node.c_imag ||
@@ -329,7 +346,10 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
     for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
       const auto& node = graph->nodes[i];
       if (node.kind == RNS8_RESIDENT_MATMUL)
-        out->operation_status = rns8_gemm_rns(graph->ctx, node.plan, node.a, node.b, node.c, node.workspace);
+        out->operation_status = uses_finite_storage(node.plan->desc.semantics)
+            ? rns8_gemm_finite_u8(graph->ctx,node.plan,static_cast<uint16_t>(node.plan->desc.finite_modulus),
+                node.a,node.b,node.c,node.workspace)
+            : rns8_gemm_rns(graph->ctx, node.plan, node.a, node.b, node.c, node.workspace);
       else if (node.kind == RNS8_RESIDENT_EXACT_AXPBY)
         out->operation_status = rns8_gemm_exact_axpby(graph->ctx, node.plan, node.a, node.b, node.d,
                                                     node.c, node.alpha, node.beta, node.workspace);

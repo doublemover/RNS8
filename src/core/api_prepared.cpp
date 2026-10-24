@@ -146,10 +146,15 @@ static void record_epilogue_completion(rns8_prepared_execution& e) {
 }
 static rns8_status prepared_range(const rns8_prepared_execution& e,
     boost::multiprecision::cpp_int& bound, rns8_exact_matrix_ranges& ranges) {
+  if(uses_finite_storage(e.plan->desc.semantics)) {
+    bound=0;ranges={};return RNS8_SUCCESS; // ring semantics need no integer range lift
+  }
   return e.d ? rns8::detail::exact_axpby_range(*e.plan, *e.a, *e.b, *e.d, e.alpha, e.beta, bound)
              : rns8::detail::exact_gemm_range(*e.plan, *e.a, *e.b, bound, &ranges);
 }
 static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stream) {
+  if(uses_finite_storage(e.plan->desc.semantics))
+    return rns8::detail::hip_direct_enqueue_finite_no_publish(e.plan,e.a,e.b,e.c,stream);
   return e.d ? rns8::detail::hip_direct_enqueue_axpby_no_publish(
                    e.plan, e.a, e.b, e.d, e.c, e.alpha, e.beta, stream)
              : rns8::detail::hip_direct_enqueue_rns_no_publish(e.plan, e.a, e.b, e.c, stream);
