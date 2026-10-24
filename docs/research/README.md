@@ -1,5 +1,9 @@
 # Research topics and application context
 
+[Public split-K calibration](../split-k-calibration.md) separates ordinary,
+full-scratch and bounded-window public calls, setup, unchanged reuse and changed
+input recreation. Its authored fixtures await the consolidated validation batch.
+
 Topic guides preserve concrete arithmetic contracts, source boundaries and
 remaining acceptance work. A private candidate can be implemented and tested
 without becoming a public backend. The [backend reference](../backend-notes.md)

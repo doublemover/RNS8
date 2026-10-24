@@ -85,6 +85,33 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
   add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
+  add_test(NAME split_k_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_split_k.py")
+  if(TARGET rns8-split-k-calibrate)
+    set_tests_properties(split_k_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_SPLIT_K_EXE=$<TARGET_FILE:rns8-split-k-calibrate>"
+      LABELS "tools;split-k;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_split_domain IN ITEMS signed unsigned)
+        foreach(_split_mode IN ITEMS unsplit full window)
+          if(_split_mode STREQUAL "unsplit")
+            set(_split_fragments 1)
+            set(_split_window 0)
+          elseif(_split_mode STREQUAL "full")
+            set(_split_fragments 3)
+            set(_split_window 3)
+          else()
+            set(_split_fragments 3)
+            set(_split_window 2)
+          endif()
+          add_test(NAME split_k_${_split_domain}_${_split_mode}_smoke
+            COMMAND rns8-split-k-calibrate 0 ${_split_mode} 2 3 17 ${_split_domain}
+              ${_split_fragments} ${_split_window} 2 2 1 ctest-split-${_split_domain}-${_split_mode})
+          set_tests_properties(split_k_${_split_domain}_${_split_mode}_smoke PROPERTIES
+            LABELS "hip;split-k;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   if(TARGET rns8-instruction-roof-calibrate)
     set_tests_properties(instruction_roof_collector_self_test PROPERTIES
       ENVIRONMENT "RNS8_INSTRUCTION_ROOF_EXE=$<TARGET_FILE:rns8-instruction-roof-calibrate>"

@@ -3,6 +3,17 @@
   "scope": "All first-party Markdown/HTML/RST/legal/template files known to Git, including new untracked docs; generated output and submodule contents excluded",
   "documents": [
     {
+      "path": "docs/split-k-calibration.md",
+      "purpose": "Public reusable split-K calibration and complete independent receipts",
+      "audience": "GPU researchers and calibration contributors",
+      "disposition": "keep",
+      "canonical": "docs/split-k-calibration.md",
+      "owner": "benchmarks/rns8_split_k_calibrate.cpp",
+      "reason": "Matched unsplit/full/window public ownership, signed/unsigned exact references, scratch capacities, unchanged reuse and explicit changed-generation recreation; authored pending final validation.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": ".github/ISSUE_TEMPLATE/backend_request.md",
       "purpose": "Contribution form backend_request",
       "audience": "Issue/PR authors",
