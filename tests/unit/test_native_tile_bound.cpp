@@ -211,3 +211,25 @@ TEST_CASE("adaptive static support reports checked resources without device qual
   CHECK(panels.status==RNS8_UNSUPPORTED_BACKEND);
   CHECK(panels.constraint==AdaptiveNativeConstraint::panel_count);
 }
+
+#include "backend_common/native_tiled_resources.hpp"
+TEST_CASE("multiwave native storage budgets match padded raw LDS allocations") {
+  using namespace rns8::detail;
+  for (uint32_t buffers : {0u,1u,2u}) for (uint32_t depth : {16u,32u}) {
+    const auto result=query_native_tiled_resources(depth,buffers,UINT64_MAX);
+    if (!buffers && depth==32) {
+      CHECK(result.status==RNS8_INVALID_ARGUMENT);
+      continue;
+    }
+    REQUIRE(result.status==RNS8_SUCCESS);
+    CHECK(result.output_rows==32);
+    CHECK(result.output_cols==32);
+    CHECK(result.waves==4);
+    CHECK(result.raw_lds_bytes==uint64_t(buffers)*(32*(depth+1)+depth*33)*8);
+    CHECK(query_native_tiled_resources(depth,buffers,result.raw_lds_bytes).status==RNS8_SUCCESS);
+    if (result.raw_lds_bytes)
+      CHECK(query_native_tiled_resources(depth,buffers,result.raw_lds_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+  CHECK(query_native_tiled_resources(0,1,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_native_tiled_resources(16,3,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
+}

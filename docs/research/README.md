@@ -72,3 +72,5 @@ at `c7f7e05` on Windows/gfx1100. Topic-local mathematical claims and authored
 fixtures describe their source; later changes, other targets, resources/ISA and
 performance need their own scoped records. Current matched scaling results are
 in the [larger-workload report](../7900xtx-large-throughput-2026-10-23.md).
+
+- [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register and staged LDS candidates, #35; validation pending.

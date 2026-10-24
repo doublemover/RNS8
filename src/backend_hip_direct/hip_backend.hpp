@@ -9,6 +9,7 @@
 #include "rns8/rns8.h"
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/native_tile_bound.hpp"
+#include "backend_common/native_tiled_resources.hpp"
 #include "backend_common/adaptive_native_support.hpp"
 #include "backend_common/native_wmma_queue.hpp"
 #include "backend_common/ragged_residues.hpp"
@@ -85,6 +86,13 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     uint64_t max_scratch_bytes, bool& commit_started,
     NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256,
     uint32_t compact_workers = 0);
+// Private four-wave 32x32 raw-native staging experiment. buffers=0/1/2;
+// depth=16/32 (register control requires16). LDS is per block, not global scratch.
+// On failure after commit_started, caller must invalidate potentially written C.
+rns8_status hip_direct_gemm_native_tiled_device(
+    int device_id,const void* a,const void* b,int8_t* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t group,bool unsigned_inputs,
+    uint32_t depth,uint32_t buffers,uint64_t max_lds_bytes,bool& commit_started);
 rns8_status hip_direct_gemm_native_wmma_grouped_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,

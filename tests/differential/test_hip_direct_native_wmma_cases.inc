@@ -1,6 +1,7 @@
 template <typename NativeT>
 bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix,
-                              bool generated = false, uint32_t splits = 0) {
+                              bool generated = false, uint32_t splits = 0,
+                              uint32_t tiled_depth = 0, uint32_t tiled_buffers = 0) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
@@ -61,7 +62,20 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
     auto status = RNS8_UNSUPPORTED_BACKEND;
-    if (splits) {
+    if (tiled_depth) {
+      bool commit = true;
+      if (tiled_buffers) {
+        REQUIRE(hip_direct_gemm_native_tiled_device(0, da, db, static_cast<int8_t*>(dc),
+            m,n,k,lda,ldb,ldc,prefix,group,unsigned_inputs,tiled_depth,tiled_buffers,0,commit)
+            == RNS8_WORKSPACE_TOO_SMALL);
+        REQUIRE_FALSE(commit);
+        REQUIRE(hip_direct_copy_device_to_host(0, actual.data(), dc, actual.size()) == RNS8_SUCCESS);
+        REQUIRE(std::all_of(actual.begin(), actual.end(), [](int8_t x) { return x == 99; }));
+      }
+      status = hip_direct_gemm_native_tiled_device(0, da, db, static_cast<int8_t*>(dc),
+          m,n,k,lda,ldb,ldc,prefix,group,unsigned_inputs,tiled_depth,tiled_buffers,UINT64_MAX,commit);
+      REQUIRE(commit == (status == RNS8_SUCCESS));
+    } else if (splits) {
       bool commit = true;
       REQUIRE(hip_direct_gemm_native_wmma_split_k_device(
           0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
@@ -163,5 +177,23 @@ TEST_CASE("native grouped WMMA preserves signedness planes tails and safe K slab
       if (!check_native_wmma_groups<int64_t>(false, m, n, k, prefix))
         SKIP("compiled device target lacks native grouped RDNA3 WMMA");
       REQUIRE(check_native_wmma_groups<uint64_t>(true, m, n, k, prefix));
+    }
+}
+
+TEST_CASE("multiwave native tiles preserve full-width residues across storage families") {
+  if (!hip_available()) SKIP("no HIP device for multiwave native tiles");
+  for (uint32_t buffers : {0u,1u,2u})
+    for (uint32_t depth : {16u,32u}) {
+      if (!buffers && depth==32) continue;
+      for (uint32_t prefix=1; prefix<=20; ++prefix) {
+        INFO("buffers=" << buffers << " depth=" << depth << " prefix=" << prefix);
+        if (!check_native_wmma_groups<int64_t>(false,35,33,33,prefix,false,0,depth,buffers))
+          SKIP("compiled target lacks multiwave RDNA3 WMMA");
+        REQUIRE(check_native_wmma_groups<uint64_t>(true,35,33,33,prefix,false,0,depth,buffers));
+      }
+      for (int k : {65535,65536,65537}) {
+        REQUIRE(check_native_wmma_groups<int64_t>(false,1,1,k,20,false,0,depth,buffers));
+        REQUIRE(check_native_wmma_groups<uint64_t>(true,1,1,k,20,false,0,depth,buffers));
+      }
     }
 }

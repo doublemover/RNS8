@@ -28,7 +28,7 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
 #if RNS8_DEVICE_NATIVE_WMMA
   using fragment = int __attribute__((ext_vector_type(4)));
   using accumulator = int __attribute__((ext_vector_type(8)));
-  const int lane = threadIdx.x;
+  const int lane = threadIdx.x & 31;
   const int64_t ar = tile_row + (lane & 15), bc = tile_col + (lane & 15);
   accumulator acc[Group]{};
   rns8::detail::finite_u8::Native64Reducer reducers[Group]{};
