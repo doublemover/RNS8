@@ -44,13 +44,31 @@ capability word. Query and launch share admission. CPU uses only the host list.
 Output alias, stale private source binding, unsupported mode, invalid range or
 insufficient budget rejects before mutation. Issued execution failure invalidates
 C; X remains current. The synchronous caller excludes concurrent host mutation
-or destruction; existing in-flight readers/writers are respected. No new lifetime
-owner, cache or completion mechanism is introduced.
+or destruction; existing in-flight readers/writers are respected.
+
+For repeated work, `rns8_prepare_gram` retains X, C and the context, constructs the
+triangular job list once and allocates its device storage once. The first
+`rns8_execute_prepared_gram` uploads jobs and probes WMMA support; later calls
+reuse both. Creation and first-use work belong in cold timings. This owner is
+synchronous and does not imply capture or asynchronous completion. Output C is
+fixed; input repacking makes execution reject until `rns8_refresh_prepared_gram`
+accepts its new generation. Refresh requires the original finite modulus and an
+exact bound no larger than the original envelope. A larger envelope requires
+recreation. Outputs retain that conservative original proof after refresh.
+
+Execution reserves the input reader and output writer until GPU completion.
+Precommit rejection preserves C; issued writes followed by failure invalidate C.
+An uncertain drain quarantines the owner, retains reservations and poisons the
+context. Destruction retries drain/free and leaves the owner available for retry
+on failure; it releases all permanent lifetime holds only after successful
+cleanup. Callers must exclude concurrent host mutation and destruction.
 
 Authored tests check triangular single-writer coverage, orders 1/15/16/17/31/32/33,
 both orientations, padded host inputs, full signed extrema, composite/prime
 finite moduli, K=65537, exact Boost residue outputs, dense symmetry, budget
-rejection and reservations. Compilation and execution remain pending. Longer-K instruction accumulation,
+rejection and reservations. Prepared-owner fixtures additionally cover repeated
+execution without GPU allocation, stale generations, refresh, retained lifetimes
+and rejection of an expanded proof envelope. Compilation and execution remain pending. Longer-K instruction accumulation,
 reconstruct-once export, and matched sustained dense-GEMM speedup measurements
 remain separate development/qualification work. No performance promotion is
 claimed by reducing the number of independent dots.

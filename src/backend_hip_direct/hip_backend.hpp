@@ -1246,6 +1246,9 @@ rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const Gra
 
 // Private fixed-transform modes: 0 signed native import, 1 unsigned import,
 // 2 canonical three-limb CRT. Explicit RDNA3 packed-dot candidate only.
+rns8_status hip_direct_gram_prepared_device(int device_id,const void* x,void* c,const GramProblem& problem,
+    const GramTile* host_jobs,void* device_jobs,uint64_t device_job_bytes,bool wmma,
+    bool& jobs_ready,bool& commit_started);
 rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,void* destination,
     int64_t cells,uint32_t prefix,uint32_t mode,uint64_t budget,bool& commit_started);
 

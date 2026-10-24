@@ -1448,6 +1448,20 @@ RNS8_API rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,
 RNS8_API rns8_status rns8_destroy_ragged_materialization(rns8_ragged_materialization*);
 
 typedef struct rns8_product_recipe rns8_product_recipe;
+/* Reusable synchronous CPU/direct-HIP Gram execution. Creation retains X, C and
+ * context, compiles the triangular jobs and allocates device job storage. The
+ * first execution uploads jobs and probes WMMA; subsequent calls reuse them.
+ * X is generation-bound. Explicit refresh admits only the original range envelope
+ * and finite modulus. C is fixed and must remain a distinct compatible matrix. */
+typedef struct rns8_prepared_gram rns8_prepared_gram;
+RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
+    rns8_gram_orientation orientation,rns8_gram_method method,uint64_t max_job_bytes,
+    rns8_prepared_gram** out);
+RNS8_API rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner);
+RNS8_API rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner);
+/* Failed drain/free retains the owner and any active reservations for retry. */
+RNS8_API rns8_status rns8_destroy_prepared_gram(rns8_prepared_gram* owner);
+
 /* Explicit synchronous direct-HIP split-K owner. Inputs are exact-wide default
  * RNS matrices with equal prefix and signedness. Preparation fixes generations
  * and conservative bounds, retains input/context lifetimes and allocates scratch.

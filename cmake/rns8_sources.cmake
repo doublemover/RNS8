@@ -25,6 +25,7 @@ set(RNS8_SOURCES
   src/core/api_prepared.cpp
   src/core/api_ragged.cpp
   src/core/api_split_k.cpp
+  src/core/api_prepared_gram.cpp
   src/core/api_gram.cpp
   src/core/api_stream_gemm.cpp
   src/core/api_native_device.cpp

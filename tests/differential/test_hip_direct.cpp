@@ -90,6 +90,11 @@ TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
   check_public_gram(RNS8_BACKEND_HIP_DIRECT);
 }
 
+TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
+  if (!hip_available()) SKIP("no HIP device for prepared Gram");
+  check_public_gram(RNS8_BACKEND_HIP_DIRECT,true);
+}
+
 #include "test_hip_direct_stream_panels_cases.inc"
 
 #include "test_hip_direct_fixed_conversion_cases.inc"

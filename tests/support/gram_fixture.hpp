@@ -1,7 +1,7 @@
 #pragma once
 #include "core/api_internal.hpp"
 #include "backend_common/gram_plan.hpp"
-inline void check_public_gram(rns8_backend_kind backend) {
+inline void check_public_gram(rns8_backend_kind backend,bool prepared=false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   rns8_context_options cd{};cd.struct_size=sizeof(cd);cd.abi_version=RNS8_ABI_VERSION;
@@ -36,8 +36,26 @@ inline void check_public_gram(rns8_backend_kind backend) {
         CHECK(rns8_gram_residues(ctx,x,x,orientation,RNS8_GRAM_SCALAR,UINT64_MAX)==RNS8_INVALID_ARGUMENT);
         for(auto method:{RNS8_GRAM_SCALAR,RNS8_GRAM_WMMA}) {
           if(backend==RNS8_BACKEND_CPU_REFERENCE && method==RNS8_GRAM_WMMA) continue;
-          const auto status=rns8_gram_residues(ctx,x,c,orientation,method,UINT64_MAX);
-          if(status==RNS8_UNSUPPORTED_BACKEND && method==RNS8_GRAM_WMMA) continue;
+          rns8_prepared_gram* owner=nullptr;
+          if(prepared) {
+            REQUIRE(rns8_prepare_gram(ctx,x,c,orientation,method,UINT64_MAX,&owner)==RNS8_SUCCESS);
+            CHECK(rns8_destroy_matrix(x)==RNS8_BUSY);
+            CHECK(rns8_destroy_matrix(c)==RNS8_BUSY);
+            CHECK(rns8_destroy_context(ctx)==RNS8_BUSY);
+          }
+          const auto execute=[&] {return prepared?rns8_execute_prepared_gram(owner):
+            rns8_gram_residues(ctx,x,c,orientation,method,UINT64_MAX);};
+          const auto status=execute();
+          if(status==RNS8_UNSUPPORTED_BACKEND && method==RNS8_GRAM_WMMA) {
+            REQUIRE(rns8_destroy_prepared_gram(owner)==RNS8_SUCCESS);continue;
+          }
+          if(prepared && status==RNS8_SUCCESS) {
+            const auto before=hip_direct_allocation_counters_snapshot();
+            REQUIRE(execute()==RNS8_SUCCESS);
+            const auto after=hip_direct_allocation_counters_snapshot();
+            CHECK(after.allocate_calls==before.allocate_calls);
+            CHECK(after.free_calls==before.free_calls);
+          }
           REQUIRE(status==RNS8_SUCCESS);
           std::vector<int8_t> actual;
           if(backend==RNS8_BACKEND_HIP_DIRECT) {
@@ -58,8 +76,18 @@ inline void check_public_gram(rns8_backend_kind backend) {
             }
           }
           c->in_flight_readers=1;
-          CHECK(rns8_gram_residues(ctx,x,c,orientation,method,UINT64_MAX)==RNS8_BUSY);
+          CHECK(execute()==RNS8_BUSY);
           c->in_flight_readers=0;
+          if(prepared) {
+            if(finite) REQUIRE(rns8_pack_finite_u8(ctx,x,modulus,bytes.data(),ld,0)==RNS8_SUCCESS);
+            else REQUIRE(rns8_pack_i64(ctx,x,values.data(),ld,0)==RNS8_SUCCESS);
+            const auto generation=c->content_generation;
+            CHECK(execute()==RNS8_INVALID_ARGUMENT);
+            CHECK(c->content_generation==generation);
+            REQUIRE(rns8_refresh_prepared_gram(owner)==RNS8_SUCCESS);
+            REQUIRE(execute()==RNS8_SUCCESS);
+            REQUIRE(rns8_destroy_prepared_gram(owner)==RNS8_SUCCESS);
+          }
         }
         REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(x)==RNS8_SUCCESS);
       }
