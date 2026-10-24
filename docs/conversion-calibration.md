@@ -27,24 +27,24 @@ an optional `resident` or `cold` scope. Existing six-argument calls default to
 warmups1..1000. A run ID is1..128 ASCII letters, digits, dots, underscores or
 hyphens. Unsupported candidates, scopes, malformed numbers and irrelevant extra
 arguments reject before probing a device. The capture schema is explicitly
-`rns8_crt_microcase_v2`; collectors reject old captures rather than relabel them.
+`rns8_crt_microcase_v3`; collectors reject old captures rather than relabel them.
 
 ## Timing boundaries
 
-`resident` allocates and uploads common native/plain/tile controls once, then
+`resident` allocates and uploads the selected candidate's active input once, then
 keeps their storage and the output allocation across calls. Timed calls include
 the candidate's checks, capability/status work, conversion and synchronization.
 Poisoning, complete output/canary readback and active-input preservation checks
 occur outside each timed call. The setup duration is reported separately.
 
-`cold` allocates all common controls and output/status buffers, uploads their
-host contents, poisons the fresh output, converts, reads the complete output
+`cold` allocates only the candidate-specific input/output/scratch/status buffers,
+uploads the active source, poisons the fresh output, converts, reads the complete output
 allocation back and checks every free inside the timed call. Numerical
 comparison is outside that interval. Context creation, deterministic dataset,
 Boost oracle and host staging allocations remain setup. Cold captures end at a
 host output; resident captures end at a device output. Compare candidates within
-the same scope. Common allocations include unused control buffers deliberately;
-this is a matched conversion experiment, not a minimum-memory implementation.
+the same scope. Inactive controls are not allocated or uploaded; the explicit
+capacity map records every live candidate-specific device buffer.
 Cold input preservation is checked by one separate resident audit before
 warmups; its inputs are read-only during subsequent calls, but a per-cold-call
 input readback is not charged or claimed.
@@ -79,23 +79,22 @@ use8x16 physical tiles, initialized to99 including padding. Logical shape is
 rows=cells/256, cols=256 when divisible by256, otherwise one row with cols=cells.
 Only the source-layout-matched candidates share the same input boundary.
 
-All candidates reserve24*cells+64 output bytes initialized to99. Import writes
-only prefix*cells bytes; every remaining reserved byte must remain99. CRT writes
-24*cells bytes and preserves the64-byte tail. Checksums are full16-digit FNV-1a
-hex over the complete active source and complete expected output allocation,
-including all reserved bytes/canaries. The collector independently reconstructs
-both byte sequences; checksum agreement does not replace the executable's full
-byte comparison. Poisoning prevents an empty candidate inheriting a correct
-output from a preceding verified call.
+Every candidate reserves its logical output payload plus64 canary bytes,
+initialized to99: `prefix*cells+64` for imports or `24*cells+64` for CRT.
+Checksums are full16-digit FNV-1a hex over the complete active source and
+complete expected output allocation, including padding/canaries. The collector
+independently reconstructs both byte sequences; checksum agreement does not
+replace the executable's full byte comparison. Poisoning prevents an empty
+candidate inheriting a correct output from a preceding verified call.
 
-The768MiB cap is a checked aggregate logical payload envelope:
-`16*cells + 2*plain_bytes + 4*output_allocation_bytes + 2*tile_bytes + source_bytes + 16384`.
-It covers host/native inputs and planes, gold/readback/poison vectors, host tile
-staging, active-input audit readback, common device buffers and conservative
-fixed scratch. Cold and audit buffers do not overlap in lifetime. Physical tile
+The768MiB checked aggregate payload envelope is:
+`native_host_bytes + plain_host_bytes + 3*output_allocation_bytes + tile_host_bytes + source_audit_bytes + sum(device_buffer_bytes) + 16384`.
+It covers actual host/native inputs and planes, gold/readback/poison vectors,
+host tile staging, active-input audit readback, active device buffers and the
+capability probe. Cold and audit buffers do not overlap in lifetime. Physical
 padding is included. The model excludes allocator bookkeeping, context/runtime,
-fixed metadata/event objects and process RSS. It is not an allocation peak or
-observed HBM traffic. Records keep those unavailable measurements null.
+fixed metadata/event objects and process RSS. It is not observed HBM traffic.
+Records keep unavailable measurements null.
 
 ## Reproducible collection
 
@@ -162,3 +161,30 @@ Target instruction availability follows AMD's
 Compilation, ISA inspection, differential execution and paired runtime
 measurements on each target remain deferred. This is not a default promotion
 or a measured throughput result.
+
+### Public signed-pack selection and minimal cold ownership
+
+The calibration executable additionally accepts `import_public_signed`,
+`import_fixed_signed` and `import_generic_signed`, plus each corresponding
+`_padded_signed` candidate. These share the public signed pack's actual selector
+and enqueue implementation rather than approximating it. Fixed-prefix controls
+now instantiate every supported prefix1..20 and reuse each native load across
+its prefix. The public heuristic is not changed without measurements. All
+internal signed wrappers enqueue only and the checked boundary waits once.
+
+Padded candidates use seven extra native words per row. Receipts bind the
+physical pitch, full input/padding checksum, selected kernel, output/canary
+checksum and exact buffer capacities. `signed-pack-crossovers.json` covers both
+sides of the256/4096 public cutoffs, wider sizes, prefix1/2/9/18/20 and both cold
+and resident scopes. The existing complete-prefix manifests include all new
+controls. Public-selector timing does **not** claim public matrix-handle
+ownership/currentness overhead: `public_ownership_measured` remains false.
+
+The v3 cold contract allocates only the selected candidate's live buffers:
+imports have no inactive residue-input allocation/upload; CRT has no inactive
+native allocation/upload; direct tile CRT has no uniform staging allocation;
+only Garner owns a status word. Output allocation is its logical payload plus
+64 canary bytes. The receipt includes the full candidate-specific capacity map
+and aggregate host/device/probe envelope. These changed ownership semantics
+must not be compared as v2 captures. Execution and crossover evidence are still
+deferred; no production selector is promoted by this implementation.

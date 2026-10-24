@@ -18,7 +18,9 @@ from collect_finite_verify import demand, integer, positive, same, strict_json, 
 from modulus_set_search import DEFAULT_MODULI
 
 CANDIDATES=("garner", "direct", "balanced", "fixed_dot4", "tile_balanced", "tile_convert_balanced", "tile_convert_garner",
-            "import_scalar_signed", "import_scalar_unsigned", "import_dot4_signed", "import_dot4_unsigned", "fixed_wmma", "import_wmma_signed", "import_wmma_unsigned")
+            "import_scalar_signed", "import_scalar_unsigned", "import_dot4_signed", "import_dot4_unsigned", "fixed_wmma", "import_wmma_signed", "import_wmma_unsigned",
+            "import_public_signed", "import_fixed_signed", "import_generic_signed",
+            "import_public_padded_signed", "import_fixed_padded_signed", "import_generic_padded_signed")
 SCOPES=("resident", "cold")
 MASK=(1 << 64)-1
 BUDGET=768*1024*1024
@@ -48,10 +50,24 @@ def contract(case,run_id,repeats,warmups):
     candidate,cells,prefix,scope=(case[key] for key in ("candidate","cells","prefix","scope"))
     importing=candidate.startswith("import_");tile=candidate.startswith("tile_")
     cols=256 if cells%256==0 else cells;rows=cells//cols
+    padded="_padded_" in candidate;ld=cols+(7 if padded else 0);native_bytes=rows*ld*8
+    pack_control=candidate.startswith(("import_public_","import_fixed_","import_generic_"))
+    pack_kernel=None
+    if pack_control:
+        pack_kernel=("generic_per_residue" if candidate.startswith("import_generic_") else
+            "fixed_prefix_one_load" if candidate.startswith("import_fixed_") else
+            "four_wide_per_plane" if ld==cols and 256<=cells<=4096 else
+            "eight_wide_per_plane" if ld==cols and cells>4096 else
+            "small_per_residue" if cells<=4096 else "fixed_prefix_one_load" if prefix<=9 or prefix in (18,20) else "generic_per_residue")
     tile_bytes=((rows+7)//8)*((cols+15)//16)*128*prefix if tile else 0
-    plain=cells*prefix;source=cells*8 if importing else tile_bytes if tile else plain
-    output=cells*24+64
-    return {"schema":"rns8_crt_microcase_v2", "run_id":run_id, **case,
+    plain=cells*prefix;source=native_bytes if importing else tile_bytes if tile else plain
+    output=cells*(prefix if importing else 24)+64
+    buffers=dict(native=native_bytes if importing else 0,
+        plain=plain if not importing and candidate!="tile_balanced" else 0,tile=tile_bytes,
+        output=output,status=4 if candidate in ("garner","tile_convert_garner") else 0,
+        probe=4 if "dot4" in candidate or "wmma" in candidate else 0)
+    envelope=native_bytes+plain+output*3+tile_bytes+source+sum(buffers.values())+16384
+    return {"schema":"rns8_crt_microcase_v3", "run_id":run_id, **case,
         "seed":3903,"dataset_recipe":"splitmix64_conversion_seed3903_extrema_v1", "repeats":repeats,"warmups":warmups,
         "device_requested":0,"device_actual":0,"backend_requested":"hip-direct","backend_actual":"hip-direct",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,
@@ -63,12 +79,14 @@ def contract(case,run_id,repeats,warmups):
         "output_contract":"centered_residue_planes" if importing else "canonical_three_limbs", "output_boundary":"host" if scope=="cold" else "device",
         "reference_method":"boost_cpp_int_all_operand_residues" if importing else "boost_cpp_int_all_canonical_values",
         "canary_bytes":64,"source_bytes_modeled":source,"source_physical_bytes":source,
-        "source_layout":"native64_compact_v1" if importing else "tile_major_8x16_v1" if tile else "modulus_major_v1",
-        "logical_rows":rows,"logical_cols":cols,"conversion_inside_call":tile and candidate!="tile_balanced",
+        "source_layout":("native64_padded7_v1" if padded else "native64_compact_v1") if importing else "tile_major_8x16_v1" if tile else "modulus_major_v1",
+        "logical_rows":rows,"logical_cols":cols,"logical_ld":ld,"pack_kernel":pack_kernel,
+        "public_selector_measured":candidate.startswith("import_public_"),"device_buffer_bytes":buffers,
+        "conversion_inside_call":tile and candidate!="tile_balanced",
         "conversion_scratch_bytes":plain if tile and candidate!="tile_balanced" else 0,
         "output_bytes_modeled":cells*(prefix if importing else 24),"output_allocation_bytes":output,
-        "probe_bytes":4 if "dot4" in candidate or "wmma" in candidate else 0,"common_status_capacity_bytes":4,
-        "logical_payload_envelope_bytes":cells*16+plain*2+output*4+tile_bytes*2+source+16384,"memory_budget_bytes":BUDGET,
+        "probe_bytes":buffers["probe"],"common_status_capacity_bytes":buffers["status"],
+        "logical_payload_envelope_bytes":envelope,"memory_budget_bytes":BUDGET,
         "timing_scope":"allocate_upload_convert_readback_checked_free" if scope=="cold" else "resident_checked_convert_with_sync_no_upload_or_readback",
         "cache_state":"fresh_buffers_each_call" if scope=="cold" else "repeated_same_buffers",
         "actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
@@ -78,7 +96,9 @@ def dataset(case):
     """Independent integer replay of every input/output byte, including canaries."""
     importing=case["candidate"].startswith("import_");signed=case["candidate"].endswith("_signed")
     cells,prefix=case["cells"],case["prefix"];state=3903;product=math.prod(DEFAULT_MODULI[:prefix])
-    native=bytearray(cells*8);plain=bytearray(cells*prefix);expected=bytearray([99])*(cells*24+64)
+    cols=256 if cells%256==0 else cells;rows=cells//cols;ld=cols+(7 if "_padded_" in case["candidate"] else 0)
+    native=bytearray([99])*(rows*ld*8);plain=bytearray(cells*prefix)
+    expected=bytearray([99])*(cells*(prefix if importing else 24)+64)
     def word():
         nonlocal state
         state=(state+0x9e3779b97f4a7c15)&MASK;z=state
@@ -86,7 +106,8 @@ def dataset(case):
         return z^(z>>31)
     for cell in range(cells):
         r0,r1,r2=word(),word(),word();raw=EDGES[cell%257] if cell%257<6 else r0
-        native[cell*8:cell*8+8]=raw.to_bytes(8,"little")
+        offset=((cell//cols)*ld+cell%cols)*8
+        native[offset:offset+8]=raw.to_bytes(8,"little")
         value=(raw-(1 << 64) if signed and raw>>63 else raw) if importing else (r0+(r1 << 64)+(r2 << 128))%product
         if not importing and cell<3: value=(0,product-1,product//2)[cell]
         for p,modulus in enumerate(DEFAULT_MODULI[:prefix]):
@@ -165,7 +186,7 @@ def collect(args):
             and (not args.cases or digest(args.cases)==case_hash),"executable/tools/cases changed during collection")
     for ordinal,(case,repeat) in enumerate(tasks):
         unchanged();run_id=str(uuid.uuid4());command=[str(exe),case["candidate"],str(case["cells"]),str(case["prefix"]),str(args.repeats),str(args.warmups),run_id,case["scope"]]
-        record=dict(schema="rns8_crt_collection_v2",campaign_id=campaign,run_id=run_id,case=case,command=command,ordinal=ordinal,
+        record=dict(schema="rns8_crt_collection_v3",campaign_id=campaign,run_id=run_id,case=case,command=command,ordinal=ordinal,
             independent_repeat=repeat,order_seed=args.order_seed,started_unix_ns=time.time_ns(),artifact_sha256=artifact,
             collector_sha256=identities[Path(__file__).name],tool_dependencies_sha256=identities,cases_sha256=case_hash,
             python_executable=sys.executable,python_sha256=python_hash,python_version=platform.python_version(),promotion_eligible=False,

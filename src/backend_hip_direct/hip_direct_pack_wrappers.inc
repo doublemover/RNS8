@@ -87,6 +87,31 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+  const int64_t cells = int64_t{rows} * cols;
+  const int blocks = static_cast<int>((cells + 255) / 256);
+  switch (prefix) {
+#define RNS8_ADDITIONAL_FIXED(P) \
+    case P: hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<P>), \
+        dim3(blocks), dim3(256), 0, nullptr, source, residues, rows, cols, ld); break
+    RNS8_ADDITIONAL_FIXED(10); RNS8_ADDITIONAL_FIXED(11); RNS8_ADDITIONAL_FIXED(12);
+    RNS8_ADDITIONAL_FIXED(13); RNS8_ADDITIONAL_FIXED(14); RNS8_ADDITIONAL_FIXED(15);
+    RNS8_ADDITIONAL_FIXED(16); RNS8_ADDITIONAL_FIXED(17); RNS8_ADDITIONAL_FIXED(19);
+#undef RNS8_ADDITIONAL_FIXED
+    default: return rns8_hip_direct_pack_i64_device_on_stream(source, residues, rows, cols, ld, prefix, nullptr);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_i64_generic_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+  const int64_t total = int64_t{rows} * cols * prefix;
+  hipLaunchKernelGGL(rns8_pack_i64_kernel, dim3((total + 255) / 256), dim3(256),
+                    0, nullptr, source, residues, rows, cols, ld, prefix);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
     int8_t* d_residues,

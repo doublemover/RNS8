@@ -374,3 +374,16 @@ TEST_CASE("packed signed byte primitive and scalar control preserve every sign a
     }
   }
 }
+
+#include "backend_common/signed_pack_policy.hpp"
+TEST_CASE("signed pack calibration shares unchanged public crossover selector") {
+  using namespace rns8::detail;
+  for (int64_t cells : {1, 255, 256, 257, 4095, 4096, 4097, 8192}) {
+    CHECK(signed_pack_kernel(1, cells, cells, SignedPackVariant::fixed_prefix) == SignedPackKernel::fixed_prefix);
+    CHECK(signed_pack_kernel(1, cells, cells + 7, SignedPackVariant::generic) == SignedPackKernel::generic);
+    CHECK(signed_pack_kernel(1, cells, cells + 7, SignedPackVariant::public_selected) ==
+          (cells <= 4096 ? SignedPackKernel::small : SignedPackKernel::fixed_prefix));
+    CHECK(signed_pack_kernel(1, cells, cells, SignedPackVariant::public_selected) ==
+          (cells < 256 ? SignedPackKernel::small : cells <= 4096 ? SignedPackKernel::four_wide : SignedPackKernel::eight_wide));
+  }
+}

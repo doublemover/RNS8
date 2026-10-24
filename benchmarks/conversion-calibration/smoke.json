@@ -168,6 +168,78 @@
       "cells": 17,
       "prefix": 3,
       "scope": "cold"
+    },
+    {
+      "candidate": "import_public_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_public_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_fixed_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_fixed_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_generic_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_generic_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_public_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_public_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_fixed_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_fixed_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_generic_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_generic_padded_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
     }
   ]
 }

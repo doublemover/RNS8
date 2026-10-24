@@ -140,12 +140,24 @@
       "issue": 31,
       "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
       "url": "https://github.com/doublemover/RNS8/issues/31",
-      "state": "implementation_pending",
+      "state": "implementation_in_progress",
       "base_gap": "Calibration infrastructure and native hook-disabled bursts exist; public hook-disabled lane/minimal cold conversion/batch observation/event hierarchy/work units and prefix1 catalog corrections in relevant comments not all implemented.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Conversion v3 cold scope allocates/uploads only active candidate buffers, reports exact ownership capacity map, includes padded public-selected pack controls; hooks-disabled production timing retained.",
+          "files": [
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "tools/collect_crt_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_collect_crt_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Public benchmark hooks-disabled timing, event hierarchy/work units and prefix1 scenario label corrections still to implement."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         19,
@@ -740,7 +752,9 @@
       "regressions": [
         "tests/differential/test_hip_direct_finite_persistent_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+      ],
       "remaining": [
         "GPU differential/counter execution and performance evidence deferred."
       ],
@@ -804,7 +818,7 @@
       "issue": 69,
       "title": "[Research P2] Accelerate RNS conversion and CRT with fixed-matrix transforms and packed dot products",
       "url": "https://github.com/doublemover/RNS8/issues/69",
-      "state": "implementation_in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Fixed-matrix scalar/dot/WMMA conversion/CRT prototypes exist. Latest public signed dispatch still uses per-plane pack family and redundant synchronization; shared floor-reciprocal helper still has redundant second correction. Actual current commented implementation refinements not done.",
       "implementation": [
         {
@@ -815,14 +829,29 @@
             "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
             "src/backend_hip_direct/hip_direct_kernels.hip"
           ]
+        },
+        {
+          "summary": "One shared public signed selector plus explicit fixed-prefix-all20 and generic controls; padded/compact calibration, exact source/canary receipts, full-prefix and crossover manifests. Public defaults preserved.",
+          "files": [
+            "src/backend_common/signed_pack_policy.hpp",
+            "src/backend_hip_direct/hip_backend_pack.inc",
+            "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/signed-pack-crossovers.json"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_crt.cpp"
+        "tests/unit/test_crt.cpp",
+        "tools/test_collect_crt_calibration.py",
+        "tests/differential/test_hip_direct_rns_residue_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+      ],
       "remaining": [
-        "Shared explicit public-selected/fixed/generic conversion controls and complete calibration contracts still to implement; crossover qualification deferred."
+        "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -866,7 +895,9 @@
       "regressions": [
         "tests/unit/test_crt.cpp"
       ],
-      "commits": [],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+      ],
       "remaining": [
         "Finish paired family measurement receipt/harness; GPU compilation, ISA, differential and crossover evidence deferred."
       ],
@@ -1045,6 +1076,11 @@
       "kind": "syntax_only",
       "scope": "test_api.cpp, test_crt.cpp, test_hip_direct.cpp and changed core/backend host paths",
       "result": "passed; no test executables linked or run; HIP conditional paths not compiled"
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "Conversion calibrator (manifest macro syntax placeholder), shared backend host path, CRT unit and HIP differential translation units, Python collector/tests",
+      "result": "passed; HIP code and tests not executed"
     }
   ]
 }

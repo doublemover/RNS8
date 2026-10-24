@@ -1849,6 +1849,7 @@
         "byte-identity-and-packed-dot-controls",
         "data-verification-and-resources",
         "exact-import-and-crt-conversion-calibration",
+        "public-signed-pack-selection-and-minimal-cold-ownership",
         "reproducible-collection",
         "timing-boundaries"
       ]

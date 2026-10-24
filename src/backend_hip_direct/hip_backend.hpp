@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "backend_common/gram_plan.hpp"
+#include "backend_common/signed_pack_policy.hpp"
 #include <string>
 #include <vector>
 
@@ -455,6 +456,11 @@ rns8_status hip_direct_export_grouped_exact_wide_task_outputs_to_host(
     bool signed_output,
     uint64_t* dst,
     std::size_t dst_limb_elements);
+// Research controls share the exact public signed-pack selector. Every entry
+// is synchronous; inner wrappers only enqueue. No plan/default promotion.
+rns8_status hip_direct_pack_i64_variant_device(int device_id, const void* device_source,
+    void* device_residues, int64_t rows, int64_t cols, int64_t ld, uint32_t prefix,
+    SignedPackVariant variant);
 rns8_status hip_direct_pack_i64_device(
     int device_id,
     const int64_t* src,

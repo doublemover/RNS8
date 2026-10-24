@@ -38,10 +38,13 @@ std::string checksum(const void* data,size_t size) {
 }
 struct Buffers {
   hip_direct_device_buffer native,plain,tile,output,status;
-  void allocate(uint64_t cells,uint64_t prefix,uint64_t tile_bytes,uint64_t output_bytes) {
-    check(native.allocate(0,cells*8));check(plain.allocate(0,cells*prefix));
+  void allocate(uint64_t native_bytes,uint64_t plain_bytes,uint64_t tile_bytes,
+                uint64_t output_bytes,uint64_t status_bytes) {
+    if(native_bytes) check(native.allocate(0,native_bytes));
+    if(plain_bytes) check(plain.allocate(0,plain_bytes));
     if(tile_bytes) check(tile.allocate(0,tile_bytes));
-    check(output.allocate(0,output_bytes));check(status.allocate(0,4));
+    check(output.allocate(0,output_bytes));
+    if(status_bytes) check(status.allocate(0,status_bytes));
   }
   void release() {
     check(status.reset());check(output.reset());check(tile.reset());check(plain.reset());check(native.reset());
@@ -50,46 +53,59 @@ struct Buffers {
 }
 int main(int argc,char** argv) {
   try {
-    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes buffer allocation, host upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
+    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned|import_public_signed|import_fixed_signed|import_generic_signed|import_public_padded_signed|import_fixed_padded_signed|import_generic_padded_signed> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes candidate-specific buffer allocation, active-input upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
     if(argc==2 && std::string(argv[1])=="--help") {std::cout<<usage<<'\n';return 0;}
     if(argc!=7 && argc!=8) throw std::invalid_argument(usage);
     const std::string candidate=argv[1],run_id=argv[6],scope=argc==8?argv[7]:"resident";
-    const bool importing=candidate.rfind("import_",0)==0, signed_values=candidate=="import_scalar_signed" || candidate=="import_dot4_signed" || candidate=="import_wmma_signed";
+    const bool importing=candidate.rfind("import_",0)==0;
+    const bool signed_values=importing && candidate.size()>=7 && candidate.substr(candidate.size()-7)=="_signed";
+    const bool pack_control=candidate.rfind("import_public_",0)==0 || candidate.rfind("import_fixed_",0)==0 || candidate.rfind("import_generic_",0)==0;
+    const bool padded=pack_control && candidate.find("_padded_")!=std::string::npos;
+    const auto pack_variant=candidate.rfind("import_fixed_",0)==0?SignedPackVariant::fixed_prefix:
+        candidate.rfind("import_generic_",0)==0?SignedPackVariant::generic:SignedPackVariant::public_selected;
     const bool dot4=candidate=="fixed_dot4" || candidate=="import_dot4_signed" || candidate=="import_dot4_unsigned";
     const bool wmma=candidate=="fixed_wmma" || candidate=="import_wmma_signed" || candidate=="import_wmma_unsigned";
     const bool tile_input=candidate.rfind("tile_",0)==0;
     if((candidate!="garner" && candidate!="direct" && candidate!="balanced" && candidate!="fixed_dot4" && candidate!="fixed_wmma" &&
         candidate!="tile_balanced" && candidate!="tile_convert_balanced" && candidate!="tile_convert_garner" &&
-        candidate!="import_scalar_signed" && candidate!="import_scalar_unsigned" && candidate!="import_dot4_signed" && candidate!="import_dot4_unsigned" && candidate!="import_wmma_signed" && candidate!="import_wmma_unsigned") ||
+        candidate!="import_scalar_signed" && candidate!="import_scalar_unsigned" && candidate!="import_dot4_signed" && candidate!="import_dot4_unsigned" && candidate!="import_wmma_signed" && candidate!="import_wmma_unsigned" &&
+        candidate!="import_public_signed" && candidate!="import_fixed_signed" && candidate!="import_generic_signed" &&
+        candidate!="import_public_padded_signed" && candidate!="import_fixed_padded_signed" && candidate!="import_generic_padded_signed") ||
         (scope!="resident" && scope!="cold") || run_id.empty() || run_id.size()>128 ||
         run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)
       throw std::invalid_argument("invalid candidate/scope/run identity");
     const auto cells=number(argv[2],1,1048576),prefix=number(argv[3],1,20),
                repeats=number(argv[4],1,10000),warmups=number(argv[5],1,1000);
-    const uint64_t cols=cells%256==0?256:cells,rows=cells/cols;
+    const uint64_t cols=cells%256==0?256:cells,rows=cells/cols,ld=cols+(padded?7:0);
+    const uint64_t native_bytes=rows*ld*8;
     ResidueLayout plain,tiled;
     if(!make_residue_layout(ResidueLayoutKind::modulus_major,rows,cols,cols,prefix,0,0,plain) ||
        !make_residue_layout(ResidueLayoutKind::tile_major,rows,cols,cols,prefix,8,16,tiled))
       throw std::invalid_argument("conversion layout overflow");
-    const uint64_t tile_bytes=tile_input?tiled.bytes:0,output_bytes=uint64_t(cells)*24+64;
-    const uint64_t source_bytes=importing?uint64_t(cells)*8:tile_input?tile_bytes:plain.bytes;
-    // Native values, residue planes, three full output/canary vectors, tile
-    // staging, common device buffers and active-input readback. Fixed metadata,
-    // allocator bookkeeping, context/runtime/event objects are excluded.
-    const uint64_t envelope=uint64_t(cells)*16+plain.bytes*2+output_bytes*4+tile_bytes*2+source_bytes+16384;
+    const uint64_t tile_bytes=tile_input?tiled.bytes:0,output_bytes=uint64_t(cells)*(importing?prefix:24)+64;
+    const uint64_t source_bytes=importing?native_bytes:tile_input?tile_bytes:plain.bytes;
+    const uint64_t device_native_bytes=importing?native_bytes:0;
+    const uint64_t device_plain_bytes=!importing && candidate!="tile_balanced"?plain.bytes:0;
+    const uint64_t status_bytes=candidate=="garner" || candidate=="tile_convert_garner"?4:0;
+    const uint64_t probe_bytes=dot4 || wmma?4:0;
+    const uint64_t device_payload=device_native_bytes+device_plain_bytes+tile_bytes+output_bytes+status_bytes+probe_bytes;
+    // Actual retained host vectors plus candidate-specific device buffers.
+    // Includes poison/canaries, input audit and probe; excludes runtime metadata.
+    const uint64_t envelope=native_bytes+plain.bytes+output_bytes*3+tile_bytes+source_bytes+device_payload+16384;
     constexpr uint64_t budget=UINT64_C(768)*1024*1024;
     if(envelope>budget) throw std::invalid_argument("aggregate payload exceeds768MiB");
     const auto oracle_start=Clock::now();
-    std::vector<uint64_t> native(cells);
+    std::vector<uint64_t> native(rows*ld,UINT64_C(0x6363636363636363));
     std::vector<int8_t> residues(plain.bytes),tile_residues;
     std::vector<uint8_t> expected(output_bytes,99),observed(output_bytes,99),poison(output_bytes,99),source_observed(source_bytes);
     const cpp_int product=modulus_product(prefix);uint64_t state=3903;
     const uint64_t edges[]={0,1,UINT64_MAX,UINT64_C(1)<<63,UINT64_C(0x8080808080808080),UINT64_C(0x7f8081ff007fff80)};
     for(uint32_t cell=0;cell<cells;++cell) {
       const uint64_t r0=random_word(state),r1=random_word(state),r2=random_word(state);
-      native[cell]=cell%257<6?edges[cell%257]:r0;
+      const uint64_t raw=cell%257<6?edges[cell%257]:r0;
+      native[(cell/cols)*ld+cell%cols]=raw;
       cpp_int value;
-      if(importing) {value=native[cell];if(signed_values && (native[cell]>>63)) value-=cpp_int(1)<<64;}
+      if(importing) {value=raw;if(signed_values && (raw>>63)) value-=cpp_int(1)<<64;}
       else {value=(cpp_int(r0)+(cpp_int(r1)<<64)+(cpp_int(r2)<<128))%product;
         if(cell==0)value=0;if(cell==1)value=product-1;if(cell==2)value=product/2;}
       for(uint32_t p=0;p<prefix;++p) residues[size_t(p)*cells+cell]=centered_residue(value,kDefaultModuli[p]);
@@ -106,13 +122,14 @@ int main(int argc,char** argv) {
     const double oracle_ns=std::chrono::duration<double,std::nano>(Clock::now()-oracle_start).count();
     rns8_device_info device{};check(hip_direct_probe(0,device));
     const auto initialize=[&](Buffers& buffers) {
-      buffers.allocate(cells,prefix,tile_bytes,output_bytes);
-      check(hip_direct_copy_host_to_device(0,buffers.native.get(),native.data(),native.size()*8));
-      check(hip_direct_copy_host_to_device(0,buffers.plain.get(),residues.data(),residues.size()));
+      buffers.allocate(device_native_bytes,device_plain_bytes,tile_bytes,output_bytes,status_bytes);
+      if(device_native_bytes) check(hip_direct_copy_host_to_device(0,buffers.native.get(),native.data(),native_bytes));
+      if(device_plain_bytes && !tile_input) check(hip_direct_copy_host_to_device(0,buffers.plain.get(),residues.data(),residues.size()));
       if(tile_input) check(hip_direct_copy_host_to_device(0,buffers.tile.get(),tile_residues.data(),tile_residues.size()));
       check(hip_direct_copy_host_to_device(0,buffers.output.get(),poison.data(),poison.size()));
     };
     const auto convert=[&](Buffers& buffers) {
+      if(pack_control) {check(hip_direct_pack_i64_variant_device(0,buffers.native.get(),buffers.output.get(),rows,cols,ld,prefix,pack_variant));return;}
       if(dot4 || wmma) {bool started=false;const auto status=hip_direct_fixed_conversion_device(0,
           importing?buffers.native.get():buffers.plain.get(),buffers.output.get(),cells,prefix,(importing?(signed_values?0:1):2)+(wmma?3:0),4,started);
         check(status);if(!started) throw std::runtime_error("successful fixed conversion call did not report issued output");return;}
@@ -166,7 +183,7 @@ int main(int argc,char** argv) {
     hip_direct_timing_set_enabled(false);prepare();uint32_t calls=0;double elapsed=0;const auto start=Clock::now();
     do {execute();++calls;elapsed=std::chrono::duration<double,std::nano>(Clock::now()-start).count();}
     while(calls<4096 && (calls<16 || elapsed<250000000));verify();
-    nlohmann::json report={{"schema","rns8_crt_microcase_v2"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
+    nlohmann::json report={{"schema","rns8_crt_microcase_v3"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
       {"cells",cells},{"prefix",prefix},{"seed",3903},{"dataset_recipe","splitmix64_conversion_seed3903_extrema_v1"},
       {"repeats",repeats},{"warmups",warmups},{"device_requested",0},{"device_actual",0},
       {"backend_requested","hip-direct"},{"backend_actual","hip-direct"},{"device",device.name},{"target",device.gcn_arch},
@@ -179,12 +196,15 @@ int main(int argc,char** argv) {
       {"output_contract",importing?"centered_residue_planes":"canonical_three_limbs"},{"output_boundary",scope=="cold"?"host":"device"},
       {"reference_method",importing?"boost_cpp_int_all_operand_residues":"boost_cpp_int_all_canonical_values"},
       {"input_checksum",input_checksum},{"output_checksum",output_checksum},{"canary_bytes",64},
-      {"source_bytes_modeled",source_bytes},{"source_layout",importing?"native64_compact_v1":tile_input?"tile_major_8x16_v1":"modulus_major_v1"},
-      {"source_physical_bytes",source_bytes},{"logical_rows",rows},{"logical_cols",cols},
+      {"source_bytes_modeled",source_bytes},{"source_layout",importing?(padded?"native64_padded7_v1":"native64_compact_v1"):tile_input?"tile_major_8x16_v1":"modulus_major_v1"},
+      {"source_physical_bytes",source_bytes},{"logical_rows",rows},{"logical_cols",cols},{"logical_ld",ld},
+      {"pack_kernel",pack_control?nlohmann::json(signed_pack_kernel_name(signed_pack_kernel(rows,cols,ld,pack_variant,prefix))):nlohmann::json(nullptr)},
+      {"public_selector_measured",pack_control && pack_variant==SignedPackVariant::public_selected},
+      {"device_buffer_bytes",{{"native",device_native_bytes},{"plain",device_plain_bytes},{"tile",tile_bytes},{"output",output_bytes},{"status",status_bytes},{"probe",probe_bytes}}},
       {"conversion_inside_call",tile_input && candidate!="tile_balanced"},
       {"conversion_scratch_bytes",tile_input && candidate!="tile_balanced"?plain.bytes:0},
       {"output_bytes_modeled",uint64_t(cells)*(importing?prefix:24)},{"output_allocation_bytes",output_bytes},
-      {"probe_bytes",(dot4 || wmma)?4:0},{"common_status_capacity_bytes",4},{"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},
+      {"probe_bytes",probe_bytes},{"common_status_capacity_bytes",status_bytes},{"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},
       {"oracle_and_dataset_ns",oracle_ns},{"resident_setup_ns",scope=="resident"?nlohmann::json(setup_ns):nlohmann::json(nullptr)},
       {"timing_scope",scope=="cold"?"allocate_upload_convert_readback_checked_free":"resident_checked_convert_with_sync_no_upload_or_readback"},
       {"cache_state",scope=="cold"?"fresh_buffers_each_call":"repeated_same_buffers"},{"actual_hbm_bytes",nullptr},
