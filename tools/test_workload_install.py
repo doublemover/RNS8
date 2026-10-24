@@ -71,12 +71,19 @@ def main() -> int:
     for library in ("GMP","FLINT"):
         enabled=values.get("RNS8_WORKLOAD_ENABLE_"+library,values.get("RNS8_ENABLE_"+library,"OFF"))
         command.append("-DRNS8_WORKLOAD_ENABLE_"+library+"="+enabled)
+    if values.get("RNS8_ENABLE_WINDOWS_CLANG_ASAN") == "ON":
+        command.append("-DCMAKE_CXX_FLAGS=" + values.get("CMAKE_CXX_FLAGS", "") +
+                       " /fsanitize=address /D_DISABLE_STL_ANNOTATION /D_DISABLE_STRING_ANNOTATION /D_DISABLE_VECTOR_ANNOTATION")
     run(command)
     run([cmake, "--build", str(consumer), "--parallel", "2", *config], timeout=300)
     for name in PROGRAMS:
         filename = "rns8-workload-" + name + (".exe" if os.name == "nt" else "")
         candidates = list(consumer.glob("**/" + filename))
         if len(candidates) != 1: raise RuntimeError("consumer executable missing/ambiguous: " + filename)
+        if values.get("RNS8_ENABLE_WINDOWS_CLANG_ASAN") == "ON":
+            runtime = build / "clang_rt.asan_dynamic-x86_64.dll"
+            if not runtime.is_file(): raise RuntimeError("parent sanitizer runtime missing")
+            shutil.copy2(runtime, candidates[0].parent / runtime.name)
         command = [str(candidates[0]), "--backend", args.backend, "--device",
                    "-1" if args.backend == "cpu-reference" else "0", "--size", "tiny", "--repeats", "1", "--warmups", "0", "--json"]
         result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=90)

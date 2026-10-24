@@ -26,7 +26,9 @@ def observed(case,epoch):
 
 
 def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
-    case=case or BASE;capture=contract(case,run_id,repeats,warmups);synthetic_identity(capture);panel=case["mode"]=="stream";reuse=case["reuse"]
+    case=case or BASE;capture=contract(case,run_id,repeats,warmups)
+    identity={};synthetic_identity(identity);capture["build_manifest"]=identity["build_manifest"]
+    panel=case["mode"]=="stream";reuse=case["reuse"]
     allocations=[]
     if not panel:
         for cells in (case["m"]*case["k"],case["k"]*case["n"],case["m"]*case["n"]):

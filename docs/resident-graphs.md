@@ -329,3 +329,7 @@ the consolidated qualification campaign. Additional source fixtures cover
 separate-execution narrow output followed by wider export, GEMM, prepared and
 graph admission, complete native reimport, adaptive own/equivalent-plan exports,
 plan destruction, invalidation and a synthetic fingerprint-collision rejection.
+
+Synchronous strict-wrap graphs use the CPU byte-limb backend or direct HIP.
+The CPU byte-limb graph admits only wrap64 MatMul nodes; exact-wide, finite and
+conversion nodes retain their existing backend requirements.

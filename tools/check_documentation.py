@@ -94,6 +94,9 @@ def anchors(text, html=False):
 
 def links(text, html=False):
     source = text if html else prose(text)
+    if not html:
+        source = re.sub(r"(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)",
+                        lambda m: re.sub(r"[^\n]", " ", m[0]), source)
     parsed = HtmlReferences()
     parsed.feed(source)
     found = list(parsed.links)

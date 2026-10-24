@@ -113,6 +113,7 @@ function(rns8_compile_hip_source out_var source)
       -std=c++17
       -O2
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/src"
       ${_include_args}
       ${_source_compile_options}
       -c "${_source_abs}"

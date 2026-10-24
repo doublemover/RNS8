@@ -270,8 +270,8 @@ rns8_status rns8_create_resident_graph(
     if (!out) return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     if (!ctx || !nodes || !count || count > 4096) return RNS8_INVALID_ARGUMENT;
-    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT)
-      return RNS8_UNSUPPORTED_BACKEND;
+    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT &&
+        ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) return RNS8_UNSUPPORTED_BACKEND;
     auto graph = std::make_unique<rns8_resident_graph>();
     graph->ctx = ctx;
     graph->nodes.assign(nodes, nodes + count);
@@ -282,6 +282,9 @@ rns8_status rns8_create_resident_graph(
       const auto& node = nodes[i];
       if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
         return RNS8_INVALID_ARGUMENT;
+      if (ctx->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+          (node.kind != RNS8_RESIDENT_MATMUL || !node.plan ||
+           node.plan->desc.semantics != RNS8_WRAP_U64_MOD_2_64)) return RNS8_UNSUPPORTED_BACKEND;
       if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
           (node.a_imag || node.b_imag || node.c_imag || node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
         return RNS8_INVALID_ARGUMENT;

@@ -92,7 +92,8 @@ typedef struct rns8_graph_completion_token {
 
 /* Ordered exact-wide MatMul/BaseExtend/ExactAxpby/ComplexMatMul DAG, CPU or direct HIP.
  * MATMUL also admits bounded i64/u64, strict wrap64 byte-limb edges and explicit
- * finite ring/field edges with matching moduli. Bounded nodes retain each plan
+ * finite ring/field edges with matching moduli. CPU wrap64-only graphs use
+ * RNS8_BACKEND_WRAP64_BYTE_LIMB. Bounded nodes retain each plan
  * caller-supplied output-bound contract; no exact-wide proof is inferred.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing

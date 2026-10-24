@@ -30,6 +30,10 @@ def main():
             assert layout["input_replicas"] == 2 and layout["output_replicas"] == 1
             assert not layout["hardware_qualified"]
             assert not entry["compatibility"]["cross_feature_runtime_qualified"]
+        proof = composition(baseline, 251)
+        assert proof["algebraically_verified"]
+        assert proof["verdicts"]["physical_layout_correctness"] == "unknown"
+        assert proof["verdicts"]["target_execution"] == "not_run"
         try:
             composition(replace(baseline, safe_k=262144), 256)
         except ValueError:

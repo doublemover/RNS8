@@ -51,6 +51,8 @@ def composition(v, modulus):
     """Prove one slab with a centered carry; induction covers further slabs.
 
     Executable map source is bound separately; algebra does not prove device lane behavior.
+    Replicated WMMA fragments are not injective layout transforms in this proof model;
+    only the reduced values enter the slab proof, leaving physical layout unknown.
     The arithmetic certificate separately proves exact native modular encoding.
     """
     low, high = (0, (1 << 64) - 1) if v.unsigned_inputs else (-(1 << 63), (1 << 63) - 1)
@@ -59,10 +61,8 @@ def composition(v, modulus):
         Node("native_b", "input", bits=64, signed=not v.unsigned_inputs, interval=(low, high)),
         Node("residue_a", "centered_reduce", ("native_a",), bits=8, modulus=modulus),
         Node("residue_b", "centered_reduce", ("native_b",), bits=8, modulus=modulus),
-        Node("fragment_a", "layout", ("residue_a",), bits=8),
-        Node("fragment_b", "layout", ("residue_b",), bits=8),
         Node("carry", "input", bits=8, interval=(-(modulus // 2), (modulus - 1) // 2), modulus=modulus),
-        Node("slab", "dot", ("fragment_a", "fragment_b", "carry"), count=v.safe_k),
+        Node("slab", "dot", ("residue_a", "residue_b", "carry"), count=v.safe_k),
         Node("output", "centered_reduce", ("slab",), bits=8, modulus=modulus),
     )
     result = verify_composition(nodes)

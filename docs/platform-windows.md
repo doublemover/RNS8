@@ -105,3 +105,10 @@ The [October 23 all-feature record](local-all-features-20261023.md) and
 specific compiled stack and observed subset. This guide's nondefault-root
 commands have been checked against current interfaces; a clean installation at
 those illustrative paths has not been exercised.
+
+The Windows clang-cl sanitizer option instruments all project C++ targets and
+links the matching LLVM runtime thunk. Use the `windows-clang-asan-debug` preset
+for libFuzzer: its static CRT and `x64-windows-static` packages must agree with
+LLVM's shipped fuzzer library. A dynamic-CRT fuzzer configuration is rejected
+before building. Installed workload checks copy the selected ASan DLL beside
+consumer executables and preserve instrumentation and CRT selection.

@@ -6,7 +6,7 @@ TEST_CASE("resident wrap DAGs preserve unsigned low words through unpublished in
     if(hip) continue;
 #endif
     rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
-    options.requested_backend=hip?RNS8_BACKEND_HIP_DIRECT:RNS8_BACKEND_CPU_REFERENCE;
+    options.requested_backend=hip?RNS8_BACKEND_HIP_DIRECT:RNS8_BACKEND_WRAP64_BYTE_LIMB;
     rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(hip?0:-1,&options,&ctx)==RNS8_SUCCESS);
     {
       constexpr int n=3;
@@ -33,6 +33,12 @@ TEST_CASE("resident wrap DAGs preserve unsigned low words through unpublished in
           expected[r*n+c]=low64(sum);
         }
         values.push_back(std::move(expected));
+      }
+      if (!hip) {
+        auto invalid = nodes[0]; invalid.kind = RNS8_RESIDENT_EXACT_AXPBY;
+        rns8_resident_graph* rejected = nullptr;
+        REQUIRE(rns8_create_resident_graph(ctx,&invalid,1,&rejected)==RNS8_UNSUPPORTED_BACKEND);
+        REQUIRE(rejected==nullptr);
       }
       rns8_resident_graph* graph=nullptr;
       REQUIRE(rns8_create_resident_graph(ctx,nodes.data(),3,&graph)==RNS8_SUCCESS);

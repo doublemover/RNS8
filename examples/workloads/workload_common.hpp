@@ -303,6 +303,12 @@ inline Json device_info(const rns8::Context& context, const Options& options) {
           {"hip_runtime_version", info.hip_runtime_version}, {"hip_driver_version", info.hip_driver_version},
           {"global_mem_bytes", info.global_mem_bytes}, {"gpu_execution", options.backend != RNS8_BACKEND_CPU_REFERENCE}};
 }
+inline Json storage_info(const rns8::Matrix& matrix) {
+  const auto info = matrix.storage_info();
+  return {{"host_residue_bytes", info.host_residue_bytes}, {"device_residue_bytes", info.device_residue_bytes},
+          {"host_native_bytes", info.host_native_bytes}, {"device_native_bytes", info.device_native_bytes},
+          {"layout", info.layout_version}, {"source_version", info.source_version}};
+}
 inline Json plan_info(const rns8::Plan& plan) {
   const auto backend = plan.backend_info(); const auto schedule = plan.schedule_info();
   return {{"backend_selected", backend_name(backend.backend)}, {"selected_kernel", backend.selected_kernel},

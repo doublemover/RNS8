@@ -35,6 +35,10 @@ class MarkdownTest(unittest.TestCase):
             self.assertIn(expected, targets)
         self.assertNotIn("missing.md", targets)
 
+    def test_inline_code_is_not_reference_link_syntax(self):
+        text = "`[plane][column][K-word]` ``[ignored](missing.md)`` [real](README.md)"
+        self.assertEqual([target for _, target in links(text)], ["README.md"])
+
     def test_html_links_and_explicit_anchors(self):
         text = '<h1 id="a">Title</h1><a name="old" href="../README.md#intro">Go</a><img src="img.png">'
         self.assertEqual(anchors(text, html=True), {"a", "old"})

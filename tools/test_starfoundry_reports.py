@@ -221,6 +221,9 @@ def starfoundry_capture() -> dict:
         "stream_safety": "single_stream_owner",
         "promotion_eligible": False,
     }
+    for counters in ("setup_allocation_delta", "measured_repeat_allocation_delta"):
+        capture["workspace_arena"][counters].update(
+            h2d_calls=0, h2d_bytes=0, d2h_calls=0, d2h_bytes=0, d2d_calls=0, d2d_bytes=0)
     capture["streaming_overlap"] = {
         "requested": True,
         "pipeline": "pack_next_gemm_current_export_previous",

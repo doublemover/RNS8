@@ -162,7 +162,8 @@ TEST_CASE("whole-basis consumers reject narrowed exact-wide computed storage", "
     rns8_context_options options{}; options.struct_size=sizeof(options); options.abi_version=RNS8_ABI_VERSION;
     options.requested_backend=hip?RNS8_BACKEND_HIP_DIRECT:RNS8_BACKEND_CPU_REFERENCE;
     rns8_context* ctx=nullptr; REQUIRE(rns8_create_context(hip?0:-1,&options,&ctx)==RNS8_SUCCESS);
-    auto desc=exact_desc(semantics,2,2,2); desc.max_prefix=9; desc.requested_backend=options.requested_backend;
+    // Admit full-width native products while leaving at least one physical plane unwritten.
+    auto desc=exact_desc(semantics,2,2,2); desc.max_prefix=18; desc.requested_backend=options.requested_backend;
     rns8_plan* plan=nullptr; rns8_workspace* workspace=nullptr;
     REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
