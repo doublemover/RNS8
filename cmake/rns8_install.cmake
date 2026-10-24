@@ -53,6 +53,9 @@ install(
     examples/downstream-cmake/README.md
     examples/downstream-cmake/main.cpp
     examples/downstream-cmake/exact_wide_cpu_continuation.cpp
+    examples/downstream-cmake/sparse_finite_ring.cpp
+    examples/downstream-cmake/sparse_bounded_i64.cpp
+    examples/downstream-cmake/explicit_sparse_common.hpp
     examples/downstream-cmake/noninteractive_errors.hpp
   DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/downstream-cmake"
   COMPONENT Development

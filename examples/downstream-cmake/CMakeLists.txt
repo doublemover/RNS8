@@ -16,8 +16,11 @@ endif()
 
 add_executable(rns8-downstream-smoke main.cpp)
 add_executable(rns8-downstream-continuation exact_wide_cpu_continuation.cpp)
+add_executable(rns8-downstream-sparse-finite-ring sparse_finite_ring.cpp)
+add_executable(rns8-downstream-sparse-bounded-i64 sparse_bounded_i64.cpp)
 enable_testing()
-foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation)
+foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
+    rns8-downstream-sparse-finite-ring rns8-downstream-sparse-bounded-i64)
   target_link_libraries(${consumer} PRIVATE ${RNS8_DOWNSTREAM_TARGET})
   target_compile_features(${consumer} PRIVATE cxx_std_17)
   if(MSVC)

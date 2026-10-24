@@ -21,11 +21,19 @@ reference contexts.
 | [Strict wrap64](wrap64_u64_oneshot.cpp) | `rns8-example-wrap64-u64-oneshot` | Low 64 bits with byte-limb semantics |
 | [Exact-wide export](exact_wide_limb_export.cpp) | `rns8-example-exact-wide-limb-export` | Fixed-width limbs from range-proven residues |
 | [CPU continuation](downstream-cmake/exact_wide_cpu_continuation.cpp) | `rns8-example-exact-wide-cpu-continuation` | Prefix selection, budget rollback and matching-prefix export |
+| [Finite-ring Sparse-A](downstream-cmake/sparse_finite_ring.cpp) | `rns8-example-sparse-finite-ring` | Explicit 2:4 compression/import, composite mod250 and independent scalar reference |
+| [Bounded signed Sparse-A](downstream-cmake/sparse_bounded_i64.cpp) | `rns8-example-sparse-bounded-i64` | Per-plane centered default-basis bytes, bound4096 and independent exact signed reference |
 
 Run a target's executable from the configured build directory. For example,
 `build/windows-msvc-hip-debug/rns8-example-bounded-i64-oneshot.exe` runs the CPU
 example even though that build also enables HIP. The
 [installed-package consumer](downstream-cmake/README.md) explains static/shared
 linkage and the continuation workflow without private repository headers.
-Explicit structured sparse examples and their acceptance remain owned by
-[#51](https://github.com/doublemover/RNS8/issues/51).
+The new structured Sparse-A examples also ship with that standalone installed
+consumer and use only public headers/targets. They explicitly request CPU;
+the library expands the structure and executes its dense CPU reference path.
+They do not exercise GPU sparse instructions or report sparse acceleration.
+Both examples and their new package registrations are authored only, pending
+the consolidated validation batch. Target-qualified GPU examples, a generated
+capability/profile matrix, hybrid routing and measured preparation/reuse curves
+remain open under [#51](https://github.com/doublemover/RNS8/issues/51).
