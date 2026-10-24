@@ -11,6 +11,8 @@ struct rns8_resident_graph {
   struct OutputProof {
     boost::multiprecision::cpp_int bound;
     rns8_exact_matrix_ranges ranges;
+    boost::multiprecision::cpp_int imag_bound;
+    rns8::detail::ComplexResidueScratch complex_scratch;
   };
   struct Input {
     const rns8_matrix* matrix;
@@ -32,9 +34,12 @@ struct rns8_resident_graph {
   rns8_async_failure_info async_failure{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_unique_event completion_event;
+  rns8::detail::hip_unique_stream synchronous_stream;
+  rns8::detail::hip_direct_device_buffer complex_storage;
+  std::vector<rns8::detail::ComplexResidueScratch> complex_resources;
   hipGraph_t captured_graph = nullptr;
   hipGraphExec_t captured_executable = nullptr;
-  std::vector<std::array<const void*, 4>> captured_addresses;
+  std::vector<std::array<const void*, 8>> captured_addresses;
   ~rns8_resident_graph() {
     if (!captured_executable && !captured_graph && !completion_event.get()) return;
     rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
@@ -198,7 +203,6 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
       continue;
     }
     if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
-      if (pending) return RNS8_UNSUPPORTED_BACKEND;
       status = validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a_imag, *node.b_imag, *node.c_imag, false);
       if (status != RNS8_SUCCESS) return status;
       if (node.c_imag->generation_exhausted) return RNS8_RANGE_ERROR;
@@ -224,6 +228,8 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
           node.complex_method == RNS8_COMPLEX_THREE_REAL_PRODUCTS ? ComplexProductMethod::three_real : ComplexProductMethod::four_real,
           node.max_staged_residue_bytes);
       if (admitted.status != RNS8_SUCCESS) return admitted.status;
+      if (pending) pending->push_back({admitted.real_bound, {}, admitted.imag_bound,
+          static_cast<const ComplexResidueScratch&>(admitted)});
       rns8_matrix real, imag;
       real.exact_range_prefix = imag.exact_range_prefix = node.plan->prefix;
       real.exact_max_magnitude.swap(admitted.real_bound);
@@ -363,6 +369,21 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
     out->completed_nodes = 0; out->failed_node = UINT32_MAX; out->epoch = graph->epoch;
     out->operation_status = prove_graph(*graph, out->failed_node, true);
     if (out->operation_status != RNS8_SUCCESS) return out->operation_status;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    // Prepared complex graphs reuse their bounded scratch and owned stream.
+    // Keep a failed drain attached to the graph exactly as for borrowed streams.
+    if (graph->hip_prepared && graph->complex_storage.get()) {
+      rns8_graph_completion_token token{};
+      auto status = rns8_submit_resident_graph_hip(graph, graph->synchronous_stream.get(), &token);
+      if (status != RNS8_SUCCESS) {
+        out->operation_status = status; out->epoch = graph->epoch;
+        return status;
+      }
+      status = rns8_wait_resident_graph_hip(graph, token, out);
+      if (status != RNS8_SUCCESS) out->operation_status = status;
+      return status == RNS8_SUCCESS ? out->operation_status : status;
+    }
+#endif
     out->epoch = ++graph->epoch;
     graph->async_failure = {};
     graph->cancel_requested = false;

@@ -1,10 +1,10 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_complex_sum(const int8_t *, const int8_t *, int8_t *, int, int, int, int,
-                                    int, uint32_t);
+                                    int, uint32_t, void*);
 extern "C" int rns8_hip_complex_combine(const int8_t *, int8_t *, int8_t *, int, int, int, uint32_t,
-                                        bool);
+                                        bool, void*);
 extern "C" int rns8_hip_complex_commit(const int8_t *, const int8_t *, int8_t *, int8_t *, int, int,
-                                       int, int, int);
+                                       int, int, int, void*);
 #endif
 rns8_status hip_direct_gemm_complex_residues(int device_id,
                                              const ComplexResiduePair<const int8_t> &a,
@@ -38,7 +38,7 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
         const auto launch = static_cast<hipError_t>(rns8_hip_complex_sum(
             pair.real.data, pair.imag.data, output, static_cast<int>(pair.real.rows),
             static_cast<int>(pair.real.cols), static_cast<int>(pair.real.ld),
-            static_cast<int>(pair.imag.ld), basis.prefix, basis.modulus));
+            static_cast<int>(pair.imag.ld), basis.prefix, basis.modulus, nullptr));
         return launch == hipSuccess ? hipDeviceSynchronize() : launch;
       });
     };
@@ -68,7 +68,7 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
   auto error = timed_hip_operation("complex_residue_recombine", [&]() {
     const auto launch = static_cast<hipError_t>(rns8_hip_complex_combine(
         products, stage_real, stage_imag, static_cast<int>(c.real.rows),
-        static_cast<int>(c.real.cols), basis.prefix, basis.modulus, three_real));
+        static_cast<int>(c.real.cols), basis.prefix, basis.modulus, three_real, nullptr));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
   if (error != hipSuccess)
@@ -80,12 +80,56 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
     const auto launch = static_cast<hipError_t>(rns8_hip_complex_commit(
         stage_real, stage_imag, c.real.data, c.imag.data, static_cast<int>(c.real.rows),
         static_cast<int>(c.real.cols), static_cast<int>(c.real.ld), static_cast<int>(c.imag.ld),
-        basis.prefix));
+        basis.prefix, nullptr));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status hip_direct_enqueue_complex_no_publish(const rns8_resident_node& node,
+    const ComplexResidueScratch& resources,void* scratch,void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(!scratch || !stream) return RNS8_INVALID_ARGUMENT;
+  const auto& plan=*node.plan;
+  const int m=static_cast<int>(plan.desc.m),n=static_cast<int>(plan.desc.n),k=static_cast<int>(plan.desc.k);
+  const int prefix=static_cast<int>(plan.prefix);
+  const bool three=node.complex_method==RNS8_COMPLEX_THREE_REAL_PRODUCTS;
+  auto* sum_a=static_cast<int8_t*>(scratch);
+  auto* sum_b=sum_a+resources.sum_a_bytes;
+  auto* products=sum_b+resources.sum_b_bytes;
+  auto* real=products+resources.products*resources.product_bytes;
+  auto* imag=real+resources.product_bytes;
+  const auto bytes=[](const rns8_matrix* matrix){return static_cast<const int8_t*>(matrix->hip_residues);};
+  if(three) {
+    auto error=rns8_hip_complex_sum(bytes(node.a),bytes(node.a_imag),sum_a,m,k,
+        static_cast<int>(node.a->desc.cols),static_cast<int>(node.a_imag->desc.cols),prefix,0,stream);
+    if(error!=hipSuccess) return RNS8_BACKEND_FAILURE;
+    error=rns8_hip_complex_sum(bytes(node.b),bytes(node.b_imag),sum_b,k,n,
+        static_cast<int>(node.b->desc.cols),static_cast<int>(node.b_imag->desc.cols),prefix,0,stream);
+    if(error!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  }
+  const int8_t* left[]{bytes(node.a),bytes(node.a_imag),three?sum_a:bytes(node.a),bytes(node.a_imag)};
+  const int8_t* right[]{bytes(node.b),bytes(node.b_imag),three?sum_b:bytes(node.b_imag),bytes(node.b)};
+  const int ld_left[]{static_cast<int>(node.a->desc.cols),static_cast<int>(node.a_imag->desc.cols),
+      three?k:static_cast<int>(node.a->desc.cols),static_cast<int>(node.a_imag->desc.cols)};
+  const int ld_right[]{static_cast<int>(node.b->desc.cols),static_cast<int>(node.b_imag->desc.cols),
+      three?n:static_cast<int>(node.b_imag->desc.cols),static_cast<int>(node.b->desc.cols)};
+  for(uint32_t product=0;product<resources.products;++product) {
+    const auto status=launch_direct_rns_gemm_no_sync(left[product],right[product],
+        products+product*resources.product_bytes,m,n,k,ld_left[product],ld_right[product],n,prefix,stream);
+    if(status!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  }
+  auto error=rns8_hip_complex_combine(products,real,imag,m,n,prefix,0,three,stream);
+  if(error!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  error=rns8_hip_complex_commit(real,imag,static_cast<int8_t*>(node.c->hip_residues),
+      static_cast<int8_t*>(node.c_imag->hip_residues),m,n,static_cast<int>(node.c->desc.cols),
+      static_cast<int>(node.c_imag->desc.cols),prefix,stream);
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)node;(void)resources;(void)scratch;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

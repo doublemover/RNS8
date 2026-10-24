@@ -28,10 +28,12 @@ template <class Byte> struct ComplexResiduePair {
 struct ComplexMagnitudeBounds {
   boost::multiprecision::cpp_int ar, ai, br, bi;
 };
-struct ComplexResiduePlan {
-  rns8_status status = RNS8_INVALID_ARGUMENT;
+struct ComplexResidueScratch {
   uint64_t sum_a_bytes = 0, sum_b_bytes = 0, product_bytes = 0, scratch_bytes = 0;
   uint32_t products = 0;
+};
+struct ComplexResiduePlan : ComplexResidueScratch {
+  rns8_status status = RNS8_INVALID_ARGUMENT;
   boost::multiprecision::cpp_int real_bound, imag_bound;
 };
 inline bool valid_complex_basis(const ComplexResidueBasis &basis) {

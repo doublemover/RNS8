@@ -235,7 +235,7 @@ Preparation reuses the same support predicate, then performs current admission.
 ## Paired complex nodes
 
 `RNS8_RESIDENT_COMPLEX_MATMUL` composes the experimental exact-wide signed
-complex API into synchronous CPU/direct-HIP graphs. It pairs `a/a_imag`,
+complex API into CPU/direct-HIP graphs. It pairs `a/a_imag`,
 `b/b_imag` and `c/c_imag`, chooses explicit 3M or 4M, and uses
 `max_staged_residue_bytes` as the scratch budget. Each output has one distinct
 writer and can feed later ordinary or complex nodes. Input/output cross-aliases,
@@ -246,8 +246,24 @@ complex arithmetic/resource admission routine as standalone execution. It
 retains all four input and both output handles, binds every external generation,
 and checks all downstream ranges before the first write. A successful node
 publishes both components together. Synchronous graph failure can retain earlier
-successful nodes, exactly as for ordinary nodes. Async/capture support queries
-reject graphs containing complex nodes; no async paired-publication claim is made.
+successful nodes, exactly as for ordinary nodes, before HIP preparation.
+
+Fixed-prefix direct-HIP complex nodes also support prepared borrowed-stream
+submission and owned capture/replay. Preparation allocates one device arena sized
+to the largest admitted node scratch request; ordered nodes reuse that arena.
+Each node must independently fit its declared budget. Capture binds all six
+component addresses and the arena address. Preparation is idempotent and does
+not replace captured storage. Submission reruns range and generation admission,
+reserves both output writers, and performs no device allocation or host transfer.
+Completion publishes both component proofs only after the final graph event;
+cancellation leaves attempted outputs non-current. Failed drains retain graph
+reservations and storage until successful recovery. Finite-ring complex graphs
+remain unsupported.
+
+Synchronous execution of a HIP-prepared complex graph reuses the arena on a
+retained private stream and waits through the same completion mechanism. It
+therefore uses whole-graph publication: failure does not publish earlier nodes.
+CPU and unprepared synchronous execution retain per-node publication.
 
 Authored CPU/Boost and direct-HIP fixtures cover both methods, downstream real
 GEMM consuming both components, stale input refresh, retained output ownership,

@@ -32,6 +32,12 @@ rns8_status hip_direct_gemm_complex_residues(
     const ComplexResiduePair<const int8_t>& b, const ComplexResiduePair<int8_t>& c,
     const ComplexMagnitudeBounds& bounds, ComplexProductMethod method,
     uint64_t max_scratch_bytes, bool& commit_started);
+struct ComplexResidueScratch;
+// Private prepared complex enqueue: caller has admitted complete operands,
+// exact component bounds, disjoint scratch capacity and paired output writers.
+// No allocation, synchronization, proof evaluation or publication here.
+rns8_status hip_direct_enqueue_complex_no_publish(const rns8_resident_node& node,
+    const ComplexResidueScratch& resources,void* scratch,void* stream);
 // Private synchronous heterogeneous native-input queue. Caller owns integer
 // range proofs and output invalidation once outputs_may_be_written is set.
 rns8_status hip_direct_gemm_native_wmma_queue(

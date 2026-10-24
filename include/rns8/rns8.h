@@ -68,7 +68,8 @@ typedef struct rns8_resident_node {
    * only. Each output is a distinct graph value and publication is paired.
    * Uses max_staged_residue_bytes as its explicit scratch budget. All unrelated
    * extension/epilogue/export fields must be zero. Other kinds require these
-   * component fields null and complex_method zero. Synchronous graph only. */
+   * component fields null and complex_method zero. Fixed-prefix direct-HIP
+   * graphs also support prepared stream submission and owned capture. */
   const rns8_matrix* a_imag;
   const rns8_matrix* b_imag;
   rns8_matrix* c_imag;

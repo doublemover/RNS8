@@ -4,7 +4,7 @@ rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) 
   if (!direct_hip_compiled() || graph.ctx->backend != RNS8_BACKEND_HIP_DIRECT)
     return RNS8_UNSUPPORTED_BACKEND;
   for (const auto& node : graph.nodes) {
-    if ((node.kind != RNS8_RESIDENT_MATMUL && node.kind != RNS8_RESIDENT_EXACT_AXPBY) ||
+    if ((node.kind != RNS8_RESIDENT_MATMUL && node.kind != RNS8_RESIDENT_EXACT_AXPBY && node.kind != RNS8_RESIDENT_COMPLEX_MATMUL) ||
         node.plan->backend != RNS8_BACKEND_HIP_DIRECT || !node.plan->tile_schedule.empty() ||
         (!rns8::detail::exact_wide_semantics(node.plan->desc.semantics) &&
          !(node.kind==RNS8_RESIDENT_MATMUL && (uses_finite_storage(node.plan->desc.semantics) ||
@@ -24,8 +24,16 @@ void invalidate_owned_graph_output(rns8_matrix& output) {
   clear_byte_limb_current(output);
   clear_native_current(output);
 }
-rns8_status enqueue_resident_node(const rns8_resident_node &node,
-                                  void *stream) {
+rns8_status enqueue_resident_node(rns8_resident_graph& graph, size_t index, void *stream) {
+  const auto& node = graph.nodes[index];
+  if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    return rns8::detail::hip_direct_enqueue_complex_no_publish(node,
+        graph.complex_resources[index], graph.complex_storage.get(), stream);
+#else
+    return RNS8_UNSUPPORTED_BACKEND;
+#endif
+  }
   if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
     return rns8::detail::wrap64_hip_enqueue_byte_limbs(
         node.a->hip_byte_limbs,node.b->hip_byte_limbs,node.c->hip_byte_limbs,
@@ -39,12 +47,23 @@ rns8_status enqueue_resident_node(const rns8_resident_node &node,
              : rns8::detail::hip_direct_enqueue_rns_no_publish(
                    node.plan, node.a, node.b, node.c, stream);
 }
-std::array<const void *, 4>
-resident_node_addresses(const rns8_resident_node &node) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+std::array<const void *, 8>
+resident_node_addresses(const rns8_resident_graph& graph, size_t index) {
+  const auto& node = graph.nodes[index];
   if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
     return {node.a->hip_byte_limbs,node.b->hip_byte_limbs,node.c->hip_byte_limbs,nullptr};
   return {node.a->hip_residues, node.b->hip_residues, node.c->hip_residues,
-          node.d ? node.d->hip_residues : nullptr};
+          node.d ? node.d->hip_residues : nullptr,
+          node.a_imag ? node.a_imag->hip_residues : nullptr,
+          node.b_imag ? node.b_imag->hip_residues : nullptr,
+          node.c_imag ? node.c_imag->hip_residues : nullptr,
+          node.c_imag ? graph.complex_storage.get() : nullptr};
+}
+#endif
+void invalidate_owned_graph_outputs(const rns8_resident_node& node) {
+  invalidate_owned_graph_output(*node.c);
+  if (node.c_imag) invalidate_owned_graph_output(*node.c_imag);
 }
 void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
                                uint32_t failed) {
@@ -56,6 +75,7 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
   for (size_t i = 0; i < graph.nodes.size(); ++i) {
     const auto &node = graph.nodes[i];
     node.c->in_flight_writer = false;
+    if (node.c_imag) node.c_imag->in_flight_writer = false;
     if (status == RNS8_SUCCESS) {
       if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
         mark_output_device_byte_limbs_current(*node.c);
@@ -64,6 +84,10 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
         continue;
       }
       mark_output_device_residues_current(*node.c, node.plan);
+      if (node.c_imag) {
+        mark_output_device_residues_current(*node.c_imag, node.plan);
+        rns8::detail::commit_exact_range(*node.c_imag, *node.plan, graph.pending_proofs[i].imag_bound);
+      }
       if(uses_finite_storage(node.plan->desc.semantics)) {
         node.c->finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);
         node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();
@@ -158,7 +182,8 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
         workspaces.push_back(node.workspace);
     }
     uint32_t failed = UINT32_MAX;
-    const auto status = prove_graph(*graph, failed, true);
+    std::vector<rns8_resident_graph::OutputProof> proofs;
+    const auto status = prove_graph(*graph, failed, true, &proofs);
     if (status != RNS8_SUCCESS)
       return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -168,6 +193,25 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
     if (!graph->completion_event &&
         graph->completion_event.create() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+    if (!graph->hip_prepared) {
+      std::vector<rns8::detail::ComplexResidueScratch> resources;
+      resources.reserve(proofs.size());
+      uint64_t bytes = 0;
+      for (const auto& proof : proofs) {
+        resources.push_back(proof.complex_scratch);
+        bytes = std::max(bytes, proof.complex_scratch.scratch_bytes);
+      }
+      // Nodes execute serially, so a single maximum-sized arena suffices.
+      // Once prepared, never move its address: captured graphs refer to it.
+      if (bytes) {
+        if (!graph->synchronous_stream.get() &&
+            graph->synchronous_stream.create_non_blocking() != hipSuccess)
+          return RNS8_BACKEND_FAILURE;
+        const auto allocation = graph->complex_storage.allocate(graph->ctx->device_id, bytes);
+        if (allocation != RNS8_SUCCESS) return allocation;
+      }
+      graph->complex_resources.swap(resources);
+    }
     graph->hip_workspaces.swap(workspaces);
     graph->hip_prepared = true;
     return RNS8_SUCCESS;
@@ -204,7 +248,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
           graph->captured_addresses.size() != graph->nodes.size())
         return RNS8_UNSUPPORTED_BACKEND;
       for (size_t i = 0; i < graph->nodes.size(); ++i)
-        if (resident_node_addresses(graph->nodes[i]) !=
+        if (resident_node_addresses(*graph, i) !=
             graph->captured_addresses[i])
           return RNS8_UNSUPPORTED_BACKEND;
     }
@@ -228,8 +272,10 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
       ++input.matrix->in_flight_readers;
     for (auto *workspace : graph->hip_workspaces)
       workspace->in_flight = true;
-    for (const auto &node : graph->nodes)
+    for (const auto &node : graph->nodes) {
       node.c->in_flight_writer = true;
+      if (node.c_imag) node.c_imag->in_flight_writer = true;
+    }
     graph->pending_stream = stream;
     graph->async_failure = {};
     graph->cancel_requested = false;
@@ -241,14 +287,14 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
     hipError_t launch_error = hipSuccess;
     if (replay) {
       for (const auto &node : graph->nodes)
-        invalidate_owned_graph_output(*node.c);
+        invalidate_owned_graph_outputs(node);
       launch_error = hipGraphLaunch(graph->captured_executable, hip_stream);
       status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
     } else
       for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
         const auto &node = graph->nodes[i];
-        invalidate_owned_graph_output(*node.c);
-        status = enqueue_resident_node(node, stream);
+        invalidate_owned_graph_outputs(node);
+        status = enqueue_resident_node(*graph, i, stream);
         if (status != RNS8_SUCCESS) {
           failed = i;
           break;
@@ -295,10 +341,10 @@ rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     rns8::detail::hip_scoped_device device_scope(graph->ctx->device_id);
     if (device_scope.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
-    std::vector<std::array<const void *, 4>> addresses;
+    std::vector<std::array<const void *, 8>> addresses;
     addresses.reserve(graph->nodes.size());
-    for (const auto &node : graph->nodes)
-      addresses.push_back(resident_node_addresses(node));
+    for (size_t i = 0; i < graph->nodes.size(); ++i)
+      addresses.push_back(resident_node_addresses(*graph, i));
     rns8::detail::hip_unique_stream capture_stream;
     if (capture_stream.create_non_blocking() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
@@ -306,8 +352,8 @@ rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
                               hipStreamCaptureModeThreadLocal) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     rns8_status body = RNS8_SUCCESS;
-    for (const auto &node : graph->nodes) {
-      body = enqueue_resident_node(node, capture_stream.get());
+    for (size_t i = 0; i < graph->nodes.size(); ++i) {
+      body = enqueue_resident_node(*graph, i, capture_stream.get());
       if (body != RNS8_SUCCESS)
         break;
     }

@@ -1,3 +1,4 @@
+#include "core/hip_resources.hpp"
 TEST_CASE("experimental complex API binds both proofs and publishes paired generations",
           "[api][complex][hip]") {
   using namespace rns8::detail;
@@ -106,7 +107,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
       rns8_async_support_info support{};
       support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
       REQUIRE(rns8_get_resident_graph_hip_support(graph, &support) == RNS8_SUCCESS);
-      CHECK(support.support_status == RNS8_UNSUPPORTED_BACKEND);
+      CHECK(support.support_status == (hip ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND));
       rns8_graph_execution_info info{};
       info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
       REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
@@ -121,6 +122,76 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
             expected += expected_real[row * 2 + q] * expected_imag[q * 2 + col];
           CHECK(actual[row * 2 + col] == expected);
         }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      if (hip) {
+        REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_SUCCESS);
+        REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
+        REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
+        hip_unique_stream stream;
+        REQUIRE(stream.create_non_blocking() == hipSuccess);
+        for (bool replay : {false, true}) {
+          rns8_graph_completion_token token{};
+          const auto before = hip_direct_allocation_counters_snapshot();
+          REQUIRE((replay ? rns8_replay_resident_graph_hip(graph, stream.get(), &token)
+                          : rns8_submit_resident_graph_hip(graph, stream.get(), &token)) == RNS8_SUCCESS);
+          CHECK(cr->in_flight_writer);
+          CHECK(ci->in_flight_writer);
+          CHECK(chain->in_flight_writer);
+          CHECK(rns8_destroy_resident_graph(graph) == RNS8_BUSY);
+          CHECK(rns8_pack_i64(ctx, ai, values[1].data(), 2, 0) == RNS8_BUSY);
+          REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
+          REQUIRE(info.operation_status == RNS8_SUCCESS);
+          CHECK(info.completed_nodes == 2);
+          const auto after = hip_direct_allocation_counters_snapshot();
+          CHECK(after.allocate_calls == before.allocate_calls);
+          CHECK(after.free_calls == before.free_calls);
+          CHECK(exported(cr) == expected_real);
+          CHECK(exported(ci) == expected_imag);
+          CHECK(exported(chain) == actual);
+          CHECK_FALSE(cr->in_flight_writer);
+          CHECK_FALSE(ci->in_flight_writer);
+          for (auto* input : inputs) CHECK(input->in_flight_readers == 0);
+          REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &token) == RNS8_SUCCESS);
+          REQUIRE(rns8_cancel_resident_graph_hip(graph, token) == RNS8_SUCCESS);
+          REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
+          REQUIRE(info.operation_status == RNS8_CANCELED);
+          CHECK_FALSE(rns_residue_state_current_for_backend(*cr, ctx->backend));
+          CHECK_FALSE(rns_residue_state_current_for_backend(*ci, ctx->backend));
+          CHECK_FALSE(rns_residue_state_current_for_backend(*chain, ctx->backend));
+        }
+        auto changed_values = values[1];
+        ++changed_values[0];
+        REQUIRE(rns8_pack_i64(ctx, ai, changed_values.data(), 2, 0) == RNS8_SUCCESS);
+        rns8_graph_completion_token changed_token{};
+        CHECK(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) == RNS8_INVALID_ARGUMENT);
+        REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_SUCCESS);
+        REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &changed_token) == RNS8_SUCCESS);
+        REQUIRE(rns8_wait_resident_graph_hip(graph, changed_token, &info) == RNS8_SUCCESS);
+        REQUIRE(info.operation_status == RNS8_SUCCESS);
+        auto changed_real = expected_real, changed_imag = expected_imag;
+        for (int col = 0; col < 2; ++col) {
+          changed_real[col] -= values[3][col];
+          changed_imag[col] += values[2][col];
+        }
+        CHECK(exported(cr) == changed_real);
+        CHECK(exported(ci) == changed_imag);
+        const auto changed_chain = exported(chain);
+        for (int row = 0; row < 2; ++row)
+          for (int col = 0; col < 2; ++col) {
+            cpp_int expected = 0;
+            for (int q = 0; q < 2; ++q)
+              expected += changed_real[row * 2 + q] * changed_imag[q * 2 + col];
+            CHECK(changed_chain[row * 2 + col] == expected);
+          }
+        REQUIRE(rns8_pack_i64(ctx, ai, values[1].data(), 2, 0) == RNS8_SUCCESS);
+        REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_SUCCESS);
+        // Synchronous use after preparation reuses the same arena and publication path.
+        const auto before = hip_direct_allocation_counters_snapshot();
+        REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+        CHECK(hip_direct_allocation_counters_snapshot().allocate_calls == before.allocate_calls);
+        CHECK(exported(chain) == actual);
+      }
+#endif
       const auto generation = chain->content_generation;
       REQUIRE(rns8_pack_i64(ctx, ai, values[1].data(), 2, 0) == RNS8_SUCCESS);
       CHECK(rns8_execute_resident_graph(graph, &info) == RNS8_INVALID_ARGUMENT);
@@ -130,6 +201,48 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
       REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
       graph = nullptr;
     }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if (hip) {
+      rns8_matrix* chain_imag = nullptr;
+      REQUIRE(rns8_create_matrix(ctx, &md, &chain_imag) == RNS8_SUCCESS);
+      const auto saved = nodes[1];
+      nodes[1].kind = RNS8_RESIDENT_COMPLEX_MATMUL;
+      nodes[1].a = cr; nodes[1].a_imag = ci;
+      nodes[1].b = br; nodes[1].b_imag = bi; nodes[1].c_imag = chain_imag;
+      nodes[1].max_staged_residue_bytes = UINT64_MAX;
+      // Different 3M/4M scratch envelopes share one arena in both orders.
+      for (auto first : {RNS8_COMPLEX_THREE_REAL_PRODUCTS, RNS8_COMPLEX_FOUR_REAL_PRODUCTS}) {
+        nodes[0].complex_method = first;
+        nodes[1].complex_method = first == RNS8_COMPLEX_THREE_REAL_PRODUCTS
+            ? RNS8_COMPLEX_FOUR_REAL_PRODUCTS : RNS8_COMPLEX_THREE_REAL_PRODUCTS;
+        REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_SUCCESS);
+        REQUIRE(rns8_capture_resident_graph_hip(graph) == RNS8_SUCCESS);
+        hip_unique_stream stream;
+        REQUIRE(stream.create_non_blocking() == hipSuccess);
+        rns8_graph_completion_token token{};
+        REQUIRE(rns8_replay_resident_graph_hip(graph, stream.get(), &token) == RNS8_SUCCESS);
+        rns8_graph_execution_info info{};
+        info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
+        REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
+        REQUIRE(info.operation_status == RNS8_SUCCESS);
+        const auto real = exported(chain), imag = exported(chain_imag);
+        for (int row = 0; row < 2; ++row)
+          for (int col = 0; col < 2; ++col) {
+            cpp_int er = 0, ei = 0;
+            for (int q = 0; q < 2; ++q) {
+              er += expected_real[row*2+q]*values[2][q*2+col] - expected_imag[row*2+q]*values[3][q*2+col];
+              ei += expected_real[row*2+q]*values[3][q*2+col] + expected_imag[row*2+q]*values[2][q*2+col];
+            }
+            CHECK(real[row*2+col] == er);
+            CHECK(imag[row*2+col] == ei);
+          }
+        REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
+        graph = nullptr;
+      }
+      nodes[1] = saved;
+      REQUIRE(rns8_destroy_matrix(chain_imag) == RNS8_SUCCESS);
+    }
+#endif
     nodes[0].max_staged_residue_bytes = 0;
     CHECK(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_WORKSPACE_TOO_SMALL);
     CHECK(graph == nullptr);
