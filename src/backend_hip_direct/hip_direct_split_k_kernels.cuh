@@ -58,3 +58,31 @@ __global__ void rns8_split_k_store_kernel(const uint8_t* input, int8_t* output, 
   output[static_cast<int64_t>(plane) * m * ldc + (cell / n) * ldc + cell % n] =
       static_cast<int8_t>(value >= (modulus + 1) / 2 ? value - modulus : value);
 }
+
+// Window-local slots have global fragment identities. Fragment boundaries are
+// determined by the total split count, never by the current window's tail size.
+__global__ void rns8_split_k_window_produce_kernel(
+    const int8_t* a,const int8_t* b,uint8_t* scratch,
+    int m,int n,int k,int lda,int ldb,int prefix,int splits,int first_fragment) {
+  const int64_t cell=int64_t(blockIdx.x)*blockDim.x+threadIdx.x;
+  const int64_t cells=int64_t(m)*n;if(cell>=cells) return;
+  const int plane=blockIdx.y,local_fragment=blockIdx.z,fragment=first_fragment+local_fragment;
+  const int row=int(cell/n),col=int(cell%n);
+  const int begin=int(int64_t(k)*fragment/splits),end=int(int64_t(k)*(fragment+1)/splits);
+  int32_t value=0;
+  for(int q=begin;q<end;++q)
+    value+=int32_t(a[(int64_t(plane)*m+row)*lda+q])*b[(int64_t(plane)*k+q)*ldb+col];
+  const int modulus=rns8_default_moduli_device[plane];int residue=value%modulus;
+  if(residue<0) residue+=modulus;
+  scratch[(int64_t(local_fragment)*prefix+plane)*cells+cell]=uint8_t(residue);
+}
+// Both operands are canonical bytes. Including the carried residue bounds the
+// sum by 510; reduce before the next window can observe it. No atomics/barriers.
+__global__ void rns8_split_k_window_accumulate_kernel(
+    const uint8_t* partial,uint8_t* running,int64_t cells,bool first_window) {
+  const int64_t cell=int64_t(blockIdx.x)*blockDim.x+threadIdx.x;
+  if(cell>=cells) return;const int plane=blockIdx.y;
+  const int64_t offset=int64_t(plane)*cells+cell;
+  const uint32_t value=uint32_t(partial[offset])+(first_window?0u:uint32_t(running[offset]));
+  running[offset]=uint8_t(value%rns8_default_moduli_device[plane]);
+}

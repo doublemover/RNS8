@@ -54,8 +54,8 @@ rns8_status rns8_query_split_k(int64_t m,int64_t n,int64_t k,uint32_t prefix,uin
   if(!out || !valid_abi(out->struct_size,out->abi_version,sizeof(*out))) return RNS8_INVALID_ARGUMENT;
   return query_split_k_resources(m,n,k,k,n,n,prefix,fragments,budget,*out);
 }
-rns8_status rns8_create_split_k(rns8_context* ctx,const rns8_matrix* a,const rns8_matrix* b,
-    uint32_t fragments,uint64_t budget,rns8_split_k** out) {
+static rns8_status create_split_k_impl(rns8_context* ctx,const rns8_matrix* a,const rns8_matrix* b,
+    uint32_t fragments,uint32_t window,uint64_t budget,rns8_split_k** out) {
   return guard_api([&]() -> rns8_status {
     if(!ctx || !a || !b || !out) return RNS8_INVALID_ARGUMENT;
     if(ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
@@ -72,8 +72,8 @@ rns8_status rns8_create_split_k(rns8_context* ctx,const rns8_matrix* a,const rns
     auto owner=std::make_unique<rns8_split_k>();
     owner->bound=cpp_int(a->desc.cols)*a->exact_max_magnitude*b->exact_max_magnitude;
     if(!exact_range_fits(a->desc.semantics,owner->bound,modulus_product(a->prefix))) return RNS8_RANGE_ERROR;
-    const auto status=query_split_k_resources(a->desc.rows,b->desc.cols,a->desc.cols,
-        a->desc.cols,b->desc.cols,b->desc.cols,a->prefix,fragments,budget,owner->resources);
+    const auto status=query_split_k_window_resources(a->desc.rows,b->desc.cols,a->desc.cols,
+        a->desc.cols,b->desc.cols,b->desc.cols,a->prefix,fragments,window,budget,owner->resources);
     if(status!=RNS8_SUCCESS) return status;
     if(ctx->prepared_references==UINT64_MAX || a->prepared_references==UINT64_MAX || b->prepared_references==UINT64_MAX)
       return RNS8_RANGE_ERROR;
@@ -86,6 +86,19 @@ rns8_status rns8_create_split_k(rns8_context* ctx,const rns8_matrix* a,const rns
     ++ctx->prepared_references;++a->prepared_references;if(b!=a) ++b->prepared_references;
     *out=owner.release();return RNS8_SUCCESS;
   });
+}
+rns8_status rns8_query_split_k_windowed(int64_t m,int64_t n,int64_t k,uint32_t prefix,uint32_t fragments,
+    uint32_t window,uint64_t budget,rns8_split_k_resources* out) {
+  if(!out || !valid_abi(out->struct_size,out->abi_version,sizeof(*out))) return RNS8_INVALID_ARGUMENT;
+  return query_split_k_window_resources(m,n,k,k,n,n,prefix,fragments,window,budget,*out);
+}
+rns8_status rns8_create_split_k(rns8_context* ctx,const rns8_matrix* a,const rns8_matrix* b,
+    uint32_t fragments,uint64_t budget,rns8_split_k** out) {
+  return create_split_k_impl(ctx,a,b,fragments,fragments,budget,out);
+}
+rns8_status rns8_create_split_k_windowed(rns8_context* ctx,const rns8_matrix* a,const rns8_matrix* b,
+    uint32_t fragments,uint32_t window,uint64_t budget,rns8_split_k** out) {
+  return create_split_k_impl(ctx,a,b,fragments,window,budget,out);
 }
 rns8_status rns8_execute_split_k(rns8_split_k* owner,rns8_matrix* output) {
   return guard_api([&]() -> rns8_status {
@@ -110,7 +123,7 @@ rns8_status rns8_execute_split_k(rns8_split_k* owner,rns8_matrix* output) {
     owner->active_output=output;owner->commit_started=false;SplitReservation reservation{*owner};
     const auto status=hip_direct_gemm_rns_split_k_workspace(owner->ctx->device_id,a->hip_residues,b->hip_residues,
         output->hip_residues,a->desc.rows,b->desc.cols,a->desc.cols,a->desc.cols,b->desc.cols,b->desc.cols,
-        a->prefix,owner->resources.fragments,owner->scratch,owner->resources.scratch_bytes,owner->commit_started);
+        a->prefix,owner->resources.fragments,owner->scratch,owner->resources.scratch_bytes,owner->commit_started,owner->resources.fragment_window);
     if(status!=RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*output);output->exact_max_magnitude.swap(bound);
     output->exact_range_prefix=output->prefix;output->exact_axis_ranges.rows.clear();output->exact_axis_ranges.cols.clear();

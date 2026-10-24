@@ -2,6 +2,8 @@
 extern "C" int rns8_hip_split_k_produce(const int8_t*, const int8_t*, uint8_t*, int, int, int, int, int, int, int);
 extern "C" int rns8_hip_split_k_merge(const uint8_t*, uint8_t*, int64_t, int, int);
 extern "C" int rns8_hip_split_k_store(const uint8_t*, int8_t*, int, int, int, int);
+extern "C" int rns8_hip_split_k_window_produce(const int8_t*,const int8_t*,uint8_t*,int,int,int,int,int,int,int,int,int);
+extern "C" int rns8_hip_split_k_window_accumulate(const uint8_t*,uint8_t*,int64_t,int,bool);
 #endif
 
 rns8_status hip_direct_gemm_rns_split_k_device(
@@ -63,9 +65,10 @@ rns8_status hip_direct_gemm_rns_split_k_device(
 rns8_status hip_direct_gemm_rns_split_k_workspace(
     int device_id,const void* a,const void* b,void* c,
     int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
-    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started) {
+    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started,uint32_t fragment_window) {
   commit_started=false;rns8_split_k_resources resources{};
-  const auto support=query_split_k_resources(m,n,k,lda,ldb,ldc,prefix,splits,scratch_bytes,resources);
+  const auto support=query_split_k_window_resources(m,n,k,lda,ldb,ldc,prefix,splits,
+      fragment_window?fragment_window:splits,scratch_bytes,resources);
   if(support!=RNS8_SUCCESS) return support;
   if(!a || !b || !c || !scratch) return RNS8_INVALID_ARGUMENT;
   const uint64_t a_bytes=uint64_t(m)*lda*prefix,b_bytes=uint64_t(k)*ldb*prefix,c_bytes=uint64_t(m)*ldc*prefix;
@@ -77,22 +80,44 @@ rns8_status hip_direct_gemm_rns_split_k_workspace(
   auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
   auto* first=static_cast<uint8_t*>(scratch);auto* second=first+resources.partial_bytes;
   const auto run=[](const char* label,auto operation) {
+    bool completed=false;
     const auto launch=timed_hip_operation(label,[&]() {
       const auto error=static_cast<hipError_t>(operation());
-      return error==hipSuccess?hipDeviceSynchronize():error;
+      if(error!=hipSuccess) return error;
+      const auto sync=hipDeviceSynchronize();completed=sync==hipSuccess;return sync;
     });
-    // Drain even after launch/event failure; the owner retains storage if this
-    // cannot establish completion. A timing failure cannot erase a launch.
-    const auto drained=hipDeviceSynchronize();
-    return launch==hipSuccess && drained==hipSuccess;
+    // Drain launch/event failure unless completion was already established.
+    // Successful calls need one boundary, not a redundant second device drain.
+    if(!completed) completed=hipDeviceSynchronize()==hipSuccess;
+    return launch==hipSuccess && completed;
   };
-  if(!run("split_k_producer_kernel",[&]() {return rns8_hip_split_k_produce(
-      static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),first,
-      int(m),int(n),int(k),int(lda),int(ldb),prefix,splits);})) return RNS8_BACKEND_FAILURE;
-  for(uint32_t fragments=splits;fragments>1;fragments=(fragments+127)/128) {
-    if(!run("split_k_merge_kernel",[&]() {return rns8_hip_split_k_merge(first,second,m*n,prefix,fragments);}))
-      return RNS8_BACKEND_FAILURE;
-    std::swap(first,second);
+  if(resources.fragment_window==splits) {
+    if(!run("split_k_producer_kernel",[&]() {return rns8_hip_split_k_produce(
+        static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),first,
+        int(m),int(n),int(k),int(lda),int(ldb),prefix,splits);})) return RNS8_BACKEND_FAILURE;
+    for(uint32_t fragments=splits;fragments>1;fragments=(fragments+127)/128) {
+      if(!run("split_k_merge_kernel",[&]() {return rns8_hip_split_k_merge(first,second,m*n,prefix,fragments);}))
+        return RNS8_BACKEND_FAILURE;
+      std::swap(first,second);
+    }
+  } else {
+    auto* const partial=first;auto* const merge=second;
+    auto* const running=merge+resources.merge_bytes;
+    for(uint32_t base=0;base<splits;base+=resources.fragment_window) {
+      const auto count=std::min(resources.fragment_window,splits-base);
+      first=partial;second=merge;
+      if(!run("split_k_window_producer_kernel",[&]() {return rns8_hip_split_k_window_produce(
+          static_cast<const int8_t*>(a),static_cast<const int8_t*>(b),first,
+          int(m),int(n),int(k),int(lda),int(ldb),prefix,splits,base,count);})) return RNS8_BACKEND_FAILURE;
+      for(uint32_t fragments=count;fragments>1;fragments=(fragments+127)/128) {
+        if(!run("split_k_window_merge_kernel",[&]() {return rns8_hip_split_k_merge(first,second,m*n,prefix,fragments);}))
+          return RNS8_BACKEND_FAILURE;
+        std::swap(first,second);
+      }
+      if(!run("split_k_window_accumulate_kernel",[&]() {return rns8_hip_split_k_window_accumulate(
+          first,running,m*n,prefix,base==0);})) return RNS8_BACKEND_FAILURE;
+    }
+    first=running;
   }
   commit_started=true;
   return run("split_k_store_kernel",[&]() {return rns8_hip_split_k_store(first,static_cast<int8_t*>(c),

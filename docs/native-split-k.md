@@ -57,5 +57,29 @@ on failure. Ordinary external host exclusion applies to owning API calls.
 Authored fixtures cover budgets, hierarchy boundaries, odd host strides, signed
 and unsigned full-width values, long-K cancellation, repeated execution and stale
 generations with full independent Boost residue comparisons. These additions
-have not been compiled or run yet. Bounded-window scratch reuse, adaptive per-tile
-fragment counts and measured planner promotion remain separate work.
+have not been compiled or run yet. Adaptive per-tile fragment counts and measured
+planner promotion remain separate work.
+
+
+### Bounded-window execution
+
+The explicit `rns8_query_split_k_windowed` / `rns8_create_split_k_windowed` pair
+selects a maximum number of simultaneously stored fragments. Global fragment
+boundaries remain defined by total K and total fragment count, including a short
+last window. Each window produces locally canonical partials, completes the same
+merge hierarchy, and adds its result into one canonical running plane. The carry
+is included in the accumulation bound: two canonical bytes sum to at most 510.
+There are no global atomics, spin barriers or uninitialized first-window reads.
+
+Scratch consists of `cells * prefix * window` partial bytes, rounded-up groups of
+128 merge slots, and one running plane when the window is smaller than the total
+fragment count. Resource reports disclose the window count and maximum merge
+depth per window. Each boundary drains before scratch reuse. The public output is
+stored only after all windows finish, so a missing or failed window cannot publish
+a complete value. Equal window and fragment counts use the full-scratch route.
+
+This trades additional launch/synchronization boundaries for lower peak explicit
+scratch. It is an explicit user choice, not a measured automatic policy. CPU
+resource fixtures and full independent Boost HIP comparisons exercise windows
+1, 2, 128, short final windows and multi-level full reductions. Qualification and
+matched full/window/unsplit timings remain in the final campaign.

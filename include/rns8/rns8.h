@@ -1462,6 +1462,9 @@ typedef struct rns8_split_k_resources {
   uint64_t scratch_bytes;
   uint32_t merge_levels;
   uint32_t reserved;
+  uint32_t fragment_window;
+  uint32_t window_count;
+  uint64_t running_bytes;
 } rns8_split_k_resources;
 /* Pure shape/resource query; no device access. Fragments must be in [1,4096],
  * no larger than K, and each fragment must contain at most 65536 products. */
@@ -1470,6 +1473,15 @@ RNS8_API rns8_status rns8_query_split_k(int64_t m,int64_t n,int64_t k,
     rns8_split_k_resources* resources);
 RNS8_API rns8_status rns8_create_split_k(rns8_context* ctx,
     const rns8_matrix* a,const rns8_matrix* b,uint32_t fragments,
+    uint64_t max_scratch_bytes,rns8_split_k** out);
+/* Explicit bounded scratch alternative: 1 <= fragment_window <= fragments.
+ * Each window is fully merged into a canonical running residue before reuse.
+ * Passing fragments as the window selects the full-scratch algorithm. */
+RNS8_API rns8_status rns8_query_split_k_windowed(int64_t m,int64_t n,int64_t k,
+    uint32_t prefix,uint32_t fragments,uint32_t fragment_window,uint64_t max_scratch_bytes,
+    rns8_split_k_resources* resources);
+RNS8_API rns8_status rns8_create_split_k_windowed(rns8_context* ctx,
+    const rns8_matrix* a,const rns8_matrix* b,uint32_t fragments,uint32_t fragment_window,
     uint64_t max_scratch_bytes,rns8_split_k** out);
 RNS8_API rns8_status rns8_execute_split_k(rns8_split_k* owner,rns8_matrix* output);
 /* Failed drain/free preserves owner and reservations for cleanup retry. */

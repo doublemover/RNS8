@@ -16,6 +16,18 @@ TEST_CASE("public split-K query proves fragment caps and exact scratch budgets")
   CHECK(rns8_query_split_k(1,1,65537,20,2,UINT64_MAX,&out)==RNS8_SUCCESS);
   CHECK(rns8_query_split_k(1,1,1,20,2,UINT64_MAX,&out)==RNS8_INVALID_ARGUMENT);
   CHECK(rns8_query_split_k(INT64_MAX,1,1,20,1,UINT64_MAX,&out)==RNS8_UNSUPPORTED_BACKEND);
+  for(uint32_t window:{1u,2u,127u,128u,129u}) {
+    REQUIRE(rns8_query_split_k_windowed(3,5,65537,20,129,window,UINT64_MAX,&out)==RNS8_SUCCESS);
+    CHECK(out.fragment_window==window);CHECK(out.window_count==(129+window-1)/window);
+    CHECK(out.partial_bytes==uint64_t(300)*window);
+    CHECK(out.running_bytes==(window==129?0u:300u));
+    CHECK(out.scratch_bytes==out.partial_bytes+out.merge_bytes+out.running_bytes);
+    const auto bytes=out.scratch_bytes;
+    CHECK(rns8_query_split_k_windowed(3,5,65537,20,129,window,bytes-1,&out)==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(out.scratch_bytes==bytes);
+  }
+  CHECK(rns8_query_split_k_windowed(1,1,17,20,3,0,UINT64_MAX,&out)==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_query_split_k_windowed(1,1,17,20,3,4,UINT64_MAX,&out)==RNS8_INVALID_ARGUMENT);
   CHECK(rns8_destroy_split_k(nullptr)==RNS8_SUCCESS);
   auto* ctx=create_cpu_context();auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);md.max_prefix=20;
   rns8_matrix* a=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&a)==RNS8_SUCCESS);
@@ -60,13 +72,18 @@ TEST_CASE("public HIP split-K owner reuses scratch and publishes complete exact 
           (unsigned_values?cpp_int(bu[q*(n+2)+j]):cpp_int(bv[q*(n+2)+j]));
     const std::vector<uint32_t> counts=k==1?std::vector<uint32_t>{1}:k==17?std::vector<uint32_t>{1,3,17}:
         std::vector<uint32_t>{2,3,129,4096};
-    for(auto fragments:counts) {
+    for(auto fragments:counts) for(bool windowed:{false,true}) {
+      const uint32_t window=fragments>128?128:fragments>1?fragments-1:1;
       rns8_split_k_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
-      REQUIRE(rns8_query_split_k(m,n,k,20,fragments,UINT64_MAX,&resources)==RNS8_SUCCESS);
+      REQUIRE((windowed?rns8_query_split_k_windowed(m,n,k,20,fragments,window,UINT64_MAX,&resources):
+          rns8_query_split_k(m,n,k,20,fragments,UINT64_MAX,&resources))==RNS8_SUCCESS);
       rns8_split_k* owner=nullptr;
-      CHECK(rns8_create_split_k(ctx,a,b,fragments,resources.scratch_bytes-1,&owner)==RNS8_WORKSPACE_TOO_SMALL);
+      const auto create=[&](uint64_t budget) {return windowed?
+          rns8_create_split_k_windowed(ctx,a,b,fragments,window,budget,&owner):
+          rns8_create_split_k(ctx,a,b,fragments,budget,&owner);};
+      CHECK(create(resources.scratch_bytes-1)==RNS8_WORKSPACE_TOO_SMALL);
       CHECK(owner==nullptr);
-      REQUIRE(rns8_create_split_k(ctx,a,b,fragments,resources.scratch_bytes,&owner)==RNS8_SUCCESS);
+      REQUIRE(create(resources.scratch_bytes)==RNS8_SUCCESS);
       CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);CHECK(rns8_destroy_context(ctx)==RNS8_BUSY);
       CHECK(rns8_execute_split_k(owner,a)==RNS8_INVALID_ARGUMENT);
       for(int repeat=0;repeat<2;++repeat) {
