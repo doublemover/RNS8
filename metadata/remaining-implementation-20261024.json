@@ -23,7 +23,9 @@
       "regressions": [
         "tests/unit/test_api_matrix_cleanup_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+      ],
       "remaining": [
         "Regression execution and real device-failure qualification deferred."
       ],
@@ -80,7 +82,9 @@
       "regressions": [
         "tests/unit/test_api_host_address_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+      ],
       "remaining": [
         "Regression execution and large-device-address hardware qualification deferred."
       ],
@@ -336,7 +340,9 @@
       "regressions": [
         "tests/unit/test_api_matrix_cleanup_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+      ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
         "All execution and hardware qualification deferred."
@@ -720,12 +726,24 @@
       "issue": 65,
       "title": "[Perf P2] Make resident storage demand-driven and eliminate duplicate native upload materializations",
       "url": "https://github.com/doublemover/RNS8/issues/65",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Lazy HIP host mirrors and deduplicated retained native materialization implemented; latest finite-mod256 byte-identity host pack/export optimization still absent, existing adapter stages and converts identical bytes.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Finite256 ordinary host pack/export now use logical-rectangle direct copies; no conversion allocation or kernel, padding and generation ownership preserved.",
+          "files": [
+            "src/backend_hip_direct/hip_backend_pack.inc",
+            "src/backend_hip_direct/hip_backend_export_finite_grouped.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_direct_finite_persistent_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "GPU differential/counter execution and performance evidence deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -786,12 +804,26 @@
       "issue": 69,
       "title": "[Research P2] Accelerate RNS conversion and CRT with fixed-matrix transforms and packed dot products",
       "url": "https://github.com/doublemover/RNS8/issues/69",
-      "state": "implementation_pending",
+      "state": "implementation_in_progress",
       "base_gap": "Fixed-matrix scalar/dot/WMMA conversion/CRT prototypes exist. Latest public signed dispatch still uses per-plane pack family and redundant synchronization; shared floor-reciprocal helper still has redundant second correction. Actual current commented implementation refinements not done.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Unified direct/hipBLASLt one-correction reciprocal with algebraic bound; signed specialized wrappers now enqueue-only, public caller waits once.",
+          "files": [
+            "src/backend_common/finite_u8_reducer.hpp",
+            "src/backend_hipblaslt/hipblaslt_kernels.hip",
+            "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
+            "src/backend_hip_direct/hip_direct_kernels.hip"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_crt.cpp"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Shared explicit public-selected/fixed/generic conversion controls and complete calibration contracts still to implement; crossover qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29
@@ -816,12 +848,28 @@
       "issue": 71,
       "title": "[Perf P2] Preserve packed-dot residue GEMM across all modulus planes and grouped/scheduled paths",
       "url": "https://github.com/doublemover/RNS8/issues/71",
-      "state": "implementation_pending",
+      "state": "implementation_in_progress",
       "base_gap": "Existing dot4 implementation not extended: uniform use_dp4a remains restricted to 256/255/251 and grouped/region/scheduled scalar routes remain. Requested all-modulus/composed compute parity absent.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "One target-qualified signed-byte primitive now backs ordinary/finite/grouped/region/scheduled tile loops and persistent small dot, opt-in across all moduli; manifest-bound scalar control and safe tails.",
+          "files": [
+            "src/backend_common/residue_dot.hpp",
+            "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+            "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+            "cmake/modules/FindRNS8HIP.cmake",
+            "cmake/rns8_options.cmake",
+            "cmake/rns8_provenance.cmake"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_crt.cpp"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Finish paired family measurement receipt/harness; GPU compilation, ISA, differential and crossover evidence deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -992,6 +1040,11 @@
       "kind": "C++17_syntax",
       "result": "passed",
       "scope": "Changed core pack/export/oneshot/workspace/sparse/GEMM translation units; CPU configuration only, no linking or execution."
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "test_api.cpp, test_crt.cpp, test_hip_direct.cpp and changed core/backend host paths",
+      "result": "passed; no test executables linked or run; HIP conditional paths not compiled"
     }
   ]
 }

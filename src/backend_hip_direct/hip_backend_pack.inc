@@ -464,7 +464,7 @@ rns8_status hip_direct_pack_finite_u8_device(
     int64_t ld,
     uint16_t modulus) {
   if (rows > 0 && cols > 0 && ld >= cols &&
-      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 1)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
 
@@ -480,6 +480,17 @@ rns8_status hip_direct_pack_finite_u8_device(
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
     return device_status;
+  }
+  // Modulo 256 the canonical uint8 and centered int8 representations have
+  // identical object bytes. Copy only logical cells; no upload scratch or
+  // conversion kernel is needed, including for padded host rows.
+  if (modulus == 256) {
+    const hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
+      return tracked_sync_copy_2d(device_residues, static_cast<std::size_t>(cols),
+          src, static_cast<std::size_t>(ld), static_cast<std::size_t>(cols),
+          static_cast<std::size_t>(rows), hipMemcpyHostToDevice);
+    });
+    return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
   }
   const std::size_t source_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * sizeof(uint8_t);
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, source_bytes, upload_buffer, upload_bytes);

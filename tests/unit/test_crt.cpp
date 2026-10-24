@@ -9,6 +9,7 @@
 
 #include "core/internal.hpp"
 #include "backend_common/garner_constants.hpp"
+#include "backend_common/residue_dot.hpp"
 #include <random>
 
 namespace {
@@ -323,4 +324,53 @@ TEST_CASE("Host duration conversion preserves sub-microsecond samples") {
   double sum = 0;
   for (unsigned i = 0; i < 100; ++i) sum += duration_us(std::chrono::nanoseconds(500));
   CHECK(sum == 50.0);
+}
+
+TEST_CASE("one-correction reciprocal reduction covers quotient boundaries for every byte modulus") {
+  using namespace rns8::detail::finite_u8;
+  std::mt19937 random(6901);
+  for (uint32_t modulus = 2; modulus <= 256; ++modulus) {
+    const uint32_t reciprocal = modulus_reciprocal_u32(modulus);
+    for (uint64_t quotient : {uint64_t{0}, uint64_t{1}, uint64_t{65535},
+                              uint64_t{UINT32_MAX / modulus}}) {
+      for (int offset : {-1, 0, 1, 127, 255}) {
+        const int64_t wide = static_cast<int64_t>(quotient * modulus) + offset;
+        if (wide >= 0 && wide <= UINT32_MAX)
+          CHECK(reduce_u32_small_modulus(static_cast<uint32_t>(wide), modulus, reciprocal) ==
+                static_cast<uint32_t>(wide) % modulus);
+      }
+    }
+    CHECK(reduce_u32_small_modulus(UINT32_MAX, modulus, reciprocal) == UINT32_MAX % modulus);
+    for (unsigned i = 0; i < 1024; ++i) {
+      const uint32_t value = random();
+      CHECK(reduce_u32_small_modulus(value, modulus, reciprocal) == value % modulus);
+    }
+  }
+}
+
+TEST_CASE("packed signed byte primitive and scalar control preserve every sign and tail") {
+  using namespace rns8::detail;
+  for (int a = -128; a <= 127; ++a) {
+    for (int b = -128; b <= 127; ++b) {
+      const uint32_t ap = uint32_t{static_cast<uint8_t>(a)} * 0x01010101u;
+      const uint32_t bp = uint32_t{static_cast<uint8_t>(b)} * 0x01010101u;
+      REQUIRE(signed_byte_dot4(ap, bp, -127) == 4 * a * b - 127);
+    }
+  }
+  for (int64_t count : {1, 2, 3, 4, 5, 31, 32, 33, 65535, 65536, 65537}) {
+    for (int64_t stride : {1, 3}) {
+      std::vector<int8_t> a(count), b(count * stride, 111);
+      int64_t expected = 0;
+      for (int64_t i = 0; i < count; ++i) {
+        a[i] = static_cast<int8_t>((i * 79) % 256 - 128);
+        b[i * stride] = static_cast<int8_t>((i * 157 + 255) % 256 - 128);
+        expected += int64_t{a[i]} * b[i * stride];
+      }
+      for (uint32_t modulus = 2; modulus <= 256; ++modulus) {
+        const auto oracle = centered_residue(boost::multiprecision::cpp_int(expected), modulus);
+        CHECK(centered_residue_dot(a.data(), b.data(), count, stride, modulus, false) == oracle);
+        CHECK(centered_residue_dot(a.data(), b.data(), count, stride, modulus, true) == oracle);
+      }
+    }
+  }
 }

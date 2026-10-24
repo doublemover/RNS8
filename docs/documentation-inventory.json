@@ -1846,6 +1846,7 @@
         }
       ],
       "anchors": [
+        "byte-identity-and-packed-dot-controls",
         "data-verification-and-resources",
         "exact-import-and-crt-conversion-calibration",
         "reproducible-collection",

@@ -64,7 +64,9 @@ RNS8_FINITE_U8_INLINE uint32_t reduce_u32_small_modulus(
     uint32_t reciprocal) {
   const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
   uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
+  // With R=2^32 and reciprocal=floor(R/m), 0 <= x/m-x*reciprocal/R < 1
+  // for every uint32 x and 2<=m<=256. The estimated quotient is exact or
+  // one low, so 0<=residue<2m and exactly one conditional subtraction suffices.
   residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
   return residue;
 }

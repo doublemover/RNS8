@@ -1,3 +1,4 @@
+option(RNS8_EXPERIMENTAL_RESIDUE_DOT4 "Research packed signed-byte inner loops for all residue schedulers; paired scalar control is OFF" OFF)
 option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA "Compile bounded generated native WMMA research variants" OFF)

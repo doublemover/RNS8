@@ -577,3 +577,54 @@ TEST_CASE("private HIP ring GEMM rejects mismatched modulus metadata before laun
 #endif
 }
 
+
+TEST_CASE("finite256 host boundary copies logical bytes without conversion scratch or launches") {
+  if (!hip_available()) SKIP("no HIP device for finite256 boundary regression");
+  auto* context = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (int64_t padding : {0, 7}) {
+    for (uint16_t modulus : {uint16_t{256}, uint16_t{255}}) {
+      constexpr int64_t rows = 16, cols = 16;
+      const int64_t ld = cols + padding;
+      auto desc = finite_desc(rows, cols, 1, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
+      auto md = matrix_desc(rows, cols, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+      rns8_plan* plan = nullptr;
+      rns8_matrix* matrix = nullptr;
+      REQUIRE(rns8_create_plan(context, &desc, &plan) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(context, &md, &matrix) == RNS8_SUCCESS);
+      std::vector<uint8_t> source(rows * ld, 0xa5), output(rows * ld, 0xcc);
+      for (int64_t r = 0; r < rows; ++r)
+        for (int64_t c = 0; c < cols; ++c) source[r * ld + c] = static_cast<uint8_t>(r * cols + c);
+      for (uint64_t version : {1u, 2u}) {
+        source[0] = static_cast<uint8_t>(version - 1);
+        rns8::detail::hip_direct_allocation_counters_reset();
+        rns8::detail::hip_direct_timing_set_enabled(true);
+        rns8::detail::hip_direct_timing_reset();
+        REQUIRE(rns8_pack_finite_u8(context, matrix, modulus, source.data(), ld, version) == RNS8_SUCCESS);
+        REQUIRE(rns8_export_finite_u8(context, plan, modulus, matrix, output.data(), ld) == RNS8_SUCCESS);
+        const auto counts = rns8::detail::hip_direct_allocation_counters_snapshot();
+        const auto events = rns8::detail::hip_direct_timing_snapshot();
+        rns8::detail::hip_direct_timing_set_enabled(false);
+        if (modulus == 256) {
+          CHECK(matrix->hip_upload_buffer == nullptr);
+          CHECK(matrix->hip_export_buffer == nullptr);
+          CHECK(counts.h2d_bytes == rows * cols);
+          CHECK(counts.d2h_bytes == rows * cols);
+          CHECK_FALSE(has_timing_label(events, "finite_pack_kernel"));
+          CHECK_FALSE(has_timing_label(events, "finite_export_kernel"));
+        } else {
+          CHECK(has_timing_label(events, "finite_pack_kernel"));
+          CHECK(has_timing_label(events, "finite_export_kernel"));
+        }
+        for (int64_t r = 0; r < rows; ++r) {
+          for (int64_t c = 0; c < cols; ++c) CHECK(output[r * ld + c] == source[r * ld + c] % modulus);
+          for (int64_t c = cols; c < ld; ++c) CHECK(output[r * ld + c] == 0xcc);
+        }
+        CHECK(matrix->source_version == version);
+        CHECK(matrix->device_residues_current);
+      }
+      REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+    }
+  }
+  REQUIRE(rns8_destroy_context(context) == RNS8_SUCCESS);
+}

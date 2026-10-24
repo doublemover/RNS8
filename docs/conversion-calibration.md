@@ -129,3 +129,36 @@ production sample. Compare operation, signedness, cells, prefix, scope and sourc
 boundary explicitly; do not combine resident and cold times or import and CRT.
 ISA/resource inspection, timing-resolution characterization, measured memory
 traffic, clocks and broader target evidence remain acceptance work.
+
+### Byte-identity and packed-dot controls
+
+Ordinary finite-ring modulus-256 host pack/export now copy the logical rectangle
+straight between canonical host bytes and centered resident bytes. The two
+representations have identical object bytes; padding is neither uploaded nor
+written. The public generation/write transaction is unchanged. Modulus255 and
+other moduli still execute their conversion kernels. The authored differential
+checks all256 byte values, compact/padded rows, repacks, traffic counters and
+absence of conversion events. It has not been executed for this change.
+
+The shared reciprocal reducer uses one conditional correction: with
+`R=2^32`, `q=floor(x*floor(R/m)/R)` is at most one below `floor(x/m)` for
+uint32 inputs and `2<=m<=256`. Thus the remainder is below `2m`. Both direct
+HIP and hipBLASLt consume that same implementation.
+
+`RNS8_EXPERIMENTAL_RESIDUE_DOT4=ON` opts every ordinary, finite, region,
+grouped and scheduled residue tile loop into the shared signed-byte dot4
+primitive. OFF is the unchanged scalar control except the three pre-existing
+packed modulus cases. Launch dimensions, LDS loading, tail zeroes, reduction
+boundaries and scheduling do not change. The helper explicitly encodes the
+known gfx11 sign-extension workaround; CDNA uses signed dot4 builtins and newer
+RDNA uses signed-selection dot4 where available. Unknown targets execute the
+scalar fallback, not a falsely advertised dot instruction. The host implementation
+is separately checked against scalar/Boost arithmetic across signs, tails,
+strides, all byte moduli and the K-block boundary. The build manifest records
+the opt-in, so paired controls cannot silently share an artifact identity.
+
+Target instruction availability follows AMD's
+[integer dot builtin reference](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/cross-arch/arithmetic-ref/dot-integer-builtins.html).
+Compilation, ISA inspection, differential execution and paired runtime
+measurements on each target remain deferred. This is not a default promotion
+or a measured throughput result.

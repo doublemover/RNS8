@@ -283,9 +283,8 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
     hipError_t e = hipGetLastError();
     if (e != hipSuccess) code = (int)e;
   }
-  if (code != 0) return code;
-  hipError_t e = hipDeviceSynchronize();
-  return e == hipSuccess ? 0 : (int)e;
+  // Enqueue-only, just like the generic and fixed-prefix pack wrappers.
+  return code;
 }
 
 extern "C" int rns8_hip_direct_lift_suffix_device(
