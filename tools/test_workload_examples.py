@@ -106,7 +106,83 @@ def gram_batch_fixture(products=3,policy="once"):
     return report
 
 
+def prepared_gram_fixture(products=3,policy="once",expanded=False,hip=False):
+    report=gram_batch_fixture(products,policy);report["gram_prepared_owner_cohort"]=1
+    prepared=copy.deepcopy(report["variants"][2]);prepared["name"]="rns8_prepared_single_source_gram_scalar"
+    prepared["metadata"]["gram_batch"].update(implementation="public_prepared_single_source",public_api="rns8_execute_prepared_gram",
+        prepared_gram_api=True,job_list_allocated_per_call=False,generation_policy="refresh_or_explicit_recreate_on_expanded_bound",
+        host_job_preparation="once_per_owner_during_setup_or_changed_input",device_job_allocation="not_applicable",
+        device_job_initialization="not_applicable",wmma_capability_probe="not_applicable")
+    prepared["metadata"]["modeled_retained_gram_job_payload_bytes"]=20
+    retained=dict(generation_action="retained_owner",packed_source_version=1,owner_first_execution=False,owner_builds=1,owner_refreshes=0)
+    prepared["cold_call"]["execution_evidence"]=dict(retained,owner_first_execution=True)
+    for sample in prepared["samples"]:sample["execution_evidence"]=dict(retained)
+    prepared["changed_input"]["execution_evidence"]=dict(generation_action="recreated_owner_for_larger_bound" if expanded else "refreshed_owner",
+        packed_source_version=2,owner_first_execution=expanded,owner_builds=2 if expanded else 1,owner_refreshes=0 if expanded else 1)
+    report["variants"].append(prepared)
+    if expanded:
+        report.update(pattern="zero",dataset_recipe="splitmix64_signed_magnitude_v1_gram_transpose_v1",abs_partial_sum_bound="3")
+        before_input=[0]*12;after_input=before_input.copy();after_input[0]=after_input[6]=1
+        before=collector.checksum_bytes(collector.canonical_words([0]*4));after=collector.checksum_bytes(collector.canonical_words([1,0,0,0]))
+        report.update(input_checksum_u64=collector.checksum_bytes(collector.canonical_words(before_input)),
+            changed_input_checksum_u64=collector.checksum_bytes(collector.canonical_words(after_input)),
+            checksum_u64=before,checksum_hex=f"{before:016x}",changed_checksum_u64=after)
+        for row in report["variants"]:
+            for sample in [row["cold_call"],*row["samples"]]:sample["checksum_u64"]=before
+            row["changed_input"]["checksum_u64"]=after
+    if hip:
+        report.update(backend_requested="hip-direct",device_requested=0)
+        ordinary_wmma=copy.deepcopy(report["variants"][2]);ordinary_wmma["name"]="rns8_single_source_gram_wmma"
+        ordinary_wmma["metadata"]["gram_batch"]["capability_probed_per_call"]=True
+        prepared_wmma=copy.deepcopy(prepared);prepared_wmma["name"]="rns8_prepared_single_source_gram_wmma"
+        prepared_wmma["metadata"]["gram_batch"]["wmma_capability_probe"]="first_execution_per_owner"
+        report["variants"].extend([ordinary_wmma,prepared_wmma])
+        for row in report["variants"]:
+            if not row["name"].startswith("rns8_"):continue
+            row["metadata"]["device"].update(backend_requested="hip-direct",backend_selected="hip-direct",device_id=0,target="gfx1100")
+            if row["metadata"]["gram_batch"]["prepared_gram_api"]:
+                row["metadata"]["gram_batch"].update(device_job_allocation="once_per_owner_during_setup_or_changed_input",device_job_initialization="first_execution_per_owner")
+    return report
+
+
 class GramBatchReports(unittest.TestCase):
+    def test_prepared_gram_controls_refresh_recreate_and_first_use(self):
+        for products in (1,3,32):
+            for policy in ("each","once"):
+                for expanded in (False,True):
+                    for hip in (False,True):
+                        report=prepared_gram_fixture(products,policy,expanded,hip)
+                        identity=collector.validate_report(report,"run1","hip-direct" if hip else "cpu-reference",0 if hip else -1,collector.gram_batch_contract(products,policy))
+                        self.assertEqual(identity["gram_prepared_owner_cohort"],1)
+                        self.assertEqual(identity["dataset_bytes"]["gram_max_magnitudes"]["original"],"0" if expanded else "9")
+        for mutate in (lambda r:r.update(gram_prepared_owner_cohort=True),lambda r:r["variants"].pop(),
+            lambda r:r["variants"][-1]["metadata"]["gram_batch"].update(job_list_allocated_per_call=True),
+            lambda r:r["variants"][-1]["metadata"].update(modeled_retained_gram_job_payload_bytes=19),
+            lambda r:r["variants"][-1]["cold_call"]["execution_evidence"].update(owner_first_execution=False),
+            lambda r:r["variants"][-1]["samples"][0]["execution_evidence"].update(owner_builds=2),
+            lambda r:r["variants"][-1]["changed_input"]["execution_evidence"].update(generation_action="retained_owner")):
+            report=prepared_gram_fixture();mutate(report)
+            with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+        report=prepared_gram_fixture(expanded=True)
+        report["variants"][-1]["changed_input"]["execution_evidence"].update(owner_builds=1,generation_action="refreshed_owner")
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+        report=prepared_gram_fixture(hip=True)
+        report["variants"][-1]["metadata"]["gram_batch"]["capability_probed_per_call"]=True
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","hip-direct",0)
+
+    def test_sustained_prepared_gram_reuses_initialized_owner(self):
+        report=prepared_gram_fixture();report["sustained_ms"]=1
+        report["sustained_order"]=[row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"]={"calls":16,"elapsed_ns":2000000,"mean_call_ns":125000,"target_ms":1,"call_limit":4096,
+                "target_reached":True,"checksum_u64":report["checksum_u64"],"final_exact_reference_passed":True,"verification_ns":2,
+                "phase_timing_enabled":False,"scope":"fixture final output only","gram_products":48,
+                "rns_exports":16*row["metadata"]["gram_batch"]["rns_exports_per_batch"],"mean_gram_product_ns":2000000/48,"verified_outputs_after_interval":1}
+            if row["metadata"]["gram_batch"]["prepared_gram_api"]:row["sustained"]["execution_evidence"]=dict(row["samples"][0]["execution_evidence"])
+        collector.validate_report(report,"run1","cpu-reference",-1)
+        report["variants"][-1]["sustained"]["execution_evidence"]["owner_first_execution"]=True
+        with self.assertRaises(ValueError):collector.validate_report(report,"run1","cpu-reference",-1)
+
     def test_matched_batch_export_policies_and_counts(self):
         for products in (1,3,32,256):
             for policy in ("each","once"):
@@ -379,6 +455,8 @@ class Compiled(unittest.TestCase):
     def test_gram_wide_patterns_and_generator_override(self):
         cases = [("integer-cross-product", ["--gram"]), ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "once"]),
                  ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "each"]), ("integer-cross-product", ["--wide", "--bits", "40"]),
+                 ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--pattern", "zero"]),
+                 ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--wide", "--bits", "40"]),
                  ("integer-cross-product", ["--seed", "0"]), ("integer-cross-product", ["--pattern", "zero"]),
                  ("gf251-transform", ["--seed", "1"]), ("gf251-transform", ["--pattern", "sparse"]),
                  ("resident-chain", ["--pattern", "zero"]), ("resident-chain", ["--bits", "12"]),

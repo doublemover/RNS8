@@ -68,9 +68,11 @@ both orientations, padded host inputs, full signed extrema, composite/prime
 finite moduli, K=65537, exact Boost residue outputs, dense symmetry, budget
 rejection and reservations. Prepared-owner fixtures additionally cover repeated
 execution without GPU allocation, stale generations, refresh, retained lifetimes
-and rejection of an expanded proof envelope. Compilation and execution remain pending. Longer-K instruction accumulation,
-reconstruct-once export, and matched sustained dense-GEMM speedup measurements
-remain separate development/qualification work. No performance promotion is
+and rejection of an expanded proof envelope. Compilation and execution remain pending.
+Longer-K instruction accumulation and matched sustained dense-GEMM speedup
+measurements remain development/qualification work. Explicit reconstruct-once
+and prepared-owner application cohorts are now authored in the
+[Gram workload guide](gram-prepared-reuse.md). No performance promotion is
 claimed by reducing the number of independent dots.
 
 `integer-cross-product --gram` includes the ordinary dense control and a

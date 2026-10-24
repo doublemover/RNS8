@@ -25,6 +25,12 @@
     "tiny_split_complex_v1": {"shape": [2, 2, 3], "ar": [2, -3, 4, -5, 6, 7], "ai": [1, 0, -1, 2, -2, 1], "br": [1, 8, -2, 9, 3, -4], "bi": [0, 1, 2, 0, -1, 3], "real": [19, -25, 9, -19], "imag": [-12, 26, 14, 10], "changed_real": [20, -17, 9, -19], "changed_imag": [-12, 27, 14, 10]}
   },
   "fixture_selection": "--size tiny selects named fixtures only at2x2x3 with seeded pattern and no explicit seed or bits. Explicit seed/bits selects generator data instead. Exactness walkthrough always uses its five fixed witnesses.",
+  "gram_prepared_owner_cohort_v1": {
+    "candidates": "Separate prepared single-source scalar/WMMA owners alongside ordinary Gram and prepared dense controls; explicit batch only.",
+    "initialization": "Host jobs/device allocation during setup; device upload and WMMA probe on first execution per owner, charged in cold call.",
+    "generation2": "Public refresh if actual packed magnitude fits original envelope; otherwise explicit charged destruction/recreation on RANGE_ERROR, preserving method and mathematical output.",
+    "evidence": "Outside timing: actual source version, first-execution flag, owner build/refresh counts and generation action; collector predicts action from replayed X magnitudes."
+  },
   "gram_batch_v1": {
     "products_per_batch": "Explicit --gram-reuse1..256; R identical full products, not an accumulated sum.",
     "export_policy": "--gram-export each exports every RNS product; once exports only the final product. Final complete native output is identical.",

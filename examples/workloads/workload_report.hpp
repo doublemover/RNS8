@@ -31,6 +31,7 @@ inline Json sustained_sample(Variant& variant, uint32_t target_ms, const Words& 
     result["gram_products"]=products;result["rns_exports"]=uint64_t(calls)*batch["rns_exports_per_batch"].get<uint32_t>();
     result["mean_gram_product_ns"]=elapsed/products;result["verified_outputs_after_interval"]=1;
   }
+  if(variant.execution_evidence) result["execution_evidence"]=variant.execution_evidence();
   return result;
 }
 inline Json verified_sample(Variant& variant, uint64_t version, const Words& expected) {
@@ -47,6 +48,7 @@ inline Json verified_sample(Variant& variant, uint64_t version, const Words& exp
     result["rns_exports"]=variant.metadata["gram_batch"]["rns_exports_per_batch"];
     result["verified_outputs_after_interval"]=1;
   }
+  if(variant.execution_evidence) result["execution_evidence"]=variant.execution_evidence();
   return result;
 }
 template<class Data> inline void run_variants(Json& report, const Options& options, const Data& data, std::vector<Variant>& variants,
@@ -100,7 +102,7 @@ template<class Data> inline void run_variants(Json& report, const Options& optio
       records[index]["call_rate_unit"]="complete_R_product_application_batches_per_second";
     }
     const auto teardown_start = Clock::now();
-    variants[index].execute = {}; variants[index].output = {};
+    variants[index].execute = {}; variants[index].output = {};variants[index].execution_evidence={};
     const double teardown = since(teardown_start);
     records[index]["resource_teardown_ns"] = teardown;
     records[index]["cold_application_total_ns"] = records[index]["cold_application_total_ns"].get<double>() + teardown;

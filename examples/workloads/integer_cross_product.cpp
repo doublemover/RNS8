@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     add_integer_baselines(variants, skipped, data, options, bound, limbs);
     if(options.gram_reuse) {
       report["gram_batch"]=gram_batch_contract(options);
+      report["gram_prepared_owner_cohort"]=1;
       report["bound_method"]="K * max_abs_X_including_changed_X0 squared; no cancellation assumption";
       report["useful_integer_products_per_call"]=uint64_t(options.m)*options.n*options.k*options.gram_reuse;
       report["work_definition"]="R complete identical Gram products per application batch; dense equivalent mathematical products, counted once each";
@@ -62,12 +63,18 @@ int main(int argc, char** argv) {
     variants.push_back(dense_variant(data, options, bound));
     if (options.gram && (options.backend==RNS8_BACKEND_CPU_REFERENCE || options.backend==RNS8_BACKEND_HIP_DIRECT)) {
       variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR));
+      if(options.gram_reuse) variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true));
       if (options.backend==RNS8_BACKEND_HIP_DIRECT) {
         rns8::Context probe(options.device,options.backend);
         const std::string target=probe.device_info().gcn_arch;
-        if (target.rfind("gfx1100",0)==0 || target.rfind("gfx1101",0)==0 || target.rfind("gfx1102",0)==0)
+        if (target.rfind("gfx1100",0)==0 || target.rfind("gfx1101",0)==0 || target.rfind("gfx1102",0)==0) {
           variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA));
-        else skipped.push_back({{"name","rns8_single_source_gram_wmma"},{"reason","requires RDNA3 IU8 target"}});
+          if(options.gram_reuse) variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true));
+        }
+        else {
+          skipped.push_back({{"name","rns8_single_source_gram_wmma"},{"status","unsupported"},{"reason","requires RDNA3 IU8 target"}});
+          if(options.gram_reuse) skipped.push_back({{"name","rns8_prepared_single_source_gram_wmma"},{"status","unsupported"},{"reason","requires RDNA3 IU8 target"}});
+        }
       }
       report["gram_independent_integer_products_per_call"]=uint64_t(options.n)*(options.n+1)/2*options.k*std::max(options.gram_reuse,1u);
       report["gram_dense_equivalent_integer_products_per_call"]=uint64_t(options.n)*options.n*options.k*std::max(options.gram_reuse,1u);

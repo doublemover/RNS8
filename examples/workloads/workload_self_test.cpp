@@ -76,8 +76,9 @@ int main() {
       const cpp_int bound=cpp_int(cohort.k)*maximum_after_mutation(input)*maximum_after_change(input.b);
       auto dense=dense_variant(input,cohort,bound);
       auto single=gram_variant(input,cohort,bound,RNS8_GRAM_SCALAR);
+      auto prepared=gram_variant(input,cohort,bound,RNS8_GRAM_SCALAR,true);
       const auto original=integer_words(exact_product(input,cohort),1);
-      for(auto* variant:{&dense,&single}) {
+      for(auto* variant:{&dense,&single,&prepared}) {
         const auto first=verified_sample(*variant,1,original);
         require(first["gram_products"]==reuse && first["rns_exports"]==(policy=="each"?reuse:1u),"Gram batch lost product/export counts");
         Phases repeated;variant->execute(repeated,1);
@@ -85,7 +86,7 @@ int main() {
       }
       mutate_input(input);input.b[0]=input.a[0];
       const auto changed=integer_words(exact_product(input,cohort),1);
-      for(auto* variant:{&dense,&single}) {
+      for(auto* variant:{&dense,&single,&prepared}) {
         Phases refreshed;variant->execute(refreshed,2);
         require(variant->output()==changed && refreshed.values.contains("changed_input_pack_and_prepared_refresh_ns"),"Gram generation2 did not refresh");
       }
@@ -93,6 +94,21 @@ int main() {
           single.metadata["gram_batch"]["prepared_gram_api"]==false,"Gram preparation boundary was mislabeled");
       require(single.metadata["independent_integer_products_per_call"]==9*reuse &&
           single.metadata["dense_equivalent_integer_products_per_call"]==12*reuse,"Gram mathematical work omitted batch reuse");
+      const auto refreshed=prepared.execution_evidence();
+      require(refreshed["generation_action"]=="refreshed_owner" && refreshed["owner_builds"]==1 &&
+          refreshed["owner_refreshes"]==1,"prepared Gram changed-input refresh was mislabeled");
+    }
+    {
+      Options zero=tiny;zero.pattern="zero";zero.gram_reuse=3;zero.backend=RNS8_BACKEND_CPU_REFERENCE;zero.device=-1;
+      zero.memory=std::make_shared<MemoryBudget>();Dataset input=make_data(zero);
+      auto prepared=gram_variant(input,zero,cpp_int(3),RNS8_GRAM_SCALAR,true);
+      const auto first=verified_sample(prepared,1,integer_words(exact_product(input,zero),1));
+      require(first["execution_evidence"]["owner_first_execution"]==true,"prepared Gram first-use setup was hidden");
+      mutate_input(input);input.b[0]=input.a[0];
+      const auto changed=verified_sample(prepared,2,integer_words(exact_product(input,zero),1));
+      require(changed["execution_evidence"]["generation_action"]=="recreated_owner_for_larger_bound" &&
+          changed["execution_evidence"]["owner_builds"]==2 && changed["execution_evidence"]["owner_refreshes"]==0 &&
+          changed["execution_evidence"]["owner_first_execution"]==true,"expanded Gram proof did not recreate explicitly");
     }
     Dataset full; full.a = {INT64_MIN, INT64_MAX}; full.b = {1, 1};
     Options edge; edge.m = edge.n = 1; edge.k = 2;

@@ -91,6 +91,16 @@ if(BUILD_TESTING)
       set_tests_properties(workload_gram_reuse_${_gram_export}_hip PROPERTIES LABELS "examples;workloads;hip;gram" TIMEOUT 90 SKIP_RETURN_CODE 77)
     endif()
   endforeach()
+  add_test(NAME workload_gram_prepared_expanded_proof_cpu COMMAND rns8-workload-integer-cross-product
+    --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero
+    --repeats 2 --warmups 1 --sustained-ms 1 --json)
+  set_tests_properties(workload_gram_prepared_expanded_proof_cpu PROPERTIES LABELS "examples;workloads;cpu;gram" TIMEOUT 60)
+  if(RNS8_WORKLOAD_GPU_TESTS)
+    add_test(NAME workload_gram_prepared_expanded_proof_hip COMMAND rns8-workload-integer-cross-product
+      --backend hip-direct --device 0 --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero
+      --repeats 2 --warmups 1 --sustained-ms 1 --json)
+    set_tests_properties(workload_gram_prepared_expanded_proof_hip PROPERTIES LABELS "examples;workloads;hip;gram" TIMEOUT 90 SKIP_RETURN_CODE 77)
+  endif()
   add_executable(rns8-workload-self-test workload_self_test.cpp)
   target_link_libraries(rns8-workload-self-test PRIVATE ${_workload_library} nlohmann_json::nlohmann_json)
   target_include_directories(rns8-workload-self-test SYSTEM PRIVATE "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")

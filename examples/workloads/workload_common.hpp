@@ -324,6 +324,8 @@ struct Variant {
   double setup_ns = 0;
   std::function<void(Phases&, uint64_t)> execute;
   std::function<const Words&()> output;
+  // Optional lifecycle evidence is read after timing, never between burst calls.
+  std::function<Json()> execution_evidence;
 };
 inline Json clock_info() {
   std::array<double, 1001> times{};

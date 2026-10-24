@@ -16,6 +16,9 @@ inline Json storage_info(const rns8::Matrix& matrix) {
 struct WorkloadPreparedDeleter {
   void operator()(rns8_prepared_execution* value) const noexcept { (void)rns8_destroy_prepared_execution(value); }
 };
+struct WorkloadPreparedGramDeleter {
+  void operator()(rns8_prepared_gram* value) const noexcept { (void)rns8_destroy_prepared_gram(value); }
+};
 struct DenseEngine {
   const Dataset& data;
   const Options& options;
@@ -24,15 +27,20 @@ struct DenseEngine {
   std::unique_ptr<rns8::Workspace> workspace;
   std::unique_ptr<rns8::Matrix> a, b, c;
   std::unique_ptr<rns8_prepared_execution,WorkloadPreparedDeleter> prepared;
+  std::unique_ptr<rns8_prepared_gram,WorkloadPreparedGramDeleter> prepared_gram;
   uint64_t packed_version=0;
+  uint32_t gram_owner_builds=0,gram_owner_refreshes=0;
+  bool prepared_gram_route=false,gram_owner_used=false,last_owner_first_execution=false;
+  const char* gram_generation_action="retained_owner";
   Words words;
   std::vector<int64_t> native;
   Json metadata;
   uint32_t prefix = 0;
   int gram_method = -1;
-  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1)
+  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1,bool gram_owner=false)
       : data(input), options(config), context(config.device, config.backend),
-        words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n), gram_method(gram) {
+        prepared_gram_route(gram_owner),words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n), gram_method(gram) {
+    require(!prepared_gram_route || (options.gram_reuse && gram_method>=0),"prepared Gram route requires an explicit Gram batch");
     metadata["device"] = device_info(context, options);
     const auto desc = gemm_desc(options, options.wide ? RNS8_EXACT_WIDE_SIGNED : RNS8_BOUNDED_I64,
                                 options.m, options.n, options.k, bound);
@@ -68,16 +76,40 @@ struct DenseEngine {
         rns8_prepared_execution* handle=nullptr;
         rns8::check(rns8_prepare_gemm(context.get(),plan->get(),a->get(),b->get(),c->get(),workspace->get(),&handle));
         prepared.reset(handle);
+      } else if(prepared_gram_route) {
+        const uint64_t tiles=(uint64_t(options.n)+15)/16;
+        const uint64_t jobs=tiles*(tiles+1)/2;
+        const uint64_t job_envelope=jobs*16+4;
+        options.memory->reserve(job_envelope,options.memory_mib*UINT64_C(1024)*1024,"modeled retained Gram host/device job payload");
+        metadata["modeled_retained_gram_job_payload_bytes"]=job_envelope;
+        prepare_gram_owner();
       }
       metadata["gram_batch"]=gram_batch_contract(options);
-      metadata["gram_batch"]["implementation"]=gram_method < 0 ? "public_prepared_dense" : "retained_single_source";
-      metadata["gram_batch"]["public_api"]=gram_method < 0 ? "rns8_execute_prepared" : "rns8_gram_residues";
+      metadata["gram_batch"]["implementation"]=prepared_gram_route?"public_prepared_single_source":gram_method < 0 ? "public_prepared_dense" : "retained_single_source";
+      metadata["gram_batch"]["public_api"]=prepared_gram_route?"rns8_execute_prepared_gram":gram_method < 0 ? "rns8_execute_prepared" : "rns8_gram_residues";
       metadata["gram_batch"]["rns_exports_per_batch"]=options.gram_export=="each"?options.gram_reuse:1;
       metadata["gram_batch"]["native_serializations_per_batch"]=0;
-      metadata["gram_batch"]["prepared_gram_api"]=false;
-      metadata["gram_batch"]["job_list_allocated_per_call"]=gram_method>=0;
-      metadata["gram_batch"]["capability_probed_per_call"]=gram_method==RNS8_GRAM_WMMA;
+      metadata["gram_batch"]["prepared_gram_api"]=prepared_gram_route;
+      metadata["gram_batch"]["job_list_allocated_per_call"]=gram_method>=0 && !prepared_gram_route;
+      metadata["gram_batch"]["capability_probed_per_call"]=gram_method==RNS8_GRAM_WMMA && !prepared_gram_route;
+      if(prepared_gram_route) {
+        metadata["gram_batch"]["generation_policy"]="refresh_or_explicit_recreate_on_expanded_bound";
+        metadata["gram_batch"]["host_job_preparation"]="once_per_owner_during_setup_or_changed_input";
+        metadata["gram_batch"]["device_job_allocation"]=options.backend==RNS8_BACKEND_HIP_DIRECT?"once_per_owner_during_setup_or_changed_input":"not_applicable";
+        metadata["gram_batch"]["device_job_initialization"]=options.backend==RNS8_BACKEND_HIP_DIRECT?"first_execution_per_owner":"not_applicable";
+        metadata["gram_batch"]["wmma_capability_probe"]=gram_method==RNS8_GRAM_WMMA?"first_execution_per_owner":"not_applicable";
+      }
     }
+  }
+  void prepare_gram_owner() {
+    rns8_prepared_gram* handle=nullptr;
+    rns8::check(rns8_prepare_gram(context.get(),b->get(),c->get(),RNS8_GRAM_TRANSPOSE_TIMES_SELF,
+        static_cast<rns8_gram_method>(gram_method),options.memory_mib*UINT64_C(1024)*1024,&handle));
+    prepared_gram.reset(handle);++gram_owner_builds;gram_owner_used=false;
+  }
+  Json gram_execution_evidence() const {
+    return {{"generation_action",gram_generation_action},{"packed_source_version",packed_version},
+      {"owner_first_execution",last_owner_first_execution},{"owner_builds",gram_owner_builds},{"owner_refreshes",gram_owner_refreshes}};
   }
   void pack(uint64_t version) {
     if (a) rns8::check(rns8_pack_i64(context.get(),a->get(),data.a.data(),options.k,version));
@@ -86,7 +118,8 @@ struct DenseEngine {
   }
   void compute(Phases& phases) {
     phases.measure("gemm_and_required_sync_ns",[&] {
-      if(gram_method>=0)
+      if(prepared_gram) rns8::check(rns8_execute_prepared_gram(prepared_gram.get()));
+      else if(gram_method>=0)
         rns8::check(rns8_gram_residues(context.get(),b->get(),c->get(),RNS8_GRAM_TRANSPOSE_TIMES_SELF,
             static_cast<rns8_gram_method>(gram_method),options.memory_mib*UINT64_C(1024)*1024));
       else if(prepared) {
@@ -104,12 +137,24 @@ struct DenseEngine {
     });
   }
   void execute(Phases& phases,uint64_t version) {
+    gram_generation_action="retained_owner";
     if(options.gram_reuse) {
       if(version!=packed_version) phases.measure("changed_input_pack_and_prepared_refresh_ns",[&] {
         pack(version);if(prepared) rns8::check(rns8_refresh_prepared_inputs(prepared.get()));
+        if(prepared_gram) {
+          const auto refreshed=rns8_refresh_prepared_gram(prepared_gram.get());
+          if(refreshed==RNS8_RANGE_ERROR) {
+            rns8::check(rns8_destroy_prepared_gram(prepared_gram.get()));(void)prepared_gram.release();
+            prepare_gram_owner();gram_generation_action="recreated_owner_for_larger_bound";
+          } else {
+            rns8::check(refreshed);++gram_owner_refreshes;gram_generation_action="refreshed_owner";
+          }
+        }
       });
+      last_owner_first_execution=prepared_gram_route && !gram_owner_used;
       for(uint32_t product=0;product<options.gram_reuse;++product) {
         compute(phases);
+        if(prepared_gram_route) gram_owner_used=true;
         if(options.gram_export=="each") reconstruct(phases);
       }
       if(options.gram_export=="once") reconstruct(phases);
@@ -129,13 +174,14 @@ inline Variant dense_variant(const Dataset& data, const Options& options, const 
   return result;
 }
 inline Variant gram_variant(const Dataset& data, const Options& options, const cpp_int& bound,
-                            rns8_gram_method method) {
-  const auto start=Clock::now();auto state=std::make_shared<DenseEngine>(data,options,bound,int(method));
+                            rns8_gram_method method,bool prepared=false) {
+  const auto start=Clock::now();auto state=std::make_shared<DenseEngine>(data,options,bound,int(method),prepared);
   Variant result;
-  result.name="rns8_single_source_gram_"+std::string(method==RNS8_GRAM_WMMA?"wmma":"scalar");
+  result.name=std::string(prepared?"rns8_prepared_single_source_gram_":"rns8_single_source_gram_")+(method==RNS8_GRAM_WMMA?"wmma":"scalar");
   result.setup_ns=since(start);result.metadata=state->metadata;
   result.execute=[state](Phases& phases,uint64_t version){state->execute(phases,version);};
   result.output=[state]() -> const Words& {return state->words;};
+  if(prepared) result.execution_evidence=[state] {return state->gram_execution_evidence();};
   return result;
 }
 } // namespace rns8_workload

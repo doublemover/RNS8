@@ -97,8 +97,11 @@ actual request reports unsupported; a CPU run is never counted as GPU coverage.
 For retained single-source Gram cohorts, use `integer-cross-product --gram
 --gram-reuse R --gram-export each|once`, with R in1..256. Inputs are packed once
 per generation, then every application call recomputes R complete products.
-The dense control uses a public prepared GEMM owner; the triangular scalar/WMMA
-paths call the synchronous public Gram API with retained matrices. `each`
+The dense control uses a public prepared GEMM owner. Separate triangular
+scalar/WMMA candidates compare the ordinary synchronous Gram API with a public
+prepared Gram owner, retaining both controls and charging first-use setup.
+Changed-input calls report actual refresh or explicit owner recreation when
+the new magnitude expands the original proof envelope. `each`
 reconstructs/downloads R outputs; `once` reconstructs only the final output.
 CPU comparators still serialize their native result after each product and
 report that distinct boundary. The [Gram cohort guide](../../docs/gram-prepared-reuse.md)

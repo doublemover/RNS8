@@ -21,15 +21,26 @@ Both controls require `--gram`; other workload families reject them.
 | `rns8_prepared_dense_gram_control` | Public `rns8_prepare_gemm` for packed `Xᵀ` and X | R synchronous `rns8_execute_prepared` calls, then the selected export policy |
 | `rns8_single_source_gram_scalar` | Packed X and output storage | R public `rns8_gram_residues` calls with scalar triangular computation and mirrored output |
 | `rns8_single_source_gram_wmma` | Packed X and output storage | R public Gram calls with explicit WMMA method, when supported |
+| `rns8_prepared_single_source_gram_scalar` | Public `rns8_prepare_gram`, retained host jobs and output | R synchronous `rns8_execute_prepared_gram` calls, then the selected export policy |
+| `rns8_prepared_single_source_gram_wmma` | Public prepared Gram owner with retained device jobs | R prepared WMMA calls with the same export policy, when supported |
 | Native and Boost CPU controls | Native inputs and comparator buffers | R full products, each serialized into the common output word format |
 
-This cohort uses the ordinary synchronous Gram API. Its triangular job-list
+The ordinary single-source control uses the synchronous Gram API. Its triangular job-list
 allocation remains inside each call, and the WMMA capability probe remains
 charged there. Metadata states these costs explicitly. The dense control does
 use a prepared owner; it does not rebuild that owner inside unchanged-input
 samples. CPU native serialization happens R times under both export policies;
 it is recorded separately from RNS reconstruction/downloads. These boundaries
 must be considered when interpreting application costs.
+
+The separate prepared Gram candidates build the host job list and allocate its
+device storage once per owner during setup. The first execution uploads jobs
+and, for WMMA, probes capability; the cold application call includes that
+first-use work. Later calls retain both jobs and the capability result. They
+have their own names and `prepared_gram_api=true`; the ordinary control keeps
+its original costs and identity. Reports with these additional candidates
+carry `gram_prepared_owner_cohort=1`, included in comparison identity. This
+marker does not relabel an earlier observation.
 
 The workload explicitly requests CPU reference or direct HIP. It rejects
 other backends for this batch mode and never falls back. The WMMA route is
@@ -53,6 +64,23 @@ and recomputes a complete independent Boost reference. The changed-input call
 charges repacking/refresh in its own named phase. It is not included in the
 unchanged-input steady median.
 
+A prepared Gram owner binds the actual packed input's magnitude, not the
+workload's larger future-input admission bound. Generation2 first attempts
+public `rns8_refresh_prepared_gram`. If the new magnitude expands that original
+envelope, refresh returns RANGE_ERROR; the workload explicitly destroys and
+recreates the Gram owner under the same method. It frees the old job payload
+before creating the new one, charging all this work plus new first-use
+initialization to the changed-input call. Other refresh failures remain errors.
+All-zero input followed by X[0]=1 is an explicit small recreation control.
+
+Each prepared sample records the actual refresh/recreate action, packed source
+version, first-execution flag, owner build count and successful refresh count.
+The evidence callback runs after timing, never between sustained calls. The
+collector predicts refresh versus recreation from independently replayed
+original/changed X magnitudes and rejects contradictory lifecycle evidence.
+These are wrapper actions and API initialization contracts, not hardware
+allocation counters or a trace of every device instruction.
+
 Every instrumented application call verifies the complete final native output
 after timing. Intermediate identical products are not individually audited.
 Sustained intervals disable diagnostic phase clocks and perform complete final
@@ -69,7 +97,11 @@ kernel latency. Mathematical work fields count R times the dense-equivalent
 
 The existing aggregate memory envelope retains all comparator buffers,
 references, matrices and workspace simultaneously, plus a bounded preparation
-metadata allowance. Reuse adds no per-product retained output arrays. The
+metadata allowance. Reuse adds no per-product retained output arrays. Prepared
+candidates also reserve the conservative current-layout job payload model
+`16*Q*(Q+1)/2+4` bytes, Q=ceil(N/16), covering host/device jobs and the capability
+word even for CPU/scalar controls. This is a model, not a public layout ABI or
+measured peak. The
 additional batch work bound is `M*N*K*R <= 134217728`; the full independent
 reference remains a real CPU cost. The optional timed naive-comparator limit
 also counts all R products; blocked comparators remain present. See the
@@ -83,6 +115,7 @@ The installed workload source uses the same public headers and exported target.
 
 ```powershell
 build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --repeats 2 --warmups 1 --json
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero --repeats 2 --warmups 1 --json
 python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-each.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size large --m 128 --n 128 --k 128 --bits 8 --seed 3135 --gram --gram-reuse 8 --gram-export each --repeats 9 --warmups 3 --sustained-ms 250
 python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-once.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size large --m 128 --n 128 --k 128 --bits 8 --seed 3135 --gram --gram-reuse 8 --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
 ```
@@ -91,7 +124,7 @@ The collector binds requested R/export policy to every capture, keeps them in
 comparison identity, and retains mismatches as failures. It independently
 replays all original and changed integer outputs, including serialization and
 range admission; checks preparation, work/rate and export/verification counts;
-and requires the prepared dense, triangular scalar, blocked Boost and admitted
+and requires the prepared dense, ordinary/prepared triangular scalar, blocked Boost and admitted
 blocked native64 controls. Existing executable, build/source, command, process,
 clock and device provenance remains attached. Raw captures remain ineligible
 for performance promotion. The fixtures and CTest smoke registrations cover
