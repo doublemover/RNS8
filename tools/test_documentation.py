@@ -129,7 +129,8 @@ class RepositoryTest(unittest.TestCase):
         self.assertIn("c7f7e05", text)
         self.assertIn("Internal checked native-byte WMMA", text)
         self.assertIn("Public AMDGPU builtins", text)
-        self.assertIn("current examples select the CPU", text)
+        self.assertIn("examples/workloads/README.md", text)
+        self.assertIn("application performance and installed-platform", text)
 
 
 class HardwareOfferTest(unittest.TestCase):

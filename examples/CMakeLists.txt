@@ -22,3 +22,6 @@ foreach(example_name IN LISTS RNS8_EXAMPLE_TARGETS)
     set_tests_properties("example_${source_stem}" PROPERTIES LABELS "examples;cpu" TIMEOUT 10)
   endif()
 endforeach()
+
+# Public-API application kernels and independent comparators; tiny examples above remain unchanged.
+add_subdirectory(workloads)

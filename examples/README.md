@@ -1,11 +1,13 @@
 # Checked examples
 
 These complete C++17 programs exercise the public API with status checks and
-independently known results. They currently select CPU reference contexts;
-`RNS8_BUILD_EXAMPLES=ON` builds them by default. GPU benchmark entry commands
-are in the [Windows](../docs/platform-windows.md) and
-[Linux](../docs/platform-linux.md) guides. Practical GPU workload programs are
-tracked separately in [#62](https://github.com/doublemover/RNS8/issues/62).
+independently known results. `RNS8_BUILD_EXAMPLES=ON` builds them by default.
+The [practical workload catalogue](workloads/README.md) adds an exactness
+walkthrough, integer Gram/cross-products, GF(251) transforms, and matched
+resident versus export/reimport chains with explicit GPU backend/device
+selection, independent CPU comparators, range admission and measurement tools.
+Their application performance and installed-platform qualification remain
+pending execution; the tiny programs below retain CPU reference contexts.
 
 | Program | Target | Arithmetic and output |
 |---|---|---|

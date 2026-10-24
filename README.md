@@ -149,10 +149,12 @@ fixed-prefix direct-HIP stream/capture subsets with completion tokens and retain
 resource lifetimes.
 
 Start with the [example index](examples/README.md) for complete checked API
-programs and their execution boundaries. Its current examples select the CPU
-reference; the GPU command above exercises the existing benchmark driver.
-Practical GPU application examples are tracked by
-[#62](https://github.com/doublemover/RNS8/issues/62).
+programs and their execution boundaries. The [practical GPU workload catalogue](examples/workloads/README.md)
+adds integer Gram/cross-products, GF(251) transforms, resident versus
+export/reimport chains and an exactness walkthrough, using explicit backend and
+device requests. Their application performance and installed-platform
+qualification remain pending execution; existing measured kernel results above
+do not establish their application speedups.
 
 Install a configured build with `cmake --install <build-dir> --prefix <install-dir>`.
 Consumers use `find_package(RNS8 CONFIG REQUIRED)` and link `rns8::rns8_static`,

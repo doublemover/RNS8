@@ -1,0 +1,26 @@
+{
+  "schema": "rns8_workload_recipes_v1",
+  "serialization": "Row-major signed64 native input words, A then B then optional T; outputs use signed little-endian u64 limbs per cell. GF251 outputs are canonical0..250 serialized as one u64 each.",
+  "checksum": "fnv1a64_bytes_v1: offset14695981039346656037, xor each little-endian byte then multiply1099511628211 modulo2^64; all words included",
+  "generator": {
+    "name": "splitmix64_signed_magnitude_v1",
+    "default_seed": 3135,
+    "state_increment_hex": "9e3779b97f4a7c15",
+    "multiply_constants_hex": ["bf58476d1ce4e5b9", "94d049bb133111eb"],
+    "xor_right_shifts": [30, 27, 31],
+    "signed_mapping": "maximum=2^bits-1;v=word%(2*maximum+1);v<=maximum?v:-(v-maximum)",
+    "field_mapping": "word%251, independent of bits",
+    "zero_pattern": "Generate each word normally, replace every value with0",
+    "sparse_pattern": "Generate each word normally, retain only operand-local indices divisible by8",
+    "gram": "Generate B as K observations by N=M features; overwrite A with its transpose",
+    "generation2": "Increment A[0], except INT64_MAX decrements; GF251 increments modulo251. Gram also updates B[0]. All other inputs unchanged."
+  },
+  "fixtures": {
+    "tiny_cross_v1": {"shape": [2, 2, 3], "a": [2, -3, 4, -5, 6, 7], "b": [1, 8, -2, 9, 3, -4], "output": [20, -27, 4, -14]},
+    "tiny_cross_v1_gram_transpose_v1": {"shape": [2, 2, 3], "a": [1, -2, 3, 8, 9, -4], "b": [1, 8, -2, 9, 3, -4], "output": [14, -22, -22, 161]},
+    "tiny_cross_chain_v1": {"shape": [2, 2, 3], "a": [2, -3, 4, -5, 6, 7], "b": [1, 8, -2, 9, 3, -4], "t": [2, 1, -1, 2], "output": [67, -34, 22, -24]},
+    "tiny_gf251_v1": {"shape": [2, 2, 3], "a": [250, 2, 3, 4, 5, 6], "b": [7, 8, 9, 10, 11, 12], "output": [44, 48, 139, 154]},
+    "exactness_five_witnesses_v1": {"output_decimal": ["1180591620717411303409", "0", "0", "-1", "680564733841876926926749214863536422912"], "rejected_power": 156}
+  },
+  "fixture_selection": "--size tiny selects named fixtures only at2x2x3 with seeded pattern and no explicit seed or bits. Explicit seed/bits selects generator data instead. Exactness walkthrough always uses its five fixed witnesses."
+}

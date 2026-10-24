@@ -1608,11 +1608,40 @@
         {
           "source": "docs/research/README.md",
           "reference": "../calibration.md"
+        },
+        {
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/calibration.md"
         }
       ],
       "anchors": [
         "calibration-evidence-and-planner-rates",
         "crt-collection-executable"
+      ]
+    },
+    {
+      "path": "docs/complex-residue-composition.md",
+      "purpose": "Private signed/finite split-complex3M/4M contracts and validation gaps",
+      "audience": "Researchers and contributors",
+      "disposition": "keep",
+      "canonical": "docs/complex-residue-composition.md",
+      "owner": "src/backend_common/complex_residue_plan.hpp",
+      "reason": "Private experiment and explicit arithmetic/admission contract; no public ownership/generation guarantee or performance qualification.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "complex-residue-composition.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/complex-residue-composition.md"
+        }
+      ],
+      "anchors": [
+        "arithmetic-contract",
+        "exact-complex-residue-composition",
+        "memory-and-publication",
+        "validation-and-remaining-work"
       ]
     },
     {
@@ -2598,6 +2627,10 @@
           "reference": "native-queue-performance-2026-10-23.md"
         },
         {
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/native-queue-performance-2026-10-23.md"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/native-queue-performance-2026-10-23.md"
         }
@@ -2871,8 +2904,8 @@
           "reference": "platform-linux.md"
         },
         {
-          "source": "examples/README.md",
-          "reference": "../docs/platform-linux.md"
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/platform-linux.md"
         },
         {
           "source": "third_party/README.md",
@@ -2967,8 +3000,8 @@
           "reference": "platform-windows.md"
         },
         {
-          "source": "examples/README.md",
-          "reference": "../docs/platform-windows.md"
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/platform-windows.md"
         },
         {
           "source": "third_party/README.md",
@@ -3150,6 +3183,10 @@
         {
           "source": "docs/roadmap.md",
           "reference": "research/README.md"
+        },
+        {
+          "source": "examples/workloads/README.md",
+          "reference": "../../docs/research/README.md"
         },
         {
           "source": "docs/documentation-inventory.json",
@@ -3724,6 +3761,10 @@
           "reference": "downstream-cmake/README.md"
         },
         {
+          "source": "examples/workloads/README.md",
+          "reference": "../downstream-cmake/README.md"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../examples/downstream-cmake/README.md"
         }
@@ -3731,6 +3772,37 @@
       "anchors": [
         "consume-the-rns8-package",
         "cpu-continuation-workflow"
+      ]
+    },
+    {
+      "path": "examples/workloads/README.md",
+      "purpose": "Practical exact integer workloads, bounds, independent comparators, collection and installed public consumer",
+      "audience": "GPU users and contributors",
+      "disposition": "keep",
+      "canonical": "examples/workloads/README.md",
+      "owner": "examples/workloads/CMakeLists.txt",
+      "reason": "Canonical executable task catalogue; application measurements and platform qualification remain explicitly pending.",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "examples/workloads/README.md"
+        },
+        {
+          "source": "examples/README.md",
+          "reference": "workloads/README.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../examples/workloads/README.md"
+        }
+      ],
+      "anchors": [
+        "build-and-run",
+        "installed-public-consumer",
+        "measurement-and-independent-collection",
+        "practical-exact-integer-workloads",
+        "range-comparators-and-resource-limits",
+        "tasks-and-tiny-answers"
       ]
     },
     {
@@ -3861,6 +3933,10 @@
         {
           "source": "docs/platform-windows.md",
           "reference": "../third_party/README.md"
+        },
+        {
+          "source": "examples/workloads/README.md",
+          "reference": "../../third_party/README.md"
         },
         {
           "source": "docs/documentation-inventory.json",
