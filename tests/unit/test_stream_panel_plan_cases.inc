@@ -51,3 +51,19 @@ TEST_CASE("out-of-core panels do not hide overflowing global spans") {
   p.m=1;p.semantics=RNS8_WRAP_U64_MOD_2_64;
   CHECK(plan_stream_panels(p).status==RNS8_UNSUPPORTED_BACKEND);
 }
+
+TEST_CASE("public streaming resource query proves native output envelope") {
+  rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+  d.semantics=RNS8_BOUNDED_I64;d.m=17;d.n=19;d.k=33;d.lda=35;d.ldb=21;d.ldc=23;
+  d.panel_m=3;d.panel_n=4;d.panel_k=5;d.prefix=9;d.max_abs_a=5;d.max_abs_b=3;
+  rns8_stream_gemm_resources r{};r.struct_size=sizeof(r);r.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_query_stream_gemm(&d,&r)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(r.device_bytes>0);CHECK(r.host_bytes>0);CHECK(r.minimum_host_bytes==24);
+  d.device_budget_bytes=r.device_bytes;d.host_budget_bytes=r.host_bytes;
+  REQUIRE(rns8_query_stream_gemm(&d,&r)==RNS8_SUCCESS);
+  d.max_abs_a=INT64_MAX;d.max_abs_b=2;
+  CHECK(rns8_query_stream_gemm(&d,&r)==RNS8_RANGE_ERROR);
+  d.semantics=RNS8_WRAP_U64_MOD_2_64;
+  CHECK(rns8_query_stream_gemm(&d,&r)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_destroy_stream_gemm(nullptr)==RNS8_SUCCESS);
+}

@@ -783,6 +783,45 @@ typedef struct rns8_matrix_storage_info {
   char detail[256];
 } rns8_matrix_storage_info;
 
+typedef struct rns8_stream_gemm_plan rns8_stream_gemm_plan;
+typedef struct rns8_stream_gemm_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_semantics semantics;
+  int64_t m,n,k,lda,ldb,ldc;
+  uint32_t panel_m,panel_n,panel_k,prefix;
+  uint64_t max_abs_a,max_abs_b;
+  uint64_t device_budget_bytes,host_budget_bytes;
+} rns8_stream_gemm_desc;
+typedef struct rns8_stream_gemm_resources {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t reserved;
+  uint64_t device_bytes,host_bytes,minimum_device_bytes,minimum_host_bytes;
+  uint64_t source_a_span_bytes,source_b_span_bytes,destination_span_bytes;
+  uint64_t output_tiles,k_panels_per_tile;
+} rns8_stream_gemm_resources;
+typedef struct rns8_stream_gemm_result {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_status status;
+  uint64_t epoch,completed_tiles,completed_panels;
+  uint32_t output_started,output_valid,quarantined,reserved;
+} rns8_stream_gemm_result;
+/* Explicit experimental serial host-to-host bounded i64/u64 GEMM. Bounds are
+ * verified against all native inputs before writes. No implicit in-core fallback.
+ * Input/output addresses use the native signedness declared by semantics. */
+RNS8_API rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,
+    rns8_stream_gemm_resources* resources);
+RNS8_API rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_desc* desc,
+    rns8_stream_gemm_plan** out);
+RNS8_API rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,
+    const void* a,const void* b,void* c,uint64_t a_instance,uint64_t a_generation,
+    uint64_t b_instance,uint64_t b_generation,rns8_stream_gemm_result* result);
+/* Failed drain keeps the plan, arena and host staging owned; retry destruction
+ * after device recovery. Context remains poisoned and cannot execute new work. */
+RNS8_API rns8_status rns8_destroy_stream_gemm(rns8_stream_gemm_plan* plan);
+
 typedef enum rns8_gram_orientation {
   RNS8_GRAM_TRANSPOSE_TIMES_SELF = 0,
   RNS8_GRAM_SELF_TIMES_TRANSPOSE = 1

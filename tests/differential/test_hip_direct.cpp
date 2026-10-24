@@ -89,3 +89,5 @@ TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
   if (!hip_available()) SKIP("no HIP device for Gram");
   check_public_gram(RNS8_BACKEND_HIP_DIRECT);
 }
+
+#include "test_hip_direct_stream_panels_cases.inc"

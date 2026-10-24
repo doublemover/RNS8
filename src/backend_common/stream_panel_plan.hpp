@@ -38,7 +38,9 @@ inline bool stream_panel_storage(uint64_t m,uint64_t n,uint64_t k,uint32_t p,Str
     total+=padded;
   }
   if(na.byte_extent>limit-nb.byte_extent) return false;
-  out.device_bytes=total;out.host_bytes=na.byte_extent+nb.byte_extent;
+  const uint64_t inputs=na.byte_extent+nb.byte_extent;
+  if(nc.byte_extent>limit-inputs) return false;
+  out.device_bytes=total;out.host_bytes=inputs+nc.byte_extent;
   return true;
 }
 inline StreamPanelResources plan_stream_panels(const StreamPanelProblem& p) {
