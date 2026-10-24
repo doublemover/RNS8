@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 import evidence_database
+from test_capture_identity_support import synthetic_static_isa_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -158,6 +159,9 @@ def main() -> int:
         assert skipped_invalid[0]["capture_path"] == str(invalid_capture)
 
         captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
+        original_isa = json.loads(isa_report.read_text())
+        ck_bound = next(c for c in captures if c["backend_selected"] == "ck")
+        isa_report.write_text(json.dumps(synthetic_static_isa_report(ck_bound, original_isa["instruction_totals"])))
         captures[0]["timing_summary_us"]["pack_a"] = {"avg": 24.0, "median": 24.0, "p95": 24.0}
         captures[0]["timing_summary_us"]["pack_b"] = {"avg": 16.0, "median": 16.0, "p95": 16.0}
         database = evidence_database.build_database(

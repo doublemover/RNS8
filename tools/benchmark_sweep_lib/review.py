@@ -1716,24 +1716,11 @@ def matrix_instruction_histogram(
     capture: dict[str, Any],
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    direct = capture.get("matrix_instruction_histogram")
-    if isinstance(direct, dict):
-        return direct
-    for key in ("gpu_isa_report", "isa_report", "backend_isa_report", "compiled_isa"):
-        report = capture.get(key)
-        if not isinstance(report, dict):
-            continue
-        for nested_key in (
-            "matrix_instruction_histogram",
-            "matrix_instruction_counts",
-            "mnemonic_histogram",
-        ):
-            histogram = report.get(nested_key)
-            if isinstance(histogram, dict):
-                return histogram
+    # Unbound inline/backend-wide histograms remain diagnostic inventories;
+    # selected-opcode admission requires artifact/target/symbol association.
     if isa_index is not None:
         target = capture_device(capture).get("gcn_arch") or capture.get("configured_amdgpu_targets")
-        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target)
+        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target, capture)
         histogram = resources.get("isa_matrix_instruction_histogram")
         if isinstance(histogram, dict):
             return histogram

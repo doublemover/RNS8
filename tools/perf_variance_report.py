@@ -15,6 +15,7 @@ from typing import Any
 from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
 from timing_eligibility import phase_blockers
+from measurement_contract import exact_proof_policy, host_batch_contract
 from benchmark_sweep_lib.capture_metadata import (
     backend_id,
     capture_contract_key,
@@ -75,6 +76,8 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
                  "device", "cpu_parallel", "clock_policy", "warmups")}
     timing = capture.get("timing_metadata") or {}
+    identity["exact_proof_policy"] = exact_proof_policy(capture)
+    identity["host_batch_contract"] = host_batch_contract(capture)
     identity["timing_contract"] = {key: timing.get(key) for key in
                                    ("host_timing_contract_version", "host_result_kind", "source", "source_scope",
                                     "clock_period_numerator", "clock_period_denominator",

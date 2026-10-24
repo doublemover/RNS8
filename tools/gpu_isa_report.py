@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 import json
+import hashlib
 import re
 import subprocess
 import sys
@@ -98,9 +99,11 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
         "benchmark_execution_mode": capture.get("benchmark_execution_mode"),
         "backend_selected": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
+        "artifact_capture": capture.get("artifact_capture"),
+        "build_manifest_sha256": hashlib.sha256(json.dumps(capture.get("build_manifest"), sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
         "semantics": capture.get("semantics"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
-        "target_id": target.get("target_id"),
+        "target_id": target.get("target_id") or (capture.get("device") or {}).get("gcn_arch"),
         "target_namespace": target.get("target_namespace"),
         "review_group_key": target.get("review_group_key"),
         "pack_layout": timing.get("pack_layout"),
@@ -468,7 +471,9 @@ def correlate_matrix_instruction_report(report: dict[str, Any], candidates: dict
 
 
 def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, readobj_path: str | None) -> dict[str, Any]:
+    object_hash = hashlib.sha256(config.host_object.read_bytes()).hexdigest()
     with extracted_device_code_object(config, "rns8-gpu-isa-", f"{config.host_object.stem}.fatbin") as code_object:
+        code_hash = hashlib.sha256(code_object.read_bytes()).hexdigest()
         symbols = device_function_symbols(config.objdump, code_object)
         metadata = code_object_metadata(readobj_path, code_object)
         symbols_to_report, note = selected_symbols(symbols, backend)
@@ -483,7 +488,13 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, re
                     "metadata": symbol_metadata,
                 }
             )
+        if hashlib.sha256(config.host_object.read_bytes()).hexdigest() != object_hash:
+            raise RuntimeError("inspected object changed during disassembly")
         return {
+            "schema": "rns8_static_isa_v2",
+            "object_sha256": object_hash,
+            "code_object_sha256": code_hash,
+            "static_inventory_only": True,
             "object": str(config.host_object),
             "target": config.target,
             "backend": backend,
@@ -504,12 +515,53 @@ def report_object(config: IsaToolConfig, backend: str, rga_path: Path | None, re
         }
 
 
+def bind_selected_symbols(report: dict[str, Any], capture: dict[str, Any], artifact: Path,
+                          symbols: list[str], config: IsaToolConfig) -> None:
+    """Prove artifact membership, not dynamic execution, for an explicit mapping."""
+    from evidence_database_lib.isa import normalized_target, normalized_backend
+    if not symbols or len(set(symbols)) != len(symbols):
+        raise RuntimeError("selected static symbol mapping must be nonempty and unique")
+    available = {entry["symbol"] for entry in report.get("symbols", [])}
+    if not set(symbols) <= available:
+        raise RuntimeError("selected symbol is absent from the inspected code object")
+    if normalized_backend(capture.get("backend_selected")) != normalized_backend(report.get("backend")):
+        raise RuntimeError("capture and ISA backend differ")
+    target = normalized_target(capture.get("target_id"))
+    if target is None or target != normalized_target(report.get("target")):
+        raise RuntimeError("capture and ISA concrete target differ or are unknown")
+    identity = capture.get("artifact_capture") or {}
+    artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    kind = "executable_sha256" if artifact_hash == identity.get("executable_sha256") else "shared_library_sha256"
+    if identity.get("unchanged_during_run") is not True or artifact_hash != identity.get(kind):
+        raise RuntimeError("artifact is not the unchanged executable/library in the capture")
+    if artifact_hash == report.get("object_sha256"):
+        member_hash = report["code_object_sha256"]
+    else:
+        artifact_config = IsaToolConfig(artifact, config.target, config.objcopy, config.objdump, config.bundler, config.scratch_root)
+        with extracted_device_code_object(artifact_config, "rns8-isa-artifact-", "artifact.fatbin") as member:
+            member_hash = hashlib.sha256(member.read_bytes()).hexdigest()
+    if member_hash != report.get("code_object_sha256"):
+        raise RuntimeError("inspected code object does not match the captured artifact's target code object")
+    if hashlib.sha256(artifact.read_bytes()).hexdigest() != artifact_hash:
+        raise RuntimeError("artifact changed during ISA association")
+    if not isinstance(capture.get("selected_kernel"), str) or not capture["selected_kernel"]:
+        raise RuntimeError("capture has no selected kernel identity")
+    report["capture_binding"] = {
+        "schema": "rns8_selected_static_isa_binding_v1", "artifact_kind": kind,
+        "artifact_sha256": artifact_hash, "code_object_sha256": member_hash,
+        "build_manifest_sha256": capture.get("build_manifest_sha256"),
+        "target": target, "selected_kernel": capture["selected_kernel"],
+        "symbols": sorted(symbols), "selection_evidence": "explicit_static_symbol_mapping",
+        "artifact_membership_verified": True, "dynamic_execution_proven": False}
+    report["static_inventory_only"] = False
+
+
 def write_report(report: dict[str, Any], out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_backend = str(report.get("backend") or "unknown").replace("/", "_")
     stem = Path(str(report["object"])).stem
     target = str(report.get("target") or "unknown")
-    out_path = out_dir / f"{stem}-{target}-{safe_backend}-isa-summary.json"
+    out_path = out_dir / f"{stem}-{str(report.get('object_sha256') or 'unbound')[:16]}-{target}-{safe_backend}-isa-summary.json"
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out_path
 
@@ -566,6 +618,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rga", type=Path, help="Optional RGA CLI path recorded in the report; not run by default")
     parser.add_argument("--capture", type=Path, help="optional schema-v4 benchmark capture to validate and cross-link")
     parser.add_argument("--capture-label", help="human label for the cross-linked capture")
+    parser.add_argument("--artifact", type=Path, help="exact captured executable/library; verify inspected code-object membership")
+    parser.add_argument("--selected-symbol", action="append", default=[], help="exact static symbol in the selected kernel mapping; repeatable, requires --capture and --artifact")
     parser.add_argument(
         "--matrix-instruction-report",
         type=Path,
@@ -578,6 +632,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if bool(args.artifact) != bool(args.selected_symbol) or (args.selected_symbol and not args.capture):
+        raise RuntimeError("qualified static association requires --capture, --artifact and --selected-symbol together")
     objects = list(args.objects or [])
     if args.build_tree:
         if not args.build_tree.exists():
@@ -633,6 +689,8 @@ def main() -> int:
             continue
         if linked_capture is not None:
             report["capture"] = linked_capture
+            if args.artifact:
+                bind_selected_symbols(report, linked_capture, args.artifact, args.selected_symbol, config)
         correlate_matrix_instruction_report(report, matrix_candidates)
         report["config"] = json_safe_config(config)
         outputs.append(write_report(report, args.out_dir))

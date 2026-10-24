@@ -27,6 +27,7 @@ class SuiteCase:
 
 
 DEFAULT_CASES = [
+    SuiteCase("measurement_evidence_contracts", "metadata_drift", [sys.executable, "tools/test_measurement_evidence_contracts.py"]),
     SuiteCase("tooling_contracts", "metadata_drift", [sys.executable, "tools/test_tooling_contracts.py"]),
     SuiteCase("gpu_qualification", "target_readiness", [sys.executable, "tools/test_gpu_qualification.py"]),
     SuiteCase("performance_dashboard", "documentation_claims", [sys.executable, "tools/test_performance_dashboard.py"]),

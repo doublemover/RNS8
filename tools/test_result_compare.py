@@ -242,6 +242,53 @@ def main() -> int:
     assert target_compare["gpu_compatible"] is False
     assert target_compare["gpu_compatibility"]["target_variant.target_namespace"]["match"] is False
 
+    from test_benchmark_schema import as_exact_wide_capture, as_host_api_batch_capture, expect_valid
+    from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
+    from benchmark_sweep_lib.capture_metadata import capture_contract_key
+    from perf_variance_report import execution_cohort, variance_group_key
+    eager = as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json"))
+    synthetic_identity(eager); synthetic_host_measurements(eager)
+    eager["exact_proof_policy"] = "eager_moments_v1"
+    scalar = copy.deepcopy(eager); synthetic_identity(scalar)
+    scalar["exact_proof_policy"] = "scalar_first_v1"
+    scalar["backend_metadata"]["autotune_key"] += "/proof=scalar_first_v1"
+    result_compare.validate_capture(eager, Path("eager"))
+    result_compare.validate_capture(scalar, Path("scalar"))
+    strict = result_compare.compare(eager, scalar, Path("eager"), Path("scalar"))
+    assert not strict["matching_contract"] and strict["changed_proof_policy"]
+    assert not strict["timings"]["end_to_end"]["host_ratio_qualified"]
+    deliberate = result_compare.compare(eager, scalar, Path("eager"), Path("scalar"), allow_proof_policy_diff=True)
+    assert deliberate["matching_contract"] and deliberate["comparison_mode"] == "proof_policy_review"
+    assert not deliberate["same_proof_workload"]
+    assert capture_contract_key(eager) != capture_contract_key(scalar)
+    assert execution_cohort(eager) != execution_cohort(scalar)
+    assert variance_group_key(eager) != variance_group_key(scalar)
+    legacy = copy.deepcopy(eager); legacy.pop("exact_proof_policy")
+    assert capture_contract_key(legacy) == capture_contract_key(eager)
+    repeated = copy.deepcopy(eager); synthetic_identity(repeated)
+    assert execution_cohort(eager) == execution_cohort(repeated)
+    assert variance_group_key(eager) == variance_group_key(repeated)
+
+    four = as_host_api_batch_capture(expect_valid("v4_bounded_i64_ck.json"))
+    eight = copy.deepcopy(four)
+    eight["host_api_batch"]["batch_size"] = 8
+    eight["host_api_batch"]["tasks_per_measured_repeat"] = 8
+    eight.setdefault("timing_metadata", {})["inner_repetitions"] = 8
+    eight["host_api_batch"]["total_measured_tasks"] = 8 * eight["repeats"]
+    eight["timing_metadata"]["host_api_batch_size"] = 8
+    eight["command_line"] = eight["command_line"].replace("--host-api-batch-size 4", "--host-api-batch-size 8")
+    for field in ("avg_pack_per_task_us", "avg_rns_gemm_per_task_us", "avg_crt_export_per_task_us", "avg_end_to_end_per_task_us"):
+        eight[field] = four[field] / 2
+    for capture, size in ((four, 4), (eight, 8)):
+        synthetic_identity(capture); synthetic_host_measurements(capture)
+        capture["timing_metadata"].update(host_result_kind="amortized_batch", inner_repetitions=size)
+        result_compare.validate_capture(capture, Path(str(size)))
+    batch = result_compare.compare(four, eight, Path("four"), Path("eight"))
+    assert not batch["matching_contract"]
+    assert not batch["contract"]["host_api_batch.work_contract"]["match"]
+    assert not batch["timings"]["end_to_end"]["host_ratio_qualified"]
+    assert result_compare.compare(four, copy.deepcopy(four), Path("a"), Path("b"))["matching_contract"]
+
     print("result compare self-test: PASS")
     return 0
 

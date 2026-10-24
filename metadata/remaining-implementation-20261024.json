@@ -36,12 +36,29 @@
       "issue": 19,
       "title": "[P2] Bind benchmark provenance to compiled artifacts instead of the runtime checkout HEAD",
       "url": "https://github.com/doublemover/RNS8/issues/19",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Build artifact manifest exists; relevant comment's qualified ISA association remains backend/target inventory fallback with no artifact/symbol match and cross-target fallback.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Qualified selected-symbol ISA association now requires captured artifact/build identity, concrete target and verified code-object membership; inventories remain diagnostic, cross-target fallback removed, build-separated filenames and output groups, duplicate symbols deduplicated.",
+          "files": [
+            "tools/gpu_isa_report.py",
+            "tools/evidence_database_lib/isa.py",
+            "tools/evidence_database_lib/rows.py",
+            "tools/evidence_database_lib/outputs.py",
+            "tools/benchmark_sweep_lib/review.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_measurement_evidence_contracts.py",
+        "tools/test_evidence_database.py",
+        "tools/test_benchmark_sweep_case_review_metadata.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Regression execution and real artifact/code-object inspection deferred; static association explicitly does not prove dynamic execution."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         31,
@@ -52,12 +69,27 @@
       "issue": 20,
       "title": "[P2] Compute exact-wide admission once and make expensive moment refinement demand-driven",
       "url": "https://github.com/doublemover/RNS8/issues/20",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Single proof pass and opt-in scalar-first implemented; remaining comment's measurement policy identity missing from result_compare and shared capture_contract_key.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Normalized legacy-eager proof identity shared by strict comparison, sweep contract, artifact/environment cohorts and timing eligibility; explicit labeled proof-policy A/B mode.",
+          "files": [
+            "tools/measurement_contract.py",
+            "tools/result_compare.py",
+            "tools/benchmark_sweep_lib/capture_metadata.py",
+            "tools/perf_variance_report.py",
+            "tools/timing_eligibility.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_result_compare.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Authored regression execution deferred; no measured proof-policy speedup or default change."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         27
@@ -95,12 +127,26 @@
       "issue": 27,
       "title": "[P2] Count independent same-environment executions in the performance variance gate",
       "url": "https://github.com/doublemover/RNS8/issues/27",
-      "state": "implementation_pending",
+      "state": "implementation_in_progress",
       "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Strict comparison and timing admission now bind host-batch work per observation and proof fidelity; intentional batch-scaling report preserves explicit aggregate/per-task comparison.",
+          "files": [
+            "tools/measurement_contract.py",
+            "tools/result_compare.py",
+            "tools/timing_eligibility.py",
+            "tools/host_api_batch_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_result_compare.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Shared independent-run aggregation still required in adaptive/finite/layout/bound/FHE reports and profiler metric partition aggregation."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         19,
@@ -154,7 +200,9 @@
       "regressions": [
         "tools/test_collect_crt_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "833ae93c551bed50a5f65abcef2eac201ea7fcac"
+      ],
       "remaining": [
         "Public benchmark hooks-disabled timing, event hierarchy/work units and prefix1 scenario label corrections still to implement."
       ],
@@ -848,7 +896,8 @@
         "tests/differential/test_hip_direct_rns_residue_cases.inc"
       ],
       "commits": [
-        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71",
+        "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
         "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
@@ -1022,7 +1071,8 @@
         }
       ],
       "regressions": [
-        "tools/test_tooling_contracts.py"
+        "tools/test_tooling_contracts.py",
+        "tools/test_measurement_evidence_contracts.py (object-only complete CLI flow)"
       ],
       "commits": [
         "319a7f5"
@@ -1081,6 +1131,11 @@
       "kind": "syntax_only",
       "scope": "Conversion calibrator (manifest macro syntax placeholder), shared backend host path, CRT unit and HIP differential translation units, Python collector/tests",
       "result": "passed; HIP code and tests not executed"
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "All changed Python evidence/comparison tools and authored fixtures",
+      "result": "py_compile passed; no test invocation or report execution"
     }
   ]
 }

@@ -1,3 +1,4 @@
+from test_capture_identity_support import synthetic_isa_index
 from benchmark_sweep_lib.review import build_review_summary
 
 
@@ -124,11 +125,7 @@ assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candi
 amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
 assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
 
-amdgpu_wrong_isa_index = {
-    "amdgpu-builtins|gfx1100": [
-        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu4": 4}},
-    ],
-}
+amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
 amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
     [amdgpu, direct, cpu],
     review_mode="release",
@@ -144,11 +141,7 @@ assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_
 amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
 assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
 
-amdgpu_isa_index = {
-    "amdgpu-builtins|gfx1100": [
-        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu8": 4}},
-    ],
-}
+amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
 amdgpu_with_isa_report = benchmark_sweep.review_captures(
     [amdgpu, direct, cpu],
     review_mode="release",
@@ -409,7 +402,7 @@ bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"][
 bad_sparse_report = benchmark_sweep.review_captures(
     [bad_sparse],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+    isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
 )
 bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
 assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
@@ -419,7 +412,7 @@ assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_wo
 valid_sparse_report = benchmark_sweep.review_captures(
     [sparse_amdgpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+    isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
 )
 valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
 assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
@@ -450,7 +443,7 @@ wide_sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fi
 wide_sparse_report = benchmark_sweep.review_captures(
     [wide_sparse_amdgpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_32x32x32_i8": 4}}]},
+    isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
 )
 wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
 assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
@@ -480,7 +473,7 @@ amdgpu_tile["tile_shape_variant"] = {
 amdgpu_tile_report = benchmark_sweep.review_captures(
     [amdgpu_tile, direct, cpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 4}}]},
+    isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
 )
 amdgpu_tile_candidate = next(
     item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
@@ -505,7 +498,7 @@ amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
 amdgpu_tile_wide_report = benchmark_sweep.review_captures(
     [amdgpu_tile_wide_finite, direct, cpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_32x32x16_i8": 4}}]},
+    isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
 )
 amdgpu_tile_wide_candidate = next(
     item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"

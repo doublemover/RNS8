@@ -132,3 +132,27 @@ The golden suite records retired reports separately from attempted/tested cases.
 Its three retired legacy reports do not execute and do not contribute passes.
 Current sweep admission, scheduler evidence and autotune installation keep their
 own executable coverage.
+
+### Selected static ISA and proof-work identity
+
+ISA inventory is no longer joined to a timing capture by backend name alone.
+Qualified static resource fields require the concrete target, unchanged captured
+executable/library hash, build-manifest hash, code-object hash and selected
+kernel/symbol mapping. `gpu_isa_report.py --capture ... --artifact ...
+--selected-symbol ...` checks the artifact hash and extracts the target code
+object to prove byte-identical membership. Repeat `--selected-symbol` for an
+explicit static symbol set. Unbound reports remain separately available under
+`isa_inventory`; missing target/build/symbol associations return unknown, never
+another target's VGPR/occupancy numbers. Reports from different artifacts keep
+distinct hash-suffixed filenames, and duplicate copies of one symbol are not
+summed. A static mapping is not a dispatch trace or an executed-instruction count.
+
+Strict comparison, sweep grouping, repeatability cohorts and timing eligibility
+now share normalized proof-policy and host-batch work identities. Historical
+omission of the proof policy means the documented eager-moments behavior.
+`result_compare.py --allow-proof-policy-diff` is an explicitly labeled A/B
+review, not repeated measurements of one proof workload. Batch task counts and
+inner repetitions describe work per observation, not the number of observations.
+The host-batch scaling report intentionally compares separately labeled aggregate
+and per-task values; ordinary strict comparisons do not call batch4 and batch8
+the same work. Regression fixtures are authored; their execution is deferred.

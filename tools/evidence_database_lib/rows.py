@@ -175,7 +175,7 @@ def build_database(
                 capture,
                 lookup_metadata(scenario_index, path),
                 lookup_metadata(review_index, path),
-                lookup_isa_resources(isa_index, capture.get("backend_selected"), device.get("gcn_arch")),
+                lookup_isa_resources(isa_index, capture.get("backend_selected"), device.get("gcn_arch"), capture),
             )
         )
     bottleneck_counts = Counter(str(row.get("bottleneck_class")) for row in rows)

@@ -29,3 +29,34 @@ def synthetic_host_measurements(capture: dict) -> None:
     metadata["phase_states"] = {
         phase: ("measured" if samples and min(samples) > 0.2 else "below_resolution")
         for phase, samples in capture.get("raw_timings_us", {}).items()}
+
+
+def synthetic_static_isa_report(capture: dict, counts: dict) -> dict:
+    """Authored static association only; never evidence from a real code object."""
+    import hashlib
+    import json
+    if "artifact_capture" not in capture or "build_manifest" not in capture:
+        synthetic_identity(capture)
+    return {"fixture_only": True, "schema": "rns8_static_isa_v2",
+        "object": "synthetic-kernel-object.o", "object_sha256": "1" * 64,
+        "code_object_sha256": "2" * 64, "backend": capture["backend_selected"],
+        "target": capture["device"]["gcn_arch"], "device_symbol_count": 1,
+        "reported_symbol_count": 1, "tools": {"rga_status": "not_run_optional"},
+        "symbols": [{"symbol": "synthetic_selected_symbol", "counts": counts}],
+        "instruction_totals": counts,
+        "capture_binding": {"schema": "rns8_selected_static_isa_binding_v1",
+            "artifact_kind": "executable_sha256",
+            "artifact_sha256": capture["artifact_capture"]["executable_sha256"],
+            "code_object_sha256": "2" * 64,
+            "build_manifest_sha256": hashlib.sha256(json.dumps(capture["build_manifest"], sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "target": capture["device"]["gcn_arch"], "selected_kernel": capture["selected_kernel"],
+            "symbols": ["synthetic_selected_symbol"], "selection_evidence": "explicit_static_symbol_mapping",
+            "artifact_membership_verified": True, "dynamic_execution_proven": False}}
+
+
+def synthetic_isa_index(capture: dict, histogram: dict) -> dict:
+    from pathlib import Path
+    from evidence_database_lib.isa import summarize_isa_report, normalized_backend
+    report = synthetic_static_isa_report(capture, {"matrix_instruction_histogram": histogram})
+    return {f"{normalized_backend(capture['backend_selected'])}|{capture['device']['gcn_arch']}":
+            [summarize_isa_report(Path("synthetic-isa-summary.json"), report)]}

@@ -101,6 +101,8 @@ CSV_FIELDS = [
     "pack_b_bandwidth_gbs",
     "export_bandwidth_gbs",
     "isa_evidence",
+    "isa_association",
+    "isa_inventory",
     "isa_report_count",
     "isa_report_paths",
     "isa_report_backends",

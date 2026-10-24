@@ -125,6 +125,10 @@ def phase_comparison(baseline: dict[str, Any], batch: dict[str, Any], phase: str
 def contract_key(capture: dict[str, Any]) -> str:
     parts = []
     for key in result_compare.CONTRACT_KEYS:
+        # This report explicitly compares aggregate and per-task scaling, not
+        # strict equal-work latency. Keep the work counts in each output row.
+        if key == "host_api_batch.work_contract":
+            continue
         value = result_compare.contract_value(capture, key)
         if key == "prepack_reuse_operands" and value is None:
             value = []
