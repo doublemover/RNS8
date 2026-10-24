@@ -179,6 +179,9 @@ if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
   # retaining compiler ASan instrumentation for heap/stack memory accesses.
   add_compile_definitions(_DISABLE_STL_ANNOTATION _DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
   configure_file("${RNS8_CLANG_ASAN_DLL}" "${CMAKE_CURRENT_BINARY_DIR}/clang_rt.asan_dynamic-x86_64.dll" COPYONLY)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows_clang_asan_consumer.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/windows-clang-asan-consumer.cmake" @ONLY)
 endif()
 
 function(rns8_copy_windows_clang_asan_runtime target_name)

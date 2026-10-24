@@ -72,8 +72,9 @@ def main() -> int:
         enabled=values.get("RNS8_WORKLOAD_ENABLE_"+library,values.get("RNS8_ENABLE_"+library,"OFF"))
         command.append("-DRNS8_WORKLOAD_ENABLE_"+library+"="+enabled)
     if values.get("RNS8_ENABLE_WINDOWS_CLANG_ASAN") == "ON":
-        command.append("-DCMAKE_CXX_FLAGS=" + values.get("CMAKE_CXX_FLAGS", "") +
-                       " /fsanitize=address /D_DISABLE_STL_ANNOTATION /D_DISABLE_STRING_ANNOTATION /D_DISABLE_VECTOR_ANNOTATION")
+        sanitizer = build / "windows-clang-asan-consumer.cmake"
+        if not sanitizer.is_file(): raise RuntimeError("parent sanitizer consumer configuration missing")
+        command.append("-DCMAKE_PROJECT_INCLUDE=" + str(sanitizer))
     run(command)
     run([cmake, "--build", str(consumer), "--parallel", "2", *config], timeout=300)
     for name in PROGRAMS:

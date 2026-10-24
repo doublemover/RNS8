@@ -163,6 +163,12 @@ class Cases(unittest.TestCase):
 
 
 class Collection(unittest.TestCase):
+    def setUp(self):
+        # Host metadata may itself invoke subprocess.run (uname -p on Linux).
+        host = patch("collect_finite_verify.platform.platform", return_value="synthetic-platform")
+        host.start()
+        self.addCleanup(host.stop)
+
     def scenario(self, mutation=None, runs=2, status=0):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); executable = root/"synthetic-executable"; executable.write_bytes(b"fixture only")

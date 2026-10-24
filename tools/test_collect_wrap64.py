@@ -145,6 +145,12 @@ class Comparison(unittest.TestCase):
 
 
 class Collection(unittest.TestCase):
+    def setUp(self):
+        # Host metadata may itself invoke subprocess.run (uname -p on Linux).
+        host = patch("collect_wrap64.platform.platform", return_value="synthetic-platform")
+        host.start()
+        self.addCleanup(host.stop)
+
     def scenario(self, mutation=None, status=0):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); exe = root/"fixture"; exe.write_bytes(b"fixture only")

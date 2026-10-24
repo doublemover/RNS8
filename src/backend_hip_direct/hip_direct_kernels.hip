@@ -1,5 +1,9 @@
 #include <hip/hip_runtime.h>
 
+// These internal HIP objects serve both library variants; API exports live in host TUs.
+#define RNS8_STATIC
+#include "rns8/rns8.h"
+
 #include <cstdint>
 #include <type_traits>
 #include "../backend_common/garner_constants.hpp"
@@ -22,21 +26,7 @@
 
 namespace {
 
-struct rns8_plan_tile_schedule_entry {
-  uint64_t struct_size;
-  uint32_t abi_version;
-  uint32_t flags;
-  uint64_t tile_row;
-  uint64_t tile_col;
-  int64_t row_offset;
-  int64_t col_offset;
-  int64_t row_extent;
-  int64_t col_extent;
-  uint32_t required_prefix;
-  uint32_t selected_prefix;
-  uint32_t group_index;
-  uint32_t range_bit_length;
-};
+
 
 constexpr int kRns8DefaultModulusCount = 28;
 
