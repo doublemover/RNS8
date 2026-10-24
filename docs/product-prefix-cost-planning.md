@@ -29,13 +29,24 @@ the runtime owner; CPU extension writes the private arena directly. The planner
 does not pretend all phase costs overlap or omit the next consumer's work.
 
 Tiny search spaces are enumerated exhaustively under an explicit evaluation
-limit. Larger spaces use deterministic minimum/full seeds followed by bounded
-coordinate descent. Ties prefer lower peak bytes, then lexicographically smaller
+limit. Strict chains additionally use an exact cost dynamic program over
+producer/consumer prefix pairs, including the final export lift. A chain may
+multiply the previous value by an external input on either side or by itself;
+reusing any older intermediate routes to general DAG search. Larger spaces seed
+search with the chain optimum when available, then minimum/full seeds as the
+evaluation budget permits, followed by bounded coordinate descent. Ties prefer lower peak bytes, then lexicographically smaller
 prefix choices. The result reports evaluation count and whether enumeration was
 exhaustive. No feasible priced candidate returns unsupported; a bounded search
 failure does **not** prove no feasible plan exists. Search is limited to 64 nodes,
-65536 evaluations and eight coordinate passes. No global optimality is claimed
-for the larger-graph heuristic, and common final-publication/setup costs are not
+65536 arena evaluations and eight coordinate passes. The chain DP examines at
+most 64*20*20 transitions, independent of the exponential prefix combinations.
+Its cost-only optimum is passed through the same real arena/scratch admission;
+a memory rejection never authorizes that path or proves no feasible path exists.
+The result separately records the chain cost lower bound and `cost_optimal`.
+A feasible selection attaining that bound proves minimum estimated cost under
+the supplied table, but does not prove minimum peak memory among all cost ties.
+Exhaustive feasible search also proves cost optimality. No global optimality is
+claimed for other larger-graph heuristic results, and common final-publication/setup costs are not
 part of its ranking estimate.
 
 This adapter currently chooses only uniform default-basis compute prefixes.
@@ -51,3 +62,8 @@ reject missing costs/stale graph keys, preserve minimum proof prefixes and
 execute a cost-selected CPU diamond with a full independently checked result.
 Final qualification must compare the selected route with exhaustive same-contract
 measurements and report worst-case regret, planning cost and observed peak memory.
+
+Additional synthetic fixtures compare chain-DP costs to exhaustive enumeration
+with missing transitions, solve a 64-node chain within two arena evaluations,
+and reject zero budgets and non-chain reuse. These are authored algorithm
+checks, not measured regret or performance qualification.

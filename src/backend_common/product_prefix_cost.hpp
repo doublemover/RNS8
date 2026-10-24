@@ -35,9 +35,57 @@ struct ProductPrefixSelection {
   rns8_status status=RNS8_UNSUPPORTED_BACKEND;
   uint64_t estimated_ns=UINT64_MAX,peak_bytes=0,lift_scratch_bytes=0;
   uint32_t evaluated=0;
-  bool exhaustive=false;
+  bool exhaustive=false,chain_dynamic_programming=false,cost_optimal=false;
+  uint64_t chain_cost_lower_bound=UINT64_MAX;
   std::vector<uint32_t> prefixes,capacities;
 };
+struct ProductChainCostPath {
+  bool applicable=false;
+  uint64_t estimated_ns=UINT64_MAX;
+  std::vector<uint32_t> prefixes;
+};
+// Exact cost-only DP for a strict left/right chain. Resource admission remains
+// the real arena/lift query; a rejected unconstrained optimum proves no memory
+// infeasibility claim and cannot authorize an over-budget execution.
+inline ProductChainCostPath product_chain_cost_path(size_t input_count,
+    const std::vector<ProductNode>& nodes,uint32_t prefix,const std::vector<uint32_t>& minimum,
+    const ProductCostProfile& costs) {
+  ProductChainCostPath result;
+  if(nodes.empty()) return result;
+  for(size_t i=1;i<nodes.size();++i) {
+    const uint32_t previous=uint32_t(input_count+i-1);
+    if(nodes[i].a!=previous && nodes[i].b!=previous) return result;
+    for(auto operand:{nodes[i].a,nodes[i].b})
+      if(operand>=input_count && operand!=previous) return result;
+  }
+  result.applicable=true;
+  struct State {uint64_t ns=UINT64_MAX;std::vector<uint32_t> path;};
+  std::array<State,21> current;
+  const auto append_cost=[](uint64_t a,uint64_t b) {
+    return a==UINT64_MAX || b==UINT64_MAX || a>=UINT64_MAX-b?UINT64_MAX:a+b;
+  };
+  for(uint32_t p=minimum[0];p<=prefix;++p) {
+    current[p].ns=costs.nodes[0].gemm[p];
+    if(current[p].ns!=UINT64_MAX) current[p].path={p};
+  }
+  for(size_t i=1;i<nodes.size();++i) {
+    std::array<State,21> next;
+    for(uint32_t q=minimum[i];q<=prefix;++q) for(uint32_t p=minimum[i-1];p<=prefix;++p) {
+      const auto lifted=append_cost(current[p].ns,p<q?costs.nodes[i-1].lift[p*21+q]:0);
+      const auto ns=append_cost(lifted,costs.nodes[i].gemm[q]);if(ns==UINT64_MAX) continue;
+      auto path=current[p].path;path.push_back(q);
+      if(ns<next[q].ns || (ns==next[q].ns && path<next[q].path)) next[q]={ns,std::move(path)};
+    }
+    current=std::move(next);
+  }
+  for(uint32_t p=minimum.back();p<=prefix;++p) {
+    const auto ns=append_cost(current[p].ns,p<prefix?costs.nodes.back().lift[p*21+prefix]:0);
+    if(ns<result.estimated_ns || (ns!=UINT64_MAX && ns==result.estimated_ns && current[p].path<result.prefixes)) {
+      result.estimated_ns=ns;result.prefixes=current[p].path;
+    }
+  }
+  return result;
+}
 inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductShape>& inputs,
     const std::vector<ProductNode>& nodes,uint32_t prefix,const std::vector<uint32_t>& minimum,
     uint64_t budget,bool gpu,const ProductCostProfile& costs) {
@@ -56,6 +104,7 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     const uint64_t choices=prefix-p+1;
     combinations=combinations>costs.max_evaluations/choices?uint64_t(costs.max_evaluations)+1:combinations*choices;
   }
+  const auto chain=product_chain_cost_path(inputs.size(),nodes,prefix,minimum,costs);
   uint32_t evaluated=0;
   const auto evaluate=[&](const std::vector<uint32_t>& chosen) {
     ++evaluated;
@@ -114,7 +163,9 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     };
     enumerate(0);best.exhaustive=true;
   } else {
-    evaluate(minimum);evaluate(std::vector<uint32_t>(nodes.size(),prefix));
+    if(chain.estimated_ns!=UINT64_MAX) evaluate(chain.prefixes);
+    if(evaluated<costs.max_evaluations) evaluate(minimum);
+    if(evaluated<costs.max_evaluations) evaluate(std::vector<uint32_t>(nodes.size(),prefix));
     // Bounded deterministic coordinate descent, not a global optimality claim.
     // A failed seed does not prove the feasible set empty; return unsupported.
     for(unsigned pass=0;pass<8 && best.status==RNS8_SUCCESS && evaluated<costs.max_evaluations;++pass) {
@@ -127,6 +178,10 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     }
   }
   best.evaluated=evaluated;
+  best.chain_dynamic_programming=chain.applicable;
+  best.chain_cost_lower_bound=chain.estimated_ns;
+  best.cost_optimal=best.status==RNS8_SUCCESS && (best.exhaustive ||
+      (chain.estimated_ns!=UINT64_MAX && best.estimated_ns==chain.estimated_ns));
   return best;
 }
 }

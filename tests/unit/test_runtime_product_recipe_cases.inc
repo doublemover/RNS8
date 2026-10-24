@@ -190,3 +190,40 @@ TEST_CASE("runtime recipe cost estimates change work selection without changing 
   for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("chain prefix DP agrees with exhaustive costs and reaches a long-chain optimum") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{1,1},{1,1}};
+  const std::vector<ProductNode> short_chain{{0,1},{2,1},{1,3},{4,4}};
+  ProductCostProfile costs;costs.target="cpu";costs.provenance="synthetic-chain-dp";
+  costs.nodes.resize(4);costs.graph_key=product_graph_key(inputs,short_chain,4);
+  for(unsigned seed=0;seed<8;++seed) {
+    for(unsigned i=0;i<4;++i) for(uint32_t p=1;p<=4;++p) {
+      costs.nodes[i].gemm[p]=((i+1)*11+p*7+seed*3)%37;
+      for(uint32_t q=p+1;q<=4;++q) costs.nodes[i].lift[p*21+q]=
+          (i+p+q+seed)%5==0?UINT64_MAX:((i+1)*5+p*3+q*11+seed)%19;
+    }
+    const auto result=select_product_prefixes(inputs,short_chain,4,{1,1,1,1},UINT64_MAX,false,costs);
+    REQUIRE(result.status==RNS8_SUCCESS);REQUIRE(result.exhaustive);REQUIRE(result.chain_dynamic_programming);
+    REQUIRE(result.cost_optimal);REQUIRE(result.estimated_ns==result.chain_cost_lower_bound);
+  }
+  std::vector<ProductNode> chain{{0,1}};
+  for(uint32_t i=1;i<64;++i) chain.push_back({i+1,1});
+  costs.nodes.assign(64,ProductNodeCosts{});costs.max_evaluations=2;costs.graph_key=product_graph_key(inputs,chain,20);
+  for(size_t i=0;i<64;++i) for(uint32_t p=3;p<=20;++p) {
+    costs.nodes[i].gemm[p]=p==3?10:100;
+    for(uint32_t q=p+1;q<=20;++q) costs.nodes[i].lift[p*21+q]=i==63?10000:1;
+  }
+  costs.nodes.back().gemm[20]=5;
+  const auto result=select_product_prefixes(inputs,chain,20,std::vector<uint32_t>(64,3),UINT64_MAX,true,costs);
+  REQUIRE(result.status==RNS8_SUCCESS);REQUIRE(result.evaluated==2);REQUIRE_FALSE(result.exhaustive);
+  REQUIRE(result.chain_dynamic_programming);REQUIRE(result.cost_optimal);REQUIRE(result.estimated_ns==636);
+  for(size_t i=0;i<63;++i) REQUIRE(result.prefixes[i]==3);REQUIRE(result.prefixes.back()==20);
+  const auto rejected=select_product_prefixes(inputs,chain,20,std::vector<uint32_t>(64,3),0,true,costs);
+  REQUIRE(rejected.status!=RNS8_SUCCESS);REQUIRE_FALSE(rejected.cost_optimal);
+  // An older producer reused outside the immediate chain is a real DAG and
+  // must retain the general search, not acquire an invalid chain cost proof.
+  chain.back()={2,64};costs.graph_key=product_graph_key(inputs,chain,20);
+  const auto dag=select_product_prefixes(inputs,chain,20,std::vector<uint32_t>(64,3),UINT64_MAX,false,costs);
+  REQUIRE_FALSE(dag.chain_dynamic_programming);
+}
