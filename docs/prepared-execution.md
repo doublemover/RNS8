@@ -266,3 +266,32 @@ preflight follows the same rule. This is early admission/status parity; the
 existing write guard also rejects conflicting output reservations at mutation.
 The new all-semantics lifecycle fixtures are authored for the final batch and
 do not extend the supported asynchronous semantic subset.
+
+
+## Token-qualified producer binding (authored, validation pending)
+
+`rns8_bind_prepared_dependency(consumer, producer, token)` retains one exact
+producer epoch whose output occupies one or more consumer input slots. Bindings
+require the same context and reject cycles. Bound producers cannot start another
+epoch or be destroyed. Consumer execution/submission performs nonblocking producer
+observation; `RNS8_BUSY` leaves the consumer token, epoch and output untouched.
+Retry explicitly after progress. No background worker or hidden host wait is used.
+
+The producer's pending proof stays owned by its prepared execution until ordinary
+completion publishes it. Only successful, current publication refreshes those
+consumer input generations. Unrelated input mutations reject, as do stale output
+receipts. Failed/canceled producers propagate their operation status without a
+consumer launch. This provides a pending-value binding with host-driven progress;
+it does not promise an event-only cross-stream pipeline before status is known.
+
+After consumer acceptance, its normal matrix-reader reservations retain the value
+and the producer binding is released. Before acceptance, explicit unbind with a null
+producer/zero token or consumer destruction releases it. Ordinary refresh is BUSY
+while bound. Prepared groups reject dependent members; multi-producer joins remain
+resident-DAG work. Prepare HIP event resources before binding a pending producer.
+Shared handles still require external host serialization, and borrowed streams must
+survive completion. A completion token alone never retains an owner.
+
+CPU fixtures cover epoch retention, stale receipts and unrelated mutations. HIP
+fixtures use two streams and cover successful publication and canceled-producer
+rejection. All newly authored cases remain queued for the consolidated campaign.

@@ -410,3 +410,66 @@ TEST_CASE("prepared HIP epilogues bind addends and preserve capture expression i
 #endif
 }
 #include "test_api_prepared_batch_cases.inc"
+
+TEST_CASE("pending prepared dependencies publish before consumer launch and propagate cancellation", "[api][async]") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8_context_options options{};
+  options.struct_size=sizeof(options); options.abi_version=RNS8_ABI_VERSION;
+  options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  rns8_context* ctx=nullptr;
+  REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);
+  auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
+  desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);
+  rns8_plan* plan=nullptr;
+  rns8_workspace *w1=nullptr,*w2=nullptr;
+  rns8_matrix *a=nullptr,*c=nullptr,*d=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&w1)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&w2)==RNS8_SUCCESS);
+  for (auto** matrix : {&a,&c,&d}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  int64_t three=3,zero=0;
+  REQUIRE(rns8_pack_i64(ctx,a,&three,1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,c,&zero,1,0)==RNS8_SUCCESS);
+  rns8_prepared_execution *producer=nullptr,*consumer=nullptr;
+  REQUIRE(rns8_prepare_gemm(ctx,plan,a,a,c,w1,&producer)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_gemm(ctx,plan,c,a,d,w2,&consumer)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_hip_submission(producer)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_hip_submission(consumer)==RNS8_SUCCESS);
+  rns8::detail::hip_unique_stream first,second;
+  REQUIRE(first.create_non_blocking()==hipSuccess);
+  REQUIRE(second.create_non_blocking()==hipSuccess);
+  rns8_completion_token source{},output{77,88};
+  REQUIRE(rns8_submit_prepared_hip(producer,first.get(),&source)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
+  rns8_completion_info info{}; info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+  auto status=rns8_submit_prepared_hip(consumer,second.get(),&output);
+  if (status==RNS8_BUSY) {
+    CHECK(output.prepared_id==77); CHECK(output.epoch==88);
+    REQUIRE(rns8_wait_prepared_hip(producer,source,&info)==RNS8_SUCCESS);
+    status=rns8_submit_prepared_hip(consumer,second.get(),&output);
+  }
+  REQUIRE(status==RNS8_SUCCESS);
+  REQUIRE(rns8_wait_prepared_hip(consumer,output,&info)==RNS8_SUCCESS);
+  REQUIRE(info.operation_status==RNS8_SUCCESS);
+  uint64_t result=0;
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,d,&result,1,1)==RNS8_SUCCESS);
+  CHECK(result==27);
+  REQUIRE(rns8_submit_prepared_hip(producer,first.get(),&source)==RNS8_SUCCESS);
+  REQUIRE(rns8_cancel_prepared_hip(producer,source)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
+  REQUIRE(rns8_wait_prepared_hip(producer,source,&info)==RNS8_SUCCESS);
+  REQUIRE(info.operation_status==RNS8_CANCELED);
+  output={77,88};
+  const auto generation=d->content_generation;
+  CHECK(rns8_submit_prepared_hip(consumer,second.get(),&output)==RNS8_CANCELED);
+  CHECK(output.epoch==88); CHECK(d->content_generation==generation);
+  REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_prepared_execution(producer)==RNS8_SUCCESS);
+  for (auto* matrix : {a,c,d}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(w2)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(w1)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#endif
+}

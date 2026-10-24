@@ -157,7 +157,8 @@ shared epilogue/lift admission providers. Their fixtures are authored, not execu
 The final upgraded-stack campaign remains deferred until the implementation frontload
 ends. No new source commit inherits the old checkpoint's qualification.
 
-Concrete remaining development includes dependent-token async transfers/lift/export,
+A one-producer token binding with explicit nonblocking progress is now authored.
+Concrete remaining development includes multi-producer/event-pipelined dependencies and async transfers/lift/export,
 runtime materialization/liveness allocation, broader runtime recipe providers,
 generation-owned encoded-B/narrow/block-sparse integration and rank-23 straight-line
 execution. These are code gaps, distinct from unavailable hardware and measured

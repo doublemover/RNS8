@@ -184,3 +184,56 @@ TEST_CASE("async deadline distinguishes pending ownership from terminal operatio
   CHECK(poll_async_until(UINT64_MAX, [] { return RNS8_BACKEND_FAILURE; }) == RNS8_BACKEND_FAILURE);
   CHECK(poll_async_until(0, [] { return RNS8_INVALID_ARGUMENT; }) == RNS8_INVALID_ARGUMENT);
 }
+
+TEST_CASE("prepared dependencies retain exact producer epochs and refresh only produced inputs", "[api][prepared]") {
+  auto* ctx=create_cpu_context();
+  auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
+  auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);
+  rns8_plan* plan=nullptr;
+  rns8_workspace *w1=nullptr,*w2=nullptr;
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr,*d=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&w1)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&w2)==RNS8_SUCCESS);
+  for (auto** matrix : {&a,&b,&c,&d}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  int64_t three=3,zero=0;
+  REQUIRE(rns8_pack_i64(ctx,a,&three,1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,b,&three,1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,c,&zero,1,0)==RNS8_SUCCESS);
+  rns8_prepared_execution *producer=nullptr,*consumer=nullptr;
+  REQUIRE(rns8_prepare_gemm(ctx,plan,a,a,c,w1,&producer)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_gemm(ctx,plan,c,b,d,w2,&consumer)==RNS8_SUCCESS);
+  rns8_completion_token source{},output{77,88};
+  REQUIRE(rns8_execute_prepared(producer,&source)==RNS8_SUCCESS);
+  auto stale=source; ++stale.epoch;
+  CHECK(rns8_bind_prepared_dependency(consumer,producer,stale)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
+  CHECK(rns8_destroy_prepared_execution(producer)==RNS8_BUSY);
+  CHECK(rns8_execute_prepared(producer,&output)==RNS8_BUSY);
+  CHECK(output.prepared_id==77);
+  CHECK(rns8_refresh_prepared_inputs(consumer)==RNS8_BUSY);
+  REQUIRE(rns8_execute_prepared(consumer,&output)==RNS8_SUCCESS);
+  uint64_t result=0;
+  REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,d,&result,1,1)==RNS8_SUCCESS);
+  CHECK(result==27);
+  REQUIRE(rns8_execute_prepared(producer,&source)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,b,&three,1,0)==RNS8_SUCCESS); // unrelated generation change
+  output={77,88};
+  const auto generation=d->content_generation;
+  CHECK(rns8_execute_prepared(consumer,&output)==RNS8_INVALID_ARGUMENT);
+  CHECK(output.epoch==88);
+  CHECK(d->content_generation==generation);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,nullptr,{})==RNS8_SUCCESS);
+  REQUIRE(rns8_refresh_prepared_inputs(consumer)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(consumer,producer,source)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,c,&zero,1,0)==RNS8_SUCCESS); // producer receipt no longer current
+  CHECK(rns8_execute_prepared(consumer,&output)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_prepared_execution(producer)==RNS8_SUCCESS);
+  for (auto* matrix : {a,b,c,d}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(w2)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(w1)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

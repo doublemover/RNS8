@@ -121,8 +121,10 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              PreparedHipProof &proof) {
   if (!e || !stream)
     return RNS8_INVALID_ARGUMENT;
-  if (e->running)
+  if (e->running || e->dependent_references)
     return RNS8_BUSY;
+  const auto dependency = resolve_prepared_dependency(*e);
+  if (dependency != RNS8_SUCCESS) return dependency;
   if (!e->hip_submission_prepared)
     return RNS8_UNSUPPORTED_BACKEND;
   if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
@@ -194,6 +196,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   e->cancel_requested = false;
   ++e->epoch;
   *token = {e->id, e->epoch};
+  release_prepared_dependency(*e); // matrix readers now retain the produced value
   hipError_t launch_error = hipSuccess;
   rns8_status status;
   if (graph) {

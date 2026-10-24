@@ -245,6 +245,21 @@ RNS8_API rns8_status rns8_prepare_exact_axpby(
     int64_t alpha, int64_t beta, rns8_workspace* workspace,
     rns8_prepared_execution** out);
 RNS8_API rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* execution);
+/* Bind one producer token to every consumer input slot using its output matrix.
+ * Same context, one dependency, externally serialized handles; groups reject
+ * bound members. Retains producer and its latest epoch until accepted consumer
+ * execution or explicit unbind/destruction. Producer reexecution/destruction is
+ * BUSY meanwhile. Submit/execute advances producer observation without waiting:
+ * BUSY leaves consumer token/epoch/output untouched; retry after progress.
+ * Producer failure/cancellation propagates without launching the consumer.
+ * Only successful current producer publication can refresh its input generations;
+ * unrelated changed inputs reject. This does not enqueue an event-only wait.
+ * Unbind with producer=NULL and a zero token. Ordinary refresh is BUSY while bound.
+ * Prepare HIP event resources before binding a pending producer. */
+RNS8_API rns8_status rns8_bind_prepared_dependency(
+    rns8_prepared_execution* consumer, rns8_prepared_execution* producer,
+    rns8_completion_token producer_token);
+
 RNS8_API rns8_status rns8_execute_prepared(
     rns8_prepared_execution* execution, rns8_completion_token* out_token);
 RNS8_API rns8_status rns8_get_prepared_completion(
