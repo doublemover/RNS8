@@ -20,11 +20,12 @@ __device__ __forceinline__ int8_t rns8_native_wmma_center(
 // Each wave owns one output tile and Group consecutive default-basis planes.
 // Native loads are outside the channel loop; channels have separate encoded
 // fragments and accumulators. No INT32 or packed-input global workspace exists.
-template <typename NativeT, int Group>
+template <typename NativeT, int Group, bool EncodedB = false>
 __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
     const NativeT* a, const NativeT* b, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldc, int prefix,
-    int64_t tile_row, int64_t tile_col, int first_plane) {
+    int64_t tile_row, int64_t tile_col, int first_plane,
+    const uint32_t* encoded_b = nullptr, uint64_t encoded_k_words = 0) {
 #if RNS8_DEVICE_NATIVE_WMMA
   using fragment = int __attribute__((ext_vector_type(4)));
   using accumulator = int __attribute__((ext_vector_type(8)));
@@ -44,20 +45,26 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
       for (int byte = 0; byte < 4; ++byte) {
         const int64_t q = kk + word * 4 + byte;
         const NativeT raw_a = ar < m && q < k ? a[ar * lda + q] : NativeT{};
-        const NativeT raw_b = bc < n && q < k ? b[q * ldb + bc] : NativeT{};
+        NativeT raw_b{};
+        if constexpr (!EncodedB) raw_b = bc < n && q < k ? b[q * ldb + bc] : NativeT{};
 #pragma unroll
         for (int channel = 0; channel < Group; ++channel) {
           const int plane = first_plane + channel;
           if (plane >= prefix) continue;
           ap[channel] |= static_cast<uint32_t>(static_cast<uint8_t>(
               rns8_native_wmma_center(raw_a, reducers[channel]))) << (8 * byte);
-          bp[channel] |= static_cast<uint32_t>(static_cast<uint8_t>(
-              rns8_native_wmma_center(raw_b, reducers[channel]))) << (8 * byte);
+          if constexpr (!EncodedB)
+            bp[channel] |= static_cast<uint32_t>(static_cast<uint8_t>(
+                rns8_native_wmma_center(raw_b, reducers[channel]))) << (8 * byte);
         }
       }
       for (int channel = 0; channel < Group; ++channel) {
         av[channel][word] = static_cast<int>(ap[channel]);
-        bv[channel][word] = static_cast<int>(bp[channel]);
+        if constexpr (EncodedB) {
+          const int plane=first_plane+channel;
+          bv[channel][word]=plane<prefix && bc<n
+              ? static_cast<int>(encoded_b[(uint64_t(plane)*n+bc)*encoded_k_words+uint64_t(kk)/4+word]) : 0;
+        } else bv[channel][word] = static_cast<int>(bp[channel]);
       }
     }
     for (int channel = 0; channel < Group; ++channel) {
@@ -88,6 +95,7 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
 #else
   (void)a; (void)b; (void)c; (void)m; (void)n; (void)k;
   (void)lda; (void)ldb; (void)ldc; (void)prefix;
+  (void)encoded_b; (void)encoded_k_words;
 #endif
 }
 template <typename NativeT, int Group>
@@ -142,5 +150,31 @@ __global__ __launch_bounds__(32) void rns8_native_wmma_queue_kernel(
 #else
   (void)tasks; (void)work; (void)count; (void)cursor;
 #endif
+}
+// Plane/column/K-word order: each B fragment word is a single aligned load.
+// Native loads during preparation remain explicit and are paid once per handle.
+template<class T>
+__global__ void rns8_encode_native_b_kernel(const T* b,uint32_t* encoded,
+    int k,int n,int ldb,int prefix,uint64_t k_words) {
+  const uint64_t total=uint64_t(prefix)*n*k_words;
+  for(uint64_t word=uint64_t(blockIdx.x)*blockDim.x+threadIdx.x;word<total;
+      word+=uint64_t(gridDim.x)*blockDim.x) {
+    const uint64_t col=(word/k_words)%n,plane=word/(k_words*n),q0=(word%k_words)*4;
+    const auto reducer=rns8::detail::finite_u8::native64_reducer(rns8_default_moduli_device[plane]);
+    uint32_t packed=0;
+    for(int byte=0;byte<4;++byte) {
+      const uint64_t q=q0+byte;
+      const T raw=q<uint64_t(k)?b[q*ldb+col]:T{};
+      packed|=uint32_t(uint8_t(rns8_native_wmma_center(raw,reducer)))<<(8*byte);
+    }
+    encoded[word]=packed;
+  }
+}
+template<class T,int Group>
+__global__ __launch_bounds__(32) void rns8_native_encoded_b_wmma_kernel(
+    const T* a,const uint32_t* b,int8_t* c,int m,int n,int k,int lda,int ldc,
+    int prefix,uint64_t k_words) {
+  rns8_native_grouped_wmma_tile<T,Group,true>(a,nullptr,c,m,n,k,lda,n,ldc,prefix,
+      int64_t(blockIdx.y)*16,int64_t(blockIdx.x)*16,blockIdx.z*Group,b,k_words);
 }
 #undef RNS8_DEVICE_NATIVE_WMMA

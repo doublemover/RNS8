@@ -314,3 +314,18 @@ TEST_CASE("narrow persistent provider charges simultaneous staging and scan stor
   CHECK(query_narrow_rns_support(1,1,1,1,1,0,false,100).constraint==OperationConstraint::prefix);
   CHECK(query_narrow_rns_support(INT64_MAX,1,1,1,1,20,false,UINT64_MAX).constraint==OperationConstraint::address_span);
 }
+
+#include "backend_common/encoded_b_layout.hpp"
+TEST_CASE("encoded B layout pads K and accounts for capability storage") {
+  using namespace rns8::detail;
+  for(uint32_t prefix=1;prefix<=20;++prefix) for(int k:{1,15,16,17,65535,65536,65537}) {
+    const auto layout=encoded_b_layout(k,19,21,prefix,UINT64_MAX);
+    REQUIRE(layout.status==RNS8_SUCCESS);
+    CHECK(layout.k_words==((uint64_t(k)+15)/16)*4);
+    CHECK(layout.payload_bytes==layout.k_words*4*19*prefix);
+    CHECK(layout.total_bytes==layout.payload_bytes+4);
+    CHECK(encoded_b_layout(k,19,21,prefix,layout.total_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+  CHECK(encoded_b_layout(INT64_MAX,1,1,20,UINT64_MAX).status==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(encoded_b_layout(1,1,1,0,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
+}

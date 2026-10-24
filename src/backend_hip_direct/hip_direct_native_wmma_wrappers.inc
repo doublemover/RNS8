@@ -58,3 +58,40 @@ extern "C" int rns8_hip_native_wmma_grouped(
       ? rns8_select_native_wmma_group<uint64_t>(a, b, c, m, n, k, lda, ldb, ldc, prefix, group)
       : rns8_select_native_wmma_group<int64_t>(a, b, c, m, n, k, lda, ldb, ldc, prefix, group);
 }
+
+extern "C" int rns8_hip_encode_native_b(const void* b,void* encoded,int k,int n,int ldb,
+    int prefix,uint64_t k_words,bool unsigned_inputs) {
+  const uint64_t words=uint64_t(prefix)*n*k_words;
+  const unsigned blocks=static_cast<unsigned>(std::min(uint64_t{1024},(words+255)/256));
+  if(unsigned_inputs)
+    hipLaunchKernelGGL((rns8_encode_native_b_kernel<uint64_t>),dim3(blocks),dim3(256),0,nullptr,
+        static_cast<const uint64_t*>(b),static_cast<uint32_t*>(encoded),k,n,ldb,prefix,k_words);
+  else
+    hipLaunchKernelGGL((rns8_encode_native_b_kernel<int64_t>),dim3(blocks),dim3(256),0,nullptr,
+        static_cast<const int64_t*>(b),static_cast<uint32_t*>(encoded),k,n,ldb,prefix,k_words);
+  return static_cast<int>(hipGetLastError());
+}
+template<class T,int Group>
+int rns8_launch_encoded_b_wmma(const void* a,const void* b,void* c,int m,int n,int k,
+    int lda,int ldc,int prefix,uint64_t k_words) {
+  hipLaunchKernelGGL((rns8_native_encoded_b_wmma_kernel<T,Group>),
+      dim3((uint64_t(n)+15)/16,(uint64_t(m)+15)/16,(prefix+Group-1)/Group),dim3(32),0,nullptr,
+      static_cast<const T*>(a),static_cast<const uint32_t*>(b),static_cast<int8_t*>(c),
+      m,n,k,lda,ldc,prefix,k_words);
+  return static_cast<int>(hipGetLastError());
+}
+template<class T>
+int rns8_select_encoded_b_wmma(const void* a,const void* b,void* c,int m,int n,int k,
+    int lda,int ldc,int prefix,uint64_t k_words,int group) {
+  switch(group) {
+    case 1:return rns8_launch_encoded_b_wmma<T,1>(a,b,c,m,n,k,lda,ldc,prefix,k_words);
+    case 2:return rns8_launch_encoded_b_wmma<T,2>(a,b,c,m,n,k,lda,ldc,prefix,k_words);
+    case 4:return rns8_launch_encoded_b_wmma<T,4>(a,b,c,m,n,k,lda,ldc,prefix,k_words);
+    default:return static_cast<int>(hipErrorInvalidValue);
+  }
+}
+extern "C" int rns8_hip_native_encoded_b_wmma(const void* a,const void* b,void* c,
+    int m,int n,int k,int lda,int ldc,int prefix,uint64_t k_words,int group,bool unsigned_inputs) {
+  return unsigned_inputs?rns8_select_encoded_b_wmma<uint64_t>(a,b,c,m,n,k,lda,ldc,prefix,k_words,group)
+      :rns8_select_encoded_b_wmma<int64_t>(a,b,c,m,n,k,lda,ldc,prefix,k_words,group);
+}

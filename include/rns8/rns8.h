@@ -1332,6 +1332,23 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
 
+typedef struct rns8_encoded_b rns8_encoded_b;
+/* Experimental direct-HIP repeated-B materialization for exact-wide native
+ * inputs. B must retain a current native copy. Encodes all prefix planes into
+ * plane/column/K-word order, padded to 16 K elements. Budget includes encoded
+ * payload plus four retained capability bytes. No source host download.
+ * Holds source/context lifetimes; changed B generation requires a new handle.
+ * Failure preserves *out. Use/destruction require external host exclusion. */
+RNS8_API rns8_status rns8_prepare_encoded_b(rns8_context* ctx,const rns8_matrix* b,
+    uint64_t max_bytes,rns8_encoded_b** out);
+RNS8_API rns8_status rns8_destroy_encoded_b(rns8_encoded_b* cache);
+/* Explicit WMMA group 1/2/4; no per-call device scratch or B re-encoding.
+ * A requires a current retained native copy. Common exact-wide plan/output
+ * proof, alias/reservation and generation checks apply. No AUTO selection. */
+RNS8_API rns8_status rns8_gemm_encoded_b_exact(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_matrix* a,const rns8_encoded_b* b,rns8_matrix* c,
+    uint32_t group,rns8_workspace* workspace);
+
 typedef struct rns8_block_sparse_operand rns8_block_sparse_operand;
 typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
   RNS8_BLOCK_SPARSE_LHS = 1,

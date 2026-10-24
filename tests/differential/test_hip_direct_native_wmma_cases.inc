@@ -1,7 +1,8 @@
+#include "backend_hip_direct/encoded_b_backend.hpp"
 template <typename NativeT>
 bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix,
                               bool generated = false, uint32_t splits = 0,
-                              uint32_t tiled_depth = 0, uint32_t tiled_buffers = 0) {
+                              uint32_t tiled_depth = 0, uint32_t tiled_buffers = 0, bool encoded = false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
@@ -57,12 +58,27 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
     REQUIRE(actual == expected);
     REQUIRE(hip_direct_free(0, upload) == RNS8_SUCCESS);
   }
+  hip_direct_device_buffer encoded_storage;
+  auto encoded_status=RNS8_SUCCESS;
+  if(encoded) {
+    const auto layout=encoded_b_layout(k,n,ldb,prefix,UINT64_MAX);
+    REQUIRE(layout.status==RNS8_SUCCESS);
+    REQUIRE(encoded_storage.allocate(0,layout.total_bytes)==RNS8_SUCCESS);
+    REQUIRE(hip_prepare_encoded_b(0,db,encoded_storage.get(),k,n,ldb,prefix,unsigned_inputs,layout.total_bytes-1)
+        ==RNS8_WORKSPACE_TOO_SMALL);
+    encoded_status=hip_prepare_encoded_b(0,db,encoded_storage.get(),k,n,ldb,prefix,unsigned_inputs,layout.total_bytes);
+  }
   bool supported = true;
   for (uint32_t group : {1u, 2u, 4u}) {
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
     auto status = RNS8_UNSUPPORTED_BACKEND;
-    if (tiled_depth) {
+    if(encoded) {
+      bool started=false;
+      status=encoded_status==RNS8_SUCCESS?hip_gemm_encoded_b(0,da,encoded_storage.get(),dc,
+          m,n,k,lda,ldc,prefix,group,unsigned_inputs,started):encoded_status;
+      CHECK(started==(status==RNS8_SUCCESS));
+    } else if (tiled_depth) {
       bool commit = true;
       if (tiled_buffers) {
         REQUIRE(hip_direct_gemm_native_tiled_device(0, da, db, static_cast<int8_t*>(dc),
@@ -196,4 +212,90 @@ TEST_CASE("multiwave native tiles preserve full-width residues across storage fa
         REQUIRE(check_native_wmma_groups<uint64_t>(true,1,1,k,20,false,0,depth,buffers));
       }
     }
+}
+
+TEST_CASE("encoded B WMMA preserves prefix tails padding and K-slab boundaries") {
+  if(!hip_available()) SKIP("no HIP device for encoded B");
+  for(uint32_t prefix=1;prefix<=20;++prefix) {
+    if(!check_native_wmma_groups<int64_t>(false,17,19,33,prefix,false,0,0,0,true))
+      SKIP("compiled target lacks encoded B WMMA");
+    REQUIRE(check_native_wmma_groups<uint64_t>(true,17,19,33,prefix,false,0,0,0,true));
+  }
+  for(int k:{65535,65536,65537}) {
+    REQUIRE(check_native_wmma_groups<int64_t>(false,1,1,k,20,false,0,0,0,true));
+    REQUIRE(check_native_wmma_groups<uint64_t>(true,1,1,k,20,false,0,0,0,true));
+  }
+}
+
+template<class T> void check_public_encoded_b_owner() {
+  using boost::multiprecision::cpp_int;
+  constexpr bool u=std::is_unsigned_v<T>;
+  constexpr int n=17;
+  const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto desc=exact_signed_desc(n,n,n,RNS8_BACKEND_HIP_DIRECT);
+  desc.semantics=semantics; desc.max_prefix=20; desc.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan=nullptr; rns8_workspace* ws=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&ws)==RNS8_SUCCESS);
+  auto md=matrix_desc(n,n,semantics,RNS8_BOUND_NONE);
+  md.max_prefix=20; md.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+  for(auto** matrix:{&a,&b,&c}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  std::vector<T> av(n*n,0),bv(n*n);
+  for(int row=0;row<n;++row) {
+    av[row*n+row]=2;
+    for(int col=0;col<n;++col) bv[row*n+col]=(row+col)%2?std::numeric_limits<T>::max():std::numeric_limits<T>::min();
+  }
+  const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& values) {
+    if constexpr(u) return rns8_pack_u64(ctx,matrix,values.data(),n,0);
+    else return rns8_pack_i64(ctx,matrix,values.data(),n,0);
+  };
+  REQUIRE(pack(a,av)==RNS8_SUCCESS); REQUIRE(pack(b,bv)==RNS8_SUCCESS); REQUIRE(pack(c,av)==RNS8_SUCCESS);
+  rns8_encoded_b* cache=nullptr;
+  const auto cleanup=[&]() {
+    rns8_destroy_encoded_b(cache);
+    for(auto* matrix:{a,b,c}) rns8_destroy_matrix(matrix);
+    rns8_destroy_workspace(ws); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
+  };
+  CHECK(rns8_prepare_encoded_b(ctx,b,0,&cache)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(cache==nullptr);
+  const auto prepared=rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&cache);
+  if(prepared==RNS8_UNSUPPORTED_BACKEND) { cleanup(); SKIP("compiled target lacks encoded B WMMA"); }
+  REQUIRE(prepared==RNS8_SUCCESS);
+  CHECK(rns8_destroy_matrix(b)==RNS8_BUSY);
+  const auto run=[&](uint32_t group) { return rns8_gemm_encoded_b_exact(ctx,plan,a,cache,c,group,ws); };
+  const auto generation=c->content_generation;
+  CHECK(run(3)==RNS8_INVALID_ARGUMENT);
+  c->in_flight_readers=1; CHECK(run(1)==RNS8_BUSY); c->in_flight_readers=0;
+  CHECK(c->content_generation==generation);
+  for(uint32_t group:{1u,2u,4u}) {
+    REQUIRE(run(group)==RNS8_SUCCESS);
+    std::vector<uint64_t> limbs(n*n*3);
+    if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+    else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+    for(int cell=0;cell<n*n;++cell) {
+      cpp_int actual=cpp_int(limbs[cell*3])+(cpp_int(limbs[cell*3+1])<<64)+(cpp_int(limbs[cell*3+2])<<128);
+      if constexpr(!u) if(limbs[cell*3+2]>>63) actual-=cpp_int(1)<<192;
+      CHECK(actual==cpp_int(2)*bv[cell]);
+    }
+  }
+  bv[0]=3; REQUIRE(pack(b,bv)==RNS8_SUCCESS);
+  const auto changed=c->content_generation;
+  CHECK(run(1)==RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation==changed);
+  REQUIRE(rns8_destroy_encoded_b(cache)==RNS8_SUCCESS); cache=nullptr;
+  REQUIRE(rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&cache)==RNS8_SUCCESS);
+  REQUIRE(run(1)==RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx,plan,b,b,a,ws)==RNS8_SUCCESS);
+  CHECK_FALSE(a->device_native_current);
+  const auto preserved=c->content_generation;
+  CHECK(run(1)==RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation==preserved);
+  cleanup();
+}
+TEST_CASE("public encoded B binds native generations and exact output ownership") {
+  if(!hip_available()) SKIP("no HIP device for public encoded B");
+  SECTION("signed") { check_public_encoded_b_owner<int64_t>(); }
+  SECTION("unsigned") { check_public_encoded_b_owner<uint64_t>(); }
 }

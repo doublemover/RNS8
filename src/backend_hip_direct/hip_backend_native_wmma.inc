@@ -45,3 +45,5 @@ rns8_status hip_direct_gemm_native_wmma_grouped_device(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#include "hip_backend_encoded_b.inc"
