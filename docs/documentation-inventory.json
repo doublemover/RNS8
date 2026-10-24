@@ -2075,6 +2075,35 @@
       ]
     },
     {
+      "path": "docs/finite-verifier-calibration.md",
+      "purpose": "Public finite-ring verification, compute-plus-verify and complete modular-reference wall-cost experiment",
+      "audience": "Researchers and benchmark contributors",
+      "disposition": "keep",
+      "canonical": "docs/finite-verifier-calibration.md",
+      "owner": "benchmarks/rns8_finite_verify_calibrate.cpp",
+      "reason": "Explicit public finite-ring replay and cost boundaries; authored benchmark and capture fixtures pending consolidated validation; no integer equality or promotion claim.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "finite-verifier-calibration.md"
+        },
+        {
+          "source": "docs/finite-freivalds.md",
+          "reference": "finite-verifier-calibration.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../finite-verifier-calibration.md"
+        }
+      ],
+      "anchors": [
+        "commands-and-evidence-receipts",
+        "matched-cost-boundaries",
+        "public-finite-verifier-calibration",
+        "reproducible-input-and-replay"
+      ]
+    },
+    {
       "path": "docs/floating-rewrite-oracle.md",
       "purpose": "Offline floating rewrite oracle",
       "audience": "Arithmetic researchers and contributors",

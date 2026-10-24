@@ -38,6 +38,7 @@ issue links.
 - [Performance methodology](performance.md), [timing admission](timing-admission.md)
 - [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
+- [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; authored, validation pending
 - [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
 - [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
 - [Expanded local correctness record](local-all-features-20261023.md)

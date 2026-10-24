@@ -72,6 +72,11 @@ application integrations. The former resident-output proposal has moved to
 
 ## Evidence
 
+[Finite-ring verifier calibration](../finite-verifier-calibration.md) defines
+public verification, compute-plus-verify and complete modular-reference controls.
+Its authored fixtures and deterministic replay metadata await consolidated
+validation; no timing result or integer equality guarantee is implied.
+
 The [expanded all-feature record](../local-all-features-20261023.md) supersedes
 earlier pending-runtime notes for the registered target-applicable tests it ran
 at `51ae8d8` on Windows/gfx1100. Topic-local mathematical claims and authored

@@ -89,8 +89,9 @@ fixtures exhaust every two-column error and binary vector for several prime and
 composite rings, all-ones cancellation, known-seed nullspaces, modular blindness,
 unsupported domains, invalid counts/samplers and high-repetition bound underflow.
 
-Benchmark qualification must report verification alone and compute-plus-verify
-against full reference/check-plane controls, including allocation, random-vector
-generation, transfer, projection, synchronization and metadata. Timings from the
-kernel projection hook alone do not represent the public verifier. Those results
-and production promotion are pending the final consolidated batch.
+The authored [public verifier calibration](finite-verifier-calibration.md)
+provides verification-alone, compute-plus-verify and complete modular reference
+controls, including allocation, random-vector generation, transfer, projection,
+synchronization and report construction. Timings from the kernel projection hook
+alone do not represent the public verifier. Check-plane controls, execution of
+the new benchmark, measured results and production promotion remain pending.

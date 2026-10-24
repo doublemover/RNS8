@@ -7,6 +7,33 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
   add_test(NAME native_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_calibration.py")
+  add_test(NAME finite_verify_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_finite_verify.py")
+  if(TARGET rns8-finite-verify-calibrate)
+    set_tests_properties(finite_verify_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_FINITE_VERIFY_EXE=$<TARGET_FILE:rns8-finite-verify-calibrate>"
+      LABELS "tools;finite;verification;cli")
+    foreach(_finite_mode IN ITEMS verify_only compute_verify full_reference)
+      if(_finite_mode STREQUAL "full_reference")
+        set(_finite_trials 0)
+        set(_finite_seed 0)
+      else()
+        set(_finite_trials 4)
+        set(_finite_seed 3135)
+      endif()
+      add_test(NAME finite_verify_cpu_${_finite_mode}_smoke
+        COMMAND rns8-finite-verify-calibrate cpu-reference -1 ${_finite_mode}
+          2 3 65 250 ${_finite_trials} 2 1 ${_finite_seed} ctest-cpu-${_finite_mode})
+      set_tests_properties(finite_verify_cpu_${_finite_mode}_smoke PROPERTIES
+        LABELS "cpu;finite;verification;benchmark-smoke" TIMEOUT 60)
+      if(RNS8_ENABLE_HIP)
+        add_test(NAME finite_verify_hip_${_finite_mode}_smoke
+          COMMAND rns8-finite-verify-calibrate hip-direct 0 ${_finite_mode}
+            2 3 65 256 ${_finite_trials} 2 1 ${_finite_seed} ctest-hip-${_finite_mode})
+        set_tests_properties(finite_verify_hip_${_finite_mode}_smoke PROPERTIES
+          LABELS "hip;finite;verification;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+      endif()
+    endforeach()
+  endif()
   add_test(NAME arithmetic_composition_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_composition.py")
   add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
   add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
