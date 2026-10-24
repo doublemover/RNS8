@@ -211,6 +211,10 @@ rns8_status rns8_destroy_context(rns8_context* ctx) {
     ctx->failed_matrix_cleanup = matrix->failed_cleanup_next;
     delete matrix;
   }
+  if (ctx && ctx->device_id>=0) {
+    const auto status=rns8::detail::hip_direct_collect_deferred_buffers(ctx->device_id);
+    if(status!=RNS8_SUCCESS) return status;
+  }
   if (ctx && ctx->hipblaslt_handle) {
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
     const rns8_status status = rns8::detail::hipblaslt_destroy_context(ctx->device_id, ctx->hipblaslt_handle);

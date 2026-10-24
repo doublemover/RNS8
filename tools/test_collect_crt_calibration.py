@@ -40,7 +40,7 @@ def successful(command,**kwargs):
 class Captures(unittest.TestCase):
     def test_tracked_manifests_cover_all_controls_and_prefixes(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
-        for name,count in (("smoke",22),("every-prefix",440),("large",88)):
+        for name,count in (("smoke",28),("every-prefix",560),("large",112)):
             cases=load_cases(root/(name+".json"))
             self.assertEqual(len(cases),count)
             self.assertEqual({case["candidate"] for case in cases},set(CANDIDATES))
@@ -59,12 +59,13 @@ class Captures(unittest.TestCase):
     def test_dataset_semantics_and_matched_controls(self):
         for prefix in range(1,21):
             direct=dataset(dict(BASE,candidate="direct",prefix=prefix))
-            for candidate in ("garner","balanced","fixed_dot4","tile_balanced","tile_convert_balanced","tile_convert_garner"):
+            for candidate in ("garner","balanced","fixed_dot4","fixed_wmma","tile_balanced","tile_convert_balanced","tile_convert_garner"):
                 source,expected=dataset(dict(BASE,candidate=candidate,prefix=prefix))
                 self.assertEqual(expected,direct[1])
             for signed in ("signed","unsigned"):
                 scalar=dataset(dict(BASE,candidate="import_scalar_"+signed,prefix=prefix))
                 self.assertEqual(scalar,dataset(dict(BASE,candidate="import_dot4_"+signed,prefix=prefix)))
+                self.assertEqual(scalar,dataset(dict(BASE,candidate="import_wmma_"+signed,prefix=prefix)))
             if prefix>1:
                 self.assertNotEqual(dataset(dict(BASE,candidate="import_scalar_signed",prefix=prefix))[1],
                                     dataset(dict(BASE,candidate="import_scalar_unsigned",prefix=prefix))[1])

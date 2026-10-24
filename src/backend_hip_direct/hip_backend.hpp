@@ -299,6 +299,16 @@ struct hip_direct_grouped_device_resources {
   rns8_status reset() noexcept;
 };
 
+// Preallocated cleanup record for private scratch whose device completion is
+// uncertain. Queue insertion cannot allocate; successful device drains reclaim it.
+struct hip_deferred_buffer_cleanup {
+  int device_id=-1;
+  void* pointer=nullptr;
+  hip_deferred_buffer_cleanup* next=nullptr;
+};
+void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup*) noexcept;
+rns8_status hip_direct_collect_deferred_buffers(int device_id);
+
 bool hip_direct_compiled();
 void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
@@ -1253,11 +1263,12 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const 
 rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const GramProblem& problem,
     uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started);
 
-// Private fixed-transform modes: 0 signed native import, 1 unsigned import,
-// 2 canonical three-limb CRT. Explicit RDNA3 packed-dot candidate only.
 rns8_status hip_direct_gram_prepared_device(int device_id,const void* x,void* c,const GramProblem& problem,
     const GramTile* host_jobs,void* device_jobs,uint64_t device_job_bytes,bool wmma,
     bool& jobs_ready,bool& commit_started);
+// Private fixed-transform modes: 0 signed native import, 1 unsigned import,
+// 2 canonical three-limb CRT; modes 3/4/5 are corresponding unsigned-byte
+// WMMA transforms. Explicit RDNA3 research candidates only.
 rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,void* destination,
     int64_t cells,uint32_t prefix,uint32_t mode,uint64_t budget,bool& commit_started);
 

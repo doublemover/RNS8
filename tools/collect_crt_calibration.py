@@ -18,7 +18,7 @@ from collect_finite_verify import demand, integer, positive, same, strict_json, 
 from modulus_set_search import DEFAULT_MODULI
 
 CANDIDATES=("garner", "direct", "balanced", "fixed_dot4", "tile_balanced", "tile_convert_balanced", "tile_convert_garner",
-            "import_scalar_signed", "import_scalar_unsigned", "import_dot4_signed", "import_dot4_unsigned")
+            "import_scalar_signed", "import_scalar_unsigned", "import_dot4_signed", "import_dot4_unsigned", "fixed_wmma", "import_wmma_signed", "import_wmma_unsigned")
 SCOPES=("resident", "cold")
 MASK=(1 << 64)-1
 BUDGET=768*1024*1024
@@ -67,7 +67,7 @@ def contract(case,run_id,repeats,warmups):
         "logical_rows":rows,"logical_cols":cols,"conversion_inside_call":tile and candidate!="tile_balanced",
         "conversion_scratch_bytes":plain if tile and candidate!="tile_balanced" else 0,
         "output_bytes_modeled":cells*(prefix if importing else 24),"output_allocation_bytes":output,
-        "probe_bytes":4 if "dot4" in candidate else 0,"common_status_capacity_bytes":4,
+        "probe_bytes":4 if "dot4" in candidate or "wmma" in candidate else 0,"common_status_capacity_bytes":4,
         "logical_payload_envelope_bytes":cells*16+plain*2+output*4+tile_bytes*2+source+16384,"memory_budget_bytes":BUDGET,
         "timing_scope":"allocate_upload_convert_readback_checked_free" if scope=="cold" else "resident_checked_convert_with_sync_no_upload_or_readback",
         "cache_state":"fresh_buffers_each_call" if scope=="cold" else "repeated_same_buffers",
@@ -112,8 +112,8 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     for key in ("device","target"):
         demand(type(capture.get(key)) is str and bool(capture[key].strip()),f"missing identity: {key}")
     demand(re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"invalid target")
-    if "dot4" in case["candidate"]:
-        demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"dot4 target not admitted")
+    if "dot4" in case["candidate"] or "wmma" in case["candidate"]:
+        demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"fixed conversion target not admitted")
     demand(integer(capture.get("runtime_version"),1,(1 << 31)-1),"invalid runtime identity")
     demand(positive(capture.get("oracle_and_dataset_ns")),"invalid oracle timing")
     demand(positive(capture.get("resident_setup_ns")) if case["scope"]=="resident" else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")

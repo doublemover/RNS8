@@ -50,16 +50,17 @@ struct Buffers {
 }
 int main(int argc,char** argv) {
   try {
-    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|fixed_dot4|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes buffer allocation, host upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
+    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes buffer allocation, host upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
     if(argc==2 && std::string(argv[1])=="--help") {std::cout<<usage<<'\n';return 0;}
     if(argc!=7 && argc!=8) throw std::invalid_argument(usage);
     const std::string candidate=argv[1],run_id=argv[6],scope=argc==8?argv[7]:"resident";
-    const bool importing=candidate.rfind("import_",0)==0, signed_values=candidate=="import_scalar_signed" || candidate=="import_dot4_signed";
+    const bool importing=candidate.rfind("import_",0)==0, signed_values=candidate=="import_scalar_signed" || candidate=="import_dot4_signed" || candidate=="import_wmma_signed";
     const bool dot4=candidate=="fixed_dot4" || candidate=="import_dot4_signed" || candidate=="import_dot4_unsigned";
+    const bool wmma=candidate=="fixed_wmma" || candidate=="import_wmma_signed" || candidate=="import_wmma_unsigned";
     const bool tile_input=candidate.rfind("tile_",0)==0;
-    if((candidate!="garner" && candidate!="direct" && candidate!="balanced" && candidate!="fixed_dot4" &&
+    if((candidate!="garner" && candidate!="direct" && candidate!="balanced" && candidate!="fixed_dot4" && candidate!="fixed_wmma" &&
         candidate!="tile_balanced" && candidate!="tile_convert_balanced" && candidate!="tile_convert_garner" &&
-        candidate!="import_scalar_signed" && candidate!="import_scalar_unsigned" && candidate!="import_dot4_signed" && candidate!="import_dot4_unsigned") ||
+        candidate!="import_scalar_signed" && candidate!="import_scalar_unsigned" && candidate!="import_dot4_signed" && candidate!="import_dot4_unsigned" && candidate!="import_wmma_signed" && candidate!="import_wmma_unsigned") ||
         (scope!="resident" && scope!="cold") || run_id.empty() || run_id.size()>128 ||
         run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)
       throw std::invalid_argument("invalid candidate/scope/run identity");
@@ -112,9 +113,9 @@ int main(int argc,char** argv) {
       check(hip_direct_copy_host_to_device(0,buffers.output.get(),poison.data(),poison.size()));
     };
     const auto convert=[&](Buffers& buffers) {
-      if(dot4) {bool started=false;const auto status=hip_direct_fixed_conversion_device(0,
-          importing?buffers.native.get():buffers.plain.get(),buffers.output.get(),cells,prefix,importing?(signed_values?0:1):2,4,started);
-        check(status);if(!started) throw std::runtime_error("successful dot4 call did not report issued output");return;}
+      if(dot4 || wmma) {bool started=false;const auto status=hip_direct_fixed_conversion_device(0,
+          importing?buffers.native.get():buffers.plain.get(),buffers.output.get(),cells,prefix,(importing?(signed_values?0:1):2)+(wmma?3:0),4,started);
+        check(status);if(!started) throw std::runtime_error("successful fixed conversion call did not report issued output");return;}
       if(importing) {const auto call=signed_values?hip_direct_native_i64_to_rns_device:hip_direct_native_u64_to_rns_device;
         check(call(0,buffers.native.get(),buffers.output.get(),1,cells,prefix));return;}
       if(candidate=="tile_balanced") {check(hip_direct_export_canonical_balanced_crt_layout_device(0,buffers.tile.get(),tiled,buffers.output.get()));return;}
@@ -183,7 +184,7 @@ int main(int argc,char** argv) {
       {"conversion_inside_call",tile_input && candidate!="tile_balanced"},
       {"conversion_scratch_bytes",tile_input && candidate!="tile_balanced"?plain.bytes:0},
       {"output_bytes_modeled",uint64_t(cells)*(importing?prefix:24)},{"output_allocation_bytes",output_bytes},
-      {"probe_bytes",dot4?4:0},{"common_status_capacity_bytes",4},{"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},
+      {"probe_bytes",(dot4 || wmma)?4:0},{"common_status_capacity_bytes",4},{"logical_payload_envelope_bytes",envelope},{"memory_budget_bytes",budget},
       {"oracle_and_dataset_ns",oracle_ns},{"resident_setup_ns",scope=="resident"?nlohmann::json(setup_ns):nlohmann::json(nullptr)},
       {"timing_scope",scope=="cold"?"allocate_upload_convert_readback_checked_free":"resident_checked_convert_with_sync_no_upload_or_readback"},
       {"cache_state",scope=="cold"?"fresh_buffers_each_call":"repeated_same_buffers"},{"actual_hbm_bytes",nullptr},

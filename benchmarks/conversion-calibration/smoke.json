@@ -132,6 +132,42 @@
       "cells": 17,
       "prefix": 3,
       "scope": "cold"
+    },
+    {
+      "candidate": "fixed_wmma",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "fixed_wmma",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_wmma_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_wmma_signed",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "import_wmma_unsigned",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "import_wmma_unsigned",
+      "cells": 17,
+      "prefix": 3,
+      "scope": "cold"
     }
   ]
 }

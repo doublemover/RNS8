@@ -20,18 +20,28 @@ rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b
   }
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status=set_hip_device(device_id);if(status!=RNS8_SUCCESS) return status;
-  hip_direct_device_buffer flag;status=flag.allocate(device_id,4);if(status!=RNS8_SUCCESS) return status;
+  hip_probe_buffer flag;status=flag.allocate(device_id,4);if(status!=RNS8_SUCCESS) return status;
   if(packed_dot4) {
+    flag.mark_pending();
     const auto launched=static_cast<hipError_t>(rns8_hip_word_mod_dot4_capability(static_cast<int*>(flag.get())));
-    const auto completed=hipDeviceSynchronize();if(launched!=hipSuccess || completed!=hipSuccess) return RNS8_BACKEND_FAILURE;
-    int supported=0;status=hip_direct_copy_device_to_host(device_id,&supported,flag.get(),4);
+    const auto completed=hipDeviceSynchronize();if(completed==hipSuccess) flag.mark_completed();
+    if(launched!=hipSuccess || completed!=hipSuccess) return RNS8_BACKEND_FAILURE;
+    int supported=0;flag.mark_pending();
+    status=hip_direct_copy_device_to_host(device_id,&supported,flag.get(),4);
+    if(status==RNS8_SUCCESS) flag.mark_completed();
     if(status!=RNS8_SUCCESS) return status;if(!supported) return RNS8_UNSUPPORTED_BACKEND;
   }
   word_mod::DigitWeights weights{};if(packed_dot4) weights=word_mod::digit_weights(p.modulus);
-  int invalid=0;status=hip_direct_copy_host_to_device(device_id,flag.get(),&invalid,4);if(status!=RNS8_SUCCESS) return status;
+  int invalid=0;flag.mark_pending();
+  status=hip_direct_copy_host_to_device(device_id,flag.get(),&invalid,4);if(status!=RNS8_SUCCESS) return status;
+  flag.mark_completed();
+  flag.mark_pending();
   const auto launch=static_cast<hipError_t>(rns8_hip_word_mod_validate(a,b,int(p.m),int(p.n),int(p.k),int(p.lda),int(p.ldb),p.modulus,static_cast<int*>(flag.get())));
-  const auto drain=hipDeviceSynchronize();if(launch!=hipSuccess || drain!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  const auto drain=hipDeviceSynchronize();if(drain==hipSuccess) flag.mark_completed();
+  if(launch!=hipSuccess || drain!=hipSuccess) return RNS8_BACKEND_FAILURE;
+  flag.mark_pending();
   status=hip_direct_copy_device_to_host(device_id,&invalid,flag.get(),4);if(status!=RNS8_SUCCESS) return status;
+  flag.mark_completed();
   if(invalid) return RNS8_INVALID_ARGUMENT;
   commit_started=true;
   const auto error=timed_hip_operation(floating?"word_mod_asymmetric_binary64":packed_dot4?"word_mod_byte_dot4":"word_mod_double_add",[&]() {

@@ -7,13 +7,13 @@ correctness and measurement batch. They establish no timing or ISA result.
 
 | Operation | Candidates | Exact output |
 |---|---|---|
-| Signed native import | `import_scalar_signed`, `import_dot4_signed` | The same centered default-basis residue planes |
-| Unsigned native import | `import_scalar_unsigned`, `import_dot4_unsigned` | The same centered default-basis residue planes |
-| Plain residue CRT | `garner`, `direct`, `balanced`, `fixed_dot4` | The same canonical unsigned three-limb values |
+| Signed native import | `import_scalar_signed`, `import_dot4_signed`, `import_wmma_signed` | The same centered default-basis residue planes |
+| Unsigned native import | `import_scalar_unsigned`, `import_dot4_unsigned`, `import_wmma_unsigned` | The same centered default-basis residue planes |
+| Plain residue CRT | `garner`, `direct`, `balanced`, `fixed_dot4`, `fixed_wmma` | The same canonical unsigned three-limb values |
 | Tile-major CRT | `tile_balanced`, `tile_convert_balanced`, `tile_convert_garner` | The same canonical values; the latter two include conversion |
 
 Scalar imports use the existing resident native-to-RNS helper used by the native
-packing controls. `fixed_dot4` and the two dot4 imports use the
+packing controls. `fixed_dot4`, `fixed_wmma` and their import variants use the
 [fixed packed-byte transform](fixed-conversion.md), including its four-byte
 capability probe, admission, allocation and synchronization on every call.
 Only gfx1100/1101/1102 with the actual builtin are admitted. Unsupported paths

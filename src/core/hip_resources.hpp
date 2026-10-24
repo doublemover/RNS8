@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <utility>
+#include <new>
 
 #include "backend_hip_direct/hip_backend.hpp"
 
@@ -98,6 +99,34 @@ class hip_direct_device_buffer {
   int device_id_ = -1;
   void* ptr_ = nullptr;
   std::size_t bytes_ = 0;
+};
+
+// Capability/status kernels can fail before a context-owned operation exists.
+// This owner keeps their small scratch allocation alive across an uncertain drain.
+class hip_probe_buffer {
+ public:
+  hip_probe_buffer()=default;
+  hip_probe_buffer(const hip_probe_buffer&)=delete;
+  hip_probe_buffer& operator=(const hip_probe_buffer&)=delete;
+  ~hip_probe_buffer() {
+    if(!cleanup_) return;
+    if(cleanup_->pointer && (pending_ || hip_direct_free(cleanup_->device_id,cleanup_->pointer)!=RNS8_SUCCESS))
+      hip_direct_defer_buffer_cleanup(cleanup_);
+    else delete cleanup_;
+  }
+  rns8_status allocate(int device_id,std::size_t bytes) {
+    if(cleanup_) return RNS8_INVALID_ARGUMENT;
+    cleanup_=new(std::nothrow) hip_deferred_buffer_cleanup;
+    if(!cleanup_) return RNS8_INTERNAL_ERROR;
+    cleanup_->device_id=device_id;
+    return hip_direct_allocate(device_id,bytes,&cleanup_->pointer);
+  }
+  void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}
+  void mark_pending() noexcept {pending_=true;}
+  void mark_completed() noexcept {pending_=false;}
+ private:
+  hip_deferred_buffer_cleanup* cleanup_=nullptr;
+  bool pending_=false;
 };
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
