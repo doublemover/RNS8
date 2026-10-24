@@ -181,7 +181,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_to_device(
   if (requires_status) {
     int host_status = 0;
     err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
-      return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
+      return tracked_sync_copy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
     });
     if (err != hipSuccess) {
       return RNS8_BACKEND_FAILURE;
@@ -280,7 +280,7 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   }
   const std::size_t table_bytes = host_ptrs.size() * sizeof(host_ptrs[0]);
   const hipError_t err = timed_hip_operation("grouped_residue_pointer_table_h2d", [&]() {
-    return hipMemcpy(device_residue_ptrs, host_ptrs.data(), table_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_residue_ptrs, host_ptrs.data(), table_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;

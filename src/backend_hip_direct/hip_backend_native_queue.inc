@@ -35,8 +35,8 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   if (status != RNS8_SUCCESS) return status;
   if (!supported) return RNS8_UNSUPPORTED_BACKEND;
   error = timed_hip_operation("native_queue_prepare_upload", [&]() {
-    auto upload = hipMemcpy(device_tasks, tasks.data(), tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
-    if (upload == hipSuccess) upload = hipMemcpy(device_work, work.data(), work.size() * sizeof(NativeWmmaWork), hipMemcpyHostToDevice);
+    auto upload = tracked_sync_copy(device_tasks, tasks.data(), tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
+    if (upload == hipSuccess) upload = tracked_sync_copy(device_work, work.data(), work.size() * sizeof(NativeWmmaWork), hipMemcpyHostToDevice);
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
@@ -145,8 +145,8 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   if (status != RNS8_SUCCESS) return status;
   if (!supported) return RNS8_UNSUPPORTED_BACKEND;
   error = timed_hip_operation("native_queue_descriptor_upload", [&]() {
-    auto upload = hipMemcpy(device_tasks, tasks.data(), tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
-    if (upload == hipSuccess) upload = hipMemcpy(device_work, work.data(), work.size() * sizeof(NativeWmmaWork), hipMemcpyHostToDevice);
+    auto upload = tracked_sync_copy(device_tasks, tasks.data(), tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
+    if (upload == hipSuccess) upload = tracked_sync_copy(device_work, work.data(), work.size() * sizeof(NativeWmmaWork), hipMemcpyHostToDevice);
     if (upload == hipSuccess) upload = hipMemset(cursor, 0, sizeof(uint32_t));
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });

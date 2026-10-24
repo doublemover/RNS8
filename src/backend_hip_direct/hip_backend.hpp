@@ -206,6 +206,12 @@ struct hip_direct_allocation_counters {
   uint64_t allocate_calls = 0;
   uint64_t free_calls = 0;
   uint64_t allocated_bytes = 0;
+  uint64_t h2d_calls = 0;
+  uint64_t h2d_bytes = 0;
+  uint64_t d2h_calls = 0;
+  uint64_t d2h_bytes = 0;
+  uint64_t d2d_calls = 0;
+  uint64_t d2d_bytes = 0;
 };
 
 struct hip_direct_grouped_gemm_task {

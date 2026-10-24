@@ -128,7 +128,7 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation("residue_d2h_sync", [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyDeviceToHost); });
+      timed_hip_operation("residue_d2h_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -154,7 +154,7 @@ rns8_status hip_direct_copy_host_to_device_labeled(
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation(timing_label, [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation(timing_label, [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyHostToDevice); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -180,7 +180,7 @@ rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const voi
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation("residue_d2d_sync", [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice); });
+      timed_hip_operation("residue_d2d_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToDevice); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

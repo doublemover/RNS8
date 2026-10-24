@@ -91,6 +91,7 @@ void check_adaptive_native_product() {
       }
   }
 }
+
 TEST_CASE("adaptive native products complete every residue plane before chaining") {
   if (!hip_available()) SKIP("no HIP device for adaptive native product");
   check_adaptive_native_product<int64_t>();
@@ -124,8 +125,16 @@ template<class T> void check_public_adaptive_owner() {
   }
   if constexpr (!is_unsigned) av[16*19+1] = std::numeric_limits<T>::min();
   const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
-    if constexpr (is_unsigned) return rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
-    else return rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
+    const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
+    rns8_status status;
+    if constexpr (is_unsigned) status=rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
+    else status=rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
+    const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();
+    if(status==RNS8_SUCCESS) {
+      CHECK(after.h2d_calls-before.h2d_calls==1);
+      CHECK(after.h2d_bytes-before.h2d_bytes==17*17*sizeof(T));
+    }
+    return status;
   };
   const auto run = [&](rns8_matrix* lhs, uint64_t budget, uint32_t workers) {
     return rns8_gemm_adaptive_exact(ctx, plan, lhs, b, c, RNS8_ADAPTIVE_AXIS_L1,
@@ -200,10 +209,14 @@ template<class T> void check_public_adaptive_owner() {
   std::vector<T> compact(17*17);
   for (int row=0; row<17; ++row)
     std::copy_n(av.data()+row*19,17,compact.data()+row*17);
+  const auto compact_before=rns8::detail::hip_direct_allocation_counters_snapshot();
   if constexpr (is_unsigned)
     REQUIRE(rns8_pack_u64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
   else
     REQUIRE(rns8_pack_i64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
+  const auto compact_after=rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(compact_after.h2d_calls-compact_before.h2d_calls==1);
+  CHECK(compact_after.h2d_bytes-compact_before.h2d_bytes==17*17*sizeof(T));
   check_single_upload_owner(a);
   REQUIRE(run(a,UINT64_MAX,3) == RNS8_SUCCESS);
   rns8_matrix_allocation_info before{};

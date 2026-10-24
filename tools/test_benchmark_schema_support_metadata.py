@@ -102,16 +102,18 @@ def add_output_policy_fields(
 
 
 def add_device_allocation_fields(capture: dict) -> dict:
-    zero = {"allocate_calls": 0, "free_calls": 0, "allocated_bytes": 0}
+    zero = {key: 0 for key in ("allocate_calls", "free_calls", "allocated_bytes",
+        "h2d_calls", "h2d_bytes", "d2h_calls", "d2h_bytes", "d2d_calls", "d2d_bytes")}
     capture["device_allocation"] = {
         "tracking_available": True,
         "source": "hip_direct_allocation_counters_snapshot",
+        "transfer_scope": "direct_backend_successful_synchronous_api_payload",
         "setup_scope": "persistent_plan_workspace_resident_matrices",
         "source_version_inputs": "monotonic_source_version_per_repeat_when_packing_runs",
         "before": dict(zero),
-        "after_warmups": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
-        "after_repeats": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
-        "setup_delta": {"allocate_calls": 2, "free_calls": 0, "allocated_bytes": 4096},
+        "after_warmups": {**zero, "allocate_calls": 2, "allocated_bytes": 4096},
+        "after_repeats": {**zero, "allocate_calls": 2, "allocated_bytes": 4096},
+        "setup_delta": {**zero, "allocate_calls": 2, "allocated_bytes": 4096},
         "measured_repeat_delta": dict(zero),
     }
     return capture

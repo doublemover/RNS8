@@ -436,7 +436,8 @@ class ValidatorBaseFieldsMixin:
         if not isinstance(value, dict):
             self._error(f"{label} must be an object")
             return
-        for key in ["allocate_calls", "free_calls", "allocated_bytes"]:
+        for key in ["allocate_calls", "free_calls", "allocated_bytes",
+                    "h2d_calls", "h2d_bytes", "d2h_calls", "d2h_bytes", "d2d_calls", "d2d_bytes"]:
             item = value.get(key)
             if not _is_int(item) or item < 0:
                 self._error(f"{label}.{key} must be a nonnegative integer")

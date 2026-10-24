@@ -23,7 +23,7 @@ rns8_status hip_direct_lift_exact_suffix(
         bound[0], bound[1], bound[2], static_cast<int*>(device_status.get()), mixed_radix);
     return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
   });
-  if (error != hipSuccess || hipMemcpy(&host_status, device_status.get(), sizeof(int), hipMemcpyDeviceToHost) != hipSuccess)
+  if (error != hipSuccess || tracked_sync_copy(&host_status, device_status.get(), sizeof(int), hipMemcpyDeviceToHost) != hipSuccess)
     return RNS8_BACKEND_FAILURE;
   if (host_status) return host_status == 2 ? RNS8_RANGE_ERROR : RNS8_INVALID_ARGUMENT;
   commit_started = true;

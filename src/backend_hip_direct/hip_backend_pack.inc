@@ -41,7 +41,7 @@ rns8_status hip_direct_pack_i64_device(
     return status;
   }
   hipError_t err =
-      timed_hip_operation("pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation("pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -125,7 +125,7 @@ rns8_status hip_direct_pack_u64_device(
     return status;
   }
   hipError_t err =
-      timed_hip_operation("pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation("pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -214,7 +214,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -318,7 +318,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -487,7 +487,7 @@ rns8_status hip_direct_pack_finite_u8_device(
     return status;
   }
   hipError_t err = timed_hip_operation(
-      "finite_pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      "finite_pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -570,7 +570,7 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;

@@ -97,3 +97,21 @@ latency.
 promotion workflow. The qualification runner never passes
 `--write-autotune-cache`. Keep broad tuning, paid hardware, publishing, and
 installed-cache changes outside a source-preparation run.
+
+### Synchronous transfer payload accounting
+
+The benchmark allocation snapshots also record `h2d_calls`, `h2d_bytes`,
+`d2h_calls`, `d2h_bytes`, `d2d_calls` and `d2d_bytes`. Their scope is successful
+synchronous copy APIs inside the direct HIP implementation, including its
+packing, descriptor, status and export helpers. A 2D copy counts only width
+multiplied by height, excluding pitch gaps. Setup and measured-repeat deltas
+use the same boundaries as allocation counters. The counters are process-wide;
+measure a single workload without concurrent counter reset or other activity.
+
+These are observed API payload counts, not profiler memory-transaction counts,
+physical PCIe traffic, host RSS or transient device peak. Asynchronous copies,
+graph replay, copies internal to vendor libraries and other backend translation
+units are outside this scope; zero here cannot establish that such a route
+performed no transfer. Existing retained-native signed/unsigned differential
+fixtures check one compact logical upload for both compact and padded sources.
+The new counters and fixtures await the final validation campaign.
