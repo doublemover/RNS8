@@ -28,7 +28,8 @@ std::size_t packed_a_plane_bytes_for(const padded_block_shape& shape) {
 rns8_status clear_a_prepack_cache(rns8_workspace& state) {
   rns8_status status = RNS8_SUCCESS;
   if (state.hipblaslt_a_prepack_cache) {
-    status = hip_direct_free(state.hipblaslt_a_prepack_device_id, state.hipblaslt_a_prepack_cache);
+    status = state.a_prepack_owner.reset_alias(state.hipblaslt_a_prepack_cache, state.hipblaslt_a_prepack_cache_bytes);
+    if (status != RNS8_SUCCESS) { state.hipblaslt_a_prepack_current = false; return status; }
   }
   state.hipblaslt_a_prepack_cache = nullptr;
   state.hipblaslt_a_prepack_cache_bytes = 0;
@@ -46,7 +47,8 @@ rns8_status clear_a_prepack_cache(rns8_workspace& state) {
 rns8_status clear_b_prepack_cache(rns8_workspace& state) {
   rns8_status status = RNS8_SUCCESS;
   if (state.hipblaslt_b_prepack_cache) {
-    status = hip_direct_free(state.hipblaslt_b_prepack_device_id, state.hipblaslt_b_prepack_cache);
+    status = state.b_prepack_owner.reset_alias(state.hipblaslt_b_prepack_cache, state.hipblaslt_b_prepack_cache_bytes);
+    if (status != RNS8_SUCCESS) { state.hipblaslt_b_prepack_current = false; return status; }
   }
   state.hipblaslt_b_prepack_cache = nullptr;
   state.hipblaslt_b_prepack_cache_bytes = 0;
@@ -139,7 +141,7 @@ rns8_status ensure_a_prepack_cache(
     }
   }
   if (!state.hipblaslt_a_prepack_cache) {
-    rns8_status alloc_status = hip_direct_allocate(device_id, total_bytes, &state.hipblaslt_a_prepack_cache);
+    rns8_status alloc_status = state.a_prepack_owner.allocate_alias(device_id, total_bytes, state.hipblaslt_a_prepack_cache);
     if (alloc_status != RNS8_SUCCESS) {
       state.hipblaslt_a_prepack_cache = nullptr;
       state.hipblaslt_a_prepack_cache_bytes = 0;
@@ -211,7 +213,7 @@ rns8_status ensure_b_prepack_cache(
     }
   }
   if (!state.hipblaslt_b_prepack_cache) {
-    rns8_status alloc_status = hip_direct_allocate(device_id, total_bytes, &state.hipblaslt_b_prepack_cache);
+    rns8_status alloc_status = state.b_prepack_owner.allocate_alias(device_id, total_bytes, state.hipblaslt_b_prepack_cache);
     if (alloc_status != RNS8_SUCCESS) {
       state.hipblaslt_b_prepack_cache = nullptr;
       state.hipblaslt_b_prepack_cache_bytes = 0;

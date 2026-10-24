@@ -1,6 +1,6 @@
 TEST_CASE("public exact-wide export ABI rejects invalid limb layout") {
   rns8_context* ctx = create_cpu_context();
-  constexpr int64_t m = 1;
+  constexpr int64_t m = 2;
   constexpr int64_t n = 2;
   constexpr int64_t k = 1;
   constexpr uint64_t sentinel = 0x5e5e5e5e5e5e5e5eull;

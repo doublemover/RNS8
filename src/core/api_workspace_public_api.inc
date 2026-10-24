@@ -11,7 +11,8 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     if (!context_accepts_backend(*ctx, plan->backend)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    auto* workspace = new (std::nothrow) rns8_workspace();
+    auto owner = std::unique_ptr<rns8_workspace>(new (std::nothrow) rns8_workspace());
+    auto* workspace = owner.get();
     if (!workspace) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -23,7 +24,6 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       if (!plan->tile_schedule.empty()) {
         if (plan->tile_schedule.size() >
             std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
-          delete workspace;
           return RNS8_RANGE_ERROR;
         }
         if (!build_active_prefix_tile_schedule(
@@ -32,12 +32,10 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
                 workspace->hip_tile_schedule_active_offsets,
                 workspace->hip_tile_schedule_active_counts,
                 workspace->hip_tile_schedule_active_prefix_count)) {
-          delete workspace;
           return RNS8_INVALID_ARGUMENT;
         }
         if (active_entries.size() >
             std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
-          delete workspace;
           return RNS8_RANGE_ERROR;
         }
       }
@@ -60,11 +58,9 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       if (!count_explicit_workspace_region(zero_a_bytes) || !count_explicit_workspace_region(zero_b_bytes) ||
           !count_explicit_workspace_region(schedule_bytes) ||
           !count_explicit_workspace_region(active_schedule_bytes)) {
-        delete workspace;
         return RNS8_RANGE_ERROR;
       }
       if (plan->backend_workspace_required_bytes > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
-        delete workspace;
         return RNS8_RANGE_ERROR;
       }
       const std::size_t declared_workspace_bytes = static_cast<std::size_t>(plan->backend_workspace_required_bytes);
@@ -93,14 +89,12 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       if (!reserve_region(zero_a_bytes) || !reserve_region(zero_b_bytes) ||
           !reserve_region(schedule_bytes) || !reserve_region(active_schedule_bytes) ||
           !reserve_region(scratch_bytes)) {
-        delete workspace;
         return RNS8_RANGE_ERROR;
       }
       if (arena_bytes != 0) {
         rns8_status status =
-            rns8::detail::hip_direct_allocate(ctx->device_id, arena_bytes, &workspace->hip_workspace_arena);
+            workspace->arena_owner.allocate_alias(ctx->device_id, arena_bytes, workspace->hip_workspace_arena);
         if (status != RNS8_SUCCESS) {
-          delete workspace;
           return status;
         }
         workspace->hip_workspace_arena_bytes = arena_bytes;
@@ -153,59 +147,50 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
         }
         if (status != RNS8_SUCCESS) {
           (void)release_workspace_resources(*workspace);
-          delete workspace;
           return status;
         }
       }
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
       if (!ctx->hipblaslt_handle) {
-        delete workspace;
         return RNS8_UNSUPPORTED_BACKEND;
       }
       std::size_t scratch_bytes = 0;
       std::size_t workspace_bytes = 0;
       if (!hipblaslt_scratch_bytes_for_plan(*plan, scratch_bytes) ||
           !hipblaslt_workspace_bytes_for_plan(*plan, workspace_bytes)) {
-        delete workspace;
         return RNS8_RANGE_ERROR;
       }
       rns8_status status =
-          rns8::detail::hip_direct_allocate(ctx->device_id, scratch_bytes, &workspace->hipblaslt_int32_scratch);
+          workspace->int32_scratch_owner.allocate_alias(ctx->device_id, scratch_bytes, workspace->hipblaslt_int32_scratch);
       if (status != RNS8_SUCCESS) {
-        delete workspace;
         return status;
       }
       workspace->hipblaslt_int32_scratch_bytes = scratch_bytes;
-      status = rns8::detail::hip_direct_allocate(ctx->device_id, workspace_bytes, &workspace->hipblaslt_workspace);
+      status = workspace->matmul_workspace_owner.allocate_alias(ctx->device_id, workspace_bytes, workspace->hipblaslt_workspace);
       if (status != RNS8_SUCCESS) {
-        (void)rns8::detail::hip_direct_free(ctx->device_id, workspace->hipblaslt_int32_scratch);
-        delete workspace;
         return status;
       }
       workspace->hipblaslt_workspace_bytes = workspace_bytes;
     }
     if (rns8::detail::accelerator_backend_kind(plan->backend)) {
       if (!rns8::detail::accelerator_backend_compiled(plan->backend)) {
-        delete workspace;
         return RNS8_UNSUPPORTED_BACKEND;
       }
       if (plan->backend_workspace_required_bytes > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max())) {
-        delete workspace;
         return RNS8_RANGE_ERROR;
       }
       const std::size_t workspace_bytes = static_cast<std::size_t>(plan->backend_workspace_required_bytes);
       if (workspace_bytes != 0) {
         rns8_status status =
-            rns8::detail::hip_direct_allocate(ctx->device_id, workspace_bytes, &workspace->accelerator_workspace);
+            workspace->accelerator_workspace_owner.allocate_alias(ctx->device_id, workspace_bytes, workspace->accelerator_workspace);
         if (status != RNS8_SUCCESS) {
-          delete workspace;
           return status;
         }
         workspace->accelerator_workspace_bytes = workspace_bytes;
       }
     }
-    *out = workspace;
+    *out = owner.release();
     return RNS8_SUCCESS;
   });
 }
@@ -214,6 +199,7 @@ rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
   if (workspace && workspace->prepared_references) return RNS8_BUSY;
   if (workspace) {
     const rns8_status status = release_workspace_resources(*workspace);
+    if (status != RNS8_SUCCESS) return status;
     delete workspace;
     return status;
   }

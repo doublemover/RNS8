@@ -125,6 +125,7 @@ rns8_status release_workspace_device_buffer(int device_id, T*& ptr, std::size_t&
     return RNS8_SUCCESS;
   }
   const rns8_status status = rns8::detail::hip_direct_free(device_id, ptr);
+  if (status != RNS8_SUCCESS) return status;
   ptr = nullptr;
   bytes = 0;
   return status;
@@ -212,27 +213,19 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
         workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
   }
   reset_workspace_active_schedule_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
-  clear_workspace_arena_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hipblaslt_a_prepack_device_id,
-      workspace.hipblaslt_a_prepack_cache,
-      workspace.hipblaslt_a_prepack_cache_bytes));
-  reset_workspace_hipblaslt_a_prepack_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hipblaslt_b_prepack_device_id,
-      workspace.hipblaslt_b_prepack_cache,
-      workspace.hipblaslt_b_prepack_cache_bytes));
-  reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
+  if (!workspace.hip_workspace_arena) clear_workspace_arena_contract(workspace);
+  keep_first_error(workspace.int32_scratch_owner.reset_alias(workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
+  keep_first_error(workspace.matmul_workspace_owner.reset_alias(workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
+  keep_first_error(workspace.a_prepack_owner.reset_alias(workspace.hipblaslt_a_prepack_cache, workspace.hipblaslt_a_prepack_cache_bytes));
+  if (!workspace.hipblaslt_a_prepack_cache) reset_workspace_hipblaslt_a_prepack_contract(workspace);
+  else workspace.hipblaslt_a_prepack_current = false;
+  keep_first_error(workspace.b_prepack_owner.reset_alias(workspace.hipblaslt_b_prepack_cache, workspace.hipblaslt_b_prepack_cache_bytes));
+  if (!workspace.hipblaslt_b_prepack_cache) reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  else workspace.hipblaslt_b_prepack_current = false;
   keep_first_error(release_workspace_device_buffer(
       workspace.hip_device_id, workspace.accelerator_auxiliary, workspace.accelerator_auxiliary_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
+  keep_first_error(workspace.accelerator_workspace_owner.reset_alias(workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
   return status;
 }
 

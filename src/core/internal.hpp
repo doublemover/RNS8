@@ -2,6 +2,7 @@
 #define RNS8_CORE_INTERNAL_HPP
 
 #include "backend_common/address_domain.hpp"
+#include "core/hip_resources.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -175,6 +176,8 @@ struct rns8_matrix {
 };
 
 struct rns8_sparse_matrix {
+  rns8::detail::hip_direct_device_buffer packed_values_owner;
+  rns8::detail::hip_direct_device_buffer packed_indices_owner;
   rns8_sparse_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
@@ -198,6 +201,12 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  rns8::detail::hip_direct_device_buffer arena_owner;
+  rns8::detail::hip_direct_device_buffer int32_scratch_owner;
+  rns8::detail::hip_direct_device_buffer matmul_workspace_owner;
+  rns8::detail::hip_direct_device_buffer a_prepack_owner;
+  rns8::detail::hip_direct_device_buffer b_prepack_owner;
+  rns8::detail::hip_direct_device_buffer accelerator_workspace_owner;
   std::shared_ptr<const rns8_validated_plan_contract> validated_plan_contract;
   mutable std::shared_ptr<const rns8_validated_plan_contract> equivalent_plan_contract;
   mutable uint64_t prepared_references = 0;
@@ -294,6 +303,7 @@ struct rns8_workspace {
 };
 
 struct rns8_prepack_cache {
+  rns8::detail::hip_direct_device_buffer data_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_operand_role operand_role = RNS8_OPERAND_B;
@@ -326,6 +336,7 @@ struct rns8_prepack_cache {
 };
 
 struct rns8_result_cache {
+  rns8::detail::hip_direct_device_buffer snapshot_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_bound_kind bound_kind = RNS8_BOUND_NONE;

@@ -196,7 +196,7 @@ rns8_matrix_desc make_matrix_desc(
     uint32_t tile_m = 128,
     uint32_t tile_n = 128);
 
-bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld);
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld, uint64_t element_bytes = sizeof(uint64_t));
 
 bool valid_api_tile_size(uint32_t value);
 

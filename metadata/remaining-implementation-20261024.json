@@ -9,12 +9,24 @@
       "issue": 18,
       "title": "[P1] Invalidate or roll back bounded outputs after partial GEMM failure; mixed CRT planes currently export successfully",
       "url": "https://github.com/doublemover/RNS8/issues/18",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Ordinary arithmetic output invalidation exists, but ensure_hip_export_tile_metadata still mutates existing schedule/bounds/masks without invalidating old fingerprint before upload (current comment requirement remains).",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Invalidate all tiled reconstruction metadata certificates before any replacement free/resize/upload; publish only a complete bundle.",
+          "files": [
+            "src/core/export_metadata_transaction.hpp",
+            "src/core/api_export.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_matrix_cleanup_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Regression execution and real device-failure qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": []
     },
@@ -53,12 +65,25 @@
       "issue": 24,
       "title": "[P1] Qualify full matrix address ranges before selecting 32-bit HIP indexing",
       "url": "https://github.com/doublemover/RNS8/issues/24",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Device address domains hardened, but direct CPU limb export/internal wide import still rely on element-count predicates rather than full byte/object host address proof; latest comment scope remains.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Use checked reachable host byte/object extents for native64, finite byte and multi-limb host adapters, preserving harmless one-row pitch.",
+          "files": [
+            "src/core/api_oneshot.cpp",
+            "src/core/api_pack.cpp",
+            "src/core/api_export.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_host_address_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Regression execution and large-device-address hardware qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": []
     },
@@ -292,12 +317,30 @@
       "issue": 43,
       "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
       "url": "https://github.com/doublemover/RNS8/issues/43",
-      "state": "implementation_pending",
+      "state": "implementation_in_progress",
       "base_gap": "Prepared async/graph/token/dependency/cancel/timeout machinery exists. Latest comment's legacy cleanup remains: release_workspace_device_buffer, result/prepack cache destroy null pointers/delete owners even when free fails; general transfer/semantic coverage also incomplete.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Convert workspace, prepack, result snapshot and sparse buffers to existing RAII/deferred-cleanup owner; keep public destroy retryable and constructor exceptions safe.",
+          "files": [
+            "src/core/hip_resources.hpp",
+            "src/core/internal.hpp",
+            "src/core/api_prepack_public_api.inc",
+            "src/core/api_workspace_public_api.inc",
+            "src/core/api_gemm.cpp",
+            "src/core/api_sparse.cpp",
+            "src/backend_hipblaslt/hipblaslt_prepack_cache.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_matrix_cleanup_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Async transfers/export/lift and additional semantics/provider integration still to implement.",
+        "All execution and hardware qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -545,7 +588,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -569,7 +614,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -627,7 +674,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -797,7 +846,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -838,7 +889,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -863,7 +916,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -890,7 +945,9 @@
       "regressions": [
         "tools/test_tooling_contracts.py"
       ],
-      "commits": [],
+      "commits": [
+        "319a7f5"
+      ],
       "remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
@@ -930,6 +987,11 @@
     {
       "kind": "git_diff_check",
       "result": "passed"
+    },
+    {
+      "kind": "C++17_syntax",
+      "result": "passed",
+      "scope": "Changed core pack/export/oneshot/workspace/sparse/GEMM translation units; CPU configuration only, no linking or execution."
     }
   ]
 }

@@ -18,3 +18,10 @@ GPU fixtures use all prefixes, padded tails, K-slab boundaries and a valid unuse
 The unused-pitch case does not exercise actual device memory beyond 2GiB. Large
 physical allocations, target performance and public integration remain separate
 qualification work. All new execution is pending the consolidated campaign.
+
+Direct host pack, native export and limb import/export also prove the accessed
+byte extent against `SIZE_MAX` and `PTRDIFF_MAX`, using the actual cell size
+(including every 64-bit limb). A large unused pitch in a one-row matrix is legal;
+a second row whose reachable byte offset is unrepresentable is rejected before
+caller-memory access. This arithmetic check does not prove that an arbitrary
+caller pointer names an allocation of the required size.

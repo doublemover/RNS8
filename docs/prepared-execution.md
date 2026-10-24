@@ -427,3 +427,13 @@ record is metadata, separate from requested device payload capacity. Invalid
 zero-size or negative-device replacement preserves the current allocation.
 This cleanup bookkeeping does not authorize freeing resources with live public
 reservations or establish a new asynchronous execution path.
+
+### Cleanup and retry ownership
+
+Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the
+handle only on success. A failed release retains the pointer and byte accounting;
+retry destruction after recovering the backend. Do not execute with a partially
+retired handle. Construction owns device buffers through preallocated RAII cleanup
+records from the first allocation: an exception or failed release transfers
+unpublished buffers to the existing device-drain cleanup queue, not a lost raw
+pointer. No failure-injection or hardware qualification is implied by this rule.

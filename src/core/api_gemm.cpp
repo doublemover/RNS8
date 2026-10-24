@@ -429,8 +429,9 @@ rns8_status free_result_cache_snapshot(rns8_result_cache& cache) {
   cache.initialized = false;
   rns8_status status = RNS8_SUCCESS;
   if (cache.hip_snapshot_residues) {
-    status = rns8::detail::hip_direct_free(cache.hip_device_id, cache.hip_snapshot_residues);
+    status = cache.snapshot_owner.reset_alias(cache.hip_snapshot_residues, cache.hip_snapshot_residue_bytes);
   }
+  if (status != RNS8_SUCCESS) return status;
   cache.hip_snapshot_residues = nullptr;
   cache.hip_snapshot_residue_bytes = 0;
   cache.cache_allocation_bytes = 0;
@@ -448,7 +449,7 @@ rns8_status ensure_result_cache_snapshot(rns8_context& ctx, rns8_result_cache& c
   if (free_status != RNS8_SUCCESS) {
     return free_status;
   }
-  rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, bytes, &cache.hip_snapshot_residues);
+  rns8_status status = cache.snapshot_owner.allocate_alias(ctx.device_id, bytes, cache.hip_snapshot_residues);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -780,6 +781,7 @@ rns8_status rns8_create_result_cache(
 rns8_status rns8_destroy_result_cache(rns8_result_cache* cache) {
   if (cache) {
     const rns8_status status = free_result_cache_snapshot(*cache);
+    if (status != RNS8_SUCCESS) return status;
     delete cache;
     return status;
   }

@@ -58,11 +58,12 @@ rns8_matrix_desc make_matrix_desc(
   return desc;
 }
 
-bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld) {
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld, uint64_t element_bytes) {
   if (rows <= 0 || cols <= 0 || ld < cols) {
     return false;
   }
-  return rows <= std::numeric_limits<int64_t>::max() / ld;
+  rns8::detail::AddressDomain domain;
+  return rns8::detail::checked_host_plane_address(rows, cols, ld, 1, element_bytes, domain);
 }
 
 bool valid_api_tile_size(uint32_t value) {
@@ -94,8 +95,8 @@ rns8_status validate_finite_u8_oneshot_contract(
       !valid_api_tile_size(desc.tile_m) || !valid_api_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!valid_matrix_access(desc.m, desc.k, lda) || !valid_matrix_access(desc.k, desc.n, ldb) ||
-      !valid_matrix_access(desc.m, desc.n, ldc)) {
+  if (!valid_matrix_access(desc.m, desc.k, lda, 1) || !valid_matrix_access(desc.k, desc.n, ldb, 1) ||
+      !valid_matrix_access(desc.m, desc.n, ldc, 1)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (ctx.backend != RNS8_BACKEND_CPU_REFERENCE && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
@@ -430,15 +431,8 @@ rns8_status finite_u8_oneshot_resident(
 }
 
 bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
-  if (!valid_matrix_access(rows, cols, ld) || limb_count == 0 || limb_count > 32) {
-    return false;
-  }
-  const auto max = std::numeric_limits<int64_t>::max();
-  if (ld > max / static_cast<int64_t>(limb_count)) {
-    return false;
-  }
-  const int64_t limb_ld = ld * static_cast<int64_t>(limb_count);
-  return rows <= max / limb_ld;
+  return limb_count != 0 && limb_count <= 32 &&
+      valid_matrix_access(rows, cols, ld, sizeof(uint64_t) * static_cast<uint64_t>(limb_count));
 }
 
 rns8_status validate_typed_oneshot_contract(

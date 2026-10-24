@@ -3643,6 +3643,7 @@
       "anchors": [
         "bounded-completion-observation",
         "bounded-prepared-submissions",
+        "cleanup-and-retry-ownership",
         "cooperative-result-discard",
         "event-dependent-prepared-submission",
         "explicit-hip-submission",

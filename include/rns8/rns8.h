@@ -1158,6 +1158,10 @@ RNS8_API rns8_status rns8_create_workspace(
     const rns8_plan* plan,
     rns8_workspace** out);
 
+/* Destruction releases successful allocations once. On error the handle remains
+ * owned by the caller and is valid for destruction retry only. The same rule
+ * applies to prepack/result caches and sparse matrices below; BUSY consumes none.
+ * Failed construction publishes no handle and retains failed frees internally. */
 RNS8_API rns8_status rns8_destroy_workspace(rns8_workspace* workspace);
 
 RNS8_API rns8_status rns8_create_matrix(
