@@ -54,6 +54,11 @@ both edge columns of every row. Construction factors, matrices and workspace
 are released before lifecycle timings. Source construction time is reported
 inside setup, separately from preparation and reconstruction.
 
+Native recipes retain the explicit host-pack source version 1. Generated sources
+report the positive version returned by the public storage query as an opaque
+value. The collector does not predict its numeric value or confuse it with the
+caller's host-pack version.
+
 All sources and outputs use explicit exact-wide signed/unsigned prefix 20.
 Independent CPU tile maxima determine expected prefix counts from the recorded
 default modulus ladder. No absent plane is treated as zero. Each public export

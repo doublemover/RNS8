@@ -30,7 +30,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
     capture.update(device_name="synthetic CPU/GPU only",target="gfx1100" if hip else "cpu",hip_runtime_version=70100000 if hip else 0,hip_driver_version=70100000 if hip else 0,
         oracle_ns=100,setup_ns=100,first_batch_ns=100,setup_plus_first_batch_ns=200,clock_period_numerator=1,clock_period_denominator=1000000000,
         first_prepare_ns=0 if uniform else 20,owner_destruction_ns=0 if uniform else 20,source_construction_ns=50 if wide else 0,source_construction_workspace_bytes=0,
-        logical_payload_envelope_bytes=envelope(case),source_instance=1,source_version=0 if wide else 1,output_instance=0 if uniform else 2,
+        logical_payload_envelope_bytes=envelope(case),source_instance=1,source_version=7 if wide else 1,output_instance=0 if uniform else 2,
         ragged_resources_at_prepare=initial,ragged_resources_after_first=first,ragged_resources_final=deepcopy(first),
         modeled_prepare_directory_d2h_bytes=directory if hip else 0,modeled_prepare_status_d2h_bytes=4 if hip and not uniform else 0,
         modeled_prepare_directory_h2d_bytes=directory if hip else 0,modeled_materialization_directory_h2d_bytes_per_call=directory if hip else 0,
@@ -87,6 +87,15 @@ class Captures(unittest.TestCase):
             case=dict(BASE,rows=rows,cols=cols,tile_rows=tr,tile_cols=tc)
             capture=fixture(case);validate_capture(capture,case,"fixture-run",2,1);m=capture["modeled_layout"]
             self.assertEqual(m["tile_count"],((rows+tr-1)//tr)*((cols+tc-1)//tc));self.assertEqual(m["payload_bytes"],tr*tc*sum(m["tile_prefixes"]))
+
+    def test_generated_source_versions_are_positive_opaque_values(self):
+        case=dict(BASE,pattern="wide140")
+        for version in (1,7,12345):
+            capture=fixture(case);capture["source_version"]=version
+            validate_capture(capture,case,"fixture-run",2,1)
+        for version in (0,False,-1,"7"):
+            capture=fixture(case);capture["source_version"]=version
+            with self.assertRaises(ValueError):validate_capture(capture,case,"fixture-run",2,1)
 
     def test_invalid_explicit_controls_and_strict_manifests(self):
         for key in KEYS:
