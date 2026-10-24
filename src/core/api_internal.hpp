@@ -46,6 +46,23 @@ rns8_status complex_exact_signed_gemm(
 
 struct ResourceBusy {};
 
+inline rns8_async_support_info async_support_info(rns8_status status, int device) noexcept {
+  rns8_async_support_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  info.support_status = status;
+  info.device_id = device;
+  if (status == RNS8_SUCCESS) {
+    info.max_in_flight_epochs = 1;
+    info.requires_borrowed_nondefault_stream = 1;
+    info.submission_may_allocate_host_proof = 1;
+    info.supports_owned_graph = 1;
+    info.supports_cooperative_discard = 1;
+    info.supports_timed_observation = 1;
+  }
+  return info;
+}
+
 inline void record_async_failure(rns8_async_failure_info& failure,
                                  rns8_status status, rns8_async_failure_stage stage,
                                  int backend_error, int device, uint64_t epoch,

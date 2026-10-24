@@ -218,3 +218,12 @@ failure, quarantine the context, and require ordinary blocking wait for cleanup.
 Only one epoch can be pending on each owner. Tokens identify observations and
 do not own handles. Data-ready events alone do not certify public currentness;
 publication happens during successful host observation after proof admission.
+
+
+`rns8_get_resident_graph_hip_support` reports the implementation's shape/backend/semantics
+support without allocating events, performing range proofs or submitting work.
+Its typed record exposes the single-epoch limit, borrowed nondefault-stream
+requirement, possible host proof allocation, owned-graph, cancellation and timed
+observation support. Unsupported records contain zero feature flags. This query
+does not admit current values or a caller stream and is not hardware qualification.
+Preparation reuses the same support predicate, then performs current admission.

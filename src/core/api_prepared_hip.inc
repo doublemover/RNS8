@@ -1,4 +1,14 @@
 namespace {
+rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
+  if (e.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+  if (!direct_hip_compiled() || e.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+      !rns8::detail::exact_wide_semantics(e.plan->desc.semantics) ||
+      !e.plan->tile_schedule.empty() ||
+      !rns8::detail::qualified_i32_gemm_address(e.plan->desc.m, e.plan->desc.n,
+          e.plan->desc.k, e.a->desc.cols, e.b->desc.cols, e.c->desc.cols, e.plan->prefix))
+    return RNS8_UNSUPPORTED_BACKEND;
+  return RNS8_SUCCESS;
+}
 void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   if (operation == RNS8_SUCCESS && e.cancel_requested) operation = RNS8_CANCELED;
   --e.a->in_flight_readers;
@@ -82,10 +92,8 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
       return RNS8_INVALID_ARGUMENT;
     if (e->running)
       return RNS8_BUSY;
-    if (e->plan->backend != RNS8_BACKEND_HIP_DIRECT ||
-        !rns8::detail::exact_wide_semantics(e->plan->desc.semantics) ||
-        !e->plan->tile_schedule.empty())
-      return RNS8_UNSUPPORTED_BACKEND;
+    const auto support = prepared_hip_support_status(*e);
+    if (support != RNS8_SUCCESS) return support;
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS)
       return status;
@@ -412,4 +420,13 @@ rns8_status rns8_wait_prepared_hip_for(rns8_prepared_execution* e,
   return guard_api([&]() {
     return poll_async_until(timeout_us, [&]() { return rns8_query_prepared_hip(e, token, info); });
   });
+}
+
+
+rns8_status rns8_get_prepared_hip_support(const rns8_prepared_execution* e,
+                                        rns8_async_support_info* info) {
+  if (!e || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    return RNS8_INVALID_ARGUMENT;
+  *info = async_support_info(prepared_hip_support_status(*e), e->ctx->device_id);
+  return RNS8_SUCCESS;
 }

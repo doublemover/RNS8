@@ -136,6 +136,26 @@ RNS8_API rns8_status rns8_cancel_prepared_hip(
 RNS8_API rns8_status rns8_cancel_resident_graph_hip(
     rns8_resident_graph* graph, rns8_graph_completion_token token);
 
+/* Read-only implementation support, not a hardware qualification receipt or
+ * admission of current values/streams. Unsupported operations have zero flags.
+ * Shape/semantics/backend limits are checked without proof work or allocation. */
+typedef struct rns8_async_support_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_status support_status;
+  int32_t device_id;
+  uint32_t max_in_flight_epochs;
+  uint32_t requires_borrowed_nondefault_stream;
+  uint32_t submission_may_allocate_host_proof;
+  uint32_t supports_owned_graph;
+  uint32_t supports_cooperative_discard;
+  uint32_t supports_timed_observation;
+} rns8_async_support_info;
+RNS8_API rns8_status rns8_get_prepared_hip_support(
+    const rns8_prepared_execution* execution, rns8_async_support_info* info);
+RNS8_API rns8_status rns8_get_resident_graph_hip_support(
+    const rns8_resident_graph* graph, rns8_async_support_info* info);
+
 typedef enum rns8_async_failure_stage RNS8_ENUM_BASE {
   RNS8_ASYNC_FAILURE_NONE = 0,
   RNS8_ASYNC_FAILURE_ENQUEUE = 1,

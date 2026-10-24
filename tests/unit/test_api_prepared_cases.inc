@@ -61,6 +61,16 @@ TEST_CASE("prepared GEMM retains handles and rejects stale bindings and completi
       REQUIRE(a->prepared_references == 0);
       REQUIRE(rns8_prepare_gemm(ctx, plan, a, b, c, ws, &first) == RNS8_SUCCESS);
       REQUIRE(rns8_prepare_gemm(ctx, plan, a, a, d, ws, &second) == RNS8_SUCCESS);
+      rns8_async_support_info support{};
+      support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_prepared_hip_support(first, &support) == RNS8_SUCCESS);
+      CHECK(support.support_status == (hip && exact ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND));
+      CHECK(support.max_in_flight_epochs == (hip && exact ? 1u : 0u));
+      CHECK(support.supports_timed_observation == support.max_in_flight_epochs);
+      CHECK(support.supports_cooperative_discard == support.max_in_flight_epochs);
+      CHECK(a->in_flight_readers == 0);
+      CHECK_FALSE(c->in_flight_writer);
+
       REQUIRE(a->prepared_references == 2); // A==B is retained once.
       CHECK(rns8_destroy_matrix(a) == RNS8_BUSY);
       CHECK(rns8_destroy_matrix(c) == RNS8_BUSY);

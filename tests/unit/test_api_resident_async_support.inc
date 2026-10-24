@@ -4,6 +4,14 @@ static void exercise_resident_async_submission(
     rns8_resident_graph *graph, rns8_matrix *a, rns8_matrix *b, rns8_matrix *c,
     rns8_matrix *d, rns8_matrix *e, rns8_workspace *workspace,
     rns8_graph_execution_info &info, bool replay = false) {
+  rns8_async_support_info support{};
+  support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_resident_graph_hip_support(graph, &support) == RNS8_SUCCESS);
+  REQUIRE(support.support_status == RNS8_SUCCESS);
+  REQUIRE(support.max_in_flight_epochs == 1);
+  REQUIRE(support.requires_borrowed_nondefault_stream == 1);
+  REQUIRE(support.submission_may_allocate_host_proof == 1);
+  REQUIRE(support.supports_owned_graph == 1);
   REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_SUCCESS);
   rns8::detail::hip_unique_stream stream;
   REQUIRE(stream.create_non_blocking() == hipSuccess);

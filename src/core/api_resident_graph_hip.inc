@@ -1,4 +1,18 @@
 namespace {
+rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) {
+  if (graph.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+  if (!direct_hip_compiled() || graph.ctx->backend != RNS8_BACKEND_HIP_DIRECT)
+    return RNS8_UNSUPPORTED_BACKEND;
+  for (const auto& node : graph.nodes) {
+    if ((node.kind != RNS8_RESIDENT_MATMUL && node.kind != RNS8_RESIDENT_EXACT_AXPBY) ||
+        node.plan->backend != RNS8_BACKEND_HIP_DIRECT || !node.plan->tile_schedule.empty() ||
+        !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
+        !rns8::detail::qualified_i32_gemm_address(node.plan->desc.m, node.plan->desc.n,
+            node.plan->desc.k, node.a->desc.cols, node.b->desc.cols, node.c->desc.cols, node.plan->prefix))
+      return RNS8_UNSUPPORTED_BACKEND;
+  }
+  return RNS8_SUCCESS;
+}
 // The graph already owns every output writer reservation. Clearing currentness
 // must not re-enter the generic writable check, which rejects those reservations.
 // Keep reservations intact, and invalidate only outputs whose writes are attempted.
@@ -115,21 +129,12 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
       return RNS8_INVALID_ARGUMENT;
     if (graph->running)
       return RNS8_BUSY;
-    if (graph->ctx->backend != RNS8_BACKEND_HIP_DIRECT)
-      return RNS8_UNSUPPORTED_BACKEND;
+    const auto support = resident_graph_hip_support_status(*graph);
+    if (support != RNS8_SUCCESS) return support;
     std::unordered_set<rns8_workspace *> seen;
     std::vector<rns8_workspace *> workspaces;
     workspaces.reserve(graph->nodes.size());
     for (const auto &node : graph->nodes) {
-      if ((node.kind != RNS8_RESIDENT_MATMUL &&
-           node.kind != RNS8_RESIDENT_EXACT_AXPBY) ||
-          node.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
-          !node.plan->tile_schedule.empty() ||
-          !rns8::detail::qualified_i32_gemm_address(
-              node.plan->desc.m, node.plan->desc.n, node.plan->desc.k,
-              node.a->desc.cols, node.b->desc.cols, node.c->desc.cols,
-              node.plan->prefix))
-        return RNS8_UNSUPPORTED_BACKEND;
       if (seen.insert(node.workspace).second)
         workspaces.push_back(node.workspace);
     }
@@ -356,4 +361,13 @@ rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph,
   return guard_api([&]() {
     return poll_async_until(timeout_us, [&]() { return rns8_query_resident_graph_hip(graph, token, info); });
   });
+}
+
+
+rns8_status rns8_get_resident_graph_hip_support(const rns8_resident_graph* graph,
+                                             rns8_async_support_info* info) {
+  if (!graph || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)))
+    return RNS8_INVALID_ARGUMENT;
+  *info = async_support_info(resident_graph_hip_support_status(*graph), graph->ctx->device_id);
+  return RNS8_SUCCESS;
 }
