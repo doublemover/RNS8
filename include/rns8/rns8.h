@@ -1332,6 +1332,31 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
 
+typedef struct rns8_block_sparse_operand rns8_block_sparse_operand;
+typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
+  RNS8_BLOCK_SPARSE_LHS = 1,
+  RNS8_BLOCK_SPARSE_RHS = 2
+} rns8_block_sparse_role;
+/* Experimental synchronous direct-HIP exact-wide materialization. Source must
+ * retain a current native input. Preparation copies it to host to distinguish
+ * exact zeros from zero residues, then uploads packed blocks. The logical peak
+ * budget includes native host snapshot plus twice packed payload/metadata;
+ * allocator bookkeeping/capacity is excluded. The handle retains source/context
+ * lifetimes, but does not prevent repacking: changed source generations reject
+ * execution until a new handle is prepared. Failure preserves *out. */
+RNS8_API rns8_status rns8_prepare_block_sparse_operand(
+    rns8_context* ctx, const rns8_matrix* source, rns8_block_sparse_role role,
+    uint64_t max_preparation_bytes, rns8_block_sparse_operand** out);
+RNS8_API rns8_status rns8_destroy_block_sparse_operand(rns8_block_sparse_operand* operand);
+/* Both handles must have matching plan semantics/prefix/context and LHS/RHS
+ * roles. Ordinary exact proof and reservation checks precede writes. Transient
+ * device metadata is charged to max_scratch_bytes. No AUTO, hybrid or matrix-
+ * instruction selection; this executes the scalar block-intersection kernel. */
+RNS8_API rns8_status rns8_gemm_block_sparse_exact(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_block_sparse_operand* a, const rns8_block_sparse_operand* b,
+    rns8_matrix* c, uint64_t max_scratch_bytes, rns8_workspace* workspace);
+
 typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
   RNS8_NARROW_SCALAR_I64 = 0,
   RNS8_NARROW_BYTE_WMMA = 1

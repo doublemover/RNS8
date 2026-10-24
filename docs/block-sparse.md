@@ -29,5 +29,36 @@ Boost references, including full-width native values, all two-block presence
 combinations, empty structures, padded leading dimensions, K tails, stale
 generations and insufficient budgets. Registered applicable compilation/test evidence is recorded in the
 [October 23 all-feature validation](local-all-features-20261023.md).
-Public sparse ownership, hybrid dense/sparse scheduling, matrix-engine variants
-and end-to-end break-even measurements remain open under issue #51.
+## Public generation-bound owner
+
+The newly authored `rns8_prepare_block_sparse_operand` creates a direct-HIP
+exact-wide signed/unsigned handle from a current retained-native matrix. Explicit
+LHS/RHS roles select the layouts above. Preparation downloads the native snapshot
+for exact-zero discovery and uploads the packed payload; this cold cost is part
+of any reuse/break-even comparison. The handle retains its source matrix and
+context lifetimes. Repacking the source is legal, but makes the old handle stale;
+`rns8_gemm_block_sparse_exact` rejects it before changing C. Prepare a replacement
+handle to use the new generation. Destruction/use require external host exclusion.
+
+The logical preparation budget covers the native host snapshot plus twice the
+packed payload and metadata. This conservative ceiling covers overlapping host
+and device payloads; allocator bookkeeping/vector spare capacity are excluded.
+Preparation failure leaves the caller's output handle untouched. Existing handles
+are separate retained allocations and must be added when budgeting replacement.
+Execution's separate scratch cap covers the temporary device metadata upload;
+retained payloads, dense RNS inputs/output and ordinary workspace are separate.
+
+Execution uses the existing scalar intersection kernel after shared public
+shape/semantic/reservation and exact-range proof checks. Successful output is a
+complete ordinary persistent RNS matrix. Preflight, metadata allocation and upload
+failures preserve C; failure after its kernel launch invalidates C. Source instance,
+generation, role, prefix and context must all match. There is no AUTO promotion or
+claim of matrix-engine execution. Source matrices must remain current, even though
+the handle has an independent packed payload.
+
+New public fixtures cover full-width signed/unsigned values, tails, Boost export,
+source lifetime, stale generation rejection, empty sparse payloads and output
+preservation on scratch/BUSY errors. These additions are authored and unexecuted;
+the older private baseline receipt above does not qualify this owner. Hybrid
+dense/sparse scheduling, matrix-engine variants and end-to-end break-even
+measurements remain open under issue #51.

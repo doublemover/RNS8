@@ -8,7 +8,8 @@ rns8_status hip_direct_gemm_block_sparse_device(
     int device_id, const void *a, const BlockSparseOperand &lhs,
     uint64_t a_instance, uint64_t a_generation, const void *b,
     const BlockSparseOperand &rhs, uint64_t b_instance, uint64_t b_generation,
-    void *c, int64_t ldc, uint64_t max_scratch_bytes) {
+    void *c, int64_t ldc, uint64_t max_scratch_bytes, bool* commit_started) {
+  if (commit_started) *commit_started=false;
   if (!valid_block_sparse_operand(lhs, a_instance, a_generation) ||
       !valid_block_sparse_operand(rhs, b_instance, b_generation) ||
       lhs.role != BlockSparseRole::lhs || rhs.role != BlockSparseRole::rhs ||
@@ -57,6 +58,7 @@ rns8_status hip_direct_gemm_block_sparse_device(
     }
   const auto error =
       timed_hip_operation("block_sparse_intersection_gemm_kernel", [&]() {
+        if (commit_started) *commit_started=true;
         const auto launch = static_cast<hipError_t>(rns8_hip_block_sparse_gemm(
             static_cast<const int8_t *>(a), ao, ai,
             static_cast<const int8_t *>(b), bo, bi, static_cast<int8_t *>(c),

@@ -70,3 +70,83 @@ TEST_CASE("direct HIP block sparse intersections match exact dense products") {
     run(17, 19, 129, 7, 7, prefix);
   }
 }
+
+template<class T> void check_public_block_sparse_owner() {
+  using boost::multiprecision::cpp_int;
+  constexpr bool u=std::is_unsigned_v<T>;
+  constexpr int m=17,n=19,k=65;
+  const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto desc=exact_signed_desc(m,n,k,RNS8_BACKEND_HIP_DIRECT);
+  desc.semantics=semantics; desc.max_prefix=20; desc.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan=nullptr; rns8_workspace* ws=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&ws)==RNS8_SUCCESS);
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+  const auto create=[&](int rows,int cols,rns8_matrix** out) {
+    auto md=matrix_desc(rows,cols,semantics,RNS8_BOUND_NONE);
+    md.max_prefix=20; md.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    REQUIRE(rns8_create_matrix(ctx,&md,out)==RNS8_SUCCESS);
+  };
+  create(m,k,&a); create(k,n,&b); create(m,n,&c);
+  std::vector<T> av(m*k,T(0)),bv(k*n,T(0)),cv(m*n,T(1));
+  av[0]=std::numeric_limits<T>::max(); av[16*k+64]=T(3);
+  bv[0]=T(5); bv[64*n+18]=std::numeric_limits<T>::max();
+  if constexpr(!u) av[1]=std::numeric_limits<T>::min();
+  bv[n]=T(7);
+  const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& data,int ld) {
+    if constexpr(u) return rns8_pack_u64(ctx,matrix,data.data(),ld,0);
+    else return rns8_pack_i64(ctx,matrix,data.data(),ld,0);
+  };
+  REQUIRE(pack(a,av,k)==RNS8_SUCCESS); REQUIRE(pack(b,bv,n)==RNS8_SUCCESS); REQUIRE(pack(c,cv,n)==RNS8_SUCCESS);
+  rns8_block_sparse_operand *sa=nullptr,*sb=nullptr;
+  CHECK(rns8_prepare_block_sparse_operand(ctx,a,RNS8_BLOCK_SPARSE_LHS,0,&sa)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(sa==nullptr);
+  REQUIRE(rns8_prepare_block_sparse_operand(ctx,a,RNS8_BLOCK_SPARSE_LHS,UINT64_MAX,&sa)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_block_sparse_operand(ctx,b,RNS8_BLOCK_SPARSE_RHS,UINT64_MAX,&sb)==RNS8_SUCCESS);
+  CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);
+  const auto run=[&](uint64_t budget=UINT64_MAX) {
+    return rns8_gemm_block_sparse_exact(ctx,plan,sa,sb,c,budget,ws);
+  };
+  auto generation=c->content_generation;
+  CHECK(run(0)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(c->content_generation==generation);
+  CHECK(c->device_native_current);
+  c->in_flight_readers=1;
+  CHECK(run()==RNS8_BUSY);
+  c->in_flight_readers=0;
+  REQUIRE(run()==RNS8_SUCCESS);
+  std::vector<uint64_t> limbs(m*n*3);
+  if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
+    cpp_int expected=0;
+    for(int q=0;q<k;++q) expected+=cpp_int(av[row*k+q])*bv[q*n+col];
+    const int i=(row*n+col)*3;
+    cpp_int actual=cpp_int(limbs[i])+(cpp_int(limbs[i+1])<<64)+(cpp_int(limbs[i+2])<<128);
+    if constexpr(!u) if(limbs[i+2]>>63) actual-=cpp_int(1)<<192;
+    CHECK(actual==expected);
+  }
+  generation=c->content_generation;
+  std::fill(av.begin(),av.end(),T(0));
+  REQUIRE(pack(a,av,k)==RNS8_SUCCESS);
+  CHECK(run()==RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation==generation);
+  REQUIRE(rns8_destroy_block_sparse_operand(sa)==RNS8_SUCCESS);
+  REQUIRE(rns8_prepare_block_sparse_operand(ctx,a,RNS8_BLOCK_SPARSE_LHS,UINT64_MAX,&sa)==RNS8_SUCCESS);
+  REQUIRE(run()==RNS8_SUCCESS); // empty payload is a real exact-zero operand
+  if constexpr(u) REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),n,3)==RNS8_SUCCESS);
+  for(auto word:limbs) CHECK(word==0);
+  REQUIRE(rns8_destroy_block_sparse_operand(sb)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_block_sparse_operand(sa)==RNS8_SUCCESS);
+  for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(ws)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+TEST_CASE("public block sparse handles retain sources and reject stale generations") {
+  if(!hip_available()) SKIP("no HIP device for public block sparse ownership");
+  SECTION("signed") { check_public_block_sparse_owner<int64_t>(); }
+  SECTION("unsigned") { check_public_block_sparse_owner<uint64_t>(); }
+}

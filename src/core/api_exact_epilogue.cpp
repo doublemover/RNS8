@@ -5,6 +5,7 @@
 
 using namespace rns8::detail::api;
 #include "core/api_complex_residue.inc"
+#include "core/api_block_sparse.inc"
 
 rns8_status rns8_gemm_complex_exact_signed(
     rns8_context* ctx, const rns8_plan* plan,

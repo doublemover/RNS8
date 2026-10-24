@@ -153,13 +153,13 @@ owned by the linked topic guides.
 
 Source additions after the last executed checkpoint include multiwave native WMMA,
 public one-level Strassen exact export ownership, floating rewrite host oracles and
-shared epilogue/lift admission providers and a [public narrow native owner](narrow-native-owner.md). Their fixtures are authored, not executed.
+shared epilogue/lift admission providers and a [public narrow native owner](narrow-native-owner.md). A [generation-bound block-sparse public owner](block-sparse.md#public-generation-bound-owner) is also authored. Their fixtures are authored, not executed.
 The final upgraded-stack campaign remains deferred until the implementation frontload
 ends. No new source commit inherits the old checkpoint's qualification.
 
 A one-producer token binding with explicit nonblocking progress is now authored.
 Concrete remaining development includes multi-producer/event-pipelined dependencies and async transfers/lift/export,
 runtime materialization/liveness allocation, broader runtime recipe providers,
-generation-owned encoded-B/block-sparse integration, broader narrow scheduling and rank-23 straight-line
+generation-owned encoded-B integration, block-sparse hybrid scheduling, broader narrow scheduling and rank-23 straight-line
 execution. These are code gaps, distinct from unavailable hardware and measured
 promotion gates. Completion of one validation batch cannot by itself close them.
