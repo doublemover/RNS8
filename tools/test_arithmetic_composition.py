@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from arithmetic_composition import Node, verify_composition
+from arithmetic_composition import LayoutMapping, Node, verify_composition, verify_layout
 
 
 def main() -> int:
@@ -27,6 +27,22 @@ def main() -> int:
     carried = replace(dot, inputs=("byte", "byte", "carry"))
     assert not verify_composition((byte, carry, carried))["algebraically_verified"]
     assert not verify_composition((dot, byte))["algebraically_verified"]
+    mapping = LayoutMapping((0,1,4,5),(0,2,1,3),6,4)
+    layout = Node("layout","layout",("byte",),bits=8,layout=mapping)
+    result=verify_composition((byte,layout))
+    assert result["algebraically_verified"]
+    assert result["verdicts"]["physical_layout_correctness"] == "proven"
+    assert result["verdicts"]["target_execution"] == "not_run"
+    for broken in (replace(mapping,source_offsets=(0,0,4,5)),
+                   replace(mapping,destination_offsets=(0,1,2,4)),
+                   replace(mapping,destination_offsets=(0,1)),
+                   replace(mapping,out_of_place=False),
+                   replace(mapping,source_offsets=(False,1,4,5))):
+        assert not verify_layout(broken)
+        assert not verify_composition((byte,replace(layout,layout=broken)))["algebraically_verified"]
+    assert not verify_composition((byte,replace(layout,layout=None)))["algebraically_verified"]
+    changed=replace(layout,layout=replace(mapping,destination_offsets=(3,2,1,0)))
+    assert verify_composition((byte,changed))["sha256"] != result["sha256"]
     print("arithmetic composition self-test: PASS")
     return 0
 

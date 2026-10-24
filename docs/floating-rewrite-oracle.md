@@ -28,5 +28,12 @@ Authored fixtures cover the supplied overflow/topology and underflow counterexam
 all decoded element pairs, scale boundaries, malformed trees, k=1/2/31/32/33/64,
 RNE ties and signed-zero normalization. Codes 253..255 are rejected. Execution is
 pending the consolidated campaign. Existing integer certificate/composition reports
-now carry distinct verdicts and versioned identities; assumed layout permutations
-remain unknown, and a hardware evidence reference alone never qualifies execution.
+now carry distinct verdicts and versioned identities; layout nodes now require explicit injective source/destination logical address maps;
+only that descriptor map is proven (never emitted GPU indexing), and a hardware evidence reference alone never qualifies execution.
+
+
+The composition checker rejects omitted maps, duplicate/out-of-span addresses,
+unequal logical counts and in-place permutations without an overwrite-order proof.
+Padding holes are allowed. Map changes alter certificate identity. Actual lowering
+must bind these logical pairs to emitted loads/stores before claiming device layout
+correctness; a checked host descriptor does not establish lane mapping or barriers.
