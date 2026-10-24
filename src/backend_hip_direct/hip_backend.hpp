@@ -175,7 +175,7 @@ rns8_status hip_direct_gemm_rns_split_k_device(
 rns8_status hip_direct_gemm_rns_split_k_workspace(
     int device_id,const void* a,const void* b,void* c,
     int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
-    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started);
+    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started,uint32_t fragment_window=0);
 
 // Native matrix-engine split-K: persistent grouped producers, canonical byte
 // merge tree, then final store. Output is untouched until commit_started=true.
