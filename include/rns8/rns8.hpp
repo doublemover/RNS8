@@ -190,6 +190,16 @@ class Matrix final {
     return info;
   }
 
+  rns8_matrix_allocation_info allocation_info() const {
+    rns8_matrix_allocation_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_matrix_allocation_info(handle_, &info));
+    return info;
+  }
+
+  void trim_staging() { check(rns8_trim_matrix_staging(handle_)); }
+
   rns8_resident_lifetime_info resident_lifetime_info(
       rns8_resident_matrix_role role = RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN) const {
     rns8_resident_lifetime_info info{};

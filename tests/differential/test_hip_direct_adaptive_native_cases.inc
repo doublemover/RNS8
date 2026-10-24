@@ -206,6 +206,38 @@ template<class T> void check_public_adaptive_owner() {
     REQUIRE(rns8_pack_i64(ctx,a,compact.data(),17,0) == RNS8_SUCCESS);
   check_single_upload_owner(a);
   REQUIRE(run(a,UINT64_MAX,3) == RNS8_SUCCESS);
+  rns8_matrix_allocation_info before{};
+  before.struct_size=sizeof(before); before.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_matrix_allocation_info(c,&before)==RNS8_SUCCESS);
+  CHECK(before.host_payload_capacity_bytes==0);
+  CHECK(before.device_export_staging_bytes>0);
+  const auto value_generation=c->content_generation;
+  auto* retained_native=c->hip_native_i64 ? c->hip_native_i64 : c->hip_native_u64;
+  c->prepared_references=1;
+  CHECK(rns8_trim_matrix_staging(c)==RNS8_BUSY);
+  c->prepared_references=0;
+  REQUIRE(rns8_trim_matrix_staging(c)==RNS8_SUCCESS);
+  rns8_matrix_allocation_info after=before;
+  REQUIRE(rns8_get_matrix_allocation_info(c,&after)==RNS8_SUCCESS);
+  CHECK(after.device_export_staging_bytes==0);
+  CHECK(after.device_upload_staging_bytes==0);
+  CHECK(after.device_status_and_schedule_bytes==0);
+  CHECK(after.device_payload_capacity_bytes==before.device_payload_capacity_bytes);
+  CHECK(c->content_generation==value_generation);
+  CHECK((c->hip_native_i64 ? c->hip_native_i64 : c->hip_native_u64)==retained_native);
+  // Rebuilding export staging must preserve the complete exact value.
+  std::vector<uint64_t> rebuilt(17*17*3);
+  if constexpr (is_unsigned)
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,rebuilt.data(),17,3)==RNS8_SUCCESS);
+  else REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,rebuilt.data(),17,3)==RNS8_SUCCESS);
+  for (int r=0;r<17;++r) for (int col=0;col<17;++col) {
+    cpp_int expected=0;
+    for (int q=0;q<17;++q) expected+=cpp_int(av[r*19+q])*bv[q*19+col];
+    const int at=(r*17+col)*3;
+    cpp_int actual=cpp_int(rebuilt[at])+(cpp_int(rebuilt[at+1])<<64)+(cpp_int(rebuilt[at+2])<<128);
+    if constexpr (!is_unsigned) if (rebuilt[at+2]>>63) actual-=cpp_int(1)<<192;
+    REQUIRE(actual==expected);
+  }
   rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
   rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
 }

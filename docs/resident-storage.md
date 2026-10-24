@@ -30,13 +30,26 @@ staging before that upload. The retained native allocation has one owner;
 residue conversion borrows it and cannot free it. Existing write reservations
 and generation invalidation remain in force.
 
-`rns8_get_matrix_storage_info` reports resident representation bytes separately
-for host and device domains, with independent currentness flags. These payload
-fields do not claim allocator overhead, process RSS, transient peak, or upload
-and export staging totals. Existing reusable upload/export staging remains
-matrix-owned until destruction. A comprehensive allocation/peak diagnostic and
-explicit staging trim are still separate pending work; no speedup or measured
-memory peak is claimed by this allocation change.
+`rns8_get_matrix_storage_info` reports resident representation payload bytes
+separately for host and device, with independent currentness flags.
+`rns8_get_matrix_allocation_info` additionally reports checked logical primary
+bytes, host vector capacities, device payload capacities, current payload bytes,
+reusable upload and export staging, status/schedule allocations, and total owned
+device capacity. These are requested allocation capacities, not allocator
+padding, process RSS, transient peak, or sampled device memory. Host proof
+objects and temporary conversion vectors are excluded explicitly. No measured
+memory peak or speedup is claimed.
+
+`rns8_trim_matrix_staging` (C++ `Matrix::trim_staging`) explicitly releases only
+reusable device upload/export/status/schedule allocations. It returns BUSY for
+prepared references, active readers or a writer, before touching cache state.
+It never releases residue, byte-limb or native value allocations, including a
+promised retained native input, and never changes value generation or proof.
+Subsequent pack/export calls rebuild their staging normally. There is no hidden
+trim on a hot path. A failed free stops the operation: successful prior frees
+remain released, unreleased buffers remain owned, and the export descriptor
+fingerprint stays invalid so no partially released cache can be reused. The
+caller must exclude concurrent host API calls as for other matrix mutations.
 
 Authored coverage includes allocation-independent mock admission, malformed
 capacity/currentness, overflow, all seven direct-HIP semantic families, and the

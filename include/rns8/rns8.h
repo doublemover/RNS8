@@ -783,6 +783,31 @@ typedef struct rns8_matrix_storage_info {
   char detail[256];
 } rns8_matrix_storage_info;
 
+/* Requested allocation capacities, excluding allocator metadata and proof objects.
+ * Current bytes are subsets of payload capacity; staging never denotes a value.
+ * No transient peak or process/device allocator observation is implied. */
+typedef struct rns8_matrix_allocation_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t reserved;
+  uint64_t logical_primary_bytes;
+  uint64_t host_payload_capacity_bytes;
+  uint64_t device_payload_capacity_bytes;
+  uint64_t host_current_bytes;
+  uint64_t device_current_bytes;
+  uint64_t device_upload_staging_bytes;
+  uint64_t device_export_staging_bytes;
+  uint64_t device_status_and_schedule_bytes;
+  uint64_t device_total_capacity_bytes;
+} rns8_matrix_allocation_info;
+
+RNS8_API rns8_status rns8_get_matrix_allocation_info(
+    const rns8_matrix* matrix, rns8_matrix_allocation_info* out);
+/* Release only reusable upload/export/status/schedule buffers. Preserves every
+ * value allocation, proof and generation. Prepared or in-flight use is BUSY.
+ * On failure, earlier releases remain released and unreleased buffers stay owned. */
+RNS8_API rns8_status rns8_trim_matrix_staging(rns8_matrix* matrix);
+
 #define RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES 0x00000001u
 #define RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY 0x00000002u
 #define RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE 0x00000004u

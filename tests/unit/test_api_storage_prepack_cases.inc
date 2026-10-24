@@ -558,3 +558,30 @@ TEST_CASE("resident capacity admission does not require a host mirror") {
   CHECK_FALSE(rns_residue_count(INT64_MAX,INT64_MAX,20,bytes));
   CHECK_FALSE(wrap_byte_limb_bytes(INT64_MAX,INT64_MAX,bytes));
 }
+
+TEST_CASE("allocation diagnostics and staging trim preserve CPU value identity") {
+  rns8::Context ctx;
+  rns8::Matrix matrix(ctx,bounded_matrix_desc(2,3,RNS8_BOUNDED_I64));
+  auto info=matrix.allocation_info();
+  CHECK(info.logical_primary_bytes==2*3*RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.host_payload_capacity_bytes>=info.logical_primary_bytes);
+  CHECK(info.host_current_bytes==info.logical_primary_bytes);
+  CHECK(info.device_total_capacity_bytes==0);
+  const auto generation=matrix.get()->content_generation;
+  matrix.trim_staging();
+  CHECK(matrix.get()->content_generation==generation);
+  CHECK(matrix.get()->host_residues_current);
+  matrix.get()->prepared_references=1;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->prepared_references=0;
+  matrix.get()->in_flight_readers=1;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->in_flight_readers=0;
+  matrix.get()->in_flight_writer=true;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->in_flight_writer=false;
+  info.struct_size=0;
+  CHECK(rns8_get_matrix_allocation_info(matrix.get(),&info)==RNS8_INVALID_ARGUMENT);
+  CHECK(info.struct_size==0);
+  CHECK(rns8_trim_matrix_staging(nullptr)==RNS8_INVALID_ARGUMENT);
+}
