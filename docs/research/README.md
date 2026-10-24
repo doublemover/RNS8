@@ -38,6 +38,7 @@ keeps their retirement and production criteria.
 ## Planning and generation
 
 - [Typed planning recipes](../planning-recipes.md), #29/#30
+- [Distributed modulus plan and CPU mock](../distributed-mock.md), #50 M0; no GPU transport or qualification
 - [Joint basis/schedule search](../joint-scheme-search.md), #32
 - [Generated scalar encoding certificates](../generated-encodings.md), #44
 - [Generated native WMMA family](../generated-native-wmma.md), #55

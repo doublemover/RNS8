@@ -652,6 +652,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_crt.cpp
     tests/unit/test_direct_crt_constants.cpp
     tests/unit/test_integrity_identity.cpp
+    tests/unit/test_distributed_plan.cpp
     tests/unit/test_int4_encoding.cpp
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_native_wmma_queue.cpp

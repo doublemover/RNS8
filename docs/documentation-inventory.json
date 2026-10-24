@@ -344,7 +344,7 @@
     },
     {
       "path": "docs/7900xtx-large-throughput-2026-10-23.md",
-      "purpose": "RX 7900 XTX larger-workload measurements \u2014 2026-10-23",
+      "purpose": "RX 7900 XTX larger-workload measurements — 2026-10-23",
       "audience": "Performance reviewers",
       "disposition": "historical",
       "canonical": "docs/7900xtx-large-throughput-2026-10-23.md",
@@ -458,7 +458,7 @@
     },
     {
       "path": "docs/7900xtx-throughput-2026-10-23.md",
-      "purpose": "RX 7900 XTX local throughput \u2014 2026-10-23",
+      "purpose": "RX 7900 XTX local throughput — 2026-10-23",
       "audience": "Performance reviewers",
       "disposition": "historical",
       "canonical": "docs/7900xtx-throughput-2026-10-23.md",
@@ -1341,7 +1341,7 @@
     },
     {
       "path": "docs/audit-2026-10-06.md",
-      "purpose": "RNS8 source and qualification audit \u2014 2026-10-06",
+      "purpose": "RNS8 source and qualification audit — 2026-10-06",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -1647,7 +1647,7 @@
     },
     {
       "path": "docs/continuation-2026-10-06.md",
-      "purpose": "Cloud correctness continuation \u2014 2026-10-06",
+      "purpose": "Cloud correctness continuation — 2026-10-06",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -1782,6 +1782,17 @@
       ]
     },
     {
+      "path": "docs/dependency-versions.md",
+      "purpose": "Canonical dated dependency policy, exact candidate pins, observed receipts and upgrade qualification gates",
+      "audience": "Developers, maintainers and GPU-session operators",
+      "disposition": "keep",
+      "canonical": "docs/dependency-versions.md",
+      "owner": "tools/check_dependencies_lib/version_policy.py",
+      "reason": "Separate latest/selected/observed/tested evidence, immutable package/action/source pins, reproducible bootstrap inputs and explicit pending compatibility gates.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/design.md",
       "purpose": "Implemented design",
       "audience": "Runtime implementers",
@@ -1875,6 +1886,28 @@
       ],
       "anchors": [
         "independent-native-product-integrity-sentinel"
+      ]
+    },
+    {
+      "path": "docs/distributed-mock.md",
+      "purpose": "Immutable distributed modulus plan and CPU mock lifecycle",
+      "audience": "Runtime researchers and contributors",
+      "disposition": "keep",
+      "canonical": "docs/research/README.md#planning-and-generation",
+      "owner": "src/backend_common/distributed_plan.hpp",
+      "reason": "Issue #50 M0: explicit rank/plane coverage, resource reservations, mock transport/epochs and unsupported real hardware boundary; no validation claimed.",
+      "inbound_links": [
+        {
+          "source": "docs/research/README.md",
+          "reference": "../distributed-mock.md"
+        }
+      ],
+      "anchors": [
+        "distributed-modulus-plan-and-cpu-mock",
+        "immutable-plan",
+        "transport-and-publication",
+        "epoch-and-resource-ownership",
+        "receipt-and-authored-coverage"
       ]
     },
     {
@@ -2135,7 +2168,7 @@
     },
     {
       "path": "docs/local-all-features-20261023.md",
-      "purpose": "RX 7900 XTX expanded validation \u2014 2026-10-23",
+      "purpose": "RX 7900 XTX expanded validation — 2026-10-23",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2367,7 +2400,7 @@
     },
     {
       "path": "docs/local-cpu-auto-continuation-20261008.md",
-      "purpose": "Opt-in CPU continuation checkpoint \u2014 2026-10-08",
+      "purpose": "Opt-in CPU continuation checkpoint — 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2393,7 +2426,7 @@
     },
     {
       "path": "docs/local-cpu-lifting-20261008.md",
-      "purpose": "Local CPU ladder-lifting checkpoint \u2014 2026-10-08",
+      "purpose": "Local CPU ladder-lifting checkpoint — 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2476,7 +2509,7 @@
     },
     {
       "path": "docs/local-moment-range-20261011.md",
-      "purpose": "Integer moment range campaign \u2014 2026-10-11",
+      "purpose": "Integer moment range campaign — 2026-10-11",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2504,7 +2537,7 @@
     },
     {
       "path": "docs/local-range-continuation-20261008.md",
-      "purpose": "Local row/column exact-wide continuation \u2014 2026-10-08",
+      "purpose": "Local row/column exact-wide continuation — 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -4005,17 +4038,6 @@
         "optional-exact-references-and-accelerator-pins",
         "shared-prerequisites"
       ]
-    },
-    {
-      "path": "docs/dependency-versions.md",
-      "purpose": "Canonical dated dependency policy, exact candidate pins, observed receipts and upgrade qualification gates",
-      "audience": "Developers, maintainers and GPU-session operators",
-      "disposition": "keep",
-      "canonical": "docs/dependency-versions.md",
-      "owner": "tools/check_dependencies_lib/version_policy.py",
-      "reason": "Separate latest/selected/observed/tested evidence, immutable package/action/source pins, reproducible bootstrap inputs and explicit pending compatibility gates.",
-      "inbound_links": [],
-      "anchors": []
     }
   ]
 }
