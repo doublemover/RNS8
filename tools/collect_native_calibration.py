@@ -8,19 +8,41 @@ import random
 import subprocess
 import time
 import uuid
+from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
 
 
+CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "queue", "split_k",
+              "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
+              "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
+QUEUED = ("queue", "split_k")
+
+
+def strict_json(text):
+    def object_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError(f"non-finite JSON number: {value}")
+    return json.loads(text, object_pairs_hook=object_pairs, parse_constant=invalid_constant)
+
+
 def validate_case(case):
-    keys = ("candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs")
-    if not isinstance(case, dict) or set(case) != set(keys):
-        raise ValueError("native case needs exactly candidate,m,n,k,prefix,group,unsigned_inputs")
+    """Return a new canonical case; only queue controls may be omitted."""
+    keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers"}:
+        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; optional workers for queue/split_k")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in ("wmma", "queue", "split_k")
+    native = case["candidate"] in ("wmma", *QUEUED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
-    if ((not native and not narrow and case["candidate"] not in ("pack_pair", "packed_gemm", "pack_gemm", "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused"))
+    if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
             or (not native and case["group"] != 1) or type(case["unsigned_inputs"]) is not bool
             or case["m"] * case["n"] * case["k"] > 1073741824):
@@ -28,7 +50,28 @@ def validate_case(case):
     if narrow and (case["prefix"] != 1 or case["k"] > 32768
                    or (case["candidate"] == "narrow_scalar" and case["unsigned_inputs"])):
         raise ValueError("narrow cases require prefix=1, K<=32768; scalar is signed only")
-    return case
+    normalized = dict(case)
+    if case["candidate"] in QUEUED:
+        workers = case.get("workers", 32)
+        if type(workers) is not int or not 1 <= workers <= 1024:
+            raise ValueError("queue/split_k workers must be an integer in 1..1024")
+        normalized["workers"] = workers
+    elif "workers" in case:
+        raise ValueError("workers applies only to queue/split_k candidates")
+    return normalized
+
+
+def scheduling_contract(case):
+    queued = case["candidate"] in QUEUED
+    splits = min(case["k"], 3) if case["candidate"] == "split_k" else 1
+    descriptors = (((case["m"] + 15) // 16) * ((case["n"] + 15) // 16)
+                   * ((case["prefix"] + case["group"] - 1) // case["group"]) * splits) if queued else 0
+    requested = case.get("workers", 32) if queued else 0
+    return {"splits": splits, "requested_workers": requested,
+            "effective_workers": min(requested, descriptors), "queue_descriptors": descriptors,
+            "queue_kernel_selection": (f"homogeneous_group_{case['group']}_"
+                                       + ("unsigned" if case["unsigned_inputs"] else "signed"))
+                                      if queued else "not_applicable"}
 
 
 def epilogue_contract(case):
@@ -44,14 +87,22 @@ def epilogue_contract(case):
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
 
 
+def positive_number(value):
+    try:
+        return type(value) in (int, float) and math.isfinite(value) and value > 0
+    except OverflowError:
+        return False
+
+
 def valid_sustained(value):
     if not isinstance(value, dict) or value.get("final_exact_reference_passed") is not True:
         return False
     calls, elapsed, mean = (value.get(k) for k in ("calls", "elapsed_ns", "mean_call_ns"))
     return (type(calls) is int and 16 <= calls <= 4096
-            and all(type(x) in (int, float) and math.isfinite(x) and x > 0 for x in (elapsed, mean))
+            and all(positive_number(x) for x in (elapsed, mean))
             and (elapsed >= 250000000 or calls == 4096)
-            and math.isclose(mean * calls, elapsed, rel_tol=1e-12))
+            and math.isclose(mean * calls, elapsed, rel_tol=1e-12)
+            and type(value.get("scope")) is str and bool(value["scope"]))
 
 
 def narrow_contract(case):
@@ -71,13 +122,89 @@ def narrow_contract(case):
             "residue_storage_bytes": (case["m"] * case["k"] + case["k"] * case["n"] + case["m"] * case["n"]) * prefix,
             "native_input_storage_bytes": (case["m"] * case["k"] + case["k"] * case["n"]) * 8,
             "native_output_bytes": case["m"] * case["n"] * 8,
-            "reserved_status_bytes": 4}
+            "reserved_status_bytes": 4,
+            "reference": "exact_int64_all_outputs_with_boost_boundary_columns"}
+
+
+def capture_contract(case, run_id, repeats, warmups):
+    expected = {key: value for key, value in case.items() if key != "workers"}
+    expected.update(schema="rns8_native_microcase_v2", run_id=run_id, repeats=repeats,
+                    warmups=warmups, seed=3135, promotion_eligible=False, isa_verified=False,
+                    actual_hbm_bytes=None, timing_resolution_ns=None)
+    expected.update(scheduling_contract(case))
+    expected.update(narrow_contract(case))
+    if not case["candidate"].startswith("narrow_"):
+        epilogue = case["candidate"].startswith("epilogue_")
+        expected.update(
+            input_domain="resident_centered_residues" if epilogue or case["candidate"] == "packed_gemm" else "resident_native_64",
+            output_contract="operand_residue_planes" if case["candidate"] == "pack_pair" else "product_residues_default_basis_no_integer_export",
+            expression=None, reserved_intermediate_bytes=0, materialized_intermediate_bytes=0,
+            native_input_storage_bytes=(case["m"] * case["k"] + case["k"] * case["n"]) * 8,
+            residue_input_storage_bytes=(case["m"] * case["k"] + case["k"] * case["n"]
+                                         + (case["m"] * case["n"] if epilogue else 0)) * case["prefix"],
+            residue_output_bytes=case["m"] * case["n"] * case["prefix"])
+        expected.update(epilogue_contract(case))
+    return expected
+
+
+def same_value(actual, expected):
+    """JSON bools and floats cannot impersonate integer controls or bounds."""
+    if type(actual) is not type(expected):
+        return False
+    if isinstance(expected, dict):
+        return actual.keys() == expected.keys() and all(same_value(actual[k], v) for k, v in expected.items())
+    if isinstance(expected, list):
+        return len(actual) == len(expected) and all(same_value(a, b) for a, b in zip(actual, expected))
+    return actual == expected
+
+
+def validate_capture(capture, case, run_id, repeats, warmups):
+    if not isinstance(capture, dict):
+        raise ValueError("capture must be a JSON object")
+    for key, value in capture_contract(case, run_id, repeats, warmups).items():
+        if key not in capture or not same_value(capture[key], value):
+            raise ValueError(f"metadata mismatch: {key}")
+    if not valid_sustained(capture.get("sustained")):
+        raise ValueError("invalid sustained verification/timing")
+    samples = capture.get("samples")
+    if not isinstance(samples, list) or len(samples) != repeats:
+        raise ValueError("invalid sample count")
+    for sample in samples:
+        if (not isinstance(sample, dict) or sample.get("exact_reference_passed") is not True
+                or sample.get("uninstrumented_exact_reference_passed") is not True
+                or not positive_number(sample.get("host_call_ns"))
+                or not positive_number(sample.get("uninstrumented_host_call_ns"))
+                or not isinstance(sample.get("events"), list)):
+            raise ValueError("invalid sample verification/timing")
+        for event in sample["events"]:
+            if (not isinstance(event, dict) or type(event.get("label")) is not str or not event["label"]
+                    or "elapsed_ns" not in event
+                    or (event["elapsed_ns"] is not None and not positive_number(event["elapsed_ns"]))):
+                raise ValueError("invalid HIP event timing")
+    for key in ("device", "target", "timing_scope", "cache_state"):
+        if type(capture.get(key)) is not str or not capture[key]:
+            raise ValueError(f"missing identity/scope: {key}")
+    if type(capture.get("runtime_version")) is not int or capture["runtime_version"] <= 0:
+        raise ValueError("invalid runtime identity")
+    manifest = capture.get("build_manifest")
+    # Diagnostic runs may use dirty sources or unavailable dependency identity.
+    # Validate their shape without misrepresenting them as release-qualified.
+    if not isinstance(manifest, dict) or type(manifest.get("source_dirty")) is not bool:
+        raise ValueError("invalid build provenance")
+    qualified_shape = dict(manifest, source_dirty=False)
+    if manifest.get("dependency_digest") == "unavailable":
+        qualified_shape["dependency_digest"] = "0" * 64
+    backend = "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None
+    if not manifest_provenance_complete(qualified_shape, backend):
+        raise ValueError("invalid build provenance")
+    return {key: capture[key] for key in ("build_manifest", "device", "target", "runtime_version")}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
-    parser.add_argument("--cases", type=Path, required=True, help="JSON list of explicit case objects")
+    parser.add_argument("--cases", type=Path, required=True,
+                        help="JSON list: candidate,m,n,k,prefix,group,unsigned_inputs; optional workers=1..1024 for queue/split_k (default 32)")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)
@@ -85,53 +212,73 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--order-seed", type=int, default=3135)
     args = parser.parse_args()
-    cases = json.loads(args.cases.read_text(encoding="utf-8"))
-    if (not isinstance(cases, list) or not 1 <= len(cases) <= 64 or not 1 <= args.runs <= 100
-            or not 1 <= args.repeats <= 10000 or not 1 <= args.warmups <= 1000 or args.timeout <= 0):
-        parser.error("invalid case/run/repeat/timeout domain")
-    cases = [validate_case(c) for c in cases]
+    try:
+        cases = strict_json(args.cases.read_text(encoding="utf-8"))
+        if (not isinstance(cases, list) or not 1 <= len(cases) <= 64 or not 1 <= args.runs <= 100
+                or not 1 <= args.repeats <= 10000 or not 1 <= args.warmups <= 1000 or args.timeout <= 0):
+            raise ValueError("invalid case/run/repeat/timeout domain")
+        cases = [validate_case(c) for c in cases]
+        if len({json.dumps(case, sort_keys=True) for case in cases}) != len(cases):
+            raise ValueError("duplicate normalized cases; use --runs for independent processes")
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
     exe = args.exe.resolve(strict=True)
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
     campaign = str(uuid.uuid4())
     jobs = [(c, independent) for independent in range(args.runs) for c in cases]
     random.Random(args.order_seed).shuffle(jobs)
+    campaign_identity = None
     for ordinal, (case, independent) in enumerate(jobs):
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed during collection")
         run_id = str(uuid.uuid4())
         command = [str(exe), case["candidate"], *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")),
                    str(int(case["unsigned_inputs"])), str(args.repeats), str(args.warmups), run_id]
-        record = {"schema": "rns8_native_collection_v1", "campaign_id": campaign, "run_id": run_id,
+        if case["candidate"] in QUEUED:
+            command.append(str(case["workers"]))
+        record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "started_unix_ns": time.time_ns(), "ordinal": ordinal, "independent_repeat": independent,
                   "order_seed": args.order_seed, "promotion_eligible": False}
+        failure = None
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=args.timeout, check=False)
             record.update(exit_code=result.returncode, stdout=result.stdout, stderr=result.stderr)
-        except subprocess.TimeoutExpired:
-            record.update(exit_code=None, reason="timeout", timeout_seconds=args.timeout)
+            if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
+                raise ValueError("native executable changed while executing; capture is ineligible")
+            if result.returncode != 0:
+                raise ValueError("native microcase failed")
+            capture = strict_json(result.stdout)
+            identity = validate_capture(capture, case, run_id, args.repeats, args.warmups)
+            if campaign_identity is not None and not same_value(identity, campaign_identity):
+                raise ValueError("build/device/runtime identity changed during collection")
+            campaign_identity = identity
+            record["comparison_identity"] = {"artifact_sha256": artifact, **identity,
+                                             "case": case, **scheduling_contract(case),
+                                             "input_domain": capture["input_domain"],
+                                             "output_contract": capture["output_contract"],
+                                             "seed": capture["seed"], "repeats": args.repeats,
+                                             "warmups": args.warmups, "timing_scope": capture["timing_scope"],
+                                             "cache_state": capture["cache_state"]}
+            record["provenance_complete"] = manifest_provenance_complete(
+                capture["build_manifest"], "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None)
+            record["validated"] = True
+        except subprocess.TimeoutExpired as error:
+            def timeout_text(value):
+                return value.decode(errors="replace") if isinstance(value, bytes) else value or ""
+            record.update(exit_code=None, reason="timeout", timeout_seconds=args.timeout,
+                          stdout=timeout_text(error.stdout), stderr=timeout_text(error.stderr))
+            failure = "native microcase timeout"
+        except (ValueError, OSError) as error:
+            record.setdefault("exit_code", None)
+            record.update(reason="contract/reference mismatch", validation_error=str(error))
+            failure = f"native microcase contract/reference mismatch: {error}"
+        record.setdefault("validated", False)
         with (args.output / (run_id + ".json")).open("x", encoding="utf-8") as stream:
             json.dump(record, stream, indent=2)
-        if record["exit_code"] != 0:
-            raise RuntimeError(f"native microcase failed; retained {run_id}")
-        capture = json.loads(record["stdout"])
-        if (capture.get("schema") != "rns8_native_microcase_v1" or capture.get("run_id") != run_id
-                or any(capture.get(key) != value for key, value in case.items())
-                or any(capture.get(key) != value for key, value in epilogue_contract(case).items())
-                or any(capture.get(key) != value for key, value in narrow_contract(case).items())
-                or capture.get("repeats") != args.repeats or capture.get("warmups") != args.warmups
-                or not valid_sustained(capture.get("sustained"))
-                or len(capture.get("samples", [])) != args.repeats
-                or any(sample.get("exact_reference_passed") is not True
-                       or sample.get("uninstrumented_exact_reference_passed") is not True
-                       or type(sample.get("uninstrumented_host_call_ns")) not in (int, float)
-                       or not math.isfinite(sample["uninstrumented_host_call_ns"])
-                       or sample["uninstrumented_host_call_ns"] <= 0
-                       for sample in capture["samples"])):
-            raise RuntimeError(f"native microcase contract/reference mismatch; retained {run_id}")
-        if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
-            raise RuntimeError("native executable changed while executing; capture is ineligible")
+        if failure:
+            raise RuntimeError(f"{failure}; retained {run_id}")
     print(f"Collected {len(jobs)} independent native microcase records; qualification remains pending")
     return 0
 

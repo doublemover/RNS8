@@ -1,5 +1,5 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_native_wmma_queue(const NativeWmmaTask*, const NativeWmmaWork*, uint32_t, uint32_t*, uint32_t);
+extern "C" int rns8_hip_native_wmma_queue(const NativeWmmaTask*, const NativeWmmaWork*, uint32_t, uint32_t*, uint32_t, uint32_t, bool);
 #endif
 rns8_status hip_direct_gemm_native_wmma_queue(
     int device_id, const std::vector<NativeWmmaTask>& tasks, uint32_t workers,
@@ -10,6 +10,7 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   auto status = build_native_wmma_queue(tasks, workers, max_scratch_bytes, work, bytes);
   if (status != RNS8_SUCCESS) return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto uniform_group = native_wmma_uniform_group(tasks);
   status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
   hip_direct_device_buffer storage;
@@ -37,7 +38,8 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   outputs_may_be_written = true;
   error = timed_hip_operation("native_queue_persistent_wmma", [&]() {
     auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_queue(device_tasks, device_work,
-        static_cast<uint32_t>(work.size()), cursor, std::min(workers, static_cast<uint32_t>(work.size()))));
+        static_cast<uint32_t>(work.size()), cursor, std::min(workers, static_cast<uint32_t>(work.size())),
+        uniform_group, tasks.front().unsigned_inputs != 0));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
   return error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;

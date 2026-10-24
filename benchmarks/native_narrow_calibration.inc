@@ -186,9 +186,11 @@ int calibrate_narrow(const std::string& candidate, uint32_t m, uint32_t n,
   const auto sustained = sustained_calls(prepare, execute, verify);
   std::cout << nlohmann::json{
       {"sustained", sustained},
-      {"schema", "rns8_native_microcase_v1"}, {"run_id", run_id}, {"candidate", candidate},
+      {"schema", "rns8_native_microcase_v2"}, {"run_id", run_id}, {"candidate", candidate},
       {"m", m}, {"n", n}, {"k", k}, {"prefix", prefix}, {"group", group},
-      {"unsigned_inputs", unsigned_inputs}, {"seed", 3135}, {"repeats", repeats}, {"warmups", warmups},
+      {"unsigned_inputs", unsigned_inputs}, {"splits", 1u},
+      {"requested_workers", 0u}, {"effective_workers", 0u}, {"queue_descriptors", 0u},
+      {"queue_kernel_selection", "not_applicable"}, {"seed", 3135}, {"repeats", repeats}, {"warmups", warmups},
       {"dataset", "byte_domain_mt19937_64_seed3135_forced_maxima_v1"},
       {"input_domain", "resident_native_64_byte_values"}, {"output_contract", "bounded_exact_native_64"},
       {"abs_partial_sum_bound", bound}, {"device", device.name}, {"target", device.gcn_arch},

@@ -101,6 +101,9 @@ __device__ __forceinline__ void rns8_native_queue_tile(
     rns8_native_grouped_wmma_tile<NativeT, 4>(a, b, task.c, task.m, task.n, task.k,
         task.lda, task.ldb, task.ldc, task.prefix, row, col, work.first_plane);
 }
+// Group zero retains heterogeneous dispatch. Uniform queues instantiate only
+// one tile body, so a group-one job need not reserve group-four registers.
+template <typename NativeT, int Group>
 __global__ __launch_bounds__(32) void rns8_native_wmma_queue_kernel(
     const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
     uint32_t count, uint32_t* cursor) {
@@ -112,8 +115,16 @@ __global__ __launch_bounds__(32) void rns8_native_wmma_queue_kernel(
     if (next >= count) return;
     const auto item = work[next];
     const auto task = tasks[item.task];
-    if (task.unsigned_inputs) rns8_native_queue_tile<uint64_t>(task, item);
-    else rns8_native_queue_tile<int64_t>(task, item);
+    if constexpr (Group != 0) {
+      rns8_native_grouped_wmma_tile<NativeT, Group>(
+          static_cast<const NativeT*>(task.a), static_cast<const NativeT*>(task.b), task.c,
+          task.m, task.n, task.k, task.lda, task.ldb, task.ldc, task.prefix,
+          static_cast<int64_t>(item.tile_row) * 16, static_cast<int64_t>(item.tile_col) * 16,
+          item.first_plane);
+    } else {
+      if (task.unsigned_inputs) rns8_native_queue_tile<uint64_t>(task, item);
+      else rns8_native_queue_tile<int64_t>(task, item);
+    }
     __syncthreads(); // Every lane finishes before the next shared queue claim.
   }
 #else

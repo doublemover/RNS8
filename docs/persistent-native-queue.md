@@ -20,6 +20,12 @@ with the ordinary grid launch. Each modulus has an independent accumulator;
 channel groups retain their original masks. A bounded terminal-claim count
 prevents the 32-bit queue cursor from wrapping.
 
+After admission, queues whose descriptors all share signedness and modulus group
+select a kernel specialized for that pair. Shapes, pitches and prefixes may still
+differ. Mixed queues retain the general dispatch kernel. This avoids reserving
+registers for larger modulus groups when a uniform group-one queue executes;
+the selection does not change arithmetic or the round-robin work order.
+
 The synchronous backend probes the compiled device capability before touching
 outputs. Descriptor upload, capability probing, and persistent execution have
 separate timing labels. `outputs_may_be_written` becomes true immediately before
@@ -30,7 +36,9 @@ on return. This is not yet a reusable prepared queue.
 CPU mapping, admission, collision, and budget fixtures and a Boost-based GPU
 differential fixture cover heterogeneous shapes, full-width signed/unsigned
 values, prefix/group tails, padding, K=65537, and varying worker counts. These
-fixtures await the consolidated runtime validation campaign. Public prepared
+fixtures passed the local all-feature campaign at `c7f7e05`; the uniform-kernel
+extension adds all six signedness/group combinations to the same differential
+fixture and requires fresh validation. Public prepared
 groups still execute sequentially. Public integration, asynchronous ownership,
 descriptor reuse, ISA/resource inspection, and measured scheduling benefits
 remain open under issue #38; no throughput improvement is claimed.

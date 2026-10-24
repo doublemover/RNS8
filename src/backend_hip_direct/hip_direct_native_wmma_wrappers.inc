@@ -2,12 +2,33 @@ extern "C" int rns8_hip_native_wmma_capability(int* supported) {
   hipLaunchKernelGGL(rns8_native_wmma_capability_kernel, dim3(1), dim3(1), 0, nullptr, supported);
   return static_cast<int>(hipGetLastError());
 }
-extern "C" int rns8_hip_native_wmma_queue(
+template <typename NativeT, int Group>
+int rns8_launch_native_wmma_queue(
     const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
     uint32_t count, uint32_t* cursor, uint32_t workers) {
-  hipLaunchKernelGGL(rns8_native_wmma_queue_kernel, dim3(workers), dim3(32), 0, nullptr,
+  hipLaunchKernelGGL((rns8_native_wmma_queue_kernel<NativeT, Group>), dim3(workers), dim3(32), 0, nullptr,
                     tasks, work, count, cursor);
   return static_cast<int>(hipGetLastError());
+}
+template <typename NativeT>
+int rns8_select_native_wmma_queue(
+    const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
+    uint32_t count, uint32_t* cursor, uint32_t workers, uint32_t group) {
+  switch (group) {
+    case 1: return rns8_launch_native_wmma_queue<NativeT, 1>(tasks, work, count, cursor, workers);
+    case 2: return rns8_launch_native_wmma_queue<NativeT, 2>(tasks, work, count, cursor, workers);
+    case 4: return rns8_launch_native_wmma_queue<NativeT, 4>(tasks, work, count, cursor, workers);
+    default: return static_cast<int>(hipErrorInvalidValue);
+  }
+}
+extern "C" int rns8_hip_native_wmma_queue(
+    const rns8::detail::NativeWmmaTask* tasks, const rns8::detail::NativeWmmaWork* work,
+    uint32_t count, uint32_t* cursor, uint32_t workers, uint32_t uniform_group, bool unsigned_inputs) {
+  if (!uniform_group)
+    return rns8_launch_native_wmma_queue<int64_t, 0>(tasks, work, count, cursor, workers);
+  return unsigned_inputs
+      ? rns8_select_native_wmma_queue<uint64_t>(tasks, work, count, cursor, workers, uniform_group)
+      : rns8_select_native_wmma_queue<int64_t>(tasks, work, count, cursor, workers, uniform_group);
 }
 template <typename NativeT, int Group>
 int rns8_launch_native_wmma_group(

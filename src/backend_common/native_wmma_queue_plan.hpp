@@ -8,6 +8,17 @@
 #include <new>
 #include <vector>
 namespace rns8::detail {
+// Zero selects the heterogeneous kernel. The caller still performs full queue
+// admission before using this launch hint; shapes, prefixes and pitches may vary.
+inline uint32_t native_wmma_uniform_group(const std::vector<NativeWmmaTask>& tasks) {
+  if (tasks.empty()) return 0;
+  const auto& first = tasks.front();
+  if ((first.group != 1 && first.group != 2 && first.group != 4) || first.unsigned_inputs > 1)
+    return 0;
+  return std::all_of(tasks.begin(), tasks.end(), [&](const NativeWmmaTask& task) {
+    return task.group == first.group && task.unsigned_inputs == first.unsigned_inputs;
+  }) ? first.group : 0;
+}
 // Host-only descriptor builder. No ownership assumption relies on a GPU's
 // execution order. Output/input overlap is rejected across the whole batch.
 inline rns8_status build_native_wmma_queue(const std::vector<NativeWmmaTask>& tasks,

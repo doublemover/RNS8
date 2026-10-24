@@ -5,6 +5,30 @@
 
 using namespace rns8::detail;
 
+TEST_CASE("native queue specialization requires uniform groups and signedness") {
+  CHECK(native_wmma_uniform_group({}) == 0);
+  for (uint32_t group : {1u, 2u, 4u}) {
+    for (uint32_t unsigned_inputs : {0u, 1u}) {
+      NativeWmmaTask first{}, second{};
+      first.group = second.group = group;
+      first.unsigned_inputs = second.unsigned_inputs = unsigned_inputs;
+      first.m = 17; second.m = 3;
+      first.prefix = 20; second.prefix = 1;
+      CHECK(native_wmma_uniform_group({first}) == group);
+      CHECK(native_wmma_uniform_group({first, second}) == group);
+      second.unsigned_inputs ^= 1;
+      CHECK(native_wmma_uniform_group({first, second}) == 0);
+      second.unsigned_inputs = unsigned_inputs;
+      second.group = group == 1 ? 2 : 1;
+      CHECK(native_wmma_uniform_group({first, second}) == 0);
+      first.group = 3;
+      CHECK(native_wmma_uniform_group({first}) == 0);
+      first.group = group; first.unsigned_inputs = 2;
+      CHECK(native_wmma_uniform_group({first}) == 0);
+    }
+  }
+}
+
 TEST_CASE("native queue bounds offset K fragments through the last accessed element") {
   uint64_t allocation[12]{}, b = 1;
   NativeWmmaTask task{allocation + 3, &b, reinterpret_cast<int8_t*>(allocation + 8),

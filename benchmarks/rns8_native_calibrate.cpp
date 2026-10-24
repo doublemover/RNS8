@@ -93,14 +93,26 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 
 int main(int argc, char** argv) {
   try {
-    if (argc != 11) throw std::invalid_argument(
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|queue|split_k|epilogue_direct|epilogue_rocwmma|epilogue_unfused> M N K prefix group unsigned repeats warmups unique-run-id");
-    // argc includes the executable: ten arguments, ending in the run identity.
+    const char* usage =
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|queue|split_k|"
+        "narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
+        "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
+        "workers: queue/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
+        "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
+        "repeats:1..10000 warmups:1..1000; group=1 outside wmma/queue/split_k.\n"
+        "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.";
+    if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
+    if (argc != 11 && argc != 12) throw std::invalid_argument(usage);
+    // Preserve the original ten arguments; optional workers follows run identity.
     const std::string candidate = argv[1], run_id = argv[10];
     const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
-    const bool native = candidate == "wmma" || candidate == "queue" || candidate == "split_k";
+    const bool queued = candidate == "queue" || candidate == "split_k";
+    if (argc == 12 && !queued)
+      throw std::invalid_argument("workers applies only to queue/split_k candidates");
+    const uint32_t requested_workers = queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
+    const bool native = candidate == "wmma" || queued;
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
       return calibrate_narrow(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";
@@ -108,7 +120,12 @@ int main(int argc, char** argv) {
     if ((!native && !epilogue && candidate != "pack_pair" && candidate != "packed_gemm" && candidate != "pack_gemm") ||
         run_id.empty() || (group != 1 && group != 2 && group != 4) || (!native && group != 1) ||
         uint64_t{m} * n * k > 1073741824) throw std::invalid_argument("invalid candidate/group or reference-work limit");
-    const uint32_t splits = std::min(k, 3u), workers = 32;
+    const uint32_t splits = candidate == "split_k" ? std::min(k, 3u) : 1u;
+    const uint32_t queue_descriptors = queued ? ((m + 15) / 16) * ((n + 15) / 16) *
+        ((prefix + group - 1) / group) * splits : 0u;
+    const uint32_t effective_workers = std::min(requested_workers, queue_descriptors);
+    const std::string queue_kernel_selection = queued ? "homogeneous_group_" + std::to_string(group) +
+        (unsigned_inputs ? "_unsigned" : "_signed") : "not_applicable";
     rns8_device_info device{};
     check(hip_direct_probe(0, device));
     std::mt19937_64 rng(3135);
@@ -166,8 +183,8 @@ int main(int argc, char** argv) {
         check(hip_direct_axpby_residues_device(0,intermediate.get(),rd.get(),dc.get(),m,n,n,n,n,prefix,alpha,beta));
       }
       else if (candidate == "wmma") check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
-      else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,workers,UINT64_MAX,written));
-      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,workers,UINT64_MAX,written));
+      else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
+      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written));
       else check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
     };
     const auto prepare = [&]() {
@@ -210,10 +227,11 @@ int main(int argc, char** argv) {
     }
     hip_direct_timing_set_enabled(false);
     const auto sustained = sustained_calls(prepare, execute, verify);
-    std::cout << nlohmann::json{{"schema","rns8_native_microcase_v1"},{"run_id",run_id},{"candidate",candidate},
+    std::cout << nlohmann::json{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
         {"sustained",sustained},
         {"m",m},{"n",n},{"k",k},{"prefix",prefix},{"group",group},{"unsigned_inputs",bool(unsigned_inputs)},
-        {"splits",candidate=="split_k" ? splits : 1u},{"workers",workers},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
+        {"splits",splits},{"requested_workers",requested_workers},{"effective_workers",effective_workers},
+        {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
         {"input_domain",(candidate=="packed_gemm" || epilogue) ? "resident_centered_residues" : "resident_native_64"},
         {"output_contract",candidate=="pack_pair" ? "operand_residue_planes" : epilogue ? "integer_alpha_ab_plus_beta_d_residues_no_integer_export" : "product_residues_default_basis_no_integer_export"},
         {"expression",epilogue ? nlohmann::json{{"alpha",alpha},{"beta",beta},{"coefficients","original_integers"},{"d_dataset","seed_3135_after_a_b"}}
