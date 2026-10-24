@@ -23,6 +23,7 @@ resident_node_addresses(const rns8_resident_node &node) {
 }
 void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
                                uint32_t failed) {
+  if (status == RNS8_SUCCESS && graph.cancel_requested) status = RNS8_CANCELED;
   for (const auto &input : graph.inputs)
     --input.matrix->in_flight_readers;
   for (auto *workspace : graph.hip_workspaces)
@@ -67,16 +68,34 @@ rns8_status observe_resident_graph_hip(rns8_resident_graph *graph,
       return RNS8_SUCCESS;
     }
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if (!graph->pending_stream ||
-        hipSetDevice(graph->ctx->device_id) != hipSuccess)
+    rns8::detail::hip_scoped_device device_scope(graph->ctx->device_id);
+    if (!graph->pending_stream || device_scope.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+    if (graph->async_failure.stage != RNS8_ASYNC_FAILURE_NONE) {
+      if (!wait) return RNS8_BACKEND_FAILURE;
+      if (!record_async_drain(*graph->ctx, graph->async_failure,
+              hipStreamSynchronize(static_cast<hipStream_t>(graph->pending_stream))))
+        return RNS8_BACKEND_FAILURE;
+      finish_resident_graph_hip(*graph, graph->async_failure.operation_status,
+                               graph->async_failure.failed_node);
+      *info = graph->completion;
+      return RNS8_SUCCESS;
+    }
     const auto error = wait ? hipEventSynchronize(graph->completion_event.get())
                             : hipEventQuery(graph->completion_event.get());
     if (error == hipErrorNotReady)
       return RNS8_BUSY;
-    if (error != hipSuccess)
-      (void)hipStreamSynchronize(
-          static_cast<hipStream_t>(graph->pending_stream));
+    if (error != hipSuccess) {
+      record_async_failure(graph->async_failure, RNS8_BACKEND_FAILURE,
+          RNS8_ASYNC_FAILURE_EVENT_OBSERVE, error, graph->ctx->device_id, graph->epoch);
+      if (!wait) {
+        graph->ctx->hip_failure_poisoned = true;
+        return RNS8_BACKEND_FAILURE;
+      }
+      if (!record_async_drain(*graph->ctx, graph->async_failure,
+              hipStreamSynchronize(static_cast<hipStream_t>(graph->pending_stream))))
+        return RNS8_BACKEND_FAILURE;
+    }
     finish_resident_graph_hip(
         *graph, error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE,
         UINT32_MAX);
@@ -119,7 +138,8 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
     if (status != RNS8_SUCCESS)
       return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if (hipSetDevice(graph->ctx->device_id) != hipSuccess)
+    rns8::detail::hip_scoped_device device_scope(graph->ctx->device_id);
+    if (device_scope.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     if (!graph->completion_event &&
         graph->completion_event.create() != hipSuccess)
@@ -164,9 +184,12 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
             graph->captured_addresses[i])
           return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (hipSetDevice(graph->ctx->device_id) != hipSuccess)
+    rns8::detail::hip_scoped_device device_scope(graph->ctx->device_id);
+    if (device_scope.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     const auto hip_stream = static_cast<hipStream_t>(stream);
+    if (hip_stream == hipStreamLegacy || hip_stream == hipStreamPerThread)
+      return RNS8_INVALID_ARGUMENT;
     hipDevice_t device = -1;
     if (hipStreamGetDevice(hip_stream, &device) != hipSuccess ||
         device != graph->ctx->device_id)
@@ -184,18 +207,19 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
     for (const auto &node : graph->nodes)
       node.c->in_flight_writer = true;
     graph->pending_stream = stream;
+    graph->async_failure = {};
+    graph->cancel_requested = false;
     graph->running = true;
     *token = {graph->id, ++graph->epoch};
     // One ordered stream provides the DAG dependencies. Internal values remain
     // unpublished until the final event; these private enqueues do no
     // admission.
+    hipError_t launch_error = hipSuccess;
     if (replay) {
       for (const auto &node : graph->nodes)
         invalidate_owned_graph_output(*node.c);
-      status =
-          hipGraphLaunch(graph->captured_executable, hip_stream) == hipSuccess
-              ? RNS8_SUCCESS
-              : RNS8_BACKEND_FAILURE;
+      launch_error = hipGraphLaunch(graph->captured_executable, hip_stream);
+      status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
     } else
       for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
         const auto &node = graph->nodes[i];
@@ -206,12 +230,20 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
           break;
         }
       }
-    if (status == RNS8_SUCCESS &&
-        hipEventRecord(graph->completion_event.get(), hip_stream) != hipSuccess)
-      status = RNS8_BACKEND_FAILURE;
+    if (status != RNS8_SUCCESS)
+      record_async_failure(graph->async_failure, status, RNS8_ASYNC_FAILURE_ENQUEUE,
+                           launch_error, graph->ctx->device_id, graph->epoch, failed);
+    if (status == RNS8_SUCCESS) {
+      const auto error = hipEventRecord(graph->completion_event.get(), hip_stream);
+      if (error != hipSuccess) {
+        status = RNS8_BACKEND_FAILURE;
+        record_async_failure(graph->async_failure, status, RNS8_ASYNC_FAILURE_EVENT_RECORD,
+                             error, graph->ctx->device_id, graph->epoch);
+      }
+    }
     if (status != RNS8_SUCCESS) {
-      (void)hipStreamSynchronize(hip_stream);
-      finish_resident_graph_hip(*graph, status, failed);
+      if (record_async_drain(*graph->ctx, graph->async_failure, hipStreamSynchronize(hip_stream)))
+        finish_resident_graph_hip(*graph, status, failed);
     }
     return status;
 #else
@@ -237,6 +269,8 @@ rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
     if (status != RNS8_SUCCESS)
       return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    rns8::detail::hip_scoped_device device_scope(graph->ctx->device_id);
+    if (device_scope.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
     std::vector<std::array<const void *, 4>> addresses;
     addresses.reserve(graph->nodes.size());
     for (const auto &node : graph->nodes)
@@ -291,4 +325,35 @@ rns8_status rns8_wait_resident_graph_hip(rns8_resident_graph *graph,
                                          rns8_graph_completion_token token,
                                          rns8_graph_execution_info *info) {
   return observe_resident_graph_hip(graph, token, info, true);
+}
+
+rns8_status rns8_get_resident_graph_async_failure(const rns8_resident_graph* graph,
+    rns8_graph_completion_token token, rns8_async_failure_info* info) {
+  if (!graph || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
+      token.graph_id != graph->id || !token.epoch || token.epoch != graph->epoch)
+    return RNS8_INVALID_ARGUMENT;
+  *info = graph->async_failure;
+  info->struct_size = sizeof(*info);
+  info->abi_version = RNS8_ABI_VERSION;
+  if (info->stage == RNS8_ASYNC_FAILURE_NONE) info->failed_node = UINT32_MAX;
+  info->epoch = graph->epoch;
+  info->device_id = graph->ctx->device_id;
+  return RNS8_SUCCESS;
+}
+
+
+rns8_status rns8_cancel_resident_graph_hip(rns8_resident_graph* graph,
+                                         rns8_graph_completion_token token) {
+  if (!graph || !graph->hip_prepared || token.graph_id != graph->id ||
+      !token.epoch || token.epoch != graph->epoch) return RNS8_INVALID_ARGUMENT;
+  if (graph->running) graph->cancel_requested = true;
+  return RNS8_SUCCESS;
+}
+
+
+rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph,
+    rns8_graph_completion_token token, uint64_t timeout_us, rns8_graph_execution_info* info) {
+  return guard_api([&]() {
+    return poll_async_until(timeout_us, [&]() { return rns8_query_resident_graph_hip(graph, token, info); });
+  });
 }

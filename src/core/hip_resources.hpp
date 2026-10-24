@@ -12,6 +12,27 @@
 
 namespace rns8::detail {
 
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+class hip_scoped_device {
+ public:
+  explicit hip_scoped_device(int device) noexcept {
+    status_ = hipGetDevice(&previous_);
+    if (status_ == hipSuccess && previous_ != device) {
+      status_ = hipSetDevice(device);
+      changed_ = status_ == hipSuccess;
+    }
+  }
+  hip_scoped_device(const hip_scoped_device&) = delete;
+  hip_scoped_device& operator=(const hip_scoped_device&) = delete;
+  ~hip_scoped_device() { if (changed_) (void)hipSetDevice(previous_); }
+  hipError_t status() const noexcept { return status_; }
+ private:
+  int previous_ = -1;
+  bool changed_ = false;
+  hipError_t status_ = hipSuccess;
+};
+#endif
+
 class hip_direct_device_buffer {
  public:
   hip_direct_device_buffer() = default;

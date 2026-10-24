@@ -104,6 +104,7 @@ bool add_staged_payload(std::size_t bytes, uint64_t& total) {
 rns8_status rns8_lift_exact_wide_cpu(rns8_context* ctx, rns8_matrix* matrix, uint32_t target_prefix,
                                      uint64_t max_staged_residue_bytes) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix) return RNS8_INVALID_ARGUMENT;
     require_matrix_writable(*matrix);
     ExactCpuLift lift;
@@ -121,6 +122,7 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
                                           rns8_matrix* B, rns8_matrix* C, rns8_workspace* workspace,
                                           uint64_t max_staged_residue_bytes, uint32_t* out_selected_prefix) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || !out_selected_prefix || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -206,6 +208,7 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
 rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uint32_t target_prefix,
                                    uint64_t max_staged_residue_bytes) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || ctx->backend != matrix->backend) return RNS8_INVALID_ARGUMENT;
     require_matrix_writable(*matrix);
     if (ctx->backend != RNS8_BACKEND_HIP_DIRECT) return RNS8_UNSUPPORTED_BACKEND;

@@ -119,6 +119,7 @@ bool hip_device_backend(rns8_backend_kind backend) {
 }
 
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend) {
+  if (ctx.hip_failure_poisoned) return false;
   if (ctx.backend == backend) {
     return true;
   }
@@ -130,6 +131,7 @@ bool matrix_backend_compatible_with_plan(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
     rns8_backend_kind plan_backend) {
+  if (ctx.hip_failure_poisoned) return false;
   if (matrix.in_flight_writer) return false;
   if (matrix.backend == plan_backend) {
     return true;

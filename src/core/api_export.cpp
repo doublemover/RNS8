@@ -10,6 +10,7 @@ rns8_status validate_export_matrix(
     rns8_bound_kind bound_kind,
     uint32_t prefix,
     bool require_current) {
+  if (ctx.hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }

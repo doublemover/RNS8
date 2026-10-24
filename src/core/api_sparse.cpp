@@ -518,6 +518,7 @@ rns8_status rns8_create_sparse_matrix(
     const rns8_sparse_matrix_desc* desc,
     rns8_sparse_matrix** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !desc || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -614,6 +615,7 @@ rns8_status rns8_pack_sparse_a_4_to_2_matrix_u8(
     int64_t dense_ld,
     uint64_t source_version) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !dense_a_planes || ctx->backend != matrix->backend ||
         !dense_ld_valid(matrix->desc, dense_ld)) {
       return RNS8_INVALID_ARGUMENT;
@@ -695,6 +697,7 @@ rns8_status rns8_gemm_rns_sparse_a(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -779,6 +782,7 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }

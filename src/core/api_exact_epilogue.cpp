@@ -5,6 +5,22 @@
 
 using namespace rns8::detail::api;
 #include "core/api_complex_residue.inc"
+
+rns8_status rns8_gemm_complex_exact_signed(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* Ar, const rns8_matrix* Ai,
+    const rns8_matrix* Br, const rns8_matrix* Bi,
+    rns8_matrix* Cr, rns8_matrix* Ci, rns8_complex_product_method method,
+    uint64_t max_scratch_bytes, rns8_workspace* workspace) {
+  using rns8::detail::ComplexProductMethod;
+  if (method != RNS8_COMPLEX_THREE_REAL_PRODUCTS && method != RNS8_COMPLEX_FOUR_REAL_PRODUCTS)
+    return RNS8_INVALID_ARGUMENT;
+  return complex_exact_signed_gemm(ctx, plan, {Ar, Ai}, {Br, Bi}, {Cr, Ci},
+      method == RNS8_COMPLEX_THREE_REAL_PRODUCTS ? ComplexProductMethod::three_real
+                                               : ComplexProductMethod::four_real,
+      max_scratch_bytes, workspace);
+}
+
 namespace rns8::detail::api {
 rns8_status validate_exact_axpby_operands(
     const rns8_context &ctx, const rns8_plan &plan, const rns8_matrix &A,

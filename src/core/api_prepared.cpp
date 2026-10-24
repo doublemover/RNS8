@@ -20,7 +20,9 @@ struct rns8_prepared_execution {
   uint64_t id = 0, epoch = 0;
   uint64_t a_instance = 0, a_generation = 0, b_instance = 0, b_generation = 0;
   rns8_completion_info completion{};
+  rns8_async_failure_info async_failure{};
   bool running = false;
+  bool cancel_requested = false;
   uint64_t group_references = 0;
   bool hip_submission_prepared = false;
   void* pending_stream = nullptr;
@@ -35,9 +37,11 @@ struct rns8_prepared_execution {
   const void* graph_c = nullptr;
   const void* graph_d = nullptr;
   ~rns8_prepared_execution() {
-    if (ctx && (graph_executable || graph || completion_event)) (void)hipSetDevice(ctx->device_id);
+    if (!graph_executable && !graph && !completion_event.get()) return;
+    rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
     if (graph_executable) (void)hipGraphExecDestroy(graph_executable);
     if (graph) (void)hipGraphDestroy(graph);
+    completion_event.reset();
   }
 #endif
 };
@@ -163,6 +167,8 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
     if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
+    e->async_failure = {};
+    e->cancel_requested = false;
     e->running = true;
     ++e->epoch;
     rns8_status operation = RNS8_INTERNAL_ERROR;

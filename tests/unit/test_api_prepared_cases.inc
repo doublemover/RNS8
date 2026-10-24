@@ -109,3 +109,68 @@ TEST_CASE("prepared GEMM retains handles and rejects stale bindings and completi
     }
   }
 }
+
+
+TEST_CASE("failed asynchronous drain quarantines context mutation until recreation", "[api][prepared][cpu]") {
+  using namespace rns8::detail::api;
+  auto* ctx = create_cpu_context();
+  auto desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 1, 1, 1);
+  desc.bound = 10000;
+  auto md = bounded_matrix_desc(1, 1, RNS8_BOUNDED_I64);
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  rns8_matrix* a = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &desc, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &a) == RNS8_SUCCESS);
+  int64_t value = 7;
+  REQUIRE(rns8_pack_i64(ctx, a, &value, 1, 1) == RNS8_SUCCESS);
+  const auto generation = a->content_generation;
+
+  // Deterministic host-side recovery transition; no destructive GPU fault injection.
+  rns8_async_failure_info failure{};
+  record_async_failure(failure, RNS8_BACKEND_FAILURE, RNS8_ASYNC_FAILURE_EVENT_RECORD,
+                       17, 0, 23);
+  REQUIRE_FALSE(record_async_drain(*ctx, failure, 29));
+  CHECK(failure.resources_retained == 1);
+  record_async_failure(failure, RNS8_INTERNAL_ERROR, RNS8_ASYNC_FAILURE_EVENT_OBSERVE,
+                       31, 0, 23);
+  REQUIRE_FALSE(record_async_drain(*ctx, failure, 37));
+  CHECK(failure.backend_error == 17);
+  CHECK(failure.cleanup_error == 29);
+  CHECK(failure.stage == RNS8_ASYNC_FAILURE_EVENT_RECORD);
+  value = 9;
+  CHECK(rns8_pack_i64(ctx, a, &value, 1, 2) == RNS8_BACKEND_FAILURE);
+  CHECK(a->content_generation == generation);
+  rns8_matrix* other = nullptr;
+  CHECK(rns8_create_matrix(ctx, &md, &other) == RNS8_BACKEND_FAILURE);
+  CHECK(other == nullptr);
+  rns8_plan* other_plan = nullptr;
+  CHECK(rns8_create_plan(ctx, &desc, &other_plan) == RNS8_BACKEND_FAILURE);
+  CHECK(other_plan == nullptr);
+  rns8_workspace* other_workspace = nullptr;
+  CHECK(rns8_create_workspace(ctx, plan, &other_workspace) == RNS8_BACKEND_FAILURE);
+  CHECK(other_workspace == nullptr);
+  REQUIRE(record_async_drain(*ctx, failure, 0));
+  CHECK(failure.resources_retained == 0);
+  CHECK(failure.cleanup_error == 29);
+  CHECK(ctx->hip_failure_poisoned);
+  CHECK(rns8_pack_i64(ctx, a, &value, 1, 2) == RNS8_BACKEND_FAILURE);
+  CHECK(a->content_generation == generation);
+  REQUIRE(rns8_destroy_matrix(a) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+
+TEST_CASE("async deadline distinguishes pending ownership from terminal operation", "[api][async][cpu]") {
+  using rns8::detail::api::poll_async_until;
+  unsigned polls = 0;
+  const auto pending = [&] { ++polls; return RNS8_BUSY; };
+  REQUIRE(poll_async_until(0, pending) == RNS8_TIMEOUT);
+  CHECK(polls == 1);
+  REQUIRE(poll_async_until(0, [] { return RNS8_SUCCESS; }) == RNS8_SUCCESS);
+  CHECK(poll_async_until(UINT64_MAX, [] { return RNS8_BACKEND_FAILURE; }) == RNS8_BACKEND_FAILURE);
+  CHECK(poll_async_until(0, [] { return RNS8_INVALID_ARGUMENT; }) == RNS8_INVALID_ARGUMENT);
+}

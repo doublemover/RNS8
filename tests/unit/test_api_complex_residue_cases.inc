@@ -1,4 +1,4 @@
-TEST_CASE("internal complex owner binds both proofs and publishes paired generations",
+TEST_CASE("experimental complex API binds both proofs and publishes paired generations",
           "[api][complex][hip]") {
   using namespace rns8::detail;
   using namespace rns8::detail::api;
@@ -54,7 +54,9 @@ TEST_CASE("internal complex owner binds both proofs and publishes paired generat
           REQUIRE(rns8_pack_i64(ctx, ai, values[1].data(), 2, 0) == RNS8_SUCCESS);
         }
         const auto rg = cr->content_generation, ig = ci->content_generation;
-        REQUIRE(complex_exact_signed_gemm(ctx, plan, {ar, ai}, {br, bi}, {cr, ci}, method,
+        REQUIRE(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
+                    method == ComplexProductMethod::three_real ? RNS8_COMPLEX_THREE_REAL_PRODUCTS
+                                                              : RNS8_COMPLEX_FOUR_REAL_PRODUCTS,
                                           UINT64_MAX, workspace) == RNS8_SUCCESS);
         REQUIRE(cr->content_generation == rg + 1);
         REQUIRE(ci->content_generation == ig + 1);
@@ -84,9 +86,14 @@ TEST_CASE("internal complex owner binds both proofs and publishes paired generat
     }
     const auto old_r = exported(cr), old_i = exported(ci);
     const auto rg = cr->content_generation, ig = ci->content_generation;
+    CHECK(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
+        static_cast<rns8_complex_product_method>(UINT32_MAX), UINT64_MAX, workspace) ==
+        RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, cr,
+        RNS8_COMPLEX_THREE_REAL_PRODUCTS, UINT64_MAX, workspace) == RNS8_INVALID_ARGUMENT);
     const auto call = [&](uint64_t budget = UINT64_MAX) {
-      return complex_exact_signed_gemm(ctx, plan, {ar, ai}, {br, bi}, {cr, ci},
-                                       ComplexProductMethod::three_real, budget, workspace);
+      return rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,
+                                       RNS8_COMPLEX_THREE_REAL_PRODUCTS, budget, workspace);
     };
     CHECK(call(0) == RNS8_WORKSPACE_TOO_SMALL);
     for (auto *input : inputs) {

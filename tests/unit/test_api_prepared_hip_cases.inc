@@ -83,6 +83,37 @@ TEST_CASE(
           REQUIRE(actual == expected);
         }
     }
+    for (auto special : {hipStreamLegacy, hipStreamPerThread}) {
+      const auto previous = token;
+      REQUIRE(rns8_submit_prepared_hip(execution, special, &token) == RNS8_INVALID_ARGUMENT);
+      CHECK(token.epoch == previous.epoch);
+    }
+    REQUIRE(rns8_submit_prepared_hip(execution, stream.get(), &token) == RNS8_SUCCESS);
+    auto wrong_cancel = token;
+    ++wrong_cancel.prepared_id;
+    CHECK(rns8_cancel_prepared_hip(execution, wrong_cancel) == RNS8_INVALID_ARGUMENT);
+    REQUIRE(rns8_cancel_prepared_hip(execution, token) == RNS8_SUCCESS);
+    REQUIRE(rns8_cancel_prepared_hip(execution, token) == RNS8_SUCCESS);
+    CHECK(rns8_destroy_prepared_execution(execution) == RNS8_BUSY);
+    CHECK(a->in_flight_readers == 1);
+    rns8_completion_info canceled{};
+    canceled.struct_size = sizeof(canceled); canceled.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_wait_prepared_hip(execution, token, &canceled) == RNS8_SUCCESS);
+    REQUIRE(rns8_wait_prepared_hip_for(execution, token, 0, &canceled) == RNS8_SUCCESS);
+    CHECK(canceled.operation_status == RNS8_CANCELED);
+    CHECK(canceled.output_is_current == 0);
+    CHECK_FALSE(c->device_residues_current);
+    CHECK(a->in_flight_readers == 0);
+    CHECK(rns8_cancel_prepared_hip(execution, token) == RNS8_SUCCESS);
+    rns8_async_failure_info failure{};
+    failure.struct_size = sizeof(failure); failure.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_prepared_async_failure(execution, token, &failure) == RNS8_SUCCESS);
+    CHECK(failure.stage == RNS8_ASYNC_FAILURE_NONE);
+    CHECK(failure.failed_node == UINT32_MAX);
+    REQUIRE(rns8_submit_prepared_hip_graph(execution, stream.get(), &token) == RNS8_SUCCESS);
+    REQUIRE(rns8_wait_prepared_hip(execution, token, &canceled) == RNS8_SUCCESS);
+    CHECK(canceled.operation_status == RNS8_SUCCESS);
+    CHECK(canceled.output_is_current == 1);
     REQUIRE(rns8_destroy_prepared_execution(execution) == RNS8_SUCCESS);
     REQUIRE(a->prepared_references == 0);
     REQUIRE(rns8_destroy_matrix(a) == RNS8_SUCCESS);

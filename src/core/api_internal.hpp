@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <chrono>
+#include <thread>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -35,7 +37,7 @@ template<class Matrix> struct ComplexMatrixPair {
   Matrix* imag = nullptr;
 };
 // Internal synchronous paired-value owner. Uses matrix-owned exact-wide signed
-// proofs and existing reader/writer generations; not a public ABI or graph node.
+// proofs and existing reader/writer generations; backs the experimental public API.
 rns8_status complex_exact_signed_gemm(
     rns8_context* ctx, const rns8_plan* plan,
     ComplexMatrixPair<const rns8_matrix> a, ComplexMatrixPair<const rns8_matrix> b,
@@ -43,6 +45,51 @@ rns8_status complex_exact_signed_gemm(
     uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
 struct ResourceBusy {};
+
+inline void record_async_failure(rns8_async_failure_info& failure,
+                                 rns8_status status, rns8_async_failure_stage stage,
+                                 int backend_error, int device, uint64_t epoch,
+                                 uint32_t node = UINT32_MAX) noexcept {
+  if (failure.stage != RNS8_ASYNC_FAILURE_NONE) return;
+  failure.struct_size = sizeof(failure);
+  failure.abi_version = RNS8_ABI_VERSION;
+  failure.stage = stage;
+  failure.operation_status = status;
+  failure.backend_error = backend_error;
+  failure.device_id = device;
+  failure.epoch = epoch;
+  failure.failed_node = node;
+  failure.resources_retained = 1;
+}
+
+inline bool record_async_drain(rns8_context& ctx, rns8_async_failure_info& failure,
+                               int cleanup_error) noexcept {
+  if (cleanup_error != 0) {
+    if (failure.cleanup_error == 0) failure.cleanup_error = cleanup_error;
+    ctx.hip_failure_poisoned = true;
+    failure.resources_retained = 1;
+    return false;
+  }
+  failure.resources_retained = 0;
+  return true;
+}
+// A timeout is an observation result, never an ownership transition. Each
+// poll is nonblocking; kernel errors are left for explicit blocking cleanup.
+template<class Poll>
+rns8_status poll_async_until(uint64_t timeout_us, Poll&& poll) {
+  const auto start = std::chrono::steady_clock::now();
+  for (;;) {
+    const auto status = poll();
+    if (status != RNS8_BUSY) return status;
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    if (elapsed >= 0 && static_cast<uint64_t>(elapsed) >= timeout_us) return RNS8_TIMEOUT;
+    // Sleeping limits host overhead; OS scheduling can overshoot the deadline.
+    const auto remaining = timeout_us - static_cast<uint64_t>(std::max<int64_t>(elapsed, 0));
+    std::this_thread::sleep_for(std::chrono::microseconds(std::min<uint64_t>(remaining, 50)));
+  }
+}
+
 inline void require_matrix_writable(const rns8_matrix& matrix) {
   if (matrix.in_flight_readers || matrix.in_flight_writer) throw ResourceBusy{};
 }

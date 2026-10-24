@@ -21,21 +21,25 @@ struct rns8_resident_graph {
   std::vector<uint64_t*> holds;
   uint64_t epoch = 0;
   bool running = false;
+  bool cancel_requested = false;
   uint64_t id = 0;
   bool hip_prepared = false;
   void* pending_stream = nullptr;
   std::vector<rns8_workspace*> hip_workspaces;
   std::vector<OutputProof> pending_proofs;
   rns8_graph_execution_info completion{};
+  rns8_async_failure_info async_failure{};
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_unique_event completion_event;
   hipGraph_t captured_graph = nullptr;
   hipGraphExec_t captured_executable = nullptr;
   std::vector<std::array<const void*, 4>> captured_addresses;
   ~rns8_resident_graph() {
-    if (ctx && (completion_event || captured_graph || captured_executable)) (void)hipSetDevice(ctx->device_id);
+    if (!captured_executable && !captured_graph && !completion_event.get()) return;
+    rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
     if (captured_executable) (void)hipGraphExecDestroy(captured_executable);
     if (captured_graph) (void)hipGraphDestroy(captured_graph);
+    completion_event.reset();
   }
 #endif
 };
@@ -270,6 +274,8 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
     out->operation_status = prove_graph(*graph, out->failed_node, true);
     if (out->operation_status != RNS8_SUCCESS) return out->operation_status;
     out->epoch = ++graph->epoch;
+    graph->async_failure = {};
+    graph->cancel_requested = false;
     graph->running = true;
     for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
       const auto& node = graph->nodes[i];

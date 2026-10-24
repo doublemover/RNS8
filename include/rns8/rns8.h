@@ -125,6 +125,51 @@ typedef struct rns8_completion_token {
   uint64_t epoch;
 } rns8_completion_token;
 
+/* Cooperative discard for an already issued HIP epoch. Does not preempt kernels,
+ * synchronize, or release reservations. Observe completion normally: successful
+ * device work completes with RNS8_CANCELED and no publication; backend failures
+ * take precedence. Repeated requests and requests after terminal observation are
+ * idempotent (a completed value is not revoked). Tokens do not retain owners.
+ * Calls sharing handles require external host serialization. */
+RNS8_API rns8_status rns8_cancel_prepared_hip(
+    rns8_prepared_execution* execution, rns8_completion_token token);
+RNS8_API rns8_status rns8_cancel_resident_graph_hip(
+    rns8_resident_graph* graph, rns8_graph_completion_token token);
+
+typedef enum rns8_async_failure_stage RNS8_ENUM_BASE {
+  RNS8_ASYNC_FAILURE_NONE = 0,
+  RNS8_ASYNC_FAILURE_ENQUEUE = 1,
+  RNS8_ASYNC_FAILURE_EVENT_RECORD = 2,
+  RNS8_ASYNC_FAILURE_EVENT_OBSERVE = 3
+} rns8_async_failure_stage;
+
+typedef struct rns8_async_failure_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_async_failure_stage stage;
+  rns8_status operation_status;
+  int32_t backend_error; /* HIP code, or zero when the enqueue reports only status. */
+  int32_t cleanup_error; /* First failed drain; never replaces the original error. */
+  int32_t device_id;
+  uint32_t resources_retained;
+  uint32_t failed_node; /* UINT32_MAX when unknown/not a resident graph. */
+  uint64_t epoch;
+} rns8_async_failure_info;
+
+/* Read-only diagnostics for the exact token. A failed stream drain retains all
+ * reservations and marks the context unusable for new arithmetic. Query reports
+ * failure; wait retries draining that stream, never trusts an old completion
+ * event and never publishes failed output. Destruction remains BUSY until a
+ * successful drain. Then destroy/recreate the affected context; a failed drain
+ * is not permission to free resources or reset a device owned by the caller.
+ */
+RNS8_API rns8_status rns8_get_prepared_async_failure(
+    const rns8_prepared_execution* execution, rns8_completion_token token,
+    rns8_async_failure_info* info);
+RNS8_API rns8_status rns8_get_resident_graph_async_failure(
+    const rns8_resident_graph* graph, rns8_graph_completion_token token,
+    rns8_async_failure_info* info);
+
 typedef struct rns8_completion_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -183,6 +228,15 @@ RNS8_API rns8_status rns8_prepare_hip_submission(rns8_prepared_execution* execut
 RNS8_API rns8_status rns8_submit_prepared_hip(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 RNS8_API rns8_status rns8_query_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
 RNS8_API rns8_status rns8_wait_prepared_hip(rns8_prepared_execution* execution,rns8_completion_token token,rns8_completion_info* out);
+/* Poll-based deadline in microseconds (zero performs one poll). RNS8_TIMEOUT
+ * preserves the output info and all pending ownership. It never cancels work.
+ * OS scheduling may overshoot; no kernel/stream synchronization is performed.
+ * Backend errors require ordinary wait for safe cleanup. */
+RNS8_API rns8_status rns8_wait_prepared_hip_for(rns8_prepared_execution* execution,
+    rns8_completion_token token, uint64_t timeout_us, rns8_completion_info* out);
+RNS8_API rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph,
+    rns8_graph_completion_token token, uint64_t timeout_us, rns8_graph_execution_info* out);
+
 /* Capture the supported fixed-address GEMM into an owned HIP graph outside
  * submission. Replay shares stream reservations and query/wait publication.
  * Shape/layout/basis or address changes require new preparation/capture. */
@@ -1216,6 +1270,39 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* A,
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
+
+typedef enum rns8_complex_product_method RNS8_ENUM_BASE {
+  RNS8_COMPLEX_THREE_REAL_PRODUCTS = 0,
+  RNS8_COMPLEX_FOUR_REAL_PRODUCTS = 1
+} rns8_complex_product_method;
+
+/* Experimental synchronous split-complex exact-integer composition:
+ * (Cr,Ci) = (Ar*Br - Ai*Bi, Ar*Bi + Ai*Br).
+ * Supports EXACT_WIDE_SIGNED plans on CPU-reference and direct HIP only.
+ * All six matrices use the plan's common basis and explicit signed semantics.
+ * Inputs carry current matrix-owned magnitude/initialized-prefix proofs; both
+ * final component bounds must fit independently. Intermediate input sums are
+ * reduced in residue space, so native INT64_MIN/MAX inputs are permitted.
+ * Method selection is explicit: no measured routing or automatic promotion.
+ * All outputs must be distinct from every input and from each other. Read-only
+ * inputs may be shared. Preflight/budget failures preserve both outputs; a
+ * failure after device commit starts invalidates both. Success publishes both
+ * generations under the API's external host-thread serialization requirement.
+ * max_scratch_bytes charges transient device payload (including staged outputs)
+ * or its conservative CPU envelope, excluding pre-existing matrix/workspace
+ * storage and allocator overhead. No transformed input is cached. The call
+ * includes scratch allocation, execution and synchronization; output stays RNS.
+ * No transpose, conjugation, alpha/beta, finite, unsigned, wrap, asynchronous
+ * or graph-capture contract is implied. Export components using existing exact
+ * signed limb APIs after successful completion.
+ */
+RNS8_API rns8_status rns8_gemm_complex_exact_signed(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* Ar, const rns8_matrix* Ai,
+    const rns8_matrix* Br, const rns8_matrix* Bi,
+    rns8_matrix* Cr, rns8_matrix* Ci,
+    rns8_complex_product_method method, uint64_t max_scratch_bytes,
+    rns8_workspace* workspace);
 
 RNS8_API rns8_status rns8_gemm_rns(
     rns8_context* ctx,

@@ -17,6 +17,7 @@ struct rns8_context {
   mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;
+  bool hip_failure_poisoned = false;
   int device_id = -1;
   rns8_device_info device_info{};
   void* hipblaslt_handle = nullptr;

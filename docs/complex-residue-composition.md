@@ -1,9 +1,16 @@
 # Exact complex residue composition
 
-Issue #59 starts with the private `hip_direct_gemm_complex_residues` experiment.
+Issue #59 provides an explicit experimental
+`rns8_gemm_complex_exact_signed` API for CPU-reference and direct HIP. It uses
+signed exact-wide matrix handles, explicit three/four-product selection and a
+scratch budget. The new public binding awaits the final coordinated validation;
+its underlying matrix owner passed the earlier `1bb5e33` pass.
+
+The private `hip_direct_gemm_complex_residues` primitive
 It accepts split real/imaginary residue views with a common explicit basis and
 domain, independent component pitches, and either three or four real products.
-It is not yet a public complex-integer API or an automatically selected route.
+supports additional raw bounded/finite experiments. Neither interface changes
+automatic routing.
 
 ## Arithmetic contract
 
@@ -51,9 +58,10 @@ Both outputs remain untouched until the final dual-store kernel. A shared
 `commit_started` flag marks that boundary. Device stores are not atomic across
 the pair: if the final launch or completion fails, the caller must invalidate
 **both** components. Input lifetime/exclusion and atomic logical publication
-remain the caller's responsibility. No transformed panel cache, public matrix
-reader/writer reservation, prepared-group integration or asynchronous ownership
-is claimed. Those are required before a public paired-value operation can ship.
+remain the raw caller's responsibility. The public matrix owner below supplies
+reader/writer reservations and paired publication for synchronous exact-wide
+signed execution. No transformed panel cache, prepared-group integration or
+asynchronous ownership is claimed.
 
 ## Validation and remaining work
 
@@ -70,15 +78,16 @@ padding/canaries, moduli 2/4/6/127/251/256 and K=65537. Default-basis outputs al
 passed through the actual signed wide CRT export and were compared as full integers
 against both independently computed complex components.
 
-No performance benefit is asserted from three products alone. Matched fresh and
-reused-input measurements must charge transformed panels, all launches, scratch,
-joint commit and any final dual export. Public ownership/generation integration,
-fault-path qualification, explicit operation metadata and those measurements
-remain open under #59.
+The matched resident measurements below charge transformed panels, all launches,
+scratch and joint commit. Final dual integer export is outside their contract.
+Public ownership/generation integration, fault-path qualification, explicit
+operation metadata and complete exported application measurements remain open
+under #59.
 
 ## Internal matrix ownership integration
 
-The new internal `complex_exact_signed_gemm` connects the raw composition to
+The internal `complex_exact_signed_gemm`, exposed through the experimental
+public entry point above, connects the raw composition to
 existing exact-wide signed matrix handles and a compatible workspace. It is
 restricted to CPU reference and direct HIP. It obtains original-component
 magnitude certificates from each current matrix's own exact-range proof;
@@ -104,6 +113,40 @@ No transformed values are cached. Changes to either component are reread and
 re-admitted on each call. Authored CPU/HIP tests cover independent Boost output,
 changed imaginary components, legal shared readers, aliases, busy reservations,
 stale proofs, exhausted outputs, resident values above 64 bits and over-range
-composition. This new owner awaits the next coordinated build and full pass.
-It remains internal while failure-path qualification, measured execution,
-public API metadata and graph/prepared-group integration are completed.
+composition. The owner passed the coordinated all-feature validation at
+`1bb5e33`: 491 passes, three expected sparse-target skips and no failures.
+The public entry point exposes only this synchronous signed contract. Invalid
+method values fail before mutation. Transpose/conjugation and unsigned, bounded,
+finite and wrap public-handle contracts remain unsupported; callers export the
+two exact-wide components through existing signed limb exports. Graph and
+prepared-group integration remain separate work.
+
+## Matched resident measurements at 1bb5e33
+
+RX 7900 XTX / gfx1100, VS2026 and HIP 7.1; full signed 64-bit components,
+prefix twenty, seed 3135, three warmups, nine measured pairs and five independent
+processes per case. Each timed sustained burst runs for at least 250 ms without
+reference checks between calls. All 540 paired calls and all thirty final burst
+outputs passed independent full-output Boost comparisons; bursts total 8,336 calls.
+
+| Shape M×N×K | 3M median µs [process range] | 4M median µs [process range] |
+|---|---:|---:|
+| 32×32×32 | 601.43 [518.31, 737.60] | 532.03 [441.95, 961.93] |
+| 1×512×512 | 696.08 [676.56, 873.24] | 675.73 [565.85, 1070.10] |
+| 512×512×512 | 4300.42 [4248.64, 4520.65] | 5380.03 [5182.36, 5410.74] |
+
+The large case improves by **1.25×**, with separated process ranges. Its useful
+complex-integer throughput is **0.250 TOPS versus 0.200 TOPS**, counting eight
+real scalar operations per complex multiply-accumulate, once per logical output.
+Small cases show no benefit. Scratch is allocated and freed inside every call;
+no transformed-panel cache is used. Native input upload, four initial packs and
+common allocations are outside these resident timings, as is final integer
+export. These results do not establish an end-to-end exported application gain.
+For 512³, scratch peaks are 35 MiB for 3M and 30 MiB for 4M. Separate cold input
+preparation medians are 431.91 ms [351.10, 488.99] and 351.74 ms [328.76, 428.06]
+respectively, including the common allocation/upload/packing boundary. Cold
+process effects are substantial and must not be hidden by the steady-state gain.
+
+Reproduce using `benchmarks/native-calibration/complex-residues.json` with
+`--runs 5 --repeats 9 --warmups 3 --timeout 900`. Local captures are
+`temp/1bb5e33-complex/`, with sibling `.summary.json` and `.sha256.txt` files.

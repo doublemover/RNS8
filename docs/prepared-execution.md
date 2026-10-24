@@ -74,7 +74,7 @@ an epoch or alter the caller's token. Old epochs never certify later writes.
 The host must serialize calls sharing handles; device work may overlap across
 independent streams. Consumers must observe producer completion before using the
 new value. Destruction remains BUSY while handles are retained or executions are
-pending. Event errors trigger a stream drain before reservations are released;
+pending. Event errors require an explicit blocking wait to drain before reservations are released;
 fatal device-context errors remain backend failures and are not repaired here.
 
 CPU reservation fixtures and real HIP two-stream fixtures are authored for
@@ -183,3 +183,69 @@ stream and capture execution, and completion identities. Registered applicable
 execution is covered by the [dated validation](local-all-features-20261023.md). The ordinary async range-exhaustion fixture now uses a legal
 full-width plan and creates a wider-than-native A with an exact outer product
 before replay, rather than requesting an inadmissibly small initial basis.
+
+
+## Failed stream cleanup
+
+`rns8_get_prepared_async_failure` reports the original failure stage, operation status,
+backend error when available, first stream-cleanup error, device, epoch and
+whether resources remain reserved. A zero backend error on an enqueue failure
+means the backend wrapper returned only an RNS8 status. Diagnostics require the
+exact issued token and do not synchronize or release resources.
+
+A failed stream drain does not prove that GPU work stopped. Input readers,
+output writers and workspaces therefore remain reserved; destruction stays
+busy and new arithmetic on that context is rejected. Query reports the failure.
+Wait retries stream draining and releases reservations only after a successful
+drain, without publishing failed outputs or consulting a stale completion event.
+The context remains poisoned after cleanup: destroy its handles and recreate it
+before further arithmetic. No implicit device reset is performed. Submission,
+observation and owned graph/event cleanup select the context device and restore
+the caller's previous device.
+
+These recovery changes and host-side failure fixtures are authored for the next
+consolidated validation pass. Hardware fault recovery and cross-device behavior
+are not newly qualified by this change.
+
+
+## Cooperative result discard
+
+`rns8_cancel_prepared_hip` accepts the latest issued token and marks pending work for
+discard. It does not preempt kernels, synchronize, release reservations or
+revoke a terminal published result. Continue query/wait until terminal
+observation. A successful device operation then reports `RNS8_CANCELED`, leaves
+its attempted outputs unavailable and releases reservations; a backend failure
+takes precedence over cancellation. Repeated cancellation is idempotent. A new
+submission clears the request and issues a fresh epoch. External host
+serialization is required for calls sharing handles.
+
+Submission rejects null, legacy-default and per-thread-default stream handles.
+The caller owns a nondefault stream and must keep it alive through terminal
+observation, including any failed-drain recovery. The cancellation and special
+stream fixtures are included in the pending consolidated validation batch.
+
+
+## Bounded completion observation
+
+`rns8_wait_prepared_hip_for` polls using a steady-clock deadline in microseconds.
+Zero performs one poll. `RNS8_TIMEOUT` leaves the completion output unchanged,
+does not cancel, and preserves all reservations and the issued epoch. The
+caller can poll, cancel or wait again under the same external host-serialization
+rule. This is a bounded observation attempt, not a kernel execution deadline;
+OS scheduling and runtime query overhead can exceed the requested interval.
+Queries and timed waits never drain a failed stream. They report the backend
+failure, quarantine the context, and require ordinary blocking wait for cleanup.
+
+| State | Value publication | Resources | Next operation |
+|---|---|---|---|
+| Prepared/idle | Previous value remains current | Handles retained | Submit or destroy |
+| Admission rejected | Previous value and token unchanged | No execution reservation | Correct inputs and retry |
+| Submitted/pending | Attempted output unavailable | Readers, writers and workspace reserved | Query, timed wait, cancel or wait |
+| Cancel requested | Attempted output remains unavailable | Reservations unchanged | Observe terminal completion |
+| Successful observation | Value and proof published together | Execution reservations released | Query idempotently or submit fresh epoch |
+| Canceled completion | No value published | Execution reservations released | Submit fresh epoch or destroy |
+| Failed/quarantined | No attempted value published | Retained until successful drain | Blocking wait cleanup, then recreate poisoned context |
+
+Only one epoch can be pending on each owner. Tokens identify observations and
+do not own handles. Data-ready events alone do not certify public currentness;
+publication happens during successful host observation after proof admission.

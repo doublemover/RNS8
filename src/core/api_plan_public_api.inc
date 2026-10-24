@@ -6,6 +6,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
       return RNS8_INVALID_ARGUMENT;
     }

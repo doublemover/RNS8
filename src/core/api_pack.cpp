@@ -36,6 +36,7 @@ rns8_status rns8_pack_i64(
     int64_t ld,
     uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -144,6 +145,7 @@ rns8_status rns8_pack_u64(
     int64_t ld,
     uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -285,6 +287,7 @@ rns8_status rns8_pack_finite_u8(
     int64_t ld,
     uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld) ||
         !rns8::detail::valid_finite_modulus_for_semantics(matrix->desc.semantics, modulus)) {
       return RNS8_INVALID_ARGUMENT;
@@ -344,6 +347,7 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(
     rns8_context& ctx, rns8_matrix& matrix, const uint64_t* src,
     int64_t ld, uint32_t limb_count, bool signed_values, uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
+    if (ctx.hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     const auto expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
     require_matrix_writable(matrix);
     if (!src || limb_count == 0 || limb_count > 32 || matrix.desc.semantics != expected ||

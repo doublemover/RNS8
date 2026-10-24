@@ -1,5 +1,6 @@
 namespace {
 void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
+  if (operation == RNS8_SUCCESS && e.cancel_requested) operation = RNS8_CANCELED;
   --e.a->in_flight_readers;
   if (e.a != e.b)
     --e.b->in_flight_readers;
@@ -38,15 +39,32 @@ rns8_status observe_prepared_hip(rns8_prepared_execution *e,
     if (!e->running)
       return rns8_get_prepared_completion(e, token, out);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if (!e->pending_stream || hipSetDevice(e->ctx->device_id) != hipSuccess)
+    rns8::detail::hip_scoped_device device(e->ctx->device_id);
+    if (!e->pending_stream || device.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+    if (e->async_failure.stage != RNS8_ASYNC_FAILURE_NONE) {
+      if (!wait) return RNS8_BACKEND_FAILURE;
+      if (!record_async_drain(*e->ctx, e->async_failure,
+              hipStreamSynchronize(static_cast<hipStream_t>(e->pending_stream))))
+        return RNS8_BACKEND_FAILURE;
+      finish_prepared_hip(*e, e->async_failure.operation_status);
+      return rns8_get_prepared_completion(e, token, out);
+    }
     const auto error = wait ? hipEventSynchronize(e->completion_event.get())
                             : hipEventQuery(e->completion_event.get());
     if (error == hipErrorNotReady)
       return RNS8_BUSY;
     if (error != hipSuccess) {
-      // On an event error, drain this stream before releasing reserved buffers.
-      (void)hipStreamSynchronize(static_cast<hipStream_t>(e->pending_stream));
+      record_async_failure(e->async_failure, RNS8_BACKEND_FAILURE,
+          RNS8_ASYNC_FAILURE_EVENT_OBSERVE, error, e->ctx->device_id, e->epoch);
+      if (!wait) {
+        e->ctx->hip_failure_poisoned = true;
+        return RNS8_BACKEND_FAILURE;
+      }
+      // An unsuccessful drain does not establish that kernels/DMA stopped.
+      if (!record_async_drain(*e->ctx, e->async_failure,
+              hipStreamSynchronize(static_cast<hipStream_t>(e->pending_stream))))
+        return RNS8_BACKEND_FAILURE;
     }
     finish_prepared_hip(*e, error == hipSuccess ? RNS8_SUCCESS
                                                 : RNS8_BACKEND_FAILURE);
@@ -74,7 +92,8 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
     if (!inputs_match(*e))
       return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    if (hipSetDevice(e->ctx->device_id) != hipSuccess)
+    rns8::detail::hip_scoped_device device(e->ctx->device_id);
+    if (device.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     if (!e->completion_event && e->completion_event.create() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
@@ -120,8 +139,12 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
        e->graph_b != e->b->hip_residues || e->graph_c != e->c->hip_residues ||
        (e->d && e->graph_d != e->d->hip_residues)))
     return RNS8_UNSUPPORTED_BACKEND;
-  if (hipSetDevice(e->ctx->device_id) != hipSuccess)
+  rns8::detail::hip_scoped_device device(e->ctx->device_id);
+  if (device.status() != hipSuccess)
     return RNS8_BACKEND_FAILURE;
+  if (static_cast<hipStream_t>(stream) == hipStreamLegacy ||
+      static_cast<hipStream_t>(stream) == hipStreamPerThread)
+    return RNS8_INVALID_ARGUMENT;
   hipDevice_t stream_device = -1;
   if (hipStreamGetDevice(static_cast<hipStream_t>(stream), &stream_device) !=
           hipSuccess ||
@@ -145,6 +168,8 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
                                              bool graph,
                                              PreparedHipProof &proof) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_scoped_device device(e->ctx->device_id);
+  if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
   e->pending_bound.swap(proof.bound);
   e->pending_ranges = std::move(proof.ranges);
   invalidate_output_currentness(*e->c);
@@ -157,21 +182,33 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   e->workspace->in_flight = true;
   e->running = true;
   e->pending_stream = stream;
+  e->async_failure = {};
+  e->cancel_requested = false;
   ++e->epoch;
   *token = {e->id, e->epoch};
-  auto status =
-      graph ? (hipGraphLaunch(e->graph_executable,
-                              static_cast<hipStream_t>(stream)) == hipSuccess
-                   ? RNS8_SUCCESS
-                   : RNS8_BACKEND_FAILURE)
-            : enqueue_prepared(*e, stream);
-  if (status == RNS8_SUCCESS &&
-      hipEventRecord(e->completion_event.get(),
-                     static_cast<hipStream_t>(stream)) != hipSuccess)
-    status = RNS8_BACKEND_FAILURE;
+  hipError_t launch_error = hipSuccess;
+  rns8_status status;
+  if (graph) {
+    launch_error = hipGraphLaunch(e->graph_executable, static_cast<hipStream_t>(stream));
+    status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  } else {
+    status = enqueue_prepared(*e, stream);
+  }
+  if (status != RNS8_SUCCESS)
+    record_async_failure(e->async_failure, status, RNS8_ASYNC_FAILURE_ENQUEUE,
+                         launch_error, e->ctx->device_id, e->epoch);
+  if (status == RNS8_SUCCESS) {
+    const auto error = hipEventRecord(e->completion_event.get(), static_cast<hipStream_t>(stream));
+    if (error != hipSuccess) {
+      status = RNS8_BACKEND_FAILURE;
+      record_async_failure(e->async_failure, status, RNS8_ASYNC_FAILURE_EVENT_RECORD,
+                           error, e->ctx->device_id, e->epoch);
+    }
+  }
   if (status != RNS8_SUCCESS) {
-    (void)hipStreamSynchronize(static_cast<hipStream_t>(stream));
-    finish_prepared_hip(*e, status);
+    if (record_async_drain(*e->ctx, e->async_failure,
+                          hipStreamSynchronize(static_cast<hipStream_t>(stream))))
+      finish_prepared_hip(*e, status);
   }
   return status;
 #else
@@ -216,6 +253,8 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
             e->b->desc.cols, e->c->desc.cols, e->plan->prefix))
       return RNS8_UNSUPPORTED_BACKEND;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    rns8::detail::hip_scoped_device device(e->ctx->device_id);
+    if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
     rns8::detail::hip_unique_stream capture_stream;
     if (capture_stream.create_non_blocking() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
@@ -266,6 +305,20 @@ rns8_status rns8_wait_prepared_hip(rns8_prepared_execution *e,
                                    rns8_completion_token token,
                                    rns8_completion_info *out) {
   return observe_prepared_hip(e, token, out, true);
+}
+
+rns8_status rns8_get_prepared_async_failure(const rns8_prepared_execution* e,
+    rns8_completion_token token, rns8_async_failure_info* info) {
+  if (!e || !info || !rns8::detail::valid_abi(info->struct_size, info->abi_version, sizeof(*info)) ||
+      token.prepared_id != e->id || !token.epoch || token.epoch != e->epoch)
+    return RNS8_INVALID_ARGUMENT;
+  *info = e->async_failure;
+  info->struct_size = sizeof(*info);
+  info->abi_version = RNS8_ABI_VERSION;
+  if (info->stage == RNS8_ASYNC_FAILURE_NONE) info->failed_node = UINT32_MAX;
+  info->epoch = e->epoch;
+  info->device_id = e->ctx->device_id;
+  return RNS8_SUCCESS;
 }
 
 static rns8_status
@@ -342,4 +395,21 @@ rns8_status rns8_submit_prepared_group_hip_graph(rns8_prepared_group *group,
                                                  uint32_t *out_submitted) {
   return submit_prepared_group_hip_impl(group, streams, count, tokens,
                                         token_capacity, out_submitted, true);
+}
+
+
+rns8_status rns8_cancel_prepared_hip(rns8_prepared_execution* e,
+                                    rns8_completion_token token) {
+  if (!e || !e->hip_submission_prepared || token.prepared_id != e->id ||
+      !token.epoch || token.epoch != e->epoch) return RNS8_INVALID_ARGUMENT;
+  if (e->running) e->cancel_requested = true;
+  return RNS8_SUCCESS;
+}
+
+
+rns8_status rns8_wait_prepared_hip_for(rns8_prepared_execution* e,
+    rns8_completion_token token, uint64_t timeout_us, rns8_completion_info* info) {
+  return guard_api([&]() {
+    return poll_async_until(timeout_us, [&]() { return rns8_query_prepared_hip(e, token, info); });
+  });
 }

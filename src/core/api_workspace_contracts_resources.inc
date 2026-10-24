@@ -52,6 +52,7 @@ bool workspace_identity_matches_plan(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (ctx.hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
   if (workspace.in_flight) return false;
   if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
     return false;

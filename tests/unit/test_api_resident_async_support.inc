@@ -50,6 +50,31 @@ static void exercise_resident_async_submission(
   REQUIRE(a->in_flight_readers == 0);
   REQUIRE(b->in_flight_readers == 0);
   for (auto* output : {c, d, e}) REQUIRE_FALSE(output->in_flight_writer);
+  for (auto special : {hipStreamLegacy, hipStreamPerThread}) {
+    REQUIRE(submit(graph, special, &token) == RNS8_INVALID_ARGUMENT);
+    REQUIRE(token.epoch == 88);
+  }
+  REQUIRE(submit(graph, stream.get(), &token) == RNS8_SUCCESS);
+  REQUIRE(rns8_cancel_resident_graph_hip(graph, token) == RNS8_SUCCESS);
+  REQUIRE(rns8_cancel_resident_graph_hip(graph, token) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_BUSY);
+  REQUIRE(workspace->in_flight);
+  REQUIRE(rns8_wait_resident_graph_hip(graph, token, &info) == RNS8_SUCCESS);
+  REQUIRE(rns8_wait_resident_graph_hip_for(graph, token, 0, &info) == RNS8_SUCCESS);
+  REQUIRE(info.operation_status == RNS8_CANCELED);
+  REQUIRE(info.completed_nodes == 0);
+  for (auto* output : {c, d, e}) {
+    REQUIRE_FALSE(output->device_residues_current);
+    REQUIRE_FALSE(output->in_flight_writer);
+  }
+  REQUIRE(c->content_generation == cg);
+  REQUIRE(d->content_generation == dg);
+  REQUIRE(e->content_generation == eg);
+  rns8_async_failure_info failure{};
+  failure.struct_size = sizeof(failure); failure.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_resident_graph_async_failure(graph, token, &failure) == RNS8_SUCCESS);
+  REQUIRE(failure.stage == RNS8_ASYNC_FAILURE_NONE);
+  REQUIRE(failure.failed_node == UINT32_MAX);
   rns8::detail::hip_direct_allocation_counters_reset();
   REQUIRE(submit(graph, stream.get(), &token) == RNS8_SUCCESS);
   REQUIRE(a->in_flight_readers == 1);

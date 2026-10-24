@@ -4,6 +4,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!plan_schedule_contract_matches(*plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
