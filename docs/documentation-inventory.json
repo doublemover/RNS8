@@ -4095,6 +4095,17 @@
       ]
     },
     {
+      "path": "docs/word-modular-calibration.md",
+      "purpose": "Canonical word-size modular calibration controls",
+      "audience": "Researchers and benchmark reviewers",
+      "disposition": "keep",
+      "canonical": "docs/word-modular-calibration.md",
+      "owner": "benchmarks/rns8_word_mod_calibrate.cpp",
+      "reason": "Private double/add versus packed-dot4 controls, explicit rings/prime fields, full exact references, cold/resident scopes and provenance; no asymmetric floating schedule or qualification claim.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/wrap64-calibration.md",
       "purpose": "Matched private signed-radix/native-U8/direct-HIP/rocWMMA wrap64 cold, roundtrip and resident cost controls",
       "audience": "Researchers and benchmark contributors",

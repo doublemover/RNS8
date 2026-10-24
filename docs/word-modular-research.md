@@ -62,3 +62,9 @@ floating decomposition. Independent host digit-product fixtures and GPU
 4095/4096/4097/8193 slab-boundary/full-width fixtures are authored. Its launch,
 register traffic and modular recombination costs require measurement; no
 speedup or AUTO selection is claimed.
+
+The [word-modular calibration driver](word-modular-calibration.md) now supplies
+explicit baseline/packed-dot4, ring/prime-field and resident/cold controls, full
+independent exact references, slab-tail/bit-width cases and strict provenance
+collection. These are authored interfaces and fixtures, not execution evidence.
+They do not implement or qualify the separate asymmetric floating/WMMA schedule.

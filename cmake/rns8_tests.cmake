@@ -84,6 +84,30 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME planning_recipe_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_planning_recipe.py")
   add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
+  add_test(NAME word_mod_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_word_mod_calibration.py")
+  if(TARGET rns8-word-mod-calibrate)
+    set_tests_properties(word_mod_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_WORD_MOD_CALIBRATION_EXE=$<TARGET_FILE:rns8-word-mod-calibrate>"
+      LABELS "tools;word-modular;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_word_method IN ITEMS baseline packed_dot4)
+        foreach(_word_scope IN ITEMS resident cold)
+          foreach(_word_domain IN ITEMS ring prime_field)
+            if(_word_domain STREQUAL "ring")
+              set(_word_modulus 256)
+            else()
+              set(_word_modulus 251)
+            endif()
+            add_test(NAME word_mod_${_word_method}_${_word_scope}_${_word_domain}_smoke
+              COMMAND rns8-word-mod-calibrate 0 ${_word_method} ${_word_scope} 2 3 17
+                ${_word_domain} ${_word_modulus} 2 1 ctest-${_word_method}-${_word_scope}-${_word_domain})
+            set_tests_properties(word_mod_${_word_method}_${_word_scope}_${_word_domain}_smoke PROPERTIES
+              LABELS "hip;word-modular;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   add_test(NAME crt_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_crt_calibration.py")
   if(TARGET rns8-crt-calibrate)
     set_tests_properties(crt_calibration_collector_self_test PROPERTIES
