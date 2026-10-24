@@ -65,6 +65,11 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
     }
     maximum = std::max(maximum, ranges.rows[row].max_magnitude);
   }
+  // Axis extrema are final after the first scan. Compute each column midpoint
+  // once rather than repeating multiprecision addition/division for every row.
+  std::vector<cpp_int> column_centers;
+  column_centers.reserve(static_cast<std::size_t>(cols));
+  for (const auto& column : ranges.cols) column_centers.push_back(exact_axis_center(column));
   // A second linear scan supplies the L1 distance from each axis midpoint.
   for (int64_t row = 0; row < rows; ++row) {
     const cpp_int row_center = exact_axis_center(ranges.rows[row]);
@@ -72,7 +77,7 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
       const cpp_int value = src[row * ld + col];
       ranges.rows[row].deviation_sum += boost::multiprecision::abs(value - row_center);
       ranges.cols[col].deviation_sum +=
-          boost::multiprecision::abs(value - exact_axis_center(ranges.cols[col]));
+          boost::multiprecision::abs(value - column_centers[col]);
     }
   }
   return ranges;
