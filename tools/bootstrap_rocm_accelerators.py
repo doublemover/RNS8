@@ -12,6 +12,7 @@ from typing import Sequence
 
 import check_dependencies as deps
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
+from check_dependencies_lib.resolution import Request, resolve, selection_context
 
 
 def run_command(
@@ -80,20 +81,24 @@ def initialize_submodules(root: Path) -> dict[str, object]:
 
 
 def toolchain_report(target: str) -> dict[str, object]:
-    commands = {
-        name: deps.find_command(name)
-        for name in ["git", "cmake", "ninja", "python", "hipcc", "hipInfo", "hipconfig"]
-    }
+    resolution = resolve(Request(platform.system(), source_root=str(deps.repo_root()), require_hip=True,
+                                 require_vcpkg=platform.system() == "Windows"))
+    with selection_context(resolution):
+        commands = {
+            name: deps.find_command(name)
+            for name in ["git", "cmake", "ninja", "python", "hipcc", "hipInfo", "hipconfig"]
+        }
     msvc_install = find_visual_studio_installation()
     msvc_probe = run_command(["where", "cl"], cwd=deps.repo_root(), timeout=60, use_msvc=True)
     hip_info = deps.hip_info_report(commands.get("hipInfo"))
     hip_target = hip_info.get("target") if isinstance(hip_info, dict) else ""
     return {
-        "ok": all(commands[name] for name in ["git", "cmake", "ninja", "python", "hipcc"])
+        "ok": not resolution["errors"] and all(commands[name] for name in ["git", "cmake", "ninja", "python", "hipcc"])
         and bool(msvc_install)
         and bool(msvc_probe["ok"])
         and (not hip_target or hip_target == target),
         "commands": commands,
+        "dependency_resolution": resolution,
         "msvc_install": str(msvc_install) if msvc_install else "",
         "msvc_probe": msvc_probe,
         "hip_info": hip_info,

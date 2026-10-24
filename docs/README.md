@@ -9,6 +9,7 @@ Dated records identify the builds and devices actually checked.
 - [Windows HIP SDK](platform-windows.md): prerequisites, explicit roots, configure and build
 - [Native Linux ROCm](platform-linux.md): Radeon and Instinct selection; WSL boundary
 - [Dependencies and pins](../third_party/README.md): shared requirements and installation sources
+- [Shared discovery](dependency-discovery.md): root precedence, early configure handoff, evidence and remaining probe gates
 - [Readiness terminology](platform-readiness.md): discovery, implementation, compilation and hardware evidence
 
 ## Use

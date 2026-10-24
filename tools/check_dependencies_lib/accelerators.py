@@ -131,6 +131,31 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             ),
         },
     }
+    selection = ACTIVE_RESOLUTION.get()
+    if selection:
+        for name in ("ck", "rocwmma", "hipblaslt"):
+            chosen = selection["optional_components"][name].get("selected")
+            item = components[name]
+            if chosen:
+                include = Path(chosen["paths"]["include"])
+                names = {"ck": ("ck/ck.hpp",), "rocwmma": ("rocwmma/rocwmma.hpp",),
+                         "hipblaslt": ("hipblaslt/hipblaslt.h", "hipblaslt.h")}[name]
+                item["header"] = first_existing([include / value for value in names])
+                item["library"] = chosen["paths"].get("library")
+            else:
+                item["header"] = None; item["library"] = None
+            if name == "hipblaslt":
+                roots_selected = [Path(chosen["canonical_root"])] if chosen else []
+                for field, paths in {
+                    "cmake_config": ["lib/cmake/hipblaslt/hipblaslt-config.cmake", "lib64/cmake/hipblaslt/hipblaslt-config.cmake"],
+                    "msvc_import_library": ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"],
+                    "import_archive": ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
+                    "runtime_library": ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"],
+                    "tool": ["bin/hipblaslt-bench.exe", "bin/hipblaslt-bench"],
+                }.items(): item[field] = find_under_roots(roots_selected, paths)
+                item["cmake_target"] = "roc::hipblaslt" if item["cmake_config"] else None
+                item["library_format"] = ("msvc_import_library" if item["msvc_import_library"] else "gnu_import_archive"
+                    if item["import_archive"] else "shared_library" if item["library"] else "not_found")
     return {
         name: {
             "ok": bool(item["header"] or item["library"] or item["tool"]),

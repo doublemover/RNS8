@@ -54,9 +54,14 @@ cmake --build --preset linux-debug --parallel 4
 ```
 
 Set `rns8_rocm_root` to a nondefault installation if needed, including a path
-with spaces. The current preset otherwise defaults to `/opt/rocm` and a
-multi-target offload list. Explicit overrides select this machine's stack;
-[#57](https://github.com/doublemover/RNS8/issues/57) owns broader autodetection.
+with spaces. The preset retains its target policy while the shared pre-project
+[selection contract](dependency-discovery.md) resolves SDK locations. Explicit
+roots, environment/prefix sources and bounded native installations are ranked;
+multiple equally eligible SDKs require a choice. For a configured tree use
+`python3 tools/check_dependencies.py --resolve-only --json --cmake-cache
+build/linux-rocm-debug/CMakeCache.txt` to inspect the same selected context.
+Actual native-Linux fresh-prefix execution and broader API/ABI/probe acceptance
+remain gaps under[#57](https://github.com/doublemover/RNS8/issues/57).
 
 ## Instinct build
 

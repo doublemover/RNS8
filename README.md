@@ -97,19 +97,21 @@ Required: a C++17 toolchain, a supported AMD driver and HIP/ROCm stack, CMake
 3.22+, Ninja, Git, Python, Boost.Multiprecision and nlohmann-json. Catch2 3.x is
 needed when building tests. Optional accelerator libraries, OpenMP and GMP/FLINT
 serve selected paths. [Dependency setup](third_party/README.md) owns prerequisites,
-current pins and installer links. The dependency report inspects installed components; the vcpkg toolchain may
-install manifest packages during configuration.
+current pins and installer links. [Shared selection](docs/dependency-discovery.md)
+resolves installed SDK/toolchain paths before compiler configuration. Shipped
+presets disable automatic vcpkg manifest installation; install packages explicitly.
 
 ### Windows PowerShell
 
 Install the [Windows prerequisites](docs/platform-windows.md#prerequisites), then
 set paths to your actual installations; spaces and nondefault roots are supported.
-The current preset includes workstation defaults, so pass the overrides explicitly.
+The preset uses shared discovery; explicit overrides below select the intended
+stack when several installations exist.
 
 ```powershell
 $env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
 $rns8HipRoot = 'D:/AMD SDK/ROCm/7.1'
-python tools/check_dependencies.py
+python tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=$rns8HipRoot" --set RNS8_ENABLE_HIP=ON
 python tools/windows_dev.py cmake --preset windows-msvc-hip-debug "-DRNS8_HIP_ROOT=$rns8HipRoot" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DRNS8_AMDGPU_TARGETS=gfx1100
 python tools/windows_dev.py cmake --build --preset windows-debug --parallel 4
 .\build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
@@ -122,7 +124,7 @@ for your GPU and distribution. Choose the real ROCm root and target explicitly:
 
 ```sh
 rns8_rocm_root=/opt/rocm
-python3 tools/check_dependencies.py
+python3 tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=$rns8_rocm_root" --set RNS8_ENABLE_HIP=ON
 cmake --preset linux-rocm-debug "-DRNS8_HIP_ROOT=$rns8_rocm_root" -DRNS8_AMDGPU_TARGETS=gfx1100
 cmake --build --preset linux-debug --parallel 4
 ./build/linux-rocm-debug/rns8-bench --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
@@ -131,8 +133,9 @@ cmake --build --preset linux-debug --parallel 4
 For Instinct, select `linux-cdna-debug` and the device target, such as `gfx942`;
 use the matching build preset and directory. Native Linux GPU commands remain
 unexecuted on this Windows host. WSL has a separate compatibility boundary in
-the [Linux guide](docs/platform-linux.md#wsl). Automatic dependency-root discovery,
-locked upgrades and the bounded remote-session bundle remain work tracked by
+the [Linux guide](docs/platform-linux.md#wsl). Root selection is implemented;
+broader dependency API/ABI probes, locked upgrades and the bounded remote-session
+bundle remain work tracked by
 [#57](https://github.com/doublemover/RNS8/issues/57),
 [#60](https://github.com/doublemover/RNS8/issues/60) and
 [#58](https://github.com/doublemover/RNS8/issues/58).

@@ -2,42 +2,11 @@ include(FindPackageHandleStandardArgs)
 
 set(RNS8_HIP_CMAKE_MODULE "${CMAKE_CURRENT_LIST_FILE}")
 
-set(_RNS8_HIP_HINTS)
-if(RNS8_HIP_ROOT)
-  list(APPEND _RNS8_HIP_HINTS "${RNS8_HIP_ROOT}")
+if(NOT RNS8_DISCOVERY_IDENTITY_SHA256)
+  message(FATAL_ERROR "FindRNS8HIP requires the shared pre-project cmake/rns8_discovery.cmake selection; it cannot independently mix PATH headers/libraries/toolchains")
 endif()
-if(DEFINED ENV{HIP_PATH})
-  list(APPEND _RNS8_HIP_HINTS "$ENV{HIP_PATH}")
-endif()
-if(DEFINED ENV{ROCM_PATH})
-  list(APPEND _RNS8_HIP_HINTS "$ENV{ROCM_PATH}")
-endif()
-if(WIN32)
-  list(APPEND _RNS8_HIP_HINTS "C:/Program Files/AMD/ROCm/7.1" "C:/Program Files/AMD/ROCm/6.4")
-else()
-  list(APPEND _RNS8_HIP_HINTS "/opt/rocm")
-endif()
-
-find_program(
-  RNS8_HIP_HIPCC
-  NAMES hipcc hipcc.bat hipcc.exe
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES bin
-)
-
-find_path(
-  RNS8_HIP_INCLUDE_DIR
-  NAMES hip/hip_runtime_api.h
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES include
-)
-
-find_library(
-  RNS8_HIP_LIBRARY
-  NAMES amdhip64
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES lib lib64 bin
-)
+# Compiler/include/link/runtime/device-library cache bindings come from one
+# shared SDK selection. No independent find_* fallback is permitted here.
 
 find_package_handle_standard_args(
   RNS8HIP
@@ -58,7 +27,7 @@ endif()
 set(RNS8_HIP_STL_OVERLAY "")
 if(RNS8HIP_FOUND AND WIN32 AND MSVC_VERSION GREATER_EQUAL 1951)
   get_filename_component(_hip_bin "${RNS8_HIP_HIPCC}" DIRECTORY)
-  execute_process(COMMAND "${_hip_bin}/clang.exe" -print-resource-dir
+  execute_process(COMMAND "${RNS8_HIP_CLANG}" -print-resource-dir
     OUTPUT_VARIABLE _hip_resource OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE _hip_resource_status)
   if(_hip_resource_status EQUAL 0)
     set(_wrapper "${_hip_resource}/include/__clang_hip_runtime_wrapper.h")
@@ -135,7 +104,9 @@ function(rns8_compile_hip_source out_var source)
     OUTPUT "${_object}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
     COMMAND
+      "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
       "${RNS8_HIP_HIPCC}"
+      ${RNS8_HIP_COMMON_FLAGS}
       ${_arch_args}
       ${_host_runtime_args}
       ${_pic_args}

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
+include(cmake/rns8_discovery.cmake)
+
 project(
   RNS8
   VERSION 0.1.0

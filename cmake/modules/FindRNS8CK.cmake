@@ -84,6 +84,9 @@ if(RNS8_CK_INCLUDE_DIR)
     list(GET _RNS8_CK_TARGETS 0 _RNS8_CK_TARGET)
   endif()
 
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    set(RNS8_CK_HIPCC "${RNS8_HIP_HIPCC}" CACHE FILEPATH "Shared selected HIP compiler" FORCE)
+  endif()
   find_program(
     RNS8_CK_HIPCC
     NAMES hipcc hipcc.exe hipcc.bat
@@ -105,6 +108,7 @@ if(RNS8_CK_INCLUDE_DIR)
     execute_process(
       COMMAND
         "${RNS8_CK_HIPCC}"
+        ${RNS8_HIP_COMMON_FLAGS}
         "-std=c++17"
         "--offload-arch=${_RNS8_CK_TARGET}"
         "-I${RNS8_CK_GENERATED_INCLUDE_DIR}"
@@ -252,6 +256,7 @@ extern "C" float rns8_ck_i8_wmma_primitive_probe(const int8_t* a, const int8_t* 
     execute_process(
       COMMAND
         "${RNS8_CK_HIPCC}"
+        ${RNS8_HIP_COMMON_FLAGS}
         "-std=c++17"
         "-O2"
         "--offload-arch=${_RNS8_CK_TARGET}"

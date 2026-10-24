@@ -29,9 +29,10 @@ upgrades/locks, which are not yet implemented. Use the versions recorded in a
 The Windows manifest currently includes Catch2 even when test targets are
 disabled. Disabling tests changes the build requirement, not the manifest's
 package list. Required C++ packages are in [vcpkg.json](../vcpkg.json); its
-`builtin-baseline` pins the registry snapshot. RNS8 does not provide a system installer. The vcpkg toolchain can install
-manifest packages according to its own configuration. To perform that package
-step explicitly before CMake, install the manifest packages
+`builtin-baseline` pins the registry snapshot. RNS8 does not provide a system installer.
+The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`;
+an existing cache or explicit vcpkg setting can retain its previous behavior.
+Install the manifest packages explicitly
 from the repository root before configuring:
 
 ```powershell
@@ -41,9 +42,13 @@ $env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
 
 This command installs packages. `python tools/check_dependencies.py` only reports
 existing dependencies; optional compile probes require `--accelerator-probes`.
-[#57](https://github.com/doublemover/RNS8/issues/57) tracks root autodetection;
-current GPU presets accept explicit `RNS8_HIP_ROOT`, `CMAKE_TOOLCHAIN_FILE`,
-`CMAKE_PREFIX_PATH`, `RNS8_CK_ROOT` and `RNS8_ROCWMMA_ROOT` overrides.
+The [shared discovery contract](../docs/dependency-discovery.md) is consumed by
+the checker and early CMake path. GPU presets accept explicit `RNS8_HIP_ROOT`,
+`CMAKE_TOOLCHAIN_FILE`, `CMAKE_PREFIX_PATH`, `RNS8_CK_ROOT` and `RNS8_ROCWMMA_ROOT`
+overrides; invalid explicit roots fail and ambiguous SDKs require selection.
+Filesystem selection does not establish API/ABI/runtime compatibility. Broader
+probes and installation qualification remain tracked by
+[#57](https://github.com/doublemover/RNS8/issues/57).
 
 ## Optional exact references and accelerator pins
 

@@ -35,6 +35,9 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     list(GET _RNS8_ROCWMMA_TARGETS 0 _RNS8_ROCWMMA_TARGET)
   endif()
 
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    set(RNS8_ROCWMMA_HIPCC "${RNS8_HIP_HIPCC}" CACHE FILEPATH "Shared selected HIP compiler" FORCE)
+  endif()
   find_program(
     RNS8_ROCWMMA_HIPCC
     NAMES hipcc hipcc.exe hipcc.bat
@@ -56,6 +59,7 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     execute_process(
       COMMAND
         "${RNS8_ROCWMMA_HIPCC}"
+        ${RNS8_HIP_COMMON_FLAGS}
         "-std=c++17"
         "--offload-arch=${_RNS8_ROCWMMA_TARGET}"
         "-I${RNS8_ROCWMMA_INCLUDE_DIR}"
@@ -105,6 +109,7 @@ extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
     execute_process(
       COMMAND
         "${RNS8_ROCWMMA_HIPCC}"
+        ${RNS8_HIP_COMMON_FLAGS}
         "-std=c++17"
         "-O2"
         "--offload-arch=${_RNS8_ROCWMMA_TARGET}"

@@ -1740,6 +1740,48 @@
       ]
     },
     {
+      "path": "docs/dependency-discovery.md",
+      "purpose": "Shared SDK/toolchain root selection and early configure handoff",
+      "audience": "Users and build contributors",
+      "disposition": "keep",
+      "canonical": "docs/dependency-discovery.md",
+      "owner": "tools/check_dependencies_lib/resolution.py",
+      "reason": "Canonical path/precedence/identity contract; filesystem discovery is separate from ABI/API/runtime probes, installation and platform qualification.",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/dependency-discovery.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "dependency-discovery.md"
+        },
+        {
+          "source": "docs/platform-linux.md",
+          "reference": "dependency-discovery.md"
+        },
+        {
+          "source": "docs/platform-windows.md",
+          "reference": "dependency-discovery.md"
+        },
+        {
+          "source": "third_party/README.md",
+          "reference": "../docs/dependency-discovery.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/dependency-discovery.md"
+        }
+      ],
+      "anchors": [
+        "inspect-or-configure",
+        "installation-and-remaining-gates",
+        "optional-components-and-core-packages",
+        "selection-rules",
+        "shared-dependency-selection"
+      ]
+    },
+    {
       "path": "docs/design.md",
       "purpose": "Implemented design",
       "audience": "Runtime implementers",
@@ -2898,6 +2940,10 @@
           "reference": "platform-linux.md#existing-bounded-host-scripts"
         },
         {
+          "source": "docs/dependency-discovery.md",
+          "reference": "platform-linux.md"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-linux.md"
         },
@@ -2991,6 +3037,10 @@
         },
         {
           "source": "docs/README.md",
+          "reference": "platform-windows.md"
+        },
+        {
+          "source": "docs/dependency-discovery.md",
           "reference": "platform-windows.md"
         },
         {
@@ -3914,6 +3964,10 @@
         },
         {
           "source": "docs/README.md",
+          "reference": "../third_party/README.md"
+        },
+        {
+          "source": "docs/dependency-discovery.md",
           "reference": "../third_party/README.md"
         },
         {

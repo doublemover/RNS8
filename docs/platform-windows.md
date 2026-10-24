@@ -28,12 +28,14 @@ and system changes are explicit administrative tasks.
 
 ## Configure and build
 
-Point the current preset at the real SDK and vcpkg installations. These examples
-intentionally use nondefault roots with spaces:
+The shared pre-project [selection contract](dependency-discovery.md) resolves an
+unambiguous existing SDK/vcpkg stack. Explicit roots take precedence and invalid
+choices fail. These examples intentionally use nondefault roots with spaces:
 
 ```powershell
 $env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
 $rns8HipRoot = 'D:/AMD SDK/ROCm/7.1'
+python tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=$rns8HipRoot" --set "VCPKG_ROOT=$env:VCPKG_ROOT" --set RNS8_ENABLE_HIP=ON
 python tools/windows_dev.py cmake --preset windows-msvc-hip-debug "-DRNS8_HIP_ROOT=$rns8HipRoot" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DRNS8_AMDGPU_TARGETS=gfx1100
 python tools/windows_dev.py cmake --build --preset windows-debug --parallel 4
 .\build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
@@ -44,9 +46,14 @@ release matrix and set the matching target. The benchmark verifies its seeded
 integer result and emits JSON. This small checked workload is a first execution;
 [qualification](gpu-qualification.md) covers a broader campaign.
 
-The preset currently contains `C:/vcpkg` and
-`C:/Program Files/AMD/ROCm/7.1` defaults. Explicit overrides above take precedence;
-[#57](https://github.com/doublemover/RNS8/issues/57) tracks broader autodetection.
+The preset no longer requires workstation SDK/vcpkg paths. Environment roots,
+PATH evidence and bounded installation roots are considered by the same checker
+used by CMake; equally eligible SDKs require an explicit choice. Selection is
+filesystem evidence, with broader API/ABI/probe acceptance still tracked by
+[#57](https://github.com/doublemover/RNS8/issues/57). The presets default
+`VCPKG_MANIFEST_INSTALL=OFF`; install manifest packages explicitly as described in
+the dependency guide before configuring. Existing caches may need that flag set
+explicitly to disable their vcpkg toolchain's previous install setting.
 `windows-msvc-hip-release` configures the corresponding Release tree; use the
 `windows-release` build preset. Optional roots include `RNS8_CK_ROOT`,
 `RNS8_ROCWMMA_ROOT`, `RNS8_ROCM_DEPS_BUILD_ROOT` and

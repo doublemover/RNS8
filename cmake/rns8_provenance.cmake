@@ -8,6 +8,11 @@ function(rns8_generate_manifest_configuration)
   # Bind enabled accelerator headers, including build-local CK adaptations.
   # These may live in a different checkout and are not covered by our git SHA.
   set(_dependency_trees "")
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    string(APPEND _dependency_trees "dependency_resolution_sha256=${RNS8_DISCOVERY_IDENTITY_SHA256}\n")
+  else()
+    string(APPEND _dependency_trees "dependency_resolution_sha256=unavailable_no_shared_resolution\n")
+  endif()
   foreach(_backend IN ITEMS ROCWMMA CK HIPBLASLT)
     if(RNS8_ENABLE_${_backend})
       if(NOT IS_DIRECTORY "${RNS8_${_backend}_INCLUDE_DIR}")

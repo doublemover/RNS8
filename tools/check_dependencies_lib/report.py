@@ -19,8 +19,21 @@ from .config import *
 from .discovery import *
 from .readiness import *
 from .system import *
+from .resolution import Request, resolve, selection_context
 
-def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None) -> tuple[dict[str, object], bool]:
+def build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None,
+                 request: Request | None = None) -> tuple[dict[str, object], bool]:
+    requested = request or Request(platform.system(), require_hip=True, require_vcpkg=platform.system() == "Windows",
+                                   source_root=str(repo_root()))
+    resolution = resolve(requested)
+    with selection_context(resolution):
+        report, ready = _build_report(run_accelerator_probes, accelerator_probe_dir)
+    report["dependency_resolution"] = resolution
+    report["schema"] = "rns8_dependency_report_v1"
+    return report, ready and not resolution["errors"]
+
+
+def _build_report(run_accelerator_probes: bool = False, accelerator_probe_dir: Path | None = None) -> tuple[dict[str, object], bool]:
     commands = {}
     missing_required = False
     host_system = platform.system()

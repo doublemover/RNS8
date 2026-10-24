@@ -1,4 +1,7 @@
 set(_RNS8_HIPBLASLT_HINTS)
+if(RNS8_HIPBLASLT_ROOT)
+  list(APPEND _RNS8_HIPBLASLT_HINTS "${RNS8_HIPBLASLT_ROOT}")
+endif()
 
 function(_rns8_hipblaslt_append_hint path)
   if(path)
@@ -23,12 +26,24 @@ if(WIN32)
 endif()
 list(APPEND _RNS8_HIPBLASLT_HINTS "/opt/rocm")
 
+if(RNS8_DISCOVERY_IDENTITY_SHA256 AND RNS8_HIPBLASLT_ROOT)
+  set(_RNS8_HIPBLASLT_PACKAGE_POLICY NO_DEFAULT_PATH)
+  if(hipblaslt_DIR AND NOT hipblaslt_DIR MATCHES "-NOTFOUND$")
+    file(REAL_PATH "${hipblaslt_DIR}" _rns8_package_dir)
+    file(REAL_PATH "${RNS8_HIPBLASLT_ROOT}" _rns8_package_root)
+    string(FIND "${_rns8_package_dir}/" "${_rns8_package_root}/" _rns8_package_prefix)
+    if(NOT _rns8_package_prefix EQUAL 0)
+      message(FATAL_ERROR "hipblaslt_DIR is outside the shared selected RNS8_HIPBLASLT_ROOT; remove the stale cache or select one coherent installation")
+    endif()
+  endif()
+endif()
 find_package(
   hipblaslt
   CONFIG
   QUIET
   HINTS ${_RNS8_HIPBLASLT_HINTS}
   PATH_SUFFIXES lib/cmake/hipblaslt
+  ${_RNS8_HIPBLASLT_PACKAGE_POLICY}
 )
 
 find_path(
