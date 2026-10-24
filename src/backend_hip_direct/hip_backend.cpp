@@ -1,6 +1,7 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/bilinear_resources.hpp"
+#include "backend_common/rank23_slp_resources.hpp"
 #include "backend_common/garner_constants.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include "backend_common/complex_residue_plan.hpp"
@@ -649,6 +650,7 @@ namespace rns8::detail {
 #include "hip_backend_direct_crt.inc"
 #include "hip_backend_balanced_crt.inc"
 #include "hip_backend_strassen.inc"
+#include "hip_backend_rank23_slp.inc"
 #include "hip_backend_adaptive_native.inc"
 #include "hip_backend_integrity.inc"
 

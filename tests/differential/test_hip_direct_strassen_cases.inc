@@ -1,12 +1,15 @@
+#include "backend_common/rank23_slp_resources.hpp"
 TEST_CASE(
-    "one-level HIP Strassen and rank23 match classical residues with odd tails") {
+    "one-level HIP Strassen coefficient rank23 and actual SLP match classical residues with odd tails") {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   if (!hip_available())
     SKIP("no HIP device for Strassen");
-  for (bool rank23 : {false, true}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
-    for (int k : {1, 2, 3, 17, rank23 ? 196609 : 131073}) {
-      const auto multiply = rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
+  for (int route : {0,1,2}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
+    for (int k : {1, 2, 3, 17, route ? 196609 : 131073}) {
+      const bool rank23 = route != 0;
+      const auto multiply = route == 2 ? hip_direct_gemm_rank23_slp_device :
+                            rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
       // The 3x3 case exercises individual rank-23 output blocks, including
       // skipped zero-coefficient contributions and a padded K block.
       const int m = k > 100 ? 1 : k == 2 ? 3 : 5, n = k > 100 ? 1 : k == 2 ? 3 : 7, lda = k + 1,
@@ -52,6 +55,16 @@ TEST_CASE(
                                              observed.size()) == RNS8_SUCCESS);
       REQUIRE(std::all_of(observed.begin(), observed.end(),
                           [](int8_t v) { return v == 77; }));
+      if (route == 2) {
+        const auto resources=query_rank23_slp_resources(m,n,k,lda,ldb,ldc,prefix,UINT64_MAX);
+        REQUIRE(resources.status==RNS8_SUCCESS);
+        REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,resources.total_bytes-1,
+                         committed)==RNS8_WORKSPACE_TOO_SMALL);
+        REQUIRE_FALSE(committed);
+        REQUIRE(multiply(0,da,db,da,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
+                         committed)==RNS8_INVALID_ARGUMENT);
+        REQUIRE_FALSE(committed);
+      }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, UINT64_MAX,
                                               committed) == RNS8_SUCCESS);

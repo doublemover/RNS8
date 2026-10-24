@@ -12,6 +12,7 @@
 #include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank23_program.hpp"
+#include "../backend_common/rank23_slp.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
@@ -60,6 +61,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_balanced_crt_kernels.cuh"
 #include "hip_direct_strassen_kernels.cuh"
+#include "hip_direct_rank23_slp_kernels.cuh"
 #include "hip_direct_integrity_kernels.cuh"
 #include "hip_direct_int4_kernels.cuh"
 #include "hip_direct_native_wmma_kernels.cuh"
@@ -120,6 +122,25 @@ extern "C" int rns8_hip_split_k_canonicalize(uint8_t* values, int64_t cells, int
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_rank23_slp_transform(const int8_t* source,int8_t* output,
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs) {
+  const dim3 grid((uint64_t(hr)*hc+255)/256,prefix);
+  if(lhs) {
+    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<true>),grid,dim3(256),0,nullptr,
+        source,output,rows,cols,ld,hr,hc,prefix);
+  } else {
+    hipLaunchKernelGGL((rns8_rank23_slp_transform_kernel<false>),grid,dim3(256),0,nullptr,
+        source,output,rows,cols,ld,hr,hc,prefix);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_rank23_slp_combine(const int8_t* products,int8_t* stage,
+    int m,int n,int hm,int hn,int prefix) {
+  hipLaunchKernelGGL(rns8_rank23_slp_combine_kernel,
+      dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
+      products,stage,m,n,hm,hn,prefix);
+  return static_cast<int>(hipGetLastError());
+}
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
     int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,bool rank23) {
   const dim3 grid((static_cast<uint64_t>(hr)*hc+255)/256,prefix);

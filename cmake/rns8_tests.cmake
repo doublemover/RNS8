@@ -11,6 +11,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
   add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
+  add_test(NAME rank23_slp_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_slp.py")
   add_test(NAME residue_integrity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_residue_integrity.py")
   add_test(NAME analytical_planner_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analytical_planner.py")
   add_test(NAME planning_recipe_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_planning_recipe.py")
@@ -651,6 +652,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_direct_crt_constants.cpp
+    tests/unit/test_rank23_slp.cpp
     tests/unit/test_integrity_identity.cpp
     tests/unit/test_distributed_plan.cpp
     tests/unit/test_int4_encoding.cpp

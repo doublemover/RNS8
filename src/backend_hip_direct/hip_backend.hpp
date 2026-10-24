@@ -50,8 +50,13 @@ rns8_status hip_direct_gemm_strassen_device(
 rns8_status hip_direct_gemm_rank23_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
-// Private modular block-sparse producer; public bounded/exact range admission
-// and output transaction ownership remain the caller's responsibility.
+// Exact pinned alternative-basis SLP, separate from the coefficient control.
+// Full 23-operand/product materialization is included in the scratch budget.
+rns8_status hip_direct_gemm_rank23_slp_device(
+    int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
+// Private modular block-sparse producer; its public materialization owner or
+// another caller supplies bounded/exact admission and output transaction ownership.
 rns8_status hip_direct_gemm_block_sparse_device(
     int device_id,const void* a,const BlockSparseOperand& lhs,uint64_t a_instance,uint64_t a_generation,
     const void* b,const BlockSparseOperand& rhs,uint64_t b_instance,uint64_t b_generation,

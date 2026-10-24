@@ -3318,8 +3318,8 @@
       "audience": "Kernel researchers",
       "disposition": "keep",
       "canonical": "docs/research/README.md#kernels-and-scheduling",
-      "owner": "src/backend_hip_direct/hip_backend.hpp",
-      "reason": "Keep distinct private kernel/scheduling arithmetic and public boundary; issue #48; evidence stays dated.",
+        "owner": "src/backend_common/rank23_slp.hpp",
+        "reason": "Distinct original-coefficient control and actual pinned alternative-basis SLP, independent integer proof and bounded device schedule; issue #48; new SLP validation pending.",
       "inbound_links": [
         {
           "source": "docs/archive/implementation-checkpoints-2026-10-23.md",
@@ -3339,7 +3339,9 @@
         }
       ],
       "anchors": [
-        "one-level-rank-23-modular-prototype"
+          "one-level-rank-23-modular-prototype",
+          "pinned-alternative-basis-slp",
+          "private-slp-device-schedule"
       ]
     },
     {
