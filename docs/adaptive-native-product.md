@@ -30,7 +30,8 @@ nonzero neighboring tiles, all bound methods and group widths, same-address
 mutation, output padding, rejection without publication, and a second GEMM
 whose contraction crosses precision boundaries. Registered applicable execution
 is covered by the [dated validation](local-all-features-20261023.md). Broader target
-qualification, performance and public dispatch remain separate work.
+qualification and performance remain separate work. The public ownership bridge
+below is newly authored and is not covered by that earlier execution.
 
 
 ## Compact bounded workers
@@ -51,3 +52,39 @@ CPU enumeration fixtures cover exact work coverage, empty buckets, grouping
 and large-count boundaries. The signed/unsigned Boost GPU differential and
 cross-precision chain fixtures now cover both launch policies. They are authored
 but await the consolidated validation pass with the new compiler/dependencies.
+
+## Explicit matrix-owned native inputs
+
+`RNS8_MATRIX_RETAIN_NATIVE_INPUT` opts an exact-wide signed or unsigned direct-HIP
+matrix into retaining a compact 64-bit native device copy alongside its residue
+storage when packed with `rns8_pack_i64` or `rns8_pack_u64`. Other backends reject
+the flag; bounded/wrap/finite semantics and unknown bits reject it. Storage is
+allocated lazily on pack and costs an additional `8 * rows * cols` bytes per
+retained input. The pack's source leading dimension may include padding; the
+retained copy contains only logical cells. Existing matrix memory reporting
+includes these bytes. No caller device pointer is borrowed.
+
+`rns8_gemm_adaptive_exact` explicitly invokes device discovery and adaptive
+compute using those current native copies. It validates the normal plan,
+workspace, matrix backend/device, exact-range proofs and async exclusions before
+execution. All bound methods, groups 1/2/4, grid/compact workers and the transient
+scratch budget are explicit. Existing matrix storage is outside that transient
+budget. Full common-basis residue output and matrix-owned exact range metadata
+are published together; downstream ordinary GEMM/export uses the usual API.
+
+Any other value-producing write retires the native copy, including an ordinary
+GEMM into a flagged matrix. A later adaptive use rejects until native repacking
+refreshes it. Repacking updates both materializations, including same-address
+host mutations. The retained buffer's allocated bytes may survive invalidation,
+but are never accepted as a current value merely because a pointer exists.
+A successful adaptive output also retires its own previous native copy.
+Preflight and discovery failures preserve prior output; failed commit invalidates
+it. Calls require the existing external host-thread serialization contract.
+
+This is a synchronous experimental API, with no implicit default selection,
+summary reuse, graph replay or performance claim. Packing still builds complete
+residue inputs as well as retaining native values; that setup cost belongs in
+cold/end-to-end measurements. New CPU rejection and signed/unsigned Boost GPU
+fixtures cover descriptor admission, padded source packing, native mutation,
+staged rejection, full-width tails, export and retirement/repack after ordinary
+resident GEMM. They await the consolidated validation batch.

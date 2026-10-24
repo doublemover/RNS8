@@ -21,6 +21,67 @@ rns8_status rns8_gemm_complex_exact_signed(
       max_scratch_bytes, workspace);
 }
 
+rns8_status rns8_gemm_adaptive_exact(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
+    rns8_adaptive_bound_method method, uint32_t panel_k, uint32_t group,
+    uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace) {
+  return guard_api([&]() -> rns8_status {
+    using namespace rns8::detail;
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || B == C ||
+        !exact_wide_semantics(plan->desc.semantics) ||
+        (method != RNS8_ADAPTIVE_TILE_MAX && method != RNS8_ADAPTIVE_AXIS_L1 &&
+         method != RNS8_ADAPTIVE_PANEL_L1) || (group != 1 && group != 2 && group != 4) ||
+        compact_workers > 65535 ||
+        (method == RNS8_ADAPTIVE_PANEL_L1 && (!panel_k || panel_k > 65536)))
+      return RNS8_INVALID_ARGUMENT;
+    if (plan->backend != RNS8_BACKEND_HIP_DIRECT) return RNS8_UNSUPPORTED_BACKEND;
+    auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (status != RNS8_SUCCESS) return status;
+    status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C, true);
+    if (status != RNS8_SUCCESS) return status;
+    if (C->generation_exhausted) return RNS8_RANGE_ERROR;
+    const bool unsigned_inputs = plan->desc.semantics == RNS8_EXACT_WIDE_UNSIGNED;
+    const auto native = [&](const rns8_matrix& matrix) -> const void* {
+      if (!(matrix.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT) ||
+          !matrix.device_native_current || matrix.generation_exhausted ||
+          matrix.hip_device_id != ctx->device_id) return nullptr;
+      const uint64_t bytes = uint64_t(matrix.desc.rows) * uint64_t(matrix.desc.cols) * sizeof(uint64_t);
+      if (unsigned_inputs)
+        return matrix.hip_native_u64_bytes == bytes ? matrix.hip_native_u64 : nullptr;
+      return matrix.hip_native_i64_bytes == bytes ? matrix.hip_native_i64 : nullptr;
+    };
+    const void* a = native(*A);
+    const void* b = native(*B);
+    if (!a || !b) return RNS8_INVALID_ARGUMENT;
+    cpp_int bound;
+    rns8_exact_matrix_ranges ranges;
+    status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
+    if (status != RNS8_SUCCESS) return status;
+    // Synchronous APIs require external thread exclusion. Existing operand and
+    // workspace validation exclude outstanding async readers/writers. All proof
+    // allocation precedes the staged device operation; failed preflight preserves C.
+    bool commit_started = false;
+    struct CommitGuard {
+      rns8_matrix& output;
+      bool& started;
+      bool published = false;
+      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
+    } write{*C, commit_started};
+    const auto discovery = method == RNS8_ADAPTIVE_TILE_MAX ? NativeBoundMethod::tile_max
+        : method == RNS8_ADAPTIVE_AXIS_L1 ? NativeBoundMethod::axis_l1 : NativeBoundMethod::panel_l1;
+    status = hip_direct_gemm_adaptive_native_device(ctx->device_id, a, b,
+        static_cast<int8_t*>(C->hip_residues), plan->desc.m, plan->desc.n, plan->desc.k,
+        A->desc.cols, B->desc.cols, C->desc.cols, unsigned_inputs, plan->prefix, group,
+        max_scratch_bytes, commit_started, discovery, panel_k, compact_workers);
+    if (status != RNS8_SUCCESS) return status;
+    mark_output_device_residues_current(*C);
+    commit_exact_range(*C, *plan, bound, &ranges);
+    write.published = true;
+    return RNS8_SUCCESS;
+  });
+}
+
 namespace rns8::detail::api {
 rns8_status validate_exact_axpby_operands(
     const rns8_context &ctx, const rns8_plan &plan, const rns8_matrix &A,

@@ -405,6 +405,10 @@ typedef struct rns8_gemm_desc {
   uint64_t zero_b_cols_count;
 } rns8_gemm_desc;
 
+/* Retain a matrix-owned native device copy on i64/u64 pack. Experimental;
+   direct HIP exact-wide matrices only. Other writes invalidate that copy. */
+#define RNS8_MATRIX_RETAIN_NATIVE_INPUT 1u
+
 typedef struct rns8_matrix_desc {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -417,7 +421,7 @@ typedef struct rns8_matrix_desc {
   uint32_t tile_m;
   uint32_t tile_n;
   uint32_t max_prefix;
-  /* Reserved for future hard-cut ABI versions. Must be zero. */
+  /* Zero or RNS8_MATRIX_RETAIN_NATIVE_INPUT. Unknown bits reject. */
   uint32_t flags;
 } rns8_matrix_desc;
 
@@ -1305,6 +1309,24 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* A,
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
+
+typedef enum rns8_adaptive_bound_method RNS8_ENUM_BASE {
+  RNS8_ADAPTIVE_TILE_MAX = 0,
+  RNS8_ADAPTIVE_AXIS_L1 = 1,
+  RNS8_ADAPTIVE_PANEL_L1 = 2
+} rns8_adaptive_bound_method;
+
+/* Experimental synchronous direct-HIP exact-wide product. A and B must have
+   current native copies retained by RNS8_MATRIX_RETAIN_NATIVE_INPUT. The plan
+   supplies a certified common output prefix; omitted planes are completed
+   exactly before publication. group is 1/2/4; compact_workers is 0 (grid) or
+   1..65535; panel_k is 1..65536 for PANEL_L1. All transient device allocation
+   is charged to max_scratch_bytes. No automatic selection or summary cache. */
+RNS8_API rns8_status rns8_gemm_adaptive_exact(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
+    rns8_adaptive_bound_method method, uint32_t panel_k, uint32_t group,
+    uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
 /* Experimental synchronous split-complex exact-integer composition:
  * (Cr,Ci) = (Ar*Br - Ai*Bi, Ar*Bi + Ai*Br).

@@ -96,3 +96,91 @@ TEST_CASE("adaptive native products complete every residue plane before chaining
   check_adaptive_native_product<int64_t>();
   check_adaptive_native_product<uint64_t>();
 }
+
+template<class T> void check_public_adaptive_owner() {
+  using boost::multiprecision::cpp_int;
+  constexpr bool is_unsigned = std::is_unsigned_v<T>;
+  const auto semantics = is_unsigned ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
+  auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
+  auto descriptor = exact_signed_desc(17, 17, 17, RNS8_BACKEND_HIP_DIRECT);
+  descriptor.semantics = semantics;
+  descriptor.max_prefix = 20;
+  descriptor.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
+  rns8_plan* plan = nullptr;
+  rns8_workspace* workspace = nullptr;
+  REQUIRE(rns8_create_plan(ctx, &descriptor, &plan) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
+  auto md = matrix_desc(17, 17, semantics, RNS8_BOUND_NONE);
+  md.max_prefix = 20;
+  md.flags = RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+  rns8_matrix *a=nullptr, *b=nullptr, *c=nullptr;
+  REQUIRE(rns8_create_matrix(ctx, &md, &a) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &b) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx, &md, &c) == RNS8_SUCCESS);
+  std::vector<T> av(17*19), bv(17*19);
+  for (int r=0; r<17; ++r) for (int q=0; q<17; ++q) {
+    av[r*19+q] = r<16 ? T(2) : std::numeric_limits<T>::max();
+    bv[r*19+q] = q<16 ? T(3) : std::numeric_limits<T>::max();
+  }
+  if constexpr (!is_unsigned) av[16*19+1] = std::numeric_limits<T>::min();
+  const auto pack = [&](rns8_matrix* matrix, const std::vector<T>& data) {
+    if constexpr (is_unsigned) return rns8_pack_u64(ctx, matrix, data.data(), 19, 0);
+    else return rns8_pack_i64(ctx, matrix, data.data(), 19, 0);
+  };
+  const auto run = [&](rns8_matrix* lhs, uint64_t budget, uint32_t workers) {
+    return rns8_gemm_adaptive_exact(ctx, plan, lhs, b, c, RNS8_ADAPTIVE_AXIS_L1,
+                                    256, 2, workers, budget, workspace);
+  };
+  REQUIRE(pack(a,av) == RNS8_SUCCESS);
+  REQUIRE(pack(b,bv) == RNS8_SUCCESS);
+  REQUIRE(pack(c,av) == RNS8_SUCCESS);
+  const auto initial_generation = c->content_generation;
+  CHECK(run(a,0,3) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(c->content_generation == initial_generation);
+  CHECK(c->device_native_current);
+  CHECK(run(a,UINT64_MAX,65536) == RNS8_INVALID_ARGUMENT);
+  for (int mutation=0; mutation<2; ++mutation) {
+    if (mutation) {
+      av[0] = std::numeric_limits<T>::max();
+      REQUIRE(pack(a,av) == RNS8_SUCCESS);
+    }
+    for (uint32_t workers : {0u,3u}) {
+      const auto status = run(a,UINT64_MAX,workers);
+      if (status == RNS8_UNSUPPORTED_BACKEND) {
+        rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
+        rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
+        SKIP("compiled target lacks adaptive native WMMA");
+      }
+      REQUIRE(status == RNS8_SUCCESS);
+      CHECK_FALSE(c->device_native_current);
+      std::vector<uint64_t> limbs(17*17*3);
+      if constexpr (is_unsigned)
+        REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
+      else
+        REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),17,3) == RNS8_SUCCESS);
+      for (int r=0; r<17; ++r) for (int col=0; col<17; ++col) {
+        cpp_int expected=0;
+        for (int q=0; q<17; ++q) expected += cpp_int(av[r*19+q])*bv[q*19+col];
+        const int at=(r*17+col)*3;
+        cpp_int actual = cpp_int(limbs[at])+(cpp_int(limbs[at+1])<<64)+(cpp_int(limbs[at+2])<<128);
+        if constexpr (!is_unsigned) if (limbs[at+2]>>63) actual -= cpp_int(1)<<192;
+        REQUIRE(actual == expected);
+      }
+    }
+  }
+  // An ordinary resident product replaces A and must retire its native materialization.
+  REQUIRE(rns8_gemm_rns(ctx,plan,b,b,a,workspace) == RNS8_SUCCESS);
+  CHECK_FALSE(a->device_native_current);
+  const auto generation = c->content_generation;
+  CHECK(run(a,UINT64_MAX,3) == RNS8_INVALID_ARGUMENT);
+  CHECK(c->content_generation == generation);
+  REQUIRE(pack(a,av) == RNS8_SUCCESS);
+  REQUIRE(run(a,UINT64_MAX,3) == RNS8_SUCCESS);
+  rns8_destroy_matrix(c); rns8_destroy_matrix(b); rns8_destroy_matrix(a);
+  rns8_destroy_workspace(workspace); rns8_destroy_plan(plan); rns8_destroy_context(ctx);
+}
+TEST_CASE("public adaptive exact products own native inputs and retire stale copies") {
+  if (!hip_available()) SKIP("no HIP device for public adaptive ownership");
+  check_public_adaptive_owner<int64_t>();
+  check_public_adaptive_owner<uint64_t>();
+}

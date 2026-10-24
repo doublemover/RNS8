@@ -24,6 +24,8 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (validation != RNS8_SUCCESS) {
       return validation;
     }
+    if (desc->flags && ctx->backend != RNS8_BACKEND_HIP_DIRECT)
+      return RNS8_UNSUPPORTED_BACKEND;
     if (!backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }

@@ -139,7 +139,8 @@ rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix) 
 }
 
 rns8_status ensure_hip_native_storage(rns8_context& ctx, rns8_matrix& matrix) {
-  if (matrix.desc.semantics != RNS8_BOUNDED_I64 && matrix.desc.semantics != RNS8_BOUNDED_U64) {
+  if (matrix.desc.semantics != RNS8_BOUNDED_I64 && matrix.desc.semantics != RNS8_BOUNDED_U64 &&
+        !(matrix.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (matrix.hip_device_id != -1 && matrix.hip_device_id != ctx.device_id) {
@@ -150,7 +151,7 @@ rns8_status ensure_hip_native_storage(rns8_context& ctx, rns8_matrix& matrix) {
   if (!native_matrix_bytes(matrix.desc.rows, matrix.desc.cols, sizeof(uint64_t), expected_bytes)) {
     return RNS8_RANGE_ERROR;
   }
-  if (matrix.desc.semantics == RNS8_BOUNDED_I64) {
+  if (matrix.desc.semantics == RNS8_BOUNDED_I64 || matrix.desc.semantics == RNS8_EXACT_WIDE_SIGNED) {
     if (matrix.hip_native_i64 && matrix.hip_native_i64_bytes == expected_bytes) {
       return RNS8_SUCCESS;
     }
@@ -193,7 +194,8 @@ rns8_status ensure_hip_native_storage(rns8_context& ctx, rns8_matrix& matrix) {
 }
 
 rns8_status upload_native_i64(rns8_context& ctx, rns8_matrix& matrix, const int64_t* src, int64_t ld) {
-  if (!src || matrix.desc.semantics != RNS8_BOUNDED_I64 || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld)) {
+  if (!src || (matrix.desc.semantics != RNS8_BOUNDED_I64 &&
+        !(matrix.desc.semantics == RNS8_EXACT_WIDE_SIGNED && (matrix.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT))) || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld)) {
     return RNS8_INVALID_ARGUMENT;
   }
   rns8_status status = ensure_hip_native_storage(ctx, matrix);
@@ -217,7 +219,8 @@ rns8_status upload_native_i64(rns8_context& ctx, rns8_matrix& matrix, const int6
 }
 
 rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
-  if (!src || matrix.desc.semantics != RNS8_BOUNDED_U64 || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld)) {
+  if (!src || (matrix.desc.semantics != RNS8_BOUNDED_U64 &&
+        !(matrix.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED && (matrix.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT))) || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld)) {
     return RNS8_INVALID_ARGUMENT;
   }
   rns8_status status = ensure_hip_native_storage(ctx, matrix);
@@ -241,6 +244,8 @@ rns8_status upload_native_u64(rns8_context& ctx, rns8_matrix& matrix, const uint
 }
 
 bool should_populate_native_on_pack(const rns8_context& ctx, const rns8_matrix& matrix) {
+  if (matrix.desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT)
+    return ctx.backend == RNS8_BACKEND_HIP_DIRECT && matrix.backend == RNS8_BACKEND_HIP_DIRECT;
   if (matrix.desc.semantics != RNS8_BOUNDED_I64 && matrix.desc.semantics != RNS8_BOUNDED_U64) {
     return false;
   }

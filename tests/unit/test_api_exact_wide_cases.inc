@@ -490,3 +490,18 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
   rns8_destroy_context(ctx);
 }
 
+
+TEST_CASE("retained native exact inputs require explicit direct HIP storage") {
+  auto* ctx = create_cpu_context();
+  for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto descriptor = exact_matrix_desc(2, 2, semantics);
+    rns8_matrix* matrix = nullptr;
+    descriptor.flags = RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    CHECK(rns8_create_matrix(ctx, &descriptor, &matrix) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(matrix == nullptr);
+    descriptor.flags = 0x80000000u;
+    CHECK(rns8_create_matrix(ctx, &descriptor, &matrix) == RNS8_INVALID_ARGUMENT);
+    CHECK(matrix == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}

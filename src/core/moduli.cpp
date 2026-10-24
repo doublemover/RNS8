@@ -396,7 +396,9 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
   if (desc.rows <= 0 || desc.cols <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.flags != 0) {
+  if ((desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      (desc.flags && desc.semantics != RNS8_EXACT_WIDE_SIGNED &&
+       desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind) || !known_layout(desc.logical_layout)) {

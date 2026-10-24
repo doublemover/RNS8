@@ -9,7 +9,9 @@ bool matrix_descriptor_matches(
     uint32_t tile_n) {
   if (matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
       matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
-      matrix.desc.logical_ld < matrix.desc.cols || matrix.desc.flags != 0 || matrix.prefix < prefix ||
+      matrix.desc.logical_ld < matrix.desc.cols || (matrix.desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      (matrix.desc.flags && (matrix.backend != RNS8_BACKEND_HIP_DIRECT ||
+       (matrix.desc.semantics != RNS8_EXACT_WIDE_SIGNED && matrix.desc.semantics != RNS8_EXACT_WIDE_UNSIGNED))) || matrix.prefix < prefix ||
       matrix.desc.max_prefix < prefix) {
     return false;
   }
