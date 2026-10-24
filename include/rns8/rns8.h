@@ -1890,6 +1890,21 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
     int64_t* out_component_ld,
     int* out_split_count);
 
+typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
+  RNS8_BILINEAR_STRASSEN = 0,
+  RNS8_BILINEAR_RANK23_COEFFICIENTS = 1,
+  RNS8_BILINEAR_RANK23_SLP = 2
+} rns8_bilinear_method;
+/* Opt-in direct-HIP exact-wide signed/unsigned product. One bilinear level,
+ * complete prefix, staged publication, explicit scratch budget and original
+ * input range proof. Rank23 SLP uses the pinned alternative-basis program and
+ * retains all23 transformed operand/product buffers; it is not a low-memory
+ * schedule. Ratio is additional transient bytes/(resident A+B+C bytes), written
+ * only on success. No AUTO selection or performance qualification is implied. */
+RNS8_API rns8_status rns8_gemm_bilinear_exact(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_bilinear_method method,
+    uint64_t max_scratch_bytes,rns8_workspace* workspace,double* out_memory_overhead_ratio);
+
 /* Experimental synchronous one-level Strassen for direct-HIP exact-wide signed
  * or unsigned plans. Requires current resident RNS inputs and ordinary GEMM
  * ownership/range admission. Other levels/backends/semantics are unsupported.

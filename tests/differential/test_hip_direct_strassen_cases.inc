@@ -78,7 +78,7 @@ TEST_CASE(
     }
 }
 
-template<class T> void check_public_strassen_owner() {
+template<class T> void check_public_strassen_owner(rns8_bilinear_method method=RNS8_BILINEAR_STRASSEN) {
   using boost::multiprecision::cpp_int;
   constexpr bool is_unsigned = std::is_unsigned_v<T>;
   const auto semantics = is_unsigned ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
@@ -110,12 +110,17 @@ template<class T> void check_public_strassen_owner() {
   };
   double overhead=-1;
   const auto run = [&](int level) {
-    return rns8_strassen_gemm_research(ctx,plan,a,b,c,workspace,level,&overhead);
+    if(method==RNS8_BILINEAR_STRASSEN || level!=1)
+      return rns8_strassen_gemm_research(ctx,plan,a,b,c,workspace,level,&overhead);
+    return rns8_gemm_bilinear_exact(ctx,plan,a,b,c,method,UINT64_MAX,workspace,&overhead);
   };
   REQUIRE(pack(a,av) == RNS8_SUCCESS);
   REQUIRE(pack(b,bv) == RNS8_SUCCESS);
   REQUIRE(pack(c,av) == RNS8_SUCCESS);
   const auto initial_generation=c->content_generation;
+  CHECK(rns8_gemm_bilinear_exact(ctx,plan,a,b,c,method,0,workspace,&overhead)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(c->content_generation==initial_generation);CHECK(overhead==-1);
+  CHECK(rns8_gemm_bilinear_exact(ctx,plan,a,b,c,static_cast<rns8_bilinear_method>(999),UINT64_MAX,workspace,&overhead)==RNS8_INVALID_ARGUMENT);
   CHECK(run(2)==RNS8_UNSUPPORTED_BACKEND);
   CHECK(overhead==-1);
   c->in_flight_readers=1;
@@ -153,4 +158,12 @@ TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves 
   if (!hip_available()) SKIP("no HIP device for public Strassen");
   check_public_strassen_owner<int64_t>();
   check_public_strassen_owner<uint64_t>();
+}
+
+TEST_CASE("public rank23 methods retain exact proof and output transaction ownership") {
+  if(!hip_available()) SKIP("no HIP device for public rank23 methods");
+  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP}) {
+    check_public_strassen_owner<int64_t>(method);
+    check_public_strassen_owner<uint64_t>(method);
+  }
 }

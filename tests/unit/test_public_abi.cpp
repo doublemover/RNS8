@@ -38,6 +38,9 @@ TEST_CASE("reserved research APIs fail closed without changing outputs", "[quali
   CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1, &overhead) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
+  CHECK(rns8_gemm_bilinear_exact(nullptr,nullptr,nullptr,nullptr,nullptr,
+      RNS8_BILINEAR_RANK23_SLP,UINT64_MAX,nullptr,&overhead)==RNS8_INVALID_ARGUMENT);
+  CHECK(overhead == -1.0);
   double failure_probability = -1.0;
   CHECK(rns8_freivalds_verify(nullptr, nullptr, nullptr, nullptr, 1, 2, &failure_probability) ==
         RNS8_UNSUPPORTED_BACKEND);

@@ -54,7 +54,7 @@ query_bilinear_resources(int64_t m, int64_t n, int64_t k, int64_t lda,
   const uint64_t sizes[]{result.a_bytes, result.b_bytes, result.product_bytes,
                          result.output_bytes};
   for (uint64_t bytes : sizes) {
-    if (bytes > SIZE_MAX - total) {
+    if (bytes > SIZE_MAX - total || bytes > uint64_t(PTRDIFF_MAX) - total) {
       result.status = RNS8_RANGE_ERROR;
       return result;
     }

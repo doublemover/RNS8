@@ -53,7 +53,9 @@ static rns8_status hip_direct_gemm_bilinear_device(
               static_cast<const int8_t *>(b), tb, static_cast<int>(k),
               static_cast<int>(n), static_cast<int>(ldb), static_cast<int>(hk),
               static_cast<int>(hn), prefix, term, false, rank23));
-          return launch == hipSuccess ? hipDeviceSynchronize() : launch;
+          // The first transform may still own scratch if the second launch fails.
+          const auto completion=hipDeviceSynchronize();
+          return launch == hipSuccess ? completion : launch;
         });
     if (error != hipSuccess)
       return RNS8_BACKEND_FAILURE;

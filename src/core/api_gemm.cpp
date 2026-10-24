@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include <unordered_set>
 #include "backend_common/bilinear_resources.hpp"
+#include "backend_common/rank23_slp_resources.hpp"
 
 namespace rns8::detail::api {
 
@@ -1556,20 +1557,21 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
   return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
 }
 
-RNS8_API rns8_status rns8_strassen_gemm_research(
+RNS8_API rns8_status rns8_gemm_bilinear_exact(
     rns8_context* ctx,
     const rns8_plan* plan,
     const rns8_matrix* A,
     const rns8_matrix* B,
     rns8_matrix* C,
+    rns8_bilinear_method method,
+    uint64_t max_scratch_bytes,
     rns8_workspace* workspace,
-    int strassen_level,
     double* out_memory_overhead_ratio) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !C || !workspace || !out_memory_overhead_ratio ||
-        A == C || B == C || strassen_level < 1) return RNS8_INVALID_ARGUMENT;
-    if (strassen_level != 1 || plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+        A == C || B == C || method<RNS8_BILINEAR_STRASSEN || method>RNS8_BILINEAR_RANK23_SLP) return RNS8_INVALID_ARGUMENT;
+    if (plan->backend != RNS8_BACKEND_HIP_DIRECT ||
         !exact_wide_semantics(plan->desc.semantics)) return RNS8_UNSUPPORTED_BACKEND;
     auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (status != RNS8_SUCCESS) return status;
@@ -1583,8 +1585,12 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
     rns8_exact_matrix_ranges ranges;
     status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
     if (status != RNS8_SUCCESS) return status;
-    const auto resources = query_bilinear_resources(plan->desc.m, plan->desc.n, plan->desc.k,
-        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, 2, UINT64_MAX);
+    const auto resources = method==RNS8_BILINEAR_RANK23_SLP
+        ? query_rank23_slp_resources(plan->desc.m,plan->desc.n,plan->desc.k,
+            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,max_scratch_bytes)
+        : query_bilinear_resources(plan->desc.m,plan->desc.n,plan->desc.k,
+            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,
+            method==RNS8_BILINEAR_STRASSEN?2u:3u,max_scratch_bytes);
     if (resources.status != RNS8_SUCCESS) return resources.status;
     bool commit_started = false;
     struct CommitGuard {
@@ -1593,9 +1599,11 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
       bool published = false;
       ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
     } write{*C, commit_started};
-    status = hip_direct_gemm_strassen_device(ctx->device_id, A->hip_residues, B->hip_residues,
+    const auto multiply=method==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
+        method==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:hip_direct_gemm_rank23_slp_device;
+    status = multiply(ctx->device_id, A->hip_residues, B->hip_residues,
         C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
-        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, UINT64_MAX, commit_started);
+        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, max_scratch_bytes, commit_started);
     if (status != RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*C);
     commit_exact_range(*C, *plan, bound, &ranges);
@@ -1606,6 +1614,15 @@ RNS8_API rns8_status rns8_strassen_gemm_research(
     write.published = true;
     return RNS8_SUCCESS;
   });
+}
+
+RNS8_API rns8_status rns8_strassen_gemm_research(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_workspace* workspace,
+    int strassen_level,double* ratio) {
+  if(!ctx || !plan || !A || !B || !C || !workspace || !ratio || A==C || B==C || strassen_level<1)
+    return RNS8_INVALID_ARGUMENT;
+  if(strassen_level!=1) return RNS8_UNSUPPORTED_BACKEND;
+  return rns8_gemm_bilinear_exact(ctx,plan,A,B,C,RNS8_BILINEAR_STRASSEN,UINT64_MAX,workspace,ratio);
 }
 
 RNS8_API rns8_status rns8_freivalds_verify(
