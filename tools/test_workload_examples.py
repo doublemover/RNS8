@@ -17,10 +17,11 @@ import collect_workload_examples as collector
 ROOT = Path(__file__).resolve().parents[1]
 RECIPES = json.loads((ROOT / "examples/workloads/recipes.json").read_text(encoding="utf-8"))
 BIN = None
-PROGRAMS = ("integer-cross-product", "gf251-transform", "resident-chain", "exactness-walkthrough")
+PROGRAMS = ("integer-cross-product", "gf251-transform", "resident-chain", "complex-product", "exactness-walkthrough")
 
 
 def fixture(workload="integer_cross_product"):
+    if workload == "split_complex_integer_product": return complex_fixture()
     field = workload == "gf251_linear_transform"; chain = workload == "resident_integer_chain"; gram = workload == "integer_gram"
     recipe = "tiny_gf251_v1" if field else "tiny_cross_chain_v1" if chain else "tiny_cross_v1_gram_transpose_v1" if gram else "tiny_cross_v1"
     values = RECIPES["fixtures"][recipe]
@@ -49,6 +50,36 @@ def fixture(workload="integer_cross_product"):
         "metadata": {"device": {"backend_requested": "cpu-reference", "backend_selected": "cpu-reference",
             "device_id": -1, "device": "fixtureCPU", "target": "host"}, "plan": {"selected_kernel": "fixture"}}}]
     return result
+
+
+def complex_fixture():
+    report = fixture()
+    row = RECIPES["fixtures"]["tiny_split_complex_v1"]
+    operands = [list(row[key]) for key in ("ar", "ai", "br", "bi")]
+    before = collector.canonical_words(sum(operands, []))
+    operands[0][0] += 1
+    changed = collector.canonical_words(sum(operands, []))
+    expected = collector.checksum_bytes(collector.canonical_words(row["real"] + row["imag"], 3))
+    changed_expected = collector.checksum_bytes(collector.canonical_words(row["changed_real"] + row["changed_imag"], 3))
+    report.update(workload="split_complex_integer_product", semantics="exact_wide_signed_split_complex",
+                  output_limbs_per_component_cell=3,
+                  output_contract="real_row_major_signed_three_u64_limbs_then_imag_same", dataset_recipe="tiny_split_complex_v1",
+                  input_checksum_u64=collector.checksum_bytes(before), changed_input_checksum_u64=collector.checksum_bytes(changed),
+                  checksum_u64=expected, checksum_hex=f"{expected:016x}", changed_checksum_u64=changed_expected,
+                  abs_partial_sum_bound="207", bounds={"component_absolute_partial_sum": "207", "selected_prefix": 20})
+    prototype = report["variants"][0]
+    for sample in [prototype["cold_call"], *prototype["samples"]]: sample["checksum_u64"] = expected
+    prototype["changed_input"]["checksum_u64"] = changed_expected
+    report["variants"] = []
+    for method in ("3m", "4m"):
+        variant = copy.deepcopy(prototype); variant["name"] = "rns8_complex_" + method
+        variant["metadata"].update(public_api="rns8_gemm_complex_exact_signed", method=method,
+                                    real_product_count=int(method[0]), scratch_budget_bytes=4096)
+        variant["metadata"]["plan"]["selected_prefix"] = 20
+        report["variants"].append(variant)
+    baseline = copy.deepcopy(prototype); baseline["name"] = "blocked_cpp_int_complex_4m"; baseline["metadata"] = {}
+    report["variants"].insert(0, baseline)
+    return report
 
 
 class Reports(unittest.TestCase):
@@ -95,7 +126,7 @@ class Reports(unittest.TestCase):
                 with self.assertRaises(ValueError): collector.validate_report(bad, "run1", "cpu-reference", -1)
 
     def test_all_recipe_families(self):
-        for family in ("integer_cross_product", "integer_gram", "gf251_linear_transform", "resident_integer_chain"):
+        for family in ("integer_cross_product", "integer_gram", "gf251_linear_transform", "resident_integer_chain", "split_complex_integer_product"):
             with self.subTest(family=family):
                 report = fixture(family)
                 identity = collector.validate_report(report, "run1", "cpu-reference", -1)
@@ -109,6 +140,41 @@ class Reports(unittest.TestCase):
             if "t" in row: product = [sum(product[i*n+q] * row["t"][q*n+j] for q in range(n)) for i in range(m) for j in range(n)]
             if "gf251" in name: product = [value % 251 for value in product]
             self.assertEqual(product, row["output"], name)
+
+    def test_complex_hand_answer_and_malformed_method_contracts(self):
+        row = RECIPES["fixtures"]["tiny_split_complex_v1"]
+        m, n, k = row["shape"]
+        def product(a, b): return [sum(a[i*k+q] * b[q*n+j] for q in range(k)) for i in range(m) for j in range(n)]
+        rr, ii = product(row["ar"], row["br"]), product(row["ai"], row["bi"])
+        ri, ir = product(row["ar"], row["bi"]), product(row["ai"], row["br"])
+        self.assertEqual([a-b for a,b in zip(rr, ii)], row["real"])
+        self.assertEqual([a+b for a,b in zip(ri, ir)], row["imag"])
+        mutations = [lambda r: r.update(output_contract="interleaved"), lambda r: r.update(semantics="finite_ring"),
+                     lambda r: r.update(abs_partial_sum_bound="0"), lambda r: r["bounds"].update(selected_prefix=9),
+                     lambda r: r.update(checksum_u64=0, checksum_hex="0000000000000000"),
+                     lambda r: r.update(changed_checksum_u64=0), lambda r: r["variants"].pop(),
+                     lambda r: r["variants"].pop(0), lambda r: r["variants"][1]["metadata"].update(method="4m"),
+                     lambda r: r["variants"][1]["metadata"].update(real_product_count=4),
+                     lambda r: r["variants"][1]["metadata"].update(scratch_budget_bytes=True),
+                     lambda r: r["variants"][1]["metadata"].update(public_api="private_kernel")]
+        for mutate in mutations:
+            bad = complex_fixture(); mutate(bad)
+            with self.assertRaises(ValueError): collector.validate_report(bad, "run1", "cpu-reference", -1)
+
+    def test_complex_independent_process_scratch_identity_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "fixture"; executable.write_bytes(b"immutable")
+            count = 0
+            def process(command, **kwargs):
+                nonlocal count
+                report = complex_fixture(); report["run_id"] = command[-1]
+                report["variants"][1]["metadata"]["scratch_budget_bytes"] += count
+                count += 1
+                return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                record = collector.collect(executable, ["--reference-only"], 2, 1)
+            self.assertEqual(record["status"], "failed")
+            self.assertIn("identity changed", record["errors"][0]["reason"])
 
     def test_malformed_observations(self):
         mutations = {
@@ -239,7 +305,10 @@ class Compiled(unittest.TestCase):
                  ("resident-chain", ["--pattern", "zero"]), ("resident-chain", ["--bits", "12"]),
                  ("integer-cross-product", ["--m", "3", "--n", "1", "--k", "17"]),
                  ("gf251-transform", ["--m", "3", "--n", "5", "--k", "33"]),
-                 ("resident-chain", ["--m", "3", "--n", "1", "--k", "17"])]
+                 ("resident-chain", ["--m", "3", "--n", "1", "--k", "17"]),
+                 ("complex-product", ["--bits", "63"]), ("complex-product", ["--pattern", "zero"]),
+                 ("complex-product", ["--pattern", "sparse", "--seed", "0"]),
+                 ("complex-product", ["--m", "3", "--n", "5", "--k", "17"])]
         for name, flags in cases:
             with self.subTest(program=name, flags=flags):
                 result = collector.collect(self.exe(name), ["--reference-only", "--size", "tiny", "--repeats", "2", "--warmups", "0", *flags], 1, 45)
@@ -267,6 +336,14 @@ class Compiled(unittest.TestCase):
                             ("integer-cross-product", ["--size", "tiny", "--bits", "63"]),
                             ("resident-chain", ["--size", "tiny", "--bits", "63"])):
             with self.subTest(program=name, flags=flags): self.invoke(name, flags, success=False)
+
+    def test_complex_specific_controls_and_unsupported_backend(self):
+        for flags in (["--wide"], ["--gram"], ["--size", "large", "--memory-mib", "1"]):
+            self.invoke("complex-product", flags, success=False)
+        result = subprocess.run([str(self.exe("complex-product")), "--backend", "ck", "--device", "0", "--json"],
+                                text=True, capture_output=True, encoding="utf-8", timeout=10)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "unsupported")
 
 
 if __name__ == "__main__":

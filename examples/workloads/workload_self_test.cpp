@@ -1,6 +1,7 @@
 #include "workload_baselines.hpp"
 #include "workload_engine.hpp"
 #include "workload_report.hpp"
+#include "workload_complex.hpp"
 #include <cstdlib>
 using namespace rns8_workload;
 int main() {
@@ -43,6 +44,28 @@ int main() {
     Dataset data = make_data(tiny, true);
     require(exact_product(data, tiny) == std::vector<cpp_int>({20, -27, 4, -14}), "hand product changed");
     require(exact_product(data, tiny, true) == std::vector<cpp_int>({67, -34, 22, -24}), "hand chain changed");
+    auto complex = make_complex_data(tiny);
+    const auto pair = complex_reference(complex, tiny);
+    const std::vector<cpp_int> known_pair{19, -25, 9, -19, -12, 26, 14, 10};
+    for (std::size_t cell = 0; cell < known_pair.size(); ++cell)
+      require(decode(pair, cell, 3) == known_pair[cell], "hand split-complex product changed");
+    std::vector<cpp_int> complex_real(4), complex_imag(4);
+    complex_four_product(complex, tiny, true, complex_real, complex_imag);
+    require(complex_real == std::vector<cpp_int>({19, -25, 9, -19}) &&
+            complex_imag == std::vector<cpp_int>({-12, 26, 14, 10}), "blocked complex baseline differs");
+    require(complex_final_bound(complex, tiny) == 207, "complex complete-expression bound changed");
+    mutate_complex_input(complex);
+    const auto changed_pair = complex_reference(complex, tiny);
+    const std::vector<cpp_int> known_changed{20, -17, 9, -19, -12, 27, 14, 10};
+    for (std::size_t cell = 0; cell < known_changed.size(); ++cell)
+      require(decode(changed_pair, cell, 3) == known_changed[cell], "complex generation2 differs");
+    Options complex_edge; complex_edge.m = complex_edge.n = complex_edge.k = 1;
+    ComplexData full_complex;
+    full_complex.values = {{{INT64_MIN}, {INT64_MAX}, {INT64_MAX}, {INT64_MIN}}};
+    const auto full_pair = complex_reference(full_complex, complex_edge);
+    require(decode(full_pair, 0, 3) == 0 &&
+            decode(full_pair, 1, 3) == (cpp_int(1) << 127) - (cpp_int(1) << 64) + 1,
+            "full-width complex exact reference lost signed extrema");
     tiny.gram = true; data = make_data(tiny);
     require(exact_product(data, tiny) == std::vector<cpp_int>({14, -22, -22, 161}), "Gram transpose changed");
     Dataset full; full.a = {INT64_MIN, INT64_MAX}; full.b = {1, 1};

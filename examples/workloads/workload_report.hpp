@@ -35,7 +35,7 @@ inline Json verified_sample(Variant& variant, uint64_t version, const Words& exp
   return {{"application_ns", application}, {"phases_ns", phases.values}, {"verification_ns", verification},
           {"checksum_u64", hash}, {"exact_reference_passed", true}};
 }
-inline void run_variants(Json& report, const Options& options, const Dataset& data, std::vector<Variant>& variants,
+template<class Data> inline void run_variants(Json& report, const Options& options, const Data& data, std::vector<Variant>& variants,
     const Words& expected, const std::function<Words()>& mutate_and_reference, Json skipped = Json::array()) {
   Json records = Json::array(), order = Json::array();
   for (auto& variant : variants) {

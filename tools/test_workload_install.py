@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import sys
 
-PROGRAMS = ("integer-cross-product", "gf251-transform", "resident-chain", "exactness-walkthrough")
+PROGRAMS = ("integer-cross-product", "gf251-transform", "resident-chain", "complex-product", "exactness-walkthrough")
 
 
 def cache_values(build: Path) -> dict[str, str]:

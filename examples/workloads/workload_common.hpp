@@ -95,7 +95,7 @@ inline Options options(int argc, char** argv) {
           "--sustained-ms 0..10000 (0 disables production-style repeated calls)\n"
           "--memory-mib 1..4096 --baseline-max-products 1..134217728 --wide --gram\n"
           "tiny uses a named hand-checkable fixture; large is explicit opt-in.\n"
-          "Field/resident/exactness programs reject irrelevant controls.\n";
+          "Field/resident/complex/exactness programs reject irrelevant controls.\n";
       std::exit(0);
     }
     if (key == "--json") { out.json = true; continue; }

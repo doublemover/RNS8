@@ -1,17 +1,20 @@
 # Practical exact integer workloads
 
-These four C++17 programs use installed public RNS8 headers and exported CMake
+These five C++17 programs use installed public RNS8 headers and exported CMake
 targets. Each starts with a task, proves its required integer range, compares
 every output against an independent Boost.Multiprecision reference, and prints
 an all-output checksum. GPU execution requests a named backend and device;
 unsupported requests return status `unsupported`, exit77, and never fall back
 to CPU. `--reference-only` explicitly selects CPU reference, device−1.
 
-The four programs and their Windows installed consumers passed CPU and direct
+The original four programs and their Windows installed consumers passed CPU and direct
 HIP checks at `51ae8d8` on the RX 7900 XTX. Large application measurements and
 Linux installed-consumer qualification remain pending execution. Existing
 [kernel measurements](../../docs/native-queue-performance-2026-10-23.md) describe
 different scopes and do not establish an application speedup here.
+The new `complex-product` program uses the experimental public split-complex API;
+its source and fixtures await the consolidated build/validation run. No complex
+application measurement or installed-consumer pass is claimed yet.
 
 ## Tasks and tiny answers
 
@@ -22,6 +25,7 @@ different scopes and do not establish an application speedup here.
 | `integer-cross-product --gram` | Integer Gram matrix `XᵀX`, K observations and M=N features; squared feature units | `[14,-22,-22,161]` | `b18e5fce6ed0647a` |
 | `gf251-transform` | Batched linear transform over prime field GF(251); canonical byte output | `[44,48,139,154]` | `af3cec33c3f7c268` |
 | `resident-chain` | Two exact integer transforms `(AB)T`, same final signed192 output with resident or exported/reimported intermediate | `[67,-34,22,-24]` | `f4de4c5aad00cd96` |
+| `complex-product` | Split-complex integer `AB`, explicit public 3M and 4M, both components signed192 | Real `[19,-25,9,-19]`; imaginary `[-12,26,14,10]` | Printed after complete pair verification; pending execution |
 
 Target names start with `rns8-workload-`. Checksums cover every output, including
 all limbs, with the versioned serialization in [recipes.json](recipes.json).
@@ -55,12 +59,13 @@ the direct HIP backend on device0. Replace `build/issues-all` with your own
 build directory; on Linux omit `.exe`.
 
 ```powershell
-cmake --build build/issues-all --target rns8-workload-exactness-walkthrough rns8-workload-integer-cross-product rns8-workload-gf251-transform rns8-workload-resident-chain
+cmake --build build/issues-all --target rns8-workload-exactness-walkthrough rns8-workload-integer-cross-product rns8-workload-gf251-transform rns8-workload-resident-chain rns8-workload-complex-product
 build/issues-all/examples/workloads/rns8-workload-exactness-walkthrough.exe --backend hip-direct --device 0 --size tiny --json
 build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --backend hip-direct --device 0 --size tiny --repeats 3 --warmups 1 --json
 build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --backend hip-direct --device 0 --gram --size modest --bits 12 --seed 3135 --json
 build/issues-all/examples/workloads/rns8-workload-gf251-transform.exe --backend hip-direct --device 0 --size modest --seed 3135 --json
 build/issues-all/examples/workloads/rns8-workload-resident-chain.exe --backend hip-direct --device 0 --size tiny --json
+build/issues-all/examples/workloads/rns8-workload-complex-product.exe --backend hip-direct --device 0 --size tiny --json
 ```
 
 The walkthrough always makes one observation per fixed witness; its only
@@ -88,6 +93,35 @@ subdirectories and may take several minutes. GPU cases skip only when the
 actual request reports unsupported; a CPU run is never counted as GPU coverage.
 
 ## Range, comparators and resource limits
+
+The complex workload computes `Cr=ArBr−AiBi`, `Ci=ArBi+AiBr` without conjugation.
+It uses only public `rns8_gemm_complex_exact_signed`, explicitly selecting 3M and
+4M on CPU reference or direct HIP; other named backends report unsupported.
+Both candidates pack the same four native signed input components, recompute
+the composition and export every real cell followed by every imaginary cell
+as three signed little-endian u64 limbs. Input generation is versioned
+`splitmix64_split_complex_signed_v1`; the tiny fixture is independently readable
+in [recipes.json](recipes.json). Generation2 changes only `Ar[0]`, including
+the corresponding range bound and full pair reference. Native input sums are
+not formed in signed64 by the workload; 3M input transforms occur in residue
+space inside the public call.
+
+Admission proves `P20 > 2*max(K*(max|Ar|max|Br|+max|Ai|max|Bi|),
+K*(max|Ar|max|Bi|+max|Ai|max|Br|))`, including the changed input. The fixed
+20-plane basis has independent final-component uniqueness obligations. The
+reference and timed naive/blocked Boost comparators use four integer products;
+native64 and genuine native128 comparators run only when the complete absolute
+partial-sum bound fits. No Boost type is labeled native128 on MSVC.
+
+Both public methods include transient scratch allocation/release and required
+synchronization in their composition phase; transformed operands are not
+cached. Both final reconstructions/downloads are charged. Host phase timings,
+cold resource/input setup, unchanged version1 reuse, version2 mutation and
+optional sustained calls use the same existing harness. Mathematical useful
+work is four real products per complex multiply regardless of implementation;
+method selection and actual three/four real product counts stay explicit in
+metadata. This supplies matched correctness/application scopes, not a claim
+that 3M is faster. It does not exercise the separate resident graph API.
 
 The integer cross-product admits bounded64 only when
 `K*max_abs(A)*max_abs(B) <= INT64_MAX`, including the changed input. This bounds
@@ -146,6 +180,20 @@ failures remain real errors. There
 is no machine-independent time bound. The collector timeout bounds each process
 and retains timeout/error output. Large examples are opt-in and may be slow in
 debug/reference builds.
+
+For the complex case, the host allowance is `1024*2*(MK+KN+MN)` bytes, covering
+four input components, both old/new exact references, retained naive/blocked
+and admitted native baseline arrays plus their complete serialized outputs.
+Allowed shapes/bits keep exact values below `2^138` (at most three significant
+u64 limbs); normal multiprecision capacity overhead is covered conservatively.
+Each retained public method additionally charges `128*2*(MK+KN+MN)` plus its
+reported workspace. One shared transient cap `128*(MK+KN+6MN)` is reserved
+because variants execute serially; that cap exceeds the current 3M payload
+`20*(MK+KN+5MN)` and 4M payload `20*6MN`. The public API enforces the cap,
+which is not a minimum-scratch query or an allocator-independent peak bound.
+All these reservations contribute to the reported aggregate budget. Large
+complex inputs need an explicit larger budget, for example `--size large
+--memory-mib 1024`. Free device memory remains runtime checked.
 
 ## Measurement and independent collection
 

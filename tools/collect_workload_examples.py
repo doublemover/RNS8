@@ -45,6 +45,8 @@ def checksum_bytes(data: bytes) -> int:
 def dataset_identity(report: dict) -> dict:
     """Reconstruct recipe bytes, not merely hash a claimed checksum/seed."""
     recipe = report["dataset_recipe"]
+    if report["workload"] == "split_complex_integer_product":
+        return complex_dataset_identity(report)
     if recipe == "exactness_five_witnesses_v1":
         values = [1 << 40, -3, 1 << 30, 5, 1 << 40, -(1 << 40), 1 << 30, 1 << 30,
                   0, 0, -(1 << 63), (1 << 63) - 1, -(1 << 63), (1 << 63) - 1, 1, 1,
@@ -92,6 +94,51 @@ def dataset_identity(report: dict) -> dict:
             "bytes": len(data), "serialization": "A then B then optionalT, row-major little-endian signed64"}
 
 
+def complex_dataset_identity(report: dict) -> dict:
+    m, n, k = (report[key] for key in ("m", "n", "k"))
+    demand(all(type(value) is int and 1 <= value <= 512 for value in (m, n, k)), "complex recipe shape outside bounds")
+    recipe = report["dataset_recipe"]
+    demand(recipe in {"tiny_split_complex_v1", "splitmix64_split_complex_signed_v1"}, "unknown split-complex recipe")
+    state, bits = report["seed"], report["bits"]
+    demand(type(state) is int and 0 <= state <= MASK and type(bits) is int and 1 <= bits <= 63, "invalid complex seed/bits")
+    demand(report["pattern"] in {"seeded", "zero", "sparse"}, "invalid complex pattern")
+    maximum = (1 << bits) - 1
+    operands = []
+    for count in (m * k, m * k, k * n, k * n):
+        operand = []
+        for index in range(count):
+            state = (state + 0x9e3779b97f4a7c15) & MASK
+            word = state; word = ((word ^ (word >> 30)) * 0xbf58476d1ce4e5b9) & MASK
+            word = ((word ^ (word >> 27)) * 0x94d049bb133111eb) & MASK; word ^= word >> 31
+            value = word % (maximum * 2 + 1)
+            if value > maximum: value = -(value - maximum)
+            if report["pattern"] == "zero" or report["pattern"] == "sparse" and index % 8: value = 0
+            operand.append(value)
+        operands.append(operand)
+    if recipe == "tiny_split_complex_v1":
+        demand((m, n, k) == (2, 2, 3) and report["pattern"] == "seeded" and report["seed"] == 3135
+               and report["bits"] == 8 and report["size"] == "tiny", "tiny complex fixture controls differ")
+        operands = [[2, -3, 4, -5, 6, 7], [1, 0, -1, 2, -2, 1], [1, 8, -2, 9, 3, -4], [0, 1, 2, 0, -1, 3]]
+    before = canonical_words([value for operand in operands for value in operand])
+    demand(checksum_bytes(before) == report.get("input_checksum_u64"), "complex input bytes differ from recipe")
+    maxima = [max(map(abs, operand)) for operand in operands]
+    first = operands[0][0]
+    operands[0][0] += -1 if first == (1 << 63) - 1 else 1
+    maxima[0] = max(maxima[0], abs(operands[0][0]))
+    bound = k * max(maxima[0] * maxima[2] + maxima[1] * maxima[3], maxima[0] * maxima[3] + maxima[1] * maxima[2])
+    demand(report.get("abs_partial_sum_bound") == str(bound), "complex complete-expression bound differs")
+    demand(report.get("bounds", {}).get("component_absolute_partial_sum") == str(bound)
+           and report["bounds"].get("selected_prefix") == 20, "complex admitted basis/bound metadata differs")
+    changed = canonical_words([value for operand in operands for value in operand])
+    demand(checksum_bytes(changed) == report.get("changed_input_checksum_u64"), "complex generation2 input differs")
+    if recipe == "tiny_split_complex_v1":
+        for key, values in (("checksum_u64", [19, -25, 9, -19, -12, 26, 14, 10]),
+                            ("changed_checksum_u64", [20, -17, 9, -19, -12, 27, 14, 10])):
+            demand(report.get(key) == checksum_bytes(canonical_words(values, 3)), "tiny complex full-pair checksum differs")
+    return {"sha256": hashlib.sha256(before).hexdigest(), "changed_sha256": hashlib.sha256(changed).hexdigest(),
+            "bytes": len(before), "serialization": "Ar,Ai,Br,Bi row-major little-endian signed64"}
+
+
 def encoded(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
 
@@ -125,7 +172,7 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
     demand(type(report) is dict and report.get("schema") == SCHEMA, "unexpected workload schema")
     demand(report.get("status") == "passed", "workload did not pass")
     demand(report.get("workload") in {"integer_cross_product", "integer_gram", "gf251_linear_transform",
-                                      "resident_integer_chain", "exactness_walkthrough"}, "unknown workload family")
+                                      "resident_integer_chain", "split_complex_integer_product", "exactness_walkthrough"}, "unknown workload family")
     demand(report.get("run_id") == run_id, "run identity mismatch")
     demand(report.get("backend_requested") == backend and report.get("device_requested") == device,
            "requested backend/device mismatch")
@@ -219,6 +266,22 @@ def validate_report(report: dict, run_id: str, backend: str, device: int) -> dic
         admitted.append({"name": row["name"], "status": row["status"], "metadata": metadata,
                          "phase_scopes": sorted(samples[0]["phases_ns"]), "cold_total_scope": row["cold_total_scope"]})
     demand(bool(candidates), "requested RNS8 implementation missing")
+    if report["workload"] == "split_complex_integer_product":
+        demand(report.get("semantics") == "exact_wide_signed_split_complex"
+               and report.get("output_contract") == "real_row_major_signed_three_u64_limbs_then_imag_same",
+               "complex component semantics/serialization differs")
+        demand(report.get("output_limbs_per_component_cell") == 3, "complex component export width differs")
+        demand({row["name"] for row in candidates} == {"rns8_complex_3m", "rns8_complex_4m"}, "both public complex methods are required")
+        demand(any(row["name"] == "blocked_cpp_int_complex_4m" and row.get("status") == "passed" for row in variants),
+               "strongest implemented exact complex CPU comparator missing")
+        for row in candidates:
+            metadata = row["metadata"]
+            method = "3m" if row["name"] == "rns8_complex_3m" else "4m"
+            demand(metadata.get("public_api") == "rns8_gemm_complex_exact_signed" and metadata.get("method") == method
+                   and metadata.get("real_product_count") == int(method[0]), "complex method identity differs")
+            demand(metadata.get("plan", {}).get("selected_prefix") == 20, "complex fixed basis differs")
+            demand(type(metadata.get("scratch_budget_bytes")) is int and metadata["scratch_budget_bytes"] > 0,
+                   "complex transient scratch budget missing")
     expected_order = [row["name"] for row in variants if row.get("status") == "passed"] if sustained_ms else []
     order = report.get("sustained_order")
     demand(type(order) is list and len(order) == len(expected_order)

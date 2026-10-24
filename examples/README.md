@@ -6,6 +6,8 @@ The [practical workload catalogue](workloads/README.md) adds an exactness
 walkthrough, integer Gram/cross-products, GF(251) transforms, and matched
 resident versus export/reimport chains with explicit GPU backend/device
 selection, independent CPU comparators, range admission and measurement tools.
+An additional experimental split-complex workload compares public 3M/4M with a
+four-product Boost reference; its new source/fixtures await consolidated validation.
 Their application performance and installed-platform qualification remain
 pending execution; the tiny programs below retain CPU reference contexts.
 

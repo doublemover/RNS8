@@ -24,6 +24,7 @@ set(RNS8_WORKLOAD_TARGETS
   integer-cross-product
   gf251-transform
   resident-chain
+  complex-product
   exactness-walkthrough
 )
 
