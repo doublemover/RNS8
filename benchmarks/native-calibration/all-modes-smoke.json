@@ -1,0 +1,121 @@
+[
+  {
+    "candidate": "pack_pair",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "packed_gemm",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "pack_gemm",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "wmma",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "queue",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": true,
+    "workers": 1024
+  },
+  {
+    "candidate": "split_k",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "workers": 1024
+  },
+  {
+    "candidate": "narrow_wmma",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 1,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "narrow_scalar",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 1,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "narrow_vector",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 1,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "narrow_rns",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 1,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "epilogue_direct",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "epilogue_rocwmma",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  },
+  {
+    "candidate": "epilogue_unfused",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 1,
+    "unsigned_inputs": false
+  }
+]

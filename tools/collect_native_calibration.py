@@ -194,6 +194,14 @@ def validate_capture(capture, case, run_id, repeats, warmups):
     qualified_shape = dict(manifest, source_dirty=False)
     if manifest.get("dependency_digest") == "unavailable":
         qualified_shape["dependency_digest"] = "0" * 64
+    # Experimental Garner is valid diagnostic provenance, but the original
+    # manifest must still fail the separate release-provenance check below.
+    configuration = manifest.get("configuration")
+    if isinstance(configuration, str):
+        lines = configuration.splitlines()
+        qualified_shape["configuration"] = "\n".join(
+            "garner_table=OFF" if line.partition("=")[0] == "garner_table" else line
+            for line in lines)
     backend = "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None
     if not manifest_provenance_complete(qualified_shape, backend):
         raise ValueError("invalid build provenance")
@@ -225,6 +233,9 @@ def main():
     exe = args.exe.resolve(strict=True)
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
+    collector_sources = [Path(__file__).resolve(), Path(__file__).with_name("build_manifest.py").resolve(),
+                         Path(__file__).with_name("modulus_set_search.py").resolve()]
+    collector_identity = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources}
     campaign = str(uuid.uuid4())
     jobs = [(c, independent) for independent in range(args.runs) for c in cases]
     random.Random(args.order_seed).shuffle(jobs)
@@ -239,6 +250,8 @@ def main():
             command.append(str(case["workers"]))
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
+                  "collector_sha256": collector_identity["collect_native_calibration.py"],
+                  "collector_sources_sha256": collector_identity,
                   "started_unix_ns": time.time_ns(), "ordinal": ordinal, "independent_repeat": independent,
                   "order_seed": args.order_seed, "promotion_eligible": False}
         failure = None

@@ -211,6 +211,13 @@ class CaptureTest(unittest.TestCase):
         capture["build_manifest"].update(source_dirty=True, dependency_digest="unavailable")
         validate_capture(capture, case, "fixture-run", 3, 1)
 
+    def test_garner_on_and_off_are_valid_diagnostics(self):
+        case = case_for("queue")
+        for enabled in ("ON", "OFF", "TRUE", "1"):
+            capture = capture_for(case)
+            capture["build_manifest"]["configuration"] += "\ngarner_table=" + enabled
+            validate_capture(capture, case, "fixture-run", 3, 1)
+
     def test_strict_json_rejects_duplicates_and_nonfinite_numbers(self):
         for text in ('{"x":1,"x":2}', '{"x":NaN}', '{"x":Infinity}', '{"x":-Infinity}'):
             with self.assertRaises(ValueError):
@@ -269,6 +276,10 @@ class CollectorTest(unittest.TestCase):
             self.assertTrue(record["validated"])
             self.assertTrue(record["provenance_complete"])
             self.assertFalse(record["promotion_eligible"])
+            import hashlib
+            for name, digest in record["collector_sources_sha256"].items():
+                self.assertEqual(digest, hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest())
+            self.assertEqual(record["collector_sha256"], record["collector_sources_sha256"]["collect_native_calibration.py"])
             self.assertEqual(record["command"][10], record["run_id"])
             self.assertIn(record["command"], calls)
             self.assertEqual(record["comparison_identity"]["case"], record["case"])
@@ -324,6 +335,18 @@ class CollectorTest(unittest.TestCase):
         self.assertTrue(record["validated"])
         self.assertFalse(record["provenance_complete"])
         self.assertFalse(record["promotion_eligible"])
+
+    def test_garner_diagnostics_preserve_release_ineligibility(self):
+        for enabled, complete in (("ON", False), ("OFF", True)):
+            self.output = self.root / ("garner-" + enabled)
+            def mutate(capture, count):
+                capture["build_manifest"]["configuration"] += "\ngarner_table=" + enabled
+            self.collect([BASE], mutate=mutate)
+            record, = self.records()
+            self.assertTrue(record["validated"])
+            self.assertEqual(record["provenance_complete"], complete)
+            self.assertFalse(record["promotion_eligible"])
+            self.assertIn("garner_table=" + enabled, record["comparison_identity"]["build_manifest"]["configuration"])
 
     def test_timeout_partial_output_failure_and_invalid_json(self):
         def timeout(command, capture):
