@@ -20,7 +20,8 @@ struct ProductArenaPlan {
 };
 inline ProductArenaPlan plan_product_arena(const std::vector<ProductShape>& inputs,
     const std::vector<ProductNode>& nodes,uint32_t prefix,uint64_t budget,
-    const std::vector<uint32_t>& output_capacities = {}) {
+    const std::vector<uint32_t>& output_capacities = {},
+    const std::vector<uint32_t>& retained_outputs = {}) {
   ProductArenaPlan plan;
   if(inputs.empty() || inputs.size()>4096 || nodes.empty() || nodes.size()>4096 ||
       !prefix || prefix>20 || (!output_capacities.empty() && output_capacities.size()!=nodes.size())) return plan;
@@ -46,7 +47,15 @@ inline ProductArenaPlan plan_product_arena(const std::vector<ProductShape>& inpu
     plan.values[node.b].last_use=std::max(plan.values[node.b].last_use,i);
     plan.values.push_back({{a.rows,b.cols},0,address.byte_extent,i});
   }
-  plan.values.back().last_use=static_cast<uint32_t>(nodes.size());
+  if(retained_outputs.empty()) plan.values.back().last_use=static_cast<uint32_t>(nodes.size());
+  else {
+    if(retained_outputs.size()>nodes.size()) return plan;
+    std::vector<bool> seen(nodes.size(),false);
+    for(auto id:retained_outputs) {
+      if(id<count || id>=plan.values.size() || seen[id-count]) return plan;
+      seen[id-count]=true;plan.values[id].last_use=static_cast<uint32_t>(nodes.size());
+    }
+  }
   struct Slot { uint64_t offset,capacity; uint32_t last_use; };
   std::vector<Slot> slots;
   for(uint32_t i=0;i<nodes.size();++i) {

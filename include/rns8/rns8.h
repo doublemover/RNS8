@@ -1539,6 +1539,22 @@ typedef struct rns8_product_recipe_resources {
 RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
     const rns8_product_recipe_desc* desc,rns8_product_recipe** out);
 RNS8_API rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output);
+/* Compile an explicit ordered set of observable node value IDs. IDs must be
+ * distinct produced values (not external inputs). They remain live through final
+ * publication, including intermediate values still consumed by later nodes.
+ * The descriptor and range/prefix rules are identical to the single-output API.
+ * Budget includes the extended live ranges; no cost-optimal choice is implied. */
+RNS8_API rns8_status rns8_create_product_recipe_outputs(rns8_context* ctx,
+    const rns8_product_recipe_desc* desc,const uint32_t* output_value_ids,
+    uint32_t output_count,rns8_product_recipe** out);
+/* Output order matches creation. Destinations must be distinct and cannot alias
+ * inputs. All bindings are checked before work; all private results finish before
+ * public copies. Precommit failures preserve every output; publication failure
+ * invalidates the entire batch. Publication is synchronous, not concurrent-atomic.
+ * The single-output execute API also works on an explicit one-output recipe. */
+RNS8_API rns8_status rns8_execute_product_recipe_outputs(rns8_product_recipe* recipe,
+    rns8_matrix* const* outputs,uint32_t output_count);
+
 /* Atomic input owner/generation replacement, preserving the existing compiled
  * shape, prefix, layout and range envelopes. Larger bounds require recreation.
  * Scratch, selected prefixes and node proofs remain unchanged. Failure preserves

@@ -227,3 +227,25 @@ TEST_CASE("chain prefix DP agrees with exhaustive costs and reaches a long-chain
   const auto dag=select_product_prefixes(inputs,chain,20,std::vector<uint32_t>(64,3),UINT64_MAX,false,costs);
   REQUIRE_FALSE(dag.chain_dynamic_programming);
 }
+
+#include "../support/product_recipe_outputs_fixture.hpp"
+TEST_CASE("public CPU product recipes publish multiple retained intermediate values") {
+  check_product_recipe_outputs(RNS8_BACKEND_CPU_REFERENCE);
+}
+TEST_CASE("observable product values stay live through publication") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{16,16},{16,16}};
+  const std::vector<ProductNode> chain{{0,1},{2,1},{3,1},{4,1}};
+  const std::vector<uint32_t> observed{2,3,5};
+  const auto plan=plan_product_arena(inputs,chain,20,UINT64_MAX,{},observed);
+  REQUIRE(plan.status==RNS8_SUCCESS);
+  for(auto id:observed) CHECK(plan.values[id].last_use==chain.size());
+  for(size_t i=0;i<chain.size();++i) for(size_t j=i+1;j<chain.size();++j) {
+    const auto& a=plan.values[2+i];const auto& b=plan.values[2+j];
+    if(a.last_use>=j) CHECK((a.offset+a.bytes<=b.offset || b.offset+b.bytes<=a.offset));
+  }
+  CHECK(plan_product_arena(inputs,chain,20,plan.arena_bytes-1,{},observed).status==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(plan_product_arena(inputs,chain,20,UINT64_MAX,{}, {2,2}).status==RNS8_INVALID_ARGUMENT);
+  CHECK(plan_product_arena(inputs,chain,20,UINT64_MAX,{}, {0}).status==RNS8_INVALID_ARGUMENT);
+  CHECK(plan_product_arena(inputs,chain,20,UINT64_MAX,{}, {6}).status==RNS8_INVALID_ARGUMENT);
+}

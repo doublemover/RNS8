@@ -87,3 +87,9 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+#include "../support/product_recipe_outputs_fixture.hpp"
+TEST_CASE("public HIP product recipes publish multiple retained intermediate values") {
+  if(!hip_available()) SKIP("no HIP device for multi-output product recipe");
+  check_product_recipe_outputs(RNS8_BACKEND_HIP_DIRECT);
+}

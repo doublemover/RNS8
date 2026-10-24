@@ -2,7 +2,8 @@
 
 `rns8_create_product_recipe` owns a synchronous CPU/direct-HIP executor for a
 fixed topologically ordered exact-wide product DAG. It accepts current public
-matrix inputs and publishes one final public matrix through `rns8_execute_product_recipe`. Inputs must share explicit
+matrix inputs and publishes a final public matrix through `rns8_execute_product_recipe`,
+or an explicitly ordered set of node results through the multi-output API. Inputs must share explicit
 signedness, the default basis, a common input/output prefix and modulus-major storage. It
 retains context/input lifetimes and binds their engine instance/generation;
 repacking requires explicit input rebinding or creating a new recipe. Changed or busy inputs reject execution.
@@ -12,16 +13,16 @@ a conservative magnitude envelope, and checks the common CRT range. It computes
 all last-reader positions before assigning storage. Deterministic best-fit slots
 are 256-byte aligned; a slot can be reused only when its prior value's last reader
 is strictly earlier than the new producer. An input still read by the current
-node can never share that node's destination. The final value remains live until
+node can never share that node's destination. Every requested observable value remains live until
 publication. Cycles/forward IDs, incompatible dimensions, insufficient exact range
 and arena budget violations reject before execution.
 
 The actual executor allocates one CPU vector or HIP device buffer and dispatches
 each product into its assigned region. HIP products use the existing direct RNS
 kernel; CPU products independently reduce every scalar accumulation. Intermediate
-values stay private: only the final staged result is copied to the public output.
-Kernel failure before that copy preserves the old output. Copy failure invalidates
-it. Successful publication installs the complete prefix and exact magnitude proof.
+values stay private until every requested result is ready for publication.
+Kernel failure before publication preserves the old outputs. Copy failure invalidates
+the entire requested output batch. Successful publication installs the complete prefix and exact magnitude proof.
 Replay overwrites each logical value before reading it and rechecks input bindings.
 
 The explicit budget covers aligned intermediate payload storage plus the maximum
@@ -43,7 +44,7 @@ prefix certified by each node's conservative complete-product bound. It reserves
 each value's maximum required consumer prefix, rather than the common ceiling.
 Before a consumer runs, any missing input suffix is reconstructed from the already
 unique exact value and appended. A later consumer can extend the same value again.
-The final private result is extended to the full public output prefix before copy.
+Every requested private result is extended to the full public output prefix before any copy.
 No input prefix is truncated in place and no external matrix is mutated for lifting.
 
 CPU lifting checks canonical centered residues, reconstructs with exact arithmetic,
@@ -74,7 +75,7 @@ small. Resources/prefix choices are immutable after creation.
 The final output must match the prepared shape, explicit exact-wide semantics,
 common external prefix and backend/device, and must differ from every input.
 The caller can reuse the recipe with distinct compatible outputs. Intermediate
-values are private and cannot be exported or rebound. Repacking inputs requires
+values are private unless selected as observable outputs at creation; they cannot be rebound. Repacking inputs requires
 explicitly rebinding compatible inputs or creating another recipe; successful destruction releases retained lifetimes. There is no
 public async submission. Destruction may drain quarantined failed work before
 releasing its storage. External host exclusion
@@ -104,3 +105,32 @@ when draining or freeing fails, so callers can retry destruction safely. Private
 RAII destruction cannot report errors and retains a failed owner instead of freeing
 possibly active storage. This is source-level ownership behavior awaiting the
 consolidated validation campaign, not a completed device-failure qualification.
+
+
+## Multiple observable results
+
+`rns8_create_product_recipe_outputs` takes the ordinary recipe descriptor and an
+ordered list of distinct produced value IDs. `rns8_execute_product_recipe_outputs`
+binds an equally sized array of distinct compatible destination matrices. External
+input IDs cannot be requested or used as destinations. Requested intermediate
+values remain available to later consumers and are retained until publication;
+the arena planner includes those extended lifetimes and full-prefix storage in
+its budget. The final node need not be requested. All listed nodes still execute;
+this API does not silently remove unobserved work from the supplied recipe.
+
+All destination shapes, semantics, devices, reservations and aliases are checked
+before execution. Every private result is extended before any public copy starts.
+All copies must succeed before any output is marked current. A publication failure
+invalidates the complete batch, and an uncertain drain retains every output hold
+and input reader reservation. This is synchronous batch publication under external
+host exclusion, not an atomic snapshot for concurrent readers. Output order follows
+the requested IDs, including a non-topological order.
+
+The single-output API keeps its final-node default. A recipe explicitly requesting
+one intermediate can also use single-output execution. The internal calibrated
+cost selector still models one final result and rejects other observable sets;
+full-prefix and minimum-compute-prefix policies support multiple results without
+claiming global cost optimality. Authored CPU/HIP fixtures compare signed and
+unsigned diamond intermediates and final outputs to Boost, exercise both prefix
+policies, and cover retained live ranges, exact budget rejection, duplicate/null/
+input aliases and all-output precommit preservation. Execution remains pending.
