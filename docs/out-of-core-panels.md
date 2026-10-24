@@ -68,6 +68,13 @@ completion and overflowing global spans. Public HIP fixtures force many M/N/K
 panels under a budget smaller than complete resident operands, compare full
 signed/unsigned output to Boost, preserve padding and reject violated bounds.
 All execution remains pending. Async overlap, exact-wide/finite/wrap extensions,
-calibrated panel selection, installed example and capacity/performance receipts
+calibrated panel selection and capacity/performance receipts
 remain development/qualification work; no throughput claim follows from the
 serial implementation.
+
+An installed public-header consumer is available as
+`examples/downstream-cmake/stream_bounded_i64.cpp`. Its default mode checks
+budget queries without a device; explicit `--hip` performs two full products,
+checks padding and generation/coverage receipts, and verifies BUSY ownership
+and preflight rejection. Installed CTest GPU execution is opt-in via
+`RNS8_DOWNSTREAM_GPU_TESTS`. This authored example is awaiting the final batch.

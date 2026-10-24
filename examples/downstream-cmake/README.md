@@ -131,3 +131,16 @@ The selected route is always `CPU_REFERENCE`, printed as CPU sparse expansion.
 There is no implicit fallback or target probing. These examples do not qualify
 SMFMAC/SWMMAC hardware, gfx1100 sparse support, hybrid scheduling or a speedup.
 GPU examples and measured same-contract profiles remain separate #51 acceptance.
+
+## Hard-budget streaming consumer
+
+`rns8-downstream-stream-bounded-i64` queries a 17x19x33 product with 3x4x5
+panels through the installed C API, reports required/minimum payload capacities,
+and proves that its device budget is smaller than complete resident RNS storage.
+The default query-only mode requires no GPU and does not claim execution.
+Pass `--hip` to explicitly require direct HIP, run two source generations,
+compare every native result/padding cell to an independently bounded scalar
+oracle, and check context retention and rejected-bound output preservation.
+No fallback is performed. Configure `RNS8_DOWNSTREAM_GPU_TESTS=ON` to register
+this execution in the installed consumer CTest suite. Reported capacities are
+requested payload bytes, not observed allocator/driver peaks or speedups.
