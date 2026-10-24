@@ -40,6 +40,7 @@ issue links.
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
 - [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; authored, validation pending
 - [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; authored, validation pending
+- [Exact import and CRT calibration](conversion-calibration.md): scalar/dot4, every-prefix and resident/cold controls; authored, validation pending
 - [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; authored, validation pending
 - [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
 - [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)

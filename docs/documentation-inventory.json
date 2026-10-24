@@ -1734,6 +1734,17 @@
       ]
     },
     {
+      "path": "docs/conversion-calibration.md",
+      "purpose": "Exact import and canonical CRT calibration contracts",
+      "audience": "Researchers and benchmark reviewers",
+      "disposition": "keep",
+      "canonical": "docs/conversion-calibration.md",
+      "owner": "benchmarks/rns8_crt_calibrate.cpp",
+      "reason": "Private scalar/dot4 controls, exact every-prefix references, cold/resident boundaries and provenance; authored-only pending consolidated validation.",
+      "inbound_links": [],
+      "anchors": []
+    },
+    {
       "path": "docs/correctness.md",
       "purpose": "Exactness contract and tests",
       "audience": "Exact-arithmetic users",

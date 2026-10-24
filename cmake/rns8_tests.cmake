@@ -84,6 +84,23 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME planning_recipe_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_planning_recipe.py")
   add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
+  add_test(NAME crt_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_crt_calibration.py")
+  if(TARGET rns8-crt-calibrate)
+    set_tests_properties(crt_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_CRT_CALIBRATION_EXE=$<TARGET_FILE:rns8-crt-calibrate>"
+      LABELS "tools;conversion;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_conversion_candidate IN ITEMS garner direct balanced fixed_dot4 tile_balanced tile_convert_balanced tile_convert_garner import_scalar_signed import_scalar_unsigned import_dot4_signed import_dot4_unsigned)
+        foreach(_conversion_scope IN ITEMS resident cold)
+          add_test(NAME conversion_${_conversion_candidate}_${_conversion_scope}_smoke
+            COMMAND rns8-crt-calibrate ${_conversion_candidate} 17 3 2 1
+              ctest-${_conversion_candidate}-${_conversion_scope} ${_conversion_scope})
+          set_tests_properties(conversion_${_conversion_candidate}_${_conversion_scope}_smoke PROPERTIES
+            LABELS "hip;conversion;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
   add_test(NAME crt_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_crt_research.py")
   add_test(NAME floating_rewrite_oracle_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_floating_rewrite_oracle.py")
   add_test(NAME arithmetic_certificate_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_certificate.py")

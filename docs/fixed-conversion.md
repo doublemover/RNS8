@@ -37,3 +37,9 @@ and padding. Compilation, ISA inspection, matched packing/CRT timing and
 performance promotion are pending. Scalar direct/Garner/balanced CRT remain
 controls. WMMA transform variants, signed-bias matrix layouts, and broader-target
 qualification are follow-on development, not implied by this packed-dot path.
+
+The [conversion calibration driver and collector](conversion-calibration.md)
+provide matched scalar import, Garner/direct/balanced CRT and fixed-dot4 cases
+for every prefix in resident and cold scopes. Full Boost output/canary audits,
+paired production timings and sustained large-case manifests are authored;
+execution, ISA inspection and performance results remain pending.

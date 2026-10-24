@@ -51,7 +51,7 @@ consumer, but remains a private candidate with the existing canonical output
 contract; it does not change public matrix layout or default Garner export.
 
 `rns8-crt-calibrate` adds `tile_balanced`, `tile_convert_balanced` and
-`tile_convert_garner`. All three start with identical tile-major inputs and end
+`tile_convert_garner`. In the default resident scope, all three start with identical tile-major inputs and end
 with identical canonical device limbs; the latter two include conversion and
 its synchronization inside each timed call. Input construction/upload and
 verification are outside the measured interval and are identified as setup.
@@ -65,3 +65,8 @@ tile padding, zero/threshold/P-1 representatives, malformed descriptors,
 alias rejection and input/output canaries. These fixtures and matched route
 measurements await the final consolidated validation; no layout speedup or
 public promotion is established yet.
+
+The [conversion calibration guide](conversion-calibration.md) also defines an
+explicit cold allocation/upload/readback/free scope and the v2 receipt. Cold
+comparisons retain the same tile input and canonical value contract, with a host
+output boundary. Do not combine them with resident device-output timings.
