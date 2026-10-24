@@ -8,7 +8,7 @@ there are no new measured performance results or AUTO promotions.
 Each node supplies a table of complete GEMM costs at prefixes 1..capacity and a
 table of exact lift costs from each source prefix to a larger target prefix.
 Costs use integer nanoseconds; UINT64_MAX is unknown and never treated as free.
-The profile includes version, graph fingerprint, backend, semantics, target and
+The profile includes version, graph fingerprint (including ordered observed outputs), backend, semantics, target and
 provenance label. Runtime binding rejects a different graph, backend, semantic
 contract or target. A provenance label identifies the caller's estimates; it does
 not authenticate a measurement receipt or make it eligible for reviewed caches.
@@ -16,20 +16,20 @@ not authenticate a measurement receipt or make it eligible for reviewed caches.
 Exact range propagation independently establishes every node's minimum prefix
 before the planner sees costs. Changing estimates cannot authorize insufficient
 range, unsupported address spans or an over-budget arena. External inputs remain
-full-prefix and generation-bound. The final output is fully materialized at the
+full-prefix and generation-bound. Every requested output is fully materialized at the
 same boundary as the ordinary full-prefix and minimum-prefix controls.
 
 For each candidate, the planner follows the real topological execution order.
 A shared producer is lifted only when its next reader requires more planes, and
 subsequent readers reuse the materialized planes. If different readers demand
-successively wider prefixes, each incremental lift is charged. The final lift is
-charged too. Lifetimes and aligned slot reuse come from `plan_product_arena`.
+successively wider prefixes, each incremental lift is charged. Each observed output's final lift is charged too, and every observed value stays live
+until joint publication, including intermediates and non-topological output order. Lifetimes and aligned slot reuse come from `plan_product_arena`.
 The HIP peak adds the same conservative per-value lift scratch reservation as
 the runtime owner; CPU extension writes the private arena directly. The planner
 does not pretend all phase costs overlap or omit the next consumer's work.
 
 Tiny search spaces are enumerated exhaustively under an explicit evaluation
-limit. Strict chains additionally use an exact cost dynamic program over
+limit. Strict chains with one final observed output additionally use an exact cost dynamic program over
 producer/consumer prefix pairs, including the final export lift. A chain may
 multiply the previous value by an external input on either side or by itself;
 reusing any older intermediate routes to general DAG search. Larger spaces seed
@@ -67,3 +67,9 @@ Additional synthetic fixtures compare chain-DP costs to exhaustive enumeration
 with missing transitions, solve a 64-node chain within two arena evaluations,
 and reject zero budgets and non-chain reuse. These are authored algorithm
 checks, not measured regret or performance qualification.
+
+Multiple requested outputs use the same bounded full-demand evaluator as DAGs.
+They do not inherit the single-output chain lower-bound proof. Unknown required
+output lifts reject that candidate. Source fixtures exercise retained intermediate
+costs, memory admission, changed observation order and CPU/HIP execution against
+independent full-output references. No measured benefit is asserted.

@@ -1,5 +1,6 @@
 #pragma once
 #include "core/api_internal.hpp"
+#include "core/runtime_product_recipe.hpp"
 #include <array>
 inline void check_product_recipe_outputs(rns8_backend_kind backend) {
   using namespace rns8::detail;
@@ -83,6 +84,32 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
       CHECK(rns8_execute_product_recipe_outputs(recipe,duplicate,3)==RNS8_INVALID_ARGUMENT);
       for(int i=0;i<3;++i) CHECK(outputs[i]->content_generation==generations[i]);
       REQUIRE(rns8_destroy_product_recipe(recipe)==RNS8_SUCCESS);
+      const std::vector<ProductNode> internal_nodes{{0,1},{2,1},{2,0},{3,4}};
+      const std::vector<uint32_t> observed{5,2,3};
+      ProductCostProfile costs;costs.backend=backend;costs.semantics=semantics;
+      costs.target=backend==RNS8_BACKEND_HIP_DIRECT?ctx->device_info.gcn_arch:"cpu";
+      costs.provenance="synthetic-multi-output-test";
+      costs.graph_key=product_graph_key({{n,n},{n,n}},internal_nodes,20,observed);
+      costs.nodes.resize(4);
+      for(auto& node:costs.nodes) for(uint32_t p=1;p<=20;++p) {
+        node.gemm[p]=100*p;
+        for(uint32_t q=p+1;q<=20;++q) node.lift[p*21+q]=1;
+      }
+      std::unique_ptr<RuntimeProductRecipe> selected;
+      REQUIRE(RuntimeProductRecipe::create(ctx,{inputs[0],inputs[1]},internal_nodes,
+          UINT64_MAX,selected,false,&costs,observed)==RNS8_SUCCESS);
+      CHECK_FALSE(selected->cost_selection().chain_dynamic_programming);
+      CHECK(selected->cost_selection().peak_bytes==selected->allocation().arena_bytes+selected->lift_scratch_bytes());
+      REQUIRE(selected->execute({outputs[0],outputs[1],outputs[2]})==RNS8_SUCCESS);
+      for(int i=0;i<3;++i) {
+        std::vector<int8_t> residues(20*n*n);
+        if(backend==RNS8_BACKEND_HIP_DIRECT)
+          REQUIRE(hip_direct_copy_device_to_host(0,residues.data(),outputs[i]->hip_residues,residues.size())==RNS8_SUCCESS);
+        else residues=outputs[i]->residues;
+        for(uint32_t p=0;p<20;++p) for(int cell=0;cell<n*n;++cell)
+          CHECK(residues[p*n*n+cell]==centered_residue(oracle[ids[i]][cell],kDefaultModuli[p]));
+      }
+      selected.reset();
       for(auto* matrix:matrices) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
     }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);

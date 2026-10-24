@@ -249,3 +249,29 @@ TEST_CASE("observable product values stay live through publication") {
   CHECK(plan_product_arena(inputs,chain,20,UINT64_MAX,{}, {0}).status==RNS8_INVALID_ARGUMENT);
   CHECK(plan_product_arena(inputs,chain,20,UINT64_MAX,{}, {6}).status==RNS8_INVALID_ARGUMENT);
 }
+
+TEST_CASE("multi-output cost selection charges retained lifts and binds observation order") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{16,16},{16,16}};
+  const std::vector<ProductNode> nodes{{0,1},{2,1},{3,1}};
+  const std::vector<uint32_t> outputs{4,2};
+  ProductCostProfile costs;costs.target="cpu";costs.provenance="synthetic-observation-test";
+  costs.graph_key=product_graph_key(inputs,nodes,3,outputs);costs.nodes.resize(3);
+  for(auto& node:costs.nodes) for(uint32_t p=1;p<=3;++p) {
+    node.gemm[p]=100*p;
+    for(uint32_t q=p+1;q<=3;++q) node.lift[p*21+q]=1;
+  }
+  const auto selected=select_product_prefixes(inputs,nodes,3,{1,1,1},UINT64_MAX,false,costs,outputs);
+  REQUIRE(selected.status==RNS8_SUCCESS);CHECK(selected.exhaustive);CHECK(selected.cost_optimal);
+  CHECK_FALSE(selected.chain_dynamic_programming);
+  CHECK(selected.estimated_ns==302);
+  CHECK(selected.prefixes==std::vector<uint32_t>{1,1,1});
+  CHECK(selected.capacities==std::vector<uint32_t>{3,1,3});
+  const auto arena=plan_product_arena(inputs,nodes,3,UINT64_MAX,selected.capacities,outputs);
+  CHECK(selected.peak_bytes==arena.arena_bytes);
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1},selected.peak_bytes-1,false,costs,outputs).status!=RNS8_SUCCESS);
+  for(const auto& changed:std::vector<std::vector<uint32_t>>{{2,4},{4},{}})
+    CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1},UINT64_MAX,false,costs,changed).status==RNS8_INVALID_ARGUMENT);
+  costs.graph_key=product_graph_key(inputs,nodes,3,{2,2});
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1},UINT64_MAX,false,costs,{2,2}).status==RNS8_INVALID_ARGUMENT);
+}

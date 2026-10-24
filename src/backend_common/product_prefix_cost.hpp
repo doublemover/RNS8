@@ -23,12 +23,16 @@ struct ProductCostProfile {
   std::vector<ProductNodeCosts> nodes;
 };
 inline uint64_t product_graph_key(const std::vector<ProductShape>& inputs,
-    const std::vector<ProductNode>& nodes,uint32_t prefix) {
+    const std::vector<ProductNode>& nodes,uint32_t prefix,
+    const std::vector<uint32_t>& outputs = {}) {
   uint64_t hash=UINT64_C(14695981039346656037);
   const auto add=[&](uint64_t value) { for(unsigned i=0;i<8;++i) { hash^=(value>>(8*i))&255; hash*=UINT64_C(1099511628211); } };
-  add(1);add(prefix);add(inputs.size());add(nodes.size());
+  add(2);add(prefix);add(inputs.size());add(nodes.size());
   for(const auto& input:inputs) {add(uint64_t(input.rows));add(uint64_t(input.cols));}
   for(const auto& node:nodes) {add(node.a);add(node.b);}
+  add(outputs.empty()?1:outputs.size());
+  if(outputs.empty()) add(inputs.size()+nodes.size()-1);
+  else for(auto id:outputs) add(id);
   return hash;
 }
 struct ProductPrefixSelection {
@@ -88,15 +92,16 @@ inline ProductChainCostPath product_chain_cost_path(size_t input_count,
 }
 inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductShape>& inputs,
     const std::vector<ProductNode>& nodes,uint32_t prefix,const std::vector<uint32_t>& minimum,
-    uint64_t budget,bool gpu,const ProductCostProfile& costs) {
+    uint64_t budget,bool gpu,const ProductCostProfile& costs,
+    const std::vector<uint32_t>& outputs = {}) {
   ProductPrefixSelection best;
   if(costs.version!=1 || costs.provenance.empty() || costs.target.empty() ||
       costs.max_evaluations<2 || costs.max_evaluations>65536 || nodes.size()>64 ||
       costs.nodes.size()!=nodes.size() || minimum.size()!=nodes.size() ||
-      costs.graph_key!=product_graph_key(inputs,nodes,prefix)) {
+      costs.graph_key!=product_graph_key(inputs,nodes,prefix,outputs)) {
     best.status=RNS8_INVALID_ARGUMENT;return best;
   }
-  const auto shapes=plan_product_arena(inputs,nodes,prefix,UINT64_MAX);
+  const auto shapes=plan_product_arena(inputs,nodes,prefix,UINT64_MAX,{},outputs);
   if(shapes.status!=RNS8_SUCCESS) {best.status=shapes.status;return best;}
   uint64_t combinations=1;
   for(auto p:minimum) {
@@ -104,7 +109,12 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     const uint64_t choices=prefix-p+1;
     combinations=combinations>costs.max_evaluations/choices?uint64_t(costs.max_evaluations)+1:combinations*choices;
   }
-  const auto chain=product_chain_cost_path(inputs.size(),nodes,prefix,minimum,costs);
+  const std::vector<uint32_t> observed=outputs.empty()
+      ? std::vector<uint32_t>{static_cast<uint32_t>(shapes.values.size()-1)} : outputs;
+  // The chain DP includes one final export. Multiple retained outputs use the
+  // full demand evaluator so final lifting and liveness cannot be omitted.
+  const auto chain=observed.size()==1 && observed[0]==shapes.values.size()-1
+      ? product_chain_cost_path(inputs.size(),nodes,prefix,minimum,costs) : ProductChainCostPath{};
   uint32_t evaluated=0;
   const auto evaluate=[&](const std::vector<uint32_t>& chosen) {
     ++evaluated;
@@ -136,8 +146,10 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
         candidate.capacities[id-inputs.size()]=std::max(candidate.capacities[id-inputs.size()],chosen[i]);
       current[inputs.size()+i]=chosen[i];
     }
-    if(!demand(uint32_t(shapes.values.size()-1),prefix)) return;
-    candidate.capacities.back()=prefix;
+    for(auto id:observed) {
+      if(!demand(id,prefix)) return;
+      candidate.capacities[id-inputs.size()]=prefix;
+    }
     // Match the runtime owner's conservative reservation for a value that may
     // grow in several steps. Incremental lift cost remains charged per demand.
     if(gpu) for(size_t i=0;i<nodes.size();++i) if(candidate.capacities[i]>chosen[i]) {
@@ -147,7 +159,7 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
       candidate.lift_scratch_bytes=std::max(candidate.lift_scratch_bytes,support.scratch_bytes);
     }
     if(candidate.lift_scratch_bytes>budget) return;
-    const auto arena=plan_product_arena(inputs,nodes,prefix,budget-candidate.lift_scratch_bytes,candidate.capacities);
+    const auto arena=plan_product_arena(inputs,nodes,prefix,budget-candidate.lift_scratch_bytes,candidate.capacities,observed);
     if(arena.status!=RNS8_SUCCESS) return;
     candidate.peak_bytes=arena.arena_bytes+candidate.lift_scratch_bytes;
     candidate.status=RNS8_SUCCESS;

@@ -101,10 +101,6 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     }
     state->outputs=outputs;
     if(state->outputs.empty()) state->outputs.push_back(static_cast<uint32_t>(inputs.size()+nodes.size()-1));
-    // Existing cost selection models one final publication; do not misreport a
-    // multi-output choice as its optimum.
-    if(costs && (state->outputs.size()!=1 || state->outputs[0]!=inputs.size()+nodes.size()-1))
-      return RNS8_UNSUPPORTED_BACKEND;
     state->allocation=plan_product_arena(shapes,nodes,state->prefix,UINT64_MAX,{},state->outputs);
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     state->nodes=nodes;
@@ -130,7 +126,7 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       if(costs->backend!=ctx->backend || costs->semantics!=state->semantics || costs->target!=target)
         return RNS8_INVALID_ARGUMENT;
       state->selection=select_product_prefixes(shapes,nodes,state->prefix,state->compute_prefixes,budget,
-          ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs);
+          ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs,state->outputs);
       if(state->selection.status!=RNS8_SUCCESS) return state->selection.status;
       state->compute_prefixes=state->selection.prefixes;
     }
