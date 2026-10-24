@@ -14,6 +14,9 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   auto status = build_native_wmma_queue(tasks, workers, available, work, bytes);
   if (status != RNS8_SUCCESS) return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  // Allocate the ordinary-launch control descriptors before replacing any state.
+  // These are metadata only; operand contents are never retained on the host.
+  auto host_tasks = tasks;
   status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
   hip_direct_device_buffer storage;
@@ -38,6 +41,7 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
   storage_ = std::move(storage);
+  host_tasks_.swap(host_tasks);
   device_id_ = device_id;
   tasks_ = device_tasks; work_ = device_work; cursor_ = cursor;
   count_ = static_cast<uint32_t>(work.size());
@@ -73,6 +77,37 @@ rns8_status NativeWmmaPreparedQueue::execute(bool& outputs_may_be_written) {
       return launch == hipSuccess ? completion : launch;
     }
     return launch;
+  });
+  if (error != hipSuccess) { poisoned_ = true; return RNS8_BACKEND_FAILURE; }
+  return RNS8_SUCCESS;
+#else
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status NativeWmmaPreparedQueue::execute_ordinary(bool& outputs_may_be_written) {
+  outputs_may_be_written = false;
+  std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+  if (!lock.owns_lock()) return RNS8_BUSY;
+  if (!storage_) return RNS8_INVALID_ARGUMENT;
+  if (poisoned_) return RNS8_BACKEND_FAILURE;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status = set_hip_device(device_id_);
+  if (status != RNS8_SUCCESS) return status;
+  const auto error = timed_hip_operation("native_queue_prepared_ordinary_grids", [&]() {
+    auto launch = hipSuccess;
+    for (const auto& task : host_tasks_) {
+      outputs_may_be_written = true;
+      launch = static_cast<hipError_t>(rns8_hip_native_wmma_grouped(
+          task.a, task.b, task.c, static_cast<int>(task.m), static_cast<int>(task.n),
+          static_cast<int>(task.k), static_cast<int>(task.lda), static_cast<int>(task.ldb),
+          static_cast<int>(task.ldc), task.prefix, task.group, task.unsigned_inputs != 0));
+      if (launch != hipSuccess) break;
+    }
+    // Drain earlier grids even if a later launch failed. The whole batch is
+    // poisoned on either launch or completion failure; no partial publication.
+    const auto completion = hipDeviceSynchronize();
+    return launch == hipSuccess ? completion : launch;
   });
   if (error != hipSuccess) { poisoned_ = true; return RNS8_BACKEND_FAILURE; }
   return RNS8_SUCCESS;

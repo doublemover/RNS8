@@ -60,6 +60,18 @@ signedness/group combinations. All 14 native calibration modes passed their
 smoke collection at that revision; sustained prepared-path measurements are
 being collected separately.
 
+The same owner now offers `execute_ordinary` as a matched scheduling control:
+one ordinary grid per admitted task followed by one final synchronization,
+without a queue cursor. It retains the identical preparation and allocation
+footprint, including device descriptors unused by this control, plus one host
+metadata descriptor per task. The scratch budget covers device allocations;
+host task/work vectors are separately retained metadata. Preparation replaces
+the host descriptors only after device admission/upload succeeds. Both launch
+modes share exclusion and failure poisoning. This control isolates repeated
+execution from per-call allocation/capability checks; it is not a claim that an
+ordinary-only implementation needs queue metadata. Its added GPU coverage and
+measurements await the next coordinated build.
+
 CPU mapping, admission, collision, and budget fixtures and a Boost-based GPU
 differential fixture cover heterogeneous shapes, full-width signed/unsigned
 values, prefix/group tails, padding, K=65537, and varying worker counts. These

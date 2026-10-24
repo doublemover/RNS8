@@ -23,10 +23,14 @@ class NativeWmmaPreparedQueue {
   // successful preparation is required before another execution. Destruction
   // requires external exclusion, like destruction of the referenced buffers.
   rns8_status execute(bool& outputs_may_be_written);
+  // Matched scheduling control: reuse the same admitted preparation but launch
+  // one ordinary grid per task, with one final synchronization. No queue cursor.
+  rns8_status execute_ordinary(bool& outputs_may_be_written);
 
  private:
   std::mutex mutex_;
   hip_direct_device_buffer storage_;
+  std::vector<NativeWmmaTask> host_tasks_;
   int device_id_ = -1;
   NativeWmmaTask* tasks_ = nullptr;
   NativeWmmaWork* work_ = nullptr;

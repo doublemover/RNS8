@@ -16,6 +16,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `wmma` | Fused native conversion/grouped WMMA | Resident native 64-bit |
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
 | `queue_prepared` | Reuse admitted device descriptors; reset cursor and execute | Resident native 64-bit and prepared descriptors |
+| `grid_prepared` | Reuse the same preparation; launch ordinary grids without a cursor | Same resident inputs and descriptor allocation |
 | `split_k` | Three fragments (or K if smaller), queue, canonicalize, merge/store | Resident native 64-bit |
 
 The product cases in this table produce the same default-basis residue planes for matched
@@ -89,6 +90,15 @@ includes 32³ and 512³ workloads, ordinary native WMMA and both packed/direct
 controls. Already-packed input is a distinct boundary, so charge packing when
 comparing native-input workloads. The prepared mode remains a private
 synchronous experiment, not public prepared-group integration.
+
+`grid_prepared` uses that same owner and preparation scope, but launches one
+ordinary native WMMA grid per task with one final synchronization. It accepts
+groups 1/2/4 and no worker override. Queue scheduling fields are zero/not-applicable;
+the retained descriptor allocation and preparation time remain reported. This
+intentionally matched control separates scheduling from allocation/capability
+overhead. It does not establish the minimum setup cost of an ordinary-only
+implementation. The tracked comparison now includes this control at both sizes;
+the earlier ten-case collection predates it.
 
 `collect_native_calibration.py` accepts an explicit JSON list of case objects
 with `candidate,m,n,k,prefix,group,unsigned_inputs`. Queue and split-K cases may

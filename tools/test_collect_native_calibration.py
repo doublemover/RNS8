@@ -23,7 +23,7 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in ("wmma", *QUEUED):
+    if candidate not in ("wmma", "grid_prepared", *QUEUED):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
@@ -32,7 +32,7 @@ def case_for(candidate, **changes):
 
 def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
     capture = capture_contract(case, run_id, repeats, warmups)
-    if case["candidate"] == "queue_prepared":
+    if case["candidate"] in ("queue_prepared", "grid_prepared"):
         capture.update(queue_prepare_ns=2000.25, queue_descriptor_storage_bytes=1024)
     synthetic_identity(capture)
     capture.update(device="synthetic mocked GPU", target="gfx1100", runtime_version=70100000,
@@ -47,25 +47,26 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
 
 class CaseTest(unittest.TestCase):
     def test_prepared_queue_requires_setup_cost_and_storage(self):
-        case = case_for("queue_prepared")
-        for key in ("queue_prepare_ns", "queue_descriptor_storage_bytes"):
-            for value in (None, False, 0, -1, "100", float("nan"), float("inf")):
-                with self.subTest(key=key, value=value):
-                    capture = capture_for(case)
-                    capture[key] = value
-                    with self.assertRaises(ValueError):
-                        validate_capture(capture, case, "fixture-run", 3, 1)
-            capture = capture_for(case)
-            del capture[key]
-            with self.assertRaises(ValueError):
-                validate_capture(capture, case, "fixture-run", 3, 1)
+        for candidate in ("queue_prepared", "grid_prepared"):
+            case = case_for(candidate)
+            for key in ("queue_prepare_ns", "queue_descriptor_storage_bytes"):
+                for value in (None, False, 0, -1, "100", float("nan"), float("inf")):
+                    with self.subTest(key=key, value=value):
+                        capture = capture_for(case)
+                        capture[key] = value
+                        with self.assertRaises(ValueError):
+                            validate_capture(capture, case, "fixture-run", 3, 1)
+                capture = capture_for(case)
+                del capture[key]
+                with self.assertRaises(ValueError):
+                    validate_capture(capture, case, "fixture-run", 3, 1)
 
     def test_all_modes_groups_and_signedness(self):
         for candidate in CANDIDATES:
             for unsigned in (False, True):
                 if candidate == "narrow_scalar" and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in ("wmma", *QUEUED) else (1,)):
+                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -126,7 +127,7 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in ("wmma", *QUEUED)):
+        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]

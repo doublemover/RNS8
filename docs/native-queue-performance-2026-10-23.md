@@ -147,6 +147,52 @@ describe the compiled artifact; the timing table establishes the measured gain.
 Reproduce with the same commands below, replacing output directories with the
 reciprocal paths above and using the clean `436d235` all-feature executable.
 
+## Reusable preparation at 51ae8d8
+
+The fresh all-feature pass at `51ae8d8` completed 492 registered tests: 489
+passes, three target-inapplicable sparse-instruction skips and no failures.
+This includes queue mutation/replacement differentials, complex 3M comparisons
+and CPU/HIP public workload examples rebuilt against an installed package.
+All 14 native calibration modes passed their separate smoke collection.
+
+The ten-case prepared-queue collection uses five independent processes per
+case, nine measured pairs, three warmups, full-width signed inputs, prefix nine,
+group one and seed 3135. The 50 records contain 900 individually verified calls
+and 49,252 sustained calls with complete final-output verification. Sustained
+timing disables event hooks and performs no reference readback between calls.
+The same RX 7900 XTX / gfx1100, VS2026 and HIP 7.1 configuration applies.
+
+| Approach | 32³ median µs [process range] | 512³ median µs [process range] |
+|---|---:|---:|
+| Pack + direct GEMM | 164.08 [156.80, 177.40] | 750.09 [729.49, 761.84] |
+| Already-packed direct GEMM | 73.91 [71.24, 77.14] | 654.65 [646.03, 665.29] |
+| Ordinary native WMMA | 250.37 [238.55, 292.89] | 1555.41 [1489.42, 1556.64] |
+| One-shot queue, requested 1024 workers | 491.51 [432.74, 499.40] | 2092.83 [2028.99, 2120.02] |
+| Prepared queue, requested 1024 workers | 104.36 [94.99, 138.77] | 1509.74 [1491.55, 1518.27] |
+
+Preparation reuse improves queue steady latency by **4.71× at 32³** and
+**1.39× at 512³**, with separated observed ranges. Device descriptor storage
+is 668 bytes and 147,548 bytes respectively. Median preparation costs are
+949.0 µs [709.6, 1185.8] and 748.3 µs [582.5, 959.8]. Charging each process's
+preparation across 15 calls gives 177.86 µs [146.51, 214.44] and 1558.61 µs
+[1541.43, 1574.66] per call: **2.76× and 1.34×** versus the one-shot queue.
+This charges the descriptor lifecycle; common operand/output allocations and
+initial native uploads are outside both candidates' measured boundary.
+
+The large prepared queue overlaps ordinary WMMA and loses to pack + direct
+GEMM. Already-packed direct GEMM starts at a different input boundary. None
+of these observations establishes a queue scheduling advantage: ordinary WMMA
+still includes allocation/capability checks per call. The new `grid_prepared`
+control reuses identical preparation with ordinary grids and awaits measurement.
+
+Executable SHA-256:
+`24c620d120d0332cc16e6aa0b4ed577c0c825a47d7479b48e561221c1e707f3e`.
+Raw records are in `temp/prepared-queue-captures/`, with sibling `.summary.json`
+and `.sha256.txt` files. The command used `prepared-queue.json` at `51ae8d8`,
+`--runs 5 --repeats 9 --warmups 3 --timeout 900`; that tracked manifest now
+also includes the two new ordinary-grid controls. Validation logs are
+`temp/complex-workloads-build.log` and `temp/complex-workloads-tests.log`.
+
 ## Reproduction and retained evidence
 
 From a matching all-feature build:

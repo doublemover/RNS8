@@ -12,7 +12,7 @@ from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
 
 
-CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "queue", "queue_prepared", "split_k",
+CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
@@ -40,7 +40,7 @@ def validate_case(case):
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in ("wmma", *QUEUED)
+    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -133,7 +133,7 @@ def capture_contract(case, run_id, repeats, warmups):
                     actual_hbm_bytes=None, timing_resolution_ns=None)
     expected.update(scheduling_contract(case))
     expected.update(narrow_contract(case))
-    if case["candidate"] == "queue_prepared":
+    if case["candidate"] in ("queue_prepared", "grid_prepared"):
         expected["queue_preparation_scope"] = "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls"
     if not case["candidate"].startswith("narrow_"):
         epilogue = case["candidate"].startswith("epilogue_")
@@ -168,7 +168,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
-    if case["candidate"] == "queue_prepared":
+    if case["candidate"] in ("queue_prepared", "grid_prepared"):
         if not positive_number(capture.get("queue_prepare_ns")):
             raise ValueError("invalid prepared queue setup timing")
         size = capture.get("queue_descriptor_storage_bytes")
