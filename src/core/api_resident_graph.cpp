@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include <array>
 #include <atomic>
 #include "core/hip_resources.hpp"
@@ -52,9 +53,11 @@ uint64_t next_graph_id() {
     if (next.compare_exchange_weak(value, value + 1, std::memory_order_relaxed)) return value;
   return 0;
 }
-std::array<const rns8_matrix*, 3> node_inputs(const rns8_resident_node& node) {
-  return (node.kind == RNS8_RESIDENT_BASE_EXTEND || node.kind == RNS8_RESIDENT_EXPORT_LIMBS) ? std::array<const rns8_matrix*, 3>{node.c, nullptr, nullptr}
-                                              : std::array<const rns8_matrix*, 3>{node.a, node.b, node.d};
+std::array<const rns8_matrix*, 4> node_inputs(const rns8_resident_node& node) {
+  if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) return {node.a, node.a_imag, node.b, node.b_imag};
+  if (node.kind == RNS8_RESIDENT_BASE_EXTEND || node.kind == RNS8_RESIDENT_EXPORT_LIMBS)
+    return {node.c, nullptr, nullptr, nullptr};
+  return {node.a, node.b, node.d, nullptr};
 }
 
 rns8_status export_span(const rns8_resident_node& node, uint64_t& bytes) {
@@ -155,6 +158,41 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     if (node.c->generation_exhausted) return RNS8_RANGE_ERROR;
     auto ai = proofs.find(node.a), bi = proofs.find(node.b);
     if (ai == proofs.end() || bi == proofs.end()) return RNS8_INVALID_ARGUMENT;
+    if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
+      if (pending) return RNS8_UNSUPPORTED_BACKEND;
+      status = validate_rns_gemm_operands(*graph.ctx, *node.plan, *node.a_imag, *node.b_imag, *node.c_imag, false);
+      if (status != RNS8_SUCCESS) return status;
+      if (node.c_imag->generation_exhausted) return RNS8_RANGE_ERROR;
+      const auto aii = proofs.find(node.a_imag), bii = proofs.find(node.b_imag);
+      if (aii == proofs.end() || bii == proofs.end()) return RNS8_INVALID_ARGUMENT;
+      for (const auto* proof : {&ai->second, &bi->second, &aii->second, &bii->second})
+        if (proof->exact_range_prefix < node.plan->prefix) return RNS8_RANGE_ERROR;
+      using namespace rns8::detail;
+      const ComplexResidueBasis basis{ComplexResidueDomain::wide_signed, 1, node.plan->prefix, 0};
+      const bool hip = graph.ctx->backend == RNS8_BACKEND_HIP_DIRECT;
+      const auto view = [&](const rns8_matrix* matrix) {
+        return ComplexResidueView<const int8_t>{hip ? static_cast<const int8_t*>(matrix->hip_residues) : matrix->residues.data(),
+            matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, basis};
+      };
+      const auto destination = [&](rns8_matrix* matrix) {
+        return ComplexResidueView<int8_t>{hip ? static_cast<int8_t*>(matrix->hip_residues) : matrix->residues.data(),
+            matrix->desc.rows, matrix->desc.cols, matrix->desc.cols, basis};
+      };
+      auto admitted = plan_complex_residue_product({view(node.a), view(node.a_imag)},
+          {view(node.b), view(node.b_imag)}, {destination(node.c), destination(node.c_imag)},
+          {ai->second.exact_max_magnitude, aii->second.exact_max_magnitude,
+           bi->second.exact_max_magnitude, bii->second.exact_max_magnitude},
+          node.complex_method == RNS8_COMPLEX_THREE_REAL_PRODUCTS ? ComplexProductMethod::three_real : ComplexProductMethod::four_real,
+          node.max_staged_residue_bytes);
+      if (admitted.status != RNS8_SUCCESS) return admitted.status;
+      rns8_matrix real, imag;
+      real.exact_range_prefix = imag.exact_range_prefix = node.plan->prefix;
+      real.exact_max_magnitude.swap(admitted.real_bound);
+      imag.exact_max_magnitude.swap(admitted.imag_bound);
+      proofs.emplace(node.c, std::move(real));
+      proofs.emplace(node.c_imag, std::move(imag));
+      continue;
+    }
     rns8_matrix output;
     if (node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
       const auto di = proofs.find(node.d);
@@ -199,6 +237,9 @@ rns8_status rns8_create_resident_graph(
       const auto& node = nodes[i];
       if (!rns8::detail::valid_abi(node.struct_size, node.abi_version, sizeof(node)) || !node.c)
         return RNS8_INVALID_ARGUMENT;
+      if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
+          (node.a_imag || node.b_imag || node.c_imag || node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
+        return RNS8_INVALID_ARGUMENT;
       if (node.kind != RNS8_RESIDENT_EXPORT_LIMBS && (node.export_limbs || node.export_ld || node.export_limb_count))
         return RNS8_INVALID_ARGUMENT;
       if (node.kind == RNS8_RESIDENT_MATMUL || node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
@@ -207,6 +248,13 @@ rns8_status rns8_create_resident_graph(
         if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
             !rns8::detail::exact_wide_semantics(node.plan->desc.semantics) ||
             !producers.emplace(node.c, i).second) return RNS8_INVALID_ARGUMENT;
+      } else if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
+        if (!node.plan || !node.a || !node.a_imag || !node.b || !node.b_imag || !node.c_imag ||
+            !node.workspace || node.c == node.c_imag || node.target_prefix || node.d || node.alpha || node.beta ||
+            node.plan->desc.semantics != RNS8_EXACT_WIDE_SIGNED ||
+            (node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS && node.complex_method != RNS8_COMPLEX_FOUR_REAL_PRODUCTS) ||
+            !producers.emplace(node.c, i).second || !producers.emplace(node.c_imag, i).second)
+          return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
         if (node.plan || node.a || node.b || node.workspace || node.d || node.alpha || node.beta) return RNS8_INVALID_ARGUMENT;
       } else if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS) {
@@ -234,6 +282,7 @@ rns8_status rns8_create_resident_graph(
         holds.insert(&input->prepared_references);
       }
       holds.insert(&node.c->prepared_references);
+      if (node.c_imag) holds.insert(&node.c_imag->prepared_references);
       if (node.plan) holds.insert(&node.plan->prepared_references);
       if (node.workspace) holds.insert(&node.workspace->prepared_references);
     }
@@ -284,6 +333,10 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       else if (node.kind == RNS8_RESIDENT_EXACT_AXPBY)
         out->operation_status = rns8_gemm_exact_axpby(graph->ctx, node.plan, node.a, node.b, node.d,
                                                     node.c, node.alpha, node.beta, node.workspace);
+      else if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL)
+        out->operation_status = rns8_gemm_complex_exact_signed(graph->ctx, node.plan,
+            node.a, node.a_imag, node.b, node.b_imag, node.c, node.c_imag,
+            node.complex_method, node.max_staged_residue_bytes, node.workspace);
       else if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS)
         out->operation_status = node.plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED
             ? rns8_export_exact_wide_signed_limbs(graph->ctx, node.plan, node.c, node.export_limbs, node.export_ld, node.export_limb_count)

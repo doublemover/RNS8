@@ -118,8 +118,8 @@ composition. The owner passed the coordinated all-feature validation at
 The public entry point exposes only this synchronous signed contract. Invalid
 method values fail before mutation. Transpose/conjugation and unsigned, bounded,
 finite and wrap public-handle contracts remain unsupported; callers export the
-two exact-wide components through existing signed limb exports. Graph and
-prepared-group integration remain separate work.
+two exact-wide components through existing signed limb exports. Synchronous graph
+integration is described below; prepared-group and async integration remain separate work.
 
 ## Matched resident measurements at 1bb5e33
 
@@ -150,3 +150,10 @@ process effects are substantial and must not be hidden by the steady-state gain.
 Reproduce using `benchmarks/native-calibration/complex-residues.json` with
 `--runs 5 --repeats 9 --warmups 3 --timeout 900`. Local captures are
 `temp/1bb5e33-complex/`, with sibling `.summary.json` and `.sha256.txt` files.
+
+
+The paired owner is also available as `RNS8_RESIDENT_COMPLEX_MATMUL` in the
+[synchronous resident graph](resident-graphs.md#paired-complex-nodes). Graph
+preflight propagates both proofs and tracks both output writers before any
+node executes. Both components can feed later arithmetic. This integration is
+authored with CPU/Boost and HIP fixtures; async complex nodes remain unsupported.

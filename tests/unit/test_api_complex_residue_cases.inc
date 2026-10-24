@@ -15,6 +15,7 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
     } else
       ctx = create_cpu_context();
     auto desc = exact_desc(RNS8_EXACT_WIDE_SIGNED, 2, 2, 2);
+    desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;
     if (hip)
       desc.requested_backend = RNS8_BACKEND_HIP_DIRECT;
     rns8_plan *plan = nullptr;
@@ -84,6 +85,59 @@ TEST_CASE("experimental complex API binds both proofs and publishes paired gener
           }
       }
     }
+    // Both produced components participate in ordinary later graph arithmetic.
+    const auto expected_real = exported(cr), expected_imag = exported(ci);
+    rns8_matrix* chain = nullptr;
+    REQUIRE(rns8_create_matrix(ctx, &md, &chain) == RNS8_SUCCESS);
+    rns8_resident_node nodes[2]{};
+    for (auto& node : nodes) { node.struct_size = sizeof(node); node.abi_version = RNS8_ABI_VERSION; }
+    nodes[0].kind = RNS8_RESIDENT_COMPLEX_MATMUL;
+    nodes[0].plan = plan; nodes[0].workspace = workspace;
+    nodes[0].a = ar; nodes[0].a_imag = ai; nodes[0].b = br; nodes[0].b_imag = bi;
+    nodes[0].c = cr; nodes[0].c_imag = ci; nodes[0].max_staged_residue_bytes = UINT64_MAX;
+    nodes[1].kind = RNS8_RESIDENT_MATMUL;
+    nodes[1].plan = plan; nodes[1].workspace = workspace;
+    nodes[1].a = cr; nodes[1].b = ci; nodes[1].c = chain;
+    rns8_resident_graph* graph = nullptr;
+    for (auto method : {RNS8_COMPLEX_THREE_REAL_PRODUCTS, RNS8_COMPLEX_FOUR_REAL_PRODUCTS}) {
+      nodes[0].complex_method = method;
+      REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_SUCCESS);
+      CHECK(rns8_destroy_matrix(ci) == RNS8_BUSY);
+      rns8_async_support_info support{};
+      support.struct_size = sizeof(support); support.abi_version = RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_resident_graph_hip_support(graph, &support) == RNS8_SUCCESS);
+      CHECK(support.support_status == RNS8_UNSUPPORTED_BACKEND);
+      rns8_graph_execution_info info{};
+      info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
+      REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+      CHECK(info.completed_nodes == 2);
+      CHECK(exported(cr) == expected_real);
+      CHECK(exported(ci) == expected_imag);
+      const auto actual = exported(chain);
+      for (int row = 0; row < 2; ++row)
+        for (int col = 0; col < 2; ++col) {
+          cpp_int expected = 0;
+          for (int q = 0; q < 2; ++q)
+            expected += expected_real[row * 2 + q] * expected_imag[q * 2 + col];
+          CHECK(actual[row * 2 + col] == expected);
+        }
+      const auto generation = chain->content_generation;
+      REQUIRE(rns8_pack_i64(ctx, ai, values[1].data(), 2, 0) == RNS8_SUCCESS);
+      CHECK(rns8_execute_resident_graph(graph, &info) == RNS8_INVALID_ARGUMENT);
+      CHECK(chain->content_generation == generation);
+      REQUIRE(rns8_refresh_resident_graph_inputs(graph) == RNS8_SUCCESS);
+      REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_resident_graph(graph) == RNS8_SUCCESS);
+      graph = nullptr;
+    }
+    nodes[0].max_staged_residue_bytes = 0;
+    CHECK(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(graph == nullptr);
+    nodes[0].max_staged_residue_bytes = UINT64_MAX;
+    nodes[0].c_imag = cr;
+    CHECK(rns8_create_resident_graph(ctx, nodes, 2, &graph) == RNS8_INVALID_ARGUMENT);
+    CHECK(graph == nullptr);
+    REQUIRE(rns8_destroy_matrix(chain) == RNS8_SUCCESS);
     const auto old_r = exported(cr), old_i = exported(ci);
     const auto rg = cr->content_generation, ig = ci->content_generation;
     CHECK(rns8_gemm_complex_exact_signed(ctx, plan, ar, ai, br, bi, cr, ci,

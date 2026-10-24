@@ -227,3 +227,26 @@ requirement, possible host proof allocation, owned-graph, cancellation and timed
 observation support. Unsupported records contain zero feature flags. This query
 does not admit current values or a caller stream and is not hardware qualification.
 Preparation reuses the same support predicate, then performs current admission.
+
+
+## Paired complex nodes
+
+`RNS8_RESIDENT_COMPLEX_MATMUL` composes the experimental exact-wide signed
+complex API into synchronous CPU/direct-HIP graphs. It pairs `a/a_imag`,
+`b/b_imag` and `c/c_imag`, chooses explicit 3M or 4M, and uses
+`max_staged_residue_bytes` as the scratch budget. Each output has one distinct
+writer and can feed later ordinary or complex nodes. Input/output cross-aliases,
+forward references, mixed fields and duplicate writers are rejected.
+
+Whole-graph preflight propagates both integer magnitude proofs using the same
+complex arithmetic/resource admission routine as standalone execution. It
+retains all four input and both output handles, binds every external generation,
+and checks all downstream ranges before the first write. A successful node
+publishes both components together. Synchronous graph failure can retain earlier
+successful nodes, exactly as for ordinary nodes. Async/capture support queries
+reject graphs containing complex nodes; no async paired-publication claim is made.
+
+Authored CPU/Boost and direct-HIP fixtures cover both methods, downstream real
+GEMM consuming both components, stale input refresh, retained output ownership,
+aliased output and scratch rejection. New execution remains pending the final
+consolidated validation pass.

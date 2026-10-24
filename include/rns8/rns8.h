@@ -25,11 +25,17 @@ typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
 
+typedef enum rns8_complex_product_method RNS8_ENUM_BASE {
+  RNS8_COMPLEX_THREE_REAL_PRODUCTS = 0,
+  RNS8_COMPLEX_FOUR_REAL_PRODUCTS = 1
+} rns8_complex_product_method;
+
 typedef enum rns8_resident_node_kind RNS8_ENUM_BASE {
   RNS8_RESIDENT_MATMUL = 0,
   RNS8_RESIDENT_BASE_EXTEND = 1,
   RNS8_RESIDENT_EXACT_AXPBY = 2,
-  RNS8_RESIDENT_EXPORT_LIMBS = 3
+  RNS8_RESIDENT_EXPORT_LIMBS = 3,
+  RNS8_RESIDENT_COMPLEX_MATMUL = 4
 } rns8_resident_node_kind;
 
 typedef struct rns8_resident_node {
@@ -58,6 +64,15 @@ typedef struct rns8_resident_node {
   uint64_t* export_limbs;
   int64_t export_ld;
   uint32_t export_limb_count;
+  /* COMPLEX_MATMUL pairs a/a_imag, b/b_imag and c/c_imag; exact-wide signed
+   * only. Each output is a distinct graph value and publication is paired.
+   * Uses max_staged_residue_bytes as its explicit scratch budget. All unrelated
+   * extension/epilogue/export fields must be zero. Other kinds require these
+   * component fields null and complex_method zero. Synchronous graph only. */
+  const rns8_matrix* a_imag;
+  const rns8_matrix* b_imag;
+  rns8_matrix* c_imag;
+  rns8_complex_product_method complex_method;
 } rns8_resident_node;
 
 typedef struct rns8_graph_execution_info {
@@ -74,7 +89,7 @@ typedef struct rns8_graph_completion_token {
   uint64_t epoch;
 } rns8_graph_completion_token;
 
-/* Ordered exact-wide MatMul/BaseExtend/ExactAxpby DAG, CPU or direct HIP.
+/* Ordered exact-wide MatMul/BaseExtend/ExactAxpby/ComplexMatMul DAG, CPU or direct HIP.
  * Every output has exactly one writer; a produced value may only be read after
  * its producer. External input generations are bound explicitly. Existing
  * matrix/plan/workspace storage must match each edge. Explicit BASE_EXTEND
@@ -1290,11 +1305,6 @@ RNS8_API rns8_status rns8_gemm_exact_axpby(
     rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* A,
     const rns8_matrix* B, const rns8_matrix* D, rns8_matrix* C,
     int64_t alpha, int64_t beta, rns8_workspace* workspace);
-
-typedef enum rns8_complex_product_method RNS8_ENUM_BASE {
-  RNS8_COMPLEX_THREE_REAL_PRODUCTS = 0,
-  RNS8_COMPLEX_FOUR_REAL_PRODUCTS = 1
-} rns8_complex_product_method;
 
 /* Experimental synchronous split-complex exact-integer composition:
  * (Cr,Ci) = (Ar*Br - Ai*Bi, Ar*Bi + Ai*Br).
