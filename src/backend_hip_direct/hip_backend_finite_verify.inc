@@ -7,8 +7,9 @@ rns8_status hip_finite_verify_trial(int device, const void* a, const void* b,
     const void* r, void* br, void* flag, uint32_t& result) {
   if (!a || !b || !c || !r || !br || !flag || !m || !n || !k || modulus<2 || modulus>256)
     return RNS8_INVALID_ARGUMENT;
-  const uint64_t limit = uint64_t(PTRDIFF_MAX);
-  if (m>limit/k || k>limit/n || m>limit/n || k>limit/4) return RNS8_RANGE_ERROR;
+  if(m>INT64_MAX || n>INT64_MAX || k>INT64_MAX) return RNS8_RANGE_ERROR;
+  const auto support=query_finite_verify_support(int64_t(m),int64_t(n),int64_t(k),modulus,true,UINT64_MAX);
+  if(support.status!=RNS8_SUCCESS) return support.status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device);
   if (status != RNS8_SUCCESS) return status;

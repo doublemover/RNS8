@@ -5,7 +5,8 @@ extern "C" int rns8_hip_export_canonical_direct_crt(const int8_t*, uint64_t*, in
 rns8_status hip_direct_export_canonical_direct_crt_device(
     int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix) {
   if (!residues || !limbs || cells <= 0 || !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX) return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_matrix_address(1, cells, cells, prefix, 24)) return RNS8_UNSUPPORTED_BACKEND;
+  const auto support = query_canonical_crt_support(cells,prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
   if (!nonoverlapping_byte_ranges(residues, static_cast<uint64_t>(cells) * prefix,
                                  limbs, static_cast<uint64_t>(cells) * 24)) return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

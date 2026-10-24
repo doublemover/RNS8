@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "backend_common/operation_support.hpp"
 #include "core/hip_resources.hpp"
 #include "backend_common/finite_verify.hpp"
 #include "backend_hip_direct/finite_verify_backend.hpp"
@@ -50,14 +51,10 @@ rns8_status rns8_verify_finite_product(rns8_context* ctx, const rns8_matrix* A,
     if (A->desc.cols != B->desc.rows || A->desc.rows != C->desc.rows ||
         B->desc.cols != C->desc.cols) return RNS8_INVALID_ARGUMENT;
     const uint64_t m = uint64_t(C->desc.rows), n = uint64_t(C->desc.cols), k = uint64_t(A->desc.cols);
-    // Include host challenge plus device challenge, projection and status. All
-    // allocations must fit ptrdiff_t, including the combined logical budget.
-    const uint64_t limit = uint64_t(PTRDIFF_MAX);
-    if (m > limit/k || k > limit/n || m > limit/n) return RNS8_RANGE_ERROR;
-    const uint64_t copies = gpu ? 2 : 1, overhead = gpu ? 8 : 0;
-    if (k > (limit-overhead)/4 || n > (limit-overhead-k*4)/copies) return RNS8_RANGE_ERROR;
-    completed.workspace_bytes = n*copies+k*4+overhead;
-    if (completed.workspace_bytes > options->max_workspace_bytes) return RNS8_RANGE_ERROR;
+    const auto support=query_finite_verify_support(C->desc.rows,C->desc.cols,A->desc.cols,q,
+        gpu,options->max_workspace_bytes);
+    if(support.status!=RNS8_SUCCESS) return support.status;
+    completed.workspace_bytes=support.scratch_bytes;
     std::vector<uint8_t> challenge(static_cast<size_t>(n));
     std::vector<uint32_t> projection;
     hip_direct_device_buffer dr, dbr, flag;

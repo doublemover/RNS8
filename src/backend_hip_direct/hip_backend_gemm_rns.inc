@@ -99,10 +99,8 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix) {
-  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
-      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
-    return RNS8_UNSUPPORTED_BACKEND;
-  }
+  const auto support = query_residue_gemm_support(m,n,k,lda,ldb,ldc,prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||

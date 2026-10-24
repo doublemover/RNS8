@@ -329,3 +329,72 @@ TEST_CASE("encoded B layout pads K and accounts for capability storage") {
   CHECK(encoded_b_layout(INT64_MAX,1,1,20,UINT64_MAX).status==RNS8_UNSUPPORTED_BACKEND);
   CHECK(encoded_b_layout(1,1,1,0,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
 }
+
+#include "backend_common/direct_operation_registry.hpp"
+TEST_CASE("direct operation inventory separates static predicates from device evidence") {
+  using namespace rns8::detail;
+  DirectOperationProblem p;
+  p.m=17;p.n=19;p.k=31;p.lda=31;p.ldb=19;p.ldc=19;p.ldd=19;
+  p.prefix=20;p.source_prefix=9;p.modulus=250;
+  for(const auto& record:direct_operation_records) {
+    p.operation=record.operation;
+    const auto query=query_direct_operation(p);
+    REQUIRE(query.implementation==&record);
+    CHECK(query.static_support.status==RNS8_SUCCESS);
+    CHECK(query.static_support.resources_known);
+    CHECK_FALSE(query.runtime_observed); CHECK_FALSE(query.exact_qualified);
+    CHECK_FALSE(query.performance_promoted); CHECK(query.requires_operand_binding);
+    for(auto execution:{DirectExecution::borrowed_stream,DirectExecution::owned_capture,DirectExecution::distributed}) {
+      p.execution=execution;
+      const auto rejected=query_direct_operation(p);
+      CHECK(rejected.static_support.status==RNS8_UNSUPPORTED_BACKEND);
+      CHECK(rejected.static_support.constraint==OperationConstraint::execution_mode);
+      CHECK_FALSE(rejected.static_support.resources_known);
+    }
+    p.execution=DirectExecution::synchronous;
+  }
+  p.operation=static_cast<DirectOperation>(999);
+  CHECK(query_direct_operation(p).static_support.constraint==OperationConstraint::operation);
+  p.operation=DirectOperation::residue_gemm;p.version=2;
+  CHECK(query_direct_operation(p).static_support.status==RNS8_INVALID_ARGUMENT);
+}
+TEST_CASE("shared dense CRT and finite verifier providers admit exact boundaries") {
+  using namespace rns8::detail;
+  CHECK(query_residue_gemm_support(17,19,31,31,19,19,20).status==RNS8_SUCCESS);
+  CHECK(query_residue_gemm_support(1,1,1,INT64_MAX,1,1,20).constraint==OperationConstraint::address_span);
+  for(uint32_t prefix:{0u,21u}) CHECK(query_canonical_crt_support(1,prefix).constraint==OperationConstraint::prefix);
+  const auto crt=query_canonical_crt_support(257,20);
+  CHECK(crt.status==RNS8_SUCCESS);CHECK(crt.payload_bytes==257*24);
+  CHECK(crt.scratch_bytes==0);CHECK_FALSE(crt.requires_value_proof);
+  CHECK(query_canonical_crt_support(INT64_MAX,20).constraint==OperationConstraint::address_span);
+  for(bool gpu:{false,true}) for(uint32_t q:{2u,4u,251u,256u}) {
+    const auto support=query_finite_verify_support(17,19,31,q,gpu,UINT64_MAX);
+    REQUIRE(support.status==RNS8_SUCCESS);
+    CHECK(support.scratch_bytes==uint64_t(gpu?19*2+31*4+8:19+31*4));
+    CHECK(query_finite_verify_support(17,19,31,q,gpu,support.scratch_bytes).status==RNS8_SUCCESS);
+    CHECK(query_finite_verify_support(17,19,31,q,gpu,support.scratch_bytes-1).constraint==OperationConstraint::scratch_budget);
+  }
+  for(uint32_t q:{0u,1u,257u}) CHECK(query_finite_verify_support(1,1,1,q,false,99).constraint==OperationConstraint::modulus);
+  CHECK(query_finite_verify_support(INT64_MAX,2,1,251,true,UINT64_MAX).constraint==OperationConstraint::address_span);
+}
+
+#include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/finite_verify_backend.hpp"
+TEST_CASE("static direct provider rejection agrees with launch preflight without a device") {
+  using namespace rns8::detail;
+  int8_t a=1,b=2,c=37; uint64_t limbs[3]={11,22,33};
+  for(uint32_t prefix:{0u,1u,20u,21u}) {
+    const auto dense=query_residue_gemm_support(1,1,1,INT64_MAX,1,1,prefix);
+    REQUIRE(dense.status!=RNS8_SUCCESS);
+    CHECK(hip_direct_gemm_rns_device(-1,&a,&b,&c,1,1,1,INT64_MAX,1,1,prefix)==dense.status);
+    const auto crt=query_canonical_crt_support(INT64_MAX,prefix);
+    REQUIRE(crt.status!=RNS8_SUCCESS);
+    CHECK(hip_direct_export_canonical_direct_crt_device(-1,&a,limbs,INT64_MAX,prefix)==crt.status);
+    CHECK(hip_direct_export_canonical_balanced_crt_device(-1,&a,limbs,INT64_MAX,prefix)==crt.status);
+    CHECK(c==37); CHECK(limbs[0]==11); CHECK(limbs[2]==33);
+  }
+  uint8_t r=0; uint32_t br=0,flag=0,result=77;
+  const auto verify=query_finite_verify_support(INT64_MAX,2,1,251,true,UINT64_MAX);
+  CHECK(hip_finite_verify_trial(-1,&a,&b,&c,INT64_MAX,2,1,251,&r,&br,&flag,result)==verify.status);
+  CHECK(result==77); CHECK(c==37);
+}

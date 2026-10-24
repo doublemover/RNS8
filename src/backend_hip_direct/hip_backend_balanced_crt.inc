@@ -8,8 +8,8 @@ rns8_status hip_direct_export_canonical_balanced_crt_device(
     uint32_t prefix) {
   if (!residues || !limbs || cells <= 0 || !prefix || prefix > 20)
     return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_matrix_address(1, cells, cells, prefix, 24))
-    return RNS8_UNSUPPORTED_BACKEND;
+  const auto support = query_canonical_crt_support(cells,prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
   ResidueLayout source;
   if (!make_residue_layout(ResidueLayoutKind::modulus_major, 1,
                            static_cast<uint64_t>(cells), static_cast<uint64_t>(cells),
@@ -23,8 +23,9 @@ rns8_status hip_direct_export_canonical_balanced_crt_layout_device(
   // A valid descriptor proves rows*cols <= bytes. Keep the existing conservative
   // output domain so the launch and three-limb cell indexing cannot overflow.
   const uint64_t cells = source.rows * source.cols;
-  if (cells > INT32_MAX || !qualified_i32_matrix_address(1, cells, cells, source.prefix, 24))
-    return RNS8_UNSUPPORTED_BACKEND;
+  if (cells > INT64_MAX) return RNS8_UNSUPPORTED_BACKEND;
+  const auto support = query_canonical_crt_support(static_cast<int64_t>(cells),source.prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
   if (!nonoverlapping_byte_ranges(residues, source.bytes, limbs, cells * 24))
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP

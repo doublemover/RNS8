@@ -1,4 +1,5 @@
 #include "backend_common/address_domain.hpp"
+#include "backend_common/operation_support.hpp"
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/bilinear_resources.hpp"
 #include "backend_common/rank23_slp_resources.hpp"

@@ -63,9 +63,10 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     for(size_t i=0;i<nodes.size();++i) {
       const auto node=nodes[i];
       const auto a=state->allocation.values[node.a].shape,b=state->allocation.values[node.b].shape;
-      if(ctx->backend==RNS8_BACKEND_HIP_DIRECT &&
-          !qualified_i32_gemm_address(a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,state->prefix))
-        return RNS8_UNSUPPORTED_BACKEND;
+      if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+        const auto support=query_residue_gemm_support(a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,state->prefix);
+        if(support.status!=RNS8_SUCCESS) return support.status;
+      }
       cpp_int bound=cpp_int(a.cols)*state->bounds[node.a]*state->bounds[node.b];
       if(!exact_range_fits(state->semantics,bound,modulus_product(state->prefix))) return RNS8_RANGE_ERROR;
       uint32_t selected=state->prefix;
