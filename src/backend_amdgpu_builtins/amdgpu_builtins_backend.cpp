@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <limits>
+#include <string_view>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && \
     RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && \
@@ -71,6 +72,27 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
 #endif
 
 namespace rns8::detail {
+
+rns8_status amdgpu_builtins_sparse_a_contract(
+    const char* target, int64_t m, int64_t n, int64_t k, int64_t ldb, int64_t ldc,
+    uint32_t prefix_or_modulus, bool finite) {
+  if (m <= 0 || n <= 0 || k <= 0 || (k % 4) != 0 || ldb < n || ldc < n ||
+      m > INT32_MAX || n > INT32_MAX || k > INT32_MAX || ldb > INT32_MAX || ldc > INT32_MAX ||
+      (finite ? !finite_u8::static_byte_modulus_supported(prefix_or_modulus)
+              : prefix_or_modulus == 0 || prefix_or_modulus > RNS8_MAX_SUPPORTED_PREFIX))
+    return RNS8_INVALID_ARGUMENT;
+  if (k > RNS8_SAFE_INT32_K_BLOCK) return RNS8_RANGE_ERROR;
+  const uint32_t planes = finite ? 1 : prefix_or_modulus;
+  if (!qualified_i32_matrix_address(m, k / 2, k / 2, planes) ||
+      !qualified_i32_matrix_address(m, k / 4, k / 4, planes) ||
+      !qualified_i32_matrix_address(k, n, ldb, planes) ||
+      !qualified_i32_matrix_address(m, n, ldc, planes))
+    return RNS8_UNSUPPORTED_BACKEND;
+  const std::string_view name = target ? target : "";
+  const auto arch = name.substr(0, name.find(':'));
+  return arch == "gfx942" || arch == "gfx1200" || arch == "gfx1201"
+      ? RNS8_SUCCESS : RNS8_UNSUPPORTED_BACKEND;
+}
 
 namespace {
 
@@ -395,6 +417,11 @@ rns8_status amdgpu_builtins_gemm_rns_sparse_a_device(
   if (k > RNS8_SAFE_INT32_K_BLOCK) {
     return RNS8_RANGE_ERROR;
   }
+  rns8_device_info sparse_device{};
+  const auto probe = amdgpu_builtins_probe(device_id, sparse_device);
+  if (probe != RNS8_SUCCESS) return probe;
+  const auto contract = amdgpu_builtins_sparse_a_contract(sparse_device.gcn_arch, m, n, k, ldb, ldc, prefix, false);
+  if (contract != RNS8_SUCCESS) return contract;
   const int code = run_timed_device_code(amdgpu_builtins_sparse_event_label(device_id, false, m, n, k), [&]() {
     return rns8_amdgpu_builtin_gemm_rns_sparse_a_device(
         device_id,
@@ -448,6 +475,11 @@ rns8_status amdgpu_builtins_gemm_finite_u8_sparse_a_device(
   if (k > RNS8_SAFE_INT32_K_BLOCK) {
     return RNS8_RANGE_ERROR;
   }
+  rns8_device_info sparse_device{};
+  const auto probe = amdgpu_builtins_probe(device_id, sparse_device);
+  if (probe != RNS8_SUCCESS) return probe;
+  const auto contract = amdgpu_builtins_sparse_a_contract(sparse_device.gcn_arch, m, n, k, ldb, ldc, modulus, true);
+  if (contract != RNS8_SUCCESS) return contract;
   const int code = run_timed_device_code(amdgpu_builtins_sparse_event_label(device_id, true, m, n, k), [&]() {
     return rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
         device_id,

@@ -31,6 +31,16 @@ establish execution for an entire family. Sparse-A is an explicit public
 structured-sparsity contract with target restrictions; dense GEMM does not infer
 sparsity. Private block-sparse research is a separate path.
 
+Sparse-A source preflight is shared with raw-device dispatch: current kernels
+admit `gfx942`, `gfx1200` and `gfx1201`, K divisible by4 up to65536, supported
+static byte moduli or default-basis prefix1..20, and complete packed/input/output
+address spans within their index domain. This is source admissibility, not a
+GPU/OS qualification statement. In particular, dense `gfx1100` availability
+does not enable sparse instructions. An unsupported sparse request now rejects
+before output invalidation, preserving its old bytes, generation and range
+proof. CPU predicate and actual-device negative preservation fixtures are
+authored for the consolidated run; no new sparse hardware pass is claimed.
+
 ## AUTO and reviewed caches
 
 An AUTO context probes direct HIP and can use CPU when HIP is unavailable.
@@ -50,6 +60,21 @@ hash and build provenance. [Performance review](performance.md) owns promotion.
 `rns8_get_plan_backend_info` adds selected kernel, accumulation and workspace;
 `rns8_get_plan_packing_info` reports domains/currentness and continuations.
 These APIs describe the selected implementation without running a campaign.
+The context-free capability accessor therefore returns
+`exact_differential_validated=0` and `performance_validated=0`: no run receipt is
+bound to that inventory. Zero means unknown in this scope, not a failed test.
+Correctness-backend roles and compiled availability remain separate fields.
+An AUTO plan admitted through the existing reviewed exact-match cache can
+expose that scoped exact/performance evidence; ordinary plans do not infer it
+from compile switches. The named dated validation/measurement reports above
+retain their actual target, source and toolchain qualification.
+
+New raw benchmark diagnostics may consequently carry false in the metadata
+validation field while retaining their independently required per-capture
+reference/checksum checks. The schema accepts this unknown inventory state;
+it still requires a Boolean, and rejects performance validation without bound
+exact-differential evidence. Historic captures declaring true remain readable.
+This does not relax reviewed comparison/provenance/variance or routing gates.
 
 Ordinary GEMM/grouped calls are synchronous and operate on compatible current
 resident resources. Public [prepared execution](prepared-execution.md) retains
@@ -75,3 +100,9 @@ public API envelope.
 The public Ozaki, Strassen and Freivalds research entrypoints return
 `RNS8_UNSUPPORTED_BACKEND`; implemented private candidates do not change that
 contract. The [research index](research/README.md) groups focused technical notes.
+
+Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
+or an output with pending readers or a writer, before target admission and output
+mutation. Concurrent read-only reservations on B remain valid. State fixtures
+cover both sparse RNS and finite-ring calls; execution is pending the consolidated
+validation batch.

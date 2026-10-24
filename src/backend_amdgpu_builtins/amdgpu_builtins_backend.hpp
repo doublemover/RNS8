@@ -12,6 +12,11 @@ bool amdgpu_builtins_compiled();
 rns8_status amdgpu_builtins_probe(int device_id, rns8_device_info& out);
 bool amdgpu_builtins_workspace_requirements(int64_t max_m, int64_t max_n, int64_t k, std::size_t& total_bytes);
 bool amdgpu_builtins_use_cdna3_mfma_32x32x16(int64_t m, int64_t n, int64_t k);
+// Static operation predicate shared by public preflight and raw-device launch.
+// No probe/allocation/write; success is source admissibility, not qualification.
+rns8_status amdgpu_builtins_sparse_a_contract(
+    const char* target, int64_t m, int64_t n, int64_t k, int64_t ldb, int64_t ldc,
+    uint32_t prefix_or_modulus, bool finite);
 
 enum class amdgpu_builtins_dense_kernel_variant : int {
   auto_select = 0,

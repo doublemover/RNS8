@@ -195,7 +195,7 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     out->is_correctness_backend = capability.is_correctness_backend;
     out->is_matrix_engine_backend = capability.is_matrix_engine_backend;
     out->compiled_kernel_available = capability.compiled_kernel_available;
-    out->exact_differential_validated = capability.exact_differential_validated;
+    out->exact_differential_validated = plan->backend_performance_validated ? 1u : 0u;
     out->performance_validated = plan->backend_performance_validated;
     out->flags = capability.flags;
     out->workspace_required_bytes = plan->backend_workspace_required_bytes;

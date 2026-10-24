@@ -548,7 +548,6 @@ class ValidatorBaseFieldsMixin:
                 "correctness_backend": True,
                 "matrix_engine_backend": True,
                 "compiled_kernel_available": True,
-                "exact_differential_validated": True,
             }
             for key, value in bool_expected.items():
                 if metadata.get(key) is not value:
@@ -579,7 +578,6 @@ class ValidatorBaseFieldsMixin:
                     "correctness_backend": False,
                     "matrix_engine_backend": True,
                     "compiled_kernel_available": True,
-                    "exact_differential_validated": True,
                     "performance_validated": False,
                 }
                 for key, value in bool_expected.items():
@@ -603,7 +601,6 @@ class ValidatorBaseFieldsMixin:
                     "correctness_backend": True,
                     "matrix_engine_backend": True,
                     "compiled_kernel_available": True,
-                    "exact_differential_validated": True,
                 }
                 for key, value in bool_expected.items():
                     if metadata.get(key) is not value:

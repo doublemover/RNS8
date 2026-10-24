@@ -10,6 +10,22 @@ v4_vector_i64 = expect_valid("v4_bounded_i64_vector_alu.json")
 v4_vector_u64 = expect_valid("v4_bounded_u64_vector_alu.json")
 v4_finite_ring_ck = expect_valid("v4_finite_ring_u8_ck.json")
 v4_finite_field_rocwmma = expect_valid("v4_finite_field_u8_rocwmma.json")
+
+# A compiled/API inventory is not an attached differential qualification
+# receipt. Raw diagnostics still carry their own mandatory correctness fields.
+# Historical captures declaring true remain readable; no synthetic pass is
+# required merely to serialize a new unqualified build's metadata.
+for filename in ("v4_wrap64_hip.json", "v4_bounded_i64_adaptive_hip.json", "v4_bounded_i64_hipblaslt.json",
+                 "v4_bounded_i64_ck.json", "v4_bounded_i64_rocwmma.json", "v4_bounded_i64_vector_alu.json"):
+    unqualified = load_capture(FIXTURE_DIR / filename)
+    unqualified["backend_metadata"]["exact_differential_validated"] = False
+    validate_capture(unqualified)
+    contradictory = copy.deepcopy(unqualified)
+    contradictory["backend_metadata"]["performance_validated"] = True
+    expect_invalid(contradictory, "bound exact differential evidence")
+    malformed_evidence = copy.deepcopy(unqualified)
+    malformed_evidence["backend_metadata"]["exact_differential_validated"] = "unknown"
+    expect_invalid(malformed_evidence, "must be a boolean")
 bounded = v4_adaptive_i64
 
 vector_gemv = copy.deepcopy(v4_vector_u64)

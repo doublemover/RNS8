@@ -547,6 +547,10 @@ typedef struct rns8_plan_tile_schedule_entry {
   uint32_t range_bit_length;
 } rns8_plan_tile_schedule_entry;
 
+/* Context-free compiled inventory and implementation roles, not current-device
+ * qualification. exact_differential_validated/performance_validated are zero
+ * without a bound validation receipt; zero means unknown here, not failed.
+ * Named historical run reports retain their independent target/artifact scope. */
 typedef struct rns8_backend_capability_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -578,6 +582,9 @@ typedef struct rns8_backend_capability_info {
   char detail[256];
 } rns8_backend_capability_info;
 
+/* A plan may expose exact/performance evidence only from its admitted reviewed
+ * cache entry. Ordinary source/compiled availability alone sets neither flag.
+ * A capture's own full-output reference result remains separate evidence. */
 typedef struct rns8_plan_backend_info {
   uint64_t struct_size;
   uint32_t abi_version;

@@ -361,7 +361,8 @@ rns8_status validate_sparse_rns_device_operands(
       !rns_residue_state_current_for_backend(B, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  return RNS8_SUCCESS;
+  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch,
+      plan.desc.m, plan.desc.n, plan.desc.k, B.desc.cols, C.desc.cols, plan.prefix, false);
 }
 
 rns8_status validate_sparse_finite_device_operands(
@@ -395,7 +396,8 @@ rns8_status validate_sparse_finite_device_operands(
       !rns_residue_state_current_for_backend(B, plan.backend) || B.finite_modulus != modulus) {
     return RNS8_INVALID_ARGUMENT;
   }
-  return RNS8_SUCCESS;
+  return rns8::detail::amdgpu_builtins_sparse_a_contract(ctx.device_info.gcn_arch,
+      plan.desc.m, plan.desc.n, plan.desc.k, B.desc.cols, C.desc.cols, modulus, true);
 }
 
 }  // namespace
@@ -701,12 +703,20 @@ rns8_status rns8_gemm_rns_sparse_a(
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Read-only B may have other readers; a pending writer or any C reservation
+    // must fail before compatibility checks, target admission, or output mutation.
+    if (B->in_flight_writer || C->in_flight_writer || C->in_flight_readers) return RNS8_BUSY;
     const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
     if (!sparse_rns_matches_plan(*A, *plan)) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(ctx->device_info.gcn_arch,
+          plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols, C->desc.cols, plan->prefix, false);
+      if (support != RNS8_SUCCESS) return support;
     }
     boost::multiprecision::cpp_int exact_bound;
     if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) {
@@ -786,12 +796,20 @@ rns8_status rns8_gemm_finite_u8_sparse_a(
     if (!ctx || !plan || !A || !B || !C || !workspace || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
+    // Read-only B may have other readers; a pending writer or any C reservation
+    // must fail before compatibility checks, target admission, or output mutation.
+    if (B->in_flight_writer || C->in_flight_writer || C->in_flight_readers) return RNS8_BUSY;
     const rns8_status workspace_status = rns8::detail::api::validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
     if (!sparse_finite_matches_plan(*A, *plan, modulus)) {
       return RNS8_INVALID_ARGUMENT;
+    }
+    if (plan->backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+      const auto support = rns8::detail::amdgpu_builtins_sparse_a_contract(ctx->device_info.gcn_arch,
+          plan->desc.m, plan->desc.n, plan->desc.k, B->desc.cols, C->desc.cols, modulus, true);
+      if (support != RNS8_SUCCESS) return support;
     }
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE && A->backend == RNS8_BACKEND_CPU_REFERENCE) {
       if (!A->host_current) {

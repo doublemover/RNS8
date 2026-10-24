@@ -85,6 +85,7 @@ TEST_CASE("AUTO plan consumes reviewed vector ALU cache entry for final native b
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
   REQUIRE(auto_info.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
   CHECK(auto_info.performance_validated == 1);
+  CHECK(auto_info.exact_differential_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == vector_info.autotune_key);
 
   rns8_plan_packing_info packing{};
