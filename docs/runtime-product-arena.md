@@ -3,7 +3,7 @@
 `RuntimeProductRecipe` is an internal synchronous CPU/direct-HIP executor for a
 fixed topologically ordered exact-wide product DAG. It accepts current public
 matrix inputs and publishes one final public matrix. Inputs must share explicit
-signedness, the default basis, a common prefix and modulus-major storage. It
+signedness, the default basis, a common input/output prefix and modulus-major storage. It
 retains context/input lifetimes and binds their engine instance/generation;
 repacking requires creating a new recipe. Changed or busy inputs reject execution.
 
@@ -24,9 +24,9 @@ Kernel failure before that copy preserves the old output. Copy failure invalidat
 it. Successful publication installs the complete prefix and exact magnitude proof.
 Replay overwrites each logical value before reading it and rechecks input bindings.
 
-The explicit budget covers aligned intermediate payload storage, not retained
-public input/output matrices, host proof/descriptor metadata or runtime allocator
-overhead. `arena_bytes` and the sum of unreused logical output bytes are exposed
+The explicit budget covers aligned intermediate payload storage plus the maximum
+simultaneous HIP suffix-lift scratch, not retained public input/output matrices,
+host proof/descriptor metadata or runtime allocator overhead. `arena_bytes` and the sum of unreused logical output bytes are exposed
 separately; alignment can make tiny cases larger than that unaligned sum. Lifetime
 holds are released on destruction; execution/destruction require ordinary external
 host exclusion. Concurrent execute attempts return BUSY.
@@ -36,7 +36,26 @@ budget boundaries, lifetime/currentness and replay. A HIP diamond uses independe
 Boost full-output comparison. They have not been executed in this frontload.
 No speedup or global allocation optimality is claimed.
 
-This closes the previous absence of an executable shared-arena adapter for this
-bounded subset. It does not implement automatic precision/layout selection,
-conversion/lift nodes, ragged inputs, public graph arena integration, multi-stream
-execution or an exhaustive prefix/layout optimizer. Those remain separate work.
+## Consumer-driven exact prefix materialization
+
+The optional `minimize_compute_prefix` policy selects the smallest default-basis
+prefix certified by each node's conservative complete-product bound. It reserves
+each value's maximum required consumer prefix, rather than the common ceiling.
+Before a consumer runs, any missing input suffix is reconstructed from the already
+unique exact value and appended. A later consumer can extend the same value again.
+The final private result is extended to the full public output prefix before copy.
+No input prefix is truncated in place and no external matrix is mutated for lifting.
+
+CPU lifting checks canonical centered residues, reconstructs with exact arithmetic,
+checks the known magnitude, and writes the private suffix. HIP uses the existing
+staged exact lift with the same bound; its maximum suffix-plus-status scratch is
+reserved separately from the arena. `lift_scratch_bytes()` exposes that peak.
+Replay resets materialization state and never treats leftover suffix bytes as valid.
+Authored linear/diamond CPU and HIP fixtures exercise both policies, replay, exact
+exports and the combined arena/lift budget boundary; execution is still pending.
+
+This policy minimizes compute prefix under a conservative bound, not total measured
+cost. Small prefixes can lose after lift overhead; the full-prefix route is the
+control. Layout conversion/ragged inputs, public graph arena integration,
+multi-stream execution and an exhaustive prefix/layout cost optimizer remain
+separate work.

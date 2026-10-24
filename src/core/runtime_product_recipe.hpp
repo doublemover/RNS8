@@ -5,7 +5,8 @@
 #include <vector>
 namespace rns8::detail {
 // Internal synchronous executor: ordinary exact-wide semantics, one common
-// prefix/modulus-major layout, fixed topological order, staged final publication.
+// input/output prefix and modulus-major layout, fixed topological order, staged
+// final publication. Optional minimum-prefix products lift on consumer demand.
 // This is an executable arena adapter, not a public precision/layout planner.
 class RuntimeProductRecipe {
  public:
@@ -14,9 +15,11 @@ class RuntimeProductRecipe {
   RuntimeProductRecipe& operator=(const RuntimeProductRecipe&)=delete;
   static rns8_status create(rns8_context*,const std::vector<const rns8_matrix*>&,
       const std::vector<ProductNode>&,uint64_t max_arena_bytes,
-      std::unique_ptr<RuntimeProductRecipe>& out);
+      std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix = false);
   rns8_status execute(rns8_matrix* output);
   const ProductArenaPlan& allocation() const;
+  uint64_t lift_scratch_bytes() const;
+  const std::vector<uint32_t>& compute_prefixes() const;
  private:
   struct Impl;
   explicit RuntimeProductRecipe(std::unique_ptr<Impl>);

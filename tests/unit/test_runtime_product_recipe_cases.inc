@@ -37,13 +37,17 @@ TEST_CASE("runtime product recipe executes CPU chain and diamond in a reused are
   REQUIRE(rns8_pack_i64(ctx,a,av.data(),16,0)==RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(ctx,b,bv.data(),16,0)==RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(ctx,c,av.data(),16,0)==RNS8_SUCCESS);
-  for(bool diamond:{false,true}) {
+  for(int variant=0;variant<4;++variant) {
+    const bool diamond=variant%2,adaptive=variant>=2;
     const std::vector<ProductNode> nodes=diamond?std::vector<ProductNode>{{0,1},{2,1},{2,1},{3,4}}
         :std::vector<ProductNode>{{0,1},{2,1},{3,1},{4,1}};
     std::unique_ptr<RuntimeProductRecipe> recipe;
-    CHECK(RuntimeProductRecipe::create(ctx,{a,b},nodes,0,recipe)==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(RuntimeProductRecipe::create(ctx,{a,b},nodes,0,recipe,adaptive)==RNS8_WORKSPACE_TOO_SMALL);
     CHECK_FALSE(recipe);
-    REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},nodes,UINT64_MAX,recipe)==RNS8_SUCCESS);
+    REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},nodes,UINT64_MAX,recipe,adaptive)==RNS8_SUCCESS);
+    REQUIRE(recipe->compute_prefixes().size()==nodes.size());
+    CHECK(recipe->compute_prefixes().front()==(adaptive?1u:20u));
+    CHECK(recipe->lift_scratch_bytes()==0); // CPU extends private cells directly
     CHECK(rns8_destroy_matrix(a)==RNS8_BUSY);
     const auto generation=c->content_generation;
     c->in_flight_readers=1;

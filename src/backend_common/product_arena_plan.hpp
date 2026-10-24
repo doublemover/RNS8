@@ -19,10 +19,11 @@ struct ProductArenaPlan {
   std::vector<ProductArenaValue> values;
 };
 inline ProductArenaPlan plan_product_arena(const std::vector<ProductShape>& inputs,
-    const std::vector<ProductNode>& nodes,uint32_t prefix,uint64_t budget) {
+    const std::vector<ProductNode>& nodes,uint32_t prefix,uint64_t budget,
+    const std::vector<uint32_t>& output_capacities = {}) {
   ProductArenaPlan plan;
   if(inputs.empty() || inputs.size()>4096 || nodes.empty() || nodes.size()>4096 ||
-      !prefix || prefix>20) return plan;
+      !prefix || prefix>20 || (!output_capacities.empty() && output_capacities.size()!=nodes.size())) return plan;
   for(const auto& shape:inputs) {
     AddressDomain address;
     if(shape.rows<=0 || shape.cols<=0 || !checked_host_plane_address(
@@ -35,8 +36,10 @@ inline ProductArenaPlan plan_product_arena(const std::vector<ProductShape>& inpu
     if(node.a>=count+i || node.b>=count+i) return plan;
     const auto a=plan.values[node.a].shape,b=plan.values[node.b].shape;
     if(a.cols!=b.rows) return plan;
+    const auto capacity=output_capacities.empty()?prefix:output_capacities[i];
+    if(!capacity || capacity>prefix) return plan;
     AddressDomain address;
-    if(!checked_host_plane_address(a.rows,b.cols,b.cols,prefix,1,address)) {
+    if(!checked_host_plane_address(a.rows,b.cols,b.cols,capacity,1,address)) {
       plan.status=RNS8_RANGE_ERROR; return plan;
     }
     plan.values[node.a].last_use=std::max(plan.values[node.a].last_use,i);

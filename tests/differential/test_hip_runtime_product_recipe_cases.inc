@@ -31,7 +31,17 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
   const auto first=multiply(std::vector<cpp_int>(av.begin(),av.end()),std::vector<cpp_int>(bv.begin(),bv.end()));
   const auto second=multiply(first,std::vector<cpp_int>(bv.begin(),bv.end()));
   const auto expected=multiply(second,second);
-  for(int repeat=0;repeat<2;++repeat) {
+  for(int repeat=0;repeat<4;++repeat) {
+    if(repeat==2) {
+      recipe.reset();
+      REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},{{0,1},{2,1},{2,1},{3,4}},UINT64_MAX,recipe,true)==RNS8_SUCCESS);
+      CHECK(recipe->compute_prefixes().front()<20);
+      CHECK(recipe->lift_scratch_bytes()>0);
+      std::unique_ptr<RuntimeProductRecipe> tight;
+      const uint64_t peak=recipe->allocation().arena_bytes+recipe->lift_scratch_bytes();
+      CHECK(RuntimeProductRecipe::create(ctx,{a,b},{{0,1},{2,1},{2,1},{3,4}},peak-1,tight,true)==RNS8_WORKSPACE_TOO_SMALL);
+      CHECK_FALSE(tight);
+    }
     REQUIRE(recipe->execute(c)==RNS8_SUCCESS);
     std::vector<uint64_t> limbs(side*side*3);
     REQUIRE(rns8_export_exact_wide_signed_limbs(ctx,plan,c,limbs.data(),side,3)==RNS8_SUCCESS);

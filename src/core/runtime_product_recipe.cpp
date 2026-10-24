@@ -12,6 +12,8 @@ struct RuntimeProductRecipe::Impl {
   std::vector<ProductNode> nodes;
   ProductArenaPlan allocation;
   std::vector<cpp_int> bounds;
+  std::vector<uint32_t> compute_prefixes,capacities;
+  uint64_t lift_scratch=0;
   uint32_t prefix=0;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::vector<int8_t> host;
@@ -23,9 +25,11 @@ struct RuntimeProductRecipe::Impl {
 RuntimeProductRecipe::RuntimeProductRecipe(std::unique_ptr<Impl> impl):impl_(std::move(impl)) {}
 RuntimeProductRecipe::~RuntimeProductRecipe()=default;
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
+uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
+const std::vector<uint32_t>& RuntimeProductRecipe::compute_prefixes() const { return impl_->compute_prefixes; }
 rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     const std::vector<const rns8_matrix*>& inputs,const std::vector<ProductNode>& nodes,
-    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out) {
+    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix) {
   return guard_api([&]() -> rns8_status {
     if(!ctx || inputs.empty() || inputs.size()>4096 || nodes.empty() || nodes.size()>4096 || out)
       return RNS8_INVALID_ARGUMENT;
@@ -53,7 +57,7 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       state->bounds.push_back(input->exact_max_magnitude);
       holds.insert(&input->prepared_references);
     }
-    state->allocation=plan_product_arena(shapes,nodes,state->prefix,budget);
+    state->allocation=plan_product_arena(shapes,nodes,state->prefix,UINT64_MAX);
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     state->nodes=nodes;
     for(size_t i=0;i<nodes.size();++i) {
@@ -64,8 +68,31 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
         return RNS8_UNSUPPORTED_BACKEND;
       cpp_int bound=cpp_int(a.cols)*state->bounds[node.a]*state->bounds[node.b];
       if(!exact_range_fits(state->semantics,bound,modulus_product(state->prefix))) return RNS8_RANGE_ERROR;
+      uint32_t selected=state->prefix;
+      if(minimize_compute_prefix) {
+        selected=1;
+        while(selected<state->prefix && !exact_range_fits(state->semantics,bound,modulus_product(selected))) ++selected;
+      }
+      state->compute_prefixes.push_back(selected);
       state->bounds.push_back(std::move(bound));
     }
+    state->capacities=state->compute_prefixes;
+    for(size_t i=0;i<nodes.size();++i) for(auto id:{nodes[i].a,nodes[i].b})
+      if(id>=inputs.size()) state->capacities[id-inputs.size()]=
+          std::max(state->capacities[id-inputs.size()],state->compute_prefixes[i]);
+    state->capacities.back()=state->prefix; // complete public output materialization
+    for(size_t i=0;i<nodes.size();++i) if(state->capacities[i]>state->compute_prefixes[i]) {
+      const auto shape=state->allocation.values[inputs.size()+i].shape;
+      if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+        const auto lift=query_exact_lift_support(shape.rows*shape.cols,state->compute_prefixes[i],
+            state->capacities[i],UINT64_MAX);
+        if(lift.status!=RNS8_SUCCESS) return lift.status;
+        state->lift_scratch=std::max(state->lift_scratch,lift.scratch_bytes);
+      }
+    }
+    if(state->lift_scratch>budget) return RNS8_WORKSPACE_TOO_SMALL;
+    state->allocation=plan_product_arena(shapes,nodes,state->prefix,budget-state->lift_scratch,state->capacities);
+    if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     for(auto* hold:holds) if(*hold==UINT64_MAX) return RNS8_RANGE_ERROR;
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
       const auto status=state->device.allocate(ctx->device_id,static_cast<size_t>(state->allocation.arena_bytes));
@@ -113,17 +140,60 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
       }
       return arena+state.allocation.values[id].offset;
     };
+    std::vector<uint32_t> current(state.allocation.values.size(),0);
+    std::fill_n(current.begin(),state.inputs.size(),state.prefix);
+    const auto materialize=[&](uint32_t id,uint32_t target) -> rns8_status {
+      if(current[id]>=target) return RNS8_SUCCESS;
+      if(id<state.inputs.size() || !current[id]) return RNS8_INVALID_ARGUMENT;
+      auto* residues=arena+state.allocation.values[id].offset;
+      const auto shape=state.allocation.values[id].shape;
+      const int64_t cells=shape.rows*shape.cols;
+      if(hip) {
+        uint64_t words[3]{};
+        cpp_int magnitude=state.bounds[id];
+        const cpp_int mask=(cpp_int(1)<<64)-1;
+        for(auto& word:words) { word=(magnitude&mask).convert_to<uint64_t>(); magnitude>>=64; }
+        if(magnitude!=0) return RNS8_RANGE_ERROR;
+        bool touched=false;
+        const auto status=hip_direct_lift_exact_suffix(state.ctx->device_id,residues,cells,current[id],target,
+            state.semantics==RNS8_EXACT_WIDE_SIGNED,words,touched);
+        if(status!=RNS8_SUCCESS) return status;
+      } else {
+        std::vector<int8_t> cell_residues(current[id]);
+        const auto product=modulus_product(current[id]);
+        const cpp_int threshold=(product+1)/2;
+        for(int64_t cell=0;cell<cells;++cell) {
+          for(uint32_t p=0;p<current[id];++p) {
+            const int value=residues[int64_t(p)*cells+cell],modulus=kDefaultModuli[p];
+            if(value<-(modulus/2) || value>(modulus-1)/2) return RNS8_INVALID_ARGUMENT;
+            cell_residues[p]=static_cast<int8_t>(value);
+          }
+          auto value=reconstruct_canonical(cell_residues,current[id]);
+          if(state.semantics==RNS8_EXACT_WIDE_SIGNED && value>=threshold) value-=product;
+          if(boost::multiprecision::abs(value)>state.bounds[id]) return RNS8_RANGE_ERROR;
+          for(uint32_t p=current[id];p<target;++p)
+            residues[int64_t(p)*cells+cell]=centered_residue(value,kDefaultModuli[p]);
+        }
+      }
+      current[id]=target;
+      return RNS8_SUCCESS;
+    };
     for(size_t i=0;i<state.nodes.size();++i) {
       const auto node=state.nodes[i];
+      const auto prefix=state.compute_prefixes[i];
+      for(auto id:{node.a,node.b}) {
+        const auto status=materialize(id,prefix);
+        if(status!=RNS8_SUCCESS) return status;
+      }
       const auto a=state.allocation.values[node.a].shape,b=state.allocation.values[node.b].shape;
       auto* c=arena+state.allocation.values[state.inputs.size()+i].offset;
       const auto* av=pointer(node.a); const auto* bv=pointer(node.b);
       if(hip) {
         const auto status=hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,
-            a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,state.prefix);
+            a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
         if(status!=RNS8_SUCCESS) return status;
       } else {
-        for(uint32_t p=0;p<state.prefix;++p) {
+        for(uint32_t p=0;p<prefix;++p) {
           const int64_t modulus=rns8_default_modulus(p);
           for(int64_t row=0;row<a.rows;++row) for(int64_t col=0;col<b.cols;++col) {
             int64_t sum=0;
@@ -136,7 +206,10 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
           }
         }
       }
+      current[state.inputs.size()+i]=prefix;
     }
+    const auto completed=materialize(static_cast<uint32_t>(state.allocation.values.size()-1),state.prefix);
+    if(completed!=RNS8_SUCCESS) return completed;
     MatrixWriteGuard write(*output);
     const auto* result=arena+state.allocation.values.back().offset;
     if(hip) {
