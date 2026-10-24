@@ -27,6 +27,7 @@ class SuiteCase:
 
 
 DEFAULT_CASES = [
+    SuiteCase("ci_benchmark_smoke", "metadata_drift", [sys.executable, "tools/test_ci_benchmark_smoke.py"]),
     SuiteCase("observation_cohorts", "metadata_drift", [sys.executable, "tools/test_observation_cohorts.py"]),
     SuiteCase("measurement_evidence_contracts", "metadata_drift", [sys.executable, "tools/test_measurement_evidence_contracts.py"]),
     SuiteCase("tooling_contracts", "metadata_drift", [sys.executable, "tools/test_tooling_contracts.py"]),

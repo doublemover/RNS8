@@ -188,3 +188,17 @@ observation means are not duration-weighted occupancy. Selected scalar resources
 require execution/symbol association and an unambiguous phase/unit group. Raw
 ISA inventories likewise cannot supply selected-kernel resources without the
 artifact/target/symbol association described above.
+
+## CI smoke is not a regression gate
+
+The retained `perf-regression.yml` entrypoint is named **Non-promoting Benchmark
+Smoke**. It builds Release and collects six bounded 512³ CPU/direct-HIP captures
+(bounded signed, bounded unsigned, finite field 251), with per-capture and job
+budgets and serialized device use. `ci_benchmark_smoke.py` generates both the
+plan and execution through the supported sweep parser. Missing or invalid
+captures fail the collection result; partial collection cannot pass by omission.
+Its one warmup/three repeats are diagnostic only. There is deliberately no
+invented baseline artifact, numeric regression threshold, cache write or speed
+claim. A later true regression gate needs a separately versioned, same-contract
+qualified baseline and independent-process threshold review. The CPU workflow
+owns a no-executable parser/plan integration regression for this entrypoint.

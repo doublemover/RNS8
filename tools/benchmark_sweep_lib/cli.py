@@ -14,7 +14,7 @@ from .execution import autotune_cache_path, execute_sweep_entries, validate_path
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--list-scenarios",
@@ -340,7 +340,7 @@ def parse_args() -> argparse.Namespace:
         help="write performance_validated cache entries only for fastest promotable release-reviewed captures",
     )
     parser.add_argument("--autotune-cache", type=Path, help="override autotune cache output path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
     if args.dry_run and args.review_only:

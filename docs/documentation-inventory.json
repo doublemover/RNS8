@@ -3343,8 +3343,10 @@
       ],
       "anchors": [
         "capture-resume-and-retired-reports",
+        "ci-smoke-is-not-a-regression-gate",
         "commands",
         "current-evidence-boundary",
+        "independent-observations-and-profiler-partitions",
         "measurement-contract",
         "performance-evidence-and-promotion",
         "promotion-boundaries",

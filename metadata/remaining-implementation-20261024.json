@@ -62,7 +62,8 @@
         "tools/test_benchmark_sweep_case_review_metadata.py"
       ],
       "commits": [
-        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73",
+        "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
       "remaining": [
         "Regression execution and real artifact/code-object inspection deferred; static association explicitly does not prove dynamic execution."
@@ -170,7 +171,8 @@
         "tools/test_gpu_counter_report.py"
       ],
       "commits": [
-        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73",
+        "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
       "remaining": [
         "Execute authored report/fixture regressions later; real independent observations, profiler captures and qualification remain unverified."
@@ -1116,12 +1118,25 @@
       "issue": 77,
       "title": "[P2] Repair the performance-regression workflow's collection and comparison contract",
       "url": "https://github.com/doublemover/RNS8/issues/77",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Workflow still passes invalid scenario family/argument grouping and unsupported result_compare directory/--baseline/--max-regression args, with no provisioned baseline or real threshold implementation.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Repair the lane as an explicitly non-promoting Release benchmark smoke, using the real sweep parser/command generator, six bounded captures, serialized device/job/capture budgets and fail-closed collection completeness; remove nonexistent baseline/threshold CLI claims.",
+          "files": [
+            ".github/workflows/perf-regression.yml",
+            "tools/ci_benchmark_smoke.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_ci_benchmark_smoke.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Authored CLI integration regression, workflow execution and GPU collection are deferred. This lane deliberately does not claim numeric regression qualification."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         19,
