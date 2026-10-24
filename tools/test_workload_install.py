@@ -58,10 +58,12 @@ def main() -> int:
     command = [cmake, "-S", str(source), "-B", str(consumer), "-G", values["CMAKE_GENERATOR"],
                "-DCMAKE_PREFIX_PATH=" + str(stage), "-DBUILD_TESTING=OFF", "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
                "-DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF", "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF",
+               "-DVCPKG_MANIFEST_INSTALL=OFF",
                "-DRNS8_WORKLOAD_USE_SHARED=" + ("ON" if args.shared else "OFF")]
     for key in ("CMAKE_CXX_COMPILER", "CMAKE_BUILD_TYPE", "CMAKE_CXX_FLAGS", "CMAKE_EXE_LINKER_FLAGS",
                 "CMAKE_CXX_FLAGS_DEBUG", "CMAKE_CXX_FLAGS_RELEASE", "CMAKE_CXX_FLAGS_RELWITHDEBINFO", "CMAKE_CXX_FLAGS_MINSIZEREL",
-                "CMAKE_MSVC_RUNTIME_LIBRARY", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET",
+                "CMAKE_MSVC_RUNTIME_LIBRARY", "CMAKE_TOOLCHAIN_FILE", "VCPKG_TARGET_TRIPLET", "VCPKG_HOST_TRIPLET",
+                "VCPKG_INSTALLED_DIR",
                 "RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR", "nlohmann_json_DIR"):
         if values.get(key): command.append("-D" + key + "=" + values[key])
     run(command)
