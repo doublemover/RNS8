@@ -24,9 +24,10 @@ struct DenseEngine {
   std::vector<int64_t> native;
   Json metadata;
   uint32_t prefix = 0;
-  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound)
+  int gram_method = -1;
+  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1)
       : data(input), options(config), context(config.device, config.backend),
-        words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n) {
+        words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n), gram_method(gram) {
     metadata["device"] = device_info(context, options);
     const auto desc = gemm_desc(options, options.wide ? RNS8_EXACT_WIDE_SIGNED : RNS8_BOUNDED_I64,
                                 options.m, options.n, options.k, bound);
@@ -43,18 +44,30 @@ struct DenseEngine {
             "estimated device storage/workspace exceeds total device memory; free-memory availability remains runtime checked");
     options.memory->reserve(modeled_bytes + workspace_bytes, options.memory_mib * 1024 * 1024, "retained dense candidate storage/workspace");
     workspace = std::make_unique<rns8::Workspace>(context, *plan);
-    a = matrix(options.m, options.k); b = matrix(options.k, options.n); c = matrix(options.m, options.n);
+    if (gram_method < 0) a = matrix(options.m, options.k);
+    b = matrix(options.k, options.n); c = matrix(options.m, options.n);
     metadata["plan"] = plan_info(*plan);
-    metadata["storage"] = {{"a", storage_info(*a)}, {"b", storage_info(*b)}, {"c", storage_info(*c)}};
+    metadata["storage"] = {{"b", storage_info(*b)}, {"c", storage_info(*c)}};
+    if (a) metadata["storage"]["a"] = storage_info(*a);
+    metadata["single_source_gram"] = gram_method >= 0;
+    if (gram_method >= 0) {
+      metadata["independent_integer_products_per_call"] = uint64_t(options.n)*(options.n+1)/2*options.k;
+      metadata["dense_equivalent_integer_products_per_call"] = uint64_t(options.n)*options.n*options.k;
+      metadata["gram_method"] = gram_method == RNS8_GRAM_WMMA ? "wmma" : "scalar";
+    }
     metadata["modeled_device_storage_envelope_bytes"] = modeled_bytes;
   }
   void execute(Phases& phases, uint64_t version) {
     phases.measure("pack_and_upload_ns", [&] {
-      rns8::check(rns8_pack_i64(context.get(), a->get(), data.a.data(), options.k, version));
+      if (a) rns8::check(rns8_pack_i64(context.get(), a->get(), data.a.data(), options.k, version));
       rns8::check(rns8_pack_i64(context.get(), b->get(), data.b.data(), options.n, options.gram ? version : 1));
     });
     phases.measure("gemm_and_required_sync_ns", [&] {
-      rns8::check(rns8_gemm_rns(context.get(), plan->get(), a->get(), b->get(), c->get(), workspace->get()));
+      if (gram_method >= 0)
+        rns8::check(rns8_gram_residues(context.get(), b->get(), c->get(),
+            RNS8_GRAM_TRANSPOSE_TIMES_SELF, static_cast<rns8_gram_method>(gram_method),
+            options.memory_mib*UINT64_C(1024)*1024));
+      else rns8::check(rns8_gemm_rns(context.get(), plan->get(), a->get(), b->get(), c->get(), workspace->get()));
     });
     phases.measure("reconstruction_and_download_ns", [&] {
       if (options.wide) rns8::check(rns8_export_exact_wide_signed_limbs(context.get(), plan->get(), c->get(), words.data(), options.n, 3));
@@ -72,6 +85,16 @@ inline Variant dense_variant(const Dataset& data, const Options& options, const 
   result.metadata = state->metadata;
   result.execute = [state](Phases& phases, uint64_t version) { state->execute(phases, version); };
   result.output = [state]() -> const Words& { return state->words; };
+  return result;
+}
+inline Variant gram_variant(const Dataset& data, const Options& options, const cpp_int& bound,
+                            rns8_gram_method method) {
+  const auto start=Clock::now();auto state=std::make_shared<DenseEngine>(data,options,bound,int(method));
+  Variant result;
+  result.name="rns8_single_source_gram_"+std::string(method==RNS8_GRAM_WMMA?"wmma":"scalar");
+  result.setup_ns=since(start);result.metadata=state->metadata;
+  result.execute=[state](Phases& phases,uint64_t version){state->execute(phases,version);};
+  result.output=[state]() -> const Words& {return state->words;};
   return result;
 }
 } // namespace rns8_workload

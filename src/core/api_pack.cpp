@@ -52,6 +52,19 @@ rns8_status rns8_pack_i64(
     if (hip_resident_rns_backend(ctx->backend) &&
         !rns8::detail::qualified_i32_matrix_address(matrix->desc.rows, matrix->desc.cols, ld, 1, sizeof(*src)))
       return RNS8_RANGE_ERROR;
+    // A compact verified magnitude also enables bounded single-source Gram.
+    // Keep it independent of host mirrors and compute with unsigned arithmetic
+    // so INT64_MIN is handled without signed negation overflow.
+    uint64_t bounded_magnitude = 0;
+    const bool certify_bounded = matrix->desc.semantics == RNS8_BOUNDED_I64 &&
+                                 !native_vector_backend(ctx->backend);
+    if (certify_bounded && !same_source_device_residue_pack_current(*ctx,*matrix,source_version))
+      for (int64_t row=0;row<matrix->desc.rows;++row)
+        for (int64_t col=0;col<matrix->desc.cols;++col) {
+          const auto value=src[row*ld+col];
+          const uint64_t magnitude=value<0 ? uint64_t(0)-uint64_t(value) : uint64_t(value);
+          bounded_magnitude=std::max(bounded_magnitude,magnitude);
+        }
     std::optional<MatrixWriteGuard> write;
     boost::multiprecision::cpp_int exact_bound = 0;
     rns8_exact_matrix_ranges exact_ranges;
@@ -137,6 +150,14 @@ rns8_status rns8_pack_i64(
       matrix->exact_axis_ranges.rows.swap(exact_ranges.rows);
       matrix->exact_axis_ranges.cols.swap(exact_ranges.cols);
       matrix->exact_range_prefix = matrix->prefix;
+    }
+    if (certify_bounded) {
+      boost::multiprecision::cpp_int magnitude=bounded_magnitude;
+      const bool unique=rns8::detail::exact_range_fits(RNS8_EXACT_WIDE_SIGNED,magnitude,
+                                                     rns8::detail::modulus_product(matrix->prefix));
+      matrix->exact_max_magnitude.swap(magnitude);
+      matrix->exact_axis_ranges.rows.clear(); matrix->exact_axis_ranges.cols.clear();
+      matrix->exact_range_prefix=unique?matrix->prefix:0;
     }
     publish_matrix_value(*matrix, true, source_version);
     write->committed = true;

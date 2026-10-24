@@ -791,7 +791,7 @@ typedef enum rns8_gram_method {
   RNS8_GRAM_SCALAR = 0,
   RNS8_GRAM_WMMA = 1
 } rns8_gram_method;
-/* Explicit single-source Gram product. Exact-wide signed and finite ring/field
+/* Explicit single-source Gram product. Bounded i64, exact-wide signed and finite ring/field
  * only; CPU scalar or direct HIP scalar/WMMA. Dense symmetric output, same basis.
  * Budget includes host/device triangular job lists and capability word. */
 RNS8_API rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* source,

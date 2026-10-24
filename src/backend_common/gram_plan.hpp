@@ -22,7 +22,7 @@ inline GramSupport query_gram_support(const GramProblem& p,uint64_t budget,bool 
   if(p.version!=1 || !p.source_instance || p.rows<=0 || p.cols<=0 ||
      uint32_t(p.orientation)>1 || p.source_ld<p.cols) return s;
   const bool finite=p.semantics==RNS8_FINITE_RING_U8 || p.semantics==RNS8_FINITE_FIELD_U8;
-  if(p.semantics!=RNS8_EXACT_WIDE_SIGNED && !finite) {s.status=RNS8_UNSUPPORTED_BACKEND;return s;}
+  if(p.semantics!=RNS8_EXACT_WIDE_SIGNED && p.semantics!=RNS8_BOUNDED_I64 && !finite) {s.status=RNS8_UNSUPPORTED_BACKEND;return s;}
   if((finite && (p.prefix!=1 || p.modulus<2 || p.modulus>256)) ||
      (!finite && (!p.prefix || p.prefix>20 || p.modulus))) return s;
   if(p.semantics==RNS8_FINITE_FIELD_U8)

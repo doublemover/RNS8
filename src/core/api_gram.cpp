@@ -13,7 +13,7 @@ rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* x,rns8_matri
       return RNS8_UNSUPPORTED_BACKEND;
     const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT;
     const bool finite=uses_finite_storage(x->desc.semantics);
-    if(!finite && x->desc.semantics!=RNS8_EXACT_WIDE_SIGNED) return RNS8_UNSUPPORTED_BACKEND;
+    if(!finite && x->desc.semantics!=RNS8_EXACT_WIDE_SIGNED && x->desc.semantics!=RNS8_BOUNDED_I64) return RNS8_UNSUPPORTED_BACKEND;
     if(!context_accepts_backend(*ctx,x->backend) || x->generation_exhausted || c->generation_exhausted || c->backend!=x->backend ||
        !matrix_backend_compatible_with_plan(*ctx,*x,x->backend) ||
        !matrix_backend_compatible_with_plan(*ctx,*c,c->backend) ||
@@ -24,7 +24,7 @@ rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* x,rns8_matri
     const int64_t k=orientation==RNS8_GRAM_TRANSPOSE_TIMES_SELF?x->desc.rows:x->desc.cols;
     if(c->desc.rows!=n || c->desc.cols!=n) return RNS8_INVALID_ARGUMENT;
     for(const auto* matrix:{x,static_cast<const rns8_matrix*>(c)}) {
-      if(!matrix_descriptor_matches(*matrix,x->desc.semantics,RNS8_BOUND_NONE,
+      if(!matrix_descriptor_matches(*matrix,x->desc.semantics,x->desc.bound_kind,
           matrix->desc.rows,matrix->desc.cols,x->prefix,0,0) ||
          !(finite?finite_matrix_storage_matches(*matrix,x->backend,matrix->desc.rows,matrix->desc.cols)
                  :rns_matrix_storage_matches(*matrix,x->backend,matrix->desc.rows,matrix->desc.cols,x->prefix)))
@@ -35,10 +35,11 @@ rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* x,rns8_matri
     boost::multiprecision::cpp_int bound=0;
     if(!finite) {
       if(!x->exact_range_prefix || x->exact_range_prefix>x->prefix || x->exact_max_magnitude<0 ||
-         !exact_range_fits(x->desc.semantics,x->exact_max_magnitude,modulus_product(x->exact_range_prefix)))
+         !exact_range_fits(RNS8_EXACT_WIDE_SIGNED,x->exact_max_magnitude,modulus_product(x->exact_range_prefix)))
         return RNS8_RANGE_ERROR;
       bound=boost::multiprecision::cpp_int(k)*x->exact_max_magnitude*x->exact_max_magnitude;
-      if(!exact_range_fits(c->desc.semantics,bound,modulus_product(c->prefix))) return RNS8_RANGE_ERROR;
+      if((c->desc.semantics==RNS8_BOUNDED_I64 && bound>INT64_MAX) ||
+         !exact_range_fits(RNS8_EXACT_WIDE_SIGNED,bound,modulus_product(c->prefix))) return RNS8_RANGE_ERROR;
     }
     GramProblem p;
     p.orientation=static_cast<GramOrientation>(orientation);p.semantics=x->desc.semantics;

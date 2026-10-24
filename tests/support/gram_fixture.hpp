@@ -7,16 +7,17 @@ inline void check_public_gram(rns8_backend_kind backend) {
   rns8_context_options cd{};cd.struct_size=sizeof(cd);cd.abi_version=RNS8_ABI_VERSION;
   cd.requested_backend=backend;
   rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(backend==RNS8_BACKEND_HIP_DIRECT?0:-1,&cd,&ctx)==RNS8_SUCCESS);
-  for(auto semantics:{RNS8_EXACT_WIDE_SIGNED,RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8})
+  for(auto semantics:{RNS8_BOUNDED_I64,RNS8_EXACT_WIDE_SIGNED,RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8})
     for(auto orientation:{RNS8_GRAM_TRANSPOSE_TIMES_SELF,RNS8_GRAM_SELF_TIMES_TRANSPOSE})
       for(int n:{1,15,16,17,31,32,33}) {
         const int k=n==1?65537:17,rows=orientation==RNS8_GRAM_TRANSPOSE_TIMES_SELF?k:n;
         const int cols=orientation==RNS8_GRAM_TRANSPOSE_TIMES_SELF?n:k,ld=cols+2;
-        const bool finite=semantics!=RNS8_EXACT_WIDE_SIGNED;
+        const bool bounded=semantics==RNS8_BOUNDED_I64;
+        const bool finite=semantics==RNS8_FINITE_RING_U8 || semantics==RNS8_FINITE_FIELD_U8;
         const uint16_t modulus=semantics==RNS8_FINITE_RING_U8?250:251;
         rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;
         md.rows=rows;md.cols=cols;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
-        md.semantics=semantics;md.bound_kind=RNS8_BOUND_NONE;md.max_prefix=finite?0:20;
+        md.semantics=semantics;md.bound_kind=bounded?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_NONE;md.max_prefix=finite?0:20;
         rns8_matrix *x=nullptr,*c=nullptr;
         REQUIRE(rns8_create_matrix(ctx,&md,&x)==RNS8_SUCCESS);
         md.rows=md.cols=n;REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
@@ -24,7 +25,7 @@ inline void check_public_gram(rns8_backend_kind backend) {
         std::vector<uint8_t> bytes(rows*ld,255);
         for(int r=0;r<rows;++r) for(int col=0;col<cols;++col) {
           values[r*ld+col]=((r*7+col*3)%11)-5;
-          if(n==17 && r==0) values[r*ld+col]=col%2?INT64_MIN:INT64_MAX;
+          if(!bounded && n==17 && r==0) values[r*ld+col]=col%2?INT64_MIN:INT64_MAX;
           bytes[r*ld+col]=uint8_t((r*7+col*3)%modulus);
         }
         if(finite) REQUIRE(rns8_pack_finite_u8(ctx,x,modulus,bytes.data(),ld,0)==RNS8_SUCCESS);

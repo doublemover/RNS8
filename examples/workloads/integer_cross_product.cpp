@@ -39,6 +39,18 @@ int main(int argc, char** argv) {
     Json skipped = Json::array();
     add_integer_baselines(variants, skipped, data, options, bound, limbs);
     variants.push_back(dense_variant(data, options, bound));
+    if (options.gram && (options.backend==RNS8_BACKEND_CPU_REFERENCE || options.backend==RNS8_BACKEND_HIP_DIRECT)) {
+      variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR));
+      if (options.backend==RNS8_BACKEND_HIP_DIRECT) {
+        rns8::Context probe(options.device,options.backend);
+        const std::string target=probe.device_info().gcn_arch;
+        if (target.rfind("gfx1100",0)==0 || target.rfind("gfx1101",0)==0 || target.rfind("gfx1102",0)==0)
+          variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA));
+        else skipped.push_back({{"name","rns8_single_source_gram_wmma"},{"reason","requires RDNA3 IU8 target"}});
+      }
+      report["gram_independent_integer_products_per_call"]=uint64_t(options.n)*(options.n+1)/2*options.k;
+      report["gram_dense_equivalent_integer_products_per_call"]=uint64_t(options.n)*options.n*options.k;
+    }
     run_variants(report, options, data, variants, expected, [&] {
       mutate_input(data);
       if (options.gram) data.b[0] = data.a[0];
