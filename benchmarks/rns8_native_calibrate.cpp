@@ -97,27 +97,35 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|complex_3m|complex_4m|"
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|complex_3m|complex_4m|"
         "narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [workers]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
+        "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
-        "repeats:1..10000 warmups:1..1000; group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k.\n"
+        "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
+        "group=1 outside wmma/grid_prepared/queue/queue_prepared/split_k/adaptive cases.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
-    if (argc != 11 && argc != 12) throw std::invalid_argument(usage);
+    if (argc < 11 || argc > 13) throw std::invalid_argument(usage);
     // Preserve the original ten arguments; optional workers follows run identity.
     const std::string candidate = argv[1], run_id = argv[10];
     const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
-    if (argc == 12 && !queued)
-      throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k candidates");
-    const uint32_t requested_workers = queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
+    const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
+    const bool compact = candidate == "adaptive_compact";
+    if (adaptive && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
+                     std::string(argv[compact ? 12 : 11]) != "axis_l1"))
+      throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
+    if (!adaptive && (argc > 12 || (argc == 12 && !queued)))
+      throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
+    const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
+        queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = candidate == "wmma" || queued || prepared;
+    const bool native = candidate == "wmma" || queued || prepared || adaptive;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -130,7 +138,7 @@ int main(int argc, char** argv) {
     const uint32_t splits = candidate == "split_k" ? std::min(k, 3u) : 1u;
     const uint32_t queue_descriptors = queued ? ((m + 15) / 16) * ((n + 15) / 16) *
         ((prefix + group - 1) / group) * splits : 0u;
-    const uint32_t effective_workers = std::min(requested_workers, queue_descriptors);
+    const uint32_t effective_workers = compact ? requested_workers : std::min(requested_workers, queue_descriptors);
     const std::string queue_kernel_selection = queued ? "homogeneous_group_" + std::to_string(group) +
         (unsigned_inputs ? "_unsigned" : "_signed") : "not_applicable";
     rns8_device_info device{};
@@ -222,6 +230,12 @@ int main(int argc, char** argv) {
       else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
       else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written));
+      else if (adaptive) {
+        check(hip_direct_gemm_adaptive_native_device(0, da.get(), db.get(), static_cast<int8_t*>(dc.get()),
+            m, n, k, k, n, n, unsigned_inputs, prefix, group, UINT64_MAX, written,
+            NativeBoundMethod::axis_l1, 256, compact ? requested_workers : 0));
+        if (!written) throw std::runtime_error("adaptive operation returned success without committing output");
+      }
       else check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
     };
     const auto prepare = [&]() {
@@ -264,7 +278,7 @@ int main(int argc, char** argv) {
     }
     hip_direct_timing_set_enabled(false);
     const auto sustained = sustained_calls(prepare, execute, verify);
-    std::cout << nlohmann::json{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
+    nlohmann::json report{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
         {"sustained",sustained},
         {"queue_prepare_ns",queue_prepare_ns},
         {"queue_preparation_scope",prepared ? "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls" : "not_applicable"},
@@ -288,7 +302,19 @@ int main(int argc, char** argv) {
         {"residue_output_bytes",std::size_t{m}*n*prefix},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
-        {"cache_state","repeated inputs; destination reinitialized outside every timed call"}}.dump(2) << '\n';
+        {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if (adaptive) {
+      report.update({{"bound_method", "axis_l1"}, {"adaptive_launch", compact ? "compact_workers" : "dense_grid"},
+          {"adaptive_dataset", "full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"adaptive_dense_group_upper_bound", uint64_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)},
+          {"adaptive_actual_compact_groups", nullptr}, {"adaptive_compact_count_source", "device_offsets_not_read_back"},
+          {"adaptive_worker_policy", compact ? "exact_requested_worker_launch_no_count_clamp" : "dense_grid_control"},
+          {"adaptive_kernel_selection", std::string(compact ? "compact_group_" : "grid_group_") + std::to_string(group) +
+              (unsigned_inputs ? "_unsigned_axis_l1" : "_signed_axis_l1")},
+          {"adaptive_output_scope", "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}});
+      report["timing_scope"] = "resident full-width native inputs; per-call capability, allocation, axis_l1 discovery/compaction, grouped WMMA, exact suffix, staged commit and synchronization; no compact-count readback; upload, poison and complete Boost verification excluded";
+    }
+    std::cout << report.dump(2) << '\n';
     return 0;
   } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

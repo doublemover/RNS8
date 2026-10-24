@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from collect_native_calibration import (
-    CANDIDATES, QUEUED, capture_contract, epilogue_contract, main, narrow_contract,
+    ADAPTIVE, CANDIDATES, QUEUED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
 from test_capture_identity_support import synthetic_identity
@@ -23,12 +23,15 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in ("wmma", "grid_prepared", *QUEUED):
+    if candidate not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
     if candidate.startswith("complex_"):
         case["prefix"] = 20
+    if candidate in ADAPTIVE:
+        case.update(prefix=20, bound_method="axis_l1")
+        if candidate == "adaptive_compact": case["workers"] = 32
     return validate_case({**case, **changes})
 
 
@@ -70,7 +73,7 @@ class CaseTest(unittest.TestCase):
             for unsigned in (False, True):
                 if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED) else (1,)):
+                for group in ((1, 2, 4) if candidate in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -83,7 +86,7 @@ class CaseTest(unittest.TestCase):
             self.assertNotIn("workers", original)
             for workers in (1, 2, 32, 1024):
                 self.assertEqual(case_for(candidate, workers=workers)["workers"], workers)
-        for candidate in set(CANDIDATES) - set(QUEUED):
+        for candidate in set(CANDIDATES) - set(QUEUED) - {"adaptive_compact"}:
             with self.subTest(candidate=candidate), self.assertRaisesRegex(ValueError, "only to queue/queue_prepared/split_k"):
                 case_for(candidate, workers=32)
 
@@ -104,10 +107,28 @@ class CaseTest(unittest.TestCase):
                             self.assertEqual(contract["effective_workers"], min(count, workers))
                             self.assertEqual(contract["queue_kernel_selection"],
                                              f"homogeneous_group_{group}_" + ("unsigned" if unsigned else "signed"))
-        for candidate in set(CANDIDATES) - set(QUEUED):
+        for candidate in set(CANDIDATES) - set(QUEUED) - {"adaptive_compact"}:
             contract = scheduling_contract(case_for(candidate))
             self.assertEqual(contract, dict(splits=1, requested_workers=0, effective_workers=0,
                                            queue_descriptors=0, queue_kernel_selection="not_applicable"))
+
+    def test_adaptive_workers_are_exact_and_counts_remain_device_only(self):
+        for group in (1, 2, 4):
+            for unsigned in (False, True):
+                for workers in (1, 32, 512, 65535):
+                    case = case_for("adaptive_compact", m=1, n=1, k=1, group=group,
+                                    unsigned_inputs=unsigned, workers=workers)
+                    schedule = scheduling_contract(case)
+                    self.assertEqual(schedule["requested_workers"], workers)
+                    self.assertEqual(schedule["effective_workers"], workers)
+                    self.assertEqual(schedule["queue_descriptors"], 0)
+                    contract = adaptive_contract(case)
+                    self.assertEqual(contract["adaptive_dense_group_upper_bound"], (20 + group - 1) // group)
+                    self.assertIsNone(contract["adaptive_actual_compact_groups"])
+                    self.assertEqual(contract["bound_method"], "axis_l1")
+                    self.assertIn("no_count_clamp", contract["adaptive_worker_policy"])
+        missing = case_for("adaptive_compact"); del missing["workers"]
+        with self.assertRaises(ValueError): validate_case(missing)
 
     def test_shape_boundaries(self):
         for key, high in (("m", 1024), ("n", 1024), ("k", 65537), ("prefix", 20)):
@@ -116,6 +137,20 @@ class CaseTest(unittest.TestCase):
         validate_case({**BASE, "m": 1024, "n": 1024, "k": 1024})
         with self.assertRaises(ValueError):
             validate_case({**BASE, "m": 1024, "n": 1024, "k": 1025})
+
+    def test_tracked_case_sets_cover_every_mode_and_adaptive_controls(self):
+        root = Path(__file__).resolve().parents[1] / "benchmarks/native-calibration"
+        smoke = [validate_case(row) for row in strict_json((root / "all-modes-smoke.json").read_text(encoding="utf-8"))]
+        self.assertEqual({row["candidate"] for row in smoke}, set(CANDIDATES))
+        adaptive = [validate_case(row) for row in strict_json((root / "adaptive-native.json").read_text(encoding="utf-8"))]
+        self.assertLessEqual(len(adaptive), 64)
+        self.assertEqual(len({json.dumps(row, sort_keys=True) for row in adaptive}), len(adaptive))
+        for candidate in ADAPTIVE:
+            for group in (1, 2, 4):
+                for unsigned in (False, True):
+                    self.assertTrue(any(row["candidate"] == candidate and row["group"] == group
+                                        and row["unsigned_inputs"] == unsigned for row in adaptive))
+        self.assertEqual({row["workers"] for row in adaptive if row["candidate"] == "adaptive_compact"}, {32, 512})
 
     def test_malformed_cases(self):
         malformed = [None, [], "case", {}, {**BASE, "extra": 1}, {k: v for k, v in BASE.items() if k != "k"}]
@@ -131,13 +166,22 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED)):
+        for candidate in (c for c in CANDIDATES if c not in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
         malformed.append({**case_for("narrow_scalar"), "unsigned_inputs": True})
         for candidate in ("complex_3m", "complex_4m"):
             malformed += [{**case_for(candidate), "prefix": 19}, {**case_for(candidate), "unsigned_inputs": True}]
+        for candidate in ADAPTIVE:
+            malformed.append({**case_for(candidate), "prefix": 19})
+            for method in (None, True, 0, "tile_max", "panel_l1", "axis_l1 ", [], {}):
+                malformed.append({**case_for(candidate), "bound_method": method})
+        for workers in (None, True, False, 0, -1, 65536, 1.0, "32", [], {}):
+            malformed.append({**case_for("adaptive_compact"), "workers": workers})
+        malformed.append({**case_for("adaptive_grid"), "workers": 1})
+        for candidate in set(CANDIDATES) - set(ADAPTIVE):
+            malformed.append({**case_for(candidate), "bound_method": "axis_l1"})
         for case in malformed:
             with self.subTest(case=case), self.assertRaises(ValueError):
                 validate_case(case)
@@ -160,6 +204,19 @@ class CaseTest(unittest.TestCase):
 
 
 class CaptureTest(unittest.TestCase):
+    def test_adaptive_never_substitutes_dense_count_for_device_compact_count(self):
+        for candidate in ADAPTIVE:
+            case = case_for(candidate)
+            for key, values in (("adaptive_actual_compact_groups", (0, 1, 40, False, "unknown")),
+                                ("adaptive_dense_group_upper_bound", (True, 40.0, None, -1)),
+                                ("effective_workers", (True, 32.0, None)),
+                                ("bound_method", ("tile_max", None)),
+                                ("adaptive_worker_policy", ("clamped_to_compact_count", None))):
+                for value in values:
+                    with self.subTest(candidate=candidate, key=key, value=value):
+                        capture = capture_for(case); capture[key] = value
+                        with self.assertRaises(ValueError): validate_capture(capture, case, "fixture-run", 3, 1)
+
     def test_complex_costs_and_component_contract(self):
         for candidate, products, scratch in (("complex_3m", 3, (17*257+257*19+5*17*19)*20),
                                               ("complex_4m", 4, 6*17*19*20)):
@@ -283,7 +340,8 @@ class CollectorTest(unittest.TestCase):
             case = validate_case(dict(candidate=command[1], m=int(command[2]), n=int(command[3]),
                                       k=int(command[4]), prefix=int(command[5]), group=int(command[6]),
                                       unsigned_inputs=bool(int(command[7])),
-                                      **({"workers": int(command[11])} if len(command) == 12 else {})))
+                                      **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
+                                      **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {})))
             capture = capture_for(case, command[10])
             if mutate:
                 mutate(capture, len(calls))
@@ -300,6 +358,7 @@ class CollectorTest(unittest.TestCase):
     def test_all_modes_end_to_end_and_distinct_worker_identity(self):
         cases = [case_for(name) for name in CANDIDATES]
         cases += [case_for("queue", workers=1), case_for("queue", workers=1024),
+                  case_for("adaptive_compact", workers=65535),
                   case_for("split_k", m=1, n=1, k=2, group=4, prefix=1, workers=1024)]
         result, calls = self.collect(cases, runs=2)
         self.assertEqual(result, 0)
@@ -325,6 +384,12 @@ class CollectorTest(unittest.TestCase):
         self.assertEqual({r["requested_workers"] for r in queue_identities}, {1, 32, 1024})
         split = next(r for r in records if r["case"].get("workers") == 1024 and r["case"]["candidate"] == "split_k")
         self.assertEqual(split["comparison_identity"]["effective_workers"], 2)
+        adaptive = [r for r in records if r["case"]["candidate"] in ADAPTIVE]
+        for record in adaptive:
+            self.assertEqual(record["command"][-1], "axis_l1")
+            self.assertIsNone(record["comparison_identity"]["adaptive_actual_compact_groups"])
+        compact = next(r for r in adaptive if r["case"].get("workers") == 65535)
+        self.assertEqual(compact["comparison_identity"]["effective_workers"], 65535)
 
     def test_omitted_workers_get_explicit_command_and_identity(self):
         result, calls = self.collect([{**BASE, "candidate": "queue"}])
@@ -438,7 +503,7 @@ class CompiledCliTest(unittest.TestCase):
         self.assertIn("default 32", result.stdout)
 
     def test_malformed_and_irrelevant_workers_fail_before_device_work(self):
-        for candidate in CANDIDATES:
+        for candidate in (name for name in CANDIDATES if name not in ADAPTIVE):
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             workers = ("0", "1025", "-1", "1.0", "+1", "", "4294967296", "32x") if candidate in QUEUED else ("32",)
@@ -450,6 +515,17 @@ class CompiledCliTest(unittest.TestCase):
         result = self.invoke([])
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("usage:", result.stderr)
+
+    def test_adaptive_invalid_controls_fail_before_device_work(self):
+        for candidate in ADAPTIVE:
+            case = case_for(candidate)
+            base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
+            invalid = [[], ["tile_max"], ["32"]] if candidate == "adaptive_grid" else [[], ["32"], ["axis_l1"],
+                ["0", "axis_l1"], ["65536", "axis_l1"], ["1.0", "axis_l1"], ["32", "panel_l1"]]
+            for suffix in invalid:
+                with self.subTest(candidate=candidate, suffix=suffix):
+                    result = self.invoke([*base, *suffix])
+                    self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

@@ -154,5 +154,26 @@
     "prefix": 20,
     "group": 1,
     "unsigned_inputs": false
+  },
+  {
+    "candidate": "adaptive_grid",
+    "m": 17,
+    "n": 19,
+    "k": 257,
+    "prefix": 20,
+    "group": 2,
+    "unsigned_inputs": false,
+    "bound_method": "axis_l1"
+  },
+  {
+    "candidate": "adaptive_compact",
+    "m": 17,
+    "n": 19,
+    "k": 257,
+    "prefix": 20,
+    "group": 4,
+    "unsigned_inputs": true,
+    "bound_method": "axis_l1",
+    "workers": 3
   }
 ]

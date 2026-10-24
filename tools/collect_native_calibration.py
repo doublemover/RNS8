@@ -13,10 +13,12 @@ from modulus_set_search import DEFAULT_MODULI
 
 
 CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
+              "adaptive_grid", "adaptive_compact",
               "complex_3m", "complex_4m",
               "epilogue_direct", "epilogue_rocwmma", "epilogue_unfused",
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
+ADAPTIVE = ("adaptive_grid", "adaptive_compact")
 
 
 def strict_json(text):
@@ -36,12 +38,12 @@ def strict_json(text):
 def validate_case(case):
     """Return a new canonical case; only queue controls may be omitted."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers"}:
-        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; optional workers for queue/queue_prepared/split_k")
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method"}:
+        raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED)
+    native = case["candidate"] in ("wmma", "grid_prepared", *QUEUED, *ADAPTIVE)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -53,14 +55,23 @@ def validate_case(case):
         raise ValueError("narrow cases require prefix=1, K<=32768; scalar is signed only")
     if case["candidate"].startswith("complex_") and (case["prefix"] != 20 or case["unsigned_inputs"]):
         raise ValueError("complex cases require signed inputs, prefix20 and group1")
+    if case["candidate"] in ADAPTIVE:
+        if case["prefix"] != 20 or case.get("bound_method") != "axis_l1":
+            raise ValueError("adaptive cases require prefix20 and explicit bound_method=axis_l1")
+    elif "bound_method" in case:
+        raise ValueError("bound_method applies only to adaptive cases")
     normalized = dict(case)
-    if case["candidate"] in QUEUED:
+    if case["candidate"] == "adaptive_compact":
+        workers = case.get("workers")
+        if type(workers) is not int or not 1 <= workers <= 65535:
+            raise ValueError("adaptive_compact requires explicit integer workers1..65535")
+    elif case["candidate"] in QUEUED:
         workers = case.get("workers", 32)
         if type(workers) is not int or not 1 <= workers <= 1024:
             raise ValueError("queue/queue_prepared/split_k workers must be an integer in 1..1024")
         normalized["workers"] = workers
     elif "workers" in case:
-        raise ValueError("workers applies only to queue/queue_prepared/split_k candidates")
+        raise ValueError("workers applies only to queue/queue_prepared/split_k/adaptive_compact candidates")
     return normalized
 
 
@@ -69,12 +80,29 @@ def scheduling_contract(case):
     splits = min(case["k"], 3) if case["candidate"] == "split_k" else 1
     descriptors = (((case["m"] + 15) // 16) * ((case["n"] + 15) // 16)
                    * ((case["prefix"] + case["group"] - 1) // case["group"]) * splits) if queued else 0
-    requested = case.get("workers", 32) if queued else 0
+    compact = case["candidate"] == "adaptive_compact"
+    requested = case["workers"] if compact else case.get("workers", 32) if queued else 0
     return {"splits": splits, "requested_workers": requested,
-            "effective_workers": min(requested, descriptors), "queue_descriptors": descriptors,
+            "effective_workers": requested if compact else min(requested, descriptors), "queue_descriptors": descriptors,
             "queue_kernel_selection": (f"homogeneous_group_{case['group']}_"
                                        + ("unsigned" if case["unsigned_inputs"] else "signed"))
                                       if queued else "not_applicable"}
+
+
+def adaptive_contract(case):
+    if case["candidate"] not in ADAPTIVE:
+        return {}
+    compact = case["candidate"] == "adaptive_compact"
+    return {"bound_method": "axis_l1", "adaptive_launch": "compact_workers" if compact else "dense_grid",
+            "adaptive_dataset": "full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+            "reference_method": "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
+            "adaptive_dense_group_upper_bound": ((case["m"] + 15) // 16) * ((case["n"] + 15) // 16)
+                * ((case["prefix"] + case["group"] - 1) // case["group"]),
+            "adaptive_actual_compact_groups": None, "adaptive_compact_count_source": "device_offsets_not_read_back",
+            "adaptive_worker_policy": "exact_requested_worker_launch_no_count_clamp" if compact else "dense_grid_control",
+            "adaptive_kernel_selection": ("compact_group_" if compact else "grid_group_") + str(case["group"])
+                + ("_unsigned_axis_l1" if case["unsigned_inputs"] else "_signed_axis_l1"),
+            "adaptive_output_scope": "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}
 
 
 def epilogue_contract(case):
@@ -135,6 +163,7 @@ def capture_contract(case, run_id, repeats, warmups):
                     warmups=warmups, seed=3135, promotion_eligible=False, isa_verified=False,
                     actual_hbm_bytes=None, timing_resolution_ns=None)
     expected.update(scheduling_contract(case))
+    expected.update(adaptive_contract(case))
     expected.update(narrow_contract(case))
     if case["candidate"].startswith("complex_"):
         m, n, k, prefix = (case[key] for key in ("m", "n", "k", "prefix"))
@@ -239,7 +268,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
     parser.add_argument("--cases", type=Path, required=True,
-                        help="JSON list: candidate,m,n,k,prefix,group,unsigned_inputs; optional workers=1..1024 for queue/queue_prepared/split_k (default 32)")
+                        help="JSON cases; queue workers1..1024 default32; adaptive prefix20/bound_method=axis_l1; compact requires workers1..65535")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--repeats", type=int, default=10)
@@ -273,8 +302,10 @@ def main():
         run_id = str(uuid.uuid4())
         command = [str(exe), case["candidate"], *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")),
                    str(int(case["unsigned_inputs"])), str(args.repeats), str(args.warmups), run_id]
-        if case["candidate"] in QUEUED:
+        if case["candidate"] in (*QUEUED, "adaptive_compact"):
             command.append(str(case["workers"]))
+        if case["candidate"] in ADAPTIVE:
+            command.append(case["bound_method"])
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],
@@ -296,6 +327,7 @@ def main():
             campaign_identity = identity
             record["comparison_identity"] = {"artifact_sha256": artifact, **identity,
                                              "case": case, **scheduling_contract(case),
+                                             **adaptive_contract(case),
                                              "input_domain": capture["input_domain"],
                                              "output_contract": capture["output_contract"],
                                              "seed": capture["seed"], "repeats": args.repeats,

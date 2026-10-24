@@ -14,6 +14,7 @@ The `rns8-native-calibrate` research executable exposes explicit product/packing
 | `packed_gemm` | Direct residue GEMM | Already packed residue planes |
 | `pack_gemm` | Pack both operands, then direct GEMM | Resident native 64-bit |
 | `wmma` | Fused native conversion/grouped WMMA | Resident native 64-bit |
+| `adaptive_grid`, `adaptive_compact` | Fresh axis-L1 discovery, adaptive native WMMA, exact suffix and staged commit | Resident full-width native 64-bit to complete prefix20 residues |
 | `queue` | Descriptor setup and persistent WMMA queue | Resident native 64-bit |
 | `queue_prepared` | Reuse admitted device descriptors; reset cursor and execute | Resident native 64-bit and prepared descriptors |
 | `grid_prepared` | Reuse the same preparation; launch ordinary grids without a cursor | Same resident inputs and descriptor allocation |
@@ -30,7 +31,8 @@ packing/direct baseline cases; WMMA candidates accept one, two or four.
 Arguments are candidate, M, N, K, prefix, group, unsigned flag (0/1), repeat count,
 warmup count, and a unique run ID. `queue`, `queue_prepared` and `split_k` accept an optional final
 worker count in 1..1024; it defaults to 32 to preserve existing invocations.
-Other candidates reject this argument, including an explicit zero. `--help`
+`adaptive_compact` has its own required worker/method suffix described below.
+Other candidates reject a worker argument, including an explicit zero. `--help`
 lists every candidate and the argument domains. For example:
 
 ```powershell
@@ -101,6 +103,49 @@ overhead. It does not establish the minimum setup cost of an ordinary-only
 implementation. The tracked comparison now includes this control at both sizes;
 the earlier ten-case collection predates it.
 
+`adaptive_grid` and `adaptive_compact` are matched private raw-device controls.
+Both require prefix20, group1/2/4 and explicit `axis_l1`; both use the same seeded
+full-width signed/unsigned native inputs and complete residue-output oracle as
+ordinary `wmma`. Every timed call includes capability/admission, allocation,
+fresh bounds/compaction, grouped native WMMA, exact suffix completion, staged
+commit and synchronization. Initial native upload, common packed controls,
+poisoning and full reference/canary copies remain outside timing. These modes
+do not use the separate public retained-native matrix API or cache bound metadata.
+
+The CLI suffix is intentionally explicit:
+
+```powershell
+# Grid control: the bound method is required after run identity.
+.\build\issues-all\rns8-native-calibrate.exe adaptive_grid 17 19 257 20 2 0 9 3 adaptive-grid axis_l1
+# Compact control: requested workers1..65535, then the required method.
+.\build\issues-all\rns8-native-calibrate.exe adaptive_compact 17 19 257 20 2 0 9 3 adaptive-compact 32 axis_l1
+```
+
+Collector cases require `"bound_method":"axis_l1"` for both adaptive candidates.
+Compact cases additionally require an explicit integer `workers` in1..65535;
+there is no default. Grid cases reject `workers`. Prefixes other than20,
+unsupported methods, booleans/floats, missing/irrelevant fields and out-of-range
+workers are rejected before launching a child. Existing queue defaults/bounds
+remain unchanged. The [adaptive case set](../benchmarks/native-calibration/adaptive-native.json)
+covers32³/512³, signedness, groups1/2/4, compact32/512 and matched ordinary
+native/pack-direct controls. It is authored input, not completed measurement.
+
+`adaptive_dense_group_upper_bound` is
+`ceil(M/16)*ceil(N/16)*ceil(20/group)`. It describes the capacity-sized grid,
+not the actual compact work. Device offsets determine the latter; this call
+does not read them back, so `adaptive_actual_compact_groups` is null and
+`adaptive_compact_count_source` is `device_offsets_not_read_back`. Compact
+`requested_workers` and `effective_workers` are equal: exactly that bounded
+number of worker blocks is launched, including potentially idle workers.
+There is no clamp to a host-inferred descriptor count. Queue descriptor fields
+remain zero/not-applicable; `adaptive_launch`, `adaptive_worker_policy`, method
+and kernel-selection identity distinguish these schedules. These fields do not
+measure occupancy, executed workgroups or hardware utilization. The output
+scope states that exact suffix completion makes every capacity20 plane valid.
+Compiled differentials, no-GPU CLI/collector fixtures and measurements for this
+new calibration slice await the consolidated validation run. No adaptive
+speedup or default dispatch promotion is claimed.
+
 `complex_3m` and `complex_4m` compare the private split-complex compositions with
 identical full-width signed input recipes, prefix 20 and group 1. Both components
 are compared in full against four independent integer products; an exact
@@ -125,7 +170,8 @@ with `candidate,m,n,k,prefix,group,unsigned_inputs`. Queue and split-K cases may
 also specify `"workers": 8`; omitting it normalizes to `"workers": 32` in the
 saved case and executable command. Worker values must be JSON integers in
 1..1024: booleans, floats, strings, zero and out-of-range counts are invalid.
-Supplying `workers` for another candidate is invalid. Unknown or missing case
+The distinct adaptive compact contract above requires workers1..65535.
+Supplying `workers` for other candidates is invalid. Unknown or missing case
 fields, duplicate JSON keys and non-finite JSON numbers are rejected before any
 child starts. Duplicate cases are rejected after normalization, including an
 omitted queue worker count alongside an otherwise identical explicit 32; use
