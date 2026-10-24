@@ -1,4 +1,37 @@
   std::cout << "  \"timing_metadata\": {\n";
+  const auto& host_clock = rns8::bench::host_clock_calibration();
+  const auto phase_state = [&](const std::vector<double>& samples, const char* declared) {
+    if (declared) return declared;
+    if (samples.empty()) return "unsupported";
+    return std::any_of(samples.begin(), samples.end(), [&](double value) {
+      return value <= host_clock.censor_threshold_us;
+    }) ? "below_resolution" : "measured";
+  };
+  const char* pack_state = args.oneshot ? "fused" :
+      (reuses_all_packed_inputs(args) || all_zero_direct_hip_pack_elided ? "elided" : nullptr);
+  const char* export_state = args.oneshot ? "fused" : (chain_residue_output ? "elided" : nullptr);
+  std::cout << "    \"phase_states\": {"
+            << "\"planning\": \"" << phase_state({result.plan_us}, nullptr) << "\", "
+            << "\"scheduling\": \"" << phase_state({result.schedule_query_us}, nullptr) << "\", "
+            << "\"matrix_alloc\": \"" << phase_state({result.matrix_alloc_us}, nullptr) << "\", "
+            << "\"pack\": \"" << phase_state(result.samples.pack_us, pack_state) << "\", "
+            << "\"rns_gemm\": \"" << phase_state(result.samples.gemm_us, nullptr) << "\", "
+            << "\"crt_export\": \"" << phase_state(result.samples.export_us, export_state) << "\", "
+            << "\"end_to_end\": \"" << phase_state(result.samples.end_to_end_us, nullptr) << "\"},\n";
+
+  std::cout << "    \"host_timing_contract_version\": 2,\n";
+  std::cout << "    \"host_sample_representation\": \"fractional_microseconds_from_clock_ticks\",\n";
+  std::cout << "    \"clock_period_numerator\": " << std::chrono::steady_clock::period::num << ",\n";
+  std::cout << "    \"clock_period_denominator\": " << std::chrono::steady_clock::period::den << ",\n";
+  std::cout << "    \"physical_accuracy_ns\": null,\n";
+  std::cout << "    \"timer_pair_median_us\": " << host_clock.pair_median_us << ",\n";
+  std::cout << "    \"timer_pair_p95_us\": " << host_clock.pair_p95_us << ",\n";
+  std::cout << "    \"censor_threshold_us\": " << host_clock.censor_threshold_us << ",\n";
+  std::cout << "    \"timer_overhead_samples\": 1001,\n";
+  std::cout << "    \"host_result_kind\": \""
+            << (host_batch ? "amortized_batch" : "single_operation") << "\",\n";
+  std::cout << "    \"inner_repetitions\": " << (host_batch ? args.host_api_batch_size : 1) << ",\n";
+  std::cout << "    \"amortization_policy\": \"explicit_independent_task_batch_with_per_task_output\",\n";
   std::cout << "    \"unit\": \"microseconds\",\n";
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";

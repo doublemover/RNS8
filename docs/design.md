@@ -67,7 +67,9 @@ a private blocked ring primitive internally, reusing one `4 * N` byte row
 accumulator across all selected modulus planes; ordinary CPU calls retain their
 parallel policy. Caller serialization of the involved handles remains required.
 The returned prefix supports an explicit fixed-prefix export plan without
-rewriting the original plan/workspace. Device-owned lifting remains unimplemented.
+rewriting the original plan/workspace. The public synchronous `rns8_lift_exact_wide_hip` route also exists for compatible
+direct-HIP device-resident values; [correctness](correctness.md#exact-wide-output)
+and [resident graphs](resident-graphs.md) describe its admission/publication rules.
 
 ## Reuse and grouping
 
@@ -76,15 +78,38 @@ Prepack caches add backend-specific operand identity and lifetime constraints.
 Result caches track source versions and explicitly dirty output regions; they
 are not general automatic incremental computation.
 
-The public grouped GEMM calls accept compatible already-resident tasks with
-independent matrices/workspaces. Grouped host packing, final export, graph
-capture, streaming experiments, and many benchmark workload combinations have
-narrower benchmark-owned contracts. Do not infer a public asynchronous or graph
-API from a benchmark flag.
+The ordinary public grouped GEMM calls accept compatible current resident tasks.
+[Prepared execution](prepared-execution.md) retains resources and generation
+bindings. Explicit fixed-prefix direct-HIP submission and owned capture/replay
+use caller streams, completion tokens and read/write reservations. Same-device
+prepared groups permit independent submissions; [resident DAGs](resident-graphs.md)
+retain intermediate values and validate whole-expression proofs before work.
+The synchronous and asynchronous subsets have distinct failure-publication rules.
 
-Actual graph replay lives in `benchmarks/rns8_bench_hip_graph_buffers.inc` and
-uses graph-safe internal launch helpers. The audit removed unused process-global
-and thread-local graph prototypes from backend implementation fragments.
+Benchmark-owned pack/export, graph, streaming and workload combinations remain
+separate experiments. Their flags do not enlarge the public API envelope. See
+[exact epilogues](exact-epilogues.md) for public complete-expression composition
+and [immutable plans](plan-validation.md) for reusable structural validation.
+
+## Experimental public composition and storage
+
+The [experimental complex composition](complex-residue-composition.md) connects
+paired exact-wide signed values to CPU/direct-HIP execution and synchronous
+resident graphs. Each component retains its own bound and logical generation.
+The [retained-native adaptive operation](adaptive-native-product.md#explicit-matrix-owned-native-inputs)
+uses an explicit matrix flag to own native device inputs alongside residues;
+other value-producing writes retire that native materialization. These public
+bindings are authored for the current batch and are distinct from the earlier
+private-kernel validation.
+
+The opt-in [public Strassen owner](strassen-device.md#public-owner-authored-validation-pending)
+uses ordinary exact-wide signed/unsigned plans on direct HIP. It validates the
+complete product and publishes through existing matrix ownership before export.
+Rank-23 straight-line execution and default routing remain separate work.
+
+The [distributed M0 plan/mock](distributed-mock.md) models exact tile/plane
+membership, transport phases and whole-epoch publication on the CPU. It supplies
+neither a public distributed matrix nor actual GPU transport.
 
 ## Files and generated metadata
 
@@ -96,3 +121,10 @@ contracts genuinely match.
 `metadata/*.yaml` are JSON-compatible registry files. Generate Python/C++
 constants with `python tools/metadata_registry.py --write-generated` and check
 with `--check`. Registration is metadata validation, not an execution proof.
+
+hipBLASLt workspace operand packs bind the stable matrix instance ID and its
+engine-owned content generation, together with shape, prefix and device. Caller
+source labels and generation equality across distinct handles never authorize
+reuse. Zero or exhausted generations force repacking while retaining allocated
+scratch capacity. Exact-wide chains and same-generation operand swaps cover this
+contract in the optional-backend differentials.

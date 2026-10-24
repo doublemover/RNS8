@@ -31,6 +31,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     rns8_matrix* hip_matrix = nullptr;
     REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    std::vector<int8_t> hip_matrix_audit(hip_matrix->hip_residue_bytes);
     CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 11) == RNS8_SUCCESS);
     const std::vector<int8_t> original_residues = cpu_matrix->residues;
@@ -39,10 +40,10 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(hip_matrix->host_residues_current);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 11);
 
     std::vector<int64_t> changed_src = src;
@@ -56,19 +57,19 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(has_timing_label(same_source_events, "pack_kernel"));
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == original_residues);
+    CHECK(hip_matrix_audit == original_residues);
 
     CHECK(rns8_pack_i64(cpu, cpu_matrix, changed_src.data(), ld, 12) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, changed_src.data(), ld, 12) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 12);
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
@@ -96,6 +97,7 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     rns8_matrix* hip_matrix = nullptr;
     REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    std::vector<int8_t> hip_matrix_audit(hip_matrix->hip_residue_bytes);
     CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 19) == RNS8_SUCCESS);
     const std::vector<int8_t> original_residues = cpu_matrix->residues;
@@ -104,10 +106,10 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(hip_matrix->host_residues_current);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 19);
 
     std::vector<uint64_t> changed_src = src;
@@ -121,19 +123,19 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     CHECK_FALSE(has_timing_label(same_source_events, "pack_kernel"));
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == original_residues);
+    CHECK(hip_matrix_audit == original_residues);
 
     CHECK(rns8_pack_u64(cpu, cpu_matrix, changed_src.data(), ld, 20) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, changed_src.data(), ld, 20) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 20);
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
@@ -157,14 +159,15 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     rns8_matrix* hip_matrix = nullptr;
     REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    std::vector<int8_t> hip_matrix_audit(hip_matrix->hip_residue_bytes);
     CHECK(rns8_pack_i64(cpu, cpu_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
     CHECK(rns8_pack_i64(hip, hip_matrix, src.data(), ld, 23) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 23);
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
@@ -188,14 +191,15 @@ TEST_CASE("direct HIP residue packing matches CPU reference for i64 and u64") {
     rns8_matrix* hip_matrix = nullptr;
     REQUIRE(rns8_create_matrix(cpu, &desc, &cpu_matrix) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(hip, &desc, &hip_matrix) == RNS8_SUCCESS);
+    std::vector<int8_t> hip_matrix_audit(hip_matrix->hip_residue_bytes);
     CHECK(rns8_pack_u64(cpu, cpu_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
     CHECK(rns8_pack_u64(hip, hip_matrix, src.data(), ld, 29) == RNS8_SUCCESS);
     CHECK(rns8::detail::hip_direct_copy_device_to_host(
               hip_matrix->hip_device_id,
-              hip_matrix->residues.data(),
+              hip_matrix_audit.data(),
               hip_matrix->hip_residues,
               hip_matrix->hip_residue_bytes) == RNS8_SUCCESS);
-    CHECK(hip_matrix->residues == cpu_matrix->residues);
+    CHECK(hip_matrix_audit == cpu_matrix->residues);
     CHECK(hip_matrix->source_version == 29);
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);

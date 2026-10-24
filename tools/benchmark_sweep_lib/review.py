@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from evidence_database_lib.isa import lookup_isa_resources
+from build_manifest import manifest_provenance_complete, manifest_dependencies_compatible
+from timing_eligibility import phase_blockers, pair_blockers, comparison_record
 
 from .capture_metadata import (
     backend_id,
@@ -1918,9 +1920,16 @@ def review_captures(
             backend: normalized_identity_text(capture.get("git_commit")) for backend, capture in by_backend.items()
         }
         missing_git_commits = sorted(backend for backend, commit in git_commits.items() if commit is None)
-        git_commit_identity_complete = not missing_git_commits
+        # Legacy captures remain readable, but cannot qualify a new release.
+        manifests = [capture.get("build_manifest", {}) for capture in by_backend.values()]
+        artifacts = [capture.get("artifact_capture", {}) for capture in by_backend.values()]
+        manifest_complete = all(manifest_provenance_complete(m, backend) for backend, m in zip(by_backend, manifests))
+        artifact_complete = all(
+            len(str(a.get("executable_sha256", ""))) == 64 and a.get("unchanged_during_run") is True
+            for a in artifacts)
+        git_commit_identity_complete = not missing_git_commits and manifest_complete and artifact_complete
         git_commit_values = {commit for commit in git_commits.values() if commit}
-        git_commit_identity_compatible = git_commit_identity_complete and len(git_commit_values) <= 1
+        git_commit_identity_compatible = git_commit_identity_complete and manifest_dependencies_compatible(manifests) and len({c.get("exact_proof_policy", "eager_moments_v1") for c in by_backend.values()}) <= 1 and len(git_commit_values) <= 1 and len({m.get("source_digest") for m in manifests}) <= 1 and all(m.get("source_commit") == c.get("git_commit") for m, c in zip(manifests, by_backend.values()))
         release_timing_by_backend = {
             backend: capture
             for backend, capture in by_backend.items()
@@ -2046,6 +2055,15 @@ def review_captures(
                     blockers.extend(graph_review["blockers"])
             else:
                 blockers = []
+            blockers.extend(phase_blockers(item))
+            timing_baseline = direct_baseline or vector_baseline
+            timing_comparison = None
+            if timing_baseline is not None:
+                blockers.extend(pair_blockers(timing_baseline, item))
+                if timing_baseline.get("_path"):
+                    timing_comparison = comparison_record(timing_baseline, item, timing_baseline["_path"])
+            else:
+                blockers.append("timing_comparison_baseline_missing")
             expected_matrix_mnemonic = expected_amdgpu_builtin_matrix_mnemonic(item, metadata)
             if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata):
                 if not matrix_histogram:
@@ -2138,6 +2156,7 @@ def review_captures(
                     else None
                 ),
                 "speedup_vs_direct_hip": (direct / selection_e2e) if direct and selection_e2e else None,
+                "timing_comparison": timing_comparison,
                 "speedup_vs_vector_alu": (vector / selection_e2e) if vector and selection_e2e else None,
                 "exact_output_contract": (
                     item.get("exact_output_contract") if isinstance(item.get("exact_output_contract"), dict) else None

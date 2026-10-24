@@ -3,12 +3,205 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "backend_common/gram_plan.hpp"
 #include <string>
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "backend_common/residue_layout.hpp"
+#include "backend_common/native_tile_bound.hpp"
+#include "backend_common/native_tiled_resources.hpp"
+#include "backend_common/operation_support.hpp"
+#include "backend_common/wide_gemm_support.hpp"
+#include "backend_common/adaptive_native_support.hpp"
+#include "backend_common/native_wmma_queue.hpp"
+#include "backend_common/ragged_residues.hpp"
+#include "backend_common/block_sparse.hpp"
+#include "backend_common/integrity_identity.hpp"
+#include "backend_common/native_narrow.hpp"
 
 namespace rns8::detail {
+template<class Byte> struct ComplexResiduePair;
+struct ComplexMagnitudeBounds;
+enum class ComplexProductMethod;
+// Private split-complex composition. Before commit_started, both outputs are
+// preserved; after a commit failure, caller must invalidate BOTH components.
+// Caller owns input certificates, lifetimes and joint publication/ownership.
+rns8_status hip_direct_gemm_complex_residues(
+    int device_id, const ComplexResiduePair<const int8_t>& a,
+    const ComplexResiduePair<const int8_t>& b, const ComplexResiduePair<int8_t>& c,
+    const ComplexMagnitudeBounds& bounds, ComplexProductMethod method,
+    uint64_t max_scratch_bytes, bool& commit_started);
+struct ComplexResidueScratch;
+// Private prepared complex enqueue: caller has admitted complete operands,
+// exact component bounds, disjoint scratch capacity and paired output writers.
+// No allocation, synchronization, proof evaluation or publication here.
+rns8_status hip_direct_enqueue_complex_no_publish(const rns8_resident_node& node,
+    const ComplexResidueScratch& resources,void* scratch,void* stream);
+// Private synchronous heterogeneous native-input queue. Caller owns integer
+// range proofs and output invalidation once outputs_may_be_written is set.
+rns8_status hip_direct_gemm_native_wmma_queue(
+    int device_id, const std::vector<NativeWmmaTask>& tasks, uint32_t workers,
+    uint64_t max_scratch_bytes, bool& outputs_may_be_written);
+// Read-only private sentinel. Failure bits: 1 malformed residue, 2 bound,
+// 4 check-257, 8 check-263. Successful checks do not prove arbitrary correctness.
+rns8_status hip_direct_check_native_product_integrity(
+    int device_id,const void* a,const void* b,const void* candidate,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,bool unsigned_inputs,const uint64_t bound[3],
+    const IntegrityIdentity& expected,const IntegrityIdentity& candidate_identity,uint32_t& failures);
+// Private one-level modular Strassen. Caller owns integer range admission and
+// invalidation after a failed final commit; earlier failures preserve C.
+rns8_status hip_direct_gemm_strassen_device(
+    int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
+rns8_status hip_direct_gemm_rank23_device(
+    int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
+// Exact pinned alternative-basis SLP, separate from the coefficient control.
+// Full 23-operand/product materialization is included in the scratch budget.
+rns8_status hip_direct_gemm_rank23_slp_device(
+    int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started);
+// Private modular block-sparse producer; its public materialization owner or
+// another caller supplies bounded/exact admission and output transaction ownership.
+rns8_status hip_direct_gemm_block_sparse_device(
+    int device_id,const void* a,const BlockSparseOperand& lhs,uint64_t a_instance,uint64_t a_generation,
+    const void* b,const BlockSparseOperand& rhs,uint64_t b_instance,uint64_t b_generation,
+    void* c,int64_t ldc,uint64_t max_scratch_bytes,bool* commit_started = nullptr,
+    uint32_t method = 0,uint32_t scalar_intersection_limit = 0);
+// Private exact ragged-to-uniform materialization. Caller owns generation/proof
+// binding and must invalidate destination on any failure after commit_started.
+// Borrowed scratch must remain alive until a successful drain, including failures.
+rns8_status hip_direct_discover_ragged_bounds(int device_id, const void* source,
+    uint32_t prefix, const uint64_t bound[3], RaggedResidueLayout& layout,
+    void* device_directory, void* device_status);
+rns8_status hip_direct_compact_ragged_residues(int device_id, const void* source,
+    uint32_t prefix, const RaggedResidueLayout& layout, void* destination, void* device_directory);
+rns8_status hip_direct_materialize_ragged_residues(
+    int device_id, const void* source, const RaggedResidueLayout& layout,
+    void* destination, const ResidueLayout& target, uint64_t instance, uint64_t generation,
+    uint64_t max_scratch_bytes, bool& commit_started,
+    void* staged, void* directory, void* device_status);
+// Synchronous private discovery for fixed 16x16 output tiles. Caller allocates
+// ceil(m/16)*ceil(n/16) bounds/indices and 22 offsets. Bucket 0 is proven zero;
+// buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.
+// Outputs are usable only on success and while these exact input values remain
+// unchanged; these raw records are not public generation-bound matrix proofs.
+rns8_status hip_direct_discover_native_tile_bounds(
+    int device_id, const void* a, const void* b, int64_t m, int64_t n, int64_t k,
+    int64_t lda, int64_t ldb, bool unsigned_inputs, uint32_t capacity,
+    NativeTileBound* device_bounds, uint32_t* device_indices, uint32_t* device_offsets,
+    uint64_t max_scratch_bytes, NativeBoundMethod method = NativeBoundMethod::tile_max,
+    uint32_t panel_k = 256);
+// Private one-shot native conversion + grouped matrix-engine candidate. The
+// explicit flag selects i64/u64 interpretation; output is default-basis residues,
+// not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
+// Private synchronous exact adaptive producer. Fresh bounds select each tile's
+// minimal prefix; exact suffix completion makes every output plane valid.
+// compact_workers=0 retains the grid control; 1..65535 bounds compact workers.
+// Inputs must remain immutable through return. Caller owns publication and must
+// invalidate output on any failure after commit_started becomes true.
+rns8_status hip_direct_gemm_adaptive_native_device(
+    int device_id, const void* a, const void* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    bool unsigned_inputs, uint32_t capacity, uint32_t group,
+    uint64_t max_scratch_bytes, bool& commit_started,
+    NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256,
+    uint32_t compact_workers = 0);
+// Private four-wave 32x32 raw-native staging experiment. buffers=0/1/2;
+// depth=16/32 (register control requires16). LDS is per block, not global scratch.
+// On failure after commit_started, caller must invalidate potentially written C.
+rns8_status hip_direct_gemm_native_tiled_device(
+    int device_id,const void* a,const void* b,int8_t* c,int64_t m,int64_t n,int64_t k,
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t group,bool unsigned_inputs,
+    uint32_t depth,uint32_t buffers,uint64_t max_lds_bytes,bool& commit_started);
+rns8_status hip_direct_gemm_native_wmma_grouped_device(
+    int device_id, const void* a, const void* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint32_t prefix, uint32_t group, bool unsigned_inputs);
+// Explicit finite-ring candidate: input signed bytes are reduced modulo 2..16;
+// output uses centered residues. No default-ladder RNS interpretation.
+rns8_status hip_direct_gemm_finite_int4_device(
+    int device_id, const int8_t* a, const int8_t* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t modulus);
+// Research direct CRT to canonical [0,P) values, always three little-endian
+// uint64 limbs per cell. This does not infer signedness or bounded output semantics.
+rns8_status hip_direct_export_canonical_direct_crt_device(
+    int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
+rns8_status hip_direct_export_canonical_balanced_crt_device(
+    int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
+
+// Direct descriptor-aware consumer: no intermediate modulus-major allocation.
+// Logical row-major cells become three canonical limbs; physical padding is ignored.
+rns8_status hip_direct_export_canonical_balanced_crt_layout_device(
+    int device_id, const void* residues, const ResidueLayout& source, void* limbs);
+
+rns8_status hip_direct_convert_residue_layout(
+    int device_id, const void* src, const ResidueLayout& source, void* dst, const ResidueLayout& destination);
+
+// Native signed-i64 scalar candidate admitted by an actual device input scan.
+// The returned bound covers every partial absolute product sum. No automatic
+// selection or matrix-engine claim; reject rather than infer safety from C.
+rns8_status hip_direct_gemm_i64_narrow_checked_device(
+    int device_id, const int64_t* a, const int64_t* b, int64_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint64_t* out_abs_sum_bound);
+
+// Staged native product followed by complete RNS encoding. Only the encoding
+// launch can touch C; commit_started stays false for scan/domain failures.
+rns8_status hip_direct_gemm_narrow_rns_device(
+    int device_id, const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
+    uint32_t prefix, bool unsigned_inputs, bool byte_wmma,
+    uint64_t budget, bool& commit_started);
+
+// Explicit raw-byte WMMA candidate with native i64/u64 storage and output.
+// Scan actual operands for signed [-128,127] or unsigned [0,255] membership,
+// then prove all INT32 partials. No residue interpretation, cached proof or AUTO
+// dispatch. Caller must keep inputs stable and invalidate C after launch failure.
+rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
+    int device_id, const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    bool unsigned_inputs, uint64_t* out_abs_sum_bound);
+
+// Explicit modular expression baseline. Callers must separately prove bounded
+// integer semantics and own publication; D/C must not alias. No default routing.
+// Private standalone modular combine baseline; C must be distinct from X/D.
+rns8_status hip_direct_axpby_residues_device(
+    int device_id, const void* x, const void* d, void* c, int64_t m, int64_t n,
+    int64_t ldx, int64_t ldd, int64_t ldc, uint32_t prefix, int64_t alpha, int64_t beta);
+rns8_status hip_direct_gemm_rns_axpby_device(
+    int device_id, const void* a, const void* b, const void* d, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
+    uint32_t prefix, int64_t alpha, int64_t beta);
+
+// Research baseline: synchronous explicit split-K, no automatic dispatch.
+// Scratch holds canonical byte residues; output follows ordinary backend write
+// semantics and must be protected by the caller's publication transaction.
+rns8_status hip_direct_gemm_rns_split_k_device(
+    int device_id, const void* a, const void* b, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint32_t prefix, uint32_t splits, uint64_t max_scratch_bytes);
+
+// Borrowed scratch is retained by the caller across errors. No allocation/free.
+// commit_started changes only before the final store, never during partial work.
+rns8_status hip_direct_gemm_rns_split_k_workspace(
+    int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,
+    uint32_t prefix,uint32_t splits,void* scratch,uint64_t scratch_bytes,bool& commit_started,uint32_t fragment_window=0);
+
+// Native matrix-engine split-K: persistent grouped producers, canonical byte
+// merge tree, then final store. Output is untouched until commit_started=true.
+rns8_status hip_direct_gemm_native_wmma_split_k_device(
+    int device_id, const void* a, const void* b, int8_t* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
+    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started);
+
+rns8_status hip_direct_lift_exact_suffix(
+    int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
+    bool signed_value, const uint64_t* bound, bool& commit_started, bool mixed_radix = false);
+
 
 struct hip_direct_timing_sample {
   std::string label;
@@ -19,6 +212,12 @@ struct hip_direct_allocation_counters {
   uint64_t allocate_calls = 0;
   uint64_t free_calls = 0;
   uint64_t allocated_bytes = 0;
+  uint64_t h2d_calls = 0;
+  uint64_t h2d_bytes = 0;
+  uint64_t d2h_calls = 0;
+  uint64_t d2h_bytes = 0;
+  uint64_t d2d_calls = 0;
+  uint64_t d2d_bytes = 0;
 };
 
 struct hip_direct_grouped_gemm_task {
@@ -112,6 +311,18 @@ struct hip_direct_grouped_device_resources {
   rns8_status reset() noexcept;
 };
 
+// Preallocated cleanup record for private scratch whose device completion is
+// uncertain. Queue insertion cannot allocate; successful device drains reclaim it.
+enum class hip_deferred_allocation_kind { device, pinned_host };
+struct hip_deferred_buffer_cleanup {
+  hip_deferred_allocation_kind kind=hip_deferred_allocation_kind::device;
+  int device_id=-1;
+  void* pointer=nullptr;
+  hip_deferred_buffer_cleanup* next=nullptr;
+};
+void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup*) noexcept;
+rns8_status hip_direct_collect_deferred_buffers(int device_id);
+
 bool hip_direct_compiled();
 void hip_direct_timing_set_enabled(bool enabled);
 bool hip_direct_timing_enabled();
@@ -130,6 +341,7 @@ hip_direct_allocation_counters hip_direct_allocation_counters_snapshot();
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
 rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);
 rns8_status hip_direct_free(int device_id, void* ptr);
+// Completes the zero-fill before returning, including for cross-stream reuse.
 rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes);
 rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void* src, std::size_t bytes);
 rns8_status hip_direct_copy_host_to_device(int device_id, void* dst, const void* src, std::size_t bytes);
@@ -343,6 +555,10 @@ rns8_status hip_direct_ring_gemm_i8_device(
     uint16_t modulus,
     uint32_t modulus_index,
     uint32_t selected_prefix);
+// Private scalar u64-index residue control. Caller owns range proof and write
+// invalidation after execution failure; no public/default dispatch promotion.
+rns8_status hip_direct_gemm_rns_wide_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix);
 rns8_status hip_direct_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -405,6 +621,12 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
     const rns8_matrix* B,
     rns8_matrix* C,
     void* stream = nullptr);
+// Enqueue only: no matrix currentness or generation publication.
+rns8_status hip_direct_enqueue_axpby_no_publish(const rns8_plan*, const rns8_matrix*,
+    const rns8_matrix*, const rns8_matrix*, rns8_matrix*, int64_t alpha, int64_t beta, void* stream);
+rns8_status hip_direct_enqueue_finite_no_publish(const rns8_plan*,const rns8_matrix*,
+    const rns8_matrix*,rns8_matrix*,void* stream);
+rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*,void* stream);
 rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
     int device_id,
     const rns8_matrix* A,
@@ -1047,6 +1269,45 @@ rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device
     int64_t cols,
     uint32_t limb_count);
 rns8_status hip_direct_synchronize(int device_id);
+
+// Private strict wrap64 research candidates: signed carry-recode or native U8.
+// Compact canonical byte inputs/output; no public dispatch or AUTO promotion.
+rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,bool signed_digits,uint64_t max_scratch_bytes,bool& commit_started);
+
+rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const GramProblem& problem,
+    uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started);
+
+rns8_status hip_direct_gram_prepared_device(int device_id,const void* x,void* c,const GramProblem& problem,
+    const GramTile* host_jobs,void* device_jobs,uint64_t device_job_bytes,bool wmma,
+    bool& jobs_ready,bool& commit_started);
+// Private fixed-transform modes: 0 signed native import, 1 unsigned import,
+// 2 canonical three-limb CRT; modes 3/4/5 are corresponding unsigned-byte
+// WMMA transforms. Explicit RDNA3 research candidates only.
+rns8_status hip_direct_fixed_conversion_device(int device_id,const void* source,void* destination,
+    int64_t cells,uint32_t prefix,uint32_t mode,uint64_t budget,bool& commit_started);
+
+namespace word_mod {struct Problem;struct FloatingRequest;}
+rns8_status hip_direct_word_mod_device(int device_id,const void* a,const void* b,void* c,
+    const word_mod::Problem& problem,uint64_t budget,bool& commit_started,bool packed_dot4=false,
+    const word_mod::FloatingRequest* floating=nullptr,bool byte_wmma=false);
+
+rns8_status hip_direct_native_view_bound(int device_id,const void* source,void* scratch,
+    int64_t rows,int64_t cols,int64_t ld,bool signed_values,uint64_t& bound);
+rns8_status hip_direct_copy_native_view(int device_id,const void* source,void* destination,
+    int64_t rows,int64_t cols,int64_t ld);
+rns8_status hip_direct_validate_native_allocation(int device_id,const void* base,uint64_t bytes);
+rns8_status hip_direct_import_native_view(int device_id,const void* source,void* residues,
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,void* retained_native=nullptr);
+rns8_status hip_direct_export_native_view(int device_id,const void* residues,void* destination,void* scratch,
+    int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,uint64_t bound,bool signed_values,bool& external_write_started,uint32_t limb_count=0);
+
+struct InstructionRoofProblem;
+// Borrowed calibration buffers: a/b contain chains signed bytes, output contains
+// waves*chains*256 int32 cells, capability is four bytes. On any failure the
+// caller must drain before releasing borrowed storage; no routing is affected.
+rns8_status hip_direct_instruction_roof(int device_id,const void* a,const void* b,void* output,
+    void* capability,const InstructionRoofProblem& problem);
 
 }  // namespace rns8::detail
 

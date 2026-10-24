@@ -18,6 +18,11 @@ rns8_status hip_direct_ring_gemm_i8_device(
     uint16_t modulus,
     uint32_t modulus_index,
     uint32_t selected_prefix) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hip_rns_modulus_launch launch{};
   launch.a = static_cast<const int8_t*>(device_a_residues);
@@ -94,6 +99,9 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix) {
+  const auto support = query_residue_gemm_support(m,n,k,lda,ldb,ldc,prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
@@ -158,6 +166,11 @@ rns8_status hip_direct_gemm_rns_region_device(
     int64_t region_rows,
     int64_t region_cols,
     uint32_t prefix) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
       ldb < n || ldc < n || region_row_offset < 0 || region_col_offset < 0 || region_rows <= 0 ||
@@ -291,11 +304,7 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = c_matrices[index];
-    mark_device_residue_output_current(matrix);
-    if (expected_semantics == RNS8_BOUNDED_I64 || expected_semantics == RNS8_BOUNDED_U64) {
-      matrix->source_version = api::gemm_output_source_version_values(
-          a_matrices[index]->source_version, b_matrices[index]->source_version);
-    }
+    mark_device_residue_output_current(matrix, prefix);
   }
   return RNS8_SUCCESS;
 #else
@@ -388,7 +397,7 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = c_matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, prefix);
   }
   return RNS8_SUCCESS;
 #else
@@ -409,6 +418,17 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
 #endif
 }
 
+rns8_status hip_direct_enqueue_rns_no_publish(const rns8_plan* plan,const rns8_matrix* a,
+    const rns8_matrix* b,rns8_matrix* c,void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto error=launch_direct_rns_gemm_no_sync(a->hip_residues,b->hip_residues,c->hip_residues,
+      plan->desc.m,plan->desc.n,plan->desc.k,a->desc.cols,b->desc.cols,c->desc.cols,plan->prefix,stream);
+  return error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+#else
+  (void)plan;(void)a;(void)b;(void)c;(void)stream;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
 rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
     const rns8_plan* plan,
     const rns8_matrix* A,
@@ -419,7 +439,8 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
   if (!plan || !A || !B || !C || plan->backend != RNS8_BACKEND_HIP_DIRECT || !plan->tile_schedule.empty()) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!A->device_residues_current || !B->device_residues_current || !A->hip_residues || !B->hip_residues ||
+  if (!A->device_residues_current || !B->device_residues_current ||
+      !api::materialized_rns_prefix_covers(*A, plan->prefix) || !api::materialized_rns_prefix_covers(*B, plan->prefix) || !A->hip_residues || !B->hip_residues ||
       !C->hip_residues) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -438,7 +459,7 @@ rns8_status hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
   if (launch_status != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, 0, plan);
   if (plan->desc.semantics == RNS8_BOUNDED_I64 || plan->desc.semantics == RNS8_BOUNDED_U64) {
     C->source_version = static_cast<uint64_t>(A->source_version + B->source_version + 1u);
   }
@@ -463,6 +484,7 @@ rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
     uint64_t source_version) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!A || !B || !C || !A->device_residues_current || !B->device_residues_current ||
+      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) ||
       !A->hip_residues || !B->hip_residues || !C->hip_residues ||
       (A->desc.semantics != RNS8_BOUNDED_I64 && A->desc.semantics != RNS8_BOUNDED_U64) ||
       A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
@@ -502,7 +524,7 @@ rns8_status hip_direct_gemv_n1_rns_prefix9_matrix(
   if (code != 0) {
     return RNS8_BACKEND_FAILURE;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -530,6 +552,7 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
     uint64_t source_version) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!A || !B || !C || !A->device_residues_current || !B->device_residues_current ||
+      !api::materialized_rns_prefix_covers(*A, RNS8_DEFAULT_BOUNDED_PREFIX) || !api::materialized_rns_prefix_covers(*B, RNS8_DEFAULT_BOUNDED_PREFIX) ||
       !A->hip_residues || !B->hip_residues || !C->hip_residues ||
       (A->desc.semantics != RNS8_BOUNDED_I64 && A->desc.semantics != RNS8_BOUNDED_U64) ||
       A->desc.semantics != B->desc.semantics || A->desc.semantics != C->desc.semantics ||
@@ -571,7 +594,7 @@ rns8_status hip_direct_gemv_small_n_rns_prefix9_matrix(
   if (code != 0) {
     return RNS8_BACKEND_FAILURE;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;

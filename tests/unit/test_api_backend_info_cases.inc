@@ -181,7 +181,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(cpu.is_accelerator == 0);
   CHECK(cpu.is_correctness_backend == 1);
   CHECK(cpu.compiled_kernel_available == 1);
-  CHECK(cpu.exact_differential_validated == 1);
+  CHECK(cpu.exact_differential_validated == 0);
   CHECK(cpu.performance_validated == 0);
   CHECK(std::string(cpu.status) == "implemented_correctness_backend");
   CHECK(std::string(cpu.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -212,7 +212,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_baseline_backend");
       CHECK(
@@ -232,7 +232,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
       CHECK(
@@ -261,7 +261,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_rocwmma_backend");
       CHECK(
@@ -284,7 +284,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_amdgpu_builtin_backend");
       CHECK(
@@ -387,7 +387,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(info.is_correctness_backend == 1);
     CHECK(info.is_matrix_engine_backend == 0);
     CHECK(info.compiled_kernel_available == 1);
-    CHECK(info.exact_differential_validated == 1);
+    CHECK(info.exact_differential_validated == 0);
     CHECK(info.performance_validated == 0);
     CHECK(info.workspace_required_bytes == 0);
     CHECK(std::string(info.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -486,7 +486,7 @@ TEST_CASE("public grouped dispatch contract info reports explicit grouped requir
   CHECK(info.same_shape_required == 1);
   CHECK(info.same_semantics_required == 1);
   CHECK(info.compact_row_major_required == 1);
-  CHECK(info.unique_matrix_handles_required == 1);
+  CHECK(info.unique_matrix_handles_required == 0);
   CHECK(info.unique_workspace_handles_required == 1);
   CHECK(info.same_plan_fingerprint_required == 1);
   CHECK(info.same_device_required == 1);

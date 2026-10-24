@@ -3,10 +3,10 @@
 #include <cstddef>
 #include <cstdio>
 
-#include <hip/hip_runtime.h>
-#include <rocwmma/rocwmma.hpp>
+#include "rocwmma_headers.hpp"
 
 #include "../backend_common/finite_u8_reducer.hpp"
+#include "../backend_common/residue_epilogue.hpp"
 
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;
@@ -37,6 +37,7 @@ void hip_direct_timing_record_pending_event_with_alias(
 
 #include "rocwmma_backend_timing_workspace.inc"
 #include "rocwmma_backend_rns_kernels.inc"
+#include "rocwmma_backend_epilogue_kernel.inc"
 #include "rocwmma_backend_wrap64_kernel.inc"
 #include "rocwmma_backend_rns_wrappers.inc"
 #include "rocwmma_backend_finite_wrap64_wrappers.inc"

@@ -315,7 +315,12 @@ void allocator_self_check() {
   require(reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0, "aligned allocation hook");
   ::operator delete(aligned, std::align_val_t(64));
   void* array = ::operator new[](8);
+#if defined(__cpp_sized_deallocation)
   ::operator delete[](array, std::size_t(8));
+#else
+  // Clang does not enable sized deallocation by default on every platform.
+  ::operator delete[](array);
+#endif
   require(fault::live_allocations() == live, "hook paired deallocation accounting");
 }
 
@@ -360,6 +365,35 @@ void reused_scratch_boundary_check() {
   std::puts("PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0");
 }
 
+void bounded_writer_faults(bool profile_only) {
+  auto gd=gemm_desc(RNS8_BOUNDED_I64,2,2,2);
+  gd.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS; gd.bound=10000; gd.max_prefix=2;
+  auto md=matrix_desc(RNS8_BOUNDED_I64,2,2);
+  md.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS; md.max_prefix=2;
+  rns8::Context ctx(-1,RNS8_BACKEND_CPU_REFERENCE);
+  rns8::Plan plan(ctx,gd); rns8::Workspace ws(ctx,plan);
+  rns8::Matrix a(ctx,md),b(ctx,md),c(ctx,md);
+  const int64_t av[]={1,2,3,4}, bv[]={5,6,7,8}, old[]={42,42,42,42};
+  rns8::check(rns8_pack_i64(ctx.get(),a.get(),av,2,1));
+  rns8::check(rns8_pack_i64(ctx.get(),b.get(),bv,2,1));
+  auto compute=[&]() { return rns8_gemm_rns(ctx.get(),plan.get(),a.get(),b.get(),c.get(),ws.get()); };
+  fault::begin(); const auto status=compute(); const auto profile=fault::end();
+  require(status==RNS8_SUCCESS,"bounded profile computes");
+  if (!profile_only) for (std::size_t point=0;point<profile.calls;++point) {
+    rns8::check(rns8_pack_i64(ctx.get(),c.get(),old,2,99));
+    fault::begin(point); const auto failed=compute(); const auto injected=fault::end();
+    require(injected.triggered && failed==RNS8_INTERNAL_ERROR,"bounded fault is caught");
+    int64_t output[4]{};
+    const auto exported=rns8_export_i64(ctx.get(),plan.get(),c.get(),output,2);
+    require(exported!=RNS8_SUCCESS || (output[0]==42 && output[1]==42 && output[2]==42 && output[3]==42),
+            "bounded failure never publishes mixed CRT planes");
+    require(compute()==RNS8_SUCCESS,"bounded retry succeeds");
+    require(rns8_export_i64(ctx.get(),plan.get(),c.get(),output,2)==RNS8_SUCCESS &&
+            output[0]==19 && output[1]==22 && output[2]==43 && output[3]==50,"bounded retry exact output");
+  }
+  std::printf("PASS bounded allocation_points=%zu bytes=%zu\n",profile.calls,profile.bytes);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -377,6 +411,13 @@ int main(int argc, char** argv) {
 #endif
   allocator_self_check();
   reused_scratch_boundary_check();
+  bounded_writer_faults(profile_only);
+  if (rns8::detail::cpu_parallel_runtime_available()) {
+    rns8::detail::configure_cpu_parallel(2,1,false);
+    bounded_writer_faults(profile_only);
+    rns8::detail::configure_cpu_parallel(1,UINT64_MAX,false);
+    std::printf("PASS bounded OpenMP two-worker allocation sweep\n");
+  }
   std::size_t points = 0;
   Fixture signed_dual(RNS8_EXACT_WIDE_SIGNED);
   points += exercise("signed-dual-2x13", signed_dual, profile_only);

@@ -6,6 +6,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!rns8::detail::valid_abi(desc->struct_size, desc->abi_version, sizeof(*desc))) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -38,10 +39,13 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    auto* plan = new (std::nothrow) rns8_plan();
-    if (!plan) {
-      return RNS8_INTERNAL_ERROR;
+    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+        !rns8::detail::qualified_i32_gemm_address(desc->m, desc->n, desc->k,
+                                                desc->k, desc->n, desc->n, std::max(prefix, 1u))) {
+      return RNS8_UNSUPPORTED_BACKEND;
     }
+    auto owner = std::make_unique<rns8_plan>();
+    auto* plan = owner.get();
     plan->desc = *desc;
     plan->desc.max_prefix = prefix;
     if (plan->desc.tile_m == 0) {
@@ -52,7 +56,6 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     }
     if (plan->desc.bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K &&
         !rns8::detail::input_range_output_bound(plan->desc, plan->desc.bound)) {
-      delete plan;
       return RNS8_RANGE_ERROR;
     }
     plan->prefix = prefix;
@@ -60,19 +63,20 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     plan->backend = requested;
     const rns8_status schedule_status = configure_plan_schedule(*plan);
     if (schedule_status != RNS8_SUCCESS) {
-      delete plan;
       return schedule_status;
     }
     configure_plan_backend_metadata(*plan, ctx);
     if (desc->requested_backend == RNS8_BACKEND_AUTO) {
       select_auto_backend_from_reviewed_cache(*ctx, *plan);
     }
-    *out = plan;
+    if (!seal_plan_contract(*plan)) return RNS8_INVALID_ARGUMENT;
+    *out = owner.release();
     return RNS8_SUCCESS;
   });
 }
 
 rns8_status rns8_destroy_plan(rns8_plan* plan) {
+  if (plan && plan->prepared_references) return RNS8_BUSY;
   delete plan;
   return RNS8_SUCCESS;
 }
@@ -191,7 +195,7 @@ rns8_status rns8_get_plan_backend_info(const rns8_plan* plan, rns8_plan_backend_
     out->is_correctness_backend = capability.is_correctness_backend;
     out->is_matrix_engine_backend = capability.is_matrix_engine_backend;
     out->compiled_kernel_available = capability.compiled_kernel_available;
-    out->exact_differential_validated = capability.exact_differential_validated;
+    out->exact_differential_validated = plan->backend_performance_validated ? 1u : 0u;
     out->performance_validated = plan->backend_performance_validated;
     out->flags = capability.flags;
     out->workspace_required_bytes = plan->backend_workspace_required_bytes;
@@ -276,7 +280,7 @@ rns8_status rns8_get_grouped_dispatch_contract_info(
     out->same_shape_required = 1;
     out->same_semantics_required = 1;
     out->compact_row_major_required = 1;
-    out->unique_matrix_handles_required = 1;
+    out->unique_matrix_handles_required = 0;
     out->unique_workspace_handles_required = 1;
     out->same_plan_fingerprint_required = 1;
     out->same_device_required = 1;

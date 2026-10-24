@@ -147,18 +147,35 @@ Agent 2:
 
     with tempfile.TemporaryDirectory() as temp:
         temp_path = Path(temp)
-        generated = deps.write_ck_generated_headers(temp_path, "abc123")
+        ck_source = temp_path / "selected CK"
+        (ck_source / "include/ck").mkdir(parents=True)
+        (ck_source / "include/ck/ck.hpp").write_text("// fixture header\n", encoding="utf-8")
+        (ck_source / "CMakeLists.txt").write_text("set(version 1.3.0)\n", encoding="utf-8")
+        generated = deps.write_ck_generated_headers(temp_path, "abc123", ck_source)
         expect((generated / "ck" / "config.h").exists(), "CK generated config.h missing")
         expect((generated / "ck" / "version.h").exists(), "CK generated version.h missing")
+        expect("#define CK_VERSION 1.3.0" in (generated / "ck/version.h").read_text(), "CK source version was falsely hardcoded")
         roots = deps.include_roots_for_component(
             "ck",
             {
-                "header": str(root / "third_party" / "rocm" / "composable_kernel" / "include" / "ck" / "ck.hpp"),
-                "repo_local_dependency": {"actual_sha": "abc123"},
+                "header": str(ck_source / "include/ck/ck.hpp"),
+                "repo_local_dependency": {"path": str(ck_source), "actual_sha": "abc123"},
             },
             temp_path,
         )
         expect(roots[0] == str(temp_path / "generated" / "ck" / "include"), "CK generated include root not first")
+        installed_version = "// installed exact header\n#define CK_VERSION 9.8.7\n"
+        (ck_source / "include/ck/version.h").write_text(installed_version, encoding="utf-8")
+        deps.write_ck_generated_headers(temp_path, "abc123", ck_source)
+        expect((generated / "ck/version.h").read_text() == installed_version, "installed CK version header must be copied exactly")
+        (ck_source / "include/ck/version.h").unlink()
+        (ck_source / "CMakeLists.txt").write_text("# missing version", encoding="utf-8")
+        try:
+            deps.write_ck_generated_headers(temp_path, "abc123", ck_source)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unknown CK source version must fail rather than invent metadata")
 
         probes = deps.accelerator_compile_probes({}, False, temp_path / "probes", None)
         expect(probes["requested"] is False, "not-requested probe report changed")

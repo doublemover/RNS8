@@ -119,6 +119,7 @@ bool hip_device_backend(rns8_backend_kind backend) {
 }
 
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend) {
+  if (ctx.hip_failure_poisoned) return false;
   if (ctx.backend == backend) {
     return true;
   }
@@ -129,7 +130,9 @@ bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend)
 bool matrix_backend_compatible_with_plan(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
-    rns8_backend_kind plan_backend) {
+    rns8_backend_kind plan_backend, bool allow_pending_writer) {
+  if (ctx.hip_failure_poisoned) return false;
+  if (matrix.in_flight_writer && !allow_pending_writer) return false;
   if (matrix.backend == plan_backend) {
     return true;
   }
@@ -169,7 +172,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "cpu_reference_scalar_rns_gemm_v1");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "host_reference_reconstruction");
       set_text(info.workspace_mode, sizeof(info.workspace_mode), "host_reference_workspace");
@@ -185,7 +187,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_finite_u8 = direct_hip_compiled();
       info.supports_wrap64 = direct_hip_compiled();
       info.compiled_kernel_available = direct_hip_compiled();
-      info.exact_differential_validated = direct_hip_compiled();
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "direct_hip_tiled_rns_gemm_v1");
       set_text(info.library_name, sizeof(info.library_name), "HIP runtime");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "fused_centered_residue_correctness");
@@ -205,7 +206,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.is_correctness_backend = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.supports_bounded_rns = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.compiled_kernel_available = rns8::detail::vector_alu_compiled() ? 1u : 0u;
-      info.exact_differential_validated = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.performance_validated = 0;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "hip_vector_alu_i64_u64_exact_192b_v1");
       set_text(info.library_name, sizeof(info.library_name), "HIP runtime");
@@ -227,7 +227,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.is_correctness_backend = 1;
       info.supports_wrap64 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "cpu_wrap64_byte_limb_reference_v1");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "low64_wrap_export");
       set_text(info.workspace_mode, sizeof(info.workspace_mode), "host_byte_limb_reference_workspace");
@@ -244,7 +243,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = hipblaslt_backend_compiled();
       info.supports_finite_u8 = hipblaslt_backend_compiled();
       info.compiled_kernel_available = hipblaslt_backend_compiled();
-      info.exact_differential_validated = hipblaslt_backend_compiled();
       info.performance_validated = 0;
       info.enable_flag_fail_fast = hipblaslt_backend_compiled() ? 0u : 1u;
       info.candidate_evidence_only = hipblaslt_backend_compiled() ? 0u : 1u;
@@ -292,7 +290,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.is_matrix_engine_backend = 1;
       set_text(
           info.selected_kernel,
@@ -332,7 +329,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.performance_validated = 0;
       info.is_matrix_engine_backend = 1;
       set_text(
@@ -367,7 +363,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.performance_validated = 0;
       info.is_matrix_engine_backend = 1;
       set_text(
@@ -398,6 +393,11 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
     case RNS8_BACKEND_AUTO:
       break;
   }
+  // This context-free accessor has no run/target/artifact validation receipt.
+  // Compiled availability and correctness role are inventory, not observed
+  // differential evidence. Named historical qualification stays in reports;
+  // an admitted reviewed plan can separately expose its scoped cache evidence.
+  info.exact_differential_validated = 0;
 }
 
 }  // namespace rns8::detail::api

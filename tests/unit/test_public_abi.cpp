@@ -19,6 +19,9 @@ CHECK_ENUM_ABI(rns8_output_domain);
 CHECK_ENUM_ABI(rns8_next_op_flags);
 CHECK_ENUM_ABI(rns8_resident_matrix_role);
 CHECK_ENUM_ABI(rns8_operand_role);
+CHECK_ENUM_ABI(rns8_resident_node_kind);
+CHECK_ENUM_ABI(rns8_complex_product_method);
+CHECK_ENUM_ABI(rns8_async_failure_stage);
 #undef CHECK_ENUM_ABI
 
 TEST_CASE("reserved research APIs fail closed without changing outputs", "[qualification][cpu]") {
@@ -33,7 +36,10 @@ TEST_CASE("reserved research APIs fail closed without changing outputs", "[quali
   CHECK(split_count == 88);
   double overhead = -1.0;
   CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1, &overhead) ==
-        RNS8_UNSUPPORTED_BACKEND);
+        RNS8_INVALID_ARGUMENT);
+  CHECK(overhead == -1.0);
+  CHECK(rns8_gemm_bilinear_exact(nullptr,nullptr,nullptr,nullptr,nullptr,
+      RNS8_BILINEAR_RANK23_SLP,UINT64_MAX,nullptr,&overhead)==RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
   double failure_probability = -1.0;
   CHECK(rns8_freivalds_verify(nullptr, nullptr, nullptr, nullptr, 1, 2, &failure_probability) ==

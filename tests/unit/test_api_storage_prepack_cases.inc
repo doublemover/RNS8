@@ -172,7 +172,7 @@ TEST_CASE("resident lifetime info reports role, source version, and workspace bi
   CHECK(a_info.workspace_fingerprint == a_info.plan_fingerprint);
   CHECK(std::string(a_info.current_domain) == "rns_residue_host_current");
   CHECK(std::string(a_info.matrix_role_name) == "A");
-  CHECK(std::string(a_info.source_version_policy) == "monotonic_per_import_pack_or_gemm_output_hash");
+  CHECK(std::string(a_info.source_version_policy) == "matrix_instance_plus_monotonic_content_generation");
   CHECK(std::string(a_info.workspace_binding_policy) ==
         "plan_fingerprint_plus_workspace_identity_schedule_backend");
   CHECK(std::string(a_info.mismatch_policy) ==
@@ -526,3 +526,62 @@ TEST_CASE("C++ prepack cache key helper exposes validated key material") {
   CHECK(key.cache_key_hash != 0);
 }
 
+
+TEST_CASE("resident capacity admission does not require a host mirror") {
+  using namespace rns8::detail::api;
+  int8_t dummy = 0;  // Admission checks addresses, never dereferences this mock.
+  rns8_matrix matrix{};
+  matrix.prefix = 9;
+  matrix.host_residues_current = false;
+  matrix.hip_residues = &dummy;
+  matrix.hip_residue_bytes = 2*3*9;
+  CHECK(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_CPU_REFERENCE,2,3,9));
+  matrix.host_residues_current = true;
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  matrix.host_residues_current = false;
+  --matrix.hip_residue_bytes;
+  CHECK_FALSE(rns_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3,9));
+  matrix.prefix = 0;
+  matrix.hip_residue_bytes = 6;
+  CHECK(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  matrix.hip_residues = nullptr;
+  matrix.hip_residue_bytes = 0;
+  CHECK_FALSE(finite_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  matrix.hip_byte_limbs = &dummy;
+  matrix.hip_byte_limb_bytes = 48;
+  CHECK(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_WRAP64_BYTE_LIMB,2,3));
+  matrix.host_byte_limbs_current = true;
+  CHECK_FALSE(wrap_matrix_storage_matches(matrix,RNS8_BACKEND_HIP_DIRECT,2,3));
+  std::size_t bytes = 0;
+  CHECK_FALSE(rns_residue_count(INT64_MAX,INT64_MAX,20,bytes));
+  CHECK_FALSE(wrap_byte_limb_bytes(INT64_MAX,INT64_MAX,bytes));
+}
+
+TEST_CASE("allocation diagnostics and staging trim preserve CPU value identity") {
+  rns8::Context ctx;
+  rns8::Matrix matrix(ctx,bounded_matrix_desc(2,3,RNS8_BOUNDED_I64));
+  auto info=matrix.allocation_info();
+  CHECK(info.logical_primary_bytes==2*3*RNS8_DEFAULT_BOUNDED_PREFIX);
+  CHECK(info.host_payload_capacity_bytes>=info.logical_primary_bytes);
+  CHECK(info.host_current_bytes==info.logical_primary_bytes);
+  CHECK(info.device_total_capacity_bytes==0);
+  const auto generation=matrix.get()->content_generation;
+  matrix.trim_staging();
+  CHECK(matrix.get()->content_generation==generation);
+  CHECK(matrix.get()->host_residues_current);
+  matrix.get()->prepared_references=1;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->prepared_references=0;
+  matrix.get()->in_flight_readers=1;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->in_flight_readers=0;
+  matrix.get()->in_flight_writer=true;
+  CHECK(rns8_trim_matrix_staging(matrix.get())==RNS8_BUSY);
+  matrix.get()->in_flight_writer=false;
+  info.struct_size=0;
+  CHECK(rns8_get_matrix_allocation_info(matrix.get(),&info)==RNS8_INVALID_ARGUMENT);
+  CHECK(info.struct_size==0);
+  CHECK(rns8_trim_matrix_staging(nullptr)==RNS8_INVALID_ARGUMENT);
+}

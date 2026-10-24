@@ -1,0 +1,23 @@
+{
+  "schema": "rns8_ragged_cases_v1",
+  "cases": [
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "mixed","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "mixed","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "mixed","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "mixed","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "mixed","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "mixed","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "fullwidth","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "wide140","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "wide140","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "wide140","domain": "signed","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "uniform_export","rows": 17,"cols": 19,"pattern": "wide140","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_export","rows": 17,"cols": 19,"pattern": "wide140","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2},
+    {"backend": "hip-direct","device": 0,"mode": "ragged_resident","rows": 17,"cols": 19,"pattern": "wide140","domain": "unsigned","tile_rows": 3,"tile_cols": 5,"reuse": 2}
+  ]
+}

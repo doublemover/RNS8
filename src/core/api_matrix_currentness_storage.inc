@@ -9,7 +9,9 @@ bool matrix_descriptor_matches(
     uint32_t tile_n) {
   if (matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
       matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
-      matrix.desc.logical_ld < matrix.desc.cols || matrix.desc.flags != 0 || matrix.prefix < prefix ||
+      matrix.desc.logical_ld < matrix.desc.cols || (matrix.desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      (matrix.desc.flags && (matrix.backend != RNS8_BACKEND_HIP_DIRECT ||
+       (matrix.desc.semantics != RNS8_EXACT_WIDE_SIGNED && matrix.desc.semantics != RNS8_EXACT_WIDE_UNSIGNED))) || matrix.prefix < prefix ||
       matrix.desc.max_prefix < prefix) {
     return false;
   }
@@ -108,10 +110,12 @@ bool active_prefix_tile_schedule_matches_workspace(const rns8_plan& plan, const 
   }
   uint64_t running_offset = 0;
   for (uint32_t p = 0; p < workspace.hip_tile_schedule_active_prefix_count; ++p) {
-    uint64_t expected_count = 0;
-    for (const auto& entry : plan.tile_schedule) {
-      if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
-        ++expected_count;
+    uint64_t expected_count = plan.validated_contract ? plan.validated_contract->active_counts[p] : 0;
+    if (!plan.validated_contract) {
+      for (const auto& entry : plan.tile_schedule) {
+        if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
+          ++expected_count;
+        }
       }
     }
     if (workspace.hip_tile_schedule_active_offsets[p] != running_offset ||
@@ -210,12 +214,18 @@ void clear_device_native_current(rns8_matrix& matrix) {
 
 void clear_residue_current(rns8_matrix& matrix) {
   matrix.exact_range_prefix = 0;
+  matrix.materialized_rns_prefix = 0;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = false;
   matrix.device_residues_current = false;
 }
 
 void clear_device_residues_current(rns8_matrix& matrix) {
   matrix.device_residues_current = false;
+  if (!matrix.host_residues_current) {
+    matrix.materialized_rns_prefix = 0;
+    matrix.materialized_rns_schedule.reset();
+  }
 }
 
 void clear_byte_limb_current(rns8_matrix& matrix) {
@@ -227,19 +237,71 @@ void clear_device_byte_limb_current(rns8_matrix& matrix) {
   matrix.device_byte_limbs_current = false;
 }
 
+void publish_matrix_value(rns8_matrix& matrix, bool imported, uint64_t source_version) {
+  if (matrix.content_generation == std::numeric_limits<uint64_t>::max())
+    matrix.generation_exhausted = true;
+  else
+    ++matrix.content_generation;
+  matrix.imported_source = imported;
+  matrix.source_version = matrix.generation_exhausted ? 0 :
+      (imported ? source_version : matrix.content_generation);
+}
+
+void MatrixWriteGuard::invalidate() { invalidate_output_currentness(matrix); }
+
 void invalidate_output_currentness(rns8_matrix& matrix) {
+  require_matrix_writable(matrix);
   clear_residue_current(matrix);
   clear_byte_limb_current(matrix);
   clear_native_current(matrix);
 }
 
-void mark_host_residues_current(rns8_matrix& matrix) {
+bool bounded_residue_semantics(rns8_semantics semantics) {
+  return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
+}
+
+bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix) {
+  return !bounded_residue_semantics(matrix.desc.semantics) ||
+      (prefix != 0 && matrix.materialized_rns_prefix >= prefix && matrix.materialized_rns_prefix <= matrix.prefix);
+}
+
+bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& plan) {
+  if (materialized_rns_prefix_covers(matrix, rns_storage_prefix_for_plan(plan))) return true;
+  const auto& written = matrix.materialized_rns_schedule;
+  const auto& requested = plan.validated_contract;
+  // A hash is only a fast rejection. Compare the complete owned structural key;
+  // neither plan destruction nor a fingerprint collision authorizes new planes.
+  return !plan.tile_schedule.empty() && written && requested &&
+      written->fingerprint == requested->fingerprint &&
+      written->canonical_workspace_key == requested->canonical_workspace_key &&
+      matrix.materialized_rns_prefix == plan.schedule_min_selected_prefix;
+}
+
+void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan) {
+  matrix.materialized_rns_schedule.reset();
+  if (!bounded_residue_semantics(matrix.desc.semantics)) {
+    matrix.materialized_rns_prefix = matrix.prefix;
+    return;
+  }
+  // Missing publication provenance fails closed rather than promoting capacity.
+  matrix.materialized_rns_prefix = plan ? plan->prefix : 0;
+  if (plan && !plan->tile_schedule.empty()) {
+    matrix.materialized_rns_prefix = plan->schedule_min_selected_prefix;
+    matrix.materialized_rns_schedule = plan->validated_contract;
+  }
+}
+
+void mark_host_residues_current(rns8_matrix& matrix, uint32_t written_prefix) {
+  matrix.materialized_rns_prefix = written_prefix == UINT32_MAX ? matrix.prefix : written_prefix;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = true;
   matrix.device_residues_current = false;
   clear_byte_limb_current(matrix);
 }
 
-void mark_device_residues_current(rns8_matrix& matrix) {
+void mark_device_residues_current(rns8_matrix& matrix, uint32_t written_prefix) {
+  matrix.materialized_rns_prefix = written_prefix == UINT32_MAX ? matrix.prefix : written_prefix;
+  matrix.materialized_rns_schedule.reset();
   matrix.host_residues_current = false;
   matrix.device_residues_current = true;
   clear_byte_limb_current(matrix);
@@ -264,27 +326,34 @@ void mark_device_native_current(rns8_matrix& matrix) {
   matrix.device_native_current = true;
 }
 
-void mark_output_host_residues_current(rns8_matrix& matrix) {
+void mark_output_host_residues_current(rns8_matrix& matrix, const rns8_plan* plan) {
+  publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_host_residues_current(matrix);
+  record_materialized_rns_output(matrix, plan);
   clear_native_current(matrix);
 }
 
-void mark_output_device_residues_current(rns8_matrix& matrix) {
+void mark_output_device_residues_current(rns8_matrix& matrix, const rns8_plan* plan) {
+  publish_matrix_value(matrix);
   matrix.exact_range_prefix = 0;
   mark_device_residues_current(matrix);
+  record_materialized_rns_output(matrix, plan);
   clear_native_current(matrix);
 }
 
 void mark_output_host_byte_limbs_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   mark_host_byte_limbs_current(matrix);
 }
 
 void mark_output_device_byte_limbs_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   mark_device_byte_limbs_current(matrix);
 }
 
 void mark_output_device_native_current(rns8_matrix& matrix) {
+  publish_matrix_value(matrix);
   clear_residue_current(matrix);
   clear_byte_limb_current(matrix);
   matrix.host_native_current = false;
@@ -308,15 +377,18 @@ bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind bac
   if (matrix.prefix < prefix || !rns_residue_count(rows, cols, matrix.prefix, expected_residues)) {
     return false;
   }
-  if (matrix.residues.size() != expected_residues || !matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
+  if (!matrix.byte_limbs.empty() || matrix.hip_byte_limbs ||
       matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current || matrix.device_byte_limbs_current) {
     return false;
   }
   const std::size_t expected_bytes = expected_residues * sizeof(int8_t);
   if (hip_resident_rns_backend(backend)) {
-    return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
+    return (matrix.residues.size() == expected_bytes ||
+            (matrix.residues.empty() && !matrix.host_residues_current)) &&
+           matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
-  return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
+  return matrix.residues.size() == expected_bytes && matrix.hip_residues == nullptr &&
+         matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
 bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols) {
@@ -324,16 +396,19 @@ bool finite_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind 
   if (!matrix_cell_count(rows, cols, expected_cells)) {
     return false;
   }
-  if (matrix.prefix != 0 || matrix.residues.size() != expected_cells || !matrix.byte_limbs.empty() ||
+  if (matrix.prefix != 0 || !matrix.byte_limbs.empty() ||
       matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes != 0 || matrix.host_byte_limbs_current ||
       matrix.device_byte_limbs_current) {
     return false;
   }
   const std::size_t expected_bytes = expected_cells * sizeof(int8_t);
   if (hip_resident_rns_backend(backend)) {
-    return matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
+    return (matrix.residues.size() == expected_bytes ||
+            (matrix.residues.empty() && !matrix.host_residues_current)) &&
+           matrix.hip_residues != nullptr && matrix.hip_residue_bytes == expected_bytes;
   }
-  return matrix.hip_residues == nullptr && matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
+  return matrix.residues.size() == expected_bytes && matrix.hip_residues == nullptr &&
+         matrix.hip_residue_bytes == 0 && !matrix.device_residues_current;
 }
 
 bool rns_residue_state_current_for_backend(const rns8_matrix& matrix, rns8_backend_kind backend) {

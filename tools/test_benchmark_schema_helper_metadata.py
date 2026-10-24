@@ -39,6 +39,19 @@ def main() -> int:
     bad_allocation_counter["device_allocation"]["measured_repeat_delta"]["allocated_bytes"] = -1
     expect_invalid(bad_allocation_counter, "device_allocation.measured_repeat_delta.allocated_bytes")
 
+    bad_scope = copy.deepcopy(helper_lane)
+    bad_scope["device_allocation"]["transfer_scope"] = "physical_bus_traffic"
+    expect_invalid(bad_scope, "device_allocation.transfer_scope")
+
+    for field in ("h2d_calls", "h2d_bytes", "d2h_calls", "d2h_bytes", "d2d_calls", "d2d_bytes"):
+        for invalid in (-1, True, 0.5):
+            bad_transfer = copy.deepcopy(helper_lane)
+            bad_transfer["device_allocation"]["measured_repeat_delta"][field] = invalid
+            expect_invalid(bad_transfer, "device_allocation.measured_repeat_delta." + field)
+        missing_transfer = copy.deepcopy(helper_lane)
+        del missing_transfer["device_allocation"]["measured_repeat_delta"][field]
+        expect_invalid(missing_transfer, "device_allocation.measured_repeat_delta." + field)
+
     direct_reducer = add_helper_lane_fields(copy.deepcopy(adaptive))
     add_timing_helper_fields(direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1")
     validate_capture(direct_reducer)

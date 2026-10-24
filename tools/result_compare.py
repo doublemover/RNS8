@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
+from timing_eligibility import pair_blockers
 
 
 TIMING_PHASES = [
@@ -27,6 +28,11 @@ TIMING_PHASES = [
 ]
 CONTRACT_KEYS = [
     "semantics",
+    "finite_modulus",
+    "residue_chain_length",
+    "requested_next_op.resolved",
+    "output_logical_ld",
+    "output_ld_padding",
     "bound_kind",
     "bound_mode",
     "bound",
@@ -276,6 +282,19 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "finite_modulus":
+        if data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}:
+            modulus = data.get(key)
+            if type(modulus) is not int or not 2 <= modulus <= 256:
+                raise BenchmarkSchemaError("finite arithmetic contract requires an integer modulus in [2, 256]")
+            return modulus
+        return None
+    if key == "residue_chain_length":
+        return data.get(key, 1)
+    if key == "output_logical_ld":
+        return data.get(key, data.get("n"))
+    if key == "output_ld_padding":
+        return data.get(key, 0)
     if key == "reuse_packed_inputs":
         return data.get("reuse_packed_inputs") is True
     if key == "pack_mode":
@@ -487,7 +506,19 @@ def compare(
         cand, cand_source = phase_timing(candidate, phase, candidate_path) if cand_applicable else (None, "not_applicable")
         delta = cand - base if base is not None and cand is not None else None
         ratio = cand / base if base is not None and base != 0 and cand is not None else None
+        base_state = dotted_get(baseline, f"timing_metadata.phase_states.{phase}")
+        cand_state = dotted_get(candidate, f"timing_metadata.phase_states.{phase}")
+        host_mode_match = (dotted_get(baseline, "timing_metadata.host_result_kind") ==
+                           dotted_get(candidate, "timing_metadata.host_result_kind"))
+        host_ratio_qualified = not pair_blockers(baseline, candidate, phase)
+        if (not host_mode_match or base_state in {"below_resolution", "fused", "elided", "unsupported"}
+                or cand_state in {"below_resolution", "fused", "elided", "unsupported"}):
+            ratio = None
+
         timings[phase] = {
+            "host_ratio_qualified": host_ratio_qualified,
+            "baseline_measurement_state": base_state or "legacy_integer_microsecond_quantization",
+            "candidate_measurement_state": cand_state or "legacy_integer_microsecond_quantization",
             "baseline": base,
             "candidate": cand,
             "delta": delta,

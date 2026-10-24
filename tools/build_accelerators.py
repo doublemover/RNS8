@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build RNS8 accelerator backends (CK, rocWMMA, hipBLASLt, AMDGPU builtins).
 
-This wrapper loads the Visual Studio 2022 developer environment and builds each
+This wrapper loads the Visual Studio 2026 developer environment and builds each
 accelerator preset (debug or release). Use it after the base HIP preset is built.
 
 Usage:

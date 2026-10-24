@@ -10,62 +10,9 @@ rns8_status pack_exact_wide_limbs_as_rns(
     uint32_t limb_count,
     bool signed_values,
     uint64_t source_version) {
-  if (!ctx || !matrix || !src || limb_count == 0 || limb_count > 32 ||
-      !benchmark_host_matrix_access_valid(matrix->desc.rows, matrix->desc.cols, ld) ||
-      matrix->prefix == 0 || matrix->prefix > RNS8_MAX_SUPPORTED_PREFIX ||
-      matrix->residues.size() !=
-          static_cast<std::size_t>(matrix->prefix) * static_cast<std::size_t>(matrix->desc.rows) *
-              static_cast<std::size_t>(matrix->desc.cols)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  const rns8_semantics expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
-  if (matrix->desc.semantics != expected || ctx->backend != matrix->backend) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-
-  std::vector<boost::multiprecision::cpp_int> values;
-  values.reserve(static_cast<std::size_t>(matrix->desc.rows) * static_cast<std::size_t>(matrix->desc.cols));
-  for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-    for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-      values.push_back(exact_wide_value_from_limbs(
-          src + exact_wide_limb_index(row, col, ld, limb_count), limb_count, signed_values));
-    }
-  }
-
-  for (uint32_t p = 0; p < matrix->prefix; ++p) {
-    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
-    for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-      for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-        const std::size_t value_index =
-            static_cast<std::size_t>(row * matrix->desc.cols + col);
-        matrix->residues[rns8::detail::residue_index(*matrix, p, row, col)] =
-            rns8::detail::centered_residue(values[value_index], modulus);
-      }
-    }
-  }
-
-  matrix->source_version = source_version;
-  rns8::detail::api::clear_byte_limb_current(*matrix);
-  rns8::detail::api::clear_native_current(*matrix);
-
-  if (matrix->hip_residues != nullptr) {
-    if (matrix->hip_device_id != ctx->device_id ||
-        matrix->hip_residue_bytes != matrix->residues.size() * sizeof(int8_t)) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    const rns8_status status = run_timed_status_operation("pack_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(
-          ctx->device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes);
-    });
-    if (status != RNS8_SUCCESS) {
-      rns8::detail::api::clear_device_residues_current(*matrix);
-      return status;
-    }
-    rns8::detail::api::mark_device_residues_current(*matrix);
-  } else {
-    rns8::detail::api::mark_host_residues_current(*matrix);
-  }
-  return RNS8_SUCCESS;
+  if (!ctx || !matrix) return RNS8_INVALID_ARGUMENT;
+  return rns8::detail::api::import_exact_wide_limbs(
+      *ctx, *matrix, src, ld, limb_count, signed_values, source_version);
 }
 
 
@@ -729,8 +676,8 @@ void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA&
 }
 
 struct PackOperandTiming {
-  uint64_t a_us = 0;
-  uint64_t b_us = 0;
+  double a_us = 0;
+  double b_us = 0;
 };
 
 template <typename PackA, typename PackB>
@@ -757,15 +704,15 @@ PackOperandTiming pack_preused_inputs_timed(
 
 void record_prepack_setup_timing(
     BenchmarkResult& result,
-    uint64_t total_us,
+    double total_us,
     const PackOperandTiming& pack_timing,
-    uint64_t runtime_cache_us) {
+    double runtime_cache_us) {
   result.prepack_setup_us = total_us;
   result.prepack_setup_available = true;
   result.prepack_setup_pack_a_us = pack_timing.a_us;
   result.prepack_setup_pack_b_us = pack_timing.b_us;
   result.prepack_setup_runtime_cache_us = runtime_cache_us;
-  const uint64_t classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
+  const double classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
   result.prepack_setup_unclassified_us = total_us > classified ? total_us - classified : 0;
 }
 
@@ -811,7 +758,7 @@ PackOperandTiming pack_per_repeat_inputs_timed(
   return timing;
 }
 
-void record_pack_operand_timing(TimingSamples* samples, uint64_t pack_a_us, uint64_t pack_b_us) {
+void record_pack_operand_timing(TimingSamples* samples, double pack_a_us, double pack_b_us) {
   if (!samples) {
     return;
   }
@@ -1022,7 +969,7 @@ void run_hip_graph_replay_resident_chain(
       }
       fail_status("hip graph measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);

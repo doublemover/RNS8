@@ -298,14 +298,14 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
   require_same_i64(reference_i64(A0, B0, m, n, k), out);
   REQUIRE(workspace->hipblaslt_a_prepack_cache != nullptr);
   CHECK(workspace->hipblaslt_a_prepack_current);
-  CHECK(workspace->hipblaslt_a_prepack_source_version == 1);
+  CHECK(workspace->hipblaslt_a_prepack_generation == 1);
   CHECK(workspace->hipblaslt_a_prepack_m == m);
   CHECK(workspace->hipblaslt_a_prepack_k == k);
   CHECK(workspace->hipblaslt_a_prepack_lda == k);
   CHECK(workspace->hipblaslt_a_prepack_prefix == plan->prefix);
   REQUIRE(workspace->hipblaslt_b_prepack_cache != nullptr);
   CHECK(workspace->hipblaslt_b_prepack_current);
-  CHECK(workspace->hipblaslt_b_prepack_source_version == 10);
+  CHECK(workspace->hipblaslt_b_prepack_generation == b_matrix->content_generation);
   CHECK(workspace->hipblaslt_b_prepack_k == k);
   CHECK(workspace->hipblaslt_b_prepack_n == n);
   CHECK(workspace->hipblaslt_b_prepack_ldb == n);
@@ -315,6 +315,18 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
   const void* first_cache_ptr = workspace->hipblaslt_b_prepack_cache;
   const std::size_t first_cache_bytes = workspace->hipblaslt_b_prepack_cache_bytes;
 
+  // A different handle can have the same generation and caller version.
+  // The workspace must bind its packed bytes to the stable matrix identity.
+  rns8_matrix* other_b = nullptr;
+  REQUIRE(rns8_create_matrix(hipblaslt, &b_desc, &other_b) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hipblaslt, other_b, B1.data(), n, 10) == RNS8_SUCCESS);
+  REQUIRE(other_b->content_generation == b_matrix->content_generation);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, other_b, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(reference_i64(A0, B1, m, n, k), out);
+  CHECK(workspace->hipblaslt_b_prepack_instance_id == other_b->matrix_instance_id);
+  rns8_destroy_matrix(other_b);
+
   REQUIRE(rns8_pack_i64(hipblaslt, a_matrix, A1.data(), k, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
   REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
@@ -322,11 +334,11 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
   CHECK(workspace->hipblaslt_a_prepack_cache == first_a_cache_ptr);
   CHECK(workspace->hipblaslt_a_prepack_cache_bytes == first_a_cache_bytes);
   CHECK(workspace->hipblaslt_a_prepack_current);
-  CHECK(workspace->hipblaslt_a_prepack_source_version == 2);
+  CHECK(workspace->hipblaslt_a_prepack_generation == 2);
   CHECK(workspace->hipblaslt_b_prepack_cache == first_cache_ptr);
   CHECK(workspace->hipblaslt_b_prepack_cache_bytes == first_cache_bytes);
   CHECK(workspace->hipblaslt_b_prepack_current);
-  CHECK(workspace->hipblaslt_b_prepack_source_version == 10);
+  CHECK(workspace->hipblaslt_b_prepack_generation == b_matrix->content_generation);
 
   REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B1.data(), n, 11) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -335,11 +347,22 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
   CHECK(workspace->hipblaslt_a_prepack_cache == first_a_cache_ptr);
   CHECK(workspace->hipblaslt_a_prepack_cache_bytes == first_a_cache_bytes);
   CHECK(workspace->hipblaslt_a_prepack_current);
-  CHECK(workspace->hipblaslt_a_prepack_source_version == 2);
+  CHECK(workspace->hipblaslt_a_prepack_generation == 2);
   CHECK(workspace->hipblaslt_b_prepack_cache == first_cache_ptr);
   CHECK(workspace->hipblaslt_b_prepack_cache_bytes == first_cache_bytes);
   CHECK(workspace->hipblaslt_b_prepack_current);
-  CHECK(workspace->hipblaslt_b_prepack_source_version == 11);
+  CHECK(workspace->hipblaslt_b_prepack_generation == b_matrix->content_generation);
+
+  // Exhausted generations cannot admit a cache hit, even on the same handle.
+  b_matrix->content_generation = UINT64_MAX;
+  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B0.data(), n, 12) == RNS8_SUCCESS);
+  REQUIRE(b_matrix->generation_exhausted);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B1.data(), n, 11) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(hipblaslt, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_i64(hipblaslt, plan, c_matrix, out.data(), n) == RNS8_SUCCESS);
+  require_same_i64(reference_i64(A1, B1, m, n, k), out);
+  CHECK(workspace->hipblaslt_b_prepack_generation == 0);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
@@ -548,7 +571,7 @@ TEST_CASE("hipBLASLt exact-wide chains refresh source-versioned prepack caches")
   const std::vector<uint64_t> unsigned_a = {3, 5, 7, 11};
   const std::vector<uint64_t> unsigned_b = {13, 17, 19, 23};
 
-  auto run_signed = [&](rns8_context* ctx, rns8_backend_kind backend, std::vector<uint64_t>* source_versions) {
+  auto run_signed = [&](rns8_context* ctx, rns8_backend_kind backend, std::vector<std::pair<uint64_t, uint64_t>>* source_versions) {
     auto desc = exact_signed_desc(m, n, k, backend);
     rns8_plan* plan = nullptr;
     rns8_workspace* workspace = nullptr;
@@ -572,9 +595,10 @@ TEST_CASE("hipBLASLt exact-wide chains refresh source-versioned prepack caches")
       rns8_matrix* out = (step % 2) == 0 ? c0 : c1;
       REQUIRE(rns8_gemm_rns(ctx, plan, current, b, out, workspace) == RNS8_SUCCESS);
       if (source_versions) {
-        source_versions->push_back(out->source_version);
+        source_versions->emplace_back(out->matrix_instance_id, out->content_generation);
         if (step == 1 && backend == RNS8_BACKEND_HIPBLASLT) {
-          CHECK(workspace->hipblaslt_a_prepack_source_version == (*source_versions)[0]);
+          CHECK(workspace->hipblaslt_a_prepack_generation == current->content_generation);
+          CHECK(workspace->hipblaslt_a_prepack_instance_id == current->matrix_instance_id);
         }
       }
       current = out;
@@ -626,16 +650,16 @@ TEST_CASE("hipBLASLt exact-wide chains refresh source-versioned prepack caches")
     return limbs;
   };
 
-  std::vector<uint64_t> hipblaslt_versions;
+  std::vector<std::pair<uint64_t, uint64_t>> hipblaslt_versions;
   const auto signed_cpu = run_signed(cpu, RNS8_BACKEND_CPU_REFERENCE, nullptr);
   const auto signed_hip = run_signed(hip, RNS8_BACKEND_HIP_DIRECT, nullptr);
   const auto signed_hipblaslt = run_signed(hipblaslt, RNS8_BACKEND_HIPBLASLT, &hipblaslt_versions);
   require_same_u64(signed_cpu, signed_hip);
   require_same_u64(signed_cpu, signed_hipblaslt);
   REQUIRE(hipblaslt_versions.size() == 3);
-  CHECK(hipblaslt_versions[0] != 0);
-  CHECK(hipblaslt_versions[1] != 0);
-  CHECK(hipblaslt_versions[2] != 0);
+  CHECK(hipblaslt_versions[0].first != 0);
+  CHECK(hipblaslt_versions[1].first != 0);
+  CHECK(hipblaslt_versions[2].first != 0);
   CHECK(hipblaslt_versions[0] != hipblaslt_versions[1]);
   CHECK(hipblaslt_versions[1] != hipblaslt_versions[2]);
 

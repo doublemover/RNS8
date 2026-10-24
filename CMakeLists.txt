@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
+include(cmake/rns8_discovery.cmake)
+
 project(
   RNS8
   VERSION 0.1.0
@@ -14,6 +16,7 @@ include(CMakePackageConfigHelpers)
 include(cmake/rns8_platform_guards.cmake)
 rns8_assert_linux_native_discovery_context()
 include(cmake/rns8_options.cmake)
+include(cmake/rns8_provenance.cmake)
 include(cmake/rns8_sources.cmake)
 include(cmake/rns8_targets.cmake)
 include(cmake/rns8_tests.cmake)

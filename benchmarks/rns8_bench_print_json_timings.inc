@@ -46,44 +46,44 @@
   std::cout << "  \"raw_timings_us\": {\n";
   if (global_bound_scan_available) {
     std::cout << "    \"global_bound_scan\": ";
-    print_single_u64_array(result.global_bound_scan_us);
+    print_single_timing_array(result.global_bound_scan_us);
     std::cout << ",\n";
   }
   std::cout << "    \"planning\": ";
-  print_single_u64_array(result.plan_us);
+  print_single_timing_array(result.plan_us);
   std::cout << ",\n";
   std::cout << "    \"scheduling\": ";
-  print_single_u64_array(result.schedule_query_us);
+  print_single_timing_array(result.schedule_query_us);
   std::cout << ",\n";
   if (result.tile_bound_scan_available) {
     std::cout << "    \"tile_bound_scan\": ";
-    print_single_u64_array(result.tile_bound_scan_us);
+    print_single_timing_array(result.tile_bound_scan_us);
     std::cout << ",\n";
   }
   std::cout << "    \"matrix_alloc\": ";
-  print_single_u64_array(result.matrix_alloc_us);
+  print_single_timing_array(result.matrix_alloc_us);
   std::cout << ",\n";
   std::cout << "    \"pack\": ";
-  print_u64_array(result.samples.pack_us);
+  print_double_array(result.samples.pack_us);
   std::cout << ",\n";
   if (pack_a_timing_available) {
     std::cout << "    \"pack_a\": ";
-    print_u64_array(result.samples.pack_a_us);
+    print_double_array(result.samples.pack_a_us);
     std::cout << ",\n";
   }
   if (pack_b_timing_available) {
     std::cout << "    \"pack_b\": ";
-    print_u64_array(result.samples.pack_b_us);
+    print_double_array(result.samples.pack_b_us);
     std::cout << ",\n";
   }
   std::cout << "    \"rns_gemm\": ";
-  print_u64_array(result.samples.gemm_us);
+  print_double_array(result.samples.gemm_us);
   std::cout << ",\n";
   std::cout << "    \"crt_export\": ";
-  print_u64_array(result.samples.export_us);
+  print_double_array(result.samples.export_us);
   std::cout << ",\n";
   std::cout << "    \"end_to_end\": ";
-  print_u64_array(result.samples.end_to_end_us);
+  print_double_array(result.samples.end_to_end_us);
   std::cout << "\n";
   std::cout << "  },\n";
   std::cout << "  \"timing_summary_us\": {\n";

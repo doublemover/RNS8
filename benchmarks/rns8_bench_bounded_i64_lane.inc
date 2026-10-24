@@ -204,7 +204,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     PackOperandTiming setup_pack_timing{};
-    uint64_t setup_runtime_cache_us = 0;
+    double setup_runtime_cache_us = 0;
     const bool use_native_b_cache_constructor =
         !args.reuse_packed_a && !use_native_a_reuse_b && should_probe_reusable_b_prepack_cache(args, selected_backend);
     if (use_native_b_cache_constructor) {
@@ -238,10 +238,10 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -273,7 +273,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
           status = rns8_pack_i64(ctx, a_matrix, C.data(), ldc, source_version + chain_index + 2);
           if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(intermediate chain output)", status);
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }

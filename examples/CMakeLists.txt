@@ -4,11 +4,14 @@ set(RNS8_EXAMPLE_TARGETS
   wrap64-u64-oneshot
   exact-wide-limb-export
   exact-wide-cpu-continuation
+  sparse-finite-ring
+  sparse-bounded-i64
+  stream-bounded-i64
 )
 
 foreach(example_name IN LISTS RNS8_EXAMPLE_TARGETS)
   string(REPLACE "-" "_" source_stem "${example_name}")
-  if(example_name STREQUAL "exact-wide-cpu-continuation")
+  if(example_name STREQUAL "exact-wide-cpu-continuation" OR example_name MATCHES "^(sparse|stream)-")
     set(example_source "downstream-cmake/${source_stem}.cpp")
   else()
     set(example_source "${source_stem}.cpp")
@@ -22,3 +25,11 @@ foreach(example_name IN LISTS RNS8_EXAMPLE_TARGETS)
     set_tests_properties("example_${source_stem}" PROPERTIES LABELS "examples;cpu" TIMEOUT 10)
   endif()
 endforeach()
+
+# Public-API application kernels and independent comparators; tiny examples above remain unchanged.
+add_subdirectory(workloads)
+
+if(BUILD_TESTING AND RNS8_ENABLE_HIP AND RNS8_WORKLOAD_GPU_TESTS)
+  add_test(NAME example_stream_bounded_i64_hip COMMAND rns8-example-stream-bounded-i64 --hip)
+  set_tests_properties(example_stream_bounded_i64_hip PROPERTIES TIMEOUT 120 LABELS "examples;hip;stream")
+endif()

@@ -1,37 +1,67 @@
-# Documentation map
+# Documentation
 
-## Start here
+Choose the task you want to complete. Public API behavior is defined in the
+[headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
+Dated records identify the builds and devices actually checked.
 
-- [README](../README.md): purpose, contracts, builds, examples, and current limits
-- [Correctness](correctness.md): mathematical guarantees and caller obligations
-- [Design](design.md): implemented storage, ownership, and execution model
-- [Backends](backend-notes.md): backend capabilities and selection limits
-- [GPU qualification](gpu-qualification.md): exact RX 7900 XTX / MI300X run plan
-- [October 2026 audit](audit-2026-10-06.md): defects, changes, evidence, open risks
-- [Performance evidence](performance.md): measurement and promotion policy
-- [Roadmap and release gates](roadmap.md): the single current execution checklist
+## Build
 
-## Build and reference
+- [Windows HIP SDK](platform-windows.md): prerequisites, explicit roots, configure and build
+- [Native Linux ROCm](platform-linux.md): Radeon and Instinct selection; WSL boundary
+- [Dependencies and pins](../third_party/README.md): shared requirements and installation sources
+- [Dependency versions and upgrade gates](dependency-versions.md): selected candidates, installed artifacts and qualification
+- [Shared discovery](dependency-discovery.md): root precedence, early configure handoff, evidence and remaining probe gates
+- [Readiness terminology](platform-readiness.md): discovery, implementation, compilation and hardware evidence
 
-- [Windows](platform-windows.md), [Linux](platform-linux.md), and
-  [readiness terminology](platform-readiness.md)
-- [Research specification](RNS8_RESEARCH_SPEC.md): intended architecture,
-  mathematical requirements, long-term research, and acceptance rules
-- [Glossary](glossary.md), [prior art](prior-art.md), and [contributing](../CONTRIBUTING.md)
+## Use
 
-The specification describes both existing and proposed behavior. For an
-implementation claim, consult the source and the audit; a design requirement or
-registered kernel name is not proof that a path is executable or qualified.
+- [Checked examples](../examples/README.md) and [installed CMake consumer](../examples/downstream-cmake/README.md)
+- [Arithmetic, bounds and exports](correctness.md), with a [short glossary](glossary.md)
+- [Architecture and ownership](design.md), [immutable plans](plan-validation.md)
+- [Prepared execution and completion](prepared-execution.md)
+- [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
+- [Experimental public exact complex composition](complex-residue-composition.md)
+- [Experimental public narrow native products](narrow-native-owner.md), [encoded B](encoded-b-native.md) and [block materializations](block-sparse.md#public-generation-bound-owner)
+- [Backend capabilities and selection](backend-notes.md)
 
-## Research and history
+## Understand and extend
 
-[Research notes](research/README.md) preserve application-alignment studies and
-the resident-output proposal. They are not implemented API guarantees.
+The [research index](research/README.md) groups representation/reconstruction,
+kernels/scheduling, planning/generation and application studies. Each topic
+keeps its arithmetic contract and public/private boundary beside its source.
+The [technical specification](RNS8_RESEARCH_SPEC.md) owns normative architecture
+and research acceptance rules; the [roadmap](roadmap.md) owns current gaps and
+issue links.
 
-[Historical records](archive/README.md) preserve prior queues, research backlogs,
-work logs, and local performance summaries. The previous independent status,
-release, and promotion documents have been consolidated into the active roadmap
-and performance pages above. Historical claims do not override current evidence.
+## Benchmark and validate
 
-Raw logs, captures, manifests, and disassembly belong in ignored `temp/`, `build/`,
-or `out/`. The checked-in audit records what was actually tested and what remains.
+- [Performance methodology](performance.md), [timing admission](timing-admission.md)
+- [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
+- [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
+- [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; authored, validation pending
+- [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; authored, validation pending
+- [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4 and admitted scalar binary64 digit/slab controls; authored, validation pending
+- [INT8 instruction-chain probes](instruction-chain-calibration.md): dependent/independent WMMA chains, kernel-event versus probe-inclusive host scopes; authored, validation pending
+- [Public split-K calibration](split-k-calibration.md): unsplit/full/window owners, scratch and changed-generation recreation; authored, validation pending
+- [Public ragged calibration](ragged-calibration.md): uniform/ragged host boundaries, reconstruction-only reuse and retained capacities; authored, validation pending
+- [Retained Gram cohorts](gram-prepared-reuse.md): prepared dense, ordinary/prepared single-source controls and each/once reconstruction; authored, validation pending
+- [Exact import and CRT calibration](conversion-calibration.md): scalar/dot4, every-prefix and resident/cold controls; authored, validation pending
+- [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; authored, validation pending
+- [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
+- [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
+- [Expanded local correctness record](local-all-features-20261023.md)
+
+## Contribute
+
+- [Contributor workflow](../CONTRIBUTING.md): CPU oracle, tests, sanitizers, packaging and documentation checks
+- [Offer hardware validation](https://github.com/doublemover/RNS8/issues/new?template=hardware_validation_offer.yml)
+- [Documentation ownership and migration inventory](documentation-maintenance.md)
+- [Security reporting](../SECURITY.md), [changelog](../CHANGELOG.md)
+
+## History
+
+[Historical records](archive/README.md) preserve earlier audit findings, local
+checkpoints, the resident-output proposal and superseded chronological status.
+Their dates and source revisions remain intact. Current setup and API guidance
+live in the guides above. Raw captures and disassembly stay in ignored `temp/`,
+`build/` or `out/` paths; durable reports summarize reviewed evidence.

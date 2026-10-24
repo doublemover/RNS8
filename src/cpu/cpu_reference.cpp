@@ -5,6 +5,10 @@
 
 #include "core/internal.hpp"
 
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+#  include <omp.h>
+#endif
+
 namespace rns8::detail {
 
 uint32_t canonical_residue(const cpp_int& value, uint16_t modulus) {
@@ -58,7 +62,7 @@ void pack_i64_matrix(rns8_matrix& matrix, const int64_t* src, int64_t ld) {
     const uint16_t modulus = kDefaultModuli[p];
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[residue_index(matrix, p, row, col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(src[row * ld + col], modulus);
     }
   };
   const uint64_t work =
@@ -86,7 +90,7 @@ void pack_u64_matrix(rns8_matrix& matrix, const uint64_t* src, int64_t ld) {
     const uint16_t modulus = kDefaultModuli[p];
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[residue_index(matrix, p, row, col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(static_cast<int64_t>(src[row * ld + col] % modulus), modulus);
     }
   };
   const uint64_t work =
@@ -110,7 +114,7 @@ void pack_finite_u8_matrix(rns8_matrix& matrix, const uint8_t* src, int64_t ld, 
   const auto pack_row = [&](int64_t row) {
     for (int64_t col = 0; col < matrix.desc.cols; ++col) {
       matrix.residues[static_cast<std::size_t>(row * matrix.desc.cols + col)] =
-          centered_residue(cpp_int(src[row * ld + col]), modulus);
+          reduce_to_centered(src[row * ld + col], modulus);
     }
   };
   const uint64_t work = cpu_parallel_saturating_mul(
@@ -160,7 +164,7 @@ void ring_gemm_row(const int8_t* A, const int8_t* B, int8_t* C, int64_t n, int64
   int64_t offset = 0;
   while (offset < k) {
     const int64_t block = std::min<int64_t>(RNS8_SAFE_INT32_K_BLOCK, k - offset);
-    std::fill(block_acc.begin(), block_acc.end(), 0);
+    std::fill_n(block_acc.begin(), static_cast<std::size_t>(n), 0);
     for (int64_t kk = 0; kk < block; ++kk) {
       const int av = static_cast<int>(A[row * lda + offset + kk]);
       const int8_t* b_row = B + (offset + kk) * ldb;
@@ -185,24 +189,38 @@ void ring_gemm_modulus_serial(const int8_t* A, const int8_t* B, int8_t* C, int64
     ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, row_accumulator);
 }
 
-void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
-                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus) {
-  [[maybe_unused]] const uint64_t work = cpu_parallel_saturating_mul3(
-      static_cast<uint64_t>(m), static_cast<uint64_t>(n), static_cast<uint64_t>(k));
+namespace {
+struct RingScratch {
+  std::vector<std::vector<int32_t>> rows;
+  explicit RingScratch(int64_t n, uint64_t work) {
+    int workers = 1;
 #if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
-  if (cpu_parallel_should_use(work)) {
-#  pragma omp parallel
-    {
-      std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
-#  pragma omp for schedule(static)
-      for (int64_t row = 0; row < m; ++row)
-        ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, block_acc);
-    }
+    if (cpu_parallel_should_use(work)) workers = static_cast<int>(cpu_parallel_effective_threads());
+#endif
+    rows.resize(static_cast<std::size_t>(workers));
+    // No allocation or exception is allowed inside an OpenMP worker.
+    for (auto& row : rows) row.resize(static_cast<std::size_t>(n));
+  }
+};
+void ring_gemm_prepared(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus, RingScratch& scratch) {
+#if defined(RNS8_CPU_PARALLEL_OPENMP) && RNS8_CPU_PARALLEL_OPENMP
+  if (scratch.rows.size() > 1) {
+#  pragma omp parallel for schedule(static) num_threads(static_cast<int>(scratch.rows.size()))
+    for (int64_t row = 0; row < m; ++row)
+      ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, scratch.rows[omp_get_thread_num()]);
     return;
   }
 #endif
-  std::vector<int32_t> block_acc(static_cast<std::size_t>(n), 0);
-  ring_gemm_modulus_serial(A, B, C, m, n, k, lda, ldb, ldc, modulus, block_acc);
+  for (int64_t row = 0; row < m; ++row)
+    ring_gemm_row(A, B, C, n, k, lda, ldb, ldc, modulus, row, scratch.rows[0]);
+}
+}  // namespace
+
+void ring_gemm_modulus(const int8_t* A, const int8_t* B, int8_t* C, int64_t m, int64_t n, int64_t k,
+                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus) {
+  RingScratch scratch(n, cpu_parallel_saturating_mul3(m, n, k));
+  ring_gemm_prepared(A, B, C, m, n, k, lda, ldb, ldc, modulus, scratch);
 }
 
 void fill_tile_modulus(int8_t* C, int64_t row_extent, int64_t col_extent, int64_t ldc, int8_t value) {
@@ -228,6 +246,8 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
     return RNS8_INVALID_ARGUMENT;
   }
 
+  RingScratch scratch(plan.desc.n, cpu_parallel_saturating_mul3(plan.desc.m, plan.desc.n, plan.desc.k));
+
   if (!plan.tile_schedule.empty()) {
     for (const auto& entry : plan.tile_schedule) {
       for (uint32_t p = 0; p < entry.selected_prefix; ++p) {
@@ -244,7 +264,7 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
           fill_tile_modulus(c_tile, entry.row_extent, entry.col_extent, C.desc.cols, 0);
           continue;
         }
-        ring_gemm_modulus(
+        ring_gemm_prepared(
             A.residues.data() + a_offset + static_cast<std::size_t>(entry.row_offset) *
                                       static_cast<std::size_t>(A.desc.cols),
             B.residues.data() + b_offset + static_cast<std::size_t>(entry.col_offset),
@@ -255,7 +275,7 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
             A.desc.cols,
             B.desc.cols,
             C.desc.cols,
-            kDefaultModuli[p]);
+            kDefaultModuli[p], scratch);
       }
     }
     return RNS8_SUCCESS;
@@ -268,7 +288,7 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
                                  static_cast<std::size_t>(B.desc.cols);
     const std::size_t c_offset = static_cast<std::size_t>(p) * static_cast<std::size_t>(C.desc.rows) *
                                  static_cast<std::size_t>(C.desc.cols);
-    ring_gemm_modulus(
+    ring_gemm_prepared(
         A.residues.data() + a_offset,
         B.residues.data() + b_offset,
         C.residues.data() + c_offset,
@@ -278,7 +298,7 @@ rns8_status cpu_gemm_rns(const rns8_plan& plan, const rns8_matrix& A, const rns8
         A.desc.cols,
         B.desc.cols,
         C.desc.cols,
-        kDefaultModuli[p]);
+        kDefaultModuli[p], scratch);
   }
   return RNS8_SUCCESS;
 }

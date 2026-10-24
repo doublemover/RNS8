@@ -462,7 +462,7 @@ std::vector<std::string> gpu_event_phase_order(
   return phases;
 }
 
-void print_timing_summary(const char* name, const std::vector<uint64_t>& values, bool trailing_comma) {
+void print_timing_summary(const char* name, const std::vector<double>& values, bool trailing_comma) {
   std::cout << "    \"" << name << "\": {\n";
   std::cout << "      \"avg\": " << average(values) << ",\n";
   std::cout << "      \"median\": " << percentile(values, 0.50) << ",\n";
@@ -470,7 +470,7 @@ void print_timing_summary(const char* name, const std::vector<uint64_t>& values,
   std::cout << "    }" << (trailing_comma ? "," : "") << "\n";
 }
 
-void print_single_timing_summary(const char* name, uint64_t value, bool trailing_comma) {
+void print_single_timing_summary(const char* name, double value, bool trailing_comma) {
   std::cout << "    \"" << name << "\": {\n";
   std::cout << "      \"avg\": " << static_cast<double>(value) << ",\n";
   std::cout << "      \"median\": " << static_cast<double>(value) << ",\n";

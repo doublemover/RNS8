@@ -8,6 +8,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <random>
@@ -184,8 +185,8 @@ rns8_status capture_hip_graph_replay(
     int device_id,
     const std::function<rns8_status(void*)>& capture_body,
     HipGraphReplayState& state,
-    uint64_t& capture_us,
-    uint64_t& instantiate_us,
+    double& capture_us,
+    double& instantiate_us,
     std::string& error_text);
 rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text);
 
@@ -233,6 +234,7 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 }  // namespace
 
 int main(int argc, char** argv) {
+  (void)rns8::bench::host_clock_calibration(); // Outside every workload timing interval.
   const Args args = parse_args(argc, argv);
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
     explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {

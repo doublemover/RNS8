@@ -109,6 +109,7 @@ TEST_CASE("persistent RNS APIs reject stale plan schedule metadata before dispat
   info.abi_version = RNS8_ABI_VERSION;
   REQUIRE(rns8_get_plan_schedule_info(plan, &info) == RNS8_SUCCESS);
 
+  plan->validated_contract.reset(); // Explicit internal corruption diagnostic.
   plan->schedule_prefix_group_count = 0;
   CHECK(rns8_get_plan_schedule_info(plan, &info) == RNS8_INVALID_ARGUMENT);
   uint64_t written = 0;

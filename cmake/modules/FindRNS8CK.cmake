@@ -36,7 +36,8 @@ if(RNS8_CK_INCLUDE_DIR)
 
   set(_RNS8_CK_COMMIT_ID "unknown")
   find_package(Git QUIET)
-  if(Git_FOUND AND RNS8_CK_ROOT AND EXISTS "${RNS8_CK_ROOT}/.git")
+  if(Git_FOUND AND RNS8_CK_ROOT AND
+      (EXISTS "${RNS8_CK_ROOT}/.git" OR EXISTS "${RNS8_CK_ROOT}/../../.git"))
     execute_process(
       COMMAND "${GIT_EXECUTABLE}" -C "${RNS8_CK_ROOT}" rev-parse HEAD
       RESULT_VARIABLE _RNS8_CK_GIT_RESULT
@@ -66,17 +67,34 @@ if(RNS8_CK_INCLUDE_DIR)
     "#define CK_USE_WMMA ON\n"
     "#endif\n"
   )
-  file(
-    WRITE "${RNS8_CK_GENERATED_INCLUDE_DIR}/ck/version.h"
+  if(EXISTS "${RNS8_CK_INCLUDE_DIR}/ck/version.h")
+    configure_file("${RNS8_CK_INCLUDE_DIR}/ck/version.h"
+      "${RNS8_CK_GENERATED_INCLUDE_DIR}/ck/version.h" COPYONLY)
+  else()
+    # Source distributions generate this header. Read their declared version
+    # instead of labelling every supported CK checkout as the original 1.1.0.
+    if(NOT EXISTS "${RNS8_CK_ROOT}/CMakeLists.txt")
+      message(FATAL_ERROR "CK requires an installed version.h or source CMakeLists.txt")
+    endif()
+    file(STRINGS "${RNS8_CK_ROOT}/CMakeLists.txt" _ck_version_line
+      REGEX "^set\\(version [0-9]+\\.[0-9]+\\.[0-9]+\\)")
+    if(NOT _ck_version_line MATCHES "^set\\(version ([0-9]+)\\.([0-9]+)\\.([0-9]+)\\)$")
+      message(FATAL_ERROR "Cannot determine the selected CK source version")
+    endif()
+    set(_ck_major "${CMAKE_MATCH_1}")
+    set(_ck_minor "${CMAKE_MATCH_2}")
+    set(_ck_patch "${CMAKE_MATCH_3}")
+    file(WRITE "${RNS8_CK_GENERATED_INCLUDE_DIR}/ck/version.h"
     "#ifndef CK_VERSION_H_\n"
     "#define CK_VERSION_H_\n"
-    "#define CK_VERSION 1.1.0\n"
-    "#define CK_VERSION_MAJOR 1\n"
-    "#define CK_VERSION_MINOR 1\n"
-    "#define CK_VERSION_PATCH 0\n"
+    "#define CK_VERSION ${_ck_major}.${_ck_minor}.${_ck_patch}\n"
+    "#define CK_VERSION_MAJOR ${_ck_major}\n"
+    "#define CK_VERSION_MINOR ${_ck_minor}\n"
+    "#define CK_VERSION_PATCH ${_ck_patch}\n"
     "#define CK_COMMIT_ID ${_RNS8_CK_COMMIT_ID}\n"
     "#endif\n"
   )
+  endif()
 
   set(_RNS8_CK_TARGET "gfx1100")
   if(RNS8_AMDGPU_TARGETS)
@@ -84,6 +102,9 @@ if(RNS8_CK_INCLUDE_DIR)
     list(GET _RNS8_CK_TARGETS 0 _RNS8_CK_TARGET)
   endif()
 
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    set(RNS8_CK_HIPCC "${RNS8_HIP_HIPCC}" CACHE FILEPATH "Shared selected HIP compiler" FORCE)
+  endif()
   find_program(
     RNS8_CK_HIPCC
     NAMES hipcc hipcc.exe hipcc.bat

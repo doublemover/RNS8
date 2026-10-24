@@ -314,6 +314,8 @@ def validate_helper_lane_metadata(self: Any) -> None:
         else:
             if not isinstance(device_allocation.get("tracking_available"), bool):
                 self._error("device_allocation.tracking_available must be a boolean")
+            if device_allocation.get("transfer_scope") != "direct_backend_successful_synchronous_api_payload":
+                self._error("device_allocation.transfer_scope must identify direct backend synchronous API payload")
             for key in ["source", "setup_scope", "source_version_inputs"]:
                 if not isinstance(device_allocation.get(key), str):
                     self._error(f"device_allocation.{key} must be a string")

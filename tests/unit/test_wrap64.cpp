@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/internal.hpp"
+#include "backend_common/wrap64_signed_radix.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
@@ -20,3 +21,7 @@ namespace {
 #include "test_wrap64_oracle_cases.inc"
 #include "test_wrap64_public_cases.inc"
 #include "test_wrap64_residency_reject_cases.inc"
+
+#include "test_wrap64_prepared_hip_cases.inc"
+
+#include "test_wrap64_resident_graph_cases.inc"

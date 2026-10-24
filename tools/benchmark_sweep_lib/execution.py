@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 import json
 import os
 import subprocess
+import hashlib
+import shutil
 import sys
 import threading
 import time
@@ -110,6 +113,11 @@ def run_command(
     run_env = os.environ.copy()
     if env_overrides:
         run_env.update(env_overrides)
+    execution_id = str(uuid.uuid4())
+    capture_start = time.perf_counter()
+    executable = Path(shutil.which(command[0]) or command[0]).resolve()
+    executable_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
+    capture_overhead = time.perf_counter() - capture_start
     started = time.perf_counter()
     if progress:
         sys.stderr.write(f"[benchmark_sweep] start {output}: {' '.join(command)}\n")
@@ -201,6 +209,17 @@ def run_command(
             sys.stderr.write(f"[benchmark_sweep] fail {output}: {duration:.3f}s returncode={returncode}\n")
             sys.stderr.flush()
         return False
+    try:
+        capture = json.loads(stdout_text)
+        capture["execution_id"] = execution_id
+        capture["artifact_capture"] = {
+            "executable_sha256": executable_hash, "executable_path": str(executable),
+            "hash_seconds": capture_overhead, "rns8_linkage": "static",
+            "unchanged_during_run": hashlib.sha256(executable.read_bytes()).hexdigest() == executable_hash,
+        }
+        stdout_text = json.dumps(capture, indent=2)
+    except (ValueError, TypeError):
+        pass  # Preserve malformed output for the schema diagnostic.
     output.write_text(stdout_text, encoding="utf-8")
     if progress:
         sys.stderr.write(f"[benchmark_sweep] done {output}: {duration:.3f}s\n")

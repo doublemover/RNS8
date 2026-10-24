@@ -83,7 +83,7 @@ TEST_CASE("persistent RNS GEMM rejects incompatible matrix and workspace contrac
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("persistent bounded RNS GEMM stamps output source versions from packed inputs") {
+TEST_CASE("persistent bounded RNS GEMM advances output content generations") {
   rns8_context* ctx = create_cpu();
   auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   desc.m = 2;
@@ -123,7 +123,7 @@ TEST_CASE("persistent bounded RNS GEMM stamps output source versions from packed
   CHECK(first_output_version != b_matrix->source_version);
 
   REQUIRE(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
-  CHECK(c_matrix->source_version == first_output_version);
+  CHECK(c_matrix->source_version > first_output_version);
 
   const uint64_t B1[] = {8, 7, 6, 5};
   REQUIRE(rns8_pack_u64(ctx, b_matrix, B1, 2, 24) == RNS8_SUCCESS);

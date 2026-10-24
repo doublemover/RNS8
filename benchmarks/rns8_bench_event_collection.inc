@@ -224,8 +224,18 @@ void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backen
   const bool finite = finite_benchmark_semantics(args.semantics);
   const char* h2d_label = finite ? "finite_pack_h2d" : "pack_h2d";
   const char* kernel_label = finite ? "finite_pack_kernel" : "pack_kernel";
-  const double h2d = sum_event_label(events, samples, "pack", h2d_label);
-  const double kernel = sum_event_label(events, samples, "pack", kernel_label);
+  // AUTO retains native inputs in one upload and materializes residues from
+  // that allocation. Those operations have distinct labels from staged packs.
+  const bool native_pack = !finite && std::any_of(samples.begin(), samples.end(), [](const auto& sample) {
+    return sample.label == "native_i64_to_rns_kernel" || sample.label == "native_u64_to_rns_kernel";
+  });
+  const double h2d = native_pack
+      ? sum_event_label(events, samples, "pack", "residue_h2d_sync") + optional_event_label(samples, h2d_label)
+      : sum_event_label(events, samples, "pack", h2d_label);
+  const double kernel = native_pack
+      ? optional_event_label(samples, "native_i64_to_rns_kernel") +
+        optional_event_label(samples, "native_u64_to_rns_kernel") + optional_event_label(samples, kernel_label)
+      : sum_event_label(events, samples, "pack", kernel_label);
   if (events.complete) {
     push_gpu_event_value(events, h2d_label, h2d);
     push_gpu_event_value(events, kernel_label, kernel);

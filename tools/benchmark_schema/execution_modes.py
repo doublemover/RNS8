@@ -411,14 +411,15 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         if not isinstance(graph.get(key), str):
             self._error(f"hip_graph_replay.{key} must be a string")
     for key in [
-        "capture_us",
-        "instantiate_us",
         "graph_launches_per_measured_repeat",
         "total_graph_launches",
         "captured_chain_length",
     ]:
         if not _is_int(graph.get(key)) or graph.get(key) < 0:
             self._error(f"hip_graph_replay.{key} must be a nonnegative integer")
+    for key in ["capture_us", "instantiate_us"]:
+        if not _is_number(graph.get(key)) or graph.get(key) < 0:
+            self._error(f"hip_graph_replay.{key} must be finite and nonnegative")
     caveat = graph.get("caveat")
     if caveat is not None and not isinstance(caveat, str):
         self._error("hip_graph_replay.caveat must be a string or null")
@@ -502,7 +503,7 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     if graph.get("status") != "available":
         self._error("hip_graph_replay captures must set hip_graph_replay.status=available")
     for key in ["capture_us", "instantiate_us"]:
-        if _is_int(graph.get(key)) and graph.get(key) <= 0:
+        if _is_number(graph.get(key)) and graph.get(key) <= 0:
             self._error(f"hip_graph_replay.{key} must be positive for executed graph replay captures")
     if graph.get("graph_launches_per_measured_repeat") != 1:
         self._error("hip_graph_replay captures must launch one graph per measured repeat")

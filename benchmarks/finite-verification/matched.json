@@ -1,0 +1,269 @@
+{
+  "schema": "rns8_finite_verify_cases_v1",
+  "cases": [
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 2,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 6,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 251,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "verify_only",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "compute_verify",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "full_reference",
+      "m": 32,
+      "n": 32,
+      "k": 65,
+      "modulus": 256,
+      "trials": 0,
+      "challenge_seed": 0
+    }
+  ]
+}

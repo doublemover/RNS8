@@ -69,6 +69,45 @@ RNS8_FINITE_U8_INLINE uint32_t reduce_u32_small_modulus(
   return residue;
 }
 
+// For 2 <= modulus <= 256, split a native word at radix 2^32. Each
+// reciprocal reduction is exact: floor(x * floor(2^32/m) / 2^32) is at
+// most one below floor(x/m), hence the unreduced remainder is below 2m.
+// The recombined value is at most (m-1)^2+(m-1) <= 65280.
+// Keep constants outside the dot-product loop instead of speculatively
+// evaluating every constant-modulus division in a large switch.
+struct Native64Reducer {
+  uint32_t modulus, reciprocal, radix32, signed_bias;
+};
+
+RNS8_FINITE_U8_INLINE Native64Reducer native64_reducer(uint32_t modulus) {
+  const uint32_t reciprocal = modulus_reciprocal_u32(modulus);
+  const uint32_t radix32 = static_cast<uint32_t>(kReciprocalScale - uint64_t{reciprocal} * modulus);
+  const uint32_t signed_bias = reduce_u32_small_modulus(radix32 * radix32, modulus, reciprocal);
+  return {modulus, reciprocal, radix32, signed_bias};
+}
+
+RNS8_FINITE_U8_INLINE uint32_t canonical_native_u64(uint64_t value, const Native64Reducer& reducer) {
+  const uint32_t low = reduce_u32_small_modulus(static_cast<uint32_t>(value), reducer.modulus, reducer.reciprocal);
+  const uint32_t high = reduce_u32_small_modulus(static_cast<uint32_t>(value >> 32), reducer.modulus, reducer.reciprocal);
+  return reduce_u32_small_modulus(high * reducer.radix32 + low, reducer.modulus, reducer.reciprocal);
+}
+
+RNS8_FINITE_U8_INLINE int8_t center_native_u64(uint64_t value, const Native64Reducer& reducer) {
+  const uint32_t residue = canonical_native_u64(value, reducer);
+  return static_cast<int8_t>(static_cast<int32_t>(residue) -
+      static_cast<int32_t>(reducer.modulus * (residue >= (reducer.modulus + 1) / 2)));
+}
+
+RNS8_FINITE_U8_INLINE int8_t center_native_i64(int64_t value, const Native64Reducer& reducer) {
+  // Conversion to unsigned is defined modulo 2^64, including INT64_MIN.
+  // Subtract 2^64 mod m for negative inputs without taking a signed absolute.
+  int32_t residue = static_cast<int32_t>(canonical_native_u64(static_cast<uint64_t>(value), reducer)) -
+      static_cast<int32_t>(reducer.signed_bias * (value < 0));
+  residue += static_cast<int32_t>(reducer.modulus) * (residue < 0);
+  residue -= static_cast<int32_t>(reducer.modulus) * (residue >= static_cast<int32_t>((reducer.modulus + 1) / 2));
+  return static_cast<int8_t>(residue);
+}
+
 RNS8_FINITE_U8_INLINE uint32_t reduce_u32_mod255(uint32_t value) {
   uint32_t residue =
       (value & 0xffu) + ((value >> 8u) & 0xffu) + ((value >> 16u) & 0xffu) + ((value >> 24u) & 0xffu);

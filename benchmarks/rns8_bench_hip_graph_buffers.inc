@@ -80,8 +80,8 @@ rns8_status capture_hip_graph_replay(
     int device_id,
     const std::function<rns8_status(void*)>& capture_body,
     HipGraphReplayState& state,
-    uint64_t& capture_us,
-    uint64_t& instantiate_us,
+    double& capture_us,
+    double& instantiate_us,
     std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   destroy_hip_graph_replay_state(state);
@@ -189,18 +189,18 @@ uint64_t vector_alu_workspace_bytes(const Args& args) {
   return static_cast<uint64_t>(total);
 }
 
-double average(const std::vector<uint64_t>& values) {
+double average(const std::vector<double>& values) {
   if (values.empty()) {
     return 0.0;
   }
-  uint64_t sum = 0;
-  for (const uint64_t value : values) {
+  double sum = 0;
+  for (const double value : values) {
     sum += value;
   }
   return static_cast<double>(sum) / static_cast<double>(values.size());
 }
 
-double median(std::vector<uint64_t> values) {
+double median(std::vector<double> values) {
   if (values.empty()) {
     return 0.0;
   }
@@ -212,7 +212,7 @@ double median(std::vector<uint64_t> values) {
   return (static_cast<double>(values[middle - 1]) + static_cast<double>(values[middle])) / 2.0;
 }
 
-double percentile(std::vector<uint64_t> values, double p) {
+double percentile(std::vector<double> values, double p) {
   if (values.empty()) {
     return 0.0;
   }

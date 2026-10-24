@@ -53,7 +53,16 @@ install(
     examples/downstream-cmake/README.md
     examples/downstream-cmake/main.cpp
     examples/downstream-cmake/exact_wide_cpu_continuation.cpp
+    examples/downstream-cmake/sparse_finite_ring.cpp
+    examples/downstream-cmake/stream_bounded_i64.cpp
+    examples/downstream-cmake/sparse_bounded_i64.cpp
+    examples/downstream-cmake/explicit_sparse_common.hpp
     examples/downstream-cmake/noninteractive_errors.hpp
   DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/downstream-cmake"
   COMPONENT Development
 )
+
+install(FILES examples/device-native/CMakeLists.txt examples/device-native/README.md
+    examples/device-native/main.cpp examples/device-native/producer_consumer.hip
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/device-native"
+  COMPONENT Development)

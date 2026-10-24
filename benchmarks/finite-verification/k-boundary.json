@@ -1,0 +1,71 @@
+{
+  "schema": "rns8_finite_verify_cases_v1",
+  "cases": [
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "verify_only",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "compute_verify",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "cpu-reference",
+      "device": -1,
+      "mode": "full_reference",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 0,
+      "challenge_seed": 0
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "verify_only",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "compute_verify",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 8,
+      "challenge_seed": 3135
+    },
+    {
+      "backend": "hip-direct",
+      "device": 0,
+      "mode": "full_reference",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "modulus": 256,
+      "trials": 0,
+      "challenge_seed": 0
+    }
+  ]
+}

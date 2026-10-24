@@ -16,35 +16,24 @@ from msvc_env import command_in_msvc_environment, find_visual_studio_installatio
 
 from .config import *
 from .system import *
+from .resolution import ACTIVE_RESOLUTION, Request, resolve_hip, resolve_vcpkg
 
 def hip_roots() -> list[Path]:
-    roots: list[Path] = []
-    for env_name in ("HIP_PATH", "ROCM_PATH"):
-        value = os.environ.get(env_name)
-        if value:
-            roots.append(Path(value))
-    roots.append(Path(r"C:\Program Files\AMD\ROCm\7.1"))
-    roots.append(Path("/opt/rocm"))
-    deduped: list[Path] = []
-    for root in roots:
-        if root not in deduped:
-            deduped.append(root)
-    return deduped
+    active = ACTIVE_RESOLUTION.get()
+    hip = active["hip"] if active else resolve_hip(Request(platform.system()), os.environ)
+    selected = hip.get("selected")
+    return [Path(selected["canonical_root"])] if selected else []
 
 
 def vcpkg_roots() -> list[Path]:
-    roots: list[Path] = []
     if platform.system() != "Windows":
-        return roots
-    root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
-    triplets = ["x64-windows", "x64-linux"]
-    env_triplet = os.environ.get("VCPKG_TARGET_TRIPLET")
-    if env_triplet and env_triplet not in triplets:
-        triplets.append(env_triplet)
-    for triplet in triplets:
-        roots.append(Path(root) / "installed" / triplet)
-        roots.append(repo_root() / "vcpkg_installed" / triplet)
-    return roots
+        return []
+    active = ACTIVE_RESOLUTION.get()
+    component = active["vcpkg"] if active else resolve_vcpkg(Request(platform.system()), os.environ)[0]
+    selected = component.get("selected")
+    if not selected: return []
+    triplet = selected["paths"]["triplet"]
+    return [Path(selected["canonical_root"]) / "installed" / triplet, repo_root() / "vcpkg_installed" / triplet]
 
 
 def repo_local_accelerator_roots(name: str) -> list[Path]:

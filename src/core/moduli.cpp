@@ -300,10 +300,13 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
   constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST;
   if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if ((desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0 &&
+      desc.semantics != RNS8_EXACT_WIDE_SIGNED && desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)
+    return RNS8_INVALID_ARGUMENT;
   const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
   const bool proven_zero_tile_skips_requested = (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
   const bool proven_zero_row_col_skips_requested =
@@ -393,7 +396,9 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
   if (desc.rows <= 0 || desc.cols <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.flags != 0) {
+  if ((desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      (desc.flags && desc.semantics != RNS8_EXACT_WIDE_SIGNED &&
+       desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind) || !known_layout(desc.logical_layout)) {

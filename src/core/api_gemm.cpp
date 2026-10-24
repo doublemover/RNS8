@@ -1,4 +1,7 @@
 #include "core/api_internal.hpp"
+#include <unordered_set>
+#include "backend_common/bilinear_resources.hpp"
+#include "backend_common/rank23_slp_resources.hpp"
 
 namespace rns8::detail::api {
 
@@ -8,6 +11,8 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
     const rns8_matrix& A,
     const rns8_prepack_cache& B,
     const rns8_matrix& C) {
+  if (A.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
+  if (&A == &C) return RNS8_INVALID_ARGUMENT;
   if (!context_accepts_backend(ctx, plan.backend) || !rocwmma_b_prepack_cache_supported(plan) ||
       !prepack_cache_matches_plan(B, plan) || B.hip_device_id != ctx.device_id ||
       B.target_id != prepack_target_id_for_context(ctx) ||
@@ -45,6 +50,7 @@ rns8_status validate_rns_gemm_prepacked_b_operands(
       !rns_residue_state_current_for_backend(A, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (!materialized_rns_prefix_covers(A, storage_prefix)) return RNS8_RANGE_ERROR;
   return RNS8_SUCCESS;
 }
 rns8_status validate_rns_gemm_operands(
@@ -52,12 +58,17 @@ rns8_status validate_rns_gemm_operands(
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C,
+    bool require_current_inputs, bool allow_pending_input_writers) {
+  if ((!allow_pending_input_writers && (A.in_flight_writer || B.in_flight_writer)) ||
+      C.in_flight_writer || C.in_flight_readers)
+    return RNS8_BUSY;
+  if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_rns_storage(plan.desc.semantics) || plan.prefix == 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
-      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend, allow_pending_input_writers) ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend, allow_pending_input_writers) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -98,15 +109,12 @@ rns8_status validate_rns_gemm_operands(
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT && plan_all_zero_output_tiles(plan)) {
     return RNS8_SUCCESS;
   }
-  if (!rns_residue_state_current_for_backend(A, plan.backend) ||
-      !rns_residue_state_current_for_backend(B, plan.backend)) {
+  if (require_current_inputs && (!rns_residue_state_current_for_backend(A, plan.backend) ||
+      !rns_residue_state_current_for_backend(B, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (rns8::detail::exact_wide_semantics(plan.desc.semantics)) {
-    if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
-    boost::multiprecision::cpp_int output_bound;
-    return rns8::detail::exact_gemm_range(plan, A, B, output_bound);
-  }
+  if (require_current_inputs && (!materialized_rns_prefix_covers(A, storage_prefix) ||
+      !materialized_rns_prefix_covers(B, storage_prefix))) return RNS8_RANGE_ERROR;
   return RNS8_SUCCESS;
 }
 
@@ -116,7 +124,9 @@ rns8_status validate_finite_gemm_operands(
     uint16_t modulus,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C, bool require_current_inputs) {
+  if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
+  if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_finite_storage(plan.desc.semantics) ||
       !rns8::detail::valid_finite_modulus_for_semantics(plan.desc.semantics, modulus) ||
       plan.desc.finite_modulus != modulus) {
@@ -147,9 +157,9 @@ rns8_status validate_finite_gemm_operands(
       !finite_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!rns_residue_state_current_for_backend(A, plan.backend) ||
+  if (require_current_inputs && (!rns_residue_state_current_for_backend(A, plan.backend) ||
       !rns_residue_state_current_for_backend(B, plan.backend) || A.finite_modulus != modulus ||
-      B.finite_modulus != modulus) {
+      B.finite_modulus != modulus)) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;
@@ -160,7 +170,10 @@ rns8_status validate_wrap_gemm_operands(
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C) {
+    const rns8_matrix& C,
+    bool require_current_inputs) {
+  if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
+  if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 || plan.prefix != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -192,8 +205,8 @@ rns8_status validate_wrap_gemm_operands(
       !wrap_matrix_storage_matches(C, plan.backend, plan.desc.m, plan.desc.n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!wrap_byte_limb_state_current_for_backend(A, plan.backend) ||
-      !wrap_byte_limb_state_current_for_backend(B, plan.backend)) {
+  if (require_current_inputs && (!wrap_byte_limb_state_current_for_backend(A, plan.backend) ||
+      !wrap_byte_limb_state_current_for_backend(B, plan.backend))) {
     return RNS8_INVALID_ARGUMENT;
   }
   return RNS8_SUCCESS;
@@ -232,9 +245,23 @@ rns8_status build_public_grouped_gemm_descriptor(
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;
     }
+    if (uses_rns_storage(plan.desc.semantics)) {
+      const auto operand_status = validate_rns_gemm_operands(ctx, plan, *task.a, *task.b, *task.c);
+      if (operand_status != RNS8_SUCCESS) return operand_status;
+    }
     internal_tasks.push_back(
         {const_cast<rns8_matrix*>(task.a), const_cast<rns8_matrix*>(task.b), task.c, task.workspace});
   }
+  std::unordered_set<const rns8_matrix*> inputs, outputs;
+  inputs.reserve(static_cast<std::size_t>(task_count) * 2);
+  outputs.reserve(task_count);
+  for (uint32_t i = 0; i < task_count; ++i) {
+    inputs.insert(tasks[i].a);
+    inputs.insert(tasks[i].b);
+    if (!outputs.insert(tasks[i].c).second) return RNS8_INVALID_ARGUMENT;
+  }
+  for (const auto* output : outputs)
+    if (inputs.count(output)) return RNS8_INVALID_ARGUMENT;
   if (plan.backend != RNS8_BACKEND_HIP_DIRECT || !direct_hip_compiled()) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
@@ -303,11 +330,7 @@ rns8_status execute_public_grouped_gemm(
       status =
           rns8::detail::exact_gemm_range(plan, *tasks[i].a, *tasks[i].b, exact_bounds[i], &exact_ranges[i]);
       if (status != RNS8_SUCCESS) return status;
-      // Parallel grouped outputs must not race with any input or other output.
-      for (uint32_t j = 0; j < task_count; ++j) {
-        if (tasks[i].c == tasks[j].a || tasks[i].c == tasks[j].b ||
-            (i != j && tasks[i].c == tasks[j].c)) return RNS8_INVALID_ARGUMENT;
-      }
+
     }
   }
 
@@ -318,7 +341,7 @@ rns8_status execute_public_grouped_gemm(
   }
   status = rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(*descriptor, resources);
   if (status == RNS8_SUCCESS) {
-    for (uint32_t i = 0; i < exact_bounds.size(); ++i) invalidate_output_currentness(*tasks[i].c);
+    for (uint32_t i = 0; i < task_count; ++i) invalidate_output_currentness(*tasks[i].c);
     status = finite_u8 ? rns8::detail::hip_direct_gemm_grouped_finite_u8_task_outputs(
                              *descriptor,
                              resources,
@@ -329,14 +352,14 @@ rns8_status execute_public_grouped_gemm(
     status = rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(*descriptor);
   }
   if (status == RNS8_SUCCESS) {
-    for (uint32_t i = 0; i < exact_bounds.size(); ++i) {
-      rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
-      tasks[i].c->source_version = gemm_output_source_version(*tasks[i].a, *tasks[i].b);
+    for (uint32_t i = 0; i < task_count; ++i) {
+      record_materialized_rns_output(*tasks[i].c, &plan);
+      if (!exact_bounds.empty()) rns8::detail::commit_exact_range(*tasks[i].c, plan, exact_bounds[i], &exact_ranges[i]);
     }
   }
   if (status != RNS8_SUCCESS) {
-    for (uint32_t i = 0; i < exact_bounds.size(); ++i) {
-      if (tasks[i].c->exact_range_prefix == 0) invalidate_output_currentness(*tasks[i].c);
+    for (uint32_t i = 0; i < task_count; ++i) {
+      invalidate_output_currentness(*tasks[i].c);
     }
   }
   const rns8_status reset_status = resources.reset();
@@ -403,6 +426,7 @@ void reset_result_cache_last_call(rns8_result_cache& cache) {
 }
 
 rns8_status free_result_cache_snapshot(rns8_result_cache& cache) {
+  cache.initialized = false;
   rns8_status status = RNS8_SUCCESS;
   if (cache.hip_snapshot_residues) {
     status = rns8::detail::hip_direct_free(cache.hip_device_id, cache.hip_snapshot_residues);
@@ -434,6 +458,9 @@ rns8_status ensure_result_cache_snapshot(rns8_context& ctx, rns8_result_cache& c
 }
 
 rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C) {
+  // Allocation or an in-place copy may fail after destroying the previous
+  // snapshot. Only bind_result_cache_after_compute can publish a new hit.
+  cache.initialized = false;
   const rns8_status status = ensure_result_cache_snapshot(ctx, cache, C.hip_residue_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -446,7 +473,8 @@ rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache&
   if (!cache.initialized || !cache.hip_snapshot_residues || cache.hip_snapshot_residue_bytes != C.hip_residue_bytes) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (rns8::detail::exact_wide_semantics(C.desc.semantics)) invalidate_output_currentness(C);
+  // A failed device copy may have partially changed C for any contract.
+  invalidate_output_currentness(C);
   const rns8_status status = rns8::detail::hip_direct_copy_device_to_device(
       ctx.device_id, C.hip_residues, cache.hip_snapshot_residues, C.hip_residue_bytes);
   if (status == RNS8_SUCCESS) {
@@ -466,6 +494,8 @@ void bind_result_cache_after_compute(
   cache.a_matrix_instance_id = A.matrix_instance_id;
   cache.b_matrix_instance_id = B.matrix_instance_id;
   cache.c_matrix_instance_id = C.matrix_instance_id;
+  cache.a_content_generation = A.content_generation;
+  cache.b_content_generation = B.content_generation;
   cache.a_source_version = A.source_version;
   cache.b_source_version = B.source_version;
   cache.c_source_version = C.source_version;
@@ -617,8 +647,7 @@ rns8_status execute_incremental_region_recompute(
     }
     cache.recomputed_cell_count += static_cast<uint64_t>(region.row_extent) * static_cast<uint64_t>(region.col_extent);
   }
-  mark_output_device_residues_current(C);
-  C.source_version = gemm_output_source_version(A, B);
+  mark_output_device_residues_current(C, &plan);
   if (finite) {
     C.finite_modulus = modulus;
   }
@@ -649,7 +678,7 @@ rns8_status execute_incremental_gemm(
   if (cache_status != RNS8_SUCCESS) {
     return cache_status;
   }
-  if (A.source_version == 0 || B.source_version == 0) {
+  if (A.source_version == 0 || B.source_version == 0 || A.generation_exhausted || B.generation_exhausted) {
     return reject_stale_result_cache(cache, "source_version_zero");
   }
   bool full_output_dirty = false;
@@ -665,7 +694,8 @@ rns8_status execute_incremental_gemm(
   if (cache.a_matrix_instance_id != A.matrix_instance_id || cache.b_matrix_instance_id != B.matrix_instance_id) {
     return reject_stale_result_cache(cache, "matrix_identity_mismatch");
   }
-  if ((cache.a_source_version != A.source_version || cache.b_source_version != B.source_version) &&
+  if ((cache.a_source_version != A.source_version || cache.b_source_version != B.source_version ||
+       cache.a_content_generation != A.content_generation || cache.b_content_generation != B.content_generation) &&
       dirty_region_count == 0) {
     return reject_stale_result_cache(cache, "source_version_mismatch_without_dirty_regions");
   }
@@ -674,8 +704,7 @@ rns8_status execute_incremental_gemm(
     if (status != RNS8_SUCCESS) {
       return status;
     }
-    mark_output_device_residues_current(C);
-    C.source_version = cache.c_source_version;
+    mark_output_device_residues_current(C, &plan);
     if (finite) {
       C.finite_modulus = modulus;
     }
@@ -724,7 +753,7 @@ rns8_status rns8_create_result_cache(
     if ((flags & kRequiredFlags) != kRequiredFlags) {
       return RNS8_INVALID_ARGUMENT;
     }
-    auto* cache = new (std::nothrow) rns8_result_cache();
+    auto cache = std::unique_ptr<rns8_result_cache>(new (std::nothrow) rns8_result_cache());
     if (!cache) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -743,7 +772,7 @@ rns8_status rns8_create_result_cache(
     cache->selected_kernel = plan->backend_selected_kernel;
     cache->hip_device_id = ctx->device_id;
     cache->detail = "explicit_result_cache_contract_v1";
-    *out = cache;
+    *out = cache.release();
     return RNS8_SUCCESS;
   });
 }
@@ -843,7 +872,7 @@ rns8_status rns8_gemm_rns(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -871,7 +900,7 @@ rns8_status rns8_gemm_rns(
     rns8_exact_matrix_ranges exact_ranges;
     const auto range_status = rns8::detail::exact_gemm_range(*plan, *A, *B, exact_bound, &exact_ranges);
     if (range_status != RNS8_SUCCESS) return range_status;
-    if (rns8::detail::exact_wide_semantics(plan->desc.semantics)) invalidate_output_currentness(*C);
+    invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
       auto* mutable_c = C;
       rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
@@ -921,14 +950,12 @@ rns8_status rns8_gemm_rns(
         return RNS8_RANGE_ERROR;
       }
       mark_output_device_native_current(*mutable_c);
-      mutable_c->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        mark_output_host_residues_current(*C);
-        C->source_version = gemm_output_source_version(*A, *B);
+        mark_output_host_residues_current(*C, plan);
         rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       }
       return status;
@@ -976,8 +1003,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
-      C->source_version = gemm_output_source_version(*A, *B);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
     }
@@ -1004,13 +1030,14 @@ rns8_status rns8_gemm_rns(
           C->desc.cols,
           plan->prefix,
           workspace,
-          A->source_version,
-          B->source_version);
+          A->generation_exhausted ? 0 : A->content_generation,
+          B->generation_exhausted ? 0 : B->content_generation,
+          A->matrix_instance_id,
+          B->matrix_instance_id);
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
-      C->source_version = gemm_output_source_version(*A, *B);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1055,8 +1082,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
-      C->source_version = gemm_output_source_version(*A, *B);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1101,8 +1127,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
-      C->source_version = gemm_output_source_version(*A, *B);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1130,8 +1155,7 @@ rns8_status rns8_gemm_rns(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
-      C->source_version = gemm_output_source_version(*A, *B);
+      mark_output_device_residues_current(*C, plan);
       rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
       return RNS8_SUCCESS;
 #else
@@ -1153,7 +1177,7 @@ rns8_status rns8_gemm_rns_incremental(
     const rns8_dirty_region* dirty_regions,
     uint32_t dirty_region_count) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace || !cache) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || !cache || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -1217,7 +1241,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -1239,8 +1263,8 @@ rns8_status rns8_gemm_rns_prepacked_b(
       exact_bound = boost::multiprecision::cpp_int(plan->desc.k) * A->exact_max_magnitude * B->exact_max_magnitude;
       if (!rns8::detail::exact_range_fits(plan->desc.semantics, exact_bound, plan->modulus_product))
         return RNS8_RANGE_ERROR;
-      invalidate_output_currentness(*C);
     }
+    invalidate_output_currentness(*C);
     const rns8_status status = rns8::detail::rocwmma_gemm_rns_prepacked_b_device(
         ctx->device_id,
         A->hip_residues,
@@ -1257,8 +1281,7 @@ rns8_status rns8_gemm_rns_prepacked_b(
     if (status != RNS8_SUCCESS) {
       return status;
     }
-    mark_output_device_residues_current(*C);
-    C->source_version = gemm_output_source_version_values(A->source_version, B->source_version);
+    mark_output_device_residues_current(*C, plan);
     rns8::detail::commit_exact_range(*C, *plan, exact_bound);
     return RNS8_SUCCESS;
   });
@@ -1287,7 +1310,7 @@ rns8_status rns8_gemm_finite_u8(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -1298,12 +1321,12 @@ rns8_status rns8_gemm_finite_u8(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
+    invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
       const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
-        mark_output_host_residues_current(*C);
+        mark_output_host_residues_current(*C, plan);
         C->finite_modulus = modulus;
-        C->source_version = gemm_output_source_version(*A, *B);
       }
       return status;
     }
@@ -1323,9 +1346,8 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
-      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
     }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
@@ -1353,9 +1375,8 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
-      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1380,9 +1401,8 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
-      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1407,9 +1427,8 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
-      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1436,9 +1455,8 @@ rns8_status rns8_gemm_finite_u8(
       if (status != RNS8_SUCCESS) {
         return status;
       }
-      mark_output_device_residues_current(*C);
+      mark_output_device_residues_current(*C, plan);
       C->finite_modulus = modulus;
-      C->source_version = gemm_output_source_version(*A, *B);
       return RNS8_SUCCESS;
 #else
       return RNS8_UNSUPPORTED_BACKEND;
@@ -1460,7 +1478,7 @@ rns8_status rns8_gemm_finite_u8_incremental(
     const rns8_dirty_region* dirty_regions,
     uint32_t dirty_region_count) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace || !cache) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || !cache || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -1494,7 +1512,7 @@ rns8_status rns8_gemm_wrap_u64(
     rns8_matrix* C,
     rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !A || !B || !C || !workspace) {
+    if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
@@ -1505,6 +1523,7 @@ rns8_status rns8_gemm_wrap_u64(
     if (operand_status != RNS8_SUCCESS) {
       return operand_status;
     }
+    invalidate_output_currentness(*C);
     if (plan->backend == RNS8_BACKEND_WRAP64_BYTE_LIMB) {
       const rns8_status status = rns8::detail::cpu_gemm_wrap_u64(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
@@ -1532,7 +1551,7 @@ rns8_status rns8_gemm_wrap_u64(
 }
 
 
-// Reserved research entrypoints. No backend implements these operations.
+// Research entrypoints with explicit per-operation support.
 
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
     rns8_context* ctx,
@@ -1548,18 +1567,72 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
   return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
 }
 
-RNS8_API rns8_status rns8_strassen_gemm_research(
+RNS8_API rns8_status rns8_gemm_bilinear_exact(
     rns8_context* ctx,
     const rns8_plan* plan,
     const rns8_matrix* A,
     const rns8_matrix* B,
     rns8_matrix* C,
+    rns8_bilinear_method method,
+    uint64_t max_scratch_bytes,
     rns8_workspace* workspace,
-    int strassen_level,
     double* out_memory_overhead_ratio) {
-  (void)ctx; (void)plan; (void)A; (void)B; (void)C; (void)workspace;
-  (void)strassen_level; (void)out_memory_overhead_ratio;
-  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+  return guard_api([&]() -> rns8_status {
+    using namespace rns8::detail;
+    if (!ctx || !plan || !A || !B || !C || !workspace || !out_memory_overhead_ratio ||
+        A == C || B == C || method<RNS8_BILINEAR_STRASSEN || method>RNS8_BILINEAR_RANK23_SLP) return RNS8_INVALID_ARGUMENT;
+    if (plan->backend != RNS8_BACKEND_HIP_DIRECT ||
+        !exact_wide_semantics(plan->desc.semantics)) return RNS8_UNSUPPORTED_BACKEND;
+    auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
+    if (status != RNS8_SUCCESS) return status;
+    status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C, true);
+    if (status != RNS8_SUCCESS) return status;
+    // Zero-output plan shortcuts do not authorize reading absent input planes.
+    if (!rns_residue_state_current_for_backend(*A, plan->backend) ||
+        !rns_residue_state_current_for_backend(*B, plan->backend)) return RNS8_INVALID_ARGUMENT;
+    if (C->generation_exhausted) return RNS8_RANGE_ERROR;
+    cpp_int bound;
+    rns8_exact_matrix_ranges ranges;
+    status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
+    if (status != RNS8_SUCCESS) return status;
+    const auto resources = method==RNS8_BILINEAR_RANK23_SLP
+        ? query_rank23_slp_resources(plan->desc.m,plan->desc.n,plan->desc.k,
+            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,max_scratch_bytes)
+        : query_bilinear_resources(plan->desc.m,plan->desc.n,plan->desc.k,
+            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,
+            method==RNS8_BILINEAR_STRASSEN?2u:3u,max_scratch_bytes);
+    if (resources.status != RNS8_SUCCESS) return resources.status;
+    bool commit_started = false;
+    struct CommitGuard {
+      rns8_matrix& output;
+      bool& started;
+      bool published = false;
+      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
+    } write{*C, commit_started};
+    const auto multiply=method==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
+        method==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:hip_direct_gemm_rank23_slp_device;
+    status = multiply(ctx->device_id, A->hip_residues, B->hip_residues,
+        C->hip_residues, plan->desc.m, plan->desc.n, plan->desc.k,
+        A->desc.cols, B->desc.cols, C->desc.cols, plan->prefix, max_scratch_bytes, commit_started);
+    if (status != RNS8_SUCCESS) return status;
+    mark_output_device_residues_current(*C, plan);
+    commit_exact_range(*C, *plan, bound, &ranges);
+    // Additional transient storage relative to the resident A+B+C residue bytes.
+    const long double resident = static_cast<long double>(resources.source_a.byte_extent) +
+        resources.source_b.byte_extent + resources.destination.byte_extent;
+    *out_memory_overhead_ratio = static_cast<double>(resources.total_bytes / resident);
+    write.published = true;
+    return RNS8_SUCCESS;
+  });
+}
+
+RNS8_API rns8_status rns8_strassen_gemm_research(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_workspace* workspace,
+    int strassen_level,double* ratio) {
+  if(!ctx || !plan || !A || !B || !C || !workspace || !ratio || A==C || B==C || strassen_level<1)
+    return RNS8_INVALID_ARGUMENT;
+  if(strassen_level!=1) return RNS8_UNSUPPORTED_BACKEND;
+  return rns8_gemm_bilinear_exact(ctx,plan,A,B,C,RNS8_BILINEAR_STRASSEN,UINT64_MAX,workspace,ratio);
 }
 
 RNS8_API rns8_status rns8_freivalds_verify(
@@ -1570,8 +1643,17 @@ RNS8_API rns8_status rns8_freivalds_verify(
     uint64_t random_seed,
     int repetition_count,
     double* out_failure_probability) {
-  (void)ctx; (void)A; (void)B; (void)C;
-  (void)random_seed; (void)repetition_count; (void)out_failure_probability;
-  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
+  if (!ctx || !A || !B || !C) return RNS8_UNSUPPORTED_BACKEND;
+  if (!out_failure_probability || repetition_count < 1) return RNS8_INVALID_ARGUMENT;
+  rns8_finite_verify_options options{};
+  options.struct_size = sizeof(options); options.abi_version = RNS8_ABI_VERSION;
+  options.repetition_count = static_cast<uint32_t>(repetition_count);
+  options.random_seed = random_seed; options.max_workspace_bytes = UINT64_MAX;
+  options.sampler = RNS8_VERIFY_SPLITMIX64_BINARY_V1;
+  rns8_finite_verify_report report{};
+  report.struct_size = sizeof(report); report.abi_version = RNS8_ABI_VERSION;
+  const auto status = rns8_verify_finite_product(ctx, A, B, C, &options, &report);
+  if (status == RNS8_SUCCESS || status == RNS8_VERIFICATION_FAILED)
+    *out_failure_probability = report.ideal_failure_probability;
+  return status;
 }
-

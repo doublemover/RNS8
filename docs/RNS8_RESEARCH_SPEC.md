@@ -1,7 +1,8 @@
-> This specification includes intended and research behavior. For the current
-> implementation and verified limits, read the [October 2026 audit](audit-2026-10-06.md)
-> and [release gates](roadmap.md). Source registration and historical completion
-> labels do not establish hardware qualification.
+> This specification owns normative architecture and research acceptance rules.
+> It includes proposals as well as implemented behavior. Current public contracts
+> live in the [API](../include/rns8/rns8.h) and [correctness guide](correctness.md);
+> [backend capabilities](backend-notes.md), [dated validation](local-all-features-20261023.md)
+> and the [roadmap](roadmap.md) identify implementation, evidence and remaining work.
 
 # RNS8 Technical Specification
 
@@ -168,7 +169,7 @@ Required for Windows GPU execution:
 - AMD HIP SDK, latest production release available for Windows.
 - HIP SDK Core, HIP Libraries development files, HIP Runtime Compiler
   development files, and AMD GPU driver.
-- Visual Studio 2022 Build Tools with MSVC C++ and Windows SDK.
+- Visual Studio 2026 Build Tools with MSVC C++ and Windows SDK.
 - CMake and Ninja.
 - Python packages: `numpy`, `pandas`, `matplotlib`, `pytest`, and `scipy`.
 
@@ -1130,14 +1131,14 @@ matrix-engine backend can claim speedup. It must not be used for exact-wide,
 finite, or wrap64 semantics; strict `mod 2^64` wraparound remains a byte-limb
 backend responsibility.
 
-Feature detection does not enable a backend. hipBLASLt is the baseline
-correctness exception only under the explicit `RNS8_ENABLE_HIPBLASLT=ON`
-build/test preset; discovery still remains candidate evidence. CK and rocWMMA
-become opt-in correctness backends only after compiled kernels, explicit
-semantic coverage, exact CPU differentials, direct-HIP differentials,
-benchmark-schema coverage, and target ISA evidence exist. Production promotion
-still requires measured performance evidence. AMDGPU builtin paths remain
-accelerator candidates until the same correctness and evidence gates exist.
+Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA and
+AMDGPU builtins are implemented public opt-in paths under their explicit build
+flags. Their target/semantic restrictions and compiled capability declarations
+are listed in [backend capabilities](backend-notes.md). The
+[October 23 Windows/gfx1100 record](local-all-features-20261023.md) identifies
+applicable exact differentials and ISA checks actually executed. Linux/Instinct
+and other architecture families still require their own qualification. Production
+promotion additionally requires matched reviewed performance evidence.
 CK integration patches to pinned repo-local CK headers must be deterministic,
 exact-match guarded at configure time, emitted as build-tree include overlays,
 and tracked as source dependencies for the compiled HIP object they affect. If
@@ -1480,6 +1481,16 @@ directly; reviewed same-contract reports are the promotion boundary.
 The reviewed-cache installer must reject stale or non-reviewed destination
 entries during normal merges and require an explicit replacement operation
 before discarding them.
+
+Runtime cache admission rejects duplicate JSON members/entry keys, fractional
+or out-of-range integer metadata, malformed records, and negative/non-finite
+timings. Reviewed AUTO candidates additionally require a positive end-to-end
+median and unambiguous plan-key fields. Failed reads expose no partial entries.
+The C++ cache writer serializes and checks a uniquely staged sibling file before
+atomically replacing the destination; failed writes preserve the prior file.
+It refuses to overwrite an unreadable or unsupported-schema cache. This is
+failure-safe single-writer persistence, not concurrent read-modify-write merging
+or a power-loss durability guarantee. These checks do not qualify performance.
 
 Benchmark outputs include:
 
@@ -1938,7 +1949,7 @@ Exit gate:
 
 - GEMMul8: https://github.com/RIKEN-RCCS/GEMMul8
 - ozIMMU: https://github.com/enp1s0/ozIMMU
-- OzBLAS: https://github.com/RIKEN-RCCS/ozblas
+- OzBLAS: https://www.r-ccs.riken.jp/labs/lpnctrt/projects/ozblas/
 - GRNS: https://github.com/kisupov/grns
 - MPRES-BLAS: https://github.com/kisupov/mpres-blas
 - FFLAS-FFPACK: https://linbox-team.github.io/fflas-ffpack/
@@ -2001,3 +2012,48 @@ portable CPU and direct HIP paths first, then earn production status per target
 family by amortizing packing, fusing reduction, and selecting the fastest
 available AMD matrix-engine backend on that OS and GPU.
 ```
+
+### Strict wrap64 signed compute view
+
+Canonical persistent wrap64 storage retains unsigned byte semantics. A private
+carry-recoded signed radix256 compute view is permitted when its ring identity
+and exact per-pair accumulator bound are certified. Version 1 computes
+`(x + 0x8080808080808080) ^ 0x8080808080808080` with unsigned 64-bit wrapping,
+then feeds its signed bytes to 36 low-product WMMA pairs. Each pair is folded
+into a uint64 ring accumulator before combining diagonals; negative signed
+shifts and unchecked INT32 diagonal fusion are forbidden. This view establishes
+no bounded/exact-wide CRT proof and changes no public storage contract.
+The current private RDNA3 implementation uses a 16-term zero-initialized MMA
+per pair and includes a matched native unsigned IU8 control. See
+[the candidate contract](wrap64-signed-radix.md). Both remain unqualified;
+existing wrap64 shipping and evidence gates still apply.
+
+### Word-size modular baseline (source implementation, pending qualification)
+
+The private [word-modular research path](word-modular-research.md) has explicit
+ring/prime-field semantics, canonical uint64 storage, overflow-safe CPU/HIP
+double/add arithmetic and an exact host decomposition-bound planner. It does
+not extend finite-u8 storage. An explicit scalar binary64 asymmetric schedule
+now recomputes an exact host coefficient bound before launch; matrix-instruction
+lowering remains separate and all device qualification is pending.
+Full-width Boost differential fixtures are authored for the final campaign.
+
+### Native HIP interoperability (source implementation, pending qualification)
+
+The initial [native device lease interface](native-device-interop.md) admits
+synchronous borrowed i64/u64 views for direct-HIP import and staged native
+export. Typed spans, owner callbacks, conservative unique-range proof and
+failed-drain quarantine are explicit. It reuses existing pack/CRT kernels,
+transfers no host payload, and does not imply prepared async or DLPack support.
+
+
+### Reusable explicit split-K ownership (pending qualification)
+
+The public direct-HIP residue split-K owner retains generation-bound exact-wide
+inputs and a reusable canonical-byte partial/merge arena. The final range proof
+is separate from fragment accumulator safety: every fragment obeys the 65536
+product cap regardless of cancellation in the complete result, and each merge
+reduces before global storage. Failed work cannot publish an eligible output;
+uncertain device completion retains reservations and scratch for cleanup retry.
+See [split-K ownership](native-split-k.md). This does not promote split-K into
+AUTO or imply that the private native matrix-engine route shares this owner.

@@ -12,7 +12,7 @@ Active and partially advanced work remains in
 performance claims still live in [performance-wins.md](performance-wins.md),
 [reviewed-local-evidence.md](reviewed-local-evidence.md),
 [roadmap-status.md](roadmap-status.md), and the README
-[current local performance snapshot](../../README.md#exactness-and-performance).
+[current measurement methodology](../performance.md#measurement-contract).
 
 ## Completed And Closed Ranks
 

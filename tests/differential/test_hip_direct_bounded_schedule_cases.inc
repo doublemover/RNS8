@@ -211,8 +211,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   compare_outputs();
   const uint64_t first_output_version = c_matrix->source_version;
   CHECK(first_output_version != 0);
-  CHECK(first_output_version != a_matrix->source_version);
-  CHECK(first_output_version != b_matrix->source_version);
+  CHECK(first_output_version == c_matrix->content_generation);
+  CHECK_FALSE(c_matrix->imported_source);
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
@@ -488,8 +488,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   compare_outputs();
   const uint64_t first_output_version = c_matrix->source_version;
   CHECK(first_output_version != 0);
-  CHECK(first_output_version != a_matrix->source_version);
-  CHECK(first_output_version != b_matrix->source_version);
+  CHECK(first_output_version == c_matrix->content_generation);
+  CHECK_FALSE(c_matrix->imported_source);
 
   const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);

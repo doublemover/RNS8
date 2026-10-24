@@ -646,6 +646,10 @@ rns8_gemm_desc gemm_desc(
   desc.max_prefix = benchmark_prefix(args);
   desc.tile_m = args.tile_m;
   desc.tile_n = args.tile_n;
+  if (args.exact_scalar_first) {
+    if (!exact_wide_benchmark_semantics(args.semantics)) usage_error("scalar-first proof requires exact-wide semantics");
+    desc.flags |= RNS8_PLAN_EXACT_SCALAR_FIRST;
+  }
   if (fixed_requested_prefix_policy(args) &&
       (bounded_benchmark_semantics(args.semantics) || exact_wide_benchmark_semantics(args.semantics))) {
     desc.flags |= RNS8_PLAN_FORCE_FIXED_PREFIX;

@@ -35,6 +35,9 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     list(GET _RNS8_ROCWMMA_TARGETS 0 _RNS8_ROCWMMA_TARGET)
   endif()
 
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    set(RNS8_ROCWMMA_HIPCC "${RNS8_HIP_HIPCC}" CACHE FILEPATH "Shared selected HIP compiler" FORCE)
+  endif()
   find_program(
     RNS8_ROCWMMA_HIPCC
     NAMES hipcc hipcc.exe hipcc.bat
@@ -48,7 +51,8 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     set(_RNS8_ROCWMMA_PROBE_BINARY "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_probe${CMAKE_EXECUTABLE_SUFFIX}")
     file(
       WRITE "${_RNS8_ROCWMMA_PROBE_SOURCE}"
-      "#include <rocwmma/rocwmma.hpp>\n"
+      "#include <chrono>\n"
+      "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_headers.hpp\"\n"
       "__global__ void rns8_rocwmma_dependency_probe_kernel() {}\n"
       "int main() { return 0; }\n"
     )
@@ -79,9 +83,11 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     else()
       set(_RNS8_ROCWMMA_PRIMITIVE_OBJECT "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_primitive_probe.o")
     endif()
-    file(WRITE "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}" [=[
+    file(WRITE "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}"
+      "#include <chrono>\n"
+      "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_headers.hpp\"\n")
+    file(APPEND "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}" [=[
 #include <cstdint>
-#include <rocwmma/rocwmma.hpp>
 
 extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
     const int8_t* a, const int8_t* b, int32_t* c) {

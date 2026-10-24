@@ -167,6 +167,12 @@ Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental
 output reuse keeps the existing exact identity and dirty-output-region contract.
+Resident result-cache snapshot preparation invalidates cache eligibility before
+allocation or copying; only a completed compute/snapshot/binding publishes a
+new hit. Cache restore invalidates all output representations before device
+copying for bounded, finite and exact-wide contracts. A failed restore therefore
+cannot expose a partly copied result as current. These are fail-closed state
+transitions, not a promise to preserve device bytes after a hardware failure.
 Sparse raw-plane packing interprets the supplied residues as canonical unsigned
 or centered signed integers and records those magnitudes; it cannot recover an
 integer value that was already aliased before the caller supplied the residues.
@@ -219,9 +225,10 @@ Public C++ enums have fixed uint32 backing so malformed C/FFI values can be
 validated without an invalid-enum load. C clients must use the normal 32-bit
 enum ABI, not `-fshort-enums`.
 
-Unsupported contracts/targets return explicit errors. Ozaki/FP8, INT4/IU4,
-Strassen, and Freivalds execution are unimplemented; reserved research APIs
-return `RNS8_UNSUPPORTED_BACKEND`. Deterministic exact APIs do not use
+Unsupported contracts/targets return explicit errors. Public Ozaki/FP8, INT4/IU4
+and Freivalds execution remain unsupported. The opt-in one-level Strassen owner
+uses ordinary exact range admission and staged publication; public export fixtures
+await the consolidated validation campaign. Deterministic exact APIs do not use
 probabilistic verification as a substitute for reconstruction correctness.
 
 ## Test map
@@ -249,3 +256,35 @@ carry checks.
 Run the [qualification guide](gpu-qualification.md) on each actual target.
 CPU success, schema-valid fixtures, compiled kernel metadata, and skipped tests
 are not GPU correctness evidence.
+
+## Resident value publication
+
+Every resident GEMM rejects output/input handle aliases before materialization or
+writes. A shared A/B handle is valid with a distinct C. Grouped outputs must be
+distinct and disjoint from every task's inputs. Preflight rejection preserves
+old outputs. Once execution begins, failure may invalidate every output domain;
+export and downstream arithmetic require a successful recompute or repack.
+
+Caller import versions remain scoped to imported sources. Internally, matrices
+also carry an engine-owned content generation, advanced on successful value
+writes and used by result/prepack cache keys. Generated source_version reports
+that generation, not a hash of caller versions. Recomputing an identical value
+may advance it; materialization/lifting preserves it. Generation exhaustion
+permanently disables reuse for that handle instead of wrapping. Generated output
+cannot accidentally satisfy the unchanged-import optimization.
+
+The benchmark's arbitrary-width importer now uses the core checked importer:
+it decodes logical cells, rebuilds global/axis/moment proofs, checks strict CRT
+capacity, and publishes residues and proof together. Padding is excluded. Prior
+independent exact-wide export/repack chain captures require rerunning before
+comparison or promotion; no historical numerical damage is inferred.
+
+`RNS8_PLAN_EXACT_SCALAR_FIRST` explicitly trades propagated proof tightness for
+host admission cost. It first checks K times the input magnitude envelopes and
+skips per-cell moments only if that bound strictly fits the current CRT range.
+Otherwise it performs full refinement before rejecting. Successful scalar
+admission discards axis summaries, so later chains may reject sooner. The default
+remains eager and preserves existing tight-chain admissibility. This policy has
+no retained proof DAG, borrowed matrix references or hidden cache, and its plan
+fingerprint/selection key is distinct. GPU event timers do not measure its host
+proof cost; compare host helper/public-call timing separately.

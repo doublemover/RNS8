@@ -31,6 +31,7 @@ DEFAULT_MODULI = [
     211,
     199,
     197,
+    193,
     191,
     181,
     179,
@@ -44,7 +45,6 @@ DEFAULT_MODULI = [
     137,
     131,
     127,
-    113,
 ]
 HOT_REDUCER_MODULI = {251, 253, 255, 256}
 DEFAULT_REQUIRED_BITS = {

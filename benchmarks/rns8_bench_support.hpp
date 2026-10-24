@@ -9,7 +9,21 @@
 
 namespace rns8::bench {
 
-uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end);
+template <typename Rep, typename Period>
+constexpr double duration_us(std::chrono::duration<Rep, Period> duration) {
+  return std::chrono::duration<double, std::micro>(duration).count();
+}
+
+inline double elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
+  return duration_us(end - start);
+}
+
+struct HostClockCalibration {
+  double pair_median_us;
+  double pair_p95_us;
+  double censor_threshold_us;
+};
+const HostClockCalibration& host_clock_calibration();
 
 [[noreturn]] void usage_error(const std::string& message);
 

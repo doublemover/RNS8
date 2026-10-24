@@ -1,141 +1,147 @@
-# Linux ROCm Platform Notes
+# Native Linux ROCm setup
 
-Linux ROCm remains the production, profiling, multi-GPU, and Instinct
-validation path. The scaffold keeps Linux ROCm presets and toolchain variables
-represented, but Windows validation does not validate Linux ROCm, Instinct
-CDNA, profiling, power, or cluster production gates.
+Use native Linux packages and a supported GPU/OS/ROCm pairing. Common dependencies
+and their sources are in the [dependency guide](../third_party/README.md).
+The [readiness reference](platform-readiness.md) records the difference between
+source coverage and actual device evidence. Linux CPU CI runs are recorded
+separately from Linux GPU qualification, which remains open.
 
-`tools/check_dependencies.py` reports Linux readiness separately from Windows
-readiness. On non-Linux hosts, `E003` Linux ROCm detection and the Linux platform
-matrix gates are reported as not applicable rather than as Windows blockers.
-On Linux, `hipcc`, `hipconfig`, `rocminfo`, and either `rocm-smi` or `amd-smi`
-are treated as the ROCm capability-inspection command set.
-`rocprofv3` and `rocprofv3-avail` are required for the counter/resource audit
-lane, but not for a basic build-only smoke. `numactl` and `lstopo` provide
-topology evidence. RCCL and `rccl-tests` are future multi-GPU platform
-readiness signals; the current multi-GPU smoke runs independent per-GPU
-benchmark shards and does not use collectives.
-The JSON readiness report also carries `exact_wide_platform_validation` so
-Windows `gfx1100` exact-wide limb evidence remains separate from Linux ROCm,
-Radeon Linux, and Instinct CDNA validation. Those fields stay unvalidated until
-the exact CPU differential suite is run on real supported Linux ROCm hardware.
-In particular, Windows reports keep `windows_evidence_validates_linux_rocm` and
-`windows_evidence_validates_instinct` false; Linux and Instinct fields are
-validation claims only after a real Linux ROCm host runs the relevant parity
-suite.
-The same report carries `readiness.correctness_backend_validation`, which
-records that dependency discovery does not validate CPU, direct-HIP, wrap64, or
-accelerator correctness backends. Its Linux/Instinct records are representation
-and readiness metadata on Windows, not validation evidence.
+## Prerequisites
 
-Expected Linux configure path:
+Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
+[version policy](dependency-versions.md). Their upgrade qualification remains
+pending; the user has deferred the separate ROCm10.1 migration.
 
-```bash
-cmake --preset linux-cpu-debug
-cmake --build --preset linux-cpu-debug
-ctest --preset linux-cpu-debug --output-on-failure
+Check AMD's [release-specific GPU and OS matrix](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/reference/system-requirements.html),
+then follow its [Linux driver/runtime/development installation instructions](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/install/install-methods/package-manager/package-manager-ubuntu.html)
+for your distribution. Radeon graphics workloads also need the matching
+[Radeon guidance](https://rocm.docs.amd.com/projects/radeon/en/latest/).
+Install the HIP development compiler/headers/libraries as well as a compatible
+driver. Profilers and distributed libraries are separate optional components.
 
-cmake --preset linux-rocm-debug
-cmake --build --preset linux-debug
-ctest --preset linux-debug --output-on-failure
+Install native CMake, Ninja, C++17 compiler, Git, Python, Boost headers and
+nlohmann-json; Catch2 3.x is needed when building tests. Ubuntu's package names
+for the non-GPU development dependencies are:
+
+```sh
+sudo apt install cmake ninja-build g++ git python3 libboost-dev nlohmann-json3-dev catch2
 ```
 
-For Ubuntu 24.04 hosts with AMD ROCm package repositories already configured,
-the intended native-package install surface is:
+This is an explicit package installation, not a configure prerequisite check.
+Verify the distribution's Catch2 version; a 2.x package does not satisfy the
+project. Use `CMAKE_PREFIX_PATH` for a separately installed native dependency.
+Keep Windows vcpkg roots and triplets out of Linux/WSL search paths; CMake rejects
+them. The [dependency guide](../third_party/README.md) owns current constraints.
 
-```bash
-sudo apt install cmake ninja-build g++ python3 python3-venv python3-pip catch2 nlohmann-json3-dev libboost-all-dev rocm rocm-hip-sdk rocm-developer-tools rocminfo rocm-smi-lib amd-smi-lib rocprofiler-sdk rocprofiler-compute rocm-bandwidth-test rccl-dev rocwmma-dev hipblaslt-dev composablekernel-dev
+Inspect installed tools before configuration:
+
+```sh
+python3 tools/check_dependencies.py
 ```
 
-AMD's relevant readiness surfaces are the ROCm package-manager install flow,
-HIP visibility variables, `rocprofv3`/`rocprofv3-avail`, AMD SMI,
-hipBLASLt/rocWMMA native packages, and RCCL/`rccl-tests`:
-[ROCm Ubuntu install](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/install/install-methods/package-manager/package-manager-ubuntu.html),
-[HIP env vars](https://rocmdocs.amd.com/projects/HIP/en/latest/reference/env_variables.html),
-[rocprofv3](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/develop/how-to/using-rocprofv3.html),
-[rocprofv3-avail](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/develop/how-to/using-rocprofv3-avail.html),
-[AMD SMI](https://rocmdocs.amd.com/projects/amdsmi/en/latest/install/install.html), and
-[RCCL](https://rocm.docs.amd.com/projects/rccl/en/latest/).
+The checker reports `hipcc`, `hipconfig`, `rocminfo`, `rocm-smi`/`amd-smi` and
+optional profiling/topology tools. Discovery is not a correctness test.
+`rocprofv3`/`rocprofv3-avail` are needed for counter/resource qualification,
+not a basic compile. `numactl` and `lstopo` help record topology. RCCL readiness
+is relevant to future distributed paths; today's shard smoke has no collectives.
 
-Linux presets use system packages and native CMake package discovery only.
-Install native Linux development packages for dependencies such as Catch2,
-nlohmann-json, Boost headers, and optional GMP/FLINT references, or point
-`CMAKE_PREFIX_PATH` at native Linux installs. Do not point Linux/WSL
-configures at Windows vcpkg roots such as `/mnt/c/vcpkg`, and do not use a
-Windows vcpkg triplet; CMake fails at configure time if those paths enter the
-Linux prefix or include search.
+## Radeon build and first execution
 
-Clean CDNA real-host presets avoid repo-local generated accelerator dependency
-roots and target the supported CDNA families directly:
+Choose the actual ROCm root and one target supported by that compiler/device.
+For an RX 7900 XTX, the target is `gfx1100`:
 
-```bash
-cmake --preset linux-cdna-debug
-cmake --build --preset linux-cdna-debug
-ctest --preset linux-cdna-debug --output-on-failure
+```sh
+rns8_rocm_root=/opt/rocm
+cmake --preset linux-rocm-debug "-DRNS8_HIP_ROOT=$rns8_rocm_root" -DRNS8_AMDGPU_TARGETS=gfx1100
+cmake --build --preset linux-debug --parallel 4
+./build/linux-rocm-debug/rns8-bench --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
 ```
 
-The one-command first-pass path captures the host environment and topology
-before any benchmark evidence:
+Set `rns8_rocm_root` to a nondefault installation if needed, including a path
+with spaces. The preset retains its target policy while the shared pre-project
+[selection contract](dependency-discovery.md) resolves SDK locations. Explicit
+roots, environment/prefix sources and bounded native installations are ranked;
+multiple equally eligible SDKs require a choice. For a configured tree use
+`python3 tools/check_dependencies.py --resolve-only --json --cmake-cache
+build/linux-rocm-debug/CMakeCache.txt` to inspect the same selected context.
+Actual native-Linux fresh-prefix execution and broader API/ABI/probe acceptance
+remain gaps under[#57](https://github.com/doublemover/RNS8/issues/57).
 
-```bash
-bash scripts/cdna_first_pass.sh --out-dir temp/cdna-first-pass-real
+## Instinct build
+
+The CDNA preset keeps native package discovery and empty workstation dependency
+roots. Select the target for the actual device; this example is MI300X/MI325X:
+
+```sh
+rns8_rocm_root=/opt/rocm
+cmake --preset linux-cdna-debug "-DRNS8_HIP_ROOT=$rns8_rocm_root" -DRNS8_AMDGPU_TARGETS=gfx942
+cmake --build --preset linux-cdna-debug --parallel 4
+./build/linux-cdna-debug/rns8-bench --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
 ```
 
-Optional CDNA follow-up scenario groups can be queued after the first smoke
-without making them default smoke blockers. The current CDNA-prep closeout
-groups are `wrap64-carry`, `k-block-tile-variants`, `layout-search`,
-`finite-distributions`, and `vector-to-rns-chain`:
+MI210/MI250(X) use `gfx90a`; MI350X/MI355X use `gfx950`, subject to the selected
+release's GPU/OS/compiler support. These Linux GPU commands are statically
+checked instructions, unexecuted on the Windows development host. Device
+validation is requested per SKU, OS and backend.
 
-```bash
-bash scripts/cdna_first_pass.sh \
-  --out-dir temp/cdna-first-pass-rank-followup \
-  --rank-scenarios wrap64-carry,k-block-tile-variants,layout-search,finite-distributions,vector-to-rns-chain
+## Optional backends and profiling
+
+Enable hipBLASLt, CK, rocWMMA or AMDGPU builtins explicitly with the switches in
+[backend capabilities](backend-notes.md). Linux integration exists; supported
+hardware and compatible packages must still execute the differentials.
+`linux-cdna-accelerators-release` enables all four and discovery probes for a
+real Instinct host. Override its `RNS8_HIP_ROOT` and `RNS8_AMDGPU_TARGETS` as needed.
+Native package discovery remains active; optional `RNS8_CK_ROOT` and
+`RNS8_ROCWMMA_ROOT` select explicit compatible header installations.
+
+Discovery-only probes are separate:
+
+```sh
+python3 tools/check_dependencies.py --accelerator-probes --json
+cmake --preset linux-rocm-accelerator-probe -DRNS8_HIP_ROOT=/opt/rocm -DRNS8_AMDGPU_TARGETS=gfx942
 ```
 
-For an independent per-GPU shard smoke on an eight-GPU host:
+Probe artifacts stay under ignored output directories. Probe presets keep
+backend enable flags disabled; explicitly enabled backends compile real kernels
+and retain target restrictions. See [qualification](gpu-qualification.md) for
+correctness/ISA checks and [performance](performance.md) for recorded comparisons.
+
+## Existing bounded host scripts
+
+The CDNA entrypoints use the existing
+[qualification runner](gpu-qualification.md#native-linux-session-receipts).
+They default to plan-only and require a target plus explicit unmasked parent
+HIP runtime ordinals. No missing-device or architecture fallback is permitted.
+The same shared dependency resolver supplies configure bindings; the scripts do
+not install packages or dump the complete process environment.
 
 ```bash
-bash scripts/cdna_multigpu_smoke.sh --devices 0,1,2,3,4,5,6,7 --out-dir temp/cdna-multigpu-smoke-real
+bash scripts/cdna_first_pass.sh --target mi300x --devices 0 \
+  --set RNS8_HIP_ROOT=/opt/rocm --out-dir temp/cdna-first-pass-plan
+bash scripts/cdna_multigpu_smoke.sh --target mi300x --devices 4,7 \
+  --set RNS8_HIP_ROOT=/opt/rocm --out-dir temp/cdna-selected-lanes-plan
 ```
 
-The scripts always run `scripts/cdna_env_probe.sh` first and write raw logs plus
-`cdna-env-summary.json`. The summary records `HIP_VISIBLE_DEVICES`,
-`ROCR_VISIBLE_DEVICES`, `GPU_DEVICE_ORDINAL`, `ROCM_PATH`, `HIP_PATH`,
-`LD_LIBRARY_PATH`, rocminfo `gfx*` targets, SMI device names, ROCm/HIP versions,
-visible and node GPU counts, a `physical_devices` array keyed by physical GPU
-index with target arch/name/BDF/NUMA/visibility metadata where discoverable,
-`rocprofv3` readiness, RCCL readiness, and `rccl-tests` readiness.
+Review `manifest.json`, `dependency-resolution.json` and the allowlisted
+environment receipt before adding `--execute` on the actual host. Select
+`--total-seconds`, `--timeout-seconds`, `--jobs` and `--min-free-gib` for that
+allocation. `--accelerators` explicitly selects optional backend lanes.
+Inherited visibility masks and diagnostic HSA overrides block execution; a
+scheduler's device namespace requires explicit integration rather than guessing
+or blindly clearing its mask. Logical device 0 is used only inside the child
+isolated from an explicitly selected parent ordinal.
 
-The multi-GPU smoke remains embarrassingly parallel: one process per physical
-device with `ROCR_VISIBLE_DEVICES=<physical_id>` and mirrored
-`HIP_VISIBLE_DEVICES=<physical_id>`. `scripts/cdna_multigpu_smoke.sh` writes
-per-shard captures under `shards/gpu*/` and then runs
-`tools/multigpu_shard_report.py`; the report lists rank, world size, physical
-device id, target arch, device name, BDF, NUMA node, schema status, checksum,
-timing outliers, missing shards, profiler readiness, and RCCL/`rccl-tests`
-readiness. Partial lists such as `--devices 4,5,6,7` are recorded by physical
-device id, not by rank position.
+Multiple lanes run sequentially as independent processes within the bounded
+session. Their runtime ordinals are not physical SMI indices; PCI/UUID/NUMA
+correlation remains unknown. No distributed GEMM, RCCL collective, scaling
+qualification or profiler readiness is implied. Arbitrary benchmark/rank strings
+and reuse of unrelated build trees were removed from this bounded path.
+Run separately reviewed follow-up campaigns after smoke.
 
-Raw `rns8-bench` captures also record optional `RNS8_MULTI_GPU_MODE`,
-`RNS8_RANK`, and `RNS8_WORLD_SIZE` runtime environment fields when a shard
-launcher sets them. The `target-status.json` sidecar remains the richer source
-for BDF, NUMA, profiler, RCCL, and physical-device topology.
-
-`scripts/cdna_smoke.sh` is the minimal single-device smoke wrapper:
-
-```bash
-bash scripts/cdna_smoke.sh --devices 0 --out-dir temp/cdna-smoke-real
-```
-
-Every CDNA script supports `--out-dir`, `--preset`, `--devices`,
-`--bench-args`, `--skip-build`, and `--dry-run`. `--accelerators` selects the
-clean `linux-cdna-accelerators-release` preset unless `--preset` is supplied.
-That preset enables `RNS8_PROBE_ACCELERATORS`, hipBLASLt, CK, and rocWMMA for a
-real Instinct host with `RNS8_ENABLE_AMDGPU_BUILTINS=ON`,
-`RNS8_HIP_ROOT=/opt/rocm`, `RNS8_AMDGPU_TARGETS=gfx942`, and no
-Windows vcpkg or local workstation paths. It is a configure/build surface only;
-CDNA performance readiness still requires target-validation and release-review
-captures.
+These source changes and no-GPU fixtures await the consolidated validation run.
+Native Linux rehearsal, scheduler integration, physical topology, profiler/ISA
+collection and real Instinct execution remain explicit
+[#58](https://github.com/doublemover/RNS8/issues/58) acceptance gaps.
 
 GCC may emit fortified `memcpy` warnings from Boost.Multiprecision `cpp_int`
 internals on some optimization levels. Treat those as non-blocking compiler
@@ -153,45 +159,24 @@ The Linux preset keeps two target lists separate:
   `gfx1030`, `gfx1100`, `gfx1200`, `gfx1201`, `gfx90a`, `gfx942`, and
   `gfx950`. It does not add compiler offload architectures by itself.
 
-Linux-specific accelerator paths are intentionally not required for core
-correctness:
 
-- hipBLASLt INT8 GEMM remains a later feature-detected backend.
-- CK grouped/fused kernels remain a later feature-detected backend.
-- rocWMMA and AMDGPU builtins remain target-specific hot paths.
+GCC can emit Boost.Multiprecision fortified `memcpy` warnings. Investigate any
+project-owned callsite, and isolate compiler/library noise rather than globally
+weakening diagnostics.
 
-The checker and CMake find modules report hipBLASLt, CK, and rocWMMA discovery
-as candidate evidence only. The hipBLASLt shallow probe looks for headers,
-libraries, and the optional `hipblaslt-bench` utility; CK and rocWMMA shallow
-probes look for their headers. AMDGPU builtin readiness has no shallow
-discovery-only pass; it remains not ready until target-specific exact kernels
-exist. Optional compiled evidence can be requested with:
+## WSL
 
-```bash
-python tools/check_dependencies.py --accelerator-probes --json
-cmake --preset linux-rocm-accelerator-probe
-```
+Treat WSL as its own driver/runtime environment. Follow
+[AMD's WSL support instructions](https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-radeon.html)
+for a listed GPU and release. Native Windows HIP execution does not establish
+WSL support, and native Linux presets do not validate WSL's GPU stack. Keep all
+Linux dependencies native to WSL and use a separate build tree; Windows vcpkg
+paths remain invalid. No RNS8 WSL GPU validation is recorded.
 
-Component probes write scratch evidence under `temp/` or configure an
-evidence-only CMake preset. AMDGPU builtin probes report
-`NOT_RUN_NO_CORRECTNESS_KERNEL` until a real target-specific exact kernel
-exists. They keep `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
-`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS` disabled. Linux
-production readiness still requires target-supported components, compiled
-capability probes, exact CPU differential coverage, and measured performance
-before enabling advanced backend stages. AMDGPU builtin hot kernels follow the
-same rule: compiler or architecture availability is only candidate evidence
-until a target-specific kernel has exact CPU differential coverage.
-Checker records mark this as
-`evidence_class=candidate_accelerator_evidence_only` and
-`candidate_evidence_is_correctness_validation=false`.
-The same hard-cut enable policy is covered by CTest configure-negative cases:
-each accelerator enable flag must fail while only evidence probes exist.
+## Developer checks
 
-Before claiming Linux production readiness, run direct HIP parity tests on the
-target ROCm release and actual supported Radeon or Instinct hardware. Until
-that happens, the Linux and Instinct entries are represented roadmap targets,
-not validated substitutes for the Windows `gfx1100` direct HIP evidence.
-Exact-wide signed/unsigned limb export must be validated on the same real Linux
-host before claiming Linux or Instinct parity; Windows fixed-width limb ABI
-evidence is not portable validation evidence.
+[Contributing](../CONTRIBUTING.md) owns CPU reference and sanitizer workflows,
+CTest, package installation and downstream-consumer commands. The
+[hardware qualification guide](gpu-qualification.md) owns GPU acceptance. Avoid
+using a fresh configure, discovered library or source target as evidence of a
+passed device test.

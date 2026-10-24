@@ -1,3 +1,4 @@
+  std::cout << "  \"exact_proof_policy\": \"" << (args.exact_scalar_first ? "scalar_first_v1" : "eager_moments_v1") << "\",\n";
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
@@ -217,6 +218,9 @@
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  std::cout << "  \"build_manifest\": " << RNS8_BUILD_MANIFEST_JSON << ",\n";
+#endif
   std::cout << "  \"compiler\": {\n";
   std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";

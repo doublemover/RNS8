@@ -45,6 +45,8 @@ def find_visual_studio_installation() -> Path | None:
             [
                 str(vswhere),
                 "-latest",
+                "-version",
+                "[18.0,19.0)",
                 "-products",
                 "*",
                 "-requires",
@@ -59,10 +61,10 @@ def find_visual_studio_installation() -> Path | None:
                 return path
 
     for path in [
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Professional"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Enterprise"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\Community"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\BuildTools"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\Professional"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\Enterprise"),
     ]:
         if path.exists():
             return path

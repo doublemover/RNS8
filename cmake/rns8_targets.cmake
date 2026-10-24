@@ -1,4 +1,5 @@
 function(rns8_configure_library target_name)
+  rns8_bind_manifest(${target_name})
   target_compile_features(${target_name} PUBLIC cxx_std_17)
   target_include_directories(
     ${target_name}
@@ -169,6 +170,37 @@ if(RNS8_BUILD_BENCHMARKS)
     list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
+  add_executable(rns8-crt-calibrate benchmarks/rns8_crt_calibrate.cpp)
+  add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
+  add_executable(rns8-finite-verify-calibrate benchmarks/rns8_finite_verify_calibrate.cpp)
+  add_executable(rns8-block-sparse-calibrate benchmarks/rns8_block_sparse_calibrate.cpp)
+  add_executable(rns8-wrap64-calibrate benchmarks/rns8_wrap64_calibrate.cpp)
+  add_executable(rns8-word-mod-calibrate benchmarks/rns8_word_mod_calibrate.cpp)
+  add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
+  add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
+  add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
+  add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
+  foreach(_calibrator IN ITEMS
+      rns8-crt-calibrate
+      rns8-native-calibrate
+      rns8-finite-verify-calibrate
+      rns8-block-sparse-calibrate
+      rns8-wrap64-calibrate
+      rns8-word-mod-calibrate
+      rns8-instruction-roof-calibrate
+      rns8-split-k-calibrate
+      rns8-ragged-calibrate
+      rns8-stream-panel-calibrate)
+    rns8_bind_manifest(${_calibrator})
+    target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
+    target_link_libraries(${_calibrator} PRIVATE rns8_static nlohmann_json::nlohmann_json)
+    rns8_copy_windows_clang_asan_runtime(${_calibrator})
+    if(RNS8_ENABLE_HIP)
+      target_include_directories(${_calibrator} PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
+      target_compile_definitions(${_calibrator} PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+    endif()
+  endforeach()
+  rns8_bind_manifest(rns8-bench)
   target_compile_definitions(
     rns8-bench
     PRIVATE

@@ -4,6 +4,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!plan_schedule_contract_matches(*plan)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -210,6 +211,7 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
 }
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {
+  if (workspace && workspace->prepared_references) return RNS8_BUSY;
   if (workspace) {
     const rns8_status status = release_workspace_resources(*workspace);
     delete workspace;

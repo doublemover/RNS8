@@ -209,7 +209,7 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"resident_lifetime\": {\n";
   std::cout << "    \"enabled\": " << (residency ? "true" : "false") << ",\n";
   std::cout << "    \"matrix_roles\": \"" << (residency ? "A/B/C explicit benchmark resident roles" : "transient") << "\",\n";
-  std::cout << "    \"source_version_policy\": \"monotonic_per_import_pack_or_gemm_output_hash\",\n";
+  std::cout << "    \"source_version_policy\": \"matrix_instance_plus_monotonic_content_generation\",\n";
   std::cout << "    \"current_storage_state\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
   std::cout << "    \"output_domain\": \"" << json_escape(output_domain_contract_name(args)) << "\",\n";
   std::cout << "    \"contract_api\": \"rns8_get_resident_lifetime_info\",\n";

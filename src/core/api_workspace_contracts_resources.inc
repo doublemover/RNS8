@@ -14,6 +14,8 @@ void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context
 }
 
 void initialize_workspace_schedule_contract(rns8_workspace& workspace, const rns8_plan& plan) {
+  workspace.validated_plan_contract = plan.validated_contract;
+  workspace.equivalent_plan_contract.reset();
   workspace.schedule_tile_rows = plan.schedule_tile_rows;
   workspace.schedule_tile_cols = plan.schedule_tile_cols;
   workspace.schedule_tile_count = plan.schedule_tile_count;
@@ -50,6 +52,8 @@ bool workspace_identity_matches_plan(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (ctx.hip_failure_poisoned) return false;
+  if (workspace.in_flight) return false;
   if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
     return false;
   }
@@ -67,6 +71,17 @@ bool workspace_identity_matches_plan(
 }
 
 bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+  if (plan.validated_contract && workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.equivalent_plan_contract) {
+    ++plan_validation_work.equivalent_comparisons;
+    // The hash is only a rejection filter. Admit a distinct plan by complete
+    // canonical structural equality, then retain its immutable identity.
+    if (plan.validated_contract->fingerprint != workspace.validated_plan_contract->fingerprint ||
+        plan.validated_contract->canonical_workspace_key !=
+            workspace.validated_plan_contract->canonical_workspace_key) return false;
+    workspace.equivalent_plan_contract = plan.validated_contract;
+  }
   return workspace.bound == plan.desc.bound &&
          workspace.finite_modulus == plan.desc.finite_modulus &&
          workspace.tile_m == plan.desc.tile_m &&
@@ -153,7 +168,8 @@ void reset_workspace_active_schedule_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_a_prepack_current = false;
-  workspace.hipblaslt_a_prepack_source_version = 0;
+  workspace.hipblaslt_a_prepack_generation = 0;
+  workspace.hipblaslt_a_prepack_instance_id = 0;
   workspace.hipblaslt_a_prepack_m = 0;
   workspace.hipblaslt_a_prepack_k = 0;
   workspace.hipblaslt_a_prepack_lda = 0;
@@ -163,7 +179,8 @@ void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_b_prepack_current = false;
-  workspace.hipblaslt_b_prepack_source_version = 0;
+  workspace.hipblaslt_b_prepack_generation = 0;
+  workspace.hipblaslt_b_prepack_instance_id = 0;
   workspace.hipblaslt_b_prepack_k = 0;
   workspace.hipblaslt_b_prepack_n = 0;
   workspace.hipblaslt_b_prepack_ldb = 0;
@@ -223,6 +240,7 @@ rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (workspace.in_flight) return RNS8_BUSY;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }

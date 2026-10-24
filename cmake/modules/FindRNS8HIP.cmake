@@ -2,42 +2,11 @@ include(FindPackageHandleStandardArgs)
 
 set(RNS8_HIP_CMAKE_MODULE "${CMAKE_CURRENT_LIST_FILE}")
 
-set(_RNS8_HIP_HINTS)
-if(RNS8_HIP_ROOT)
-  list(APPEND _RNS8_HIP_HINTS "${RNS8_HIP_ROOT}")
+if(NOT RNS8_DISCOVERY_IDENTITY_SHA256)
+  message(FATAL_ERROR "FindRNS8HIP requires the shared pre-project cmake/rns8_discovery.cmake selection; it cannot independently mix PATH headers/libraries/toolchains")
 endif()
-if(DEFINED ENV{HIP_PATH})
-  list(APPEND _RNS8_HIP_HINTS "$ENV{HIP_PATH}")
-endif()
-if(DEFINED ENV{ROCM_PATH})
-  list(APPEND _RNS8_HIP_HINTS "$ENV{ROCM_PATH}")
-endif()
-if(WIN32)
-  list(APPEND _RNS8_HIP_HINTS "C:/Program Files/AMD/ROCm/7.1" "C:/Program Files/AMD/ROCm/6.4")
-else()
-  list(APPEND _RNS8_HIP_HINTS "/opt/rocm")
-endif()
-
-find_program(
-  RNS8_HIP_HIPCC
-  NAMES hipcc hipcc.bat hipcc.exe
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES bin
-)
-
-find_path(
-  RNS8_HIP_INCLUDE_DIR
-  NAMES hip/hip_runtime_api.h
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES include
-)
-
-find_library(
-  RNS8_HIP_LIBRARY
-  NAMES amdhip64
-  HINTS ${_RNS8_HIP_HINTS}
-  PATH_SUFFIXES lib lib64 bin
-)
+# Compiler/include/link/runtime/device-library cache bindings come from one
+# shared SDK selection. No independent find_* fallback is permitted here.
 
 find_package_handle_standard_args(
   RNS8HIP
@@ -50,6 +19,33 @@ if(RNS8HIP_FOUND)
   rns8_assert_no_linux_windows_vcpkg_paths("hipcc executable" "${RNS8_HIP_HIPCC}")
   set(RNS8_HIP_INCLUDE_DIRS "${RNS8_HIP_INCLUDE_DIR}")
   set(RNS8_HIP_LIBRARIES "${RNS8_HIP_LIBRARY}")
+endif()
+
+# LLVM llvm-project#201563 fixes MSVC 14.51 constexpr math declarations colliding
+# with HIP's late device declarations. Backport only that include-order change
+# into the build tree for older SDK wrappers; never modify the installed SDK.
+set(RNS8_HIP_STL_OVERLAY "")
+if(RNS8HIP_FOUND AND WIN32 AND MSVC_VERSION GREATER_EQUAL 1951)
+  get_filename_component(_hip_bin "${RNS8_HIP_HIPCC}" DIRECTORY)
+  execute_process(COMMAND "${RNS8_HIP_CLANG}" -print-resource-dir
+    OUTPUT_VARIABLE _hip_resource OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE _hip_resource_status)
+  if(_hip_resource_status EQUAL 0)
+    set(_wrapper "${_hip_resource}/include/__clang_hip_runtime_wrapper.h")
+    if(EXISTS "${_wrapper}")
+      file(READ "${_wrapper}" _wrapper_text)
+      string(FIND "${_wrapper_text}" "#include <cmath>" _cmath_position)
+      string(FIND "${_wrapper_text}" "#include <__clang_cuda_math_forward_declares.h>" _forward_position)
+      if(_cmath_position GREATER_EQUAL 0 AND _forward_position GREATER _cmath_position)
+        string(REPLACE "#include <__clang_cuda_math_forward_declares.h>" "" _wrapper_text "${_wrapper_text}")
+        string(REPLACE "#include <cmath>" "#include <__clang_cuda_math_forward_declares.h>\n#include <cmath>" _wrapper_text "${_wrapper_text}")
+        set(RNS8_HIP_STL_OVERLAY "${CMAKE_CURRENT_BINARY_DIR}/hip-stl-overlay")
+        file(MAKE_DIRECTORY "${RNS8_HIP_STL_OVERLAY}")
+        file(CONFIGURE OUTPUT "${RNS8_HIP_STL_OVERLAY}/__clang_hip_runtime_wrapper.h" CONTENT "${_wrapper_text}" @ONLY)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_wrapper}")
+        message(STATUS "HIP/MSVC 14.51: applying LLVM #201563 include-order fix in build-local wrapper")
+      endif()
+    endif()
+  endif()
 endif()
 
 function(rns8_compile_hip_source out_var source)
@@ -83,6 +79,11 @@ function(rns8_compile_hip_source out_var source)
   endif()
 
   set(_include_args)
+  set(_compat_dependencies)
+  if(RNS8_HIP_STL_OVERLAY)
+    list(APPEND _include_args "-I${RNS8_HIP_STL_OVERLAY}")
+    list(APPEND _compat_dependencies "${RNS8_HIP_STL_OVERLAY}/__clang_hip_runtime_wrapper.h")
+  endif()
   foreach(_include_dir IN LISTS RNS8_HIP_SOURCE_INCLUDE_DIRS)
     if(_include_dir)
       list(APPEND _include_args "-I${_include_dir}")
@@ -90,6 +91,9 @@ function(rns8_compile_hip_source out_var source)
   endforeach()
 
   set(_source_compile_options)
+  if(RNS8_EXPERIMENTAL_GARNER_TABLE)
+    list(APPEND _source_compile_options "-DRNS8_EXPERIMENTAL_GARNER_TABLE=1")
+  endif()
   foreach(_option IN LISTS RNS8_HIP_SOURCE_COMPILE_OPTIONS)
     if(_option)
       list(APPEND _source_compile_options "${_option}")
@@ -100,18 +104,21 @@ function(rns8_compile_hip_source out_var source)
     OUTPUT "${_object}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/hip"
     COMMAND
+      "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
       "${RNS8_HIP_HIPCC}"
       ${_arch_args}
       ${_host_runtime_args}
       ${_pic_args}
+      -include "${RNS8_MANIFEST_HEADER}"
       -std=c++17
       -O2
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/src"
       ${_include_args}
       ${_source_compile_options}
       -c "${_source_abs}"
       -o "${_object}"
-    DEPENDS "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS}
+    DEPENDS rns8_build_manifest "${RNS8_MANIFEST_HEADER}" "${_source_abs}" "${RNS8_HIP_CMAKE_MODULE}" ${RNS8_HIP_SOURCE_DEPENDS} ${_compat_dependencies}
     VERBATIM
     COMMENT "Compiling HIP source ${_source_name} with explicit hipcc integration"
   )

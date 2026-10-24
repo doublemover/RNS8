@@ -188,13 +188,13 @@ hipError_t copy_compact_matrix_device_to_host_direct(
     std::size_t cell_bytes) {
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   if (dst_ld == cols) {
-    return hipMemcpy(
+    return tracked_sync_copy(
         dst,
         src,
         static_cast<std::size_t>(rows) * compact_row_bytes,
         hipMemcpyDeviceToHost);
   }
-  return hipMemcpy2D(
+  return tracked_sync_copy_2d(
       dst,
       static_cast<std::size_t>(dst_ld) * cell_bytes,
       src,
@@ -224,7 +224,7 @@ hipError_t copy_compact_matrix_device_to_host(
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
     if (pinned) {
       hipError_t err = timed_hip_operation(label, [&]() {
-        return hipMemcpy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
+        return tracked_sync_copy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
       });
       if (err != hipSuccess) {
         return err;
@@ -294,6 +294,8 @@ rns8_status validate_grouped_rns_matrices(
     if (require_current && !matrix->device_residues_current) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (require_current && !api::materialized_rns_prefix_covers(*matrix, matrix->prefix))
+      return RNS8_RANGE_ERROR;
     if (index == 0) {
       device_id = matrix->hip_device_id;
       prefix = matrix->prefix;

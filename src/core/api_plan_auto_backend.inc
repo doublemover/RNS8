@@ -1,4 +1,5 @@
 void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
+  plan.validated_contract.reset();
   rns8_backend_capability_info capability{};
   capability.struct_size = sizeof(capability);
   capability.abi_version = RNS8_ABI_VERSION;
@@ -42,8 +43,9 @@ bool prepare_auto_candidate_backend(rns8_context& ctx, rns8_backend_kind backend
   capability.struct_size = sizeof(capability);
   capability.abi_version = RNS8_ABI_VERSION;
   fill_backend_capability_info(backend, capability);
-  if (!capability.is_available || !capability.compiled_kernel_available ||
-      !capability.exact_differential_validated) {
+  // Inventory carries no validation receipt. The exact-match reviewed cache
+  // below supplies scoped evidence after the backend has been probed.
+  if (!capability.is_available || !capability.compiled_kernel_available) {
     return false;
   }
 

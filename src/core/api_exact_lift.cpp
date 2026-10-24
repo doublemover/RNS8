@@ -104,7 +104,9 @@ bool add_staged_payload(std::size_t bytes, uint64_t& total) {
 rns8_status rns8_lift_exact_wide_cpu(rns8_context* ctx, rns8_matrix* matrix, uint32_t target_prefix,
                                      uint64_t max_staged_residue_bytes) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !matrix) return RNS8_INVALID_ARGUMENT;
+    require_matrix_writable(*matrix);
     ExactCpuLift lift;
     auto status = prepare_exact_cpu_lift(*ctx, *matrix, target_prefix, lift);
     if (status != RNS8_SUCCESS) return status;
@@ -120,6 +122,7 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
                                           rns8_matrix* B, rns8_matrix* C, rns8_workspace* workspace,
                                           uint64_t max_staged_residue_bytes, uint32_t* out_selected_prefix) {
   return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!ctx || !plan || !A || !B || !C || !workspace || !out_selected_prefix || A == C || B == C) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -187,19 +190,63 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
                                              plan->desc.k, A->desc.cols, B->desc.cols, C->desc.cols,
                                              rns8::detail::kDefaultModuli[p], row_accumulator);
     }
-    const uint64_t output_version = gemm_output_source_version(*A, *B);
     // All allocation, validation and arithmetic precede the first resident
     // write. No staging buffer is swapped into a matrix's storage allocation.
     commit_exact_cpu_lift(*A, a_lift);
     if (A != B) commit_exact_cpu_lift(*B, b_lift);
     std::copy(output.begin(), output.end(), C->residues.begin());
     mark_output_host_residues_current(*C);
-    C->source_version = output_version;
     C->exact_max_magnitude.swap(output_bound);
     C->exact_axis_ranges.rows.swap(output_ranges.rows);
     C->exact_axis_ranges.cols.swap(output_ranges.cols);
     C->exact_range_prefix = selected;
     *out_selected_prefix = selected;
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uint32_t target_prefix,
+                                   uint64_t max_staged_residue_bytes) {
+  return guard_api([&]() -> rns8_status {
+    if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if (!ctx || !matrix || ctx->backend != matrix->backend) return RNS8_INVALID_ARGUMENT;
+    require_matrix_writable(*matrix);
+    if (ctx->backend != RNS8_BACKEND_HIP_DIRECT) return RNS8_UNSUPPORTED_BACKEND;
+    if (!rns8::detail::exact_wide_semantics(matrix->desc.semantics) || target_prefix == 0 ||
+        target_prefix > matrix->prefix || target_prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+        matrix->hip_device_id != ctx->device_id ||
+        rns8::detail::validate_matrix_desc(matrix->desc, matrix->prefix) != RNS8_SUCCESS ||
+        !rns_matrix_storage_matches(*matrix, ctx->backend, matrix->desc.rows, matrix->desc.cols, matrix->prefix) ||
+        !matrix->device_residues_current) return RNS8_INVALID_ARGUMENT;
+    const uint32_t source_prefix = matrix->exact_range_prefix;
+    if (!source_prefix || source_prefix > matrix->prefix ||
+        !rns8::detail::exact_range_fits(matrix->desc.semantics, matrix->exact_max_magnitude,
+                                      rns8::detail::modulus_product(source_prefix))) return RNS8_RANGE_ERROR;
+    if (target_prefix <= source_prefix) return RNS8_SUCCESS;
+    std::size_t cells = 0;
+    if (!matrix_cell_count(matrix->desc.rows, matrix->desc.cols, cells) || cells > INT64_MAX)
+      return RNS8_RANGE_ERROR;
+    const auto support = rns8::detail::query_exact_lift_support(
+        static_cast<int64_t>(cells),source_prefix,target_prefix,max_staged_residue_bytes);
+    if (support.status != RNS8_SUCCESS) return support.status;
+    uint64_t bound[3]{};
+    auto remaining = matrix->exact_max_magnitude;
+    for (auto& limb : bound) {
+      limb = static_cast<uint64_t>(remaining & UINT64_MAX);
+      remaining >>= 64;
+    }
+    if (remaining != 0) return RNS8_RANGE_ERROR;
+    bool commit_started = false;
+    const auto status = rns8::detail::hip_direct_lift_exact_suffix(
+        ctx->device_id, matrix->hip_residues, static_cast<int64_t>(cells), source_prefix,
+        target_prefix, matrix->desc.semantics == RNS8_EXACT_WIDE_SIGNED, bound, commit_started);
+    if (status != RNS8_SUCCESS) {
+      if (commit_started) invalidate_output_currentness(*matrix);
+      return status;
+    }
+    matrix->exact_range_prefix = target_prefix;
+    matrix->host_residues_current = false;
+    // This is a new materialization of the same value, not a logical mutation.
     return RNS8_SUCCESS;
   });
 }

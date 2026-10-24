@@ -98,6 +98,10 @@ rns8_status validate_finite_u8_oneshot_contract(
       !valid_matrix_access(desc.m, desc.n, ldc)) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if (ctx.backend != RNS8_BACKEND_CPU_REFERENCE && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+      !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
   const rns8_backend_kind requested = effective_backend(desc.requested_backend, ctx.backend);
   if (requested != ctx.backend || !finite_backend_supports(requested)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -280,7 +284,7 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -344,7 +348,7 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -397,7 +401,7 @@ rns8_status direct_hip_finite_u8_native_oneshot(
         modulus);
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     state.C->finite_modulus = modulus;
     status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   }
@@ -457,6 +461,10 @@ rns8_status validate_typed_oneshot_contract(
   if (!valid_matrix_access(desc.m, desc.k, lda) || !valid_matrix_access(desc.k, desc.n, ldb) ||
       !valid_matrix_access(desc.m, desc.n, ldc)) {
     return RNS8_INVALID_ARGUMENT;
+  }
+  if (ctx.backend != RNS8_BACKEND_CPU_REFERENCE && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+      !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
   }
   const rns8_backend_kind requested = effective_backend(desc.requested_backend, ctx.backend);
   if (requested != ctx.backend || !backend_supports_semantics(requested, desc.semantics)) {

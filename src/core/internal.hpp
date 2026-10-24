@@ -1,25 +1,44 @@
 #ifndef RNS8_CORE_INTERNAL_HPP
 #define RNS8_CORE_INTERNAL_HPP
 
+#include "backend_common/address_domain.hpp"
+
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "rns8/rns8.h"
 
 struct rns8_context {
+  // Intrusive ownership requires no allocation while recovering construction failure.
+  rns8_matrix* failed_matrix_cleanup = nullptr;
+  rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
+  rns8_native_device_lease* failed_native_cleanup = nullptr;
+  mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;
+  bool hip_failure_poisoned = false;
   int device_id = -1;
   rns8_device_info device_info{};
   void* hipblaslt_handle = nullptr;
   std::string hipblaslt_library_version;
 };
 
+// Created only after exhaustive construction validation. Public plans have no
+// mutation API. Internal diagnostic mutation must first discard this seal.
+struct rns8_validated_plan_contract {
+  uint64_t fingerprint = 0;
+  std::vector<uint64_t> canonical_workspace_key;
+  uint64_t active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+};
+
 struct rns8_plan {
+  std::shared_ptr<const rns8_validated_plan_contract> validated_contract;
+  mutable uint64_t prepared_references = 0;
   rns8_gemm_desc desc{};
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   boost::multiprecision::cpp_int modulus_product = 0;
@@ -90,16 +109,31 @@ struct rns8_exact_matrix_ranges {
 };
 
 struct rns8_matrix {
+  rns8_matrix* failed_cleanup_next = nullptr;
+  mutable uint64_t prepared_references = 0;
+  mutable uint64_t in_flight_readers = 0;
+  bool in_flight_writer = false;
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
   uint32_t prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   uint16_t finite_modulus = 0;
   uint64_t source_version = 0;
+  // Engine-owned, monotonic within this stable handle; saturation disables reuse.
+  uint64_t content_generation = 0;
+  bool generation_exhausted = false;
+  bool imported_source = false;
+
   // Proof for public exact-wide pack/GEMM chains. Zero prefix means unknown.
   boost::multiprecision::cpp_int exact_max_magnitude = 0;
   uint32_t exact_range_prefix = 0;
   rns8_exact_matrix_ranges exact_axis_ranges;
+
+  // Plane availability is independent of the exact-wide magnitude proof and
+  // allocated capacity. Adaptive bounded outputs retain their immutable write
+  // contract so matching tiled exports can use nonuniform written prefixes.
+  uint32_t materialized_rns_prefix = 0;
+  std::shared_ptr<const rns8_validated_plan_contract> materialized_rns_schedule;
 
   std::vector<int8_t> residues;
   std::vector<uint8_t> byte_limbs;
@@ -164,6 +198,10 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  std::shared_ptr<const rns8_validated_plan_contract> validated_plan_contract;
+  mutable std::shared_ptr<const rns8_validated_plan_contract> equivalent_plan_contract;
+  mutable uint64_t prepared_references = 0;
+  bool in_flight = false;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_bound_kind bound_kind = RNS8_BOUND_NONE;
@@ -231,7 +269,8 @@ struct rns8_workspace {
   std::size_t hipblaslt_workspace_bytes = 0;
   void* hipblaslt_a_prepack_cache = nullptr;
   std::size_t hipblaslt_a_prepack_cache_bytes = 0;
-  uint64_t hipblaslt_a_prepack_source_version = 0;
+  uint64_t hipblaslt_a_prepack_generation = 0;
+  uint64_t hipblaslt_a_prepack_instance_id = 0;
   int64_t hipblaslt_a_prepack_m = 0;
   int64_t hipblaslt_a_prepack_k = 0;
   int64_t hipblaslt_a_prepack_lda = 0;
@@ -240,7 +279,8 @@ struct rns8_workspace {
   bool hipblaslt_a_prepack_current = false;
   void* hipblaslt_b_prepack_cache = nullptr;
   std::size_t hipblaslt_b_prepack_cache_bytes = 0;
-  uint64_t hipblaslt_b_prepack_source_version = 0;
+  uint64_t hipblaslt_b_prepack_generation = 0;
+  uint64_t hipblaslt_b_prepack_instance_id = 0;
   int64_t hipblaslt_b_prepack_k = 0;
   int64_t hipblaslt_b_prepack_n = 0;
   int64_t hipblaslt_b_prepack_ldb = 0;
@@ -311,6 +351,8 @@ struct rns8_result_cache {
   uint64_t a_matrix_instance_id = 0;
   uint64_t b_matrix_instance_id = 0;
   uint64_t c_matrix_instance_id = 0;
+  uint64_t a_content_generation = 0;
+  uint64_t b_content_generation = 0;
   uint64_t a_source_version = 0;
   uint64_t b_source_version = 0;
   uint64_t c_source_version = 0;

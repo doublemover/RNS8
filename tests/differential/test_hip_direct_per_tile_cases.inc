@@ -77,6 +77,8 @@ TEST_CASE("direct HIP private tiled bounded wrappers reject malformed selected-p
   REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
 
+  hip_c->residues.resize(hip_c->hip_residue_bytes);
+
   std::fill(hip_c->residues.begin(), hip_c->residues.end(), residue_sentinel);
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
               hip->device_id, hip_c->hip_residues, hip_c->residues.data(), hip_c->hip_residue_bytes) ==
@@ -238,6 +240,8 @@ TEST_CASE("direct HIP per-tile bounded GEMM leaves skipped residue planes untouc
   CHECK(hip_workspace->hip_workspace_arena_suballocation_count >= 2);
   CHECK(hip_workspace->hip_workspace_arena_target_id == std::string(hip_plan->backend_target_id));
   CHECK(hip_workspace->hip_workspace_arena_policy == "direct_hip_workspace_owned_suballocation_v1");
+
+  hip_c->residues.resize(hip_c->hip_residue_bytes);
 
   std::fill(hip_c->residues.begin(), hip_c->residues.end(), sentinel);
   REQUIRE(rns8::detail::hip_direct_copy_host_to_device(

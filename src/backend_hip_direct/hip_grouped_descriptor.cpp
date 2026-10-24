@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <utility>
+#include <unordered_set>
 
 namespace rns8::detail {
 namespace {
@@ -69,35 +70,14 @@ bool workspace_matches_plan(const rns8_plan& plan, const rns8_workspace& workspa
          workspace.backend_performance_validated == plan.backend_performance_validated;
 }
 
-bool task_triplet_owns_distinct_objects(const hip_direct_grouped_gemm_task& task) {
-  return task.a != task.b && task.a != task.c && task.b != task.c;
-}
-
-bool task_reuses_prior_objects(
-    const hip_direct_grouped_gemm_descriptor& descriptor,
-    uint32_t task_index) {
-  const hip_direct_grouped_gemm_task& task = descriptor.tasks[task_index];
-  for (uint32_t prior_index = 0; prior_index < task_index; ++prior_index) {
-    const hip_direct_grouped_gemm_task& prior = descriptor.tasks[prior_index];
-    if (task.a == prior.a || task.b == prior.b || task.c == prior.c ||
-        task.workspace == prior.workspace) {
-      return true;
-    }
+bool grouped_pack_inputs_are_distinct(const hip_direct_grouped_gemm_descriptor& descriptor) {
+  std::unordered_set<const rns8_matrix*> inputs;
+  inputs.reserve(static_cast<std::size_t>(descriptor.task_count) * 2);
+  for (uint32_t i=0; i<descriptor.task_count; ++i) {
+    if (!inputs.insert(descriptor.tasks[i].a).second ||
+        !inputs.insert(descriptor.tasks[i].b).second) return false;
   }
-  return false;
-}
-
-bool task_reuses_objects_from_descriptor(
-    const hip_direct_grouped_gemm_task& task,
-    const hip_direct_grouped_gemm_descriptor& prior_descriptor) {
-  for (uint32_t prior_index = 0; prior_index < prior_descriptor.task_count; ++prior_index) {
-    const hip_direct_grouped_gemm_task& prior = prior_descriptor.tasks[prior_index];
-    if (task.a == prior.a || task.b == prior.b || task.c == prior.c ||
-        task.workspace == prior.workspace) {
-      return true;
-    }
-  }
-  return false;
+  return true;
 }
 
 bool plans_share_grouped_bucket_contract(const rns8_plan& first, const rns8_plan& next) {
@@ -302,6 +282,8 @@ rns8_status hip_direct_build_bucketed_grouped_gemm_plan(
   int64_t first_n = 0;
   int64_t first_k = 0;
 
+  std::unordered_set<const rns8_matrix*> bucket_inputs, bucket_outputs;
+  std::unordered_set<const rns8_workspace*> bucket_workspaces;
   for (uint32_t request_index = 0; request_index < request_count; ++request_index) {
     const hip_direct_grouped_gemm_bucket_request& request = requests[request_index];
     if (!request.plan || !request.tasks || request.task_count <= 1 ||
@@ -345,11 +327,10 @@ rns8_status hip_direct_build_bucketed_grouped_gemm_plan(
 
     for (uint32_t task_index = 0; task_index < bucket.descriptor.task_count; ++task_index) {
       const hip_direct_grouped_gemm_task& task = bucket.descriptor.tasks[task_index];
-      for (const hip_direct_grouped_gemm_bucket& prior_bucket : next.buckets) {
-        if (task_reuses_objects_from_descriptor(task, prior_bucket.descriptor)) {
-          return RNS8_INVALID_ARGUMENT;
-        }
-      }
+      if (bucket_outputs.count(task.a) || bucket_outputs.count(task.b) ||
+          bucket_inputs.count(task.c) || !bucket_outputs.insert(task.c).second ||
+          !bucket_workspaces.insert(task.workspace).second) return RNS8_INVALID_ARGUMENT;
+      bucket_inputs.insert(task.a); bucket_inputs.insert(task.b);
     }
 
     if (request.task_offset != next.task_count) {
@@ -485,17 +466,21 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
   }
 
   int device_id = -1;
+  std::unordered_set<const rns8_matrix*> inputs, outputs;
+  std::unordered_set<const rns8_workspace*> workspaces;
+  inputs.reserve(static_cast<std::size_t>(descriptor.task_count)*2);
+  outputs.reserve(descriptor.task_count); workspaces.reserve(descriptor.task_count);
   for (uint32_t index = 0; index < descriptor.task_count; ++index) {
     const hip_direct_grouped_gemm_task& task = descriptor.tasks[index];
     if (!task.a || !task.b || !task.c || !task.workspace ||
-        !task_triplet_owns_distinct_objects(task) ||
-        task_reuses_prior_objects(descriptor, index) ||
+        !outputs.insert(task.c).second || !workspaces.insert(task.workspace).second ||
         !matrix_matches_descriptor(task.a, descriptor.semantics, descriptor.m, descriptor.k, descriptor.prefix) ||
         !matrix_matches_descriptor(task.b, descriptor.semantics, descriptor.k, descriptor.n, descriptor.prefix) ||
         !matrix_matches_descriptor(task.c, descriptor.semantics, descriptor.m, descriptor.n, descriptor.prefix) ||
         !workspace_matches_plan(*descriptor.plan, *task.workspace)) {
       return RNS8_INVALID_ARGUMENT;
     }
+    inputs.insert(task.a); inputs.insert(task.b);
     if (task.a->hip_device_id != task.b->hip_device_id || task.a->hip_device_id != task.c->hip_device_id ||
         task.workspace->hip_device_id != task.a->hip_device_id) {
       return RNS8_INVALID_ARGUMENT;
@@ -507,6 +492,8 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_setup(
     }
   }
 
+  for (const auto* output : outputs)
+    if (inputs.count(output)) return RNS8_INVALID_ARGUMENT;
   if (out_device_id) {
     *out_device_id = device_id;
   }
@@ -641,6 +628,7 @@ rns8_status hip_direct_pack_grouped_i64_task_inputs(
   if (status != RNS8_SUCCESS) {
     return status;
   }
+  if (!grouped_pack_inputs_are_distinct(descriptor)) return RNS8_INVALID_ARGUMENT;
   status = hip_direct_pack_i64_grouped_matrices_device(
       device_id,
       a_slab,
@@ -691,6 +679,7 @@ rns8_status hip_direct_pack_grouped_u64_task_inputs(
   if (status != RNS8_SUCCESS) {
     return status;
   }
+  if (!grouped_pack_inputs_are_distinct(descriptor)) return RNS8_INVALID_ARGUMENT;
   status = hip_direct_pack_u64_grouped_matrices_device(
       device_id,
       a_slab,
@@ -742,6 +731,7 @@ rns8_status hip_direct_pack_grouped_finite_u8_task_inputs(
   if (status != RNS8_SUCCESS) {
     return status;
   }
+  if (!grouped_pack_inputs_are_distinct(descriptor)) return RNS8_INVALID_ARGUMENT;
   status = hip_direct_pack_finite_u8_grouped_matrices_device(
       device_id,
       a_slab,
@@ -1117,20 +1107,13 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
     return status;
   }
 
-  const bool bounded_output =
-      descriptor.semantics == RNS8_BOUNDED_I64 || descriptor.semantics == RNS8_BOUNDED_U64;
   for (uint32_t index = 0; index < descriptor.task_count; ++index) {
     const hip_direct_grouped_gemm_task& task = descriptor.tasks[index];
-    if (!task.c->device_residues_current) {
+    if (!task.c->device_residues_current || task.c->imported_source ||
+        task.c->source_version != (task.c->generation_exhausted ? 0 : task.c->content_generation)) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (bounded_output) {
-      const uint64_t expected_source_version =
-          api::gemm_output_source_version_values(task.a->source_version, task.b->source_version);
-      if (task.c->source_version != expected_source_version) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-    }
+
   }
   return RNS8_SUCCESS;
 }

@@ -306,6 +306,8 @@ Args parse_args(int argc, char** argv) {
       args.tile_shape_variant = argv[++i];
     } else if (arg == "--export-variant" && i + 1 < argc) {
       args.export_variant = argv[++i];
+    } else if (arg == "--exact-proof-scalar-first") {
+      args.exact_scalar_first = true;
     } else if (arg == "--reconstruction-variant" && i + 1 < argc) {
       args.reconstruction_variant = argv[++i];
     } else if (arg == "--grouped-dispatch" && i + 1 < argc) {
@@ -386,6 +388,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
+          << "                  [--exact-proof-scalar-first]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--residue-chain-final-export]\n"
           << "                  [--residue-chain-independent-final-export]\n"
@@ -664,8 +667,8 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_independent_final_export && args.residue_chain_length <= 1) {
     usage_error("--residue-chain-independent-final-export requires --residue-chain-length > 1");
   }
-  if (args.host_api_batch_size == 0) {
-    usage_error("--host-api-batch-size must be positive");
+  if (args.host_api_batch_size == 0 || args.host_api_batch_size > 4096) {
+    usage_error("--host-api-batch-size must be in [1, 4096]");
   }
   if (args.grouped_dispatch_tasks == 0) {
     usage_error("--grouped-dispatch must be positive");

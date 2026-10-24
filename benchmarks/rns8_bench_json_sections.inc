@@ -146,6 +146,12 @@ void print_counter_object(const rns8::detail::hip_direct_allocation_counters& co
             << "\"allocate_calls\": " << counters.allocate_calls << ", "
             << "\"free_calls\": " << counters.free_calls << ", "
             << "\"allocated_bytes\": " << counters.allocated_bytes
+            << ", \"h2d_calls\": " << counters.h2d_calls
+            << ", \"h2d_bytes\": " << counters.h2d_bytes
+            << ", \"d2h_calls\": " << counters.d2h_calls
+            << ", \"d2h_bytes\": " << counters.d2h_bytes
+            << ", \"d2d_calls\": " << counters.d2d_calls
+            << ", \"d2d_bytes\": " << counters.d2d_bytes
             << "}";
 }
 
@@ -156,6 +162,12 @@ rns8::detail::hip_direct_allocation_counters allocation_delta(
   delta.allocate_calls = after.allocate_calls >= before.allocate_calls ? after.allocate_calls - before.allocate_calls : 0;
   delta.free_calls = after.free_calls >= before.free_calls ? after.free_calls - before.free_calls : 0;
   delta.allocated_bytes = after.allocated_bytes >= before.allocated_bytes ? after.allocated_bytes - before.allocated_bytes : 0;
+  delta.h2d_calls = after.h2d_calls >= before.h2d_calls ? after.h2d_calls - before.h2d_calls : 0;
+  delta.h2d_bytes = after.h2d_bytes >= before.h2d_bytes ? after.h2d_bytes - before.h2d_bytes : 0;
+  delta.d2h_calls = after.d2h_calls >= before.d2h_calls ? after.d2h_calls - before.d2h_calls : 0;
+  delta.d2h_bytes = after.d2h_bytes >= before.d2h_bytes ? after.d2h_bytes - before.d2h_bytes : 0;
+  delta.d2d_calls = after.d2d_calls >= before.d2d_calls ? after.d2d_calls - before.d2d_calls : 0;
+  delta.d2d_bytes = after.d2d_bytes >= before.d2d_bytes ? after.d2d_bytes - before.d2d_bytes : 0;
   return delta;
 }
 
@@ -197,6 +209,7 @@ void print_device_allocation_json(const Args& args, const BenchmarkResult& resul
   std::cout << "  \"device_allocation\": {\n";
   std::cout << "    \"tracking_available\": " << (result.allocation_tracking_available ? "true" : "false") << ",\n";
   std::cout << "    \"source\": \"hip_direct_allocation_counters_snapshot\",\n";
+  std::cout << "    \"transfer_scope\": \"direct_backend_successful_synchronous_api_payload\",\n";
   std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
   std::cout << "    \"source_version_inputs\": \"monotonic_source_version_per_repeat_when_packing_runs\",\n";
   std::cout << "    \"before\": ";

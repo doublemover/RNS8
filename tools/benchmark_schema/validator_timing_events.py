@@ -41,6 +41,26 @@ class ValidatorTimingEventsMixin:
     def _validate_raw_timings(self) -> dict[str, list[float]]:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
+        metadata = self.data.get("timing_metadata") or {}
+        contract_version = metadata.get("host_timing_contract_version", 1)
+        fractional = contract_version == 2
+        if contract_version not in (1, 2):
+            self._error("unsupported host timing contract version")
+        if fractional:
+            for field in ("clock_period_numerator", "clock_period_denominator", "timer_overhead_samples"):
+                if not _is_int(metadata.get(field)) or metadata[field] <= 0:
+                    self._error(f"timing_metadata.{field} must be a positive integer")
+            for field in ("timer_pair_median_us", "timer_pair_p95_us", "censor_threshold_us"):
+                if not _is_number(metadata.get(field)) or metadata[field] < 0:
+                    self._error(f"timing_metadata.{field} must be finite and nonnegative")
+            states = metadata.get("phase_states")
+            if not isinstance(states, dict):
+                self._error("fractional host timings require phase_states")
+            else:
+                for phase in ("planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"):
+                    if states.get(phase) not in {"measured", "elided", "fused", "unsupported", "below_resolution"}:
+                        self._error(f"invalid host phase state for {phase}")
+
         result: dict[str, list[float]] = {}
         if not isinstance(raw, dict) or not _is_int(repeats):
             return result
@@ -54,8 +74,8 @@ class ValidatorTimingEventsMixin:
                 self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
             parsed: list[float] = []
             for index, value in enumerate(values):
-                if not _is_int(value) or value < 0:
-                    self._error(f"raw_timings_us.{phase}[{index}] must be a nonnegative integer")
+                if not (_is_number(value) if fractional else _is_int(value)) or value < 0:
+                    self._error(f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract")
                 else:
                     parsed.append(float(value))
             result[phase] = parsed
@@ -70,8 +90,8 @@ class ValidatorTimingEventsMixin:
                 self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {repeats}")
             parsed: list[float] = []
             for index, value in enumerate(values):
-                if not _is_int(value) or value < 0:
-                    self._error(f"raw_timings_us.{phase}[{index}] must be a nonnegative integer")
+                if not (_is_number(value) if fractional else _is_int(value)) or value < 0:
+                    self._error(f"raw_timings_us.{phase}[{index}] must be nonnegative and match its host timing contract")
                 else:
                     parsed.append(float(value))
             result[phase] = parsed

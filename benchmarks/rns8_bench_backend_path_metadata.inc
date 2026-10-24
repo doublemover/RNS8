@@ -740,7 +740,7 @@ void fill_vector_alu_backend_info(const Args& args, BenchmarkResult& result, uin
   result.backend_info.is_correctness_backend = 1;
   result.backend_info.is_matrix_engine_backend = 0;
   result.backend_info.compiled_kernel_available = 1;
-  result.backend_info.exact_differential_validated = 1;
+  result.backend_info.exact_differential_validated = 0;
   result.backend_info.performance_validated = 0;
   result.backend_info.workspace_required_bytes = workspace_bytes;
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kernel);
@@ -820,7 +820,7 @@ void fill_wrap64_rocwmma_candidate_backend_info(const Args& args, BenchmarkResul
   result.backend_info.is_correctness_backend = 0;
   result.backend_info.is_matrix_engine_backend = 1;
   result.backend_info.compiled_kernel_available = 1;
-  result.backend_info.exact_differential_validated = 1;
+  result.backend_info.exact_differential_validated = 0;
   result.backend_info.performance_validated = 0;
   result.backend_info.workspace_required_bytes = workspace_bytes;
   set_backend_text(result.backend_info.selected_kernel, sizeof(result.backend_info.selected_kernel), kWrap64RocwmmaCandidateSelectedKernel);
