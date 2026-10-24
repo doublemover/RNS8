@@ -19,7 +19,10 @@ rns8_status hip_finite_verify_trial(int device, const void* a, const void* b,
     const auto launch = static_cast<hipError_t>(rns8_hip_finite_verify(
         static_cast<const int8_t*>(a), static_cast<const int8_t*>(b), static_cast<const int8_t*>(c),
         m,n,k,modulus,static_cast<const uint8_t*>(r),static_cast<uint32_t*>(br),static_cast<uint32_t*>(flag)));
-    return launch == hipSuccess ? hipDeviceSynchronize() : launch;
+    // B*r may already be queued when the second launch fails. Always drain
+    // before the caller releases shared trial scratch; retain the launch error.
+    const auto completion = hipDeviceSynchronize();
+    return launch == hipSuccess ? completion : launch;
   });
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
   return hip_direct_copy_device_to_host(device, &result, flag, sizeof(result));
