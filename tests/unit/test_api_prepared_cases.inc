@@ -231,6 +231,17 @@ TEST_CASE("prepared dependencies retain exact producer epochs and refresh only p
   REQUIRE(rns8_pack_i64(ctx,c,&zero,1,0)==RNS8_SUCCESS); // producer receipt no longer current
   CHECK(rns8_execute_prepared(consumer,&output)==RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);
+  rns8_prepared_execution* cycle_consumer=nullptr;
+  REQUIRE(rns8_prepare_gemm(ctx,plan,c,b,a,w2,&cycle_consumer)==RNS8_SUCCESS);
+  rns8_completion_token cycle_token{};
+  REQUIRE(rns8_execute_prepared(cycle_consumer,&cycle_token)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(producer,cycle_consumer,cycle_token)==RNS8_SUCCESS);
+  CHECK(rns8_bind_prepared_dependency(cycle_consumer,producer,source)==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_destroy_prepared_execution(cycle_consumer)==RNS8_BUSY);
+  // Rebinding the same token must retain exactly one reference, not leak one.
+  REQUIRE(rns8_bind_prepared_dependency(producer,cycle_consumer,cycle_token)==RNS8_SUCCESS);
+  REQUIRE(rns8_bind_prepared_dependency(producer,nullptr,{})==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_prepared_execution(cycle_consumer)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_prepared_execution(producer)==RNS8_SUCCESS);
   for (auto* matrix : {a,b,c,d}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_workspace(w2)==RNS8_SUCCESS);

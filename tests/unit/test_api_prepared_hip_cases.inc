@@ -471,5 +471,7 @@ TEST_CASE("pending prepared dependencies publish before consumer launch and prop
   REQUIRE(rns8_destroy_workspace(w1)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#else
+  SKIP("HIP dependency execution is unavailable in this build");
 #endif
 }
