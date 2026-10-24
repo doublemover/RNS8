@@ -398,3 +398,46 @@ TEST_CASE("static direct provider rejection agrees with launch preflight without
   CHECK(hip_finite_verify_trial(-1,&a,&b,&c,INT64_MAX,2,1,251,&r,&br,&flag,result)==verify.status);
   CHECK(result==77); CHECK(c==37);
 }
+
+#include "backend_common/native_conversion_reference.hpp"
+#include "backend_common/native_conversion_layout.hpp"
+TEST_CASE("encode-once fragment ownership is exact and rejects mapping mutations", "[native][layout][cpu]") {
+  namespace ref=rns8::detail::native_conversion_reference;
+  constexpr uint32_t m=17,n=19,k=17,lda=23,ldb=29;
+  std::vector<uint64_t> a(m*lda,UINT64_MAX),b(k*ldb,UINT64_MAX);
+  for(uint32_t row=0;row<m;++row)for(uint32_t q=0;q<k;++q)a[row*lda+q]=(uint64_t(row+1)<<59)^(q*7919u+row);
+  for(uint32_t q=0;q<k;++q)for(uint32_t col=0;col<n;++col)b[q*ldb+col]=(uint64_t(col+1)<<58)^(q*3571u+col*31u);
+  auto matches=[&](const ref::Fragments& f,uint32_t row0,uint32_t col0,uint32_t base,uint32_t modulus,bool unsign) {
+    for(uint32_t lane=0;lane<32;++lane)for(uint32_t word=0;word<4;++word)for(uint32_t byte=0;byte<4;++byte) {
+      const auto row=row0+lane%16,col=col0+lane%16,q=base+word*4+byte;
+      const auto av=row<m && q<k ? a[row*lda+q] : 0;
+      const auto bv=col<n && q<k ? b[q*ldb+col] : 0;
+      if(ref::byte(f.a[lane][word],byte)!=uint8_t(ref::center(av,unsign,modulus)) ||
+         ref::byte(f.b[lane][word],byte)!=uint8_t(ref::center(bv,unsign,modulus)))return false;
+    }
+    return true;
+  };
+  for(bool unsign:{false,true})for(uint32_t modulus:{256u,255u,253u,251u,167u})for(uint32_t base:{0u,16u}) {
+    const auto f=ref::cooperative(a,b,m,n,k,lda,ldb,0,0,base,modulus,unsign);
+    CHECK(matches(f,0,0,base,modulus,unsign));CHECK(f.conversions==512);
+    const auto tiled=ref::encoded_lds(a,b,m,n,k,lda,ldb,0,0,base,16,0,modulus,unsign);
+    CHECK(tiled[0].conversions==1024);
+    for(uint32_t wave=0;wave<4;++wave)CHECK(matches(tiled[wave],(wave/2)*16,(wave%2)*16,base,modulus,unsign));
+  }
+  for(auto mutation:{ref::Mutation{1},ref::Mutation{16,true},ref::Mutation{16,false,true}})
+    CHECK_FALSE(matches(ref::cooperative(a,b,m,n,k,lda,ldb,0,0,16,251,false,mutation),0,0,16,251,false));
+  for(auto mutation:{ref::Mutation{16,false,false,true},ref::Mutation{16,false,false,false,true}}) {
+    const auto broken=ref::encoded_lds(a,b,m,n,k,lda,ldb,0,0,0,32,0,251,false,mutation);
+    CHECK_FALSE(matches(broken[0],0,0,0,251,false));
+  }
+  for(uint32_t group:{1u,2u,4u})for(uint32_t depth:{16u,32u}) {
+    const auto encoded=rns8::detail::query_native_tiled_resources(depth,1,65536,rns8::detail::NativeConversion::encoded_lds,group);
+    REQUIRE(encoded.status==RNS8_SUCCESS);
+    CHECK(encoded.raw_lds_bytes==0);
+    CHECK(encoded.encoded_lds_bytes==uint64_t(group)*2*32*(depth/4+1)*4);
+    CHECK(encoded.conversions_per_panel==uint64_t(group)*2*32*depth);
+    CHECK(rns8::detail::query_native_tiled_resources(depth,1,encoded.total_lds_bytes-1,rns8::detail::NativeConversion::encoded_lds,group).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+  CHECK(rns8::detail::query_native_tiled_resources(16,2,65536,rns8::detail::NativeConversion::encoded_lds,1).status==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::query_native_tiled_resources(16,1,65536,rns8::detail::NativeConversion::cooperative,1).status==RNS8_INVALID_ARGUMENT);
+}

@@ -20,6 +20,7 @@
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
+#include "../backend_common/native_conversion_layout.hpp"
 #include "../backend_common/fragment_layout.hpp"
 #include "../backend_common/ragged_residues.hpp"
 #include "../backend_common/mixed_radix_lift.hpp"

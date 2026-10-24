@@ -13,6 +13,7 @@
 #include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_hip_direct/finite_verify_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
 
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"

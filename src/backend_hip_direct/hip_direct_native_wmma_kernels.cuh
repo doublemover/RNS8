@@ -20,7 +20,7 @@ __device__ __forceinline__ int8_t rns8_native_wmma_center(
 // Each wave owns one output tile and Group consecutive default-basis planes.
 // Native loads are outside the channel loop; channels have separate encoded
 // fragments and accumulators. No INT32 or packed-input global workspace exists.
-template <typename NativeT, int Group, bool EncodedB = false>
+template <typename NativeT, int Group, bool EncodedB = false, bool Cooperative = false>
 __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
     const NativeT* a, const NativeT* b, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldc, int prefix,
@@ -42,6 +42,30 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
           rns8_default_moduli_device[first_plane + channel]);
   for (int64_t kk = 0; kk < k; kk += 16) {
     fragment av[Group]{}, bv[Group]{};
+    if constexpr (Cooperative) {
+      static_assert(!EncodedB, "cooperative native ownership cannot reinterpret encoded B");
+      const bool owns_a = rns8::detail::native_lane_owns_a(lane);
+      for (int word = 0; word < 4; ++word) {
+        uint32_t owned[Group]{};
+        for (int byte = 0; byte < 4; ++byte) {
+          const int64_t q = kk + word * 4 + byte;
+          // Exactly one selected native scalar and one common reducer stream.
+          // All 32 lanes remain active, including initialized zero tail lanes.
+          const NativeT raw = owns_a ? (ar < m && q < k ? a[ar*lda+q] : NativeT{}) :
+                                      (bc < n && q < k ? b[q*ldb+bc] : NativeT{});
+#pragma unroll
+          for (int channel = 0; channel < Group; ++channel)
+            if (first_plane + channel < prefix)
+              owned[channel] |= uint32_t(uint8_t(rns8_native_wmma_center(raw, reducers[channel]))) << (8*byte);
+        }
+#pragma unroll
+        for (int channel = 0; channel < Group; ++channel) {
+          const uint32_t partner = __shfl_xor(owned[channel], 16, 32);
+          av[channel][word] = static_cast<int>(owns_a ? owned[channel] : partner);
+          bv[channel][word] = static_cast<int>(owns_a ? partner : owned[channel]);
+        }
+      }
+    } else {
     for (int word = 0; word < 4; ++word) {
       uint32_t ap[Group]{}, bp[Group]{};
       for (int byte = 0; byte < 4; ++byte) {
@@ -71,6 +95,7 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
               ? static_cast<int>(encoded_b[(uint64_t(plane)*n+bc)*encoded_k_words+uint64_t(kk)/4+word]) : 0;
         } else bv[channel][word] = static_cast<int>(bp[channel]);
       }
+    }
     }
     for (int channel = 0; channel < Group; ++channel) {
       if (first_plane + channel >= prefix) continue;

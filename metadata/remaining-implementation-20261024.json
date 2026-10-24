@@ -277,12 +277,31 @@
       "issue": 35,
       "title": "[Research P1] Fuse native conversion and multiple residue channels inside matrix-engine tiles",
       "url": "https://github.com/doublemover/RNS8/issues/35",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Native grouped/tiled WMMA register/raw-LDS kernels exist; current encode-once cooperative/encoded-LDS candidates and prepared tiled capability amortization absent. Wrapper still allocates/probes/syncs/readbacks immutable capability per call.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "RDNA3 common-stream lane-cooperative packed-word exchange and once-per-CTA encoded LDS kernels; typed conversion/layout/resource identity; transactional device-bound prepared one/four-wave owner removes invariant probes from warm execution.",
+          "files": [
+            "src/backend_common/native_conversion_layout.hpp",
+            "src/backend_common/native_tiled_resources.hpp",
+            "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+            "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+            "src/backend_hip_direct/native_tiled_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_tiled.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "src/backend_common/native_conversion_reference.hpp",
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Extend matched calibration collection to new conversion/prepared/reuse boundaries, explicit preparation and source-resource metadata.",
+        "HIP compile, logical/GPU regression execution, launched ISA and target performance qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1133,7 +1152,9 @@
       "regressions": [
         "tools/test_ci_benchmark_smoke.py"
       ],
-      "commits": [],
+      "commits": [
+        "576e7031d1a040da4e5dff64be87a98da63a8045"
+      ],
       "remaining": [
         "Authored CLI integration regression, workflow execution and GPU collection are deferred. This lane deliberately does not claim numeric regression qualification."
       ],
