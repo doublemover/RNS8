@@ -75,3 +75,35 @@ reused-input measurements must charge transformed panels, all launches, scratch,
 joint commit and any final dual export. Public ownership/generation integration,
 fault-path qualification, explicit operation metadata and those measurements
 remain open under #59.
+
+## Internal matrix ownership integration
+
+The new internal `complex_exact_signed_gemm` connects the raw composition to
+existing exact-wide signed matrix handles and a compatible workspace. It is
+restricted to CPU reference and direct HIP. It obtains original-component
+magnitude certificates from each current matrix's own exact-range proof;
+callers cannot supply replacement bounds. Both output bounds are admitted
+independently against the common basis before device work. Unsigned, bounded,
+finite and wrap public-handle contracts are not inferred from this entry point.
+The raw private primitive above retains its separate bounded/finite support.
+
+All cross-component output aliases, currentness, proof prefixes, outstanding
+writer/reader conflicts, generation exhaustion and scratch limits are checked
+before mutation. Shared read-only handles are reserved once. The synchronous
+operation reserves both output writers and the workspace, retains old values
+through staging, and publishes both engine generations and range proofs only
+after successful completion. A failure after the dual-store boundary clears
+currentness and proofs on both outputs. Reservation cleanup also runs when
+host allocation/proof work throws. Like other synchronous APIs, host callers
+must externally exclude concurrent access to the same handles; this is logical
+paired publication under that contract, not atomic GPU stores or a lock-free API.
+
+The CPU path uses bounded modular intermediates and stages two output arrays;
+the admission budget conservatively charges the same larger GPU plan envelope.
+No transformed values are cached. Changes to either component are reread and
+re-admitted on each call. Authored CPU/HIP tests cover independent Boost output,
+changed imaginary components, legal shared readers, aliases, busy reservations,
+stale proofs, exhausted outputs, resident values above 64 bits and over-range
+composition. This new owner awaits the next coordinated build and full pass.
+It remains internal while failure-path qualification, measured execution,
+public API metadata and graph/prepared-group integration are completed.

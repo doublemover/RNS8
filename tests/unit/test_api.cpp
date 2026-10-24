@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "core/api_internal.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 #include "rns8/rns8.hpp"
@@ -36,5 +37,6 @@ namespace {
 #include "test_api_prepared_group_cases.inc"
 #include "test_api_resident_graph_cases.inc"
 #include "test_api_exact_epilogue_cases.inc"
+#include "test_api_complex_residue_cases.inc"
 #include "test_api_prepared_hip_cases.inc"
 #include "test_api_plan_validation_cache_cases.inc"

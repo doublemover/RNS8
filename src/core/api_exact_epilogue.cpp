@@ -1,8 +1,10 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/api_internal.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 
 using namespace rns8::detail::api;
+#include "core/api_complex_residue.inc"
 namespace rns8::detail::api {
 rns8_status validate_exact_axpby_operands(
     const rns8_context &ctx, const rns8_plan &plan, const rns8_matrix &A,

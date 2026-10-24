@@ -30,6 +30,18 @@
 
 namespace rns8::detail::api {
 
+template<class Matrix> struct ComplexMatrixPair {
+  Matrix* real = nullptr;
+  Matrix* imag = nullptr;
+};
+// Internal synchronous paired-value owner. Uses matrix-owned exact-wide signed
+// proofs and existing reader/writer generations; not a public ABI or graph node.
+rns8_status complex_exact_signed_gemm(
+    rns8_context* ctx, const rns8_plan* plan,
+    ComplexMatrixPair<const rns8_matrix> a, ComplexMatrixPair<const rns8_matrix> b,
+    ComplexMatrixPair<rns8_matrix> c, rns8::detail::ComplexProductMethod method,
+    uint64_t max_scratch_bytes, rns8_workspace* workspace);
+
 struct ResourceBusy {};
 inline void require_matrix_writable(const rns8_matrix& matrix) {
   if (matrix.in_flight_readers || matrix.in_flight_writer) throw ResourceBusy{};
