@@ -44,3 +44,36 @@ TEST_CASE("word modular CPU GEMM validates canonical inputs before publishing") 
   p.modulus=251;REQUIRE(query(p).status==RNS8_SUCCESS);
   p.m=INT64_MAX;REQUIRE(query(p).status==RNS8_INVALID_ARGUMENT);
 }
+
+#include <cmath>
+TEST_CASE("asymmetric binary64 word-mod schedules certify every coefficient and weight") {
+  using namespace rns8::detail::word_mod;using boost::multiprecision::cpp_int;
+  for(uint64_t modulus:{UINT64_C(251),UINT64_C(65536),UINT64_C(2147483647),UINT64_C(4398046511104),UINT64_C(4503599627370496)})
+    for(const auto& d:candidates(modulus,17,53)) {
+      FloatingRequest request{d.left_digits,d.right_digits,17};FloatingSchedule schedule;
+      const auto status=floating_schedule(modulus,request,schedule);
+      REQUIRE(status==(d.exact_bound?RNS8_SUCCESS:RNS8_RANGE_ERROR));
+      if(status!=RNS8_SUCCESS) continue;
+      REQUIRE(schedule.alpha==d.alpha);REQUIRE(schedule.beta==d.beta);
+      // Worst representable digits exercise the complete coefficient cap.
+      double coefficient=0;cpp_int exact=0;
+      for(unsigned q=0;q<request.slab_k;++q) {
+        coefficient=std::fma(double(d.alpha-1),double(d.beta-1),coefficient);
+        exact+=cpp_int(d.alpha-1)*(d.beta-1);
+        REQUIRE(static_cast<uint64_t>(coefficient)==exact.convert_to<uint64_t>());
+      }
+      cpp_int ap=1;
+      for(unsigned i=0;i<d.left_digits;++i) {
+        cpp_int bp=1;
+        for(unsigned j=0;j<d.right_digits;++j) {
+          REQUIRE(schedule.weights[i*4+j]==((ap*bp)%modulus).convert_to<uint64_t>());bp*=d.beta;
+        }
+        ap*=d.alpha;
+      }
+    }
+  FloatingSchedule preserved;preserved.alpha=123;
+  REQUIRE(floating_schedule(UINT64_MAX,{2,3,17},preserved)==RNS8_RANGE_ERROR);
+  REQUIRE(preserved.alpha==123);
+  for(const auto request:{FloatingRequest{0,2,1},FloatingRequest{2,5,1},FloatingRequest{2,3,0},FloatingRequest{2,3,65537}})
+    REQUIRE(floating_schedule(251,request,preserved)==RNS8_INVALID_ARGUMENT);
+}

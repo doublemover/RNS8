@@ -36,8 +36,8 @@ moduli, rejection and output preservation, padding, swapped decompositions,
 and complete Boost GEMM comparisons at bit widths 8, 16, 23, 26, 27, 31, 35,
 39, 42, 48, 50, 52 and 64. They remain unexecuted during development frontload.
 
-Still required before promotion: exact floating schedule proof, concatenation
-layouts and lambda derivation, asymmetric matrix-engine decomposition, matched cold
+Still required before promotion: compiled scalar binary64 qualification, concatenation
+layouts and matrix-engine lambda derivation, asymmetric matrix-engine decomposition, matched cold
 and warm calibration, resource/ISA receipts, and target-specific qualification.
 No decomposition cache or public ABI is introduced. CDNA FP64 qualification
 requires the deferred hardware; that does not substitute for implementing the
@@ -68,3 +68,29 @@ explicit baseline/packed-dot4, ring/prime-field and resident/cold controls, full
 independent exact references, slab-tail/bit-width cases and strict provenance
 collection. These are authored interfaces and fixtures, not execution evidence.
 They do not implement or qualify the separate asymmetric floating/WMMA schedule.
+
+
+## Explicit scalar binary64 asymmetric schedule
+
+A separate private candidate takes an explicit left digit count, right digit
+count and K slab (1-65536). The host recomputes integer ceil roots alpha and beta
+and admits only `lambda * alpha * beta + p - 1 <= 2^53`. The request cannot supply
+a trusted proof flag or substitute a floating approximation for this test. Failed
+admission preserves output and reports RANGE_ERROR. Full uint64 moduli generally
+reject this binary64 schedule; the integer baseline remains available.
+
+For each output cell and slab, the kernel decomposes canonical uint64 inputs into
+unsigned alpha/beta digits. It accumulates each digit-pair coefficient with scalar
+binary64 FMA. Digits, products and every nonnegative partial sum are exact integers
+within the representable range, so every FMA result is exact. There is no relaxed
+error tolerance, sign cancellation assumption or division by ring elements.
+Precomputed integer radix weights combine the coefficients with the existing
+overflow-safe modular multiply/add, then reduce between slabs. Output stays in
+the same canonical uint64 ring or prime-field domain.
+
+This is a scalar binary64 executable schedule, not a WMMA or tensor-core claim.
+It introduces no automatic selection or decomposition cache. The coefficient
+arrays may spill; register pressure, emitted instructions and useful throughput
+need actual compiler/device evidence. CPU bound/weight fixtures and complete
+Boost HIP comparisons cover asymmetric pairs and slab tails with padding and
+rejected-output preservation. All remain unexecuted in the development frontload.

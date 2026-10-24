@@ -8,6 +8,12 @@
 #endif
 namespace rns8::detail::word_mod {
 struct DigitWeights {uint64_t values[15]{};};
+// Kernel argument POD; constructed only after the exact host bound admits it.
+struct FloatingSchedule {
+  uint64_t alpha=0,beta=0;
+  uint32_t left_digits=0,right_digits=0,slab_k=0,reserved=0;
+  uint64_t weights[16]{};
+};
 inline constexpr uint32_t digit_slab_k=4096;
 static_assert(uint64_t(digit_slab_k)*8*255*255<=INT32_MAX,
               "eight byte-pair terms per diagonal must fit signed INT32");

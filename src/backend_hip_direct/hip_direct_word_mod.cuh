@@ -72,3 +72,37 @@ extern "C" int rns8_hip_word_mod_dot4(const void* a,const void* b,void* c,int m,
   return int(hipGetLastError());
 }
 #undef RNS8_WORD_DOT4
+
+// Scalar binary64 schedule, not a WMMA kernel. All digits and products are
+// integers, and the host certificate bounds every nonnegative partial sum by
+// 2^53. Every fma therefore has an exactly representable result. Weighting and
+// recombination happen in overflow-safe modular integer arithmetic.
+__global__ void rns8_word_mod_floating_kernel(const uint64_t* a,const uint64_t* b,uint64_t* c,
+    int m,int n,int k,int lda,int ldb,int ldc,uint64_t modulus,rns8::detail::word_mod::FloatingSchedule schedule) {
+  using namespace rns8::detail::word_mod;
+  const int64_t index=int64_t(blockIdx.x)*blockDim.x+threadIdx.x;if(index>=int64_t(m)*n) return;
+  const int row=int(index/n),col=int(index%n);uint64_t result=0;
+  for(int64_t begin=0;begin<k;begin+=schedule.slab_k) {
+    const int64_t end=begin+schedule.slab_k<k?begin+schedule.slab_k:k;
+    double coefficients[16]{};
+    for(int64_t q=begin;q<end;++q) {
+      uint64_t av=a[int64_t(row)*lda+q],bv=b[q*ldb+col];double left[4]{},right[4]{};
+      for(unsigned i=0;i<schedule.left_digits;++i) {left[i]=double(av%schedule.alpha);av/=schedule.alpha;}
+      for(unsigned j=0;j<schedule.right_digits;++j) {right[j]=double(bv%schedule.beta);bv/=schedule.beta;}
+      for(unsigned i=0;i<schedule.left_digits;++i) for(unsigned j=0;j<schedule.right_digits;++j)
+        coefficients[i*4+j]=__builtin_fma(left[i],right[j],coefficients[i*4+j]);
+    }
+    for(unsigned i=0;i<schedule.left_digits;++i) for(unsigned j=0;j<schedule.right_digits;++j) {
+      const auto coefficient=static_cast<uint64_t>(coefficients[i*4+j]);
+      result=add(result,multiply(coefficient%modulus,schedule.weights[i*4+j],modulus),modulus);
+    }
+  }
+  c[int64_t(row)*ldc+col]=result;
+}
+extern "C" int rns8_hip_word_mod_floating(const void* a,const void* b,void* c,int m,int n,int k,
+    int lda,int ldb,int ldc,uint64_t modulus,rns8::detail::word_mod::FloatingSchedule schedule) {
+  hipLaunchKernelGGL(rns8_word_mod_floating_kernel,dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,
+      static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),static_cast<uint64_t*>(c),
+      m,n,k,lda,ldb,ldc,modulus,schedule);
+  return int(hipGetLastError());
+}

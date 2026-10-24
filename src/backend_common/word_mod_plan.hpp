@@ -6,6 +6,7 @@
 #include <array>
 #include <vector>
 #include <stdexcept>
+#include <limits>
 namespace rns8::detail::word_mod {
 enum class Domain : uint32_t { ring=0,prime_field=1 };
 struct Problem {
@@ -74,6 +75,26 @@ inline std::vector<Decomposition> candidates(uint64_t p,uint64_t lambda,unsigned
     if(pair[0]!=pair[1]) out.push_back(decomposition(p,pair[1],pair[0],lambda,bits));
   }
   return out;
+}
+static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits==53,
+              "word-mod floating schedules require IEEE binary64");
+struct FloatingRequest {uint32_t left_digits=0,right_digits=0,slab_k=0;};
+inline rns8_status floating_schedule(uint64_t modulus,const FloatingRequest& request,FloatingSchedule& out) {
+  if(!request.slab_k || request.slab_k>65536 || !request.left_digits || request.left_digits>4 ||
+     !request.right_digits || request.right_digits>4 || modulus<2) return RNS8_INVALID_ARGUMENT;
+  const auto proof=decomposition(modulus,request.left_digits,request.right_digits,request.slab_k,53);
+  if(!proof.exact_bound) return RNS8_RANGE_ERROR;
+  FloatingSchedule result;result.alpha=proof.alpha;result.beta=proof.beta;
+  result.left_digits=request.left_digits;result.right_digits=request.right_digits;result.slab_k=request.slab_k;
+  uint64_t ap=1;
+  for(unsigned i=0;i<request.left_digits;++i) {
+    uint64_t bp=1;
+    for(unsigned j=0;j<request.right_digits;++j) {
+      result.weights[i*4+j]=multiply(ap,bp,modulus);bp=multiply(bp,proof.beta%modulus,modulus);
+    }
+    ap=multiply(ap,proof.alpha%modulus,modulus);
+  }
+  out=result;return RNS8_SUCCESS;
 }
 // Independent exact digit-splitting/recombination reference. It never divides
 // by a residue or assumes a nonzero ring element has an inverse.

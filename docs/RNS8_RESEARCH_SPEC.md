@@ -2033,7 +2033,9 @@ existing wrap64 shipping and evidence gates still apply.
 The private [word-modular research path](word-modular-research.md) has explicit
 ring/prime-field semantics, canonical uint64 storage, overflow-safe CPU/HIP
 double/add arithmetic and an exact host decomposition-bound planner. It does
-not extend finite-u8 storage or certify a floating/matrix instruction schedule.
+not extend finite-u8 storage. An explicit scalar binary64 asymmetric schedule
+now recomputes an exact host coefficient bound before launch; matrix-instruction
+lowering remains separate and all device qualification is pending.
 Full-width Boost differential fixtures are authored for the final campaign.
 
 ### Native HIP interoperability (source implementation, pending qualification)
