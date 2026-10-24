@@ -1,0 +1,766 @@
+{
+  "schema_version": 1,
+  "family": "exact-wide-magnitude",
+  "items": [
+    {
+      "name": "signed-uniform-small-cold",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-uniform-small-reuse",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-two-limb-constant-cold",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-two-limb-constant-reuse",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-three-limb-constant-cold",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-three-limb-constant-reuse",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-two-limb-mixed-cold",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-two-limb-mixed-reuse",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-three-limb-mixed-cold",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "signed-wide-three-limb-mixed-reuse",
+      "semantics": "exact-wide-signed",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_signed_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-uniform-small-cold",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-uniform-small-reuse",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "uniform-small",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-two-limb-constant-cold",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-two-limb-constant-reuse",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-three-limb-constant-cold",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-three-limb-constant-reuse",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-constant",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-two-limb-mixed-cold",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-two-limb-mixed-reuse",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-two-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-three-limb-mixed-cold",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "per_repeat_repack",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    },
+    {
+      "name": "unsigned-wide-three-limb-mixed-reuse",
+      "semantics": "exact-wide-unsigned",
+      "case": {
+        "name": "wide-magnitude-8x7x512",
+        "m": 8,
+        "n": 7,
+        "k": 512,
+        "tile_m": 16,
+        "tile_n": 16,
+        "bound_mode": "global",
+        "input_profile": "wide-three-limb-mixed",
+        "require_adaptive": false,
+        "promotable": false
+      },
+      "evidence_scope": "public single-GEMM genuine output magnitude, all-limb integer oracle",
+      "output_domain": "exact_wide_unsigned_limbs",
+      "rationale": "Paired native input magnitude controls at equal prefix, limb width and residency; not performance qualification",
+      "backends": [
+        "cpu",
+        "hip-direct"
+      ],
+      "review_mode_expectation": "smoke",
+      "promotion_eligibility": "export_variant_evidence_only",
+      "exact_wide_limb_counts": [
+        3
+      ],
+      "prefix_policy": "fixed-requested",
+      "max_prefix": 20,
+      "output_ld_padding": 3,
+      "pack_mode": "prepacked_reuse",
+      "metadata": {
+        "promotion_scope": "export_selector_same_contract_review_required",
+        "independent_processes_required": 2,
+        "requested_warmups": 3,
+        "requested_repeats": 9
+      }
+    }
+  ]
+}

@@ -93,6 +93,26 @@
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"exact_wide_magnitude\": ";
+  if (result.exact_wide_magnitude.available) {
+    const auto& magnitude = result.exact_wide_magnitude;
+    std::cout << "{\"schema\": \"exact_wide_magnitude_v1\", \"oracle\": \"boost_cpp_int_full_integer_gemm_all_limbs\", "
+              << "\"oracle_complete\": " << (magnitude.oracle_complete ? "true" : "false")
+              << ", \"a_max_abs\": \"" << magnitude.a_max_abs << "\", \"b_max_abs\": \"" << magnitude.b_max_abs
+              << "\", \"admitted_abs_bound\": \"" << magnitude.admitted_abs_bound << "\", \"basis_product\": \"" << magnitude.basis_product
+              << "\", \"a_max_magnitude_bits\": " << magnitude.a_max_magnitude_bits
+              << ", \"b_max_magnitude_bits\": " << magnitude.b_max_magnitude_bits
+              << ", \"output_min_magnitude_bits\": " << magnitude.output_min_magnitude_bits
+              << ", \"output_max_magnitude_bits\": " << magnitude.output_max_magnitude_bits
+              << ", \"output_max_magnitude_limbs\": " << (magnitude.output_max_magnitude_bits + 63u) / 64u
+              << ", \"storage_bits\": " << args.exact_wide_limb_count * 64u
+              << ", \"checked_outputs\": " << magnitude.checked_outputs
+              << ", \"checked_limbs\": " << magnitude.checked_limbs
+              << ", \"negative_outputs\": " << magnitude.negative_outputs
+              << ", \"admission_us\": " << magnitude.admission_us << ", \"oracle_us\": " << magnitude.oracle_us
+              << ", \"timing_scope\": \"outside_all_repeated_public_call_samples\"}";
+  } else std::cout << "null";
+  std::cout << ",\n";
   std::cout << "  \"exact_wide_export_status_check\": ";
   print_json_string_or_null(exact_wide_export_status_check_name(args));
   std::cout << ",\n";
@@ -215,6 +235,7 @@
   std::cout << "  \"prepack_setup_breakdown_us\": ";
   print_prepack_setup_breakdown_json(result, "  ");
   std::cout << ",\n";
+  std::cout << "  \"input_profile\": \"" << input_profile_name(args) << "\",\n";
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";

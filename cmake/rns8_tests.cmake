@@ -1,5 +1,6 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME wide_magnitude_receipts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_wide_magnitude.py")
   add_test(NAME ci_benchmark_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ci_benchmark_smoke.py")
   add_test(NAME observation_cohorts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_observation_cohorts.py")
   add_test(NAME measurement_evidence_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_measurement_evidence_contracts.py")
@@ -882,6 +883,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_wide_magnitude_fixture.cpp
     tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp

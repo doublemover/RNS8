@@ -1,4 +1,5 @@
 #include "backend_common/word_mod_plan.hpp"
+#include <random>
 TEST_CASE("word modular arithmetic and decompositions preserve arbitrary rings") {
   using namespace rns8::detail::word_mod;
   using boost::multiprecision::cpp_int;

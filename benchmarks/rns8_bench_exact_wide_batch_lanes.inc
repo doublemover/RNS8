@@ -2,7 +2,6 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
-  std::uniform_int_distribution<int64_t> dist(-16, 16);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
@@ -12,8 +11,8 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   std::vector<std::vector<uint64_t>> batch_c(
       task_count, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    for (auto& value : batch_a[task_index]) value = dist(rng);
-    for (auto& value : batch_b[task_index]) value = dist(rng);
+    fill_exact_wide_benchmark_input(args, batch_a[task_index], rng);
+    fill_exact_wide_benchmark_input(args, batch_b[task_index], rng);
   }
 
   BenchmarkResult result{};
@@ -44,8 +43,10 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
                                     : "host_phase_loop_per_task_export";
   }
 
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  for (uint32_t task = 0; task < task_count; ++task)
+    admit_exact_wide_benchmark_input(args, batch_a[task], batch_b[task], matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
@@ -180,6 +181,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_limb_matrix(
         batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
   }
@@ -194,7 +196,6 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   (void)bound;
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
-  std::uniform_int_distribution<uint64_t> dist(0, 16);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
   const std::size_t b_elements = checked_elements(args.k, args.n, "host batch B");
   const int64_t ldc = output_logical_ld(args);
@@ -204,8 +205,8 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   std::vector<std::vector<uint64_t>> batch_c(
       task_count, std::vector<uint64_t>(c_elements, UINT64_C(0x5a5a5a5a5a5a5a5a)));
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    for (auto& value : batch_a[task_index]) value = dist(rng);
-    for (auto& value : batch_b[task_index]) value = dist(rng);
+    fill_exact_wide_benchmark_input(args, batch_a[task_index], rng);
+    fill_exact_wide_benchmark_input(args, batch_b[task_index], rng);
   }
 
   BenchmarkResult result{};
@@ -236,8 +237,10 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
                                     : "host_phase_loop_per_task_export";
   }
 
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  for (uint32_t task = 0; task < task_count; ++task)
+    admit_exact_wide_benchmark_input(args, batch_a[task], batch_b[task], matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
@@ -372,6 +375,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    verify_exact_wide_benchmark_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_limb_matrix(
         batch_c[task_index], args.m, args.n, ldc, args.exact_wide_limb_count, "host batch C");
   }

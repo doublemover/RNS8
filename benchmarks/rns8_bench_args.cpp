@@ -147,6 +147,10 @@ BoundMode parse_bound_mode(const std::string& value) {
 }
 
 InputProfile parse_input_profile(const std::string& value) {
+  if (value == "wide-two-limb-constant") return InputProfile::WideTwoLimbConstant;
+  if (value == "wide-three-limb-constant") return InputProfile::WideThreeLimbConstant;
+  if (value == "wide-two-limb-mixed") return InputProfile::WideTwoLimbMixed;
+  if (value == "wide-three-limb-mixed") return InputProfile::WideThreeLimbMixed;
   if (value == "uniform-small" || value == "uniform_small") return InputProfile::UniformSmall;
   if (value == "adaptive-bands" || value == "adaptive_bands") return InputProfile::AdaptiveBands;
   if (value == "finite-binary" || value == "finite_binary" || value == "binary") {
@@ -388,6 +392,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
+          << "                  [--input-profile wide-two-limb-constant|wide-three-limb-constant|wide-two-limb-mixed|wide-three-limb-mixed]\n"
           << "                  [--exact-proof-scalar-first]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--residue-chain-final-export]\n"
@@ -632,8 +637,15 @@ Args parse_args(int argc, char** argv) {
   if (finite_input_profile(args.input_profile) && !finite_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile finite-* values are only valid for finite-u8 semantics");
   }
+  const bool wide_magnitude = args.input_profile == InputProfile::WideTwoLimbConstant ||
+      args.input_profile == InputProfile::WideThreeLimbConstant ||
+      args.input_profile == InputProfile::WideTwoLimbMixed || args.input_profile == InputProfile::WideThreeLimbMixed;
+  if (wide_magnitude && (!exact_wide_benchmark_semantics(args.semantics) || args.residue_chain_length != 1 ||
+                         args.sparse_a_4_to_2)) {
+    usage_error("wide magnitude profiles require dense single-GEMM exact-wide semantics");
+  }
   if (args.input_profile != InputProfile::UniformSmall && args.input_profile != InputProfile::AdaptiveBands &&
-      !finite_input_profile(args.input_profile)) {
+      !finite_input_profile(args.input_profile) && !wide_magnitude) {
     usage_error("unsupported input profile");
   }
   if (args.bound_source == BoundSource::InputScan) {
@@ -723,8 +735,8 @@ Args parse_args(int argc, char** argv) {
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--host-api-batch-size > 1 currently requires global static-profile bounds");
     }
-    if (args.input_profile != InputProfile::UniformSmall) {
-      usage_error("--host-api-batch-size > 1 currently requires --input-profile uniform-small");
+    if (args.input_profile != InputProfile::UniformSmall && !wide_magnitude) {
+      usage_error("--host-api-batch-size > 1 requires uniform-small or an exact-wide magnitude profile");
     }
     if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
@@ -751,8 +763,8 @@ Args parse_args(int argc, char** argv) {
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--grouped-dispatch > 1 currently requires global static-profile bounds");
     }
-    if (args.input_profile != InputProfile::UniformSmall) {
-      usage_error("--grouped-dispatch > 1 currently requires --input-profile uniform-small");
+    if (args.input_profile != InputProfile::UniformSmall && !wide_magnitude) {
+      usage_error("--grouped-dispatch > 1 requires uniform-small or an exact-wide magnitude profile");
     }
     if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||

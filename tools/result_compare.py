@@ -125,6 +125,7 @@ CONTRACT_KEYS = [
     "prepack_reuse_strategy",
     "seed",
     "input_distribution",
+    "input_profile",
 ]
 EXPORT_SELECTOR_REVIEW_DIFF_KEYS = {
     "export_variant.name",
@@ -285,6 +286,8 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "input_profile":
+        return data.get(key, "uniform-small")
     if key == "exact_proof_policy":
         return exact_proof_policy(data)
     if key == "host_api_batch.work_contract":

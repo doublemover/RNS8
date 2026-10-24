@@ -54,6 +54,7 @@ jobs:
           python tools/test_benchmark_schema.py
           python tools/test_result_compare.py
           python tools/test_ci_benchmark_smoke.py
+          python tools/test_wide_magnitude.py
           python tools/test_benchmark_sweep.py
           python tools/test_autotune_cache_install.py
           python tools/check_release_tree.py

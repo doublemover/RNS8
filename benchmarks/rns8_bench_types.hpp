@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "exact_wide_magnitude.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
@@ -37,6 +38,10 @@ enum class InputProfile {
   FiniteLowHamming,
   FiniteSmallCentered,
   FiniteFullUniform,
+  WideTwoLimbConstant,
+  WideThreeLimbConstant,
+  WideTwoLimbMixed,
+  WideThreeLimbMixed,
 };
 
 enum class BoundSource {
@@ -147,6 +152,7 @@ enum class PrepackReuseStrategy {
 };
 
 struct BenchmarkResult {
+  ExactWideMagnitudeStats exact_wide_magnitude{};
   double plan_us = 0;
   double schedule_query_us = 0;
   double global_bound_scan_us = 0;

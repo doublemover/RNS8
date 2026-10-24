@@ -53,6 +53,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"residue_output_mode={residue_output_mode}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
+        f"input_profile={capture.get('input_profile', 'uniform-small')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
         f"next_op_contract={next_op_contract}",

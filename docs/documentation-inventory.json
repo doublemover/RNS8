@@ -5026,6 +5026,30 @@
         "representative-observed-ranges",
         "rx-7900-xtx-reviewed-partial-campaign-october-24-2026"
       ]
+    },
+    {
+      "path": "docs/exact-wide-magnitude-controls.md",
+      "purpose": "Exact semantic range admission and genuine public multi-limb fixtures",
+      "audience": "Exact arithmetic and performance contributors",
+      "disposition": "keep",
+      "canonical": "docs/exact-wide-magnitude-controls.md",
+      "owner": "benchmarks/exact_wide_magnitude.hpp",
+      "reason": "Describes exact arbitrary-precision preflight and full postflight, profile identity and deferred qualification",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "exact-wide-magnitude-controls.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/exact-wide-magnitude-controls.md"
+        }
+      ],
+      "anchors": [
+        "offline-named-range-profiles",
+        "public-exact-wide-magnitude-controls",
+        "validation-status"
+      ]
     }
   ]
 }

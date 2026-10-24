@@ -5,6 +5,9 @@ from typing import Any
 from .core_shared import *
 
 def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
+    from .wide_magnitude import validate_magnitude
+    for message in validate_magnitude(self.data):
+        self._error(message)
     semantics = ctx['semantics']
     prefix = ctx['prefix']
     packed_layout = ctx['packed_layout']
