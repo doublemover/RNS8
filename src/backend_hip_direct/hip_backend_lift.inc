@@ -2,12 +2,13 @@ rns8_status hip_direct_lift_exact_suffix(
     int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
     bool signed_value, const uint64_t* bound, bool& commit_started, bool mixed_radix) {
   commit_started = false;
+  if (!residues || !bound) return RNS8_INVALID_ARGUMENT;
+  const auto support = query_exact_lift_support(cells,source_prefix,target_prefix,UINT64_MAX);
+  if (support.status != RNS8_SUCCESS) return support.status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!residues || !bound || cells <= 0 || cells > INT32_MAX - 256 || source_prefix == 0 ||
-      target_prefix > RNS8_MAX_SUPPORTED_PREFIX || source_prefix >= target_prefix) return RNS8_INVALID_ARGUMENT;
   const auto selected = set_hip_device(device_id);
   if (selected != RNS8_SUCCESS) return selected;
-  const std::size_t bytes = static_cast<std::size_t>(cells) * (target_prefix - source_prefix);
+  const std::size_t bytes = static_cast<std::size_t>(support.payload_bytes);
   hip_direct_device_buffer suffix, device_status;
   auto status = suffix.allocate(device_id, bytes);
   if (status != RNS8_SUCCESS) return status;

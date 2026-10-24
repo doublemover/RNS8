@@ -115,11 +115,9 @@ rns8_status validate_exact_axpby_operands(
     return RNS8_INVALID_ARGUMENT;
   if (C.generation_exhausted)
     return RNS8_RANGE_ERROR;
-  if (plan.backend == RNS8_BACKEND_HIP_DIRECT &&
-      !qualified_i32_gemm_address(plan.desc.m, plan.desc.n, plan.desc.k,
-                                  A.desc.cols, B.desc.cols, C.desc.cols,
-                                  plan.prefix))
-    return RNS8_UNSUPPORTED_BACKEND;
+  if (plan.backend == RNS8_BACKEND_HIP_DIRECT)
+    return query_axpby_support(plan.desc.m,plan.desc.n,plan.desc.k,
+        A.desc.cols,B.desc.cols,D.desc.cols,C.desc.cols,plan.prefix).status;
   return RNS8_SUCCESS;
 }
 } // namespace rns8::detail::api

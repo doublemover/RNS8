@@ -10,6 +10,7 @@
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/native_tiled_resources.hpp"
+#include "backend_common/operation_support.hpp"
 #include "backend_common/adaptive_native_support.hpp"
 #include "backend_common/native_wmma_queue.hpp"
 #include "backend_common/ragged_residues.hpp"

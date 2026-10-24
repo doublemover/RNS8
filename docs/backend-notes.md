@@ -105,3 +105,13 @@ or an output with pending readers or a writer, before target admission and outpu
 mutation. Concurrent read-only reservations on B remain valid. State fixtures
 cover both sparse RNS and finite-ring calls; execution is pending the consolidated
 validation batch.
+
+
+The internal epilogue and exact-suffix-lift support providers now share static
+shape/prefix/address/resource admission between public owners and raw wrappers.
+Records distinguish unknown resources from zero scratch and never mark a device
+qualified. Lift reports suffix payload and the additional device status word
+separately: the public staged-residue budget still limits payload, preserving its
+documented meaning. Pointer aliases, generations, value proofs and stream ownership
+remain dynamic admission steps. Provider parity/budget fixtures await final validation;
+this is an incremental runtime provider surface, not a complete recipe planner.

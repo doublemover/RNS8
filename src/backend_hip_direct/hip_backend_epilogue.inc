@@ -7,10 +7,9 @@ rns8_status hip_direct_gemm_rns_axpby_device(
     int device_id, const void* a, const void* b, const void* d, void* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
     uint32_t prefix, int64_t alpha, int64_t beta) {
-  if (!a || !b || !c || !d || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldd < n || ldc < n ||
-      !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX) return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix) ||
-      !qualified_i32_matrix_address(m, n, ldd, prefix)) return RNS8_UNSUPPORTED_BACKEND;
+  if (!a || !b || !c || !d) return RNS8_INVALID_ARGUMENT;
+  const auto support = query_axpby_support(m,n,k,lda,ldb,ldd,ldc,prefix);
+  if (support.status != RNS8_SUCCESS) return support.status;
   const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * prefix;
   if (!nonoverlapping_byte_ranges(c, output_bytes, a, static_cast<uint64_t>(m) * lda * prefix) ||
       !nonoverlapping_byte_ranges(c, output_bytes, b, static_cast<uint64_t>(k) * ldb * prefix) ||

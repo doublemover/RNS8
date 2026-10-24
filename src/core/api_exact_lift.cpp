@@ -224,9 +224,11 @@ rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uin
                                       rns8::detail::modulus_product(source_prefix))) return RNS8_RANGE_ERROR;
     if (target_prefix <= source_prefix) return RNS8_SUCCESS;
     std::size_t cells = 0;
-    if (!matrix_cell_count(matrix->desc.rows, matrix->desc.cols, cells) || cells > INT32_MAX - 256 ||
-        cells > SIZE_MAX / (target_prefix - source_prefix)) return RNS8_RANGE_ERROR;
-    if (cells * (target_prefix - source_prefix) > max_staged_residue_bytes) return RNS8_WORKSPACE_TOO_SMALL;
+    if (!matrix_cell_count(matrix->desc.rows, matrix->desc.cols, cells) || cells > INT64_MAX)
+      return RNS8_RANGE_ERROR;
+    const auto support = rns8::detail::query_exact_lift_support(
+        static_cast<int64_t>(cells),source_prefix,target_prefix,max_staged_residue_bytes);
+    if (support.status != RNS8_SUCCESS) return support.status;
     uint64_t bound[3]{};
     auto remaining = matrix->exact_max_magnitude;
     for (auto& limb : bound) {

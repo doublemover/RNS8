@@ -233,3 +233,46 @@ TEST_CASE("multiwave native storage budgets match padded raw LDS allocations") {
   CHECK(query_native_tiled_resources(0,1,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
   CHECK(query_native_tiled_resources(16,3,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
 }
+
+#include "backend_common/operation_support.hpp"
+#include "backend_hip_direct/hip_backend.hpp"
+TEST_CASE("shared epilogue and lift providers reject before pointer consumption") {
+  using namespace rns8::detail;
+  int8_t a=1,b=2,c=3,d=4;
+  uint64_t bound[3]{1,0,0};
+  for (uint32_t prefix : {0u,21u}) {
+    const auto support=query_axpby_support(1,1,1,1,1,1,1,prefix);
+    CHECK(support.constraint==OperationConstraint::prefix);
+    CHECK_FALSE(support.resources_known);
+    CHECK(hip_direct_gemm_rns_axpby_device(-1,&a,&b,&d,&c,1,1,1,1,1,1,1,prefix,1,1)==support.status);
+    CHECK(c==3);
+  }
+  const auto span=query_axpby_support(1,1,1,1,1,INT64_MAX,1,20);
+  CHECK(span.constraint==OperationConstraint::address_span);
+  CHECK(hip_direct_gemm_rns_axpby_device(-1,&a,&b,&d,&c,1,1,1,1,1,INT64_MAX,1,20,1,1)==span.status);
+  const auto fused=query_axpby_support(17,19,31,32,20,21,22,20);
+  REQUIRE(fused.status==RNS8_SUCCESS);
+  CHECK(fused.resources_known);
+  CHECK(fused.scratch_bytes==0);
+  CHECK_FALSE(fused.device_qualified);
+  for (uint32_t source : {0u,1u,20u}) {
+    const auto support=query_exact_lift_support(1,source,source,UINT64_MAX);
+    bool commit=true;
+    CHECK(hip_direct_lift_exact_suffix(-1,&c,1,source,source,false,bound,commit)==support.status);
+    CHECK_FALSE(commit);
+    CHECK(c==3);
+  }
+  for (uint32_t source=1; source<20; ++source) for (uint32_t target=source+1; target<=20; ++target) {
+    const auto support=query_exact_lift_support(257,source,target,UINT64_MAX);
+    REQUIRE(support.status==RNS8_SUCCESS);
+    CHECK(support.payload_bytes==257*(target-source));
+    CHECK(support.scratch_bytes==support.payload_bytes+sizeof(int));
+    CHECK(query_exact_lift_support(257,source,target,support.payload_bytes).status==RNS8_SUCCESS);
+    const auto tight=query_exact_lift_support(257,source,target,support.payload_bytes-1);
+    CHECK(tight.status==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(tight.resources_known);
+    CHECK(tight.scratch_bytes==support.scratch_bytes);
+  }
+  const auto large=query_exact_lift_support(INT64_MAX,1,20,UINT64_MAX);
+  CHECK(large.constraint==OperationConstraint::address_span);
+}
