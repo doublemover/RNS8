@@ -328,3 +328,16 @@ Authored HIP fixtures cover moduli 2/250/251/256, padded inputs/outputs, K=17 an
 65537, two-stream shared readers observed in reverse order, grouped graph replay,
 stale source generations, refresh, pending ownership and cancellation. This
 extension is source-only pending the final consolidated validation campaign.
+
+
+Matrix destruction now also preserves its C handle after a failed backend release,
+matching the C++ `Matrix::close()` ownership rule. Successfully released addresses
+are cleared individually; a retry visits only remaining allocations. Values are
+invalidated during cleanup, and a failed destruction handle is for cleanup retry
+only. Active matrix readers or writers reject destruction with BUSY before any
+release. If creation fails and device cleanup also fails, the context retains the
+unpublished matrix in an allocation-free intrusive list, rejects further arithmetic,
+and retries those releases during context destruction. Context destruction also
+retains an unreleased hipBLASLt handle on backend failure. Creation still returns a
+null matrix output. These bookkeeping changes and CPU fixtures are authored for
+the consolidated batch; no device-fault or allocation-fault campaign was run.

@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 
 #include <atomic>
+#include "core/matrix_cleanup.hpp"
 
 namespace rns8::detail::api {
 #include "api_matrix_currentness_storage.inc"

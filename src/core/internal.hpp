@@ -14,6 +14,8 @@
 #include "rns8/rns8.h"
 
 struct rns8_context {
+  // Intrusive ownership requires no allocation while recovering construction failure.
+  rns8_matrix* failed_matrix_cleanup = nullptr;
   mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   bool auto_backend_selection = false;
@@ -105,6 +107,7 @@ struct rns8_exact_matrix_ranges {
 };
 
 struct rns8_matrix {
+  rns8_matrix* failed_cleanup_next = nullptr;
   mutable uint64_t prepared_references = 0;
   mutable uint64_t in_flight_readers = 0;
   bool in_flight_writer = false;

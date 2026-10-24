@@ -1,3 +1,16 @@
+namespace {
+void discard_failed_matrix(rns8_context& ctx, rns8_matrix* matrix) {
+  if (free_hip_matrix_storage(*matrix) == RNS8_SUCCESS) {
+    delete matrix;
+    return;
+  }
+  // Creation still returns a null output; its context owns the failed cleanup.
+  matrix->failed_cleanup_next = ctx.failed_matrix_cleanup;
+  ctx.failed_matrix_cleanup = matrix;
+  ctx.hip_failure_poisoned = true;
+}
+} // namespace
+
 rns8_status assign_matrix_instance_id(rns8_matrix& matrix) {
   static std::atomic<uint64_t> next_matrix_instance_id{1};
   const uint64_t id = next_matrix_instance_id.fetch_add(1, std::memory_order_relaxed);
@@ -34,13 +47,16 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
                                                   std::max(prefix, 1u), 8)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    auto* matrix = new (std::nothrow) rns8_matrix();
+    const auto discard = [ctx](rns8_matrix* matrix) noexcept {
+      if (matrix) discard_failed_matrix(*ctx, matrix);
+    };
+    std::unique_ptr<rns8_matrix, decltype(discard)> owner(new (std::nothrow) rns8_matrix(), discard);
+    auto* matrix = owner.get();
     if (!matrix) {
       return RNS8_INTERNAL_ERROR;
     }
     const rns8_status id_status = assign_matrix_instance_id(*matrix);
     if (id_status != RNS8_SUCCESS) {
-      delete matrix;
       return id_status;
     }
     matrix->desc = *desc;
@@ -62,20 +78,16 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
       } else if (matrix->desc.semantics == RNS8_BOUNDED_U64) {
         matrix->native_u64.clear();
       } else {
-        delete matrix;
         return RNS8_UNSUPPORTED_BACKEND;
       }
       invalidate_output_currentness(*matrix);
       const rns8_status status = ensure_hip_native_storage(*ctx, *matrix);
       if (status != RNS8_SUCCESS) {
-        (void)free_hip_matrix_storage(*matrix);
-        delete matrix;
         return status;
       }
     } else if (matrix->desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
       std::size_t bytes = 0;
       if (!wrap_byte_limb_bytes(desc->rows, desc->cols, bytes)) {
-        delete matrix;
         return RNS8_RANGE_ERROR;
       }
       if (!hip_resident_rns_backend(ctx->backend)) {
@@ -85,7 +97,6 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     } else if (uses_finite_storage(matrix->desc.semantics)) {
       std::size_t cells = 0;
       if (!matrix_cell_count(desc->rows, desc->cols, cells)) {
-        delete matrix;
         return RNS8_RANGE_ERROR;
       }
       if (!hip_resident_rns_backend(ctx->backend)) matrix->residues.assign(cells, 0);
@@ -95,7 +106,6 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     } else {
       std::size_t elements = 0;
       if (!rns_residue_count(desc->rows, desc->cols, prefix, elements)) {
-        delete matrix;
         return RNS8_RANGE_ERROR;
       }
       if (!hip_resident_rns_backend(ctx->backend)) matrix->residues.assign(elements, 0);
@@ -108,28 +118,30 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (hip_resident_rns_backend(ctx->backend)) {
       const rns8_status status = allocate_hip_matrix_storage(*ctx, *matrix);
       if (status != RNS8_SUCCESS) {
-        delete matrix;
         return status;
       }
       if (ctx->auto_backend_selection &&
           (matrix->desc.semantics == RNS8_BOUNDED_I64 || matrix->desc.semantics == RNS8_BOUNDED_U64)) {
         const rns8_status native_status = ensure_hip_native_storage(*ctx, *matrix);
         if (native_status != RNS8_SUCCESS) {
-          (void)free_hip_matrix_storage(*matrix);
-          delete matrix;
           return native_status;
         }
       }
     }
-    *out = matrix;
+    *out = owner.release();
     return RNS8_SUCCESS;
   });
 }
 
 rns8_status rns8_destroy_matrix(rns8_matrix* matrix) {
-  if (matrix && matrix->prepared_references) return RNS8_BUSY;
+  if (matrix && (matrix->prepared_references || matrix->in_flight_readers || matrix->in_flight_writer))
+    return RNS8_BUSY;
   if (matrix) {
     const rns8_status status = free_hip_matrix_storage(*matrix);
+    if (status != RNS8_SUCCESS) {
+      matrix->generation_exhausted = true; // Failed destruction permits cleanup retry only.
+      return status;
+    }
     delete matrix;
     return status;
   }

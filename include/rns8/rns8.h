@@ -1138,6 +1138,9 @@ RNS8_API rns8_status rns8_create_matrix(
     const rns8_matrix_desc* desc,
     rns8_matrix** out);
 
+/* BUSY preserves the matrix. A backend release failure retains the handle and
+ * remaining device allocations for destruction retry; its values are unavailable.
+ * After such a failure, only retry destruction. SUCCESS consumes the handle. */
 RNS8_API rns8_status rns8_destroy_matrix(rns8_matrix* matrix);
 
 /*
