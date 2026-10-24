@@ -8,12 +8,18 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The [October 24 partial campaign](7900xtx-partial-campaign-2026-10-24.md) records
+`ad71df5` production validation (747 passes, three expected skips), 5,382 admitted
+benchmark captures and reviewed matched gains. Collection is stopped by user
+request; unfinished cohorts remain unqualified. Its measurements supersede
+older results only for the exact source/configuration and contracts reported.
+
 The [expanded October 23 validation](local-all-features-20261023.md) records the
 `51ae8d8` Windows/gfx1100 all-feature build, 489 passes, three target-inapplicable
 sparse skips and zero failures. It supersedes older local pending-runtime notes
 for the registered applicable tests, including repaired hipBLASLt operand-cache
-identity. The [512³/1024³ report](7900xtx-large-throughput-2026-10-23.md) is the
-current scaling comparison; [256³](7900xtx-throughput-2026-10-23.md) remains the
+identity. The [512³/1024³ report](7900xtx-large-throughput-2026-10-23.md) remains the
+historical large-shape comparison; [256³](7900xtx-throughput-2026-10-23.md) remains the
 initial diagnostic. Changed source/configurations need their own evidence.
 
 The [October 6 audit](audit-2026-10-06.md) preserves defect/repair history.
