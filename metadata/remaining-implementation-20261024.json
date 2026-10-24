@@ -277,7 +277,7 @@
       "issue": 35,
       "title": "[Research P1] Fuse native conversion and multiple residue channels inside matrix-engine tiles",
       "url": "https://github.com/doublemover/RNS8/issues/35",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Native grouped/tiled WMMA register/raw-LDS kernels exist; current encode-once cooperative/encoded-LDS candidates and prepared tiled capability amortization absent. Wrapper still allocates/probes/syncs/readbacks immutable capability per call.",
       "implementation": [
         {
@@ -290,17 +290,31 @@
             "src/backend_hip_direct/native_tiled_prepared.hpp",
             "src/backend_hip_direct/hip_backend_native_tiled.inc"
           ]
+        },
+        {
+          "summary": "Matched cold/prepared/pack+GEMM conversion collector with explicit reuse1/2/8, changed-input controls, measured setup-inclusive aggregation, source work/resource counts and five bounded tail/512/skinny/larger-grid/rebuild manifests.",
+          "files": [
+            "benchmarks/rns8_native_calibrate.cpp",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/conversion-ownership-tail.json",
+            "benchmarks/native-calibration/conversion-ownership-512.json",
+            "benchmarks/native-calibration/conversion-ownership-skinny.json",
+            "benchmarks/native-calibration/conversion-ownership-large-grid.json",
+            "benchmarks/native-calibration/conversion-ownership-changed-input.json"
+          ]
         }
       ],
       "regressions": [
         "src/backend_common/native_conversion_reference.hpp",
         "tests/unit/test_native_tile_bound.cpp",
-        "tests/differential/test_hip_direct_native_wmma_cases.inc"
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "cb4e2bebc2e1718cbc494f7127dd5516ed320491"
+      ],
       "remaining": [
-        "Extend matched calibration collection to new conversion/prepared/reuse boundaries, explicit preparation and source-resource metadata.",
-        "HIP compile, logical/GPU regression execution, launched ISA and target performance qualification deferred."
+        "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

@@ -12,8 +12,8 @@ import unittest
 from unittest.mock import patch
 
 from collect_native_calibration import (
-    ADAPTIVE, CANDIDATES, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
-    reuse_contract, summarize_encoded_reuse,
+    ADAPTIVE, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
+    reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
 from test_capture_identity_support import synthetic_identity
@@ -24,12 +24,14 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
+    if candidate not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
     if candidate.startswith("complex_"):
         case["prefix"] = 20
+    if candidate in CONVERSION:
+        case.update(k_depth=16,lds_buffers=0,waves=4,conversion="replicated",reuse_count=1,input_change="stable")
     if candidate in TILED:
         case.update(k_depth=16, lds_buffers=0 if candidate == "tiled_register" else 1)
     if candidate in ENCODED:
@@ -58,6 +60,9 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
         capture["encoded_b_prepare_ns"] = 4000.25 if case["candidate"] == "encoded_b_warm" else None
         capture["sustained"].update(gemm_calls=16*case["reuse_count"],
             mean_gemm_ns=20000000/case["reuse_count"],verified_outputs_per_batch=1)
+    if case["candidate"] in CONVERSION:
+        capture["conversion_prepare_ns"]=4000.25 if case["candidate"]=="conversion_prepared" else None
+        capture["sustained"].update(gemm_calls=16*case["reuse_count"],mean_gemm_ns=20000000/case["reuse_count"],verified_outputs_per_batch=1)
     return capture
 
 
@@ -85,7 +90,7 @@ class CaseTest(unittest.TestCase):
         for candidate in ENCODED:
             missing=case_for(candidate);del missing["reuse_count"]
             with self.assertRaises(ValueError):validate_case(missing)
-        for candidate in set(CANDIDATES)-set(REUSE):
+        for candidate in set(CANDIDATES)-set(REUSE)-set(CONVERSION):
             with self.subTest(candidate=candidate),self.assertRaisesRegex(ValueError,"reuse_count applies only"):
                 case_for(candidate,reuse_count=1)
 
@@ -109,7 +114,7 @@ class CaseTest(unittest.TestCase):
             for unsigned in (False, True):
                 if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
+                for group in ((1, 2, 4) if candidate in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -195,7 +200,7 @@ class CaseTest(unittest.TestCase):
         for depth, buffers in ((32, 0), (16, 1), (16, 2)):
             with self.assertRaises(ValueError): case_for("tiled_register", k_depth=depth, lds_buffers=buffers)
         with self.assertRaises(ValueError): case_for("tiled_lds", lds_buffers=0)
-        for candidate in set(CANDIDATES) - set(TILED):
+        for candidate in set(CANDIDATES) - set(TILED) - set(CONVERSION):
             for changes in (dict(k_depth=16), dict(lds_buffers=0)):
                 with self.assertRaises(ValueError): case_for(candidate, **changes)
 
@@ -268,7 +273,7 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
+        for candidate in (c for c in CANDIDATES if c not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
@@ -303,6 +308,40 @@ class CaseTest(unittest.TestCase):
                 self.assertEqual(contract["expression"]["alpha"], (1 << 63) - 1 if unsigned else -(1 << 63))
                 self.assertEqual(contract["expression"]["beta"], (1 << 63) - 1)
                 self.assertEqual(bool(contract["materialized_intermediate_bytes"]), candidate == "epilogue_unfused")
+
+
+class ConversionContracts(unittest.TestCase):
+    def test_every_typed_recipe_repeats_and_preparation_boundary(self):
+        recipes=((16,0,1,"replicated"),(16,0,1,"cooperative"),(16,0,4,"cooperative"),
+                 (16,1,4,"replicated"),(32,2,4,"replicated"),(16,1,4,"encoded_lds"),(32,1,4,"encoded_lds"))
+        for depth,buffers,waves,mode in recipes:
+            for candidate in ("conversion_cold","conversion_prepared"):
+                for group in (1,2,4):
+                    case=case_for(candidate,k_depth=depth,lds_buffers=buffers,waves=waves,conversion=mode,group=group,reuse_count=8,input_change="reverse_k")
+                    capture=capture_for(case);validate_capture(capture,case,"fixture-run",3,1)
+                    contract=conversion_contract(case)
+                    self.assertFalse(contract["conversion_source_counts_measured"])
+                    if mode=="encoded_lds":
+                        self.assertEqual(contract["conversion_raw_lds_bytes"],0)
+                        self.assertEqual(contract["conversion_scalars_per_interior_panel"],2*32*depth*group)
+                    for field in ("conversion_identity","conversion_preparation_in_batch","conversion_total_lds_bytes"):
+                        wrong=copy.deepcopy(capture);wrong[field]=None
+                        with self.assertRaises(ValueError):validate_capture(wrong,case,"fixture-run",3,1)
+        for changes in (dict(waves=2),dict(conversion="encoded_lds",lds_buffers=2),dict(conversion="cooperative",lds_buffers=1),dict(reuse_count=True),dict(input_change="unrecorded")):
+            with self.assertRaises(ValueError):case_for("conversion_prepared",**changes)
+
+    def test_setup_is_added_within_each_process_and_permutations_preserve_result(self):
+        observations=[]
+        for run,batch,setup in (("one",100,50),("two",120,10),("three",140,0)):
+            observations.append(dict(case=case_for("conversion_prepared"),run_id=run,independent_repeat=len(observations),
+                                     sampled_batch_ns=batch,prepare_ns=setup,sustained_batch_ns=batch,provenance_complete=False))
+        forward=summarize_conversion(observations)
+        self.assertEqual(forward,summarize_conversion(list(reversed(observations))))
+        row=forward[0]["recipes"][0]
+        self.assertEqual(row["sampled_batch_ns_median"],120)
+        self.assertEqual(row["setup_plus_sampled_batch_ns_median"],140)
+        self.assertEqual(row["independent_processes"],3)
+        self.assertFalse(forward[0]["promotion_eligible"])
 
 
 class CaptureTest(unittest.TestCase):
@@ -501,6 +540,8 @@ class CollectorTest(unittest.TestCase):
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
                                       **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
                                       **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
+                                      **({"k_depth":int(command[11]),"lds_buffers":int(command[12]),"waves":int(command[13]),
+                                          "conversion":command[14],"reuse_count":int(command[15]),"input_change":command[16]} if command[1] in CONVERSION else {}),
                                       **({"k_depth": int(command[11]), "lds_buffers": int(command[12])} if command[1] in TILED else {})))
             capture = capture_for(case, command[10])
             if mutate:
@@ -514,7 +555,7 @@ class CollectorTest(unittest.TestCase):
 
     def records(self):
         return [json.loads(p.read_text(encoding="utf-8")) for p in self.output.glob("*.json")
-                if not p.name.startswith("encoded-b-reuse-comparison-")]
+                if not p.name.startswith(("encoded-b-reuse-comparison-", "conversion-comparison-"))]
 
     def test_all_modes_end_to_end_and_distinct_worker_identity(self):
         cases = [case_for(name) for name in CANDIDATES]
@@ -711,7 +752,7 @@ class CompiledCliTest(unittest.TestCase):
         self.assertIn("default 32", result.stdout)
 
     def test_malformed_and_irrelevant_workers_fail_before_device_work(self):
-        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED, *REUSE)):
+        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED, *REUSE, *CONVERSION)):
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             workers = ("0", "1025", "-1", "1.0", "+1", "", "4294967296", "32x") if candidate in QUEUED else ("32",)

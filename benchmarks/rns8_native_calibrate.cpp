@@ -1,5 +1,6 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
 #include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_common/complex_residue_plan.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
@@ -99,10 +100,11 @@ int main(int argc, char** argv) {
   try {
     const char* usage =
         "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|complex_3m|complex_4m|"
-        "tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
+        "conversion_cold|conversion_prepared|conversion_pack_gemm|tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
+        "conversion modes: append depth buffers waves replicated|cooperative|encoded_lds reuse_count stable|reverse_k; cold includes one preparation per R-call batch, prepared reports setup separately.\n"
         "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
         "encoded_b_cold/warm: append required reuse_count1..256; wmma accepts the same suffix (default1). Each timed execute is R GEMMs, one final verification. Cold includes allocate/prepare/free; warm reports one setup separately.\n"
         "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
@@ -111,19 +113,37 @@ int main(int argc, char** argv) {
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
-    if (argc < 11 || argc > 13) throw std::invalid_argument(usage);
+    if (argc < 11 || argc > 17) throw std::invalid_argument(usage);
     // Preserve the original ten arguments; optional workers follows run identity.
     const std::string candidate = argv[1], run_id = argv[10];
     const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
+    const bool conversion = candidate == "conversion_cold" || candidate == "conversion_prepared" || candidate == "conversion_pack_gemm";
+    const bool conversion_prepared = candidate == "conversion_prepared";
+    const bool conversion_pack = candidate == "conversion_pack_gemm";
+    if(conversion && argc!=17)throw std::invalid_argument("conversion cases require six explicit controls after run identity");
+    NativeTiledConfig conversion_config;
+    std::string conversion_name="replicated",conversion_input="stable";
+    if(conversion) {
+      conversion_config.depth=number(argv[11],16,32);conversion_config.buffers=number(argv[12],0,2);
+      conversion_config.waves=number(argv[13],1,4);conversion_name=argv[14];conversion_input=argv[16];
+      if(conversion_name=="cooperative")conversion_config.conversion=NativeConversion::cooperative;
+      else if(conversion_name=="encoded_lds")conversion_config.conversion=NativeConversion::encoded_lds;
+      else if(conversion_name!="replicated")throw std::invalid_argument("unknown conversion ownership");
+      const auto resources=query_native_tiled_resources(conversion_config.depth,conversion_config.buffers,65536,
+          conversion_config.conversion,group,conversion_config.waves);
+      if(resources.status!=RNS8_SUCCESS || (conversion_input!="stable" && conversion_input!="reverse_k") ||
+          (conversion_pack && (conversion_name!="replicated" || conversion_config.depth!=16 || conversion_config.buffers || conversion_config.waves!=4)))
+        throw std::invalid_argument("unsupported conversion geometry/storage/input control");
+    }
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
     const bool compact = candidate == "adaptive_compact";
     const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
     const bool encoded = candidate == "encoded_b_cold" || candidate == "encoded_b_warm";
     const bool encoded_warm = candidate == "encoded_b_warm";
-    const bool reuse_batch = encoded || candidate == "wmma";
+    const bool reuse_batch = encoded || candidate == "wmma" || conversion;
     if (encoded && argc != 12)
       throw std::invalid_argument("encoded_b cases require explicit reuse_count1..256 after run identity");
     if (adaptive && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
@@ -131,9 +151,9 @@ int main(int argc, char** argv) {
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
     if (tiled && argc != 13)
       throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
-    if (!adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch)))
+    if (!conversion && !adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
-    const uint32_t reuse_count = reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
+    const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
     const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
     const uint32_t tiled_buffers = tiled ? number(argv[12],0,2) : 0;
     const uint64_t tiled_lds_budget = 65536;
@@ -147,7 +167,7 @@ int main(int argc, char** argv) {
     const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
         queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = candidate == "wmma" || encoded || queued || prepared || adaptive || tiled;
+    const bool native = conversion || candidate == "wmma" || encoded || queued || prepared || adaptive || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -211,7 +231,9 @@ int main(int argc, char** argv) {
     }
     hip_direct_device_buffer da, db, ra, rb, rd, intermediate, dc;
     check(da.allocate(0,a.size()*8)); check(db.allocate(0,b.size()*8));
-    check(ra.allocate(0,expected_a.size())); check(rb.allocate(0,expected_b.size())); check(dc.allocate(0,expected.size()));
+    const bool reserve_residue_inputs=!conversion || conversion_pack;
+    if(reserve_residue_inputs) {check(ra.allocate(0,expected_a.size()));check(rb.allocate(0,expected_b.size()));}
+    check(dc.allocate(0,expected.size()));
     check(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8));
     check(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8));
     if (epilogue) {
@@ -221,15 +243,29 @@ int main(int argc, char** argv) {
       // writes it. This keeps allocation footprint out of the timing comparison.
       check(intermediate.allocate(0,std::size_t{m}*n*prefix));
     }
-    pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
+    if(reserve_residue_inputs)pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
     const auto compare = [&](void* pointer, const std::vector<int8_t>& reference) {
       std::vector<int8_t> observed(reference.size());
       check(hip_direct_copy_device_to_host(0,observed.data(),pointer,observed.size()));
       if (observed != reference) throw std::runtime_error("native calibration differs from exact reference or canary");
     };
-    compare(ra.get(),expected_a); compare(rb.get(),expected_b);
+    if(reserve_residue_inputs){compare(ra.get(),expected_a);compare(rb.get(),expected_b);}
     std::vector<NativeWmmaTask> tasks{{da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs}};
     NativeWmmaPreparedQueue prepared_queue;
+    NativeTiledPrepared conversion_owner;
+    double conversion_prepare_ns=0;
+    if(conversion_prepared) {
+      hip_direct_timing_set_enabled(false);
+      const auto start=std::chrono::steady_clock::now();
+      check(conversion_owner.prepare(0,tasks.front(),conversion_config));
+      conversion_prepare_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-start).count();
+    }
+    auto reverse_a=a,reverse_b=b;
+    if(conversion && conversion_input=="reverse_k") {
+      for(uint32_t row=0;row<m;++row)for(uint32_t q=0;q<k;++q)reverse_a[row*k+q]=a[row*k+k-1-q];
+      for(uint32_t q=0;q<k;++q)for(uint32_t col=0;col<n;++col)reverse_b[q*n+col]=b[(k-1-q)*n+col];
+    }
+    bool reversed_inputs=false;
     EncodedBLayout encoded_layout;
     hip_direct_device_buffer encoded_storage;
     double encoded_prepare_ns = 0;
@@ -253,6 +289,21 @@ int main(int argc, char** argv) {
       queue_prepare_ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
     }
     const auto execute = [&]() {
+      if(conversion) {
+        bool written=false;
+        NativeTiledPrepared cold;
+        if(!conversion_prepared && !conversion_pack)check(cold.prepare(0,tasks.front(),conversion_config));
+        for(uint32_t reuse=0;reuse<reuse_count;++reuse) {
+          if(conversion_pack) {
+            pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
+            check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
+          } else {
+            check(conversion_prepared ? conversion_owner.execute(written) : cold.execute(written));
+            if(!written)throw std::runtime_error("prepared conversion succeeded without committing output");
+          }
+        }
+        return;
+      }
       if (candidate == "pack_pair" || candidate == "pack_gemm") pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
       if (candidate == "pack_pair") return;
       bool written = false;
@@ -299,6 +350,13 @@ int main(int argc, char** argv) {
       else check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
     };
     const auto prepare = [&]() {
+      if(conversion && conversion_input=="reverse_k") {
+        reversed_inputs=!reversed_inputs;
+        const auto& next_a=reversed_inputs?reverse_a:a;
+        const auto& next_b=reversed_inputs?reverse_b:b;
+        check(hip_direct_copy_host_to_device(0,da.get(),next_a.data(),next_a.size()*8));
+        check(hip_direct_copy_host_to_device(0,db.get(),next_b.data(),next_b.size()*8));
+      }
       std::vector<int8_t> poison(expected.size(),99);
       check(hip_direct_copy_host_to_device(0,dc.get(),poison.data(),poison.size()));
       if (epilogue) check(hip_direct_zero(0,intermediate.get(),std::size_t{m}*n*prefix));
@@ -364,12 +422,12 @@ int main(int argc, char** argv) {
             "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue"},
         {"reference_operand_storage_bytes",candidate=="pack_pair" ? std::size_t{0} :
             (a.size()+b.size())*sizeof(boost::multiprecision::int256_t)},
-        {"native_input_storage_bytes",(a.size()+b.size())*8},{"residue_input_storage_bytes",expected_a.size()+expected_b.size()+expected_d.size()},
+        {"native_input_storage_bytes",(a.size()+b.size())*8},{"residue_input_storage_bytes",reserve_residue_inputs ? expected_a.size()+expected_b.size()+expected_d.size() : 0},
         {"residue_output_bytes",std::size_t{m}*n*prefix},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
-    if (reuse_batch) {
+    if (reuse_batch && !conversion) {
       report.update({{"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
           {"reuse_batch_boundary","R_synchronous_calls_same_native_A_B_one_final_verified_output"},
           {"reuse_comparison_boundary","private_raw_residue_no_public_matrix_proof_or_generation"},
@@ -391,6 +449,36 @@ int main(int argc, char** argv) {
           "one allocation/probe/B conversion, R synchronous private cached GEMMs and cache release per batch; no upload, poison or verification in interval" :
           "R synchronous grouped native GEMMs per batch, including ordinary per-call capability/allocation policy; no upload, poison or verification in interval";
       report["cache_state"]="same immutable native A/B; C poisoned before sampled batches and once before sustained burst";
+    }
+    if(conversion) {
+      const auto resources=query_native_tiled_resources(conversion_config.depth,conversion_config.buffers,65536,
+          conversion_config.conversion,group,conversion_config.waves);
+      report.update({{"k_depth",conversion_config.depth},{"lds_buffers",conversion_config.buffers},
+          {"waves",conversion_config.waves},{"conversion",conversion_name},{"input_change",conversion_input},
+          {"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
+          {"conversion_identity",native_conversion_identity(conversion_config.conversion)},
+          {"conversion_prepare_ns",conversion_prepared?nlohmann::json(conversion_prepare_ns):nlohmann::json(nullptr)},
+          {"conversion_preparation_in_batch",!conversion_prepared && !conversion_pack},
+          {"conversion_prepared_capability_bytes",conversion_pack?0:4},
+          {"conversion_public_ownership_measured",false},
+          {"conversion_raw_lds_bytes",conversion_pack?0:resources.raw_lds_bytes},
+          {"conversion_encoded_lds_bytes",conversion_pack?0:resources.encoded_lds_bytes},
+          {"conversion_total_lds_bytes",conversion_pack?0:resources.total_lds_bytes},
+          {"conversion_source_counts_measured",false},
+          {"conversion_output_tile_rows",conversion_pack?0:resources.output_rows},
+          {"conversion_output_tile_cols",conversion_pack?0:resources.output_cols},
+          {"conversion_grid_workgroups",conversion_pack?uint64_t(0):((uint64_t(m)+resources.output_rows-1)/resources.output_rows)*
+              ((uint64_t(n)+resources.output_cols-1)/resources.output_cols)*((prefix+group-1)/group)},
+          {"conversion_scalars_per_interior_panel",conversion_pack?0:resources.conversions_per_panel},
+          {"conversion_raw_scalars_per_interior_panel",conversion_pack?0:resources.raw_operand_scalars_per_panel},
+          {"conversion_accumulator_i32_per_lane",conversion_pack?0:resources.accumulator_i32_per_lane},
+          {"conversion_fragment_words_per_lane",conversion_pack?0:resources.fragment_words_per_lane},
+          {"conversion_lds_word_layout",conversion_config.conversion==NativeConversion::encoded_lds ? "A_row_Kword_B_column_Kword_odd_padded_stride" : "not_applicable"},
+          {"conversion_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"conversion_input_upload_scope",conversion_input=="reverse_k" ? "alternate_common_K_reversal_before_each_sample_and_once_before_sustained_burst_outside_interval" : "initial_upload_only"}});
+      report["timing_scope"]=conversion_pack ? "R resident-native pack-pair plus direct GEMM calls; no upload, poison or verification in interval" :
+          conversion_prepared ? "R prepared synchronous conversion GEMMs; one measured preparation reported separately; no upload, poison or verification in interval" :
+          "one capability/allocation preparation, R synchronous conversion GEMMs and owner release per batch; no upload, poison or verification in interval";
     }
     if (tiled) {
       report.update({{"k_depth",tiled_depth},{"lds_buffers",tiled_buffers},

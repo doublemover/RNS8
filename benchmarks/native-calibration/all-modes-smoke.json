@@ -217,5 +217,50 @@
     "group": 2,
     "unsigned_inputs": false,
     "reuse_count": 1
+  },
+  {
+    "candidate": "conversion_cold",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "k_depth": 16,
+    "lds_buffers": 0,
+    "waves": 4,
+    "conversion": "replicated",
+    "reuse_count": 1,
+    "input_change": "stable"
+  },
+  {
+    "candidate": "conversion_prepared",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "k_depth": 16,
+    "lds_buffers": 0,
+    "waves": 4,
+    "conversion": "replicated",
+    "reuse_count": 1,
+    "input_change": "stable"
+  },
+  {
+    "candidate": "conversion_pack_gemm",
+    "m": 17,
+    "n": 19,
+    "k": 31,
+    "prefix": 3,
+    "group": 2,
+    "unsigned_inputs": false,
+    "k_depth": 16,
+    "lds_buffers": 0,
+    "waves": 4,
+    "conversion": "replicated",
+    "reuse_count": 1,
+    "input_change": "stable"
   }
 ]

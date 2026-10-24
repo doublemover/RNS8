@@ -466,3 +466,30 @@ reference](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en
 They do not qualify other RDNA/CDNA layouts. HIP compilation, emitted shuffle/
 conversion/barrier/resource inspection, differential execution and matched
 pipeline measurements are deferred; these candidates do not change default AUTO.
+
+The collector now accepts `conversion_cold`, `conversion_prepared` and
+`conversion_pack_gemm`, with explicit depth, buffer count, wave count, conversion
+ownership, reuse count and input-change controls. The cold interval includes
+one preparation, R synchronous GEMMs and release; the prepared interval includes
+R GEMMs and reports actual setup separately. The pack control performs R complete
+pack-pair/direct-GEMM calls. Native conversion candidates reserve no unused
+packed-input device planes. Every lane retains complete Boost/canary checking,
+hook-disabled sampled calls and the bounded sustained burst.
+
+Five `conversion-ownership-*.json` manifests isolate 17×19×257 tails, 512³,
+skinny short-K, a 1024×1024×64 larger grid, and changed native inputs. Each has
+51 bounded cases: eight matched one/four-wave/register/raw-LDS/encoded-LDS
+recipes in cold and prepared forms, plus separate pack+GEMM, at reuse 1/2/8.
+The changed-input cohort reverses the common contraction axis in both operands
+before each sample (and once before a sustained burst), preserving the exact
+product without a stale-input cache assumption. Upload remains explicitly
+outside this resident-input boundary. Grid workgroups and source conversion/
+storage counts are emitted; tested dimensions are not a saturation claim.
+
+`conversion-comparison-*.json` retains every independent observation and reports
+sample medians, sustained means and measured setup separately. Setup-inclusive
+cost adds each process's actual setup to its sampled batch before taking the
+across-process median; it does not subtract a guessed probe constant. No winning
+configuration is installed or declared qualified. The manifests and authored
+collector/CLI/fragment/device regressions have not been executed in this source
+preparation pass.

@@ -13,7 +13,8 @@ from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
 
 
-CANDIDATES = ("pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
+CONVERSION = ("conversion_cold", "conversion_prepared", "conversion_pack_gemm")
+CANDIDATES = (*CONVERSION, "pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
               "adaptive_grid", "adaptive_compact",
               "tiled_register", "tiled_lds",
               "encoded_b_cold", "encoded_b_warm",
@@ -44,12 +45,12 @@ def strict_json(text):
 def validate_case(case):
     """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count"}:
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change"}:
         raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in (*REUSE, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
+    native = case["candidate"] in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -66,13 +67,25 @@ def validate_case(case):
             raise ValueError("adaptive cases require prefix20 and explicit bound_method=axis_l1")
     elif "bound_method" in case:
         raise ValueError("bound_method applies only to adaptive cases")
+    if case["candidate"] in CONVERSION:
+        depth,buffers,waves,mode=(case.get(key) for key in ("k_depth","lds_buffers","waves","conversion"))
+        if (type(depth) is not int or depth not in (16,32) or type(buffers) is not int or buffers not in (0,1,2)
+                or type(waves) is not int or waves not in (1,4) or mode not in ("replicated","cooperative","encoded_lds")
+                or (not buffers and depth!=16) or (waves==1 and (buffers or depth!=16))
+                or (mode=="cooperative" and buffers) or (mode=="encoded_lds" and (buffers!=1 or waves!=4))
+                or case.get("input_change") not in ("stable","reverse_k")
+                or type(case.get("reuse_count")) is not int or not 1<=case["reuse_count"]<=256
+                or (case["candidate"]=="conversion_pack_gemm" and (depth,buffers,waves,mode)!=(16,0,4,"replicated"))):
+            raise ValueError("invalid explicit conversion ownership/storage/reuse/input control")
+    elif any(key in case for key in ("waves","conversion","input_change")):
+        raise ValueError("conversion ownership controls apply only to conversion candidates")
     if case["candidate"] in TILED:
         depth, buffers = case.get("k_depth"), case.get("lds_buffers")
         if (type(depth) is not int or type(buffers) is not int
                 or (case["candidate"] == "tiled_register" and (depth != 16 or buffers != 0))
                 or (case["candidate"] == "tiled_lds" and (depth not in (16, 32) or buffers not in (1, 2)))):
             raise ValueError("tiled_register requires integer k_depth16/lds_buffers0; tiled_lds depth16|32/buffers1|2")
-    elif "k_depth" in case or "lds_buffers" in case:
+    elif case["candidate"] not in CONVERSION and ("k_depth" in case or "lds_buffers" in case):
         raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
     if case["candidate"] in REUSE:
@@ -80,7 +93,7 @@ def validate_case(case):
         if type(reuse) is not int or not 1 <= reuse <= 256:
             raise ValueError("encoded B requires explicit integer reuse_count1..256; wmma defaults1")
         normalized["reuse_count"] = reuse
-    elif "reuse_count" in case:
+    elif "reuse_count" in case and case["candidate"] not in CONVERSION:
         raise ValueError("reuse_count applies only to wmma/encoded_b_cold/encoded_b_warm")
     if case["candidate"] == "adaptive_compact":
         workers = case.get("workers")
@@ -142,6 +155,35 @@ def tiled_contract(case):
                                        + ("unsigned" if case["unsigned_inputs"] else "signed")
                                        + f"_d{depth}_b{buffers}"),
             "tiled_control_scope": "four_wave_32x32_same_output_residency_reference_and_slab_cap"}
+
+
+def conversion_contract(case):
+    if case["candidate"] not in CONVERSION: return {}
+    depth,buffers,waves,mode=(case[key] for key in ("k_depth","lds_buffers","waves","conversion"))
+    packed=case["candidate"]=="conversion_pack_gemm"
+    raw=0 if mode=="encoded_lds" or packed else buffers*(32*(depth+1)+depth*33)*8
+    encoded=case["group"]*2*32*(depth//4+1)*4 if mode=="encoded_lds" and not packed else 0
+    distinct=2*(16 if waves==1 else 32)*depth
+    conversions=distinct*case["group"] if mode=="encoded_lds" else waves*2*16*depth*case["group"]*(1 if mode=="cooperative" else 2)
+    identity={"replicated":"rdna3_replicated_native_conversion_v1",
+              "cooperative":"rdna3_wave32_own_ab_half_xor16_packed_v1",
+              "encoded_lds":"rdna3_cta32x32_encode_once_ab_axis_kword_pad1_v1"}[mode]
+    return {"conversion_identity":identity,"batch_gemm_calls":case["reuse_count"],
+        "conversion_preparation_in_batch":case["candidate"]=="conversion_cold",
+        "conversion_prepared_capability_bytes":0 if packed else 4,"conversion_public_ownership_measured":False,
+        "conversion_raw_lds_bytes":raw,"conversion_encoded_lds_bytes":encoded,"conversion_total_lds_bytes":raw+encoded,
+        "conversion_output_tile_rows":0 if packed else (16 if waves==1 else 32),
+        "conversion_output_tile_cols":0 if packed else (16 if waves==1 else 32),
+        "conversion_grid_workgroups":0 if packed else ((case["m"]+(16 if waves==1 else 32)-1)//(16 if waves==1 else 32))*
+            ((case["n"]+(16 if waves==1 else 32)-1)//(16 if waves==1 else 32))*((case["prefix"]+case["group"]-1)//case["group"]),
+        "conversion_source_counts_measured":False,"conversion_scalars_per_interior_panel":0 if packed else conversions,
+        "conversion_raw_scalars_per_interior_panel":0 if packed else distinct,
+        "conversion_accumulator_i32_per_lane":0 if packed else 8*case["group"],
+        "conversion_fragment_words_per_lane":0 if packed else 8*case["group"],
+        "conversion_lds_word_layout":"A_row_Kword_B_column_Kword_odd_padded_stride" if mode=="encoded_lds" else "not_applicable",
+        "conversion_dataset":"full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+        "conversion_input_upload_scope":"alternate_common_K_reversal_before_each_sample_and_once_before_sustained_burst_outside_interval"
+            if case["input_change"]=="reverse_k" else "initial_upload_only"}
 
 
 def epilogue_contract(case):
@@ -256,6 +298,9 @@ def capture_contract(case, run_id, repeats, warmups):
             residue_output_bytes=case["m"] * case["n"] * case["prefix"])
         expected.update(epilogue_contract(case))
     expected.update(reuse_contract(case))
+    expected.update(conversion_contract(case))
+    if case["candidate"] in CONVERSION and case["candidate"]!="conversion_pack_gemm":
+        expected["residue_input_storage_bytes"]=0
     return expected
 
 
@@ -278,6 +323,16 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
+    if case["candidate"] in CONVERSION:
+        setup=capture.get("conversion_prepare_ns")
+        if "conversion_prepare_ns" not in capture or (not positive_number(setup) if case["candidate"]=="conversion_prepared" else setup is not None):
+            raise ValueError("invalid conversion preparation measurement")
+        sustained=capture["sustained"];calls=sustained["calls"]*case["reuse_count"]
+        if (type(sustained.get("gemm_calls")) is not int or sustained["gemm_calls"]!=calls
+                or type(sustained.get("verified_outputs_per_batch")) is not int or sustained["verified_outputs_per_batch"]!=1
+                or not positive_number(sustained.get("mean_gemm_ns"))
+                or not math.isclose(sustained["mean_gemm_ns"]*calls,sustained["elapsed_ns"],rel_tol=1e-12)):
+            raise ValueError("invalid conversion batch/GEMM accounting")
     if case["candidate"] in REUSE:
         warm = case["candidate"] == "encoded_b_warm"
         setup = capture.get("encoded_b_prepare_ns")
@@ -396,6 +451,35 @@ def summarize_encoded_reuse(observations):
     return result
 
 
+def summarize_conversion(observations):
+    """Source/preparation ablations; no promotion or unmeasured extrapolation."""
+    dimensions=("m","n","k","prefix","group","unsigned_inputs","reuse_count","input_change")
+    groups={}
+    for observation in observations:
+        case=observation["case"];key=tuple(case[field] for field in dimensions)
+        recipe=tuple(case[field] for field in ("candidate","conversion","waves","k_depth","lds_buffers"))
+        groups.setdefault(key,{}).setdefault(recipe,[]).append(observation)
+    output=[]
+    for key,recipes in sorted(groups.items()):
+        rows=[]
+        for recipe,items in sorted(recipes.items()):
+            items=sorted(items,key=lambda item:item["run_id"])
+            if len({item["run_id"] for item in items})!=len(items):raise ValueError("duplicate conversion process")
+            samples=[item["sampled_batch_ns"] for item in items]
+            complete=[item["sampled_batch_ns"]+(item["prepare_ns"] or 0) for item in items]
+            rows.append({"recipe":dict(zip(("candidate","conversion","waves","k_depth","lds_buffers"),recipe)),
+                "run_ids":[item["run_id"] for item in items],"independent_processes":len(items),
+                "sampled_batch_ns_median":statistics.median(samples),"sampled_batch_ns_min":min(samples),"sampled_batch_ns_max":max(samples),
+                "setup_plus_sampled_batch_ns_median":statistics.median(complete),
+                "sustained_batch_mean_ns_process_median":statistics.median(item["sustained_batch_ns"] for item in items),
+                "preparation_ns_process_median":statistics.median(item["prepare_ns"] or 0 for item in items),
+                "observations":items})
+        output.append({"work_contract":dict(zip(dimensions,key)),"recipes":rows,
+            "comparison_scope":"matched_exact_residue_work_separate_cold_prepared_and_pack_boundaries",
+            "promotion_eligible":False,"hardware_qualification":"not_established_by_this_report"})
+    return output
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -429,6 +513,7 @@ def main():
     random.Random(args.order_seed).shuffle(jobs)
     campaign_identity = None
     reuse_observations = []
+    conversion_observations = []
     for ordinal, (case, independent) in enumerate(jobs):
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed during collection")
@@ -441,6 +526,8 @@ def main():
             command.append(case["bound_method"])
         if case["candidate"] in TILED:
             command.extend(str(case[key]) for key in ("k_depth", "lds_buffers"))
+        if case["candidate"] in CONVERSION:
+            command.extend(str(case[key]) for key in ("k_depth","lds_buffers","waves","conversion","reuse_count","input_change"))
         if case["candidate"] in REUSE:
             command.append(str(case["reuse_count"]))
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
@@ -466,6 +553,7 @@ def main():
                                              "case": case, **scheduling_contract(case),
                                              **adaptive_contract(case),
                                              **tiled_contract(case),
+                                             **conversion_contract(case),
                                              **reuse_contract(case),
                                              "input_domain": capture["input_domain"],
                                              "output_contract": capture["output_contract"],
@@ -475,6 +563,11 @@ def main():
             record["provenance_complete"] = manifest_provenance_complete(
                 capture["build_manifest"], "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None)
             record["validated"] = True
+            if case["candidate"] in CONVERSION:
+                conversion_observations.append({"case":case,"run_id":run_id,"independent_repeat":independent,
+                    "sampled_batch_ns":statistics.median(sample["uninstrumented_host_call_ns"] for sample in capture["samples"]),
+                    "sustained_batch_ns":capture["sustained"]["mean_call_ns"],"prepare_ns":capture["conversion_prepare_ns"],
+                    "provenance_complete":record["provenance_complete"]})
             if case["candidate"] in REUSE:
                 reuse_observations.append({"case":case,"independent_repeat":independent,"run_id":run_id,
                     "sustained_batch_ns":capture["sustained"]["mean_call_ns"],
@@ -503,6 +596,14 @@ def main():
             "promotion_eligible":False,"provenance_complete":all(row["provenance_complete"] for row in reuse_observations),
             "groups":summarize_encoded_reuse(reuse_observations)}
         with (args.output/("encoded-b-reuse-comparison-"+campaign+".json")).open("x",encoding="utf-8") as stream:
+            json.dump(comparison,stream,indent=2)
+    if conversion_observations:
+        comparison={"schema":"rns8_native_conversion_comparison_v1","campaign_id":campaign,
+            "comparison_identity":{"artifact_sha256":artifact,**campaign_identity},
+            "collector_sources_sha256":collector_identity,"promotion_eligible":False,
+            "estimator":"per_process_sample_median_then_process_median_setup_added_within_process",
+            "groups":summarize_conversion(conversion_observations)}
+        with (args.output/("conversion-comparison-"+campaign+".json")).open("x",encoding="utf-8") as stream:
             json.dump(comparison,stream,indent=2)
     print(f"Collected {len(jobs)} independent native microcase records; qualification remains pending")
     return 0
