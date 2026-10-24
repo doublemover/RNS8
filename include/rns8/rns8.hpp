@@ -43,15 +43,22 @@ class Context final {
   Context& operator=(const Context&) = delete;
 
   Context(Context&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Context& operator=(Context&& other) noexcept {
+  Context& operator=(Context&& other) {
     if (this != &other) {
-      rns8_destroy_context(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Context() { rns8_destroy_context(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_context(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_context* get() const noexcept { return handle_; }
 
@@ -77,15 +84,22 @@ class Plan final {
   Plan& operator=(const Plan&) = delete;
 
   Plan(Plan&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Plan& operator=(Plan&& other) noexcept {
+  Plan& operator=(Plan&& other) {
     if (this != &other) {
-      rns8_destroy_plan(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Plan() { rns8_destroy_plan(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_plan(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_plan* get() const noexcept { return handle_; }
 
@@ -145,15 +159,22 @@ class Matrix final {
   Matrix& operator=(const Matrix&) = delete;
 
   Matrix(Matrix&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Matrix& operator=(Matrix&& other) noexcept {
+  Matrix& operator=(Matrix&& other) {
     if (this != &other) {
-      rns8_destroy_matrix(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Matrix() { rns8_destroy_matrix(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_matrix(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_matrix* get() const noexcept { return handle_; }
 
@@ -222,15 +243,22 @@ class PrepackCache final {
   PrepackCache& operator=(const PrepackCache&) = delete;
 
   PrepackCache(PrepackCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  PrepackCache& operator=(PrepackCache&& other) noexcept {
+  PrepackCache& operator=(PrepackCache&& other) {
     if (this != &other) {
-      rns8_destroy_prepack_cache(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~PrepackCache() { rns8_destroy_prepack_cache(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_prepack_cache(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_prepack_cache* get() const noexcept { return handle_; }
 
@@ -256,15 +284,22 @@ class Workspace final {
   Workspace& operator=(const Workspace&) = delete;
 
   Workspace(Workspace&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Workspace& operator=(Workspace&& other) noexcept {
+  Workspace& operator=(Workspace&& other) {
     if (this != &other) {
-      rns8_destroy_workspace(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Workspace() { rns8_destroy_workspace(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_workspace(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_workspace* get() const noexcept { return handle_; }
 
@@ -336,15 +371,22 @@ class ResultCache final {
   ResultCache& operator=(const ResultCache&) = delete;
 
   ResultCache(ResultCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  ResultCache& operator=(ResultCache&& other) noexcept {
+  ResultCache& operator=(ResultCache&& other) {
     if (this != &other) {
-      rns8_destroy_result_cache(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~ResultCache() { rns8_destroy_result_cache(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_result_cache(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_result_cache* get() const noexcept { return handle_; }
 

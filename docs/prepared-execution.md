@@ -295,3 +295,14 @@ survive completion. A completion token alone never retains an owner.
 CPU fixtures cover epoch retention, stale receipts and unrelated mutations. HIP
 fixtures use two streams and cover successful publication and canceled-producer
 rejection. All newly authored cases remain queued for the consolidated campaign.
+
+
+C++ owners expose `close()` returning the C destruction status. `RNS8_BUSY`
+retains the handle so callers can observe completion or destroy retained prepared
+owners and retry. Move assignment now throws `rns8::Error` on failed close and
+preserves both source and destination handles; it is no longer `noexcept`.
+Move construction remains nonthrowing. Declare context before plans, matrices and
+workspace, then destroy prepared/graph/dependency owners before closing those
+resources. Destructors do not wait for asynchronous work and cannot report BUSY;
+use explicit successful `close()` when lifetime order is not guaranteed. Do not
+let a busy owner leave scope and lose the handle needed for later cleanup.

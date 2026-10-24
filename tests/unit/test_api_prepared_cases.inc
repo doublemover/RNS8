@@ -1,3 +1,4 @@
+#include "rns8/rns8.hpp"
 TEST_CASE("prepared GEMM retains handles and rejects stale bindings and completion epochs", "[api][prepared]") {
   for (bool hip : {false, true}) {
     if (hip && !rns8::detail::api::direct_hip_compiled()) continue;
@@ -236,4 +237,33 @@ TEST_CASE("prepared dependencies retain exact producer epochs and refresh only p
   REQUIRE(rns8_destroy_workspace(w1)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("C++ busy move assignment preserves both owning handles", "[api][prepared][cpp]") {
+  rns8::Context context;
+  const auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
+  const auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);
+  rns8::Plan plan(context,desc);
+  rns8::Workspace workspace(context,plan);
+  rns8::Matrix a(context,md),b(context,md),c(context,md),replacement(context,md);
+  int64_t value=3;
+  REQUIRE(rns8_pack_i64(context.get(),a.get(),&value,1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(context.get(),b.get(),&value,1,0)==RNS8_SUCCESS);
+  rns8_prepared_execution* execution=nullptr;
+  REQUIRE(rns8_prepare_gemm(context.get(),plan.get(),a.get(),b.get(),c.get(),workspace.get(),&execution)==RNS8_SUCCESS);
+  auto* old=a.get(); auto* incoming=replacement.get();
+  CHECK(a.close()==RNS8_BUSY);
+  bool busy=false;
+  try { a=std::move(replacement); }
+  catch (const rns8::Error& error) { busy=error.status()==RNS8_BUSY; }
+  REQUIRE(busy);
+  CHECK(a.get()==old); CHECK(replacement.get()==incoming);
+  CHECK(workspace.close()==RNS8_BUSY);
+  CHECK(plan.close()==RNS8_BUSY);
+  CHECK(context.close()==RNS8_BUSY);
+  REQUIRE(rns8_destroy_prepared_execution(execution)==RNS8_SUCCESS);
+  a=std::move(replacement);
+  CHECK(a.get()==incoming); CHECK(replacement.get()==nullptr);
+  REQUIRE(a.close()==RNS8_SUCCESS);
+  REQUIRE(a.close()==RNS8_SUCCESS);
 }
