@@ -18,13 +18,52 @@ struct RuntimeProductRecipe::Impl {
   uint32_t prefix=0;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::vector<int8_t> host;
-  hip_direct_device_buffer device;
+  void* device=nullptr;
+  bool quarantined=false,closed=false,output_touched=false;
+  std::vector<const rns8_matrix*> active_inputs;
+  rns8_matrix* active_output=nullptr;
   std::vector<uint64_t*> holds;
   std::mutex mutex;
-  ~Impl() { for(auto* hold:holds) --*hold; }
+  void release_active() noexcept {
+    if(!active_output) return;
+    for(const auto* input:active_inputs) --input->in_flight_readers;
+    active_output->in_flight_writer=false;--active_output->prepared_references;
+    active_output=nullptr;active_inputs.clear();output_touched=false;
+  }
+  void invalidate_touched() noexcept {
+    if(active_output && output_touched) {
+      clear_residue_current(*active_output);clear_byte_limb_current(*active_output);clear_native_current(*active_output);
+    }
+  }
+  ~Impl() {
+    // An executing/quarantined owner is never destroyed: close preserves it.
+    if(device) (void)hip_direct_free(ctx->device_id,device);
+    for(auto* hold:holds) --*hold;
+  }
 };
 RuntimeProductRecipe::RuntimeProductRecipe(std::unique_ptr<Impl> impl):impl_(std::move(impl)) {}
-RuntimeProductRecipe::~RuntimeProductRecipe()=default;
+RuntimeProductRecipe::~RuntimeProductRecipe() {
+  // Private RAII users cannot return a destruction error. Preserve the complete
+  // owner (including matrix/context holds) rather than free in-flight storage.
+  if(close()!=RNS8_SUCCESS) (void)impl_.release();
+}
+rns8_status RuntimeProductRecipe::close() {
+  return guard_api([&]() -> rns8_status {
+    auto& state=*impl_;std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
+    if(!lock.owns_lock()) return RNS8_BUSY;
+    if(state.closed) return RNS8_SUCCESS;
+    if(state.quarantined || state.active_output) {
+      if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS)
+        return RNS8_BACKEND_FAILURE;
+      state.invalidate_touched();state.release_active();state.quarantined=false;
+    }
+    if(state.device) {
+      const auto status=hip_direct_free(state.ctx->device_id,state.device);
+      if(status!=RNS8_SUCCESS) return status;state.device=nullptr;
+    }
+    state.closed=true;return RNS8_SUCCESS;
+  });
+}
 const ProductPrefixSelection& RuntimeProductRecipe::cost_selection() const { return impl_->selection; }
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
 uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
@@ -107,7 +146,7 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     for(auto* hold:holds) if(*hold==UINT64_MAX) return RNS8_RANGE_ERROR;
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
-      const auto status=state->device.allocate(ctx->device_id,static_cast<size_t>(state->allocation.arena_bytes));
+      const auto status=hip_direct_allocate(ctx->device_id,static_cast<size_t>(state->allocation.arena_bytes),&state->device);
       if(status!=RNS8_SUCCESS) return status;
     } else state->host.resize(static_cast<size_t>(state->allocation.arena_bytes));
     // Allocate the outer owner and reference list before taking any references.
@@ -118,12 +157,46 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     return RNS8_SUCCESS;
   });
 }
+rns8_status RuntimeProductRecipe::rebind(const std::vector<const rns8_matrix*>& inputs) {
+  return guard_api([&]() -> rns8_status {
+    auto& state=*impl_;std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
+    if(!lock.owns_lock()) return RNS8_BUSY;
+    if(state.closed || inputs.size()!=state.inputs.size()) return RNS8_INVALID_ARGUMENT;
+    if(state.ctx->hip_failure_poisoned || state.quarantined) return RNS8_BACKEND_FAILURE;
+    std::vector<Impl::Input> replacement;replacement.reserve(inputs.size());
+    std::unordered_set<uint64_t*> new_holds{&state.ctx->prepared_references};
+    const std::unordered_set<uint64_t*> old_holds(state.holds.begin(),state.holds.end());
+    for(size_t i=0;i<inputs.size();++i) {
+      const auto* input=inputs[i];if(!input) return RNS8_INVALID_ARGUMENT;
+      if(input->in_flight_writer) return RNS8_BUSY;
+      const auto shape=state.allocation.values[i].shape;
+      if(input->backend!=state.ctx->backend || input->desc.semantics!=state.semantics || input->prefix!=state.prefix ||
+         input->generation_exhausted || input->desc.rows!=shape.rows || input->desc.cols!=shape.cols ||
+         !rns_residue_state_current_for_backend(*input,state.ctx->backend) ||
+         !rns_matrix_storage_matches(*input,state.ctx->backend,shape.rows,shape.cols,state.prefix) ||
+         (state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && input->hip_device_id!=state.ctx->device_id)) return RNS8_INVALID_ARGUMENT;
+      if(input->exact_range_prefix<state.prefix || input->exact_max_magnitude<0 ||
+         input->exact_max_magnitude>state.bounds[i] ||
+         !exact_range_fits(state.semantics,input->exact_max_magnitude,modulus_product(state.prefix))) return RNS8_RANGE_ERROR;
+      replacement.push_back({input,input->matrix_instance_id,input->content_generation});
+      new_holds.insert(&input->prepared_references);
+    }
+    std::vector<uint64_t*> replacement_holds(new_holds.begin(),new_holds.end());
+    for(auto* hold:replacement_holds) if(!old_holds.count(hold) && *hold==UINT64_MAX) return RNS8_RANGE_ERROR;
+    // Nothing below allocates or validates. Take new unique owners before
+    // dropping old owners, then atomically publish all generation snapshots.
+    for(auto* hold:replacement_holds) if(!old_holds.count(hold)) ++*hold;
+    for(auto* hold:state.holds) if(!new_holds.count(hold)) --*hold;
+    state.inputs.swap(replacement);state.holds.swap(replacement_holds);
+    return RNS8_SUCCESS;
+  });
+}
 rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
   return guard_api([&]() -> rns8_status {
     auto& state=*impl_;
     std::unique_lock<std::mutex> lock(state.mutex,std::try_to_lock);
     if(!lock.owns_lock()) return RNS8_BUSY;
-    if(!output) return RNS8_INVALID_ARGUMENT;
+    if(!output || state.closed) return RNS8_INVALID_ARGUMENT;
     if(state.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if(output->in_flight_readers || output->in_flight_writer) return RNS8_BUSY;
     const auto shape=state.allocation.values.back().shape;
@@ -144,7 +217,7 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
     // Copy the proof before work; final publication swaps it without allocation.
     cpp_int bound=state.bounds.back();
     const bool hip=state.ctx->backend==RNS8_BACKEND_HIP_DIRECT;
-    auto* arena=hip?static_cast<int8_t*>(state.device.get()):state.host.data();
+    auto* arena=hip?static_cast<int8_t*>(state.device):state.host.data();
     const auto pointer=[&](uint32_t id) -> const int8_t* {
       if(id<state.inputs.size()) {
         const auto& matrix=*state.inputs[id].matrix;
@@ -154,6 +227,31 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
     };
     std::vector<uint32_t> current(state.allocation.values.size(),0);
     std::fill_n(current.begin(),state.inputs.size(),state.prefix);
+    // Allocate and validate the complete reservation list before taking any
+    // counters. Duplicate external input handles get one reader reservation.
+    std::unordered_set<const rns8_matrix*> unique_inputs;
+    for(const auto& input:state.inputs) unique_inputs.insert(input.matrix);
+    state.active_inputs.assign(unique_inputs.begin(),unique_inputs.end());
+    if(output->prepared_references==UINT64_MAX) return RNS8_RANGE_ERROR;
+    for(const auto* input:state.active_inputs) if(input->in_flight_readers==UINT64_MAX) return RNS8_RANGE_ERROR;
+    for(const auto* input:state.active_inputs) ++input->in_flight_readers;
+    ++output->prepared_references;output->in_flight_writer=true;state.active_output=output;state.output_touched=false;
+    struct RunGuard {
+      Impl& state;bool completed=false;
+      ~RunGuard() noexcept {
+        if(completed) return;
+        state.invalidate_touched();
+        if(state.ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+          try {
+            if(hip_direct_synchronize(state.ctx->device_id)!=RNS8_SUCCESS) {
+              state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;
+            }
+          } catch(...) {state.quarantined=true;state.ctx->hip_failure_poisoned=true;return;}
+        }
+        state.release_active();
+      }
+      void finish() noexcept {state.release_active();completed=true;}
+    } run{state};
     const auto materialize=[&](uint32_t id,uint32_t target) -> rns8_status {
       if(current[id]>=target) return RNS8_SUCCESS;
       if(id<state.inputs.size() || !current[id]) return RNS8_INVALID_ARGUMENT;
@@ -222,7 +320,8 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
     }
     const auto completed=materialize(static_cast<uint32_t>(state.allocation.values.size()-1),state.prefix);
     if(completed!=RNS8_SUCCESS) return completed;
-    MatrixWriteGuard write(*output);
+    state.output_touched=true;
+    clear_residue_current(*output);clear_byte_limb_current(*output);clear_native_current(*output);
     const auto* result=arena+state.allocation.values.back().offset;
     if(hip) {
       const auto status=hip_direct_copy_device_to_device(state.ctx->device_id,output->hip_residues,
@@ -236,7 +335,7 @@ rns8_status RuntimeProductRecipe::execute(rns8_matrix* output) {
     output->exact_max_magnitude.swap(bound);
     output->exact_axis_ranges.rows.clear(); output->exact_axis_ranges.cols.clear();
     output->exact_range_prefix=state.prefix;
-    write.committed=true;
+    run.finish();
     return RNS8_SUCCESS;
   });
 }
@@ -284,4 +383,16 @@ rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,u
   std::copy(selected.begin(),selected.end(),prefixes);
   return RNS8_SUCCESS;
 }
-rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) { delete recipe; return RNS8_SUCCESS; }
+rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) {
+  if(!recipe) return RNS8_SUCCESS;
+  const auto status=recipe->owner->close();if(status!=RNS8_SUCCESS) return status;
+  delete recipe;return RNS8_SUCCESS;
+}
+
+rns8_status rns8_rebind_product_recipe_inputs(rns8_product_recipe* recipe,
+    const rns8_matrix* const* inputs,uint32_t count) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!recipe || !inputs || !count || count>4096) return RNS8_INVALID_ARGUMENT;
+    return recipe->owner->rebind(std::vector<const rns8_matrix*>(inputs,inputs+count));
+  });
+}

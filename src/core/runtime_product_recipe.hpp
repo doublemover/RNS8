@@ -19,6 +19,8 @@ class RuntimeProductRecipe {
       std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix = false,
       const ProductCostProfile* costs = nullptr);
   rns8_status execute(rns8_matrix* output);
+  rns8_status close();
+  rns8_status rebind(const std::vector<const rns8_matrix*>& inputs);
   const ProductArenaPlan& allocation() const;
   uint64_t lift_scratch_bytes() const;
   const ProductPrefixSelection& cost_selection() const;

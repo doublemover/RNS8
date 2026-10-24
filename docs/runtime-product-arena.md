@@ -5,7 +5,7 @@ fixed topologically ordered exact-wide product DAG. It accepts current public
 matrix inputs and publishes one final public matrix through `rns8_execute_product_recipe`. Inputs must share explicit
 signedness, the default basis, a common input/output prefix and modulus-major storage. It
 retains context/input lifetimes and binds their engine instance/generation;
-repacking requires creating a new recipe. Changed or busy inputs reject execution.
+repacking requires explicit input rebinding or creating a new recipe. Changed or busy inputs reject execution.
 
 Preparation derives every intermediate shape, proves every complete product with
 a conservative magnitude envelope, and checks the common CRT range. It computes
@@ -75,10 +75,32 @@ The final output must match the prepared shape, explicit exact-wide semantics,
 common external prefix and backend/device, and must differ from every input.
 The caller can reuse the recipe with distinct compatible outputs. Intermediate
 values are private and cannot be exported or rebound. Repacking inputs requires
-creating another recipe; destruction releases retained lifetimes. There is no
-public async submission or hidden wait in destruction. External host exclusion
+explicitly rebinding compatible inputs or creating another recipe; successful destruction releases retained lifetimes. There is no
+public async submission. Destruction may drain quarantined failed work before
+releasing its storage. External host exclusion
 covers use/destruction, as with other synchronous owning APIs.
 
 The older resident graph API still accepts explicit intermediate handles and its
 own supported operations. This specialized product API provides owned scratch and
 consumer-driven precision for GEMM-only DAGs; it does not replace that graph API.
+
+
+## Rebinding and failure ownership
+
+`rns8_rebind_product_recipe_inputs` replaces all input handles and generation
+snapshots in one transaction. Each input must retain the compiled shape, semantics,
+prefix, backend and device, with a current exact range proof no larger than its
+original input envelope. This permits repeated execution after repacking without
+allocating another arena or changing selected compute prefixes. A larger bound
+requires a new recipe. Failed validation preserves every old binding and hold;
+duplicate handles retain one lifetime reference. Output proofs remain the original
+conservative compiled bounds.
+
+Execution reserves each unique input reader and the output writer before work.
+Intermediate failures preserve the old public output unless publication has begun.
+An uncertain device drain retains the arena, input readers and output ownership,
+and poisons the context. Destruction returns a failure while retaining the recipe
+when draining or freeing fails, so callers can retry destruction safely. Private
+RAII destruction cannot report errors and retains a failed owner instead of freeing
+possibly active storage. This is source-level ownership behavior awaiting the
+consolidated validation campaign, not a completed device-failure qualification.

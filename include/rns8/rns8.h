@@ -1478,18 +1478,26 @@ typedef struct rns8_product_recipe_resources {
  * Inputs share semantics/prefix/layout. IDs0..input_count-1 are external inputs;
  * node i produces ID input_count+i, and may read only earlier IDs. The final node
  * is the sole observable output. All shapes/range proofs are prepared up front.
- * Sources/context are retained and generation-bound: repacking requires a new
- * recipe. Minimum-prefix policy lifts exact suffixes on consumer demand; it is
+ * Sources/context are retained and generation-bound: repacking requires explicit
+ * input rebinding within the compiled proof envelope, or a new recipe. Minimum-prefix policy lifts exact suffixes on consumer demand; it is
  * not a measured cost optimizer. Budget includes aligned arena plus peak HIP
  * lift scratch; external matrices and host proof/descriptor overhead are separate.
  * Create failure preserves *out. Use/destruction require external host exclusion. */
 RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
     const rns8_product_recipe_desc* desc,rns8_product_recipe** out);
 RNS8_API rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output);
+/* Atomic input owner/generation replacement, preserving the existing compiled
+ * shape, prefix, layout and range envelopes. Larger bounds require recreation.
+ * Scratch, selected prefixes and node proofs remain unchanged. Failure preserves
+ * all previous bindings. Duplicate handles retain one owner reference. */
+RNS8_API rns8_status rns8_rebind_product_recipe_inputs(rns8_product_recipe* recipe,
+    const rns8_matrix* const* inputs,uint32_t input_count);
 RNS8_API rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,
     rns8_product_recipe_resources* out);
 RNS8_API rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,
     uint32_t* prefixes,uint32_t capacity);
+/* Failed device drain/free preserves the owner and all necessary lifetimes for
+ * retry. Successful destruction releases the recipe; null is accepted. */
 RNS8_API rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe);
 
 typedef struct rns8_encoded_b rns8_encoded_b;

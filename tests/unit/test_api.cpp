@@ -74,3 +74,15 @@ TEST_CASE("three HIP producer publications feed an exact epilogue in reverse obs
   SKIP("HIP dependency execution unavailable in this build");
 #endif
 }
+
+#include "../support/product_recipe_rebind_fixture.hpp"
+TEST_CASE("public CPU product recipe rebinds generations within its compiled proof envelope") {
+  check_product_recipe_rebind(RNS8_BACKEND_CPU_REFERENCE);
+}
+TEST_CASE("public HIP product recipe rebinds owners without reallocating its arena") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  check_product_recipe_rebind(RNS8_BACKEND_HIP_DIRECT);
+#else
+  SKIP("HIP recipe execution unavailable in this build");
+#endif
+}
