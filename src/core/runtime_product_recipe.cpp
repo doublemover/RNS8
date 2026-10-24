@@ -14,6 +14,7 @@ struct RuntimeProductRecipe::Impl {
   std::vector<cpp_int> bounds;
   std::vector<uint32_t> compute_prefixes,capacities;
   uint64_t lift_scratch=0;
+  ProductPrefixSelection selection;
   uint32_t prefix=0;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::vector<int8_t> host;
@@ -24,12 +25,13 @@ struct RuntimeProductRecipe::Impl {
 };
 RuntimeProductRecipe::RuntimeProductRecipe(std::unique_ptr<Impl> impl):impl_(std::move(impl)) {}
 RuntimeProductRecipe::~RuntimeProductRecipe()=default;
+const ProductPrefixSelection& RuntimeProductRecipe::cost_selection() const { return impl_->selection; }
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
 uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
 const std::vector<uint32_t>& RuntimeProductRecipe::compute_prefixes() const { return impl_->compute_prefixes; }
 rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     const std::vector<const rns8_matrix*>& inputs,const std::vector<ProductNode>& nodes,
-    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix) {
+    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix,const ProductCostProfile* costs) {
   return guard_api([&]() -> rns8_status {
     if(!ctx || inputs.empty() || inputs.size()>4096 || nodes.empty() || nodes.size()>4096 || out)
       return RNS8_INVALID_ARGUMENT;
@@ -70,12 +72,21 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       cpp_int bound=cpp_int(a.cols)*state->bounds[node.a]*state->bounds[node.b];
       if(!exact_range_fits(state->semantics,bound,modulus_product(state->prefix))) return RNS8_RANGE_ERROR;
       uint32_t selected=state->prefix;
-      if(minimize_compute_prefix) {
+      if(minimize_compute_prefix || costs) {
         selected=1;
         while(selected<state->prefix && !exact_range_fits(state->semantics,bound,modulus_product(selected))) ++selected;
       }
       state->compute_prefixes.push_back(selected);
       state->bounds.push_back(std::move(bound));
+    }
+    if(costs) {
+      const std::string target=ctx->backend==RNS8_BACKEND_HIP_DIRECT?ctx->device_info.gcn_arch:"cpu";
+      if(costs->backend!=ctx->backend || costs->semantics!=state->semantics || costs->target!=target)
+        return RNS8_INVALID_ARGUMENT;
+      state->selection=select_product_prefixes(shapes,nodes,state->prefix,state->compute_prefixes,budget,
+          ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs);
+      if(state->selection.status!=RNS8_SUCCESS) return state->selection.status;
+      state->compute_prefixes=state->selection.prefixes;
     }
     state->capacities=state->compute_prefixes;
     for(size_t i=0;i<nodes.size();++i) for(auto id:{nodes[i].a,nodes[i].b})

@@ -114,3 +114,79 @@ TEST_CASE("public product recipe owns its arena and exposes exact prefix decisio
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("prefix cost selection prices shared incremental lifts and exact arena budget") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{16,16},{16,16}};
+  const std::vector<ProductNode> nodes{{0,1},{2,1},{2,1},{3,4}};
+  ProductCostProfile costs;costs.target="cpu";costs.provenance="synthetic-unit-profile";
+  costs.graph_key=product_graph_key(inputs,nodes,3);costs.nodes.resize(4);
+  const auto fill=[&](uint64_t lift) {
+    for(auto& node:costs.nodes) for(uint32_t p=1;p<=3;++p) {
+      node.gemm[p]=100*p;
+      for(uint32_t q=p+1;q<=3;++q) node.lift[p*21+q]=lift;
+    }
+  };
+  fill(1);
+  auto cheap=select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,false,costs);
+  REQUIRE(cheap.status==RNS8_SUCCESS);CHECK(cheap.exhaustive);CHECK(cheap.evaluated==81);
+  CHECK(cheap.prefixes==std::vector<uint32_t>{1,1,1,1});CHECK(cheap.estimated_ns==401);
+  fill(10000);
+  const auto expensive=select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,false,costs);
+  REQUIRE(expensive.status==RNS8_SUCCESS);
+  CHECK(expensive.prefixes==std::vector<uint32_t>{3,3,3,3});CHECK(expensive.estimated_ns==1200);
+  CHECK(expensive.peak_bytes>cheap.peak_bytes);
+  const auto constrained=select_product_prefixes(inputs,nodes,3,{1,1,1,1},cheap.peak_bytes,false,costs);
+  REQUIRE(constrained.status==RNS8_SUCCESS);CHECK(constrained.peak_bytes<=cheap.peak_bytes);
+  CHECK(constrained.prefixes!=expensive.prefixes);
+  const auto proof=select_product_prefixes(inputs,nodes,3,{3,3,3,3},UINT64_MAX,false,costs);
+  REQUIRE(proof.status==RNS8_SUCCESS);CHECK(proof.prefixes==std::vector<uint32_t>{3,3,3,3});
+  // Only one completely priced assignment; shared producer grows twice.
+  costs.nodes.assign(4,ProductNodeCosts{});
+  const uint32_t selected[]={1,2,3,3};
+  for(unsigned i=0;i<4;++i) costs.nodes[i].gemm[selected[i]]=0;
+  costs.nodes[0].lift[1*21+2]=7;costs.nodes[0].lift[2*21+3]=11;
+  costs.nodes[1].lift[2*21+3]=13;
+  const auto shared=select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,true,costs);
+  REQUIRE(shared.status==RNS8_SUCCESS);CHECK(shared.estimated_ns==31);
+  CHECK(shared.lift_scratch_bytes==256*2+4);
+  CHECK(shared.prefixes==std::vector<uint32_t>{1,2,3,3});
+  costs.nodes[0].lift[2*21+3]=UINT64_MAX;
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,true,costs).status==RNS8_UNSUPPORTED_BACKEND);
+  costs.graph_key^=1;
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,true,costs).status==RNS8_INVALID_ARGUMENT);
+}
+TEST_CASE("runtime recipe cost estimates change work selection without changing exact output") {
+  using namespace rns8::detail;
+  auto* ctx=create_cpu_context();
+  auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);md.max_prefix=20;
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+  for(auto** matrix:{&a,&b,&c}) REQUIRE(rns8_create_matrix(ctx,&md,matrix)==RNS8_SUCCESS);
+  int64_t two=2,three=3;
+  REQUIRE(rns8_pack_i64(ctx,a,&two,1,1)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_i64(ctx,b,&three,1,1)==RNS8_SUCCESS);
+  const std::vector<ProductNode> nodes{{0,1},{2,1},{2,1},{3,4}};
+  ProductCostProfile costs;costs.target="cpu";costs.provenance="synthetic-runtime-test";
+  costs.nodes.resize(4);costs.graph_key=product_graph_key({{1,1},{1,1}},nodes,20);
+  for(auto& node:costs.nodes) for(uint32_t p=1;p<=20;++p) {
+    node.gemm[p]=100*p;
+    for(uint32_t q=p+1;q<=20;++q) node.lift[p*21+q]=1;
+  }
+  std::unique_ptr<RuntimeProductRecipe> recipe;
+  REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},nodes,UINT64_MAX,recipe,false,&costs)==RNS8_SUCCESS);
+  CHECK_FALSE(recipe->cost_selection().exhaustive);
+  CHECK(recipe->cost_selection().evaluated<=costs.max_evaluations);
+  CHECK(recipe->compute_prefixes()==std::vector<uint32_t>{1,1,1,2});
+  CHECK(recipe->allocation().arena_bytes+recipe->lift_scratch_bytes()==recipe->cost_selection().peak_bytes);
+  REQUIRE(recipe->execute(c)==RNS8_SUCCESS);
+  for(uint32_t p=0;p<20;++p) {
+    int expected=324%rns8_default_modulus(p);
+    if(expected>=(rns8_default_modulus(p)+1)/2) expected-=rns8_default_modulus(p);
+    CHECK(c->residues[p]==expected);
+  }
+  recipe.reset();costs.target="wrong-device";
+  CHECK(RuntimeProductRecipe::create(ctx,{a,b},nodes,UINT64_MAX,recipe,false,&costs)==RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(recipe);
+  for(auto* matrix:{a,b,c}) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

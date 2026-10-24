@@ -31,7 +31,7 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
   const auto first=multiply(std::vector<cpp_int>(av.begin(),av.end()),std::vector<cpp_int>(bv.begin(),bv.end()));
   const auto second=multiply(first,std::vector<cpp_int>(bv.begin(),bv.end()));
   const auto expected=multiply(second,second);
-  for(int repeat=0;repeat<4;++repeat) {
+  for(int repeat=0;repeat<6;++repeat) {
     if(repeat==2) {
       recipe.reset();
       REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},{{0,1},{2,1},{2,1},{3,4}},UINT64_MAX,recipe,true)==RNS8_SUCCESS);
@@ -41,6 +41,19 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
       const uint64_t peak=recipe->allocation().arena_bytes+recipe->lift_scratch_bytes();
       CHECK(RuntimeProductRecipe::create(ctx,{a,b},{{0,1},{2,1},{2,1},{3,4}},peak-1,tight,true)==RNS8_WORKSPACE_TOO_SMALL);
       CHECK_FALSE(tight);
+    }
+    if(repeat==4) {
+      recipe.reset();
+      const std::vector<ProductNode> graph{{0,1},{2,1},{2,1},{3,4}};
+      ProductCostProfile costs;costs.backend=RNS8_BACKEND_HIP_DIRECT;
+      costs.target=ctx->device_info.gcn_arch;costs.provenance="synthetic-HIP-admission-profile";
+      costs.graph_key=product_graph_key({{side,side},{side,side}},graph,20);costs.nodes.resize(4);
+      for(auto& node:costs.nodes) for(uint32_t p=1;p<=20;++p) {
+        node.gemm[p]=100*p;
+        for(uint32_t q=p+1;q<=20;++q) node.lift[p*21+q]=1;
+      }
+      REQUIRE(RuntimeProductRecipe::create(ctx,{a,b},graph,UINT64_MAX,recipe,false,&costs)==RNS8_SUCCESS);
+      CHECK(recipe->allocation().arena_bytes+recipe->lift_scratch_bytes()==recipe->cost_selection().peak_bytes);
     }
     REQUIRE(recipe->execute(c)==RNS8_SUCCESS);
     std::vector<uint64_t> limbs(side*side*3);
