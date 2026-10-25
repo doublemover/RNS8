@@ -4463,6 +4463,7 @@
       "anchors": [
         "canonical-width-packed-dot-control",
         "canonical-word-modular-calibration",
+        "cdna-matrix-engine-controls",
         "collection-and-remaining-gates",
         "explicit-contract",
         "explicit-scalar-binary64-schedules",
@@ -4996,6 +4997,7 @@
         }
       ],
       "anchors": [
+        "cdna-fp64-matrix-engine-and-concatenated-schedules",
         "explicit-packed-byte-dot-product-candidate",
         "explicit-scalar-binary64-asymmetric-schedule",
         "unsigned-byte-wmma-integer-candidate",
@@ -5013,6 +5015,10 @@
       "inbound_links": [
         {
           "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "wrap64-signed-radix.md"
+        },
+        {
+          "source": "docs/word-modular-research.md",
           "reference": "wrap64-signed-radix.md"
         },
         {

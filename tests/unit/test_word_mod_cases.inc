@@ -98,3 +98,15 @@ TEST_CASE("canonical word-mod width omits only identically zero byte products") 
     }
   }
 }
+
+#include "backend_common/mfma_f64_layout.hpp"
+TEST_CASE("FP64 MFMA fragment coordinates differ from I32 and cover each cell") {
+  using namespace rns8::detail;
+  std::array<unsigned,256> counts{};
+  for(unsigned lane=0;lane<64;++lane)for(unsigned reg=0;reg<4;++reg){const auto c=MfmaF64Layout::c(lane,reg);++counts[c.row*16+c.col];REQUIRE(c.row==4*reg+lane/16);}
+  for(auto count:counts)REQUIRE(count==1);
+  REQUIRE(MfmaF64Layout::c(16,0).row==1);REQUIRE(MfmaI8Layout<16>::c(16,0).row==4);
+  for(unsigned layout:{0u,1u,2u}){word_mod::FloatingSchedule s;REQUIRE(word_mod::floating_schedule(65536,{1,2,17,layout},s)==RNS8_SUCCESS);REQUIRE(s.reserved==layout);}
+  word_mod::FloatingSchedule unchanged;unchanged.alpha=77;
+  REQUIRE(word_mod::floating_schedule(65536,{1,2,17,3},unchanged)==RNS8_INVALID_ARGUMENT);REQUIRE(unchanged.alpha==77);
+}

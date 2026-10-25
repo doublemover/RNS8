@@ -213,7 +213,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       ENVIRONMENT "RNS8_WORD_MOD_CALIBRATION_EXE=$<TARGET_FILE:rns8-word-mod-calibrate>"
       LABELS "tools;word-modular;cli")
     if(RNS8_ENABLE_HIP)
-      foreach(_word_method IN ITEMS baseline packed_dot4 byte_wmma)
+      foreach(_mfma_method IN ITEMS asymmetric_fp64_mfma asymmetric_fp64_mfma_rows asymmetric_fp64_mfma_columns)
+        foreach(_mfma_scope IN ITEMS resident repeated_b cold)
+          add_test(NAME word_mod_${_mfma_method}_${_mfma_scope}_smoke
+            COMMAND rns8-word-mod-calibrate 0 ${_mfma_method} ${_mfma_scope} 17 19 18 ring 65536 2 1 1 2 17 ctest-${_mfma_method}-${_mfma_scope})
+          set_tests_properties(word_mod_${_mfma_method}_${_mfma_scope}_smoke PROPERTIES
+            LABELS "hip;word-modular;fp64-mfma;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      foreach(_word_method IN ITEMS baseline packed_dot4 canonical_dot4 byte_wmma)
         foreach(_word_scope IN ITEMS resident cold)
           foreach(_word_domain IN ITEMS ring prime_field)
             if(_word_domain STREQUAL "ring")

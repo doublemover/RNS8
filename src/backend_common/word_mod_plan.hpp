@@ -78,14 +78,15 @@ inline std::vector<Decomposition> candidates(uint64_t p,uint64_t lambda,unsigned
 }
 static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits==53,
               "word-mod floating schedules require IEEE binary64");
-struct FloatingRequest {uint32_t left_digits=0,right_digits=0,slab_k=0;};
+// 0=fused output tile; 1=word-major expanded axes; 2=cell-major expanded axes.
+struct FloatingRequest {uint32_t left_digits=0,right_digits=0,slab_k=0,concatenation=0;};
 inline rns8_status floating_schedule(uint64_t modulus,const FloatingRequest& request,FloatingSchedule& out) {
   if(!request.slab_k || request.slab_k>65536 || !request.left_digits || request.left_digits>4 ||
-     !request.right_digits || request.right_digits>4 || modulus<2) return RNS8_INVALID_ARGUMENT;
+     !request.right_digits || request.right_digits>4 || request.concatenation>2 || modulus<2) return RNS8_INVALID_ARGUMENT;
   const auto proof=decomposition(modulus,request.left_digits,request.right_digits,request.slab_k,53);
   if(!proof.exact_bound) return RNS8_RANGE_ERROR;
   FloatingSchedule result;result.alpha=proof.alpha;result.beta=proof.beta;
-  result.left_digits=request.left_digits;result.right_digits=request.right_digits;result.slab_k=request.slab_k;
+  result.left_digits=request.left_digits;result.right_digits=request.right_digits;result.slab_k=request.slab_k;result.reserved=request.concatenation;
   uint64_t ap=1;
   for(unsigned i=0;i<request.left_digits;++i) {
     uint64_t bp=1;

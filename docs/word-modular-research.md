@@ -17,7 +17,8 @@ do; it is not an external-buffer ownership API.
 
 Host descriptor validation proves spans and GPU index limits. A device scan
 rejects noncanonical logical input cells before output starts. A four-byte flag
-is the only scratch allocation. Each issued phase is drained, and the output
+is the baseline scratch allocation; concatenated MFMA products add an explicit
+coefficient budget described below. Each issued phase is drained, and the output
 started flag distinguishes preflight rejection from an issued output kernel.
 The timing hook measures the arithmetic kernel separately from the canonical
 scan; any eventual production benchmark must also report the complete call.
@@ -36,12 +37,12 @@ moduli, rejection and output preservation, padding, swapped decompositions,
 and complete Boost GEMM comparisons at bit widths 8, 16, 23, 26, 27, 31, 35,
 39, 42, 48, 50, 52 and 64. They remain unexecuted during development frontload.
 
-Still required before promotion: compiled scalar binary64 qualification, concatenation
-layouts and matrix-engine lambda derivation, asymmetric matrix-engine decomposition, matched cold
-and warm calibration, resource/ISA receipts, and target-specific qualification.
+Still required before promotion: compiled scalar/MFMA qualification, executed
+matched cold/reused/resident calibration, resource/ISA receipts and target-specific
+qualification. The matrix-engine and concatenation source routes are described below.
 No decomposition cache or public ABI is introduced. CDNA FP64 qualification
 requires the deferred hardware; that does not substitute for implementing the
-remaining host and GPU candidates.
+authored host and GPU candidates.
 
 ## Explicit packed-byte dot-product candidate
 
@@ -119,3 +120,54 @@ The opt-in canonical-width dot4 sibling now specializes B=1..8 from the checked
 modulus. It omits provably zero high-byte terms without changing integer product
 semantics; the full-width dot4 and byte-WMMA controls remain distinct. See the
 [matched calibration boundary](word-modular-calibration.md#canonical-width-packed-dot-control).
+
+## CDNA FP64 matrix-engine and concatenated schedules
+
+`asymmetric_fp64_mfma` is a separate compiled gfx90a/gfx942 candidate using
+`__builtin_amdgcn_mfma_f64_16x16x4f64`, never a relabelled scalar FMA loop.
+The [official builtin signature](https://clang.llvm.org/docs/AMDGPUBuiltinReference.html)
+and [CDNA3 instruction contract](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/cdna/cdna3-dense-mfma-builtins.html)
+specify one double per input lane and four double accumulators. Modifiers are
+all zero. An actual device capability probe checks the compiled target before
+output. No CDNA4, RDNA or unsupported compiler fallback is called MFMA.
+
+A is `(lane%16,lane/16)` and B is its transposed coordinate map. Crucially,
+FP64 C is `(4*reg+lane/16,lane%16)`, **not** the INT32 map with four consecutive
+rows in each lane. `MfmaF64Layout` checks bijection at compile time; these
+coordinates were independently derived from the same pinned AMD calculator
+source cited in the [wrap64 mapping guide](wrap64-signed-radix.md).
+
+Each pair starts at zero for each admitted slab. Canonical digits and all
+nonnegative partial sums satisfy the exact integer inequality already checked
+by the host; every result is at most 2^53. Rounding association therefore cannot
+lose an integer bit under the declared FP64 contract. A final instruction with
+fewer than four active K positions receives exact zeros. The certificate bounds
+active terms, and separately reports padded instruction terms. The integer
+conversion, modular coefficient weighting and slab merge use the same exact
+non-inverting ring arithmetic as the scalar control. No floating quotient or
+approximate modular reduction is introduced.
+
+Two additional explicit choices batch the pair products into an expanded
+`(M*u) x (N*v)` MFMA problem. `asymmetric_fp64_mfma_rows` uses word-major axes
+`(i*M+row,j*N+col)`; `asymmetric_fp64_mfma_columns` uses cell-major axes
+`(row*u+i,col*v+j)`. Each coefficient dot is reduced and weighted exactly per
+slab before it is stored. A separate integer kernel merges the u*v canonical
+weighted coefficients for each output. These are actual different physical
+batching layouts, not inferred performance winners; swapped u/v fixtures price
+both asymmetric orientations.
+
+The concatenated methods budget `8*M*N*u*v + 4` scratch bytes, including the
+live status flag. Allocation, capability, input-domain and coefficient-stage
+failure leave output untouched. The output-started bit changes only before the
+final merge. If completion is uncertain, coefficient storage is retained rather
+than freed while potentially live. The fused method retains its four-byte
+scratch boundary. Caller-owned input/output spans are outside this explicit
+scratch budget. All methods remain private research APIs with no persistent
+word cache or implicit public finite-u8 promotion.
+
+Full Boost/tail/padding/domain/budget/layout regressions and cold, repeated-B,
+resident, swapped-pair, slab±1 and sustained comparison fixtures are authored.
+The selected ISA adapter binds the exact arithmetic/layout recipe and captured
+artifact to explicit symbols, without asserting observed dynamic execution.
+HIP compilation, all regression execution, physical FP64 mapping/exactness and
+profitable-cohort or negative performance reports remain deferred.

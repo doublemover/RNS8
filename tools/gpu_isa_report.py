@@ -42,7 +42,7 @@ CMAKE_OPTION_BACKENDS = {
     "RNS8_ENABLE_AMDGPU_BUILTINS": ["amdgpu-builtins"],
 }
 BACKEND_SYMBOL_MARKERS = {
-    "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide", "rns8_wrap_signed_radix", "rns8_wrap_native"],
+    "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide", "rns8_wrap_signed_radix", "rns8_wrap_native", "rns8_word_mod"],
     "hipblaslt": ["rns8_hipblaslt", "pack_transpose", "reduce_i32_to_centered"],
     "ck": ["kernel_gemm_wmma", "ck_"],
     "rocwmma": ["rocwmma_i8_residue_gemm", "rocwmma_wrap64_byte_gemm36_candidate"],
@@ -97,6 +97,15 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
         backend='rocwmma' if case['candidate']=='rocwmma_corrected' else 'wrap64' if case['candidate']=='direct_v4' else 'direct-hip'
         return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='wrap64',benchmark_execution_mode=case['scope'],backend_selected=backend,selected_kernel=capture['kernel_selection'],artifact_capture=capture.get('artifact_capture'),
             build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['semantics'],shape={k:case[k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout=capture['compute_layout'],fusion_mode='per_pair_unsigned_ring_fold',generated_reducer_identity=capture['arithmetic_certificate_sha256'])
+    if capture.get("schema")=="rns8_word_mod_microcase_v1":
+        from collect_word_mod_calibration import validate_capture as validate_word_capture, FLOAT_METHODS
+        keys=('device','method','scope','m','n','k','domain','modulus')
+        case={key:capture.get(key) for key in keys}
+        if case['method'] in FLOAT_METHODS:case.update({key:capture.get(key) for key in ('left_digits','right_digits','slab_k')})
+        validate_word_capture(capture,case,capture.get('run_id'),capture.get('repeats'),capture.get('warmups'))
+        recipe={key:capture.get(key) for key in ('floating_schedule','fp64_mfma_schedule','byte_wmma_schedule','canonical_dot4_schedule')}
+        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='word-modular',benchmark_execution_mode=case['scope'],backend_selected='direct-hip',selected_kernel=capture['arithmetic_kernel'],artifact_capture=capture.get('artifact_capture'),
+            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=case['domain'],shape={k:case[k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout=(capture.get('fp64_mfma_schedule') or {}).get('layout','canonical_native_u64'),fusion_mode=case['method'],generated_reducer_identity=hashlib.sha256(json.dumps(recipe,sort_keys=True,separators=(",", ":")).encode()).hexdigest())
     validate_capture(capture, path)
     target = capture.get("target_variant")
     if not isinstance(target, dict):

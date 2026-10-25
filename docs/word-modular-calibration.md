@@ -227,8 +227,8 @@ samples. It does not infer a speedup, extrapolate unmeasured shapes or qualify a
 route. Correctness execution, ISA/resource inspection, clocks, memory counters,
 timing resolution and target-specific measurements remain gates. The scalar
 binary64 schedule is authored, with execution still pending. Derived
-asymmetric concatenation layouts and floating matrix-engine schedules remain separate
-implementation work; CDNA qualification still needs
+asymmetric concatenation layouts and real CDNA FP64 MFMA schedules are also
+authored; CDNA qualification still needs
 the deferred hardware.
 
 
@@ -249,3 +249,29 @@ resident/cold ownership and canonical-scan costs. Host and device regressions
 cover every byte width, powers of 256, odd tails, padded outputs and slab±1.
 These are authored code/fixtures, not executed GPU evidence. Emitted UDOT4 count,
 register pressure, total call cost and any speedup remain unverified.
+
+
+## CDNA matrix-engine controls
+
+`asymmetric_fp64_mfma`, `_rows` and `_columns` consume the same explicit digit
+counts and slab CLI arguments as `asymmetric_binary64`. Only gfx90a/gfx942 are
+admitted. The first is fused; the latter two physically batch coefficient dots
+in word-major/cell-major expanded axes and charge their complete coefficient
+scratch, allocation and merge cost. Canonical scans, proof admission and device
+status remain inside every checked call for all methods. The exact schedule,
+wave64 FP64-specific C map, zero padding and scratch bytes are validated in
+receipts. A matrix-engine boolean cannot upgrade a scalar observation.
+
+`repeated_b` retains canonical B and native allocations while each call uploads
+A, computes and exports C. It is distinct from resident compute and fresh
+allocation/upload/compute/readback/free. Setup and independent audits remain
+outside production intervals. No reusable decomposition cache is claimed.
+
+`cdna-fp64.json` binds 750 explicitly authored small/tail/skinny/slab/orientation
+cases; `cdna-fp64-sustained.json` adds 90 larger matched controls. Each includes
+the integer baseline and the identical scalar binary64 decomposition where
+applicable. These files are inputs for future execution, not measurements.
+The collector emits artifact-bound `.capture.json` companions for
+`gpu_isa_report.py`, with unchanged raw stdout retained in collection records.
+The FP64 recipe hash includes both the arithmetic proof contract and physical
+layout declaration. Static symbol membership is not dynamic execution evidence.

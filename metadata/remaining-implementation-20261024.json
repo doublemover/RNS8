@@ -716,7 +716,8 @@
         "tests/support/ragged_recipe_fixture.hpp"
       ],
       "commits": [
-        "aa24012745304a17e26ab6efbe0e0718cf9890a1"
+        "aa24012745304a17e26ab6efbe0e0718cf9890a1",
+        "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
         "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
@@ -1512,7 +1513,9 @@
         "tools/test_collect_wrap64.py",
         "tools/test_arithmetic_certificate.py"
       ],
-      "commits": [],
+      "commits": [
+        "003e94daa7f2e273572dc93408a38db08468d762"
+      ],
       "remaining": [
         "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
       ],
@@ -1556,7 +1559,7 @@
       "issue": 66,
       "title": "[Research P3] Prototype word-size modular GEMM with certified asymmetric multiword lowering",
       "url": "https://github.com/doublemover/RNS8/issues/66",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Word-mod descriptor/oracle and real scalar/UDOT4/WMMA kernel candidates implemented. Latest packed-dot canonical-width specialization absent: always extracts eight bytes and 8x8 products, unlike width-bounded WMMA sibling.",
       "implementation": [
         {
@@ -1568,9 +1571,24 @@
             "benchmarks/rns8_word_mod_calibrate.cpp",
             "tools/collect_word_mod_calibration.py"
           ]
+        },
+        {
+          "summary": "Real gfx90a/gfx942 FP64 MFMA word-modular provider with separate FP64 interleaved-row layout, exact bounded asymmetric coefficients, fused and two physical expanded-axis concatenation schedules, budgeted retained-on-failed-drain scratch and canonical output merge. Matched scalar/integer controls, repeated-B scope and artifact/recipe-bound ISA adapter.",
+          "files": [
+            "src/backend_common/mfma_f64_layout.hpp",
+            "src/backend_common/word_mod_plan.hpp",
+            "src/backend_hip_direct/hip_direct_word_mod_mfma.cuh",
+            "src/backend_hip_direct/hip_backend_word_mod.inc",
+            "benchmarks/rns8_word_mod_calibrate.cpp",
+            "tools/collect_word_mod_calibration.py",
+            "tools/gpu_isa_report.py"
+          ]
         }
       ],
       "regressions": [
+        "tests/unit/test_word_mod_cases.inc",
+        "tests/differential/test_hip_direct_word_mod_cases.inc",
+        "tools/test_collect_word_mod_calibration.py",
         "tests/unit/test_word_mod_cases.inc",
         "tests/differential/test_hip_direct_word_mod_cases.inc",
         "tools/test_collect_word_mod_calibration.py"
@@ -1579,8 +1597,7 @@
         "b65f8bce5880118bb4dd222a92c551c5fbcc510b"
       ],
       "remaining": [
-        "Review original CDNA FP64 matrix-engine candidate scope against scalar-binary64 implementation; scalar exactness does not establish a CDNA matrix backend.",
-        "Execute authored regressions and obtain launched ISA/cold-resident target evidence later; no measured profitable cohort claimed."
+        "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
