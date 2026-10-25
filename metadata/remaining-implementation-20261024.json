@@ -238,14 +238,30 @@
             "src/core/api_oneshot.cpp",
             "benchmarks/rns8_bench_json_sections.inc"
           ]
+        },
+        {
+          "summary": "Shared versioned operation discovery and ordinary/prepared/narrow/bilinear admission; exact-target/build-bound non-promoting runtime shortlist with robust payload bound and minimal-versus-quarter prefix comparison. AUTO trace records actual cache decisions; one-shot fallback transfers the already-created plan.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_plan_auto_backend.inc",
+            "src/core/api_oneshot.cpp",
+            "tools/rns8_inspect.cpp"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_auto_selector_cases.inc",
-        "tools/test_auto_decision_trace.py"
+        "tools/test_auto_decision_trace.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
       ],
-      "commits": [],
-      "remaining": [],
+      "commits": [
+        "916152ace5a966e4001fdfc002eb5e2b620143a9"
+      ],
+      "remaining": [
+        "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
+        "Authored regressions and any execution/benchmark/GPU/scientific qualification not run."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,

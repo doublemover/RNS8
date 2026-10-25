@@ -37,6 +37,10 @@ rns8_status rns8_gemm_narrow_exact(
     if (plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics) ||
         (method==RNS8_NARROW_SCALAR_I64 && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
       return RNS8_UNSUPPORTED_BACKEND;
+    rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
+    query.operation=RNS8_OP_NARROW_NATIVE;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;query.algorithm=method;
+    query.proof_flags=RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_NARROW_INPUT_PROOF;query.lda=A->desc.cols;query.ldb=B->desc.cols;query.ldc=C->desc.cols;query.scratch_budget=max_scratch_bytes;
+    const auto provider=operation_support(*ctx,query,plan->backend);if(provider.status!=RNS8_SUCCESS)return provider.status;
     auto status=validate_plan_context_workspace(*ctx,*plan,*workspace);
     if (status!=RNS8_SUCCESS) return status;
     status=validate_rns_gemm_operands(*ctx,*plan,*A,*B,*C,true);

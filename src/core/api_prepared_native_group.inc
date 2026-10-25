@@ -48,7 +48,9 @@ rns8_status admit_native_group_child(rns8_prepared_execution& e,
       (binding.modulus_group!=1 && binding.modulus_group!=2 && binding.modulus_group!=4))return RNS8_INVALID_ARGUMENT;
   if(e.d || e.plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(e.plan->desc.semantics) ||
       !e.plan->tile_schedule.empty())return RNS8_UNSUPPORTED_BACKEND;
-  auto status=validate_prepared(e);if(status!=RNS8_SUCCESS)return status;
+  auto status=plan_operation_preflight(*e.ctx,*e.plan,RNS8_OP_NATIVE_GROUP,RNS8_EXEC_GROUP,RNS8_QUERY_NATIVE_RETAINED);
+  if(status!=RNS8_SUCCESS)return status;
+  status=validate_prepared(e);if(status!=RNS8_SUCCESS)return status;
   const bool u=e.plan->desc.semantics==RNS8_EXACT_WIDE_UNSIGNED;
   const auto native=[u](const rns8_matrix& matrix) {return u?matrix.hip_native_u64:matrix.hip_native_i64;};
   for(const auto* matrix:{e.a,e.b}) {

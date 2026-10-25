@@ -1586,6 +1586,10 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
         A == C || B == C || method<RNS8_BILINEAR_STRASSEN || method>RNS8_BILINEAR_RANK23_SLP) return RNS8_INVALID_ARGUMENT;
     if (plan->backend != RNS8_BACKEND_HIP_DIRECT ||
         !exact_wide_semantics(plan->desc.semantics)) return RNS8_UNSUPPORTED_BACKEND;
+    rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
+    query.operation=RNS8_OP_STRASSEN;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;
+    query.algorithm=method;query.lda=A->desc.cols;query.ldb=B->desc.cols;query.ldc=C->desc.cols;query.scratch_budget=max_scratch_bytes;
+    const auto provider=operation_support(*ctx,query,plan->backend);if(provider.status!=RNS8_SUCCESS)return provider.status;
     auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (status != RNS8_SUCCESS) return status;
     status = validate_rns_gemm_operands(*ctx, *plan, *A, *B, *C, true);

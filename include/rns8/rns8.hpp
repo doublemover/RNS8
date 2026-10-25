@@ -525,6 +525,21 @@ inline void gemm_finite_u8_incremental(
       checked_dirty_region_count(regions.size())));
 }
 
+// Discovery does not reserve storage or grant a value/stream execution lease.
+inline std::vector<rns8_operation_support> operation_support(const Context& context,const rns8_operation_query& query) {
+  uint32_t count=0;check(rns8_query_operation_support(context.get(),&query,nullptr,0,&count));
+  std::vector<rns8_operation_support> result(count);
+  check(rns8_query_operation_support(context.get(),&query,result.data(),count,&count));return result;
+}
+
+inline std::vector<rns8_pipeline_candidate> plan_pipeline(const Context& context,const rns8_pipeline_query& query,
+    const std::vector<rns8_pipeline_cost_profile>& profiles={}) {
+  if(profiles.size()>8)throw Error(RNS8_INVALID_ARGUMENT);
+  uint32_t count=0;check(rns8_plan_pipeline(context.get(),&query,profiles.data(),uint32_t(profiles.size()),nullptr,0,&count));
+  std::vector<rns8_pipeline_candidate> result(count);
+  check(rns8_plan_pipeline(context.get(),&query,profiles.data(),uint32_t(profiles.size()),result.data(),count,&count));return result;
+}
+
 }  // namespace rns8
 
 #endif

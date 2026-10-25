@@ -31,6 +31,8 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
+rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
 
 template<class Matrix> struct ComplexMatrixPair {
   Matrix* real = nullptr;

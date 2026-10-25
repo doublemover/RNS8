@@ -3448,7 +3448,8 @@
       ],
       "anchors": [
         "dependency-proven-arena-reuse",
-        "offline-typed-recipe-admission"
+        "offline-typed-recipe-admission",
+        "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]
     },
     {

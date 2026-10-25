@@ -688,6 +688,110 @@ typedef enum rns8_proof_verdict RNS8_ENUM_BASE {
   RNS8_PROOF_UNKNOWN=0, RNS8_PROOF_PROVEN=1, RNS8_PROOF_REFUTED=2,
   RNS8_PROOF_UNSUPPORTED=3, RNS8_PROOF_NOT_RUN=4
 } rns8_proof_verdict;
+/* Operation-specific discovery. Success is static compatibility, never an
+ * execution lease or a qualification receipt. Current pointers/generations,
+ * concrete code object/API probes and allocation still bind at preparation. */
+typedef enum rns8_operation_kind RNS8_ENUM_BASE {
+  RNS8_OP_GEMM=0,RNS8_OP_EXACT_EPILOGUE=1,RNS8_OP_PACK=2,RNS8_OP_EXPORT=3,
+  RNS8_OP_BASE_EXTEND=4,RNS8_OP_PREPARED_GROUP=5,RNS8_OP_NATIVE_GROUP=6,
+  RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
+  RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
+  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17
+} rns8_operation_kind;
+typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
+  RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,
+  RNS8_EXEC_CALLER_CAPTURE=8,RNS8_EXEC_GROUP=16,RNS8_EXEC_DAG=32,RNS8_EXEC_MULTI_DEVICE=64
+} rns8_execution_mode_flags;
+typedef enum rns8_support_reason RNS8_ENUM_BASE {
+  RNS8_SUPPORT_COMPATIBLE=0,RNS8_SUPPORT_BAD_DESCRIPTOR=1,RNS8_SUPPORT_NOT_COMPILED=2,
+  RNS8_SUPPORT_OPERATION=3,RNS8_SUPPORT_SEMANTICS=4,RNS8_SUPPORT_MODULUS=5,RNS8_SUPPORT_TARGET=6,
+  RNS8_SUPPORT_SHAPE=7,RNS8_SUPPORT_ADDRESS=8,RNS8_SUPPORT_EXECUTION_MODE=9,RNS8_SUPPORT_MISSING_PROOF=10,
+  RNS8_SUPPORT_RESOURCE_OVERFLOW=11,RNS8_SUPPORT_BUDGET=12,RNS8_SUPPORT_RUNTIME=13,RNS8_SUPPORT_TOPOLOGY=14
+} rns8_support_reason;
+#define RNS8_QUERY_NATIVE_RETAINED 1u
+#define RNS8_QUERY_NARROW_INPUT_PROOF 2u
+#define RNS8_QUERY_CURRENT_RANGE_PROOF 4u
+#define RNS8_QUERY_QUARTER_RANGE_PROOF 8u
+/* Assertions above describe a hypothetical candidate, not trusted value facts. */
+typedef struct rns8_operation_query {
+  uint64_t struct_size;
+  uint32_t abi_version,operation,execution_modes,proof_flags;
+  rns8_gemm_desc problem;
+  int64_t lda,ldb,ldc; /* zero means compact */
+  uint32_t output_limbs,device_count;
+  /* Family-specific method: narrow/Gram 0 scalar,1 WMMA; bilinear 0
+   * Strassen,1 coefficient rank23,2 SLP. Other families require zero. */
+  uint32_t algorithm,orientation,source_prefix;
+  /* Domain 0 infers the concrete family's default; 1 centered RNS,
+   * 2 finite byte,3 wrap byte limbs,4 native64,5 integer limbs. */
+  uint32_t input_domain,output_domain;
+  int64_t alpha,beta; /* exact epilogue coefficients */
+  uint64_t scratch_budget;
+} rns8_operation_query;
+typedef struct rns8_operation_support {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,operation,reason_code;
+  rns8_status status;
+  uint32_t source_implemented,compiled_inventory,runtime_observed,requires_binding;
+  uint32_t correctness_qualified,performance_qualified,supported_execution_modes;
+  uint32_t resource_status; /* known0,opaque_setup_unknown1,overflow2,unsupported3 */
+  uint64_t required_device_bytes,required_host_bytes,required_pinned_host_bytes;
+  uint64_t setup_bytes_lower_bound,alignment,safe_k;
+  char offending_field[48],explanation[160],target_id[128],provider_identity_sha256[65];
+} rns8_operation_support;
+/* AUTO enumerates inventory without probing or allocating GPU storage. Required
+ * count is returned even with zero capacity; truncated copies are explicit. */
+RNS8_API rns8_status rns8_query_operation_support(const rns8_context*,const rns8_operation_query*,
+    rns8_operation_support* results,uint32_t capacity,uint32_t* required_count);
+
+/* Non-promoting analytical shortlist. All bounds are hypothetical until an
+ * execution owner rebinds actual values. Costs never change admissibility.
+ * The budget covers explicit live payloads; opaque backend setup is reported
+ * unknown and is never represented as a successful zero-byte allocation. */
+typedef struct rns8_pipeline_cost_profile {
+  uint64_t struct_size;
+  uint32_t abi_version,backend;
+  char target_id[128],build_identity_sha256[65],calibration_identity[128];
+  /* Per-unit nanoseconds: native transfer byte, encoded byte, multiply-add,
+   * general CRT cell-plane, quarter CRT cell-plane, output transfer byte.
+   * A bit in known_mask requires finite positive ordered bounds. */
+  uint32_t known_mask;
+  double lower_ns_per_unit[6],upper_ns_per_unit[6];
+  double lower_launch_ns,upper_launch_ns;
+} rns8_pipeline_cost_profile;
+typedef struct rns8_pipeline_query {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_operation_query operation;
+  uint64_t output_magnitude_limbs[3];
+  uint32_t output_boundary; /* resident0,signed limbs1,unsigned limbs2,canonical3 */
+  uint32_t retained_operands; /* bit0 A/bit1 B already resident in this prefix */
+  uint64_t reuse_count; /* positive, setup amortized over this many products */
+  uint64_t payload_budget;
+} rns8_pipeline_query;
+typedef struct rns8_pipeline_stage {
+  uint32_t kind,dependencies,resources; /* prior stage bitmask; host1,copy2,compute4 */
+  uint32_t cost_known;
+  uint64_t work_units,allocated_bytes;
+  double earliest_start_ns,earliest_end_ns,latest_start_ns,latest_end_ns;
+} rns8_pipeline_stage;
+typedef struct rns8_pipeline_candidate {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,prefix,reconstruction; /* resident0,general1,quarter2 */
+  rns8_status status;
+  uint32_t reason_code,cost_known,pareto,requires_binding,resource_status;
+  uint64_t peak_payload_bytes,setup_payload_bytes;
+  double lower_amortized_ns,upper_amortized_ns;
+  rns8_gemm_desc executable_problem;
+  uint32_t stage_count;
+  rns8_pipeline_stage stages[8];
+  char provider_identity_sha256[65],explanation[160];
+} rns8_pipeline_candidate;
+RNS8_API rns8_status rns8_get_pipeline_build_identity(char* destination,uint64_t capacity);
+RNS8_API rns8_status rns8_plan_pipeline(const rns8_context*,const rns8_pipeline_query*,
+    const rns8_pipeline_cost_profile* profiles,uint32_t profile_count,
+    rns8_pipeline_candidate* results,uint32_t capacity,uint32_t* required_count);
+
 typedef enum rns8_auto_reason RNS8_ENUM_BASE {
   RNS8_AUTO_BASELINE_POLICY=0, RNS8_AUTO_UNSUPPORTED_SEMANTICS=1, RNS8_AUTO_UNSUPPORTED_MODULUS=2,
   RNS8_AUTO_PER_TILE_UNSUPPORTED=3, RNS8_AUTO_NOT_COMPILED=4, RNS8_AUTO_PROBE_FAILED=5,

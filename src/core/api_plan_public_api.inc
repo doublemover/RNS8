@@ -27,23 +27,11 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
         requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (!backend_supports_semantics(requested, desc->semantics)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if ((requested == RNS8_BACKEND_CK || requested == RNS8_BACKEND_ROCWMMA ||
-         requested == RNS8_BACKEND_AMDGPU_BUILTINS) &&
-        uses_finite_storage(desc->semantics) &&
-        !rns8::detail::finite_u8::static_byte_modulus_supported(desc->finite_modulus)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-        !rns8::detail::qualified_i32_gemm_address(desc->m, desc->n, desc->k,
-                                                desc->k, desc->n, desc->n, std::max(prefix, 1u))) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
+    rns8_operation_query operation{};operation.struct_size=sizeof(operation);operation.abi_version=RNS8_ABI_VERSION;
+    operation.operation=RNS8_OP_GEMM;operation.execution_modes=RNS8_EXEC_SYNC;operation.problem=*desc;
+    operation.scratch_budget=UINT64_MAX;operation.device_count=1;
+    const auto support=operation_support(*ctx,operation,requested);
+    if(support.status!=RNS8_SUCCESS)return support.status;
     auto owner = std::make_unique<rns8_plan>();
     auto* plan = owner.get();
     plan->desc = *desc;
@@ -582,5 +570,21 @@ rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan,rns8_auto_trace_i
   info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;
   if(plan->desc.requested_backend!=RNS8_BACKEND_AUTO)set_text(info->decision,sizeof(info->decision),"explicit backend; AUTO not evaluated");
   if(capacity && *required)std::copy_n(plan->auto_decisions.begin(),std::min(capacity,*required),entries);return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_operation_query* query,
+    rns8_operation_support* results,uint32_t capacity,uint32_t* required) {
+  return guard_api([&]() -> rns8_status {
+    if(!ctx || !query || !required || (capacity && !results) || !rns8::detail::valid_abi(query->struct_size,query->abi_version,sizeof(*query)))return RNS8_INVALID_ARGUMENT;
+    if(query->operation>RNS8_OP_FP8 || !query->execution_modes || (query->execution_modes&~127u) ||
+       (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
+      return RNS8_INVALID_ARGUMENT;
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
+      RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS};
+    const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?8:1;
+    if(!all && std::find(std::begin(backends),std::end(backends),query->problem.requested_backend)==std::end(backends))return RNS8_INVALID_ARGUMENT;
+    for(uint32_t index=0;index<std::min(capacity,*required);++index)results[index]=operation_support(*ctx,*query,all?backends[index]:query->problem.requested_backend);
+    return RNS8_SUCCESS;
   });
 }

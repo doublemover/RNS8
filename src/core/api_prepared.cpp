@@ -131,6 +131,8 @@ static rns8_status prepare_operation(
     if (!out) return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     if (!ctx || !plan || !a || !b || !c || !workspace) return RNS8_INVALID_ARGUMENT;
+    const auto provider=plan_operation_preflight(*ctx,*plan,d?RNS8_OP_EXACT_EPILOGUE:RNS8_OP_PREPARED_GROUP,RNS8_EXEC_SYNC);
+    if(provider!=RNS8_SUCCESS)return provider;
     auto e = std::make_unique<rns8_prepared_execution>();
     e->ctx = ctx; e->plan = plan; e->a = a; e->b = b; e->c = c; e->workspace = workspace;
     e->d = d; e->alpha = alpha; e->beta = beta;

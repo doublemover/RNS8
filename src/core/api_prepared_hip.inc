@@ -12,6 +12,9 @@ const void* prepared_device_storage(const rns8_matrix& matrix) {
 }
 rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   if (e.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+  const auto provider=plan_operation_preflight(*e.ctx,*e.plan,e.d?RNS8_OP_EXACT_EPILOGUE:RNS8_OP_GEMM,
+      RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH);
+  if(provider!=RNS8_SUCCESS)return provider;
   if (!direct_hip_compiled() || e.plan->backend != RNS8_BACKEND_HIP_DIRECT ||
       (!rns8::detail::exact_wide_semantics(e.plan->desc.semantics) &&
        !uses_finite_storage(e.plan->desc.semantics) &&
