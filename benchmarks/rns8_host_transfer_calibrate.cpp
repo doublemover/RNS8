@@ -16,8 +16,8 @@ constexpr uint64_t canary=UINT64_C(0x5a5a5a5a5a5a5a5a);
 bool cleanup_failed=false;
 struct Unsupported:std::runtime_error{using std::runtime_error::runtime_error;};
 void need(bool value,const char* message){if(!value)throw std::runtime_error(message);}
-void check(rns8_status s) {
-  if(s==RNS8_UNSUPPORTED_BACKEND || s==RNS8_UNSUPPORTED_ARCH || s==RNS8_UNSUPPORTED_OS)throw Unsupported(rns8_status_string(s));
+void check(rns8_status s,bool availability=false) {
+  if(availability && (s==RNS8_UNSUPPORTED_BACKEND || s==RNS8_UNSUPPORTED_ARCH || s==RNS8_UNSUPPORTED_OS))throw Unsupported(rns8_status_string(s));
   if(s!=RNS8_SUCCESS)throw std::runtime_error(rns8_status_string(s));
 }
 uint64_t elapsed(Clock::time_point a,Clock::time_point b){return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(b-a).count());}
@@ -104,7 +104,7 @@ json run(const Case& c,const std::string& run_id) {
   need(setenv("RNS8_HIP_PINNED_EXPORT_STAGING","0",1)==0,"ordinary export staging control");
 #endif
   const auto setup_start=Clock::now();rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
-  check(rns8_create_context(c.device,&options,&owner.ctx));
+  check(rns8_create_context(c.device,&options,&owner.ctx),true);
   rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.requested_backend=options.requested_backend;
   gd.semantics=c.unsign?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;gd.bound_kind=RNS8_BOUND_NONE;
   gd.m=c.m;gd.n=c.n;gd.k=c.k;gd.max_prefix=20;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
@@ -142,7 +142,12 @@ json run(const Case& c,const std::string& run_id) {
     check(rns8_gemm_rns(owner.ctx,owner.plan,owner.matrices[0],owner.matrices[1],owner.matrices[2],owner.workspace));
     check(rns8_prepare_gemm(owner.ctx,owner.plan,owner.matrices[0],owner.matrices[1],owner.matrices[2],owner.workspace,&owner.operations[2]));
     transfer.import_values=0;check(rns8_prepare_host_transfer_hip(owner.ctx,owner.matrices[2],owner.pins[2],&transfer,&owner.operations[3]));
-    if(c.stream)for(auto& stream:owner.streams)hipcheck(hipStreamCreateWithFlags(&stream,hipStreamNonBlocking));
+    if(c.stream) {
+      // Plain stream submission needs the same retained completion resources as
+      // graph capture. Prepare every owner outside all production intervals.
+      for(auto* operation:owner.operations)check(rns8_prepare_hip_submission(operation));
+      for(auto& stream:owner.streams)hipcheck(hipStreamCreateWithFlags(&stream,hipStreamNonBlocking));
+    }
     if(c.graph) {const auto start=Clock::now();for(auto* operation:owner.operations)check(rns8_capture_prepared_hip_graph(operation));capture_ns=elapsed(start,Clock::now());}
   }
   rns8_device_info device{};device.struct_size=sizeof(device);device.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(owner.ctx,&device));
