@@ -69,6 +69,13 @@ class Context final {
     check(rns8_get_device_info(handle_, &info));
     return info;
   }
+  rns8_allocation_observation allocation_observation() const {
+    rns8_allocation_observation result{};result.struct_size=sizeof(result);result.abi_version=RNS8_ABI_VERSION;
+    check(rns8_get_allocation_observation(handle_,&result));return result;
+  }
+  uint64_t reset_allocation_peaks() {
+    uint64_t epoch=0;check(rns8_reset_allocation_peaks(handle_,&epoch));return epoch;
+  }
 
  private:
   rns8_context* handle_ = nullptr;

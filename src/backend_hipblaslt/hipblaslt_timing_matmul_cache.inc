@@ -97,7 +97,8 @@ void record_synchronized_host_timing(const char* label, std::chrono::steady_cloc
   (void)hipDeviceSynchronize();
   const auto stop = std::chrono::steady_clock::now();
   const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  hip_direct_timing_record_sample(label, microseconds);
+  hip_direct_timing_record_failure(label,"synchronized_host_fallback",-1);
+  hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+label).c_str(), microseconds);
 }
 
 bool record_elapsed_event_sample(const char* label, hipEvent_t start, hipEvent_t stop) {

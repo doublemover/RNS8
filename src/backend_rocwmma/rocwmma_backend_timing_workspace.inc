@@ -98,9 +98,11 @@ void record_synchronized_host_timing(
   (void)hipDeviceSynchronize();
   const auto stop = std::chrono::steady_clock::now();
   const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  rns8::detail::hip_direct_timing_record_sample(label, microseconds);
+  rns8::detail::hip_direct_timing_record_failure(label,"synchronized_host_fallback",-1);
+  rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+label).c_str(), microseconds);
   if (alias && alias[0] != '\0') {
-    rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
+    rns8::detail::hip_direct_timing_record_failure(alias,"synchronized_host_fallback",-1);
+    rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+alias).c_str(), microseconds);
   }
 }
 

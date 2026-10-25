@@ -54,6 +54,30 @@ void mark_device_residue_output_current(rns8_matrix* matrix, uint32_t written_pr
 
 }  // namespace
 
+AllocationObservationLedger* hip_direct_allocation_ledger(int device_id) noexcept {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(device_id<0)return nullptr;
+  struct Registry {
+    std::mutex mutex;
+    std::atomic<bool> failed{false};
+    std::map<int,std::unique_ptr<AllocationObservationLedger>> devices;
+  };
+  // Reachable process-lifetime metadata also serves late TLS/deferred cleanup;
+  // destruction order must not resurrect a ledger after its owners retire.
+  static Registry* const registry=[]() noexcept -> Registry* {try{return new Registry;}catch(...){return nullptr;}}();
+  if(!registry || registry->failed.load())return nullptr;
+  try {
+    std::lock_guard<std::mutex> lock(registry->mutex);
+    auto found=registry->devices.find(device_id);
+    if(found!=registry->devices.end())return found->second.get();
+    auto ledger=std::make_unique<AllocationObservationLedger>();auto* result=ledger.get();
+    registry->devices.emplace(device_id,std::move(ledger));return result;
+  }catch(...){registry->failed=true;return nullptr;}
+#else
+  (void)device_id;return nullptr;
+#endif
+}
+
 void hip_direct_allocation_counters_reset() {
   g_hip_direct_allocate_calls.store(0, std::memory_order_relaxed);
   g_hip_direct_free_calls.store(0, std::memory_order_relaxed);

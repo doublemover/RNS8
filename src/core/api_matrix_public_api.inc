@@ -212,6 +212,26 @@ rns8_status rns8_get_matrix_storage_info(const rns8_matrix* matrix, rns8_matrix_
 }
 
 
+rns8_status rns8_get_allocation_observation(const rns8_context* ctx,rns8_allocation_observation* out) {
+  return guard_api([&]() -> rns8_status {
+    if(!ctx || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+    if(!ctx->device_info.hip_available || ctx->device_id<0)return RNS8_UNSUPPORTED_BACKEND;
+    auto* ledger=rns8::detail::hip_direct_allocation_ledger(ctx->device_id);if(!ledger)return RNS8_BACKEND_FAILURE;
+    const auto observation=ledger->snapshot();if(!observation.complete)return RNS8_BACKEND_FAILURE;
+    rns8_allocation_observation result{};result.struct_size=sizeof(result);result.abi_version=RNS8_ABI_VERSION;result.epoch=observation.epoch;
+    const auto copy=[](const rns8::detail::AllocationDomainObservation& d) {return rns8_allocation_domain_observation{
+      d.live_bytes,d.peak_bytes,d.live_allocations,d.peak_allocations,d.allocation_calls,d.free_calls,d.allocated_bytes};};
+    result.device=copy(observation.domains[0]);result.pinned_host=copy(observation.domains[1]);*out=result;return RNS8_SUCCESS;
+  });
+}
+rns8_status rns8_reset_allocation_peaks(rns8_context* ctx,uint64_t* epoch) {
+  return guard_api([&]() -> rns8_status {
+    if(!ctx || !epoch)return RNS8_INVALID_ARGUMENT;
+    if(!ctx->device_info.hip_available || ctx->device_id<0)return RNS8_UNSUPPORTED_BACKEND;
+    auto* ledger=rns8::detail::hip_direct_allocation_ledger(ctx->device_id);if(!ledger)return RNS8_BACKEND_FAILURE;
+    uint64_t next=0;if(!ledger->reset_peaks(next))return RNS8_BACKEND_FAILURE;*epoch=next;return RNS8_SUCCESS;
+  });
+}
 rns8_status rns8_get_matrix_allocation_info(const rns8_matrix* matrix, rns8_matrix_allocation_info* out) {
   return guard_api([&]() -> rns8_status {
     if (!matrix || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))

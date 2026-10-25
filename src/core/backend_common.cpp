@@ -45,6 +45,7 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
   hip_unique_event_pair events;
   hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
+    hip_direct_timing_record_failure(label,"create_or_record_start",static_cast<int>(event_status));
     return fn();
   }
 
@@ -55,6 +56,7 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
       hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
       return code;
     }
+    hip_direct_timing_record_failure(label,"record_stop",static_cast<int>(event_status));
   }
   return code;
 #else

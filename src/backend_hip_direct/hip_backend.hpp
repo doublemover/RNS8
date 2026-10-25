@@ -257,6 +257,13 @@ struct hip_direct_timing_sample {
   std::string label;
   double microseconds = 0.0;
 };
+struct hip_direct_timing_failure {
+  std::string label,phase;
+  int backend_status=0;
+};
+class AllocationObservationLedger;
+struct AllocationObservation;
+AllocationObservationLedger* hip_direct_allocation_ledger(int device_id) noexcept;
 
 struct hip_direct_allocation_counters {
   uint64_t allocate_calls = 0;
@@ -386,6 +393,9 @@ void hip_direct_timing_record_pending_event_with_alias(
     void* start_event,
     void* stop_event);
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
+void hip_direct_timing_record_failure(const char* label,const char* phase,int backend_status) noexcept;
+bool hip_direct_timing_failures_complete() noexcept;
+std::vector<hip_direct_timing_failure> hip_direct_timing_failure_snapshot();
 void hip_direct_allocation_counters_reset();
 hip_direct_allocation_counters hip_direct_allocation_counters_snapshot();
 // Diagnostic cache-displacement attempt over disjoint caller-owned storage.

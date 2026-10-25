@@ -753,6 +753,10 @@
           "reference": "adaptive-native-product.md"
         },
         {
+          "source": "docs/device-bound-discovery.md",
+          "reference": "adaptive-native-product.md#versioned-distribution-and-complete-output-controls"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../adaptive-native-product.md"
         }
@@ -2109,6 +2113,7 @@
       ],
       "anchors": [
         "explicit-k-panel-l1-refinement",
+        "fair-uniform-prefix-control",
         "immutable-direct-hip-launch-facts",
         "native-device-bound-discovery"
       ]
@@ -3371,7 +3376,8 @@
         "performance-evidence-and-promotion",
         "promotion-boundaries",
         "selected-static-isa-and-proof-work-identity",
-        "synchronous-transfer-payload-accounting"
+        "synchronous-transfer-payload-accounting",
+        "unavailable-diagnostic-timing"
       ]
     },
     {
@@ -4981,6 +4987,7 @@
       ],
       "anchors": [
         "host-payload-consumers",
+        "live-allocation-observations",
         "resident-storage-allocation"
       ]
     },

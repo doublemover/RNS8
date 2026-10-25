@@ -1231,6 +1231,32 @@ typedef struct rns8_matrix_allocation_info {
 
 RNS8_API rns8_status rns8_get_matrix_allocation_info(
     const rns8_matrix* matrix, rns8_matrix_allocation_info* out);
+/* Observed requested capacities of RNS8-owned HIP device and pinned-host
+ * allocations, across this process on the context's device. Views do not add
+ * allocations; failed/deferred releases stay live until a successful free.
+ * Excludes ordinary host heap/RSS, allocator padding, driver/library internals
+ * and allocations made outside RNS8. This is not total physical VRAM usage. */
+typedef struct rns8_allocation_domain_observation {
+  uint64_t live_bytes, peak_bytes;
+  uint64_t live_allocations, peak_allocations;
+  uint64_t allocation_calls, free_calls, allocated_bytes;
+} rns8_allocation_domain_observation;
+typedef struct rns8_allocation_observation {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t reserved;
+  uint64_t epoch;
+  rns8_allocation_domain_observation device;
+  rns8_allocation_domain_observation pinned_host;
+} rns8_allocation_observation;
+/* No GPU work/probe. Unsupported contexts or incomplete tracking return an
+ * error without replacing out; an unknown observation is never a valid zero. */
+RNS8_API rns8_status rns8_get_allocation_observation(
+    const rns8_context* context,rns8_allocation_observation* out);
+/* Reset peak baselines to currently live capacities and advance the epoch.
+ * Cumulative counters and live allocations remain unchanged. This affects the
+ * shared process/device observation, including other contexts on that device. */
+RNS8_API rns8_status rns8_reset_allocation_peaks(rns8_context* context,uint64_t* epoch);
 /* Release only reusable upload/export/status/schedule buffers. Preserves every
  * value allocation, proof and generation. Prepared or in-flight use is BUSY.
  * On failure, earlier releases remain released and unreleased buffers stay owned. */

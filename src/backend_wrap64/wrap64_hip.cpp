@@ -151,6 +151,7 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   hip_unique_event_pair events;
   hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
+    hip_direct_timing_record_failure(label,"create_or_record_start",static_cast<int>(event_status));
     return fn();
   }
 
@@ -159,12 +160,17 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
     event_status = events.record_stop();
     if (event_status == hipSuccess) {
       event_status = hipEventSynchronize(events.stop());
+      if(event_status!=hipSuccess)hip_direct_timing_record_failure(label,"stop_synchronize",static_cast<int>(event_status));
+    } else {
+      hip_direct_timing_record_failure(label,"record_stop",static_cast<int>(event_status));
     }
     if (event_status == hipSuccess) {
       float milliseconds = 0.0f;
       event_status = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
       if (event_status == hipSuccess && milliseconds >= 0.0f) {
         hip_direct_timing_record_sample(label, static_cast<double>(milliseconds) * 1000.0);
+      } else {
+        hip_direct_timing_record_failure(label,event_status==hipSuccess?"invalid_elapsed_time":"elapsed_time",static_cast<int>(event_status));
       }
     }
   }

@@ -6,6 +6,7 @@
 #include <new>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_common/allocation_observations.hpp"
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
@@ -322,8 +323,10 @@ class hip_pinned_host_buffer {
     if(!cleanup_) return hipSuccess;
     hip_scoped_device selected(cleanup_->device_id);
     if(selected.status()!=hipSuccess) return selected.status();
+    AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(cleanup_->device_id));
     const auto status=hipHostFree(cleanup_->pointer);
     if(status!=hipSuccess) return status;
+    observation.released(cleanup_->pointer,AllocationObservationDomain::pinned_host);
     delete cleanup_;cleanup_=nullptr;capacity_=0;return hipSuccess;
   }
   void mark_pending() noexcept {pending_=true;}
@@ -340,8 +343,10 @@ class hip_pinned_host_buffer {
     auto* record=new(std::nothrow) hip_deferred_buffer_cleanup;
     if(!record) return hipErrorOutOfMemory;
     record->kind=hip_deferred_allocation_kind::pinned_host;record->device_id=device_id;
+    AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
     const auto status=hipHostMalloc(&record->pointer,bytes,hipHostMallocDefault);
     if(status!=hipSuccess) {delete record;return status;}
+    observation.allocated(record->pointer,bytes,AllocationObservationDomain::pinned_host);
     cleanup_=record;capacity_=bytes;return hipSuccess;
   }
   void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}

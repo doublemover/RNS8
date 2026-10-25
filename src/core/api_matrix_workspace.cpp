@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "backend_common/locality_schedule.hpp"
+#include "backend_common/allocation_observations.hpp"
 
 #include <atomic>
 #include "core/matrix_cleanup.hpp"

@@ -28,6 +28,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -647,8 +650,11 @@ rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup*
       auto status=RNS8_UNSUPPORTED_BACKEND;
       if(node->kind==hip_deferred_allocation_kind::device) status=hip_direct_free(device_id,node->pointer);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-      else if(node->kind==hip_deferred_allocation_kind::pinned_host)
+      else if(node->kind==hip_deferred_allocation_kind::pinned_host) {
+        AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
         status=hipHostFree(node->pointer)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+        if(status==RNS8_SUCCESS)observation.released(node->pointer,AllocationObservationDomain::pinned_host);
+      }
 #endif
       if(status==RNS8_SUCCESS) delete node;
       else {if(result==RNS8_SUCCESS) result=status;hip_direct_defer_buffer_cleanup(node);}

@@ -56,3 +56,34 @@ Authored coverage includes allocation-independent mock admission, malformed
 capacity/currentness, overflow, all seven direct-HIP semantic families, and the
 existing compact/padded signed/unsigned exact native ownership differential
 fixtures. Qualification is pending the consolidated validation batch.
+
+## Live allocation observations
+
+`rns8_get_allocation_observation` (C++ `Context::allocation_observation`) records
+live and peak **requested** bytes/counts, allocation/free calls and cumulative
+requested bytes separately for HIP device and pinned-host buffers. The context
+selects a device; the observation includes all RNS8 contexts in this process on
+that device. Moves and borrowed views add no allocations. Reused staging keeps
+its existing record. Failed releases and deferred cleanup remain live until a
+successful physical free.
+
+`rns8_reset_allocation_peaks` advances the shared device observation epoch and
+sets peaks to currently live ownership. It neither releases storage nor clears
+live/cumulative counters. Snapshots and allocator transactions share a per-device
+mutex, including each actual allocation/free, so pointer reuse cannot race its
+retirement record. Compute and copy paths acquire no observation lock. A
+snapshot can wait for an allocation/free transaction; it launches no GPU work.
+
+Tracking is observational. A failed host bookkeeping allocation or counter
+overflow makes that observation incomplete; it never turns a successful GPU
+allocation into a failed arithmetic operation. Queries then return an error
+without replacing the caller's output. Unsupported contexts likewise report
+unsupported, rather than a successful fabricated zero.
+
+These records cover RNS8-owned wrapper allocations, including temporary and
+deferred device/pinned staging. They exclude ordinary host heap/RSS, allocator
+padding, driver/library internals and external allocations. Process RSS and
+device free-memory samples must be recorded separately when reconciling physical
+capacity. The API establishes no total-VRAM peak or performance claim. New
+concurrent-ledger, overflow, reset, unsupported-context, device/pinned and BUSY
+ownership regressions are authored and await execution.

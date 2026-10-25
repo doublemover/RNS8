@@ -120,6 +120,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
   add_test(NAME native_integrity_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_integrity.py")
   add_test(NAME native_interop_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_interop.py")
+  if(TARGET rns8-native-calibrate AND RNS8_ENABLE_HIP)
+    add_test(NAME native_global_minimum_axis_l1_smoke COMMAND rns8-native-calibrate
+      global_minimum 17 19 17 20 2 0 1 1 global-minimum-smoke axis_l1)
+    set_tests_properties(native_global_minimum_axis_l1_smoke PROPERTIES LABELS "hip;native;benchmark-smoke" TIMEOUT 120)
+  endif()
   if(TARGET rns8-lift-recipe-calibrate AND RNS8_ENABLE_HIP)
     foreach(_layout_mode IN ITEMS recipe-packed-full recipe-packed-minimum recipe-layout-model native-roundtrip manual-scalar-first)
       foreach(_layout_shape IN ITEMS 17-chain-3-i 32-diamond-4-u)
@@ -951,6 +956,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_residue_dot.cpp
     tests/unit/test_residue_epilogue.cpp
     tests/unit/test_exact_lift_workspace.cpp
+    tests/unit/test_allocation_observations.cpp
     tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_direct_crt_constants.cpp

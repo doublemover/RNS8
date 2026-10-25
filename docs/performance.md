@@ -248,3 +248,21 @@ profiler receipt. The existing arithmetic slab certificate is unchanged:
 
 All authored regressions and experiments remain unexecuted; no target is newly
 qualified and no default is promoted by these source-level update counts.
+
+## Unavailable diagnostic timing
+
+HIP event creation/recording, synchronization and elapsed-time failures now have
+separate diagnostic records containing label, phase and backend status. Invalid
+durations remain censored; they are never replaced with zero. Recording a
+failure uses bounded thread-local storage and cannot make an otherwise successful
+arithmetic call fail. Observer overflow/truncation is explicitly incomplete.
+Reset and disable retire the previous diagnostic epoch.
+
+The main benchmark marks GPU-event evidence unavailable if a timing failure or
+incomplete observer occurs, including on optional phases. Synchronized host
+fallbacks from CK, rocWMMA and hipBLASLt use distinct
+`host_synchronized_fallback:` labels and mark the requested GPU-event label
+unavailable. A host duration therefore cannot masquerade as an event duration.
+The per-tile GPU differential still checks every produced/untouched residue
+against CPU output; its separate event assertion accepts an available duration
+or an explicit timing-failure record. New telemetry regressions await execution.

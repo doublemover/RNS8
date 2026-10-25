@@ -2,6 +2,9 @@
 #include <cstdint>
 #include <type_traits>
 #include "rns8/rns8.h"
+static_assert(sizeof(rns8_allocation_domain_observation)==56);
+static_assert(sizeof(rns8_allocation_observation)==136);
+static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
 
 #define CHECK_ENUM_ABI(type) \
   static_assert(sizeof(type) == sizeof(uint32_t)); \
