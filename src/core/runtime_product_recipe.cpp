@@ -2,11 +2,33 @@
 #include "core/api_internal.hpp"
 #include "core/hip_resources.hpp"
 #include "core/ragged_recipe_binding.hpp"
+#include "core/experimental_basis.hpp"
+#include "rns8/experimental_basis.h"
 #include <mutex>
 #include <unordered_set>
 #include <unordered_map>
 namespace rns8::detail {
 using namespace api;
+namespace {
+std::shared_ptr<const ExperimentalBasis> recipe_basis(const rns8_matrix& matrix) {
+  return matrix.experimental_basis?matrix.experimental_basis:default_experimental_basis();
+}
+bool recipe_storage_matches(const rns8_matrix& matrix,rns8_backend_kind backend,
+    int64_t rows,int64_t cols,uint32_t prefix,const OrderedBasisIdentity& basis) {
+  if(!(ordered_basis_identity(recipe_basis(matrix)->packet)==basis) || !prefix || prefix>basis.count ||
+      matrix.prefix!=prefix || matrix.materialized_rns_schedule || matrix.desc.bound_kind!=RNS8_BOUND_NONE ||
+      matrix.desc.logical_layout!=RNS8_LAYOUT_ROW_MAJOR || matrix.desc.rows!=rows || matrix.desc.cols!=cols ||
+      !matrix.byte_limbs.empty() || matrix.hip_byte_limbs || matrix.hip_byte_limb_bytes ||
+      matrix.host_byte_limbs_current || matrix.device_byte_limbs_current)return false;
+  AddressDomain domain;
+  if(!checked_host_plane_address(rows,cols,cols,prefix,1,domain))return false;
+  if(backend==RNS8_BACKEND_HIP_DIRECT)
+    return matrix.hip_residues && matrix.hip_residue_bytes==domain.byte_extent &&
+        (matrix.residues.size()==domain.byte_extent || (matrix.residues.empty() && !matrix.host_residues_current));
+  return matrix.residues.size()==domain.byte_extent && !matrix.hip_residues &&
+      !matrix.hip_residue_bytes && !matrix.device_residues_current;
+}
+}
 struct RuntimeProductRecipe::Impl {
   rns8_context* ctx=nullptr;
   struct Input { const rns8_matrix* matrix; uint64_t instance,generation; };
@@ -17,6 +39,11 @@ struct RuntimeProductRecipe::Impl {
   std::vector<cpp_int> bounds;
   std::vector<uint32_t> compute_prefixes,capacities;
   uint64_t lift_scratch=0;
+  std::shared_ptr<const ExperimentalBasis> basis;
+  OrderedBasisIdentity basis_identity;
+  bool experimental=false,packet_uploaded=false;
+  uint64_t packet_offset=0;
+  int lift_status=0;
   ProductPrefixSelection selection;
   uint32_t prefix=0;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
@@ -71,6 +98,8 @@ const ProductPrefixSelection& RuntimeProductRecipe::cost_selection() const { ret
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
 uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
 const std::vector<uint32_t>& RuntimeProductRecipe::compute_prefixes() const { return impl_->compute_prefixes; }
+const BasisPacket& RuntimeProductRecipe::basis_packet() const {return impl_->basis->packet;}
+uint32_t RuntimeProductRecipe::output_prefix() const {return impl_->prefix;}
 rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     const std::vector<const rns8_matrix*>& inputs,const std::vector<ProductNode>& nodes,
     uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix,const ProductCostProfile* costs,const std::vector<uint32_t>& outputs) {
@@ -81,6 +110,12 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(ctx->backend!=RNS8_BACKEND_CPU_REFERENCE && ctx->backend!=RNS8_BACKEND_HIP_DIRECT)
       return RNS8_UNSUPPORTED_BACKEND;
     auto state=std::make_unique<Impl>(); state->ctx=ctx;
+    if(!inputs.front())return RNS8_INVALID_ARGUMENT;
+    state->basis=recipe_basis(*inputs.front());state->basis_identity=ordered_basis_identity(state->basis->packet);
+    state->experimental=bool(inputs.front()->experimental_basis);
+    // Equal content may come from separate basis handles. Provider selection is
+    // frozen for this owner; all non-default content uses the runtime-modulus path.
+    for(const auto* input:inputs)if(input && input->experimental_basis)state->experimental=true;
     std::vector<ProductShape> shapes;
     std::unordered_set<uint64_t*> holds{&ctx->prepared_references};
     for(const auto* input:inputs) {
@@ -88,13 +123,13 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       if(input->in_flight_writer) return RNS8_BUSY;
       if(!exact_wide_semantics(input->desc.semantics) || input->backend!=ctx->backend ||
           input->generation_exhausted || !rns_residue_state_current_for_backend(*input,ctx->backend) ||
-          !rns_matrix_storage_matches(*input,ctx->backend,input->desc.rows,input->desc.cols,input->prefix) ||
+          !recipe_storage_matches(*input,ctx->backend,input->desc.rows,input->desc.cols,input->prefix,state->basis_identity) ||
           (ctx->backend==RNS8_BACKEND_HIP_DIRECT && input->hip_device_id!=ctx->device_id))
         return RNS8_INVALID_ARGUMENT;
       if(state->inputs.empty()) { state->prefix=input->prefix; state->semantics=input->desc.semantics; }
       if(input->prefix!=state->prefix || input->desc.semantics!=state->semantics ||
           input->exact_range_prefix<state->prefix ||
-          !exact_range_fits(state->semantics,input->exact_max_magnitude,modulus_product(state->prefix)))
+          !exact_range_fits(state->semantics,input->exact_max_magnitude,state->basis->products[state->prefix]))
         return RNS8_RANGE_ERROR;
       state->inputs.push_back({input,input->matrix_instance_id,input->content_generation});
       shapes.push_back({input->desc.rows,input->desc.cols});
@@ -114,18 +149,19 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
         if(support.status!=RNS8_SUCCESS) return support.status;
       }
       cpp_int bound=cpp_int(a.cols)*state->bounds[node.a]*state->bounds[node.b];
-      if(!exact_range_fits(state->semantics,bound,modulus_product(state->prefix))) return RNS8_RANGE_ERROR;
+      if(!exact_range_fits(state->semantics,bound,state->basis->products[state->prefix])) return RNS8_RANGE_ERROR;
       uint32_t selected=state->prefix;
       if(minimize_compute_prefix || costs) {
         selected=1;
-        while(selected<state->prefix && !exact_range_fits(state->semantics,bound,modulus_product(selected))) ++selected;
+        while(selected<state->prefix && !exact_range_fits(state->semantics,bound,state->basis->products[selected])) ++selected;
       }
       state->compute_prefixes.push_back(selected);
       state->bounds.push_back(std::move(bound));
     }
     if(costs) {
       const std::string target=ctx->backend==RNS8_BACKEND_HIP_DIRECT?ctx->device_info.gcn_arch:"cpu";
-      if(costs->backend!=ctx->backend || costs->semantics!=state->semantics || costs->target!=target)
+      if(costs->backend!=ctx->backend || costs->semantics!=state->semantics || costs->target!=target ||
+          !(costs->basis==state->basis_identity) || costs->experimental_basis!=state->experimental)
         return RNS8_INVALID_ARGUMENT;
       state->selection=select_product_prefixes(shapes,nodes,state->prefix,state->compute_prefixes,budget,
           ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs,state->outputs);
@@ -140,10 +176,17 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     for(size_t i=0;i<nodes.size();++i) if(state->capacities[i]>state->compute_prefixes[i]) {
       const auto shape=state->allocation.values[inputs.size()+i].shape;
       if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
-        const auto lift=query_exact_lift_support(shape.rows*shape.cols,state->compute_prefixes[i],
-            state->capacities[i],UINT64_MAX);
-        if(lift.status!=RNS8_SUCCESS) return lift.status;
-        state->lift_scratch=std::max(state->lift_scratch,lift.scratch_bytes);
+        if(state->experimental) {
+          const auto lift=basis_lift_storage(shape.rows*shape.cols,state->compute_prefixes[i],state->capacities[i]);
+          if(lift.status!=RNS8_SUCCESS)return lift.status;
+          if(lift.scratch_bytes>state->lift_scratch) {
+            state->lift_scratch=lift.scratch_bytes;state->packet_offset=lift.packet_offset;
+          }
+        } else {
+          const auto lift=query_exact_lift_support(shape.rows*shape.cols,state->compute_prefixes[i],state->capacities[i],UINT64_MAX);
+          if(lift.status!=RNS8_SUCCESS) return lift.status;
+          state->lift_scratch=std::max(state->lift_scratch,lift.scratch_bytes);
+        }
       }
     }
     if(state->lift_scratch>budget) return RNS8_WORKSPACE_TOO_SMALL;
@@ -153,7 +196,8 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
       // Arena slots are 256-byte aligned; append one int-aligned maximum lift
       // region to the same retained allocation. No per-materialization malloc.
-      if(state->lift_scratch>SIZE_MAX-state->allocation.arena_bytes)return RNS8_RANGE_ERROR;
+      if(state->allocation.arena_bytes>uint64_t(PTRDIFF_MAX) ||
+          state->lift_scratch>uint64_t(PTRDIFF_MAX)-state->allocation.arena_bytes)return RNS8_RANGE_ERROR;
       const auto status=hip_direct_allocate(ctx->device_id,
           static_cast<size_t>(state->allocation.arena_bytes+state->lift_scratch),&state->device);
       if(status!=RNS8_SUCCESS) return status;
@@ -182,11 +226,11 @@ rns8_status RuntimeProductRecipe::rebind(const std::vector<const rns8_matrix*>& 
       if(input->backend!=state.ctx->backend || input->desc.semantics!=state.semantics || input->prefix!=state.prefix ||
          input->generation_exhausted || input->desc.rows!=shape.rows || input->desc.cols!=shape.cols ||
          !rns_residue_state_current_for_backend(*input,state.ctx->backend) ||
-         !rns_matrix_storage_matches(*input,state.ctx->backend,shape.rows,shape.cols,state.prefix) ||
+         !recipe_storage_matches(*input,state.ctx->backend,shape.rows,shape.cols,state.prefix,state.basis_identity) ||
          (state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && input->hip_device_id!=state.ctx->device_id)) return RNS8_INVALID_ARGUMENT;
       if(input->exact_range_prefix<state.prefix || input->exact_max_magnitude<0 ||
          input->exact_max_magnitude>state.bounds[i] ||
-         !exact_range_fits(state.semantics,input->exact_max_magnitude,modulus_product(state.prefix))) return RNS8_RANGE_ERROR;
+         !exact_range_fits(state.semantics,input->exact_max_magnitude,state.basis->products[state.prefix])) return RNS8_RANGE_ERROR;
       replacement.push_back({input,input->matrix_instance_id,input->content_generation});
       new_holds.insert(&input->prepared_references);
     }
@@ -218,7 +262,7 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
       const auto shape=state.allocation.values[state.outputs[i]].shape;
       if(output->backend!=state.ctx->backend || output->desc.semantics!=state.semantics ||
           output->desc.rows!=shape.rows || output->desc.cols!=shape.cols || output->prefix!=state.prefix ||
-          !rns_matrix_storage_matches(*output,state.ctx->backend,shape.rows,shape.cols,state.prefix) ||
+          !recipe_storage_matches(*output,state.ctx->backend,shape.rows,shape.cols,state.prefix,state.basis_identity) ||
           (state.ctx->backend==RNS8_BACKEND_HIP_DIRECT && output->hip_device_id!=state.ctx->device_id))
         return RNS8_INVALID_ARGUMENT;
       if(output->generation_exhausted || output->prepared_references==UINT64_MAX) return RNS8_RANGE_ERROR;
@@ -286,24 +330,46 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
         if(magnitude!=0) return RNS8_RANGE_ERROR;
         bool touched=false;
         auto* lift_workspace=static_cast<int8_t*>(state.device)+state.allocation.arena_bytes;
-        const auto status=hip_direct_lift_exact_suffix_workspace(state.ctx->device_id,residues,cells,current[id],target,
+        rns8_status status;
+        if(state.experimental) {
+          const auto storage=basis_lift_storage(cells,current[id],target);
+          if(storage.status!=RNS8_SUCCESS || storage.packet_offset>state.packet_offset)return RNS8_RANGE_ERROR;
+          auto* packet=lift_workspace+state.packet_offset;
+          if(!state.packet_uploaded) {
+            status=hip_direct_copy_host_to_device(state.ctx->device_id,packet,&state.basis->packet,sizeof(BasisPacket));
+            if(status!=RNS8_SUCCESS)return status;state.packet_uploaded=true;
+          }
+          BasisMagnitude bound;std::copy_n(words,3,bound.words);
+          status=hip_direct_basis_convert(state.ctx->device_id,residues,lift_workspace,cells,packet,packet,
+              current[id],target,state.semantics==RNS8_EXACT_WIDE_SIGNED,bound,
+              lift_workspace+storage.flag_offset,&state.lift_status);
+          if(status==RNS8_SUCCESS)status=hip_direct_copy_device_to_device(state.ctx->device_id,
+              residues+uint64_t(cells)*current[id],lift_workspace+uint64_t(cells)*current[id],
+              size_t(uint64_t(cells)*(target-current[id])));
+        } else status=hip_direct_lift_exact_suffix_workspace(state.ctx->device_id,residues,cells,current[id],target,
             state.semantics==RNS8_EXACT_WIDE_SIGNED,words,lift_workspace,state.lift_scratch,touched);
         if(status!=RNS8_SUCCESS) return status;
       } else {
         std::vector<int8_t> cell_residues(current[id]);
-        const auto product=modulus_product(current[id]);
+        const auto product=state.basis->products[current[id]];
         const cpp_int threshold=(product+1)/2;
         for(int64_t cell=0;cell<cells;++cell) {
           for(uint32_t p=0;p<current[id];++p) {
-            const int value=residues[int64_t(p)*cells+cell],modulus=kDefaultModuli[p];
+            const int value=residues[int64_t(p)*cells+cell],modulus=state.basis->packet.moduli[p];
             if(value<-(modulus/2) || value>(modulus-1)/2) return RNS8_INVALID_ARGUMENT;
             cell_residues[p]=static_cast<int8_t>(value);
           }
-          auto value=reconstruct_canonical(cell_residues,current[id]);
+          cpp_int value=0;
+          for(uint32_t p=0;p<current[id];++p) {
+            const int modulus=state.basis->packet.moduli[p];
+            int difference=(int(cell_residues[p])-(value%modulus).convert_to<int>())%modulus;
+            if(difference<0)difference+=modulus;
+            value+=state.basis->products[p]*((difference*state.basis->packet.inverse_prefix[p])%modulus);
+          }
           if(state.semantics==RNS8_EXACT_WIDE_SIGNED && value>=threshold) value-=product;
           if(boost::multiprecision::abs(value)>state.bounds[id]) return RNS8_RANGE_ERROR;
           for(uint32_t p=current[id];p<target;++p)
-            residues[int64_t(p)*cells+cell]=centered_residue(value,kDefaultModuli[p]);
+            residues[int64_t(p)*cells+cell]=centered_residue(value,state.basis->packet.moduli[p]);
         }
       }
       current[id]=target;
@@ -320,12 +386,13 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
       auto* c=arena+state.allocation.values[state.inputs.size()+i].offset;
       const auto* av=pointer(node.a); const auto* bv=pointer(node.b);
       if(hip) {
-        const auto status=hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,
-            a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
+        const auto status=state.experimental
+            ? hip_direct_basis_gemm(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,state.basis->packet.moduli,prefix)
+            : hip_direct_gemm_rns_device(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,a.cols,b.cols,b.cols,prefix);
         if(status!=RNS8_SUCCESS) return status;
       } else {
         for(uint32_t p=0;p<prefix;++p) {
-          const int64_t modulus=rns8_default_modulus(p);
+          const int64_t modulus=state.basis->packet.moduli[p];
           for(int64_t row=0;row<a.rows;++row) for(int64_t col=0;col<b.cols;++col) {
             int64_t sum=0;
             for(int64_t q=0;q<a.cols;++q)
@@ -439,6 +506,14 @@ rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,u
   const auto& selected=recipe->owner->compute_prefixes();
   if(capacity<selected.size()) return RNS8_WORKSPACE_TOO_SMALL;
   std::copy(selected.begin(),selected.end(),prefixes);
+  return RNS8_SUCCESS;
+}
+rns8_status rns8_get_product_recipe_basis(const rns8_product_recipe* recipe,rns8_basis_info* out) {
+  if(!recipe || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+  const auto& packet=recipe->owner->basis_packet();const auto prefix=recipe->owner->output_prefix();
+  rns8_basis_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  info.representation=packet.version;info.identity=packet.identity;info.count=packet.count;info.selected_prefix=prefix;
+  std::copy_n(packet.moduli,20,info.moduli);std::copy_n(packet.products[prefix],3,info.prefix_product);*out=info;
   return RNS8_SUCCESS;
 }
 rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) {

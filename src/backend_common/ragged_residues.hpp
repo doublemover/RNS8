@@ -57,7 +57,8 @@ inline bool valid_ragged_residue_layout(
 inline bool compatible_ragged_destination(
     const RaggedResidueLayout& source, const ResidueLayout& destination,
     uint64_t instance, uint64_t generation) {
-  return valid_residue_layout(destination) && destination.rows == source.rows && destination.cols == source.cols &&
+  return valid_residue_layout(destination) && destination.basis==OrderedBasisIdentity{} &&
+      destination.rows == source.rows && destination.cols == source.cols &&
          valid_ragged_residue_layout(source, instance, generation, destination.prefix);
 }
 #if !defined(__HIP_DEVICE_COMPILE__)

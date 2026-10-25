@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "core/experimental_basis.hpp"
+#include "backend_common/ordered_basis_identity.hpp"
 #include "rns8/experimental_basis.h"
 #include "backend_common/basis_word_arithmetic.hpp"
 #include <algorithm>
@@ -30,17 +31,14 @@ void basis_words(cpp_int value,uint64_t* out) {
 }
 std::shared_ptr<const ExperimentalBasis> make_experimental_basis(const uint16_t* moduli,uint32_t count) {
   auto data=std::make_shared<ExperimentalBasis>();data->packet.count=count;data->products[0]=1;
-  uint64_t hash=UINT64_C(14695981039346656037);
-  const auto hash_word=[&](uint32_t value){for(unsigned i=0;i<4;++i)hash=(hash^uint8_t(value>>(8*i)))*UINT64_C(1099511628211);};
-  hash_word(1);hash_word(count); // codec ABI and complete ordered basis
   for(uint32_t i=0;i<count;++i) {
-    const auto modulus=moduli[i];data->packet.moduli[i]=modulus;hash_word(modulus);
+    const auto modulus=moduli[i];data->packet.moduli[i]=modulus;
     const auto remainder=static_cast<uint32_t>(data->products[i]%modulus);
     uint32_t inverse=1;while((remainder*inverse)%modulus!=1)++inverse;
     data->packet.inverse_prefix[i]=uint16_t(inverse);
     data->products[i+1]=data->products[i]*modulus;
   }
-  data->packet.identity=hash;
+  data->packet.identity=ordered_basis_fingerprint(data->packet.moduli,count);
   for(uint32_t i=0;i<=count;++i) {
     basis_words(data->products[i],data->packet.products[i]);
     basis_words((data->products[i]+1)/2,data->packet.negative_thresholds[i]);

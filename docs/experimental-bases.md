@@ -17,7 +17,7 @@ compare complete ordered content; fingerprints are diagnostic identities.
 experimental basis identity. Storage is compact modulus-major centered signed
 bytes, with allocated capacity separate from the currently proven prefix.
 `rns8_get_matrix_basis` reports the actual ordered channels and prefix product.
-Ordinary plans, prepared owners, layout converters and prepack caches reject
+Ordinary GEMM plans, prepared owners and accelerator prepack caches reject
 these matrices before consuming their bytes. A reordered basis is a different
 storage contract, even when its full product is unchanged. Passing a null basis
 to the experimental constructors explicitly selects the unchanged default basis
@@ -61,6 +61,22 @@ missing channel or larger prefix as a byte copy or zero fill. It preserves the
 source generation and publishes one new destination value. This also supplies
 an explicit wider-materialization operation for a smaller proven prefix.
 
+Product recipes accept a common explicit ordered basis on all inputs and
+outputs. Full-prefix and minimum-compute-prefix chains, diamonds and multiple
+retained outputs use that basis's prefix products for every range proof and
+channel arithmetic. Rebinding compares complete ordered content and frozen
+magnitude bounds. `rns8_get_product_recipe_basis` reports the retained identity.
+CPU lifting uses Boost reconstruction; HIP lifting uses one retained aligned
+full-target staging area, checked CRT status and an immutable device packet,
+then copies only the newly proven suffix. The arena budget includes all of
+that storage. Private cost profiles bind the complete basis and provider and
+price the same storage; default-ladder estimates cannot silently select custom
+runtime-modulus kernels.
+
+Internal uniform layout descriptors use ABI 2 with the complete ordered basis.
+Plain/tile-major format conversion preserves it and rejects a reordered basis
+or missing prefix. Changing a basis still requires explicit integer conversion.
+
 Every operation stages its complete result before committing. Rejected proof,
 basis, shape, capacity or width leaves the prior output intact. A failed commit
 invalidates the destination. Existing context failure leases retain borrowed
@@ -71,7 +87,8 @@ retryable after a failed buffer release. Shared handles require host-thread
 serialization; one plan rejects overlapping use through its mutex.
 
 This phase provides explicit CPU/direct-HIP exact-wide packing, GEMM, CRT export
-and integer basis conversion. It does not advertise experimental-basis
+and integer basis conversion, product recipes and uniform layout conversion.
+It does not advertise experimental-basis
 accelerator prepacking, ragged/distributed layouts, automatic route selection,
 asynchronous execution or finite/wraparound semantics. Those providers must bind
 the complete ordered identity before they can accept this representation.

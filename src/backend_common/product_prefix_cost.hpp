@@ -1,6 +1,8 @@
 #pragma once
 #include "product_arena_plan.hpp"
 #include "operation_support.hpp"
+#include "ordered_basis_identity.hpp"
+#include "basis_lift_storage.hpp"
 #include "rns8/rns8.h"
 #include <array>
 #include <functional>
@@ -22,6 +24,8 @@ struct ProductCostProfile {
   rns8_backend_kind backend=RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::string target, provenance;
+  OrderedBasisIdentity basis;
+  bool experimental_basis=false;
   std::vector<ProductNodeCosts> nodes;
 };
 inline uint64_t product_graph_key(const std::vector<ProductShape>& inputs,
@@ -97,7 +101,8 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     uint64_t budget,bool gpu,const ProductCostProfile& costs,
     const std::vector<uint32_t>& outputs = {}) {
   ProductPrefixSelection best;
-  if(costs.version!=2 || costs.provenance.empty() || costs.target.empty() ||
+  if(costs.version!=2 || !valid_ordered_basis(costs.basis) || prefix>costs.basis.count ||
+      costs.provenance.empty() || costs.target.empty() ||
       costs.max_evaluations<2 || costs.max_evaluations>65536 || nodes.size()>64 ||
       costs.nodes.size()!=nodes.size() || minimum.size()!=nodes.size() ||
       costs.graph_key!=product_graph_key(inputs,nodes,prefix,outputs)) {
@@ -134,7 +139,10 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
       candidate.capacities[node]=std::max(candidate.capacities[node],target);
       if(gpu) {
         const auto shape=shapes.values[id].shape;
-        const auto support=query_exact_lift_support(shape.rows*shape.cols,current[id],target,UINT64_MAX);
+        const auto support=costs.experimental_basis
+            ? basis_lift_storage(shape.rows*shape.cols,current[id],target)
+            : [&] {const auto q=query_exact_lift_support(shape.rows*shape.cols,current[id],target,UINT64_MAX);
+                BasisLiftStorage s;s.status=q.status;s.scratch_bytes=q.scratch_bytes;return s;}();
         if(support.status!=RNS8_SUCCESS) return false;
         candidate.lift_scratch_bytes=std::max(candidate.lift_scratch_bytes,support.scratch_bytes);
       }
@@ -156,7 +164,10 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     // grow in several steps. Incremental lift cost remains charged per demand.
     if(gpu) for(size_t i=0;i<nodes.size();++i) if(candidate.capacities[i]>chosen[i]) {
       const auto shape=shapes.values[inputs.size()+i].shape;
-      const auto support=query_exact_lift_support(shape.rows*shape.cols,chosen[i],candidate.capacities[i],UINT64_MAX);
+      const auto support=costs.experimental_basis
+          ? basis_lift_storage(shape.rows*shape.cols,chosen[i],candidate.capacities[i])
+          : [&] {const auto q=query_exact_lift_support(shape.rows*shape.cols,chosen[i],candidate.capacities[i],UINT64_MAX);
+              BasisLiftStorage s;s.status=q.status;s.scratch_bytes=q.scratch_bytes;return s;}();
       if(support.status!=RNS8_SUCCESS) return;
       candidate.lift_scratch_bytes=std::max(candidate.lift_scratch_bytes,support.scratch_bytes);
     }

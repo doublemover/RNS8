@@ -154,6 +154,13 @@ TEST_CASE("prefix cost selection prices shared incremental lifts and exact arena
   REQUIRE(shared.status==RNS8_SUCCESS);CHECK(shared.estimated_ns==31);
   CHECK(shared.lift_scratch_bytes==256*2+4);
   CHECK(shared.prefixes==std::vector<uint32_t>{1,2,3,3});
+  costs.experimental_basis=true;
+  const auto experimental=select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,true,costs);
+  REQUIRE(experimental.status==RNS8_SUCCESS);
+  CHECK(experimental.lift_scratch_bytes==basis_lift_storage(256,1,3).scratch_bytes);
+  CHECK(experimental.peak_bytes>shared.peak_bytes);
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1,1},experimental.peak_bytes-1,true,costs).status!=RNS8_SUCCESS);
+  costs.experimental_basis=false;
   costs.nodes[0].lift[2*21+3]=UINT64_MAX;
   CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,true,costs).status==RNS8_UNSUPPORTED_BACKEND);
   costs.graph_key^=1;
@@ -234,6 +241,7 @@ TEST_CASE("chain prefix DP agrees with exhaustive costs and reaches a long-chain
 #include "../support/product_recipe_outputs_fixture.hpp"
 TEST_CASE("public CPU product recipes publish multiple retained intermediate values") {
   check_product_recipe_outputs(RNS8_BACKEND_CPU_REFERENCE);
+  check_product_recipe_outputs(RNS8_BACKEND_CPU_REFERENCE,true);
 }
 TEST_CASE("observable product values stay live through publication") {
   using namespace rns8::detail;

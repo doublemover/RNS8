@@ -92,4 +92,5 @@ TEST_CASE("runtime product arena executes a HIP diamond with exact final publica
 TEST_CASE("public HIP product recipes publish multiple retained intermediate values") {
   if(!hip_available()) SKIP("no HIP device for multi-output product recipe");
   check_product_recipe_outputs(RNS8_BACKEND_HIP_DIRECT);
+  check_product_recipe_outputs(RNS8_BACKEND_HIP_DIRECT,true);
 }

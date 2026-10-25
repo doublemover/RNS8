@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include "address_domain.hpp"
+#include "ordered_basis_identity.hpp"
 
 #if defined(__HIPCC__)
 #define RNS8_LAYOUT_HD __host__ __device__
@@ -13,11 +14,12 @@
 namespace rns8::detail {
 enum class ResidueLayoutKind : uint32_t { modulus_major = 1, tile_major = 2 };
 
-// Uniform-prefix byte layouts only. Version 1 always uses the ordered default
-// ladder; a converter cannot invent missing channels or change the basis.
+// Uniform-prefix byte layouts. ABI2 carries complete ordered basis identity;
+// format conversion cannot invent missing channels or change that identity.
 struct ResidueLayout {
-  uint32_t version = 1;
+  uint32_t version = 2;
   uint32_t basis_version = 1;
+  OrderedBasisIdentity basis;
   ResidueLayoutKind kind = ResidueLayoutKind::modulus_major;
   uint32_t prefix = 0;
   uint32_t tile_rows = 0, tile_cols = 0;
@@ -32,9 +34,11 @@ struct ResidueLayout {
 };
 
 inline bool make_residue_layout(ResidueLayoutKind kind, uint64_t rows, uint64_t cols, uint64_t ld,
-                                uint32_t prefix, uint32_t tile_rows, uint32_t tile_cols, ResidueLayout& out) {
-  if (!rows || !cols || ld < cols || !prefix || prefix > 20) return false;
+                                uint32_t prefix, uint32_t tile_rows, uint32_t tile_cols, ResidueLayout& out,
+                                const OrderedBasisIdentity& basis = {}) {
+  if (!rows || !cols || ld < cols || !prefix || !valid_ordered_basis(basis) || prefix>basis.count) return false;
   ResidueLayout candidate;
+  candidate.basis=basis;
   candidate.kind = kind;
   candidate.rows = rows; candidate.cols = cols; candidate.ld = ld; candidate.prefix = prefix;
   uint64_t bytes = prefix;
@@ -60,14 +64,14 @@ inline bool make_residue_layout(ResidueLayoutKind kind, uint64_t rows, uint64_t 
 
 inline bool valid_residue_layout(const ResidueLayout& value) {
   ResidueLayout expected;
-  return value.version == 1 && value.basis_version == 1 &&
+  return value.version == 2 && value.basis_version == 1 &&
          make_residue_layout(value.kind, value.rows, value.cols, value.ld, value.prefix,
-                             value.tile_rows, value.tile_cols, expected) &&
+                             value.tile_rows, value.tile_cols, expected,value.basis) &&
          value.grid_rows == expected.grid_rows && value.grid_cols == expected.grid_cols && value.bytes == expected.bytes;
 }
 
 inline bool compatible_residue_layouts(const ResidueLayout& a, const ResidueLayout& b) {
-  return valid_residue_layout(a) && valid_residue_layout(b) && a.rows == b.rows && a.cols == b.cols && a.prefix == b.prefix;
+  return valid_residue_layout(a) && valid_residue_layout(b) && a.basis==b.basis && a.rows == b.rows && a.cols == b.cols && a.prefix == b.prefix;
 }
 
 inline bool convert_residue_layout_host(const int8_t* src, const ResidueLayout& source,

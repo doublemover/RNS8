@@ -27,6 +27,8 @@ class RuntimeProductRecipe {
   uint64_t lift_scratch_bytes() const;
   const ProductPrefixSelection& cost_selection() const;
   const std::vector<uint32_t>& compute_prefixes() const;
+  const BasisPacket& basis_packet() const;
+  uint32_t output_prefix() const;
  private:
   struct Impl;
   explicit RuntimeProductRecipe(std::unique_ptr<Impl>);

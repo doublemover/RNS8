@@ -311,6 +311,16 @@
             "src/core/api_context.cpp",
             "docs/experimental-bases.md"
           ]
+        },
+        {
+          "summary": "Bind full ordered basis content to uniform layout ABI2, product recipe arithmetic/range proofs/rebinding and cost profiles; retain and budget generic checked HIP lift staging and packets with no per-call allocation.",
+          "files": [
+            "src/backend_common/ordered_basis_identity.hpp",
+            "src/backend_common/residue_layout.hpp",
+            "src/backend_common/basis_lift_storage.hpp",
+            "src/backend_common/product_prefix_cost.hpp",
+            "src/core/runtime_product_recipe.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -320,7 +330,9 @@
         "tests/differential/test_hip_native_device_cases.inc",
         "tests/support/experimental_basis_fixture.hpp",
         "tests/unit/test_experimental_basis_cases.inc",
-        "tests/differential/test_hip_direct.cpp"
+        "tests/differential/test_hip_direct.cpp",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/support/product_recipe_outputs_fixture.hpp"
       ],
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
@@ -442,19 +454,31 @@
             "src/core/api_context.cpp",
             "docs/experimental-bases.md"
           ]
+        },
+        {
+          "summary": "Bind full ordered basis content to uniform layout ABI2, product recipe arithmetic/range proofs/rebinding and cost profiles; retain and budget generic checked HIP lift staging and packets with no per-call allocation.",
+          "files": [
+            "src/backend_common/ordered_basis_identity.hpp",
+            "src/backend_common/residue_layout.hpp",
+            "src/backend_common/basis_lift_storage.hpp",
+            "src/backend_common/product_prefix_cost.hpp",
+            "src/core/runtime_product_recipe.cpp"
+          ]
         }
       ],
       "regressions": [
         "tools/test_modulus_set_search.py",
         "tests/support/experimental_basis_fixture.hpp",
         "tests/unit/test_experimental_basis_cases.inc",
-        "tests/differential/test_hip_direct.cpp"
+        "tests/differential/test_hip_direct.cpp",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/support/product_recipe_outputs_fixture.hpp"
       ],
       "commits": [
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
       "remaining": [
-        "Explicit CPU/direct-HIP experimental runtime and conversion are authored. Bind experimental bases into general layout/materialization descriptors and typed automatic-provider planning without inferring support in default-only prepack, ragged/distributed or asynchronous providers.",
+        "Explicit CPU/direct-HIP bases now compose with uniform layout conversions and product recipes. Typed route enumeration and any newly offered provider must bind complete identity; default-only ragged, accelerator prepack, async and distributed providers remain explicitly rejected.",
         "Runtime execution, independent calibration and hardware/scientific qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -944,6 +968,16 @@
             "src/core/api_context.cpp",
             "docs/experimental-bases.md"
           ]
+        },
+        {
+          "summary": "Bind full ordered basis content to uniform layout ABI2, product recipe arithmetic/range proofs/rebinding and cost profiles; retain and budget generic checked HIP lift staging and packets with no per-call allocation.",
+          "files": [
+            "src/backend_common/ordered_basis_identity.hpp",
+            "src/backend_common/residue_layout.hpp",
+            "src/backend_common/basis_lift_storage.hpp",
+            "src/backend_common/product_prefix_cost.hpp",
+            "src/core/runtime_product_recipe.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -954,7 +988,9 @@
         "tests/unit/test_api_resident_graph_cases.inc",
         "tests/support/experimental_basis_fixture.hpp",
         "tests/unit/test_experimental_basis_cases.inc",
-        "tests/differential/test_hip_direct.cpp"
+        "tests/differential/test_hip_direct.cpp",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/support/product_recipe_outputs_fixture.hpp"
       ],
       "commits": [
         "f30d1817b6208f781c64d9169aedf672f96319a0",
@@ -963,7 +999,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Default-basis selector and synchronous/stream/graph lifts plus explicit nondefault-basis CPU/direct-HIP integer conversion are authored. General nondefault-basis layout/recipe binding remains composed with #32/#40/#42.",
+        "Default sync/stream/graph lifts and explicit experimental CPU/direct-HIP conversions and product recipe lifts are authored. Calibrated selection and measured benefits remain unqualified.",
         "Build/link, regression execution, performance and scientific qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -1028,6 +1064,16 @@
             "tests/differential/test_hip_native_device_cases.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Bind full ordered basis content to uniform layout ABI2, product recipe arithmetic/range proofs/rebinding and cost profiles; retain and budget generic checked HIP lift staging and packets with no per-call allocation.",
+          "files": [
+            "src/backend_common/ordered_basis_identity.hpp",
+            "src/backend_common/residue_layout.hpp",
+            "src/backend_common/basis_lift_storage.hpp",
+            "src/backend_common/product_prefix_cost.hpp",
+            "src/core/runtime_product_recipe.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -1039,7 +1085,9 @@
         "tests/support/ragged_recipe_fixture.hpp",
         "tests/unit/test_api_resident_export_cases.inc",
         "tests/unit/test_api_resident_graph_cases.inc",
-        "tests/differential/test_hip_native_device_cases.inc"
+        "tests/differential/test_hip_native_device_cases.inc",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/support/product_recipe_outputs_fixture.hpp"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
@@ -2471,6 +2519,11 @@
       "kind": "minimal_compile",
       "scope": "Experimental basis runtime, failure leases, matrix admission and HIP host backend; initial CPU/HIP fixture translation units; gfx1100 HIP kernel host/device syntax",
       "result": "MSVC /Zs and HIP -fsyntax-only passed. Later small resource-info/alias admission and fixture refinements await the final batch. No test execution, linked build, benchmark or qualification performed."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Ordered basis layout ABI2, experimental product recipes, host API/HIP fixtures and gfx1100 HIP kernel TU",
+      "result": "MSVC /Zs and HIP -fsyntax-only passed; no test, linked build, workload, benchmark or hardware qualification executed. Later small fixture refinements await final batch."
     }
   ],
   "parking_snapshot": {

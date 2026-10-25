@@ -1,5 +1,12 @@
 # Offline typed recipe admission
 
+Explicit ordered experimental bases are supported by the CPU/direct-HIP product
+recipe executor, including minimum-prefix lifting and multiple outputs. Every
+input, output and rebind must carry the same complete ordered basis. The basis
+and provider are part of private cost-profile admission, and HIP budgets include
+the generic full-target lift staging and immutable packet. See
+[experimental bases](experimental-bases.md) for the opt-in API and limitations.
+
 `tools/planning_recipe.py` adds a typed provider boundary around the existing
 arithmetic verifier and resource-constrained predictor. It does not launch
 kernels, alter public planning, create reviewed cache entries or qualify a

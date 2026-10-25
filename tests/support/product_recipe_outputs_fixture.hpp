@@ -1,14 +1,17 @@
 #pragma once
 #include "core/api_internal.hpp"
 #include "core/runtime_product_recipe.hpp"
+#include "experimental_basis_fixture.hpp"
 #include <array>
-inline void check_product_recipe_outputs(rns8_backend_kind backend) {
+inline void check_product_recipe_outputs(rns8_backend_kind backend,bool experimental=false) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
   options.requested_backend=backend;
   rns8_context* ctx=nullptr;
   REQUIRE(rns8_create_context(backend==RNS8_BACKEND_HIP_DIRECT?0:-1,&options,&ctx)==RNS8_SUCCESS);
+  const auto ordered=experimental_basis_fixture::moduli();
+  auto* basis=experimental?experimental_basis_fixture::create(ordered):nullptr;
   for(auto semantics:{RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED})
     for(auto policy:{RNS8_PRODUCT_FULL_PREFIX,RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX}) {
       constexpr int n=3;
@@ -16,7 +19,8 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
       md.rows=md.cols=n;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
       md.semantics=semantics;md.bound_kind=RNS8_BOUND_NONE;md.max_prefix=20;
       std::array<rns8_matrix*,5> matrices{};
-      for(auto& matrix:matrices) REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+      for(auto& matrix:matrices) REQUIRE(rns8_create_basis_matrix(ctx,basis,&md,&matrix)==RNS8_SUCCESS);
+      auto* basis_plan=experimental_basis_fixture::plan(ctx,basis,semantics,n,n,n,20);
       std::vector<std::vector<cpp_int>> oracle(2,std::vector<cpp_int>(n*n));
       for(int input=0;input<2;++input) {
         std::array<int64_t,n*(n+2)> signed_values{};
@@ -27,8 +31,10 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
           oracle[input][r*n+c]=semantics==RNS8_EXACT_WIDE_SIGNED?value-2:value;
         }
         if(semantics==RNS8_EXACT_WIDE_SIGNED)
-          REQUIRE(rns8_pack_i64(ctx,matrices[input],signed_values.data(),n+2,0)==RNS8_SUCCESS);
-        else REQUIRE(rns8_pack_u64(ctx,matrices[input],unsigned_values.data(),n+2,0)==RNS8_SUCCESS);
+          REQUIRE((experimental?rns8_pack_basis_i64(basis_plan,matrices[input],signed_values.data(),n+2,0):
+              rns8_pack_i64(ctx,matrices[input],signed_values.data(),n+2,0))==RNS8_SUCCESS);
+        else REQUIRE((experimental?rns8_pack_basis_u64(basis_plan,matrices[input],unsigned_values.data(),n+2,0):
+            rns8_pack_u64(ctx,matrices[input],unsigned_values.data(),n+2,0))==RNS8_SUCCESS);
       }
       const rns8_product_node nodes[]{{0,1},{2,1},{2,0},{3,4}};
       for(auto node:nodes) {
@@ -50,6 +56,25 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
       invalid[1]=6;
       CHECK(rns8_create_product_recipe_outputs(ctx,&desc,invalid,2,&recipe)==RNS8_INVALID_ARGUMENT);
       REQUIRE(rns8_create_product_recipe_outputs(ctx,&desc,ids,3,&recipe)==RNS8_SUCCESS);
+      rns8_basis_info identity{};identity.struct_size=sizeof(identity);identity.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_product_recipe_basis(recipe,&identity)==RNS8_SUCCESS);
+      for(unsigned p=0;p<20;++p)CHECK(identity.moduli[p]==(experimental?ordered[p]:kDefaultModuli[p]));
+      if(experimental) {
+        auto reversed=ordered;std::reverse(reversed.begin(),reversed.end());auto* other=experimental_basis_fixture::create(reversed);
+        auto* other_plan=experimental_basis_fixture::plan(ctx,other,semantics,n,n,n,20);
+        auto* wrong=experimental_basis_fixture::matrix(ctx,other,semantics,n,n);
+        std::array<int64_t,n*n> values{};values.fill(1);
+        REQUIRE(rns8_pack_basis_i64(other_plan,wrong,values.data(),n,0)==
+            (semantics==RNS8_EXACT_WIDE_SIGNED?RNS8_SUCCESS:RNS8_INVALID_ARGUMENT));
+        if(semantics==RNS8_EXACT_WIDE_UNSIGNED)
+          REQUIRE(rns8_pack_basis_u64(other_plan,wrong,reinterpret_cast<const uint64_t*>(values.data()),n,0)==RNS8_SUCCESS);
+        const rns8_matrix* replacement[]{wrong,inputs[1]};
+        CHECK(rns8_rebind_product_recipe_inputs(recipe,replacement,2)==RNS8_INVALID_ARGUMENT);
+        rns8_matrix* wrong_outputs[]{matrices[2],wrong,matrices[4]};
+        CHECK(rns8_execute_product_recipe_outputs(recipe,wrong_outputs,3)==RNS8_INVALID_ARGUMENT);
+        REQUIRE(rns8_destroy_matrix(wrong)==RNS8_SUCCESS);REQUIRE(rns8_destroy_basis_plan(other_plan)==RNS8_SUCCESS);
+        REQUIRE(rns8_destroy_basis(other)==RNS8_SUCCESS);
+      }
       rns8_product_recipe_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
       REQUIRE(rns8_get_product_recipe_resources(recipe,&resources)==RNS8_SUCCESS);
       desc.max_arena_and_lift_bytes=resources.arena_bytes+resources.lift_scratch_bytes-1;
@@ -70,7 +95,7 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
             REQUIRE(hip_direct_copy_device_to_host(0,residues.data(),outputs[i]->hip_residues,residues.size())==RNS8_SUCCESS);
           else residues=outputs[i]->residues;
           for(uint32_t p=0;p<20;++p) for(int cell=0;cell<n*n;++cell)
-            REQUIRE(residues[p*n*n+cell]==centered_residue(oracle[ids[i]][cell],kDefaultModuli[p]));
+            REQUIRE(residues[p*n*n+cell]==centered_residue(oracle[ids[i]][cell],identity.moduli[p]));
           CHECK(outputs[i]->exact_range_prefix==20);
           CHECK_FALSE(outputs[i]->in_flight_writer);CHECK(outputs[i]->prepared_references==0);
         }
@@ -91,6 +116,8 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
       const std::vector<ProductNode> internal_nodes{{0,1},{2,1},{2,0},{3,4}};
       const std::vector<uint32_t> observed{5,2,3};
       ProductCostProfile costs;costs.backend=backend;costs.semantics=semantics;
+      costs.basis=ordered_basis_identity(matrices[0]->experimental_basis?matrices[0]->experimental_basis->packet:default_experimental_basis()->packet);
+      costs.experimental_basis=experimental;
       costs.target=backend==RNS8_BACKEND_HIP_DIRECT?ctx->device_info.gcn_arch:"cpu";
       costs.provenance="synthetic-multi-output-test";
       costs.graph_key=product_graph_key({{n,n},{n,n}},internal_nodes,20,observed);
@@ -100,6 +127,12 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
         for(uint32_t q=p+1;q<=20;++q) node.lift[p*21+q]=1;
       }
       std::unique_ptr<RuntimeProductRecipe> selected;
+      if(experimental) {
+        auto mismatched=costs;mismatched.basis=OrderedBasisIdentity{};
+        CHECK(RuntimeProductRecipe::create(ctx,{inputs[0],inputs[1]},internal_nodes,UINT64_MAX,selected,false,&mismatched,observed)==RNS8_INVALID_ARGUMENT);
+        mismatched=costs;mismatched.experimental_basis=false;
+        CHECK(RuntimeProductRecipe::create(ctx,{inputs[0],inputs[1]},internal_nodes,UINT64_MAX,selected,false,&mismatched,observed)==RNS8_INVALID_ARGUMENT);
+      }
       REQUIRE(RuntimeProductRecipe::create(ctx,{inputs[0],inputs[1]},internal_nodes,
           UINT64_MAX,selected,false,&costs,observed)==RNS8_SUCCESS);
       CHECK_FALSE(selected->cost_selection().chain_dynamic_programming);
@@ -111,10 +144,12 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
           REQUIRE(hip_direct_copy_device_to_host(0,residues.data(),outputs[i]->hip_residues,residues.size())==RNS8_SUCCESS);
         else residues=outputs[i]->residues;
         for(uint32_t p=0;p<20;++p) for(int cell=0;cell<n*n;++cell)
-          CHECK(residues[p*n*n+cell]==centered_residue(oracle[ids[i]][cell],kDefaultModuli[p]));
+          CHECK(residues[p*n*n+cell]==centered_residue(oracle[ids[i]][cell],identity.moduli[p]));
       }
       selected.reset();
       for(auto* matrix:matrices) REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_basis_plan(basis_plan)==RNS8_SUCCESS);
     }
+  REQUIRE(rns8_destroy_basis(basis)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

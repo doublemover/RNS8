@@ -19,7 +19,8 @@ rns8_status hip_direct_export_canonical_balanced_crt_device(
 
 rns8_status hip_direct_export_canonical_balanced_crt_layout_device(
     int device_id, const void* residues, const ResidueLayout& source, void* limbs) {
-  if (!residues || !limbs || !valid_residue_layout(source)) return RNS8_INVALID_ARGUMENT;
+  if (!residues || !limbs || !valid_residue_layout(source) ||
+      !(source.basis==OrderedBasisIdentity{})) return RNS8_INVALID_ARGUMENT;
   // A valid descriptor proves rows*cols <= bytes. Keep the existing conservative
   // output domain so the launch and three-limb cell indexing cannot overflow.
   const uint64_t cells = source.rows * source.cols;

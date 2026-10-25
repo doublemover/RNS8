@@ -125,3 +125,33 @@ TEST_CASE("residue layout admission rejects overflowing or missing-plane descrip
   REQUIRE(make_residue_layout(ResidueLayoutKind::tile_major, 3, 5, 5, 2, 4, 8, other));
   CHECK_FALSE(compatible_residue_layouts(layout, other));
 }
+
+TEST_CASE("layout conversion binds complete ordered experimental bases") {
+  using namespace rns8::detail;
+  auto basis=OrderedBasisIdentity{};std::swap(basis.moduli[0],basis.moduli[1]);
+  basis.fingerprint=ordered_basis_fingerprint(basis.moduli.data(),basis.count);
+  ResidueLayout source,tiled;
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,3,5,7,20,0,0,source,basis));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::tile_major,3,5,5,20,4,8,tiled,basis));
+  std::vector<int8_t> bytes(source.bytes,71),packed(tiled.bytes,99),restored(source.bytes,71);
+  for(unsigned p=0;p<20;++p)for(unsigned r=0;r<3;++r)for(unsigned c=0;c<5;++c)
+    bytes[source.offset(p,r,c)]=int8_t(int((p*17+r*5+c)%127)-63);
+  REQUIRE(convert_residue_layout_host(bytes.data(),source,packed.data(),tiled));
+  REQUIRE(convert_residue_layout_host(packed.data(),tiled,restored.data(),source));
+  CHECK(restored==bytes);
+  auto altered=tiled;altered.basis=OrderedBasisIdentity{};
+  CHECK_FALSE(compatible_residue_layouts(source,altered));
+  const auto unchanged=packed;
+  CHECK_FALSE(convert_residue_layout_host(bytes.data(),source,packed.data(),altered));CHECK(packed==unchanged);
+  altered=tiled;altered.basis.fingerprint^=1;CHECK_FALSE(valid_residue_layout(altered));
+  altered=tiled;altered.version=1;CHECK_FALSE(valid_residue_layout(altered));
+  auto short_basis=basis;short_basis.count=2;
+  std::fill(short_basis.moduli.begin()+2,short_basis.moduli.end(),0);
+  short_basis.fingerprint=ordered_basis_fingerprint(short_basis.moduli.data(),short_basis.count);
+  CHECK_FALSE(make_residue_layout(ResidueLayoutKind::modulus_major,3,5,5,3,0,0,altered,short_basis));
+  REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,3,5,5,2,0,0,altered,short_basis));
+  altered.basis.moduli[19]=7;CHECK_FALSE(valid_residue_layout(altered));
+  short_basis.moduli[1]=short_basis.moduli[0];
+  short_basis.fingerprint=ordered_basis_fingerprint(short_basis.moduli.data(),short_basis.count);
+  CHECK_FALSE(valid_ordered_basis(short_basis));
+}
