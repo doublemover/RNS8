@@ -3389,7 +3389,8 @@
       ],
       "anchors": [
         "persistent-native-wmma-queue",
-        "procedural-schedules-and-measured-completion-contract"
+        "procedural-schedules-and-measured-completion-contract",
+        "public-generation-owned-queue-and-graph-opt-in"
       ]
     },
     {

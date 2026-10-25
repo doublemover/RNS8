@@ -105,3 +105,5 @@ TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
 #include "test_hip_native_device_cases.inc"
 
 #include "test_hip_instruction_roof_cases.inc"
+
+#include "test_hip_public_native_group_cases.inc"

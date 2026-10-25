@@ -420,7 +420,9 @@
         "tests/unit/test_api_plan_validation_cache_cases.inc",
         "tools/test_locality_schedule.py"
       ],
-      "commits": [],
+      "commits": [
+        "05a114ac9600958e742f5ce58e4f34a17c126c15"
+      ],
       "remaining": [
         "Raw-native grouped/split-fragment locality composition remains to integrate with #35/#37/#38.",
         "An explicit cache-displacement harness control remains to implement; repacking alone is not a cache-cold claim.",
@@ -493,6 +495,17 @@
             "benchmarks/rns8_queue_calibrate.cpp",
             "tools/collect_queue_calibration.py"
           ]
+        },
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
@@ -501,7 +514,8 @@
         "tests/unit/test_native_wmma_queue.cpp",
         "tests/differential/test_hip_direct_native_queue_cases.inc",
         "tools/test_collect_queue_calibration.py",
-        "benchmarks/native-queue/"
+        "benchmarks/native-queue/",
+        "tests/differential/test_hip_public_native_group_cases.inc"
       ],
       "commits": [
         "981e7b109428870ed930eae50370e037be95fce7",
@@ -509,7 +523,8 @@
       ],
       "remaining": [
         "Public prepared execution generation/read-write reservation integration of the private heterogeneous native route remains dependency work; no second raw-pointer value cache introduced.",
-        "HIP compilation, GPU/Boost execution, completion fairness and complete-route performance qualification deferred; no promotion or measured speedup claimed."
+        "HIP compilation, GPU/Boost execution, completion fairness and complete-route performance qualification deferred; no promotion or measured speedup claimed.",
+        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -610,7 +625,7 @@
       "issue": 43,
       "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
       "url": "https://github.com/doublemover/RNS8/issues/43",
-      "state": "implementation_in_progress",
+      "state": "in_progress",
       "base_gap": "Prepared async/graph/token/dependency/cancel/timeout machinery exists. Latest comment's legacy cleanup remains: release_workspace_device_buffer, result/prepack cache destroy null pointers/delete owners even when free fails; general transfer/semantic coverage also incomplete.",
       "implementation": [
         {
@@ -624,17 +639,30 @@
             "src/core/api_sparse.cpp",
             "src/backend_hipblaslt/hipblaslt_prepack_cache.inc"
           ]
+        },
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_api_matrix_cleanup_cases.inc"
+        "tests/unit/test_api_matrix_cleanup_cases.inc",
+        "tests/differential/test_hip_public_native_group_cases.inc"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
-        "All execution and hardware qualification deferred."
+        "All execution and hardware qualification deferred.",
+        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1121,12 +1149,28 @@
       "issue": 67,
       "title": "[Architecture P2] Add public HIP-native buffer import and export with explicit ownership and stream interoperability",
       "url": "https://github.com/doublemover/RNS8/issues/67",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Public typed device-native leases, verified import/export and installed HIP producer-consumer example implemented. Prepared async external bindings and graph reuse phase missing: only synchronous readiness/lease boundary is exposed.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_public_native_group_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,

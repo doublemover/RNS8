@@ -32,6 +32,12 @@ class NativeWmmaPreparedQueue {
   // successful preparation is required before another execution. Destruction
   // requires external exclusion, like destruction of the referenced buffers.
   rns8_status execute(bool& outputs_may_be_written);
+  // Borrowed stream launch: no allocation, synchronization or ownership
+  // publication. Caller serializes cursor/storage reuse until real completion.
+  // Owned capture may use this body; raw caller capture is not admitted publicly.
+  rns8_status enqueue_borrowed_stream(void* stream,bool ordinary,bool& outputs_may_be_written);
+  // Failure preserves this owner for retry; drain poisoned work before freeing.
+  rns8_status close();
   // Matched scheduling control: reuse the same admitted preparation but launch
   // one ordinary grid per task, with one final synchronization. No queue cursor.
   rns8_status execute_ordinary(bool& outputs_may_be_written);

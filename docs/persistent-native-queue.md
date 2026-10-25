@@ -165,3 +165,58 @@ supported target, differential execution, independent latency/fairness collectio
 and ISA/resource qualification remain deferred. Public generation/read-write
 reservation integration remains distinct work: the private harness explicitly
 owns every borrowed buffer and synchronously rebuilds changed encoded B.
+
+## Public generation-owned queue and graph opt-in
+
+`rns8_prepare_native_group` now attaches the native queue to an existing public
+`rns8_prepared_group`. Every child remains an ordinary prepared exact-wide GEMM:
+its context, immutable plan, matrices and workspace retain their existing owners.
+The new binding adds a modulus group (1/2/4), optional generation-bound encoded B,
+and explicit schedule/claim/worker policy. Raw and encoded tasks may coexist;
+shared B is read-only and independently reserved once per child. This is an
+experimental direct-HIP WMMA route, not AUTO dispatch or a CPU matrix-engine claim.
+
+Preparation stages all task contracts, checked raw spans, input generations,
+exact range proofs, cache references, unique workspaces, descriptor allocation,
+events and a nonblocking stream before replacing the queue. The device metadata
+budget includes old plus replacement descriptors. Failed admission does not
+change output generations. A retained encoded B cannot be destroyed; changing B
+makes both its materialization and the group ineligible. Refresh rebuilds raw
+bindings and rejects a stale encoded cache rather than blessing it. Supply a new
+cache through preparation to replace it transactionally. Individual child input
+refresh cannot bypass the group's independently retained generation binding.
+
+`rns8_submit_native_group_hip` borrows one nondefault same-device stream, reserves
+**all** output writers/workspaces and input readers before the first enqueue, and
+returns one existing completion token per child. Each child's event is recorded
+after the full queue; this proves complete task coverage without pretending that
+host observation order measures device task finish order. Existing query, wait,
+timeout, cancellation and downstream prepared dependencies apply unchanged.
+Cancellation suppresses only that child's publication. Reverse-order observation
+releases only the observed child's readers. Every child must be observed before
+cursor reuse, refresh or destruction. Launch/event-record failures invalidate
+all children, and a failed drain retains reservations and poisons the context.
+
+`rns8_capture_native_group_hip_graph` captures the same cursor reset and queue
+body on an owned stream. Replay uses `rns8_submit_native_group_hip_graph` with the
+same host proof/generation/reservation checks; completion events remain outside
+capture. Replacement invalidates the old graph. Ordinary prepared-child graphs
+remain ordinary residue GEMM: they are not silently changed to native graphs.
+`rns8_execute_prepared_group` uses the configured native route synchronously and
+drains every issued token even when an earlier child fails.
+
+The `ordinary_grid_control` uses the **same** raw-native/encoded-B representations
+and prepared contracts, but launches one native grid per task. The metadata query
+reports actual retained device/host descriptor bytes, preparation peak and graph
+readiness. Warm submission performs no descriptor upload or HIP allocation;
+host proof evaluation remains inside the public call. Resource cleanup is checked:
+failed descriptor frees preserve the owner, and encoded-B destruction no longer
+releases source/context references when its device free fails.
+
+Written regressions cover signed/unsigned tails, shared B, both representations,
+all three schedules, ordinary/persistent controls, owned graph replay, cancellation,
+reverse completion, no warm HIP allocation, stale cache/rebind, budget failure and
+padded three-limb exact outputs. **These regressions have not been executed.**
+HIP compilation, fault injection, public complete-route measurements, task fairness,
+and target-specific qualification remain unverified; source ownership and launch
+counts are not measured speedups.

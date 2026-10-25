@@ -228,3 +228,52 @@ rns8_status hip_direct_gemm_native_wmma_queue(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_wmma_queue_schedule_on_stream(const NativeWmmaTask*,const NativeWmmaWork*,
+    const NativeWmmaTaskRange*,const NativeWmmaRoundPhase*,NativeWmmaScheduleHeader,uint32_t*,uint32_t,uint32_t,bool,void*);
+extern "C" int rns8_hip_native_wmma_grouped_on_stream(const void*,const void*,int8_t*,int,int,int,int,int,int,int,int,bool,void*);
+extern "C" int rns8_hip_native_encoded_b_wmma_on_stream(const void*,const void*,void*,int,int,int,int,int,int,uint64_t,int,bool,void*);
+#endif
+rns8_status NativeWmmaPreparedQueue::enqueue_borrowed_stream(void* stream,bool ordinary,bool& written) {
+  written=false;std::unique_lock<std::mutex> lock(mutex_,std::try_to_lock);
+  if(!lock.owns_lock())return RNS8_BUSY;
+  if(!stream || !storage_)return RNS8_INVALID_ARGUMENT;
+  if(poisoned_)return RNS8_BACKEND_FAILURE;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status=set_hip_device(device_id_);if(status!=RNS8_SUCCESS)return status;
+  hipError_t launch=hipSuccess;
+  if(ordinary) {
+    for(const auto& task:host_tasks_) {
+      written=true;
+      launch=static_cast<hipError_t>(task.encoded_b?
+        rns8_hip_native_encoded_b_wmma_on_stream(task.a,task.encoded_b,task.c,int(task.m),int(task.n),int(task.k),
+          int(task.lda),int(task.ldc),task.prefix,task.encoded_k_words,task.group,task.unsigned_inputs!=0,stream):
+        rns8_hip_native_wmma_grouped_on_stream(task.a,task.b,task.c,int(task.m),int(task.n),int(task.k),
+          int(task.lda),int(task.ldb),int(task.ldc),task.prefix,task.group,task.unsigned_inputs!=0,stream));
+      if(launch!=hipSuccess)break;
+    }
+  } else {
+    launch=hipMemsetAsync(cursor_,0,sizeof(uint32_t),static_cast<hipStream_t>(stream));
+    if(launch==hipSuccess) {
+      written=true;
+      launch=static_cast<hipError_t>(rns8_hip_native_wmma_queue_schedule_on_stream(tasks_,work_,ranges_,phases_,header_,
+        cursor_,workers_,uniform_group_,unsigned_inputs_,stream));
+    }
+  }
+  if(launch!=hipSuccess){poisoned_=true;return RNS8_BACKEND_FAILURE;}
+  return RNS8_SUCCESS;
+#else
+  (void)ordinary;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+rns8_status NativeWmmaPreparedQueue::close() {
+  std::unique_lock<std::mutex> lock(mutex_,std::try_to_lock);
+  if(!lock.owns_lock())return RNS8_BUSY;
+  if(poisoned_ && storage_ && hip_direct_synchronize(device_id_)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  const auto status=storage_.reset();if(status!=RNS8_SUCCESS)return status;
+  host_tasks_.clear();tasks_=nullptr;work_=nullptr;ranges_=nullptr;phases_=nullptr;cursor_=nullptr;
+  count_=workers_=uniform_group_=0;device_id_=-1;header_={};poisoned_=false;
+  materialized_host_bytes_=peak_device_bytes_=peak_host_payload_bytes_=0;
+  return RNS8_SUCCESS;
+}

@@ -5,6 +5,8 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "core/hip_resources.hpp"
+#include "core/encoded_b_internal.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
 
 using namespace rns8::detail::api;
 
@@ -56,6 +58,20 @@ struct rns8_prepared_execution {
 struct rns8_prepared_group {
   std::vector<rns8_prepared_execution*> executions;
   bool running = false;
+  struct NativeBinding {
+    rns8::detail::NativeWmmaTask task{};
+    uint64_t a_instance=0,a_generation=0,b_instance=0,b_generation=0;
+  };
+  std::unique_ptr<rns8::detail::NativeWmmaPreparedQueue> native_queue;
+  std::vector<NativeBinding> native_values;
+  std::vector<rns8_native_group_binding> native_bindings;
+  rns8_native_group_desc native_desc{};
+  uint64_t native_peak_device_bytes=0;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hipStream_t native_stream=nullptr;
+  hipGraph_t native_graph=nullptr;
+  hipGraphExec_t native_executable=nullptr;
+#endif
 };
 
 namespace {
@@ -309,6 +325,7 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
 }
 
 #include "api_prepared_hip.inc"
+#include "api_prepared_native_group.inc"
 
 rns8_status rns8_create_prepared_group(
     rns8_prepared_execution* const* executions, uint32_t count, rns8_prepared_group** out) {
@@ -340,6 +357,8 @@ rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
   return guard_api([&]() -> rns8_status {
     if (!group) return RNS8_INVALID_ARGUMENT;
     if (group->running) return RNS8_BUSY;
+    if(group->native_queue) return rns8_prepare_native_group(group,&group->native_desc,
+        group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()));
     for (auto* e : group->executions) {
       if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       auto status = validate_prepared(*e);
@@ -355,6 +374,7 @@ rns8_status rns8_execute_prepared_group(
     if (!group || !tokens || !out_executed || token_capacity < group->executions.size())
       return RNS8_INVALID_ARGUMENT;
     *out_executed = 0;
+    if(group->native_queue) return execute_native_group_sync(group,tokens,token_capacity,out_executed);
     if (group->running) return RNS8_BUSY;
     for (auto* e : group->executions) {
       if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
@@ -378,6 +398,8 @@ rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group) {
   if (!group) return RNS8_SUCCESS;
   if (group->running) return RNS8_BUSY;
   for (auto* e : group->executions) if (e->running) return RNS8_BUSY;
+  const auto close=close_native_group(*group);if(close!=RNS8_SUCCESS)return close;
+  for(const auto& binding:group->native_bindings) if(binding.encoded_b)--binding.encoded_b->prepared_references;
   for (auto* e : group->executions) --e->group_references;
   delete group;
   return RNS8_SUCCESS;

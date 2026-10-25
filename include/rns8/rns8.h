@@ -1693,6 +1693,44 @@ typedef struct rns8_encoded_b_task {
 RNS8_API rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx,
     const rns8_encoded_b_task* tasks,uint32_t count,uint32_t workers,uint64_t max_scratch_bytes);
 
+/** Experimental direct-HIP native WMMA group. Explicit opt-in, never AUTO.
+ * Every child is an existing exact-wide prepared GEMM with retained native inputs.
+ * Preparation binds matrix instances/generations, layouts and optional encoded B.
+ * Schedule: 0 explicit round-robin, 1 task-major, 2 compact round-robin.
+ * ordinary_grid_control launches the SAME native/encoded representation per task.
+ * max_metadata_bytes charges old + replacement device descriptors at preparation.
+ */
+typedef struct rns8_native_group_desc {
+  uint32_t struct_size, abi_version;
+  uint32_t schedule_mode, claim_chunk, workers, ordinary_grid_control;
+  uint64_t max_metadata_bytes;
+} rns8_native_group_desc;
+typedef struct rns8_native_group_binding {
+  uint32_t struct_size, abi_version, modulus_group;
+  const rns8_encoded_b* encoded_b; /* optional, held until replacement/destruction */
+} rns8_native_group_binding;
+typedef struct rns8_native_group_info {
+  uint32_t struct_size, abi_version;
+  uint32_t task_count, work_count, schedule_mode, claim_chunk, workers;
+  uint32_t ordinary_grid_control, graph_ready;
+  uint64_t retained_device_metadata_bytes, retained_host_metadata_bytes;
+  uint64_t preparation_peak_device_metadata_bytes;
+} rns8_native_group_info;
+RNS8_API rns8_status rns8_prepare_native_group(rns8_prepared_group* group,
+    const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count);
+RNS8_API rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,rns8_native_group_info* info);
+/** One borrowed nondefault same-device stream for the whole queue. Tokens use
+ * the existing query/wait/cancel/dependency API. No publication until real event
+ * completion; cancellation invalidates only that child's publication, not peers.
+ * All children must be observed/drained before queue/cursor/graph reuse or destroy.
+ */
+RNS8_API rns8_status rns8_submit_native_group_hip(rns8_prepared_group* group,void* stream,
+    rns8_completion_token* tokens,uint32_t capacity,uint32_t* out_submitted);
+RNS8_API rns8_status rns8_capture_native_group_hip_graph(rns8_prepared_group* group);
+RNS8_API rns8_status rns8_submit_native_group_hip_graph(rns8_prepared_group* group,void* stream,
+    rns8_completion_token* tokens,uint32_t capacity,uint32_t* out_submitted);
+
+
 typedef struct rns8_block_sparse_operand rns8_block_sparse_operand;
 typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
   RNS8_BLOCK_SPARSE_LHS = 1,
