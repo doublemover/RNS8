@@ -294,6 +294,7 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_
     int padded_rows,
     int padded_cols,
     int gemm_k_block,
+    int a_stride,
     int ldc,
     int modulus,
     uint32_t modulus_reciprocal,
@@ -317,7 +318,7 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_
   fill_fragment(acc, 0);
 
   for (int kk = 0; kk < gemm_k_block; kk += kRns8WmmaTileK) {
-    load_matrix_sync(frag_a, a_pack + tile_row * gemm_k_block + kk, gemm_k_block);
+    load_matrix_sync(frag_a, a_pack + tile_row * a_stride + kk, a_stride);
     load_matrix_sync(frag_b, b_pack + tile_col * gemm_k_block + kk, gemm_k_block);
     mma_sync(acc, frag_a, frag_b, acc);
   }

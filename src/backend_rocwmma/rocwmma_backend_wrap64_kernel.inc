@@ -141,7 +141,7 @@ int launch_pack_and_gemm(
     int modulus,
     uint32_t reciprocal,
     int safe_k_block,
-    int prefix_index) {
+    int prefix_index,RocwmmaPackingState* packing=nullptr) {
   char pack_a_label[72];
   char pack_b_label[72];
   char matmul_label[72];
@@ -185,21 +185,37 @@ int launch_pack_and_gemm(
         static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
         static_cast<unsigned int>((padded_cols + pack_block.y - 1) / pack_block.y),
         1);
-    hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
-      pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(
-          a, a_pack, rows, padded_rows, valid_k_block, gemm_k_block, lda, k_offset);
-      return hipGetLastError();
-    });
-    if (err != hipSuccess) {
-      return rocwmma_backend_failure;
+    const bool reuse=packing && (packing->policy&2);
+    const bool direct=packing && (packing->policy&1) && rns8::detail::rocwmma_direct_a_eligible(
+        reinterpret_cast<uintptr_t>(a+k_offset),rows,valid_k_block,lda);
+    const rns8::detail::RocwmmaPanelKey a_key{reinterpret_cast<uintptr_t>(a),rows,valid_k_block,gemm_k_block,lda,k_offset};
+    const rns8::detail::RocwmmaPanelKey b_key{reinterpret_cast<uintptr_t>(b),cols,valid_k_block,gemm_k_block,ldb,k_offset};
+    hipError_t err=hipSuccess;
+    if(direct) {
+      if(packing->stats)++packing->stats->direct_a_blocks;
+    } else if(reuse && packing->a==a_key) {
+      if(packing->stats)++packing->stats->a_panel_hits;
+    } else {
+      // Invalidate before enqueue, publish only on successful launch. The key
+      // never survives the wrapper call or aliases a different workspace.
+      if(packing)packing->a={};
+      err=timed_hip_launch(pack_a_timing_label,pack_a_alias,[&]() {
+        pack_a_rowmajor_kernel<<<pack_a_grid,pack_block>>>(a,a_pack,rows,padded_rows,valid_k_block,gemm_k_block,lda,k_offset);
+        return hipGetLastError();
+      });
+      if(err!=hipSuccess)return rocwmma_backend_failure;
+      if(packing){packing->a=a_key;if(packing->stats)++packing->stats->a_pack_launches;}
     }
-    err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
-      pack_b_colmajor_kernel<<<pack_b_grid, pack_block>>>(
-          b, b_pack, valid_k_block, gemm_k_block, cols, padded_cols, ldb, k_offset);
-      return hipGetLastError();
-    });
-    if (err != hipSuccess) {
-      return rocwmma_backend_failure;
+    if(reuse && packing->b==b_key) {
+      if(packing->stats)++packing->stats->b_panel_hits;
+    } else {
+      if(packing)packing->b={};
+      err=timed_hip_launch(pack_b_timing_label,pack_b_alias,[&]() {
+        pack_b_colmajor_kernel<<<pack_b_grid,pack_block>>>(b,b_pack,valid_k_block,gemm_k_block,cols,padded_cols,ldb,k_offset);
+        return hipGetLastError();
+      });
+      if(err!=hipSuccess)return rocwmma_backend_failure;
+      if(packing){packing->b=b_key;if(packing->stats)++packing->stats->b_pack_launches;}
     }
     const dim3 grid(
         static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
@@ -207,7 +223,7 @@ int launch_pack_and_gemm(
         1);
     err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
       rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
-          a_pack,
+          direct?a+k_offset:a_pack,
           b_pack,
           c,
           rows,
@@ -215,6 +231,7 @@ int launch_pack_and_gemm(
           padded_rows,
           padded_cols,
           gemm_k_block,
+          direct?lda:gemm_k_block,
           ldc,
           modulus,
           reciprocal,
@@ -242,7 +259,7 @@ int run_rns_prefix(
     int lda,
     int ldb,
     int ldc,
-    uint32_t prefix) {
+    uint32_t prefix,RocwmmaPackingState* packing=nullptr) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix) {
     return rocwmma_invalid_argument;
   }
@@ -277,7 +294,7 @@ int run_rns_prefix(
         static_cast<int>(modulus),
         modulus_reciprocal_u32(modulus),
         safe_k_block,
-        static_cast<int>(modulus_index));
+        static_cast<int>(modulus_index),packing);
     if (status != rocwmma_success) {
       return status;
     }
@@ -389,7 +406,7 @@ int launch_pack_a_and_gemm_prepacked_b(
     int ldc,
     int modulus,
     uint32_t reciprocal,
-    int prefix_index) {
+    int prefix_index,RocwmmaPackingState* packing=nullptr) {
   char pack_a_label[80];
   char matmul_label[80];
   const bool have_prefix_label = prefix_index >= 0;
@@ -422,12 +439,17 @@ int launch_pack_a_and_gemm_prepacked_b(
       static_cast<unsigned int>((gemm_k_block + pack_block.x - 1) / pack_block.x),
       static_cast<unsigned int>((padded_rows + pack_block.y - 1) / pack_block.y),
       1);
-  hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
-    pack_a_rowmajor_kernel<<<pack_a_grid, pack_block>>>(a, a_pack, rows, padded_rows, k, gemm_k_block, lda, 0);
-    return hipGetLastError();
-  });
-  if (err != hipSuccess) {
-    return rocwmma_backend_failure;
+  const bool direct=packing && (packing->policy&1) &&
+      rns8::detail::rocwmma_direct_a_eligible(reinterpret_cast<uintptr_t>(a),rows,k,lda);
+  hipError_t err=hipSuccess;
+  if(direct) {if(packing->stats)++packing->stats->direct_a_blocks;}
+  else {
+    err=timed_hip_launch(pack_a_timing_label,pack_a_alias,[&]() {
+      pack_a_rowmajor_kernel<<<pack_a_grid,pack_block>>>(a,a_pack,rows,padded_rows,k,gemm_k_block,lda,0);
+      return hipGetLastError();
+    });
+    if(err!=hipSuccess)return rocwmma_backend_failure;
+    if(packing && packing->stats)++packing->stats->a_pack_launches;
   }
   const dim3 grid(
       static_cast<unsigned int>(padded_cols / kRns8WmmaTileN),
@@ -435,7 +457,7 @@ int launch_pack_a_and_gemm_prepacked_b(
       1);
   err = timed_hip_launch(matmul_timing_label, matmul_alias, [&]() {
     rocwmma_i8_residue_gemm_kernel<<<grid, kRns8WmmaWaveThreads>>>(
-        a_pack,
+        direct?a:a_pack,
         b_pack,
         c,
         rows,
@@ -443,6 +465,7 @@ int launch_pack_a_and_gemm_prepacked_b(
         padded_rows,
         padded_cols,
         gemm_k_block,
+        direct?lda:gemm_k_block,
         ldc,
         modulus,
         reciprocal,
@@ -464,7 +487,7 @@ int run_rns_prefix_prepacked_b(
     int k,
     int lda,
     int ldc,
-    uint32_t prefix) {
+    uint32_t prefix,RocwmmaPackingState* packing=nullptr) {
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix || k <= 0 || k > kRns8SignedSafeInt32KBlock) {
     return rocwmma_invalid_argument;
   }
@@ -494,7 +517,7 @@ int run_rns_prefix_prepacked_b(
         ldc,
         static_cast<int>(modulus),
         modulus_reciprocal_u32(modulus),
-        static_cast<int>(modulus_index));
+        static_cast<int>(modulus_index),packing);
     if (status != rocwmma_success) {
       return status;
     }

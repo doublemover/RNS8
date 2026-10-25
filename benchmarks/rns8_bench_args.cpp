@@ -359,6 +359,11 @@ Args parse_args(int argc, char** argv) {
       args.locality_model_concurrency=parse_u32(argv[++i],"--locality-model-concurrency");
     } else if (arg == "--locality-model-cache-bytes" && i+1<argc) {
       args.locality_model_cache_bytes=parse_u64(argv[++i],"--locality-model-cache-bytes");
+    } else if (arg == "--rocwmma-packing-policy" && i+1<argc) {
+      args.rocwmma_packing_policy=argv[++i];args.rocwmma_packing_policy_explicit=true;
+      if(args.rocwmma_packing_policy!="packed" && args.rocwmma_packing_policy!="direct-a" &&
+          args.rocwmma_packing_policy!="reuse" && args.rocwmma_packing_policy!="direct-a-reuse")
+        usage_error("rocWMMA packing policy must be packed, direct-a, reuse or direct-a-reuse");
     } else if (arg == "--hipblaslt-prepack-policy" && i + 1 < argc) {
       args.hipblaslt_prepack_policy=argv[++i];args.hipblaslt_prepack_policy_explicit=true;
       if(args.hipblaslt_prepack_policy!="none" && args.hipblaslt_prepack_policy!="a" &&
@@ -454,6 +459,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--adaptive-grouped-scheduler]\n"
           << "                  [--hipblaslt-metadata-policy per-call|per-block]\n"
           << "                  [--hipblaslt-prepack-policy none|a|b|both]\n"
+          << "                  [--rocwmma-packing-policy packed|direct-a|reuse|direct-a-reuse]\n"
           << "                  [--streaming-overlap --streaming-batches 3..64 --streaming-schedule overlapped|serial]\n"
           << "                  [--k-block-policy NAME]\n"
           << "                  [--resident-redesign-candidate NAME]\n"
@@ -972,6 +978,10 @@ Args parse_args(int argc, char** argv) {
       args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
       args.semantics==BenchSemantics::WrapU64Mod2_64))
     usage_error("operand prepack controls require explicit hipblaslt bounded or exact-wide RNS GEMM");
+  if(args.rocwmma_packing_policy_explicit && (args.backend!=RNS8_BACKEND_ROCWMMA ||
+      args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
+      args.semantics==BenchSemantics::WrapU64Mod2_64))
+    usage_error("rocWMMA packing controls require explicit rocwmma bounded or exact-wide RNS GEMM");
   return args;
 }
 

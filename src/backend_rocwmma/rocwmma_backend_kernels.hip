@@ -7,6 +7,13 @@
 
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_epilogue.hpp"
+#include "rocwmma_packing_policy.hpp"
+
+struct RocwmmaPackingState {
+  uint32_t policy=0;
+  rns8::detail::RocwmmaPackingStats* stats=nullptr;
+  rns8::detail::RocwmmaPanelKey a,b;
+};
 
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;

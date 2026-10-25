@@ -173,6 +173,15 @@
   };
   std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
   std::cout << "    \"after_measured_repeats\": "; print_metadata_counters(result.metadata_after_repeats); std::cout << "\n  },\n";
+  std::cout << "  \"rocwmma_packing\": {\"abi_version\":1,\"policy\":\"" << args.rocwmma_packing_policy
+      << "\",\"scope\":\"calling_thread_successful_submissions_not_bytes_or_time\",\n";
+  const auto print_rocwmma=[](const rns8::detail::RocwmmaPackingStats& v) {
+    std::cout << "{\"a_pack_launches\":" << v.a_pack_launches << ",\"b_pack_launches\":" << v.b_pack_launches
+        << ",\"direct_a_blocks\":" << v.direct_a_blocks << ",\"a_panel_hits\":" << v.a_panel_hits
+        << ",\"b_panel_hits\":" << v.b_panel_hits << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_rocwmma(result.rocwmma_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_rocwmma(result.rocwmma_after_repeats);std::cout << "\n  },\n";
   std::cout << "  \"hipblaslt_operand_prepack\": {\n    \"abi_version\":1,\"policy\":\"" << args.hipblaslt_prepack_policy
       << "\",\"scope\":\"calling_thread_successful_pack_submissions_and_cache_matches_not_bytes_or_time\",\n";
   auto print_prepack_counters=[](const rns8::detail::HipblasLtPrepackCounters& v) {

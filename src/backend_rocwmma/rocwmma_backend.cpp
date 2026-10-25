@@ -1,5 +1,6 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_rocwmma/rocwmma_packing_policy.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/backend_common.hpp"
@@ -21,7 +22,7 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int prefix);
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 // Event recording uses run_timed_device_code in the dispatch functions below.
 // The rocWMMA backend is a separate build target that cannot reference
@@ -43,7 +44,7 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
     long long ldb,
     long long ldc,
     const rns8_plan_tile_schedule_entry* entries,
-    unsigned long long entry_count);
+    unsigned long long entry_count, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,
@@ -87,7 +88,7 @@ extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     long long k,
     long long lda,
     long long ldc,
-    unsigned int prefix);
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 extern "C" int rns8_rocwmma_gemm_finite_u8_device(
     int device_id,
@@ -120,6 +121,18 @@ extern "C" int rns8_rocwmma_exact_axpby_device(int, const int8_t*, const int8_t*
 #endif
 
 namespace rns8::detail {
+
+namespace {
+thread_local RocwmmaPackingPolicy packing_policy=RocwmmaPackingPolicy::packed;
+thread_local RocwmmaPackingStats packing_stats;
+RocwmmaPackingStats* rocwmma_packing_stats_sink(){return &packing_stats;}
+}
+RocwmmaPackingPolicy rocwmma_packing_policy(){return packing_policy;}
+bool rocwmma_set_packing_policy(RocwmmaPackingPolicy value) {
+  if(uint32_t(value)>3)return false;packing_policy=value;return true;
+}
+void rocwmma_reset_packing_stats(){packing_stats={};}
+RocwmmaPackingStats rocwmma_packing_stats(){return packing_stats;}
 
 bool rocwmma_compiled() {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
@@ -223,7 +236,7 @@ rns8_status rocwmma_gemm_rns_device(
         static_cast<long long>(lda),
         static_cast<long long>(ldb),
         static_cast<long long>(ldc),
-        prefix);
+        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -280,7 +293,7 @@ rns8_status rocwmma_gemm_rns_tiled_device(
         static_cast<long long>(ldb),
         static_cast<long long>(ldc),
         entries,
-        static_cast<unsigned long long>(entry_count));
+        static_cast<unsigned long long>(entry_count), uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -434,7 +447,7 @@ rns8_status rocwmma_gemm_rns_prepacked_b_device(
         static_cast<long long>(k),
         static_cast<long long>(lda),
         static_cast<long long>(ldc),
-        prefix);
+        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else

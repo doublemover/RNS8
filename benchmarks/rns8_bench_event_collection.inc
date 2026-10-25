@@ -904,6 +904,7 @@ void record_allocation_after_warmups(BenchmarkResult& result) {
   result.schedule_after_warmups=rns8::detail::api::plan_validation_work;
   result.metadata_after_warmups=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.prepack_after_warmups=rns8::detail::hipblaslt_prepack_counters_snapshot();
+  result.rocwmma_after_warmups=rns8::detail::rocwmma_packing_stats();
   result.allocation_after_warmups = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_warmups_available = true;
 }
@@ -912,6 +913,7 @@ void record_allocation_after_repeats(BenchmarkResult& result) {
   result.schedule_after_repeats=rns8::detail::api::plan_validation_work;
   result.metadata_after_repeats=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.prepack_after_repeats=rns8::detail::hipblaslt_prepack_counters_snapshot();
+  result.rocwmma_after_repeats=rns8::detail::rocwmma_packing_stats();
   result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_repeats_available = true;
 }

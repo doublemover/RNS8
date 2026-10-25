@@ -4,7 +4,25 @@
 #include <vector>
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/fragment_layout.hpp"
+#include "backend_rocwmma/rocwmma_packing_policy.hpp"
 #include <array>
+
+TEST_CASE("rocWMMA direct-A admission proves complete aligned fragment loads") {
+  using namespace rns8::detail;
+  CHECK(rocwmma_direct_a_eligible(256,16,65536,65552));
+  CHECK_FALSE(rocwmma_direct_a_eligible(257,16,16,16));
+  CHECK_FALSE(rocwmma_direct_a_eligible(256,15,16,16));
+  CHECK_FALSE(rocwmma_direct_a_eligible(256,16,17,32));
+  CHECK_FALSE(rocwmma_direct_a_eligible(256,16,16,17));
+  CHECK_FALSE(rocwmma_direct_a_eligible(0,16,16,16));
+  RocwmmaPanelKey key{256,16,17,32,34,0};
+  for(unsigned field=0;field<6;++field) {
+    auto changed=key;
+    switch(field){case 0:++changed.source;break;case 1:++changed.extent;break;case 2:++changed.valid_k;break;
+      case 3:++changed.padded_k;break;case 4:++changed.ld;break;case 5:++changed.k_offset;break;}
+    CHECK_FALSE(key==changed);
+  }
+}
 
 TEST_CASE("RDNA3 executable fragment maps agree with independent coordinate enumeration") {
   namespace f = rns8::detail::fragment_layout;

@@ -868,6 +868,16 @@
             "tools/observation_cohorts.py",
             "tools/perf_variance_report.py"
           ]
+        },
+        {
+          "summary": "Opt-in rocWMMA direct-A aligned complete-tile loads and call-local A/B panel reuse, including plane-ordered tiled schedules and retained-B execution; independent benchmark controls, actual work counters, policy-partitioned cohorts and matched calibration manifest.",
+          "files": [
+            "src/backend_rocwmma/rocwmma_packing_policy.hpp",
+            "src/backend_rocwmma/rocwmma_backend_wrap64_kernel.inc",
+            "src/backend_rocwmma/rocwmma_backend_rns_wrappers.inc",
+            "benchmarks/public-calibration/rocwmma-packing.json",
+            "tools/benchmark_schema/rocwmma_packing.py"
+          ]
         }
       ],
       "regressions": [
@@ -876,14 +886,17 @@
         "tests/unit/test_hipblaslt_metadata.cpp",
         "tests/differential/test_hipblaslt.cpp",
         "tools/test_hipblaslt_metadata.py",
-        "tools/test_observation_cohorts.py"
+        "tools/test_observation_cohorts.py",
+        "tests/differential/test_rocwmma_packing_cases.inc",
+        "tests/unit/test_residue_layout.cpp",
+        "tools/test_rocwmma_packing.py"
       ],
       "commits": [
         "aa24012745304a17e26ab6efbe0e0718cf9890a1",
         "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
-        "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A consumption and within-call panel reuse remain source work.",
+        "General fragment algebra and GF(2) paired-column consumer remain source work. Independent hipBLASLt retention and rocWMMA direct-A/call-local panel-reuse controls are authored; packed/default policies unchanged pending measurements.",
         "Independent hipBLASLt operand-retention controls, composed metadata controls and receipts are authored; compilation, regression execution, measurements and qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -2524,6 +2537,11 @@
       "kind": "minimal_compile",
       "scope": "Ordered basis layout ABI2, experimental product recipes, host API/HIP fixtures and gfx1100 HIP kernel TU",
       "result": "MSVC /Zs and HIP -fsyntax-only passed; no test, linked build, workload, benchmark or hardware qualification executed. Later small fixture refinements await final batch."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "rocWMMA direct-A/panel reuse kernels, host backend, authored CPU/HIP fixtures and benchmark argument/dispatch source; Python receipt/cohort syntax",
+      "result": "HIP gfx1100 host/device -fsyntax-only and MSVC /Zs passed. Benchmark host syntax used the equivalent core include/feature recipe to avoid malformed multiline historical command-line version definitions. py_compile passed. Final small fixture refinements await batch; no tests, linking, benchmark execution or qualification."
     }
   ],
   "parking_snapshot": {

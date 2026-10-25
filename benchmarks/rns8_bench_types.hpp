@@ -11,6 +11,7 @@
 #include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
+#include "backend_rocwmma/rocwmma_packing_policy.hpp"
 #include "core/plan_lowering.hpp"
 #include "core/api_internal.hpp"
 #include "rns8/rns8.h"
@@ -128,6 +129,8 @@ struct Args {
   bool hipblaslt_metadata_per_block_control = false;
   std::string hipblaslt_prepack_policy="both";
   bool hipblaslt_prepack_policy_explicit=false;
+  std::string rocwmma_packing_policy="packed";
+  bool rocwmma_packing_policy_explicit=false;
   std::string locality_order;
   uint32_t locality_model_domains=1,locality_model_concurrency=1;
   uint64_t locality_model_cache_bytes=0;
@@ -252,6 +255,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
   rns8::detail::HipblasLtPrepackCounters prepack_after_warmups{},prepack_after_repeats{};
+  rns8::detail::RocwmmaPackingStats rocwmma_after_warmups{},rocwmma_after_repeats{};
   rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};
   rns8_locality_info locality_info{};
   bool allocation_tracking_available = false;

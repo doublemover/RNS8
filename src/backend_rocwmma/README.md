@@ -49,3 +49,24 @@ Dependency discovery and primitive probes do not enable either runtime backend.
 `RNS8_ENABLE_AMDGPU_BUILTINS=ON` with HIP compiles the separate target-specific
 WMMA/MFMA/SMFMAC/SWMMAC path described in the backend reference. The source target,
 compiled configuration and device validation remain distinct evidence.
+# Explicit packing controls
+
+The private `--rocwmma-packing-policy packed|direct-a|reuse|direct-a-reuse`
+benchmark control selects independent direct-A reads and call-local panel reuse
+for ordinary bounded/exact-wide RNS dispatch. `packed` remains the default.
+Direct reads require complete 16-row/16-K tiles, aligned source pointers and
+strides divisible by 16; all other blocks pack with zero padding. Both ordinary
+and retained-B paths pass the actual A stride into fragment loads.
+
+The reuse control visits tiled schedules by modulus while preserving entry
+order within each plane. One A and one B scratch panel retain full source,
+extent, valid/padded K, stride and slab-offset keys within the call. No key
+survives completion, and metadata consumes no extra device allocation. Zero
+tiles remain ordered within each plane. Multi-slab calls may have no hits.
+
+JSON receipts record successful pack launches, direct-A blocks and panel hits
+after warmups and measured calls. Cohort/variance grouping separates policies;
+the counters establish source work, not latency or byte traffic. Matched cases
+are in `benchmarks/public-calibration/rocwmma-packing.json`. Host/device syntax
+and authored CPU/GPU fixtures precede deferred runtime validation and paired
+measurements. These controls do not change AUTO policy or reviewed cache entries.

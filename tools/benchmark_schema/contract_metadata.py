@@ -154,6 +154,8 @@ def validate_contract_metadata(self: Any) -> None:
     from .hipblaslt_metadata import validate_hipblaslt_metadata,validate_hipblaslt_prepack
     for error in validate_hipblaslt_metadata(self.data): self._error(error)
     for error in validate_hipblaslt_prepack(self.data): self._error(error)
+    from .rocwmma_packing import validate_rocwmma_packing
+    for error in validate_rocwmma_packing(self.data): self._error(error)
     reuse = self.data.get("reuse_contract")
     if reuse is not None:
         if not isinstance(reuse, dict):
