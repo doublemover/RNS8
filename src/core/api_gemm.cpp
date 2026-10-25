@@ -987,7 +987,8 @@ rns8_status rns8_gemm_rns(
             workspace->hip_tile_schedule_active_offsets,
             workspace->hip_tile_schedule_active_counts,
             workspace->hip_tile_schedule_active_prefix_count,
-            static_cast<uint64_t>(plan->tile_schedule.size()));
+            static_cast<uint64_t>(plan->tile_schedule.size()),
+            plan);
       } else {
         status = rns8::detail::hip_direct_gemm_rns_device(
             ctx->device_id,

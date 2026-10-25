@@ -405,6 +405,10 @@ struct plan_validation_counters {
   uint64_t exhaustive_validations = 0;
   uint64_t fingerprint_traversals = 0;
   uint64_t equivalent_comparisons = 0;
+  uint64_t backend_schedule_seals = 0;
+  uint64_t backend_schedule_sealed_tile_visits = 0;
+  uint64_t backend_schedule_fast_submissions = 0;
+  uint64_t backend_schedule_raw_submissions = 0;
 };
 inline thread_local plan_validation_counters plan_validation_work{};
 

@@ -989,7 +989,8 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     const uint64_t* active_offsets,
     const uint64_t* active_counts,
     uint32_t active_prefix_count,
-    uint64_t entry_count);
+    uint64_t entry_count,
+    const rns8_plan* immutable_plan = nullptr);
 rns8_status hip_direct_gemm_finite_u8_resident_device(
     int device_id,
     const void* device_a_residues,

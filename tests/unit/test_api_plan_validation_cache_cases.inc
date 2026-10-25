@@ -17,6 +17,16 @@ TEST_CASE("immutable schedule validation is amortized without hash-only equivale
   REQUIRE(plan_validation_work.exhaustive_validations == 1);
   REQUIRE(plan_validation_work.fingerprint_traversals == 1);
   REQUIRE(plan->validated_contract);
+  const auto& launch = plan->validated_contract->launch;
+  CHECK(launch.entry_count == 128 * 128);
+  CHECK(launch.max_row_blocks == 8);
+  CHECK(launch.max_col_blocks == 8);
+  CHECK(launch.max_elements == 128 * 128);
+  CHECK(launch.i32_launch_qualified);
+  CHECK_FALSE(launch.zero_output_tiles);
+  CHECK(launch.uniform_zero_selected_prefix == 0);
+  CHECK(plan_validation_work.backend_schedule_seals == 1);
+  CHECK(plan_validation_work.backend_schedule_sealed_tile_visits == 128 * 128);
   REQUIRE(rns8_create_plan(ctx, &desc, &equivalent) == RNS8_SUCCESS);
   REQUIRE(plan->validated_contract != equivalent->validated_contract);
   rns8_workspace* workspace = nullptr;
@@ -30,6 +40,7 @@ TEST_CASE("immutable schedule validation is amortized without hash-only equivale
   REQUIRE(plan_validation_work.exhaustive_validations == 0);
   REQUIRE(plan_validation_work.fingerprint_traversals == 0);
   REQUIRE(plan_validation_work.equivalent_comparisons == 1);
+  CHECK(plan_validation_work.backend_schedule_sealed_tile_visits == 0);
   // Caller-owned arrays are copied. Mutation cannot alter an existing seal.
   bounds[0] = 99999;
   REQUIRE(rns8_create_plan(ctx, &desc, &different) == RNS8_SUCCESS);
@@ -63,4 +74,54 @@ TEST_CASE("immutable schedule validation is amortized without hash-only equivale
   REQUIRE(rns8_destroy_plan(equivalent) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(different) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+TEST_CASE("ordinary HIP tiled GEMM consumes the immutable launch seal", "[api][schedule][hip]") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  using namespace rns8::detail::api;
+  rns8_context_options options{};
+  options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+  options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  rns8_context* ctx=nullptr;
+  REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);
+  auto desc=bounded_gemm_desc(RNS8_BOUNDED_U64,128,128,1);
+  desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  desc.bound_kind=RNS8_BOUND_PER_TILE_MAX_UNSIGNED;desc.bound=0;desc.tile_m=desc.tile_n=64;
+  uint64_t bounds[]{1,1000,1000,1};desc.tile_bounds=bounds;desc.tile_bounds_count=4;
+  rns8_plan *plan=nullptr,*equivalent=nullptr;
+  rns8_workspace* workspace=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_plan(ctx,&desc,&equivalent)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+  rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+  auto ad=bounded_matrix_desc(128,1,RNS8_BOUNDED_U64);
+  auto bd=bounded_matrix_desc(1,128,RNS8_BOUNDED_U64);
+  auto cd=bounded_matrix_desc(128,128,RNS8_BOUNDED_U64);
+  REQUIRE(rns8_create_matrix(ctx,&ad,&a)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx,&bd,&b)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_matrix(ctx,&cd,&c)==RNS8_SUCCESS);
+  std::vector<uint64_t> ones(128,1),actual(128*130,UINT64_MAX);
+  REQUIRE(rns8_pack_u64(ctx,a,ones.data(),1,0)==RNS8_SUCCESS);
+  REQUIRE(rns8_pack_u64(ctx,b,ones.data(),128,0)==RNS8_SUCCESS);
+  plan_validation_work={};
+  for(int iteration=0;iteration<8;++iteration) {
+    auto* selected=iteration%2?plan:equivalent;
+    REQUIRE(rns8_gemm(ctx,selected,a,b,c,workspace)==RNS8_SUCCESS);
+    REQUIRE(rns8_export_u64(ctx,selected,c,actual.data(),130)==RNS8_SUCCESS);
+    for(int row=0;row<128;++row) {
+      for(int col=0;col<128;++col) REQUIRE(actual[row*130+col]==1);
+      CHECK(actual[row*130+128]==UINT64_MAX);CHECK(actual[row*130+129]==UINT64_MAX);
+    }
+  }
+  CHECK(plan_validation_work.backend_schedule_fast_submissions==8);
+  CHECK(plan_validation_work.backend_schedule_raw_submissions==0);
+  CHECK(plan_validation_work.backend_schedule_sealed_tile_visits==0);
+  CHECK(plan_validation_work.exhaustive_validations==0);
+  CHECK(plan_validation_work.fingerprint_traversals==0);
+  CHECK(plan_validation_work.equivalent_comparisons==1);
+  REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(equivalent)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#endif
 }

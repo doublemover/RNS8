@@ -306,12 +306,26 @@
       "issue": 34,
       "title": "[Research P1] Build cost-aware device bound discovery and compact adaptive-prefix schedules",
       "url": "https://github.com/doublemover/RNS8/issues/34",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Device bound scan/adaptive compact producer and sealed core schedule implemented. Remaining direct-HIP ordinary tiled consumer rebuilds checked immutable schedule/active counts each call; current native campaign lacks heterogeneous controls.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Carry derived direct-HIP launch shape, active counts and zero flags in the existing immutable validated plan seal; repeated ordinary public submissions do bounded prefix checks without rebuilding tile grids. Raw backend callers retain exhaustive validation. Snapshot core/backend work counters in the public calibrator and add thin/compute-heavy matched fixtures.",
+          "files": [
+            "src/core/api_plan_workspace_fingerprint.inc",
+            "src/backend_hip_direct/hip_backend_gemm_finite_tiled.inc",
+            "benchmarks/public-calibration/immutable-schedule.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_plan_validation_cache_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Native adaptive deterministic heterogeneous datasets and prefix/work histogram preflight remain to implement.",
+        "Regression execution and hardware performance/qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -525,7 +539,9 @@
         "tests/support/product_recipe_outputs_fixture.hpp",
         "tests/support/product_recipe_rebind_fixture.hpp"
       ],
-      "commits": [],
+      "commits": [
+        "81568e2c2e08f2260a2ced4e93dd182e3157352d"
+      ],
       "remaining": [
         "Shared recipe/lift calibration harness to compose with general asynchronous/graph extension work.",
         "Authored allocation/free and full-output regressions, device compilation, failure qualification and complete-route measurements not executed."

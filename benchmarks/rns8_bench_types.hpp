@@ -12,6 +12,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "core/plan_lowering.hpp"
+#include "core/api_internal.hpp"
 #include "rns8/rns8.h"
 
 namespace rns8::bench {
@@ -242,6 +243,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
+  rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
   bool allocation_after_repeats_available = false;

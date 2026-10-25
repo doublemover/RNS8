@@ -31,10 +31,19 @@ struct rns8_context {
 
 // Created only after exhaustive construction validation. Public plans have no
 // mutation API. Internal diagnostic mutation must first discard this seal.
+struct rns8_sealed_schedule_launch {
+  uint64_t entry_count = 0;
+  uint32_t max_row_blocks = 0, max_col_blocks = 0, max_elements = 0;
+  uint32_t max_selected_prefix = 0, uniform_zero_selected_prefix = 0;
+  bool zero_output_tiles = false, zero_row_col_products = false;
+  bool i32_launch_qualified = true;
+};
+
 struct rns8_validated_plan_contract {
   uint64_t fingerprint = 0;
   std::vector<uint64_t> canonical_workspace_key;
   uint64_t active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+  rns8_sealed_schedule_launch launch;
 };
 
 struct rns8_plan {

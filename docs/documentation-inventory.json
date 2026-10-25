@@ -2103,6 +2103,7 @@
       ],
       "anchors": [
         "explicit-k-panel-l1-refinement",
+        "immutable-direct-hip-launch-facts",
         "native-device-bound-discovery"
       ]
     },

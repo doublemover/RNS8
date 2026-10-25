@@ -115,9 +115,33 @@ bool seal_plan_contract(rns8_plan& plan) {
   // them in the complete equivalence key rather than relying on a hash.
   contract->canonical_workspace_key.push_back(static_cast<uint64_t>(plan.backend));
   contract->canonical_workspace_key.push_back(plan.backend_performance_validated);
-  for (const auto& entry : plan.tile_schedule)
-    if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0)
+  auto& launch = contract->launch;
+  launch.entry_count = plan.tile_schedule.size();
+  bool uniform_zero = !plan.tile_schedule.empty();
+  uint32_t first_prefix = uniform_zero ? plan.tile_schedule.front().selected_prefix : 0;
+  ++plan_validation_work.backend_schedule_seals;
+  for (const auto& entry : plan.tile_schedule) {
+    ++plan_validation_work.backend_schedule_sealed_tile_visits;
+    const bool zero = (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0;
+    launch.zero_output_tiles |= zero;
+    launch.zero_row_col_products |= (entry.flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0;
+    uniform_zero &= zero && entry.selected_prefix == first_prefix;
+    launch.max_selected_prefix = std::max(launch.max_selected_prefix, entry.selected_prefix);
+    const uint64_t rows = static_cast<uint64_t>(entry.row_extent);
+    const uint64_t cols = static_cast<uint64_t>(entry.col_extent);
+    // CPU plans may be larger than the direct-HIP integer launch domain. Keep
+    // the general plan valid, but never narrow an unqualified device launch.
+    if (rows > INT32_MAX || cols > INT32_MAX || rows > uint64_t{INT32_MAX} / cols) {
+      launch.i32_launch_qualified = false;
+    } else {
+      launch.max_row_blocks = std::max(launch.max_row_blocks, static_cast<uint32_t>((rows + 15) / 16));
+      launch.max_col_blocks = std::max(launch.max_col_blocks, static_cast<uint32_t>((cols + 15) / 16));
+      launch.max_elements = std::max(launch.max_elements, static_cast<uint32_t>(rows * cols));
+    }
+    if (!zero)
       for (uint32_t p = 0; p < entry.selected_prefix; ++p) ++contract->active_counts[p];
+  }
+  launch.uniform_zero_selected_prefix = uniform_zero ? first_prefix : 0;
   plan.validated_contract = std::move(contract);
   return true;
 }
