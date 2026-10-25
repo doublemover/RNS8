@@ -1736,7 +1736,7 @@
       "issue": 71,
       "title": "[Perf P2] Preserve packed-dot residue GEMM across all modulus planes and grouped/scheduled paths",
       "url": "https://github.com/doublemover/RNS8/issues/71",
-      "state": "implementation_in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Existing dot4 implementation not extended: uniform use_dp4a remains restricted to 256/255/251 and grouped/region/scheduled scalar routes remain. Requested all-modulus/composed compute parity absent.",
       "implementation": [
         {
@@ -1749,16 +1749,28 @@
             "cmake/rns8_options.cmake",
             "cmake/rns8_provenance.cmake"
           ]
+        },
+        {
+          "summary": "True scalar override includes legacy special-modulus kernels without scheduler changes. Paired arithmetic-only builds, complete production independent/grouped/scheduled/incremental routes, all-plane Boost/padding audits, bounded fixtures, independent-process p50/p95/sustained cohorts, separate actual event-span diagnostics and selected-code-object static dot/gather/resource receipts.",
+          "files": [
+            "src/backend_common/residue_dot.hpp",
+            "benchmarks/rns8_residue_dot_calibrate.cpp",
+            "tools/collect_residue_dot.py",
+            "tools/gpu_isa_report.py",
+            "benchmarks/residue-dot",
+            "cmake/rns8_tests.cmake"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_crt.cpp"
+        "tests/unit/test_crt.cpp",
+        "tools/test_collect_residue_dot.py"
       ],
       "commits": [
         "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
       ],
       "remaining": [
-        "Finish paired family measurement receipt/harness; GPU compilation, ISA, differential and crossover evidence deferred."
+        "No identified implementation gap in #71. HIP compiler/ISA signedness, differential execution, dynamic profiler launch counts and measured target-specific wins/losses remain deferred outcomes; no promotion or issue closure."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

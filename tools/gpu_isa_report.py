@@ -84,6 +84,11 @@ METADATA_KEY_MAP = {
 
 def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
     capture = load_capture(path)
+    if capture.get("schema")=="rns8_residue_dot_microcase_v1":
+        from collect_residue_dot import validate_capture as validate_residue_capture
+        validate_residue_capture(capture,dict(case=capture.get('case'),run_id=capture.get('run_id'),arithmetic=capture.get('arithmetic')),capture.get('hooks_enabled') is True)
+        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='residue-dot',benchmark_execution_mode=capture['case']['mode'],backend_selected='direct-hip',selected_kernel=capture['selected_kernel'],artifact_capture=capture['artifact_capture'],
+            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['case']['domain'],shape={k:capture['case'][k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout='centered_modulus_major',fusion_mode='same_scheduler_residue_inner_loop',generated_reducer_identity=None)
     validate_capture(capture, path)
     target = capture.get("target_variant")
     if not isinstance(target, dict):
@@ -238,12 +243,18 @@ def scan_disassembly(disassembly: str) -> dict[str, Any]:
         "lds_mentions": 0,
         "wait_instructions": 0,
         "instruction_lines": len(mnemonics),
+        "packed_dot4":0,"scalar_integer_multiply_add":0,"byte_extract_permute":0,"lds_read":0,"lds_write":0,
     }
     matrix_histogram: dict[str, int] = {}
     matrix_families: set[str] = set()
     for line, mnemonic in mnemonics:
         lowered_line = line.lower()
         lowered_mnemonic = mnemonic.lower()
+        if lowered_mnemonic.startswith(('v_dot4_','v_dot4c_')):counts['packed_dot4']+=1
+        if lowered_mnemonic.startswith(('v_mul_lo_i32','v_mul_lo_u32','v_mad_i32','v_mad_u32','v_mad_i24','v_mad_u24','v_mul_i32_i24','v_mul_u32_u24')):counts['scalar_integer_multiply_add']+=1
+        if lowered_mnemonic.startswith(('v_bfe_','v_perm_','v_lshrrev_b32','v_lshlrev_b32','v_lshl_or_b32')):counts['byte_extract_permute']+=1
+        if lowered_mnemonic.startswith('ds_read'):counts['lds_read']+=1
+        if lowered_mnemonic.startswith('ds_write'):counts['lds_write']+=1
         family = matrix_mnemonic_family(lowered_mnemonic)
         if family is not None and MATRIX_MNEMONIC_RE.match(lowered_mnemonic):
             matrix_histogram[lowered_mnemonic] = matrix_histogram.get(lowered_mnemonic, 0) + 1
@@ -391,6 +402,7 @@ def sum_symbol_reports(symbol_reports: list[dict[str, Any]]) -> dict[str, Any]:
         "lds_mentions",
         "wait_instructions",
         "instruction_lines",
+        "packed_dot4", "scalar_integer_multiply_add", "byte_extract_permute", "lds_read", "lds_write",
     ]
     totals = {key: sum(int(report["counts"].get(key) or 0) for report in symbol_reports) for key in keys}
     totals["matrix_instruction_histogram"] = _merge_histograms(symbol_reports, "matrix_instruction_histogram")

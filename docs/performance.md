@@ -202,3 +202,44 @@ invented baseline artifact, numeric regression threshold, cache write or speed
 claim. A later true regression gate needs a separately versioned, same-contract
 qualified baseline and independent-process threshold review. The CPU workflow
 owns a no-executable parser/plan integration regression for this entrypoint.
+
+## Paired residue-dot scheduler controls
+
+`rns8-residue-dot-calibrate` and `tools/collect_residue_dot.py` isolate two axes:
+scalar versus packed signed-byte arithmetic **inside the same production
+scheduler**, then independent versus grouped/scheduled execution **with the same
+arithmetic build**. Region cases explicitly recompute a nonzero `(1,1)` rectangle
+and check the cache's recomputation receipt; their full-output export cost is
+reported, but their reduced compute domain is never called a batching speedup.
+
+Build the same revision/dependencies/compiler twice. One build enables
+`RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL`; the other enables
+`RNS8_EXPERIMENTAL_RESIDUE_DOT4`. They are mutually exclusive. OFF/OFF preserves
+legacy arithmetic and is **not** the scalar control: the legacy uniform finite
+256/255/251 kernels already use packed dot. The scalar switch overrides those
+explicit packed calls inside the shared accumulation helper without changing
+kernel dispatch, tile geometry, reduction or slab carries. The collector rejects
+legacy/mislabeled builds and only compares manifests identical after removing
+these two explicit switches. Different artifact hashes remain recorded.
+
+The bounded shortlist includes every default ladder plane, prefix 1/3/9/18/20,
+other finite rings, group size one/several, sparse nonzero/zero/centered/full-width
+native sources, padded host rows, K tails through 65,535/65,536/65,537, and larger
+sustained grids. Every output and every residue plane is checked with an
+independent Boost product outside timing, including export padding. Setup,
+first call, complete compute+export p50/p95 and sustained intervals remain
+separate. Work/payload admission bounds reference cost before allocation.
+
+Optional diagnostic companions run in separate processes against the same
+immutable artifacts. Their final hook-enabled invocation reports actual HIP
+**event group spans**, not inferred launch counts; production comparison samples
+remain hook-disabled. `gpu_isa_report.py` accepts these captures, binds explicitly
+selected symbols to the captured target code object and reports static dot4,
+scalar multiply/add, byte-extract/permute, LDS load/store, VGPR/SGPR, LDS and spill
+metadata. Static instruction inventory does not prove dynamic execution, sign
+interpretation or speedup. Actual launch counts remain unknown without a dynamic
+profiler receipt. The existing arithmetic slab certificate is unchanged:
+`65536*128*128+128 < INT32_MAX`; numerical-zero tails never read inactive bytes.
+
+All authored regressions and experiments remain unexecuted; no target is newly
+qualified and no default is promoted by these source-level update counts.

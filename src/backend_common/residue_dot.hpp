@@ -12,6 +12,14 @@
 #endif
 
 namespace rns8::detail {
+#if defined(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL) && RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL
+constexpr bool kResidueScalarControl = true;
+#else
+constexpr bool kResidueScalarControl = false;
+#endif
+#if defined(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL) && RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL && defined(RNS8_EXPERIMENTAL_RESIDUE_DOT4) && RNS8_EXPERIMENTAL_RESIDUE_DOT4
+#error "Scalar residue control and packed-dot candidate are mutually exclusive"
+#endif
 
 // Explicit research opt-in. OFF preserves the existing scheduler/control;
 // ON changes only its byte-dot inner loop, not launch topology or reduction.
@@ -54,7 +62,7 @@ RNS8_RESIDUE_DOT_INLINE int32_t signed_byte_dot4(uint32_t a, uint32_t b, int32_t
 RNS8_RESIDUE_DOT_INLINE int32_t accumulate_residue_tile(
     const int8_t* a, const int8_t* b, int64_t b_stride, int64_t extent,
     int32_t accumulator, bool packed = kResidueDot4Enabled) {
-  if (!packed) {
+  if (kResidueScalarControl || !packed) {
     for (int64_t i = 0; i < extent; ++i)
       accumulator += static_cast<int32_t>(a[i]) * static_cast<int32_t>(b[i * b_stride]);
     return accumulator;
