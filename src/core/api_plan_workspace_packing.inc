@@ -1,4 +1,8 @@
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX){uint64_t bytes=0;
+    return rns8::detail::cpu_amx_workspace_bytes(plan.desc.m,plan.desc.n,plan.desc.k,
+      uses_finite_storage(plan.desc.semantics)?1:rns_storage_prefix_for_plan(plan),plan.cpu_amx_prepared_threads,bytes)?bytes:UINT64_MAX;
+  }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     std::size_t scratch_bytes = 0;
     std::size_t workspace_bytes = 0;

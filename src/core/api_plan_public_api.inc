@@ -21,7 +21,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested != ctx->backend) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
+    if (!host_rns_backend(requested) && requested != RNS8_BACKEND_HIP_DIRECT &&
         requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
         requested != RNS8_BACKEND_ROCWMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
         requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
@@ -49,6 +49,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     plan->prefix = prefix;
     plan->modulus_product = prefix == 0 ? 0 : rns8::detail::modulus_product(prefix);
     plan->backend = requested;
+    if(requested==RNS8_BACKEND_CPU_AMX)plan->cpu_amx_prepared_threads=rns8::detail::cpu_amx_workers();
     const rns8_status schedule_status = configure_plan_schedule(*plan);
     if (schedule_status != RNS8_SUCCESS) {
       return schedule_status;
@@ -389,6 +390,17 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     set_text(out->output_domain_name, sizeof(out->output_domain_name), output_domain_name(out->output_domain));
     set_text(out->next_op_hint, sizeof(out->next_op_hint), next_op_hint_for_plan(*plan));
 
+    if(plan->backend==RNS8_BACKEND_CPU_AMX){
+      out->uses_transient_pack_workspace=1;out->uses_matrix_engine_pack_layout=1;
+      out->reusable_prepack_cache_available=1;
+      out->flags|=RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS;
+      set_text(out->a_layout_version,sizeof(out->a_layout_version),"amx_a_centered_i8_16x64_v1");
+      set_text(out->b_layout_version,sizeof(out->b_layout_version),"amx_b_centered_i8_k4_interleave_16x64_v1");
+      set_text(out->output_layout_version,sizeof(out->output_layout_version),persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope,sizeof(out->prepack_cache_scope),"workspace_owned_matrix_instance_generation_layout_keyed_b");
+      set_text(out->detail,sizeof(out->detail),"Per-worker A packing and local INT32 reduction; repeated B retained in this workspace, never shared with the scalar oracle. Qualification deferred.");
+      return RNS8_SUCCESS;
+    }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
@@ -580,7 +592,7 @@ rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_oper
     if(query->operation>=RNS8_OP_COUNT || !query->execution_modes || (query->execution_modes&~127u) ||
        (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
       return RNS8_INVALID_ARGUMENT;
-    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_CPU_AMX,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
       RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS};
     const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?8:1;
     if(!all && std::find(std::begin(backends),std::end(backends),query->problem.requested_backend)==std::end(backends))return RNS8_INVALID_ARGUMENT;

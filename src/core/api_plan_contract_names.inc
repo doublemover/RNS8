@@ -60,6 +60,7 @@ bool direct_hip_bounded_skinny_gemv_small_n_plan(const rns8_plan& plan) {
 }
 
 std::string selected_kernel_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_int8_16x16x64_centered_v1";
   if (plan.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return uses_finite_storage(plan.desc.semantics) ? "cpu_reference_finite_u8_gemm_v1"
                                                     : "cpu_reference_scalar_rns_gemm_v1";
@@ -160,6 +161,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
 }
 
 std::string epilogue_mode_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_tile_local_centered_then_reference_crt";
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "low64_wrap_export";
   }
@@ -218,6 +220,7 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
 }
 
 std::string workspace_mode_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_per_worker_tiles_cached_b_transactional_output";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
       return "resident_rns_inputs_skinny_n1_output";
@@ -289,6 +292,7 @@ bool concrete_device_target_id(const std::string& target) {
 }
 
 std::string target_id_for_plan_context(const rns8_plan& plan, const rns8_context* ctx) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu-amx-int8";
   if (!hip_device_backend(plan.backend)) {
     return "cpu";
   }
@@ -341,6 +345,7 @@ const char* next_op_hint_for_plan(const rns8_plan& plan) {
 }
 
 std::string isa_evidence_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
       return "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine";
@@ -435,7 +440,8 @@ uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
   if (k_block == 0 || product == 0) {
     return 0u;
   }
-  return product <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) / k_block ? 1u : 0u;
+  const uint64_t previous=plan.backend==RNS8_BACKEND_CPU_AMX?128:0;
+  return product <= (static_cast<uint64_t>(std::numeric_limits<int32_t>::max())-previous) / k_block ? 1u : 0u;
 }
 
 std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {

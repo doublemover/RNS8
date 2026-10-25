@@ -1,3 +1,4 @@
+option(RNS8_ENABLE_CPU_AMX "Compile optional Linux x86-64 AMX-INT8 provider with runtime OS/thread admission" OFF)
 option(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL "Force scalar residue inner loops, including legacy packed special-modulus kernels; research control only" OFF)
 option(RNS8_EXPERIMENTAL_RESIDUE_DOT4 "Research packed signed-byte inner loops for all residue schedulers; legacy arithmetic when OFF" OFF)
 option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)

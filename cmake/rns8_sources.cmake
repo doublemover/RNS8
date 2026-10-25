@@ -37,6 +37,7 @@ set(RNS8_SOURCES
   src/core/moduli.cpp
   src/core/plan_lowering.cpp
   src/core/status.cpp
+  src/cpu/cpu_amx.cpp
   src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
   src/cpu/block_sparse.cpp

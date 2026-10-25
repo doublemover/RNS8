@@ -61,6 +61,7 @@ static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan, std::v
   hash = mix(hash, plan.zero_b_col_count);
   hash = mix(hash, plan.zero_row_col_product_count);
   hash = mix(hash, plan.backend_workspace_required_bytes);
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)hash=mix(hash,plan.cpu_amx_prepared_threads);
   hash = mix_string(hash, plan.backend_selected_kernel);
   hash = mix_string(hash, plan.backend_library);
   hash = mix_string(hash, plan.backend_library_version);

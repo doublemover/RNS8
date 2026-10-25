@@ -8,6 +8,7 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_ki
 
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
   switch (backend) {
+    case RNS8_BACKEND_CPU_AMX:
     case RNS8_BACKEND_CPU_REFERENCE:
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
              semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
@@ -46,6 +47,7 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
 bool known_backend_kind(rns8_backend_kind backend) {
   switch (backend) {
     case RNS8_BACKEND_AUTO:
+    case RNS8_BACKEND_CPU_AMX:
     case RNS8_BACKEND_CPU_REFERENCE:
     case RNS8_BACKEND_HIP_DIRECT:
     case RNS8_BACKEND_HIPBLASLT:
@@ -65,6 +67,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "auto";
     case RNS8_BACKEND_CPU_REFERENCE:
       return "cpu-reference";
+    case RNS8_BACKEND_CPU_AMX:
+      return "cpu-amx-int8";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
     case RNS8_BACKEND_HIPBLASLT:
@@ -165,6 +169,19 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
 
   info.is_accelerator = accelerator_backend(backend) ? 1u : 0u;
   switch (backend) {
+    case RNS8_BACKEND_CPU_AMX:
+      info.is_accelerator=1;
+      set_text(info.enable_flag,sizeof(info.enable_flag),"RNS8_ENABLE_CPU_AMX");
+      info.is_available=rns8::detail::cpu_amx_compiled();
+      info.compiled_kernel_available=info.is_available;
+      info.supports_bounded_rns=info.is_available;info.supports_exact_wide_rns=info.is_available;info.supports_finite_u8=info.is_available;
+      set_text(info.selected_kernel,sizeof(info.selected_kernel),"cpu_amx_int8_16x16x64_centered_v1");
+      set_text(info.epilogue_mode,sizeof(info.epilogue_mode),"cpu_amx_tile_local_centered_then_reference_crt");
+      set_text(info.workspace_mode,sizeof(info.workspace_mode),"cpu_amx_per_worker_tiles_cached_b_transactional_output");
+      set_text(info.isa_evidence,sizeof(info.isa_evidence),"source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified");
+      set_text(info.status,sizeof(info.status),info.is_available?"compiled_requires_os_thread_admission":"not_compiled_in_this_build");
+      set_text(info.detail,sizeof(info.detail),"Explicit optional Linux x86-64 AMX-INT8; independent scalar oracle remains selected separately; no performance qualification.");
+      break;
     case RNS8_BACKEND_CPU_REFERENCE:
       info.is_available = 1;
       info.is_correctness_backend = 1;

@@ -92,3 +92,5 @@ at `51ae8d8` on Windows/gfx1100. Topic-local mathematical claims and authored
 fixtures describe their source; later changes, other targets, resources/ISA and
 performance need their own scoped records. Current matched scaling results are
 in the [larger-workload report](../7900xtx-large-throughput-2026-10-23.md).
+
+- [Optional CPU AMX-INT8 provider](../cpu-amx.md): isolated tile instructions, OS/thread admission, independent scalar oracle; qualification deferred.

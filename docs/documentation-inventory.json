@@ -5111,6 +5111,32 @@
         "public-exact-wide-magnitude-controls",
         "validation-status"
       ]
+    },
+    {
+      "path": "docs/cpu-amx.md",
+      "purpose": "Optional CPU AMX provider and admission contract",
+      "audience": "CPU backend researchers and API integrators",
+      "disposition": "keep",
+      "canonical": "docs/cpu-amx.md",
+      "owner": "src/cpu/cpu_amx.cpp",
+      "reason": "Issue #54 arithmetic, OS/thread admission and qualification boundaries",
+      "inbound_links": [
+        {
+          "source": "docs/research/README.md",
+          "reference": "../cpu-amx.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/cpu-amx.md"
+        }
+      ],
+      "anchors": [
+        "admission-and-public-contract",
+        "arithmetic-and-storage",
+        "deferred-validation",
+        "instruction-and-os-references",
+        "optional-cpu-amx-int8-provider"
+      ]
     }
   ]
 }

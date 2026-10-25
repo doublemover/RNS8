@@ -42,7 +42,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
     if (!backend_supports_semantics(ctx->backend, desc->semantics)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+    if (!host_rns_backend(ctx->backend) && ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
         !rns8::detail::qualified_i32_matrix_address(desc->rows, desc->cols, desc->cols,
                                                   std::max(prefix, 1u), 8)) {
       return RNS8_UNSUPPORTED_BACKEND;
@@ -113,7 +113,7 @@ rns8_status rns8_create_matrix(rns8_context* ctx, const rns8_matrix_desc* desc, 
         matrix->materialized_rns_prefix = prefix; // Complete freshly initialized zero basis.
       }
       if (rns8::detail::exact_wide_semantics(matrix->desc.semantics) &&
-          ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+          host_rns_backend(ctx->backend)) {
         matrix->exact_range_prefix = prefix;  // The freshly created host matrix is zero.
       }
       clear_byte_limb_current(*matrix);

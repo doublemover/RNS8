@@ -85,6 +85,18 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
       return RNS8_SUCCESS;
     }
 
+    if (requested == RNS8_BACKEND_CPU_AMX) {
+      rns8_cpu_amx_info admission{};
+      const auto status=rns8::detail::cpu_amx_probe(true,admission);
+      if(status!=RNS8_SUCCESS){delete ctx;return status;}
+      ctx->backend=RNS8_BACKEND_CPU_AMX;ctx->device_id=-1;
+      ctx->device_info.struct_size=sizeof(ctx->device_info);ctx->device_info.abi_version=RNS8_ABI_VERSION;
+      rns8::detail::fill_cpu_device_info(ctx->device_info);ctx->device_info.backend=RNS8_BACKEND_CPU_AMX;
+      set_text(ctx->device_info.name,sizeof(ctx->device_info.name),admission.cpu_model);
+      set_text(ctx->device_info.gcn_arch,sizeof(ctx->device_info.gcn_arch),"cpu-amx-int8");
+      set_text(ctx->device_info.detail,sizeof(ctx->device_info.detail),"Optional AMX-INT8; process xstate admitted, every executing worker rechecks; not hardware-qualified.");
+      *out=ctx;return RNS8_SUCCESS;
+    }
     if (requested == RNS8_BACKEND_CPU_REFERENCE) {
       ctx->backend = RNS8_BACKEND_CPU_REFERENCE;
       ctx->device_id = -1;

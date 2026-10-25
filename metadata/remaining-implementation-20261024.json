@@ -1277,16 +1277,29 @@
       "issue": 54,
       "title": "[Research P3] Add optional CPU matrix-instruction backends while preserving the independent scalar oracle",
       "url": "https://github.com/doublemover/RNS8/issues/54",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "CPU scalar/OpenMP oracle present; no separately named optimized AMX/Arm matrix-instruction backend, runtime OS/thread admission or matrix microkernel implementation.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Separately named opt-in Linux AMX-INT8 backend, CPUID/palette/OS/thread xstate admission, actual 16x16x64 TDPBSSD, centered-prior safe-K certificate, per-worker prepared scratch, generation/layout keyed B reuse, adaptive dense and finite public GEMM, shared host pack/CRT and synchronous prepared groups.",
+          "files": [
+            "src/cpu/cpu_amx.cpp",
+            "src/cpu/cpu_amx.hpp",
+            "src/core/api_gemm.cpp",
+            "src/core/api_operation_provider.inc",
+            "docs/cpu-amx.md"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_cpu_amx.cpp"
+      ],
       "commits": [],
       "remaining": [
-        "Optimized CPU matrix-engine backends, OS/thread admission and actual x86 AMX/Arm microkernels remain.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Matched scalar/AMX end-to-end calibration harness, provenance/affinity/NUMA capture and negative receipt fixtures.",
+        "Execution, benchmarks, scientific/hardware qualification and evidence-gated second architecture remain deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Host syntax checks with AMX enabled/OpenMP and disabled branches; GCC 14 AMX object compilation emitted tile-load/config/TDPBSSD/store/release instructions. No execution, tests, benchmarks, CPU/GPU campaigns or scientific qualification.",
       "dependencies": [
         29,
         30

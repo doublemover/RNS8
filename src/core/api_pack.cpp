@@ -362,7 +362,7 @@ rns8_status rns8_pack_finite_u8(
         return status;
       }
       mark_device_residues_current(*matrix);
-    } else if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+    } else if (host_rns_backend(ctx->backend)) {
       write.emplace(*matrix);
       rns8::detail::pack_finite_u8_matrix(*matrix, src, ld, modulus);
       mark_host_residues_current(*matrix);

@@ -954,8 +954,10 @@ rns8_status rns8_gemm_rns(
       mark_output_device_native_current(*mutable_c);
       return RNS8_SUCCESS;
     }
-    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
-      const rns8_status status = rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
+    if (host_rns_backend(plan->backend)) {
+      const rns8_status status = plan->backend==RNS8_BACKEND_CPU_AMX
+          ? (workspace->cpu_amx?rns8::detail::cpu_amx_gemm(*plan,*A,*B,*C,*workspace->cpu_amx):RNS8_INVALID_ARGUMENT)
+          : rns8::detail::cpu_gemm_rns(*plan, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
         mark_output_host_residues_current(*C, plan);
         rns8::detail::commit_exact_range(*C, *plan, exact_bound, &exact_ranges);
@@ -1325,8 +1327,10 @@ rns8_status rns8_gemm_finite_u8(
       return operand_status;
     }
     invalidate_output_currentness(*C);
-    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
-      const rns8_status status = rns8::detail::cpu_gemm_finite_u8(*plan, modulus, *A, *B, *C);
+    if (host_rns_backend(plan->backend)) {
+      const rns8_status status = plan->backend==RNS8_BACKEND_CPU_AMX
+          ? (workspace->cpu_amx?rns8::detail::cpu_amx_gemm(*plan,*A,*B,*C,*workspace->cpu_amx):RNS8_INVALID_ARGUMENT)
+          : rns8::detail::cpu_gemm_finite_u8(*plan, modulus, *A, *B, *C);
       if (status == RNS8_SUCCESS) {
         mark_output_host_residues_current(*C, plan);
         C->finite_modulus = modulus;

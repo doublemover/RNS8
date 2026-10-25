@@ -22,6 +22,8 @@ static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* pla
     initialize_workspace_identity(*workspace, *ctx, *plan);
     initialize_workspace_schedule_contract(*workspace, *plan);
     initialize_workspace_backend_metadata(*workspace, *plan);
+    if(plan->backend==RNS8_BACKEND_CPU_AMX){const auto status=rns8::detail::cpu_amx_prepare(*plan,workspace->cpu_amx);
+      if(status!=RNS8_SUCCESS)return status;}
     if (plan->backend == RNS8_BACKEND_HIP_DIRECT) {
       std::vector<rns8_plan_tile_schedule_entry> active_entries;
       if (!plan->tile_schedule.empty()) {

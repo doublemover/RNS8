@@ -73,7 +73,7 @@ bool valid_api_tile_size(uint32_t value) {
 }
 
 bool finite_backend_supports(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT ||
+  return host_rns_backend(backend) || backend == RNS8_BACKEND_HIP_DIRECT ||
          backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
          backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
@@ -101,7 +101,7 @@ rns8_status validate_finite_u8_oneshot_contract(
       !valid_matrix_access(desc.m, desc.n, ldc, 1)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (ctx.backend != RNS8_BACKEND_CPU_REFERENCE && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+  if (!host_rns_backend(ctx.backend) && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
       !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }
@@ -462,7 +462,7 @@ rns8_status validate_typed_oneshot_contract(
       !valid_matrix_access(desc.m, desc.n, ldc)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (ctx.backend != RNS8_BACKEND_CPU_REFERENCE && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+  if (!host_rns_backend(ctx.backend) && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
       !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
     return RNS8_UNSUPPORTED_BACKEND;
   }

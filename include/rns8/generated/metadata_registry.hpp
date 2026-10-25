@@ -136,13 +136,14 @@ inline constexpr std::array<std::string_view, 4> epilogue_types{{
     "residue_current_rns_output"
 }};
 
-inline constexpr std::array<std::string_view, 18> backend_epilogue_modes{{
+inline constexpr std::array<std::string_view, 19> backend_epilogue_modes{{
     "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
     "ck_fused_i32_to_centered_residue_rns_output",
     "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
     "ck_fused_i32_to_centered_residue_then_crt_export",
+    "cpu_amx_tile_local_centered_then_reference_crt",
     "direct_int64_export",
     "fused_centered_residue_then_crt_export",
     "low64_wrap_export",
@@ -175,7 +176,7 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 94> selected_kernels{{
+inline constexpr std::array<std::string_view, 95> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -195,6 +196,7 @@ inline constexpr std::array<std::string_view, 94> selected_kernels{{
     "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
     "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
     "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
+    "cpu_amx_int8_16x16x64_centered_v1",
     "cpu_reference",
     "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_native_a_finite_u8_gemm_mod251_v1",

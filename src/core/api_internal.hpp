@@ -156,6 +156,9 @@ struct resident_oneshot_state {
 
 rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend);
 
+inline bool host_rns_backend(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_CPU_AMX;
+}
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 
 bool known_backend_kind(rns8_backend_kind backend);

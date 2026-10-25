@@ -58,7 +58,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     if(query->output_boundary==1 && bound>=(cpp_int(1)<<(limbs*64-1)))return RNS8_RANGE_ERROR;
     if(query->output_boundary==2 && bound>=(cpp_int(1)<<(limbs*64)))return RNS8_RANGE_ERROR;
     std::vector<rns8_pipeline_candidate> candidates;
-    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_CPU_AMX,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
       RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS};
     for(auto backend:backends){if(input.requested_backend!=RNS8_BACKEND_AUTO && input.requested_backend!=backend)continue;
       for(unsigned reconstruction=0;reconstruction<2;++reconstruction){

@@ -94,7 +94,8 @@
     "hip_vector_alu_u64_gemv_n5_exact_width_192b_v1",
     "hip_vector_alu_u64_gemv_n6_exact_width_192b_v1",
     "hip_vector_alu_u64_gemv_n7_exact_width_192b_v1",
-    "hip_vector_alu_u64_gemv_n8_exact_width_192b_v1"
+    "hip_vector_alu_u64_gemv_n8_exact_width_192b_v1",
+    "cpu_amx_int8_16x16x64_centered_v1"
   ],
   "generated_reducer_pattern": "direct_hip_fixed_prefix_{1..9,18,20}_generated_reducer_v1 or direct_hip_finite_modulus_N_fixed_reducer_v1",
   "selected_kernel_groups": {

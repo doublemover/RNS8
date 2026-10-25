@@ -236,6 +236,7 @@ rns8_status validate_plan_context_workspace(
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
   if (workspace.in_flight) return RNS8_BUSY;
+  if((plan.backend==RNS8_BACKEND_CPU_AMX)!=bool(workspace.cpu_amx))return RNS8_INVALID_ARGUMENT;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }

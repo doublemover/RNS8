@@ -624,7 +624,7 @@ rns8_status rns8_export_finite_u8(
           dst,
           ld);
     }
-    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
+    if (host_rns_backend(plan->backend)) {
       rns8::detail::export_finite_u8_matrix(*C, dst, ld, modulus);
       return RNS8_SUCCESS;
     }

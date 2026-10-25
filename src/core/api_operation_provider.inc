@@ -24,6 +24,9 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
+  const bool amx=backend==RNS8_BACKEND_CPU_AMX;
+  if(amx && query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_PREPARED_GROUP && query.operation!=RNS8_OP_PACK && query.operation!=RNS8_OP_EXPORT)
+    return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","AMX provider integrates dense GEMM, synchronous prepared groups, host pack and shared CRT export only");
   const bool adaptive=is_per_tile_bound_kind(d.bound_kind);
   if(!backend_supports_semantics(backend,d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","backend has no implementation of these arithmetic semantics");
   if((backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS) && finite &&
@@ -35,7 +38,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const bool rdna3=arch=="gfx1100" || arch=="gfx1101" || arch=="gfx1102";
   switch(query.operation) {
     case RNS8_OP_GEMM:case RNS8_OP_PREPARED_GROUP:
-      out.supported_execution_modes|=RNS8_EXEC_GROUP|RNS8_EXEC_DAG;
+      out.supported_execution_modes|=RNS8_EXEC_GROUP;
+      if(!amx)out.supported_execution_modes|=RNS8_EXEC_DAG;
       if(hip && !adaptive && !(d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
       break;
     case RNS8_OP_EXACT_EPILOGUE:
@@ -114,7 +118,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t planes=finite?1:d.semantics==RNS8_WRAP_U64_MOD_2_64?8:std::max(1u,prefix);
   if(query.operation!=RNS8_OP_GRAM && (!valid_matrix_access(d.m,d.k,lda,1) || !valid_matrix_access(d.k,d.n,ldb,1) || !valid_matrix_access(d.m,d.n,ldc,1)))
     return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"strides","complete padded host address domain overflows");
-  if(query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
+  if(query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && !amx && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"strides","complete padded device span exceeds this provider's signed32 index domain");
   rns8_backend_capability_info capability{};capability.struct_size=sizeof(capability);capability.abi_version=RNS8_ABI_VERSION;
   fill_backend_capability_info(backend,capability);out.compiled_inventory=capability.compiled_kernel_available && capability.is_available;
@@ -126,7 +130,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const auto add=[&](uint64_t& total,uint64_t value){if(value>UINT64_MAX-total)return false;total+=value;return true;};
   uint64_t scratch=0;std::size_t a=0,b=0,c=0,total=0;
   const bool gemm_workspace=query.operation==RNS8_OP_GEMM || query.operation==RNS8_OP_PREPARED_GROUP;
-  if(gemm_workspace && backend==RNS8_BACKEND_HIPBLASLT){if(!rns8::detail::hipblaslt_baseline_workspace_requirements(d.m,d.n,d.k,a,b) || !add(scratch,a) || !add(scratch,b))out.resource_status=2;}
+  if(gemm_workspace && amx){if(!rns8::detail::cpu_amx_workspace_bytes(d.m,d.n,d.k,finite?1:prefix,rns8::detail::cpu_amx_workers(),scratch))out.resource_status=2;}
+  else if(gemm_workspace && backend==RNS8_BACKEND_HIPBLASLT){if(!rns8::detail::hipblaslt_baseline_workspace_requirements(d.m,d.n,d.k,a,b) || !add(scratch,a) || !add(scratch,b))out.resource_status=2;}
   else if(gemm_workspace && backend==RNS8_BACKEND_CK){if(!rns8::detail::ck_workspace_requirements(d.m,d.n,d.k,a,b,c,total))out.resource_status=2;else scratch=total;}
   else if(gemm_workspace && backend==RNS8_BACKEND_ROCWMMA){if(!rns8::detail::rocwmma_workspace_requirements(d.m,d.n,d.k,a,b,total))out.resource_status=2;else scratch=total;}
   if(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_QUARTER_CRT){

@@ -14,6 +14,7 @@ function(rns8_configure_library target_name)
   target_compile_definitions(
     ${target_name}
     PRIVATE
+      $<$<BOOL:${RNS8_ENABLE_CPU_AMX}>:RNS8_ENABLE_CPU_AMX=1>
       $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
       $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>

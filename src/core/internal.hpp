@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "cpu/cpu_amx.hpp"
 
 struct rns8_synchronous_lease {
   const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
@@ -56,6 +57,7 @@ struct rns8_validated_plan_contract {
 };
 
 struct rns8_plan {
+  uint32_t cpu_amx_prepared_threads = 1;
   rns8_auto_trace_info auto_trace{};
   std::vector<rns8_auto_decision> auto_decisions;
   std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
@@ -225,6 +227,7 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  std::shared_ptr<rns8::detail::CpuAmxWorkspace> cpu_amx;
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
   rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;

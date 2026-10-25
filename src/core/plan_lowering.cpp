@@ -27,6 +27,7 @@ const char* semantics_name(rns8_semantics semantics) {
 }
 
 std::string backend_family(const rns8_plan_backend_info& backend) {
+  if (backend.backend == RNS8_BACKEND_CPU_AMX)return "cpu_amx_int8_matrix_engine";
   if (backend.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return "native_vector_alu";
   }

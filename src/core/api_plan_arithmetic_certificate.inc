@@ -51,15 +51,16 @@ static std::shared_ptr<const arithmetic::Guard> make_plan_arithmetic_guard(const
     Node n;n.operation=Operation::dot;n.left=a;n.right=b;n.count=static_cast<uint64_t>(plan.desc.k);n.bits=192;n.is_signed=c.signed_output;c.dag.push_back(n);
   } else {
     c.representation=uses_finite_storage(plan.desc.semantics)?Representation::canonical_finite_u8:Representation::centered_rns_i8;
-    i.prior_abs=255;
+    const bool centered_prior=plan.backend==RNS8_BACKEND_CPU_AMX;
+    i.prior_abs=centered_prior?128:255;
     std::vector<uint32_t> moduli=c.basis;
     if(uses_finite_storage(plan.desc.semantics))moduli={plan.desc.finite_modulus};
     for(auto modulus:moduli) {
       const auto a=input(-Integer(modulus/2),Integer((modulus-1)/2),8,true,modulus);
       const auto b=input(-Integer(modulus/2),Integer((modulus-1)/2),8,true,modulus);
-      const auto prior=input(0,modulus-1,32,true,modulus);
+      const auto prior=centered_prior?input(-Integer(modulus/2),Integer((modulus-1)/2),32,true,modulus):input(0,modulus-1,32,true,modulus);
       Node dot;dot.operation=Operation::dot;dot.equality=Equality::modular_value;dot.left=a;dot.right=b;dot.prior=prior;dot.count=i.safe_k;c.dag.push_back(dot);
-      Node reduce;reduce.operation=Operation::canonical_reduce;reduce.equality=Equality::modular_value;reduce.left=static_cast<uint32_t>(c.dag.size()-1);reduce.modulus=modulus;reduce.bits=8;reduce.is_signed=false;c.dag.push_back(reduce);
+      Node reduce;reduce.operation=centered_prior?Operation::centered_reduce:Operation::canonical_reduce;reduce.equality=Equality::modular_value;reduce.left=static_cast<uint32_t>(c.dag.size()-1);reduce.modulus=modulus;reduce.bits=8;reduce.is_signed=centered_prior;c.dag.push_back(reduce);
       // The invariant after every slab is again a canonical residue. The
       // already-checked prior node covers all later slab carries, not just 0.
     }

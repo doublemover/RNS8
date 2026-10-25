@@ -26,6 +26,30 @@ typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
 
+/* Optional Linux x86-64 AMX-INT8 provider. Queries never execute tile instructions.
+ * request_permission=1 requests only this process's dynamic xstate permission;
+ * it never changes persistent OS configuration. Explicit context creation and
+ * every participating worker perform the same admission before tile execution. */
+typedef struct rns8_cpu_amx_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t compiled, cpuid_tile, cpuid_int8, osxsave, palette_supported;
+  uint32_t os_supported, permission_enabled, xcr0_enabled, admitted;
+  uint32_t configured_threads;
+  int32_t permission_errno;
+  char cpu_model[64];
+} rns8_cpu_amx_info;
+typedef struct rns8_cpu_amx_workspace_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t prepared_threads, last_execution_threads;
+  uint64_t owned_payload_bytes, packed_b_bytes, output_staging_bytes;
+  uint64_t b_matrix_instance, b_generation, b_pack_count, b_reuse_count;
+  uint32_t layout_version, safe_k;
+} rns8_cpu_amx_workspace_info;
+RNS8_API rns8_status rns8_query_cpu_amx(uint32_t request_permission, rns8_cpu_amx_info* out);
+RNS8_API rns8_status rns8_get_cpu_amx_workspace_info(const rns8_workspace*, rns8_cpu_amx_workspace_info* out);
+
 typedef enum rns8_complex_product_method RNS8_ENUM_BASE {
   RNS8_COMPLEX_THREE_REAL_PRODUCTS = 0,
   RNS8_COMPLEX_FOUR_REAL_PRODUCTS = 1
