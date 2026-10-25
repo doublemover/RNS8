@@ -61,3 +61,16 @@ TEST_CASE("generated builtin event map keeps producer and semantic family identi
   }
   REQUIRE(std::string_view(builtin_event_label("amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",true))=="amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel");
 }
+
+TEST_CASE("lift provider checks source uniqueness rather than a fictitious native GEMM envelope", "[api][provider][lift]") {
+  auto* ctx=create_cpu_context();rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation=RNS8_OP_BASE_EXTEND;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;
+  q.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,3,5,1);q.problem.max_prefix=9;q.source_prefix=3;
+  rns8_operation_support support{};uint32_t count=0;
+  REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);CHECK(support.reason_code==RNS8_SUPPORT_MISSING_PROOF);
+  q.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF;REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
+  CHECK(support.status==RNS8_SUCCESS);CHECK(support.requires_binding);
+  rns8_plan* plan=nullptr;CHECK(rns8_create_plan(ctx,&q.problem,&plan)==RNS8_RANGE_ERROR);CHECK(plan==nullptr);
+  q.source_prefix=10;REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);CHECK(support.status==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

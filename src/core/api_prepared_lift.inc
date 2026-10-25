@@ -47,13 +47,15 @@ class PreparedExactLift final:public PreparedTransfer {
 #endif
   }
   void reserve() noexcept override {
-    ++matrix->prepared_in_flight_writers;matrix->in_flight_writer=true;
+    ++matrix->prepared_in_flight_writers;matrix->in_flight_writer=true;scratch.mark_pending();
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-    *static_cast<int*>(host_status.get())=target==source?0:-1;
+    host_status.mark_pending();*static_cast<int*>(host_status.get())=target==source?0:-1;
 #endif
   }
   rns8_status finish(rns8_status operation,boost::multiprecision::cpp_int&) noexcept override {
+    scratch.mark_completed();
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    host_status.mark_completed();
     if(operation==RNS8_SUCCESS){const int flag=*static_cast<const int*>(host_status.get());
       operation=flag==0?RNS8_SUCCESS:flag==1?RNS8_INVALID_ARGUMENT:flag==2?RNS8_RANGE_ERROR:RNS8_BACKEND_FAILURE;}
 #endif
@@ -103,6 +105,7 @@ rns8_status rns8_prepare_exact_lift_hip(rns8_context* ctx,rns8_matrix* matrix,
     query.problem.struct_size=sizeof(query.problem);query.problem.abi_version=RNS8_ABI_VERSION;
     query.problem.semantics=matrix->desc.semantics;query.problem.bound_kind=RNS8_BOUND_NONE;query.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     query.problem.m=matrix->desc.rows;query.problem.n=matrix->desc.cols;query.problem.k=1;query.problem.max_prefix=owner->target;
+    query.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF;
     query.source_prefix=owner->source;query.algorithm=options->algorithm;query.scratch_budget=options->max_total_scratch_bytes;
     const auto provider=operation_support(*ctx,query,RNS8_BACKEND_HIP_DIRECT);if(provider.status!=RNS8_SUCCESS)return provider.status;
     const uint64_t needed=owner->target==owner->source?0:query_exact_lift_support(owner->cells,owner->source,owner->target,UINT64_MAX).scratch_bytes;

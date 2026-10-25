@@ -265,6 +265,15 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "examples/device-native/main.cpp"
           ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -780,6 +789,15 @@
             "tools/collect_lift_recipe.py",
             "tools/test_collect_lift_recipe.py"
           ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -952,6 +970,15 @@
             "include/rns8/rns8.hpp",
             "docs/prepared-execution.md"
           ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -971,7 +998,8 @@
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
         "f30d1817b6208f781c64d9169aedf672f96319a0",
         "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
-        "d403c9711b74e51d4d61ecfed365f9681f4103bc"
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc",
+        "c7850412f000a2d1753c5577d14553789e0200de"
       ],
       "remaining": [
         "Compiled resident-graph NativeToRns/BaseExtend/Export node adapters and additional semantics/provider-specific asynchronous integration remain.",

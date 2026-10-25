@@ -529,3 +529,12 @@ regressions cover padded import→GEMM→limb-export stream/graph pipelines, fai
 bound publication, stale generations, budget arithmetic and two shared H2D
 readers completed in reverse order. Execution, HIP compilation, overlap traces,
 performance and platform qualification remain deferred.
+
+Base-extension discovery is a value-preserving transfer contract, not a new
+native GEMM: a short source/target basis is admitted using the current source
+uniqueness proof and concrete owner binding. It does not relax ordinary public
+GEMM plan creation's full-native range floor. The composed prepared-lift fixture
+therefore uses legal prefix17→prefix20 public plans; a separate pure provider
+fixture covers prefix3→prefix9 discovery, missing proof and reversed prefixes.
+Both lift device scratch and pinned status are explicitly pending until checked
+completion/drain. These newly authored/corrected fixtures have not been run.

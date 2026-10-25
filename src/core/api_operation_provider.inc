@@ -14,10 +14,11 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t prefix=d.max_prefix?d.max_prefix:rns8::detail::default_prefix_for_semantics(d.semantics);
   const bool host_transfer=query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_HOST_EXPORT;
   const bool native_transfer=query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_NATIVE_EXPORT;
+  const bool exact_lift=query.operation==RNS8_OP_BASE_EXTEND;
   // Transfer range comes from its bound/current-value proof, not an unrelated
   // full-native GEMM envelope. The concrete owner checks the strict actual bound.
   auto validation_problem=d;uint32_t validation_prefix=prefix;
-  if((host_transfer || native_transfer) && rns8::detail::exact_wide_semantics(d.semantics) && (query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF)){
+  if((exact_lift || ((host_transfer || native_transfer) && (query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))) && rns8::detail::exact_wide_semantics(d.semantics)){
     if(!prefix || prefix>20 || d.k!=1)return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"transfer_shape","transfer query requires K=1 and a concrete 1..20 active basis");
     validation_problem.max_prefix=20;validation_prefix=20;
   }
@@ -60,6 +61,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     case RNS8_OP_PACK:case RNS8_OP_EXPORT:break;
     case RNS8_OP_BASE_EXTEND:
       if((!cpu && !hip) || !rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","exact base extension requires CPU/direct-HIP exact-wide values");
+      if(!(query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"range","base extension requires current source uniqueness proof");
+      if(!query.source_prefix || query.source_prefix>prefix)return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"source_prefix","base extension requires a concrete source no wider than its target");
       if(hip)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH|RNS8_EXEC_GROUP|RNS8_EXEC_DAG;break;
     case RNS8_OP_NATIVE_INTEGRITY:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive || (d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))
