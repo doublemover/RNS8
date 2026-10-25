@@ -120,6 +120,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
   add_test(NAME native_integrity_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_integrity.py")
   add_test(NAME native_interop_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_interop.py")
+  if(TARGET rns8-lift-recipe-calibrate AND RNS8_ENABLE_HIP)
+    foreach(_layout_mode IN ITEMS recipe-packed-full recipe-packed-minimum recipe-layout-model)
+      foreach(_layout_shape IN ITEMS 17-chain-3-i 32-diamond-4-u)
+        add_test(NAME lift_recipe_${_layout_shape}_${_layout_mode}_smoke
+          COMMAND rns8-lift-recipe-calibrate
+            "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/lift-recipe/${_layout_shape}-${_layout_mode}.json"
+            "ctest-${_layout_shape}-${_layout_mode}")
+        set_tests_properties(lift_recipe_${_layout_shape}_${_layout_mode}_smoke PROPERTIES
+          LABELS "hip;layout;recipe;benchmark-smoke" TIMEOUT 120)
+      endforeach()
+    endforeach()
+  endif()
   add_test(NAME lift_recipe_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_lift_recipe.py")
   add_test(NAME bilinear_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_bilinear_calibration.py")
   add_test(NAME rank23_october55_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_october55.py")

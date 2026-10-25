@@ -48,7 +48,7 @@ int main() {
     check(rns8_query_product_materialization_identity(owner.ctx,&desc,nullptr,0,&prices.identity));
     check(prices.identity.admission_status);
     // Illustrative estimates exercise the API; these are not measured timings.
-    std::strcpy(prices.calibration_identity,"installed-CPU-example-synthetic-estimates");
+    {constexpr char label[]="installed-CPU-example-synthetic-estimates";std::copy_n(label,sizeof(label),prices.calibration_identity);}
     std::vector<rns8_product_materialization_node_costs> costs(3);
     for(auto& cost:costs) {
       std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,21,UINT64_MAX);

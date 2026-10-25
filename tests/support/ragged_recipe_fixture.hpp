@@ -5,17 +5,20 @@
 #include "core/hip_resources.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <array>
+#include <algorithm>
 #include <vector>
 namespace ragged_recipe_fixture {
 inline void check(rns8_context* ctx,bool u,bool materialized=false) {
   using boost::multiprecision::cpp_int;constexpr int side=17;const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
   std::array<rns8_matrix*,5> matrices{};rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=semantics;md.bound_kind=RNS8_BOUND_NONE;
   md.rows=side;md.cols=side;md.logical_ld=side;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=20;
-  for(auto& matrix:matrices)REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+  for(size_t i=0;i<matrices.size();++i){md.max_prefix=materialized && i?8:20;REQUIRE(rns8_create_matrix(ctx,&md,&matrices[i])==RNS8_SUCCESS);}
   auto* source=matrices[0];auto* converted=matrices[1];auto* b=matrices[2];std::vector<uint64_t> native(side*side),ones(side*side,1);
   for(int row=0;row<side;++row)for(int col=0;col<side;++col){int64_t x=col<5?0:col<10?1:10000;if(!u && row%2)x=-x;native[row*side+col]=uint64_t(x);}
   const auto pack=[&](rns8_matrix* matrix,const std::vector<uint64_t>& x,uint64_t version){return u?rns8_pack_u64(ctx,matrix,x.data(),side,version):rns8_pack_i64(ctx,matrix,reinterpret_cast<const int64_t*>(x.data()),side,version);};
   REQUIRE(pack(source,native,1)==RNS8_SUCCESS);REQUIRE(pack(b,ones,1)==RNS8_SUCCESS);
+  // A safe conservative source proof can exceed the gathered actual bound.
+  if(materialized)source->exact_max_magnitude=rns8::detail::modulus_product(8);
   rns8_ragged_materialization* ragged=nullptr;REQUIRE(rns8_prepare_ragged_materialization(ctx,source,3,5,UINT64_MAX,&ragged)==RNS8_SUCCESS);
   rns8_ragged_resources rr{};rr.struct_size=sizeof(rr);rr.abi_version=RNS8_ABI_VERSION;REQUIRE(rns8_get_ragged_resources(ragged,&rr)==RNS8_SUCCESS);CHECK(rr.minimum_prefix<rr.maximum_prefix);
   const rns8_matrix* inputs[]{materialized?b:converted,materialized?converted:b};const rns8_product_node nodes[]{{0,1},{2,1},{0,2},{3,4}};const uint32_t outputs[]{3,5};
@@ -36,20 +39,24 @@ inline void check(rns8_context* ctx,bool u,bool materialized=false) {
     }
     rns8_product_materialization_profile profile{};profile.struct_size=sizeof(profile);profile.abi_version=RNS8_ABI_VERSION;
     profile.max_evaluations=64;profile.max_chain_frontier=64;profile.node_count=4;profile.identity=identity;profile.nodes=costs.data();
-    std::strcpy(profile.calibration_identity,"synthetic-ragged-materialization-fixture");
+    {constexpr char label[]="synthetic-ragged-materialization-fixture";std::copy_n(label,sizeof(label),profile.calibration_identity);}
     profile.identity.build_sha256[0]=profile.identity.build_sha256[0]=='0'?'1':'0';
     CHECK(rns8_create_materialized_product_recipe_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&profile,&recipe)==RNS8_INVALID_ARGUMENT);
     CHECK(recipe==nullptr);CHECK(converted->content_generation==original_generation);
     profile.identity=identity;
     REQUIRE(rns8_create_materialized_product_recipe_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&profile,&recipe)==RNS8_SUCCESS);
+    rns8_product_materialization_identity gathered{};gathered.struct_size=sizeof(gathered);gathered.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_product_materialization_identity(ctx,&desc,outputs,2,&gathered)==RNS8_SUCCESS);
+    CHECK(std::strcmp(gathered.graph_sha256,identity.graph_sha256)==0);
+    CHECK(std::equal(std::begin(gathered.minimum_prefixes),std::end(gathered.minimum_prefixes),std::begin(identity.minimum_prefixes)));
     std::array<rns8_product_materialization_choice,4> choices{};
     REQUIRE(rns8_get_product_materialization_choices(recipe,choices.data(),4)==RNS8_SUCCESS);
     for(const auto& choice:choices){CHECK(choice.packed_b==1);CHECK(choice.packed_bytes>0);}
   } else REQUIRE(rns8_create_product_recipe_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&recipe)==RNS8_SUCCESS);
   CHECK(rns8_destroy_ragged_materialization(ragged)==RNS8_BUSY);CHECK(rns8_destroy_matrix(converted)==RNS8_BUSY);
   rns8_product_recipe_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;REQUIRE(rns8_get_product_recipe_resources(recipe,&resources)==RNS8_SUCCESS);
-  CHECK(resources.materialized_input_bytes>=side*side*20);CHECK(resources.ragged_retained_bytes>=rr.payload_bytes+rr.directory_bytes);CHECK(resources.arena_bytes>0);
-  rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.semantics=semantics;gd.bound_kind=RNS8_BOUND_NONE;gd.requested_backend=ctx->backend;gd.m=side;gd.n=side;gd.k=side;gd.max_prefix=20;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;rns8_plan* export_plan=nullptr;REQUIRE(rns8_create_plan(ctx,&gd,&export_plan)==RNS8_SUCCESS);
+  CHECK(resources.materialized_input_bytes>=side*side*(materialized?8:20));CHECK(resources.ragged_retained_bytes>=rr.payload_bytes+rr.directory_bytes);CHECK(resources.arena_bytes>0);
+  rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.semantics=semantics;gd.bound_kind=RNS8_BOUND_NONE;gd.requested_backend=ctx->backend;gd.m=side;gd.n=side;gd.k=side;gd.max_prefix=materialized?8:20;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|(materialized?RNS8_PLAN_EXACT_VALUE_BOUND:0);rns8_plan* export_plan=nullptr;REQUIRE(rns8_create_plan(ctx,&gd,&export_plan)==RNS8_SUCCESS);
   rns8_matrix* destinations[]{matrices[3],matrices[4]};
   auto audit=[&](){std::vector<std::vector<cpp_int>> values(2,std::vector<cpp_int>(side*side));for(size_t i=0;i<native.size();++i){values[materialized?1:0][i]=native[i];if(!u && native[i]>>63)values[materialized?1:0][i]-=cpp_int(1)<<64;values[materialized?0:1][i]=1;}
     for(auto node:nodes){std::vector<cpp_int> value(side*side);for(int r=0;r<side;++r)for(int c=0;c<side;++c)for(int q=0;q<side;++q)value[r*side+c]+=values[node.a][r*side+q]*values[node.b][q*side+c];values.push_back(std::move(value));}

@@ -36,7 +36,7 @@
       "issue": 19,
       "title": "[P2] Bind benchmark provenance to compiled artifacts instead of the runtime checkout HEAD",
       "url": "https://github.com/doublemover/RNS8/issues/19",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Build artifact manifest exists; relevant comment's qualified ISA association remains backend/target inventory fallback with no artifact/symbol match and cross-target fallback.",
       "implementation": [
         {
@@ -65,10 +65,8 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73",
         "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
-      "remaining": [
-        "Regression execution and real artifact/code-object inspection deferred; static association explicitly does not prove dynamic execution."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Closed 2026-10-25 after compiled/source-isolation, dirty-input and mixed-object identity regressions, installed static/shared consumers, artifact-specific ISA association tests and immutable real gfx1100 COFF inspection. See docs/local-validation-20261025.md and metadata/local-validation-20261025.json; static ISA remains distinct from executed work.",
       "dependencies": [
         31,
         55
@@ -185,7 +183,7 @@
       "issue": 29,
       "title": "[Research P1] Define proof-carrying arithmetic and instruction contracts for every representation",
       "url": "https://github.com/doublemover/RNS8/issues/29",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Offline integer certificate/composition checker, distinct verdicts and strict endpoints exist. Plan creation/research dispatch do not yet consume typed certificates, and explicit floating format/scale/reduction-schedule contracts from latest body remain unsupported.",
       "implementation": [
         {
@@ -215,7 +213,7 @@
         "f007bd6717ba115e209165874914e37cdfad48f3"
       ],
       "remaining": [],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Closed after acceptance review of the unchanged certificate/composition/floating sources and their October 25 CPU/ASan/HIP/generated-logical validation. Actual instruction-provider qualification remains with its separate hardware issues.",
       "dependencies": [],
       "deferred_validation": [
         "Written regression cases unexecuted; host-only syntax checked; GPU layout/opcode/execution and performance remain unqualified."
@@ -1071,7 +1069,7 @@
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "in_progress",
+      "state": "implemented_validation_pending_retry",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
       "implementation": [
         {
@@ -1143,6 +1141,16 @@
             "tools/collect_native_calibration.py",
             "benchmarks/native-calibration/paired-columns.json"
           ]
+        },
+        {
+          "summary": "Joint uniform/packed B materialization and prefix planning, incremental shared packing, aligned liveness arena, bounded chain DP and deterministic DAG search; experimental graph/proof/build identity API and ragged producer refresh composition.",
+          "files": [
+            "include/rns8/experimental_product.h",
+            "src/backend_common/product_materialization_plan.hpp",
+            "src/backend_common/residue_layout_gemm.hpp",
+            "src/core/runtime_product_recipe.cpp",
+            "src/core/api_product_recipe_materializations.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1159,17 +1167,24 @@
         "tests/support/product_recipe_outputs_fixture.hpp",
         "tests/unit/test_residue_layout.cpp",
         "tests/differential/test_hip_direct_native_wmma_cases.inc",
-        "tools/test_collect_native_calibration.py"
+        "tools/test_collect_native_calibration.py",
+        "tests/support/product_materialization_fixture.hpp",
+        "tests/support/ragged_recipe_fixture.hpp",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/differential/test_hip_direct_layout_cases.inc",
+        "examples/downstream-cmake/materialized_product_recipe.cpp"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
-        "11ac95b6482386d74e6804d8a854b4629467208f"
+        "11ac95b6482386d74e6804d8a854b4629467208f",
+        "a4ef2b9",
+        "c9e53a2"
       ],
       "remaining": [
-        "Generalized packed/materialization alternatives remain composed with #40; typed NativeToRns/BaseExtend/Export resident-graph adapters are now authored.",
-        "Hardware compilation, authored test execution, independent calibrated stage costs and measured outcomes remain deferred."
+        "Consolidated repair/retry of the new materialization slice, including source-version fixture and installed warnings-as-errors repair.",
+        "Independent calibrated stage prices, held-out complete-route measurements, amortization and peak-memory qualification remain open."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "First batch compiled CPU ASan and full gfx1100; new low-level layout arithmetic and ragged CPU/HIP integration passed. Complete repaired-batch outcomes remain pending.",
       "dependencies": [
         29,
         30,
@@ -2719,5 +2734,18 @@
     "local_correctness_complete": true,
     "performance_campaign_resumed": false,
     "all_research_issues_complete": false
+  },
+  "subsequent_closeout": {
+    "starting_commit": "e31cb71",
+    "additional_closed_issues": [
+      29
+    ],
+    "open_issue_count": 44,
+    "remaining_work": "Materialization implementation and issue-specific qualification in progress; hardware deferrals preserved.",
+    "additional_closed": [
+      29,
+      19
+    ],
+    "remaining_open_count": 43
   }
 }

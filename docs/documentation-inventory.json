@@ -3469,6 +3469,7 @@
         "dependency-proven-arena-reuse",
         "explicit-current-value-fixed-basis-plans",
         "layout-aware-materialization-primitives",
+        "matched-materialization-controls",
         "offline-typed-recipe-admission",
         "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]

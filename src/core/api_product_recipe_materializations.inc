@@ -1,4 +1,5 @@
 namespace {
+struct ProductInputProjection {const rns8_matrix* source=nullptr;boost::multiprecision::cpp_int bound=0;};
 bool materialization_text(const char* text,size_t size){return std::memchr(text,0,size)!=nullptr;}
 std::string product_materialization_build() {
   std::string value="rns8-product-materialization-v1;";
@@ -11,7 +12,7 @@ std::string product_materialization_build() {
 }
 rns8_status product_materialization_identity(rns8_context* ctx,const rns8_product_recipe_desc* desc,
     const std::vector<uint32_t>& outputs,rns8_product_materialization_identity& identity,
-    const std::vector<const rns8_matrix*>* projected=nullptr) {
+    const std::vector<ProductInputProjection>* projected=nullptr) {
   using namespace rns8::detail;using namespace rns8::detail::api;
   if(!ctx || !desc || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
       !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count>4096 ||
@@ -33,7 +34,8 @@ rns8_status product_materialization_identity(rns8_context* ctx,const rns8_produc
   add(std::to_string(desc->input_count));add(std::to_string(desc->node_count));
   for(uint32_t i=0;i<desc->input_count;++i) {
     const auto* input=desc->inputs[i];if(!input)return RNS8_INVALID_ARGUMENT;
-    const auto* source=projected && (*projected)[i]?(*projected)[i]:input;
+    const auto* source=projected && (*projected)[i].source?(*projected)[i].source:input;
+    const auto& bound=source!=input?(*projected)[i].bound:input->exact_max_magnitude;
     if(input->in_flight_writer)return RNS8_BUSY;
     if(input->backend!=ctx->backend || input->desc.semantics!=first->desc.semantics || input->prefix!=prefix ||
         !exact_wide_semantics(input->desc.semantics) || input->generation_exhausted ||
@@ -42,10 +44,11 @@ rns8_status product_materialization_identity(rns8_context* ctx,const rns8_produc
         (ctx->backend==RNS8_BACKEND_HIP_DIRECT && input->hip_device_id!=ctx->device_id))return RNS8_INVALID_ARGUMENT;
     if(source->exact_range_prefix<source->prefix || source->exact_max_magnitude<0 ||
         !exact_range_fits(source->desc.semantics,source->exact_max_magnitude,recipe_basis(*source)->products[source->prefix]) ||
-        !exact_range_fits(input->desc.semantics,source->exact_max_magnitude,basis->products[prefix]))return RNS8_RANGE_ERROR;
+        bound<0 || bound>source->exact_max_magnitude ||
+        !exact_range_fits(input->desc.semantics,bound,basis->products[prefix]))return RNS8_RANGE_ERROR;
     shapes.push_back({input->desc.rows,input->desc.cols});
-    bounds.push_back(source->exact_max_magnitude);
-    add(std::to_string(input->desc.rows));add(std::to_string(input->desc.cols));add(source->exact_max_magnitude.str());
+    bounds.push_back(bound);
+    add(std::to_string(input->desc.rows));add(std::to_string(input->desc.cols));add(bound.str());
   }
   for(uint32_t i=0;i<desc->node_count;++i){nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});add(std::to_string(nodes.back().a));add(std::to_string(nodes.back().b));}
   const auto arena=plan_product_arena(shapes,nodes,prefix,UINT64_MAX,{},outputs);
@@ -129,13 +132,16 @@ rns8_status ragged_materialization_identity(rns8_context* ctx,const rns8_product
   if(!ctx || !desc || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
       !desc->inputs || !desc->input_count || desc->input_count>4096 || !bindings || !count || count>desc->input_count)
     return RNS8_INVALID_ARGUMENT;
-  std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count),projected(desc->input_count,nullptr);
+  std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count);
+  std::vector<ProductInputProjection> projected(desc->input_count);
   std::vector<rns8_ragged_recipe_binding> adapted(bindings,bindings+count);RaggedRecipeResources resources;
   auto status=ragged_recipe_preflight(ctx,inputs,adapted,budget,resources);if(status!=RNS8_SUCCESS)return status;
   for(const auto& binding:adapted) {
-    uint64_t retained=0,capacity=0;
-    status=ragged_recipe_binding_info(ctx,binding.source,projected[binding.input_index],retained,capacity);
+    uint64_t retained=0,capacity=0,words[3]{};auto& fact=projected[binding.input_index];
+    status=ragged_recipe_binding_info(ctx,binding.source,fact.source,retained,capacity,words);
     if(status!=RNS8_SUCCESS)return status;
+    fact.bound=boost::multiprecision::cpp_int(words[0])+(boost::multiprecision::cpp_int(words[1])<<64)+
+        (boost::multiprecision::cpp_int(words[2])<<128);
   }
   return product_materialization_identity(ctx,desc,outputs,identity,&projected);
 }

@@ -85,6 +85,10 @@ the 16x16 packed B consumer, and refresh can replace it with a 5x3 producer.
 The shared ragged budget also charges retained source owners, conversion
 destinations and peak gather scratch. Source mutation invalidates replay until
 an explicit successful refresh; the recipe retains every borrowed owner.
+The projected bound is the ragged owner's certified gathered magnitude, which
+can be tighter than its source matrix's conservative envelope. Query and
+post-gather identities therefore agree even when a narrower destination would
+not fit the original envelope.
 
 Authored fixtures cover chain and diamond selection versus exhaustive tiny
 domains, hard budgets, growth/reuse, arena interference, unknown/overflowing
@@ -96,6 +100,31 @@ allocation counters. The installed
 checks the exported header/functions with static and shared linkage. Functional
 execution and measured qualification of this new slice remain pending its
 consolidated validation batch.
+
+### Matched materialization controls
+
+The existing `rns8-lift-recipe-calibrate` driver adds `recipe-packed-full`,
+`recipe-packed-minimum` and `recipe-layout-model`. They use the resident recipe
+executor with the same final full-prefix three-limb output and independent
+integer audit as `manual-full`, `recipe-full` and `recipe-minimum`. Full packed
+preserves every compute prefix; minimum packed forces the packed consumer while
+allowing prefix choices; layout model also allows uniform consumers.
+
+The model's integer prices are explicit analytical work estimates, not measured
+stage calibration. Captures identify that model as unqualified. The v2 capture
+requires a materialization receipt (null for other modes): selected packed
+operands, unique view capacities/lifetimes/arena offsets, packing calls, search
+scope and estimated cost. The collector independently replays packing growth,
+prefix lifting and the cost trace, checks tile padding, interference and the hard
+retained budget, and rejects omitted or inconsistent receipts. Old v1 captures
+are not silently reinterpreted.
+
+Small signed chain and unsigned diamond CTest cases exercise all three routes;
+the 128x128 chain files support a larger sustained comparison. Existing
+collection records setup, first call, production p50/p95, sustained completed
+calls, export, exact audit and replay allocation counters. Compare matching
+manual/compiled cases and charge setup amortization; these controls alone do
+not supply held-out measured stage prices or a qualified speedup.
 
 Explicit ordered experimental bases are supported by the CPU/direct-HIP product
 recipe executor, including minimum-prefix lifting and multiple outputs. Every

@@ -10,15 +10,17 @@ rns8_status ragged_recipe_preflight(rns8_context* ctx,const std::vector<const rn
   for(const auto& binding:bindings){auto* target=binding.destination;
     if(!target || !binding.source || binding.input_index>=inputs.size() || inputs[binding.input_index]!=target ||
         !indices.insert(binding.input_index).second || !destinations.insert(target).second)return RNS8_INVALID_ARGUMENT;
-    const rns8_matrix* source=nullptr;uint64_t retained=0,capacity=0;
-    auto status=ragged_recipe_binding_info(ctx,binding.source,source,retained,capacity);if(status!=RNS8_SUCCESS)return status;
+    const rns8_matrix* source=nullptr;uint64_t retained=0,capacity=0,words[3]{};
+    auto status=ragged_recipe_binding_info(ctx,binding.source,source,retained,capacity,words);if(status!=RNS8_SUCCESS)return status;
     sources.insert(source);
     if(target==source || target->backend!=ctx->backend || target->desc.semantics!=source->desc.semantics || target->desc.rows!=source->desc.rows || target->desc.cols!=source->desc.cols ||
         !target->prefix || target->prefix>20 || (ctx->backend==RNS8_BACKEND_HIP_DIRECT && target->hip_device_id!=ctx->device_id) ||
         !rns_matrix_storage_matches(*target,ctx->backend,target->desc.rows,target->desc.cols,target->prefix))return RNS8_INVALID_ARGUMENT;
     if(target->in_flight_writer || target->in_flight_readers)return RNS8_BUSY;
     if(target->generation_exhausted || target->content_generation==UINT64_MAX)return RNS8_RANGE_ERROR;
-    if(!exact_range_fits(target->desc.semantics,source->exact_max_magnitude,modulus_product(target->prefix)))return RNS8_RANGE_ERROR;
+    const boost::multiprecision::cpp_int bound=boost::multiprecision::cpp_int(words[0])+
+        (boost::multiprecision::cpp_int(words[1])<<64)+(boost::multiprecision::cpp_int(words[2])<<128);
+    if(!exact_range_fits(target->desc.semantics,bound,modulus_product(target->prefix)))return RNS8_RANGE_ERROR;
     rns8_matrix_allocation_info allocation{};allocation.struct_size=sizeof(allocation);allocation.abi_version=RNS8_ABI_VERSION;
     status=rns8_get_matrix_allocation_info(target,&allocation);if(status!=RNS8_SUCCESS)return status;
     if(!add(resources.inputs,allocation.host_payload_capacity_bytes) || !add(resources.inputs,allocation.device_total_capacity_bytes))return RNS8_RANGE_ERROR;

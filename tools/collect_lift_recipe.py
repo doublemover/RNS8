@@ -12,7 +12,8 @@ from collect_native_calibration import strict_json
 from collect_native_integrity import MODULI, positive
 from collect_native_interop import quantile
 
-MODES=('recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-auto','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
+MATERIALIZED_MODES=('recipe-packed-full','recipe-packed-minimum','recipe-layout-model')
+MODES=(*MATERIALIZED_MODES,'recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-auto','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
 
 
 def graph(c):
@@ -45,7 +46,7 @@ def validate_case(c):
 
 def validate_capture(c,entry):
     case=validate_case(entry['case']);mode=case['mode'];lift=mode.startswith('lift-');single=lift or mode=='wider-producer';cells=case['side']**2;nodes=len(graph(case));p=case['prefix']
-    fixed=dict(schema='rns8_lift_recipe_microcase_v1',case=case,run_id=entry['run_id'],output_boundary='one_product_full_prefix_final_three_limb_export' if single else 'complete_dag_final_three_limb_export',
+    fixed=dict(schema='rns8_lift_recipe_microcase_v2',case=case,run_id=entry['run_id'],output_boundary='one_product_full_prefix_final_three_limb_export' if single else 'complete_dag_final_three_limb_export',
         extra_intermediate_observations=mode=='eager-observe',private_residue_transfer_control=mode=='lift-cpu-roundtrip',logical_payload_estimate_bytes=(nodes+3)*cells*p+cells*48*(nodes+1)+cells*16,
         host_payload_bytes_before_final_export=cells*p if mode=='lift-cpu-roundtrip' else 0,final_export_payload_bytes=cells*24,exact_reference_passed=True,promotion_eligible=False)
     for key,value in fixed.items():
@@ -66,6 +67,8 @@ def validate_capture(c,entry):
         if type(selected_prefix) is not int or not 1<=selected_prefix<=p or math.prod(MODULI[:selected_prefix])<=bounds(case)[i+2]*factor:raise ValueError('independent selected range')
     model=c.get('cost_model')
     expected_model=dict(kind='explicit-unqualified-analytical-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',qualified=False) if mode=='recipe-cost-model' else None
+    if mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v1',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',qualified=False)
+    validate_materializations(c,case,selected)
     if model!=expected_model:raise ValueError('unqualified cost model identity')
     if not positive(c.get('setup_us')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup')
     for s in [c.get('first_call',{}),*c['samples']]:
@@ -76,6 +79,54 @@ def validate_capture(c,entry):
         count=s.get('calls');duration=s.get('total_us')
         if type(count) is not int or not 16<=count<=4096 or not positive(duration) or (duration<250000 and count!=4096) or not math.isclose(s.get('per_call_us',-1),duration/count,rel_tol=1e-7):raise ValueError('sustained boundary')
     return c
+
+
+def validate_materializations(c,case,selected):
+    if 'materialization_plan' not in c:raise ValueError('materialization receipt missing')
+    plan=c['materialization_plan']
+    if case['mode'] not in MATERIALIZED_MODES:
+        if plan is not None:raise ValueError('unrequested materialization receipt')
+        return
+    if type(plan) is not dict or set(plan)!={'packed_b','packed_values','evaluated','exhaustive','chain_dynamic_programming','cost_optimal','estimated_ns','completed_packing_calls'}:raise ValueError('materialization ABI')
+    nodes=graph(case);flags=plan['packed_b'];views=plan['packed_values']
+    if type(flags) is not list or len(flags)!=len(nodes) or any(type(x) is not int or x not in (0,1) for x in flags):raise ValueError('packed choice')
+    if case['mode']!='recipe-layout-model' and flags!=[1]*len(nodes):raise ValueError('forced packed control')
+    if case['mode']=='recipe-packed-full' and selected!=[case['prefix']]*len(nodes):raise ValueError('full packed prefix')
+    for key in ('exhaustive','chain_dynamic_programming','cost_optimal'):
+        if type(plan[key]) is not bool:raise ValueError('search scope')
+    if type(plan['evaluated']) is not int or not 1<=plan['evaluated']<=4096 or type(plan['estimated_ns']) is not int or not 0<=plan['estimated_ns']<2**64-1:raise ValueError('search cost/evaluations')
+    if type(views) is not list:raise ValueError('packed views')
+    expected={};current={};calls=0;raw=[case['prefix'],case['prefix']]+[0]*len(nodes);cost=0
+    cells=case['side']**2;launch=case['model_launch_ns']
+    def demand(value,p):
+        nonlocal cost
+        if value>=2 and raw[value]<p:cost+=3*launch+cells*raw[value]*p;raw[value]=p
+    for i,((_,b),p,flag) in enumerate(zip(nodes,selected,flags)):
+        demand(nodes[i][0],p)
+        if not flag:
+            demand(b,p);cost+=launch+cells*case['side']*p;raw[i+2]=p;continue
+        if current.get(b,0)<p:
+            demand(b,p);cost+=launch+2*cells*(p-current.get(b,0))
+        cost+=launch+cells*((case['side']+3)//4)*p;raw[i+2]=p
+        if b not in expected:expected[b]=dict(value_id=b,capacity_prefix=p,first_reader=i,last_reader=i)
+        expected[b]['capacity_prefix']=max(expected[b]['capacity_prefix'],p);expected[b]['last_reader']=i
+        if current.get(b,0)<p:current[b]=p;calls+=1
+    demand(len(nodes)+1,case['prefix'])
+    if plan['estimated_ns']!=cost:raise ValueError('materialization cost trace')
+    if type(plan['completed_packing_calls']) is not int or plan['completed_packing_calls']!=calls or len(views)!=len(expected):raise ValueError('packing reuse/growth')
+    seen=set();tile_cells=((case['side']+15)//16*16)**2;arena=c['recipe_arena_bytes']
+    for view in views:
+        if type(view) is not dict or set(view)!={'value_id','capacity_prefix','first_reader','last_reader','bytes','arena_offset'} or any(type(v) is not int for v in view.values()):raise ValueError('view ABI')
+        value=view['value_id']
+        if value in seen or value not in expected or any(view[k]!=v for k,v in expected[value].items()):raise ValueError('view demand/lifetime')
+        seen.add(value)
+        if view['bytes']!=tile_cells*view['capacity_prefix'] or view['arena_offset']<0 or view['arena_offset']%256 or view['arena_offset']+view['bytes']>arena:raise ValueError('packed capacity/budget')
+    for i,a in enumerate(views):
+        for b in views[i+1:]:
+            simultaneous=a['first_reader']<=b['last_reader'] and b['first_reader']<=a['last_reader']
+            overlaps=a['arena_offset']<b['arena_offset']+b['bytes'] and b['arena_offset']<a['arena_offset']+a['bytes']
+            if simultaneous and overlaps:raise ValueError('packed reader interference')
+    if c['recipe_arena_bytes']+c['recipe_retained_lift_bytes']>case['max_payload_bytes']-c['logical_payload_estimate_bytes']:raise ValueError('retained recipe budget')
 
 
 def summarize(observations):

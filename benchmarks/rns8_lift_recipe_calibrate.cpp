@@ -19,7 +19,8 @@ int main(int argc,char** argv){try {
       repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),model_launch=number(c,"model_launch_ns",0,1000000000);
   const uint64_t budget=number(c,"max_payload_bytes",64,UINT64_C(1)<<40);const bool u=c.at("unsigned_inputs");const std::string mode=c.at("mode"),shape=c.at("topology");
   const bool lift=mode.rfind("lift-",0)==0,recipe=mode.rfind("recipe-",0)==0,ragged=mode=="recipe-ragged-full" || mode=="recipe-ragged-minimum",eager=mode=="eager-observe",cpu_lift=mode=="lift-cpu-roundtrip";
-  if((shape!="chain" && shape!="diamond") || (mode!="recipe-ragged-full" && mode!="recipe-ragged-minimum" && mode!="recipe-full" && mode!="recipe-minimum" && mode!="recipe-cost-model" && mode!="manual-full" && mode!="manual-auto" && !eager &&
+  const bool materialized=mode=="recipe-packed-full" || mode=="recipe-packed-minimum" || mode=="recipe-layout-model";
+  if((shape!="chain" && shape!="diamond") || (mode!="recipe-ragged-full" && mode!="recipe-ragged-minimum" && mode!="recipe-full" && mode!="recipe-minimum" && mode!="recipe-cost-model" && mode!="manual-full" && mode!="manual-auto" && !eager && !materialized &&
       mode!="lift-wide" && mode!="lift-mixed" && mode!="lift-graph" && !cpu_lift && mode!="wider-producer") || (lift && shape!="chain"))throw std::invalid_argument("route/topology");
   const uint64_t cells=uint64_t(side)*side;const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
   std::vector<ProductNode> nodes;if(shape=="chain"){for(unsigned i=0;i<depth;++i)nodes.push_back({i?i+1:0,1});}
@@ -40,7 +41,7 @@ int main(int argc,char** argv){try {
   auto matrix=[&](rns8_context* context,rns8_matrix** out){rns8_matrix_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=semantics;d.bound_kind=RNS8_BOUND_NONE;d.rows=side;d.cols=side;d.logical_ld=side;d.logical_layout=RNS8_LAYOUT_ROW_MAJOR;d.max_prefix=prefix;check(rns8_create_matrix(context,&d,out));};
   const auto setup_begin=Clock::now();check(rns8_create_context(0,&co,&ctx));create_plan(ctx,prefix,true,&fixed,&fixed_work);create_plan(ctx,prefix,false,&adaptive,&auto_work);create_plan(ctx,source,true,&producer,&producer_work);
   for(auto& m:matrices)matrix(ctx,&m);for(unsigned i=0;i<2;++i)check(u?rns8_pack_u64(ctx,matrices[i],ones.data(),side,1):rns8_pack_i64(ctx,matrices[i],reinterpret_cast<const int64_t*>(ones.data()),side,1));
-  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0;json cost_model=nullptr;
+  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0;json cost_model=nullptr,materialization_plan=nullptr;
   if(ragged){matrix(ctx,&ragged_converted);check(rns8_prepare_ragged_materialization(ctx,matrices[0],3,5,budget-known_payload,&ragged_source));inputs[0]=ragged_converted;
     std::vector<rns8_product_node> public_nodes;for(auto node:nodes)public_nodes.push_back({node.a,node.b});rns8_product_recipe_desc descriptor{};descriptor.struct_size=sizeof(descriptor);descriptor.abi_version=RNS8_ABI_VERSION;
     descriptor.inputs=inputs.data();descriptor.input_count=inputs.size();descriptor.nodes=public_nodes.data();descriptor.node_count=public_nodes.size();descriptor.prefix_policy=mode=="recipe-ragged-full"?RNS8_PRODUCT_FULL_PREFIX:RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;descriptor.max_arena_and_lift_bytes=budget-known_payload;
@@ -49,11 +50,23 @@ int main(int argc,char** argv){try {
     ragged_retained=resources.ragged_retained_bytes;ragged_input_bytes=resources.materialized_input_bytes;ragged_peak=resources.materialization_peak_bytes;
     std::vector<uint32_t> prefixes(nodes.size());check(rns8_get_product_recipe_prefixes(ragged_recipe,prefixes.data(),prefixes.size()));selected=prefixes;
   }
-  else if(recipe){ProductCostProfile costs;const ProductCostProfile* chosen=nullptr;
-    if(mode=="recipe-cost-model"){costs.backend=ctx->backend;costs.semantics=semantics;costs.target=ctx->device_info.gcn_arch;costs.provenance="explicit-unqualified-analytical-work-model-v2";costs.graph_key=product_graph_key({{side,side},{side,side}},nodes,prefix);costs.nodes.resize(nodes.size());
+  else if(recipe){ProductCostProfile costs;ProductMaterializationProfile layouts;const ProductCostProfile* chosen=nullptr;const ProductMaterializationProfile* layout_prices=nullptr;
+    if(mode=="recipe-cost-model" || materialized){costs.backend=ctx->backend;costs.semantics=semantics;costs.target=ctx->device_info.gcn_arch;costs.provenance="explicit-unqualified-analytical-work-model-v2";costs.graph_key=product_graph_key({{side,side},{side,side}},nodes,prefix);costs.nodes.resize(nodes.size());
       for(auto& row:costs.nodes)for(unsigned p=1;p<=prefix;++p){row.gemm[p]=model_launch+cells*side*p;for(unsigned q=p;q<=prefix;++q)row.lift[p*21+q]=q==p?0:3*uint64_t(model_launch)+cells*(uint64_t(p)*p+(q-p)*p);}
       chosen=&costs;cost_model={{"kind",costs.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},{"qualified",false}};}
-    check(RuntimeProductRecipe::create(ctx,inputs,nodes,budget-known_payload,owner,mode!="recipe-full",chosen));arena_bytes=owner->allocation().arena_bytes;lift_bytes=owner->lift_scratch_bytes();selected=owner->compute_prefixes();}
+    if(materialized) {
+      layouts.uniform=costs;layouts.uniform.provenance="explicit-unqualified-layout-work-model-v1";layouts.packed.resize(nodes.size());
+      for(size_t i=0;i<nodes.size();++i)for(unsigned p=1;p<=prefix;++p) {
+        layouts.packed[i].gemm[p]=model_launch+cells*((side+3)/4)*p;
+        for(unsigned old=0;old<p;++old)layouts.packed[i].pack[old*21+p]=model_launch+2*cells*(p-old);
+        if(mode!="recipe-layout-model")layouts.uniform.nodes[i].gemm[p]=UINT64_MAX;
+      }
+      chosen=nullptr;layout_prices=&layouts;
+      cost_model={{"kind",layouts.uniform.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},
+          {"packed_gemm_units","one_ns_per_four_term_group"},{"pack_units","one_ns_per_logical_byte_read_or_write"},{"qualified",false}};
+    }
+    check(RuntimeProductRecipe::create(ctx,inputs,nodes,budget-known_payload,owner,
+        mode!="recipe-full" && mode!="recipe-packed-full",chosen,{},layout_prices));arena_bytes=owner->allocation().arena_bytes;lift_bytes=owner->lift_scratch_bytes();selected=owner->compute_prefixes();}
   if(lift){check(rns8_gemm_rns(ctx,producer,matrices[0],matrices[1],matrices[2],producer_work));
     if(cpu_lift){co.requested_backend=RNS8_BACKEND_CPU_REFERENCE;check(rns8_create_context(-1,&co,&cpu));matrix(cpu,&host_matrix);}
     else{rns8_exact_lift_options o{};o.struct_size=sizeof(o);o.abi_version=RNS8_ABI_VERSION;o.target_prefix=prefix;o.algorithm=mode=="lift-wide"?0:1;o.max_total_scratch_bytes=budget-known_payload;check(rns8_prepare_exact_lift_hip(ctx,matrices[2],&o,&prepared_lift));if(mode=="lift-graph")check(rns8_capture_prepared_hip_graph(prepared_lift));}}
@@ -93,11 +106,21 @@ int main(int argc,char** argv){try {
   auto first=invoke();audit();for(unsigned i=0;i<warmups;++i)invoke();const auto before=hip_direct_allocation_counters_snapshot();json samples=json::array();for(unsigned i=0;i<repeats;++i){samples.push_back(invoke());audit();}const auto after=hip_direct_allocation_counters_snapshot();
   json sustained=json::array();for(unsigned i=0;i<3;++i){unsigned count=0;const auto begin=Clock::now();do{invoke();++count;}while(count<4096 && (count<16 || us(begin,Clock::now())<250000));const double elapsed=us(begin,Clock::now());audit();sustained.push_back({{"calls",count},{"total_us",elapsed},{"per_call_us",elapsed/count}});}
   const uint64_t retained_auto=auto_work->exact_auto_scratch_owner.bytes();const std::string target=ctx->device_info.gcn_arch,device=ctx->device_info.name;const int runtime=ctx->device_info.hip_runtime_version;
+  if(materialized) {
+    const auto& plan=owner->materialization_selection();json packed=json::array();
+    for(size_t id=0;id<plan.packed.size();++id)if(plan.packed[id].used) {
+      const auto& view=plan.packed[id];packed.push_back({{"value_id",id},{"capacity_prefix",view.layout.prefix},
+          {"first_reader",view.first},{"last_reader",view.last},{"bytes",view.layout.bytes},{"arena_offset",view.offset}});
+    }
+    materialization_plan={{"packed_b",plan.packed_b},{"packed_values",packed},{"evaluated",plan.evaluated},
+        {"exhaustive",plan.exhaustive},{"chain_dynamic_programming",plan.chain_dynamic_programming},{"cost_optimal",plan.cost_optimal},
+        {"estimated_ns",plan.estimated_ns},{"completed_packing_calls",owner->completed_packing_calls()}};
+  }
   if(owner)check(owner->close());owner.reset();if(ragged_recipe)check(rns8_destroy_product_recipe(ragged_recipe));if(ragged_source)check(rns8_destroy_ragged_materialization(ragged_source));if(ragged_converted)check(rns8_destroy_matrix(ragged_converted));if(prepared_lift)check(rns8_destroy_prepared_execution(prepared_lift));if(host_matrix)check(rns8_destroy_matrix(host_matrix));if(cpu)check(rns8_destroy_context(cpu));for(auto* m:matrices)check(rns8_destroy_matrix(m));
   for(auto* w:{fixed_work,auto_work,producer_work})check(rns8_destroy_workspace(w));for(auto* p:{fixed,adaptive,producer})check(rns8_destroy_plan(p));check(rns8_destroy_context(ctx));
-  std::cout<<json({{"schema","rns8_lift_recipe_microcase_v1"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",target},{"device",device},{"runtime_version",runtime},
+  std::cout<<json({{"schema","rns8_lift_recipe_microcase_v2"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",target},{"device",device},{"runtime_version",runtime},
     {"output_boundary",lift || mode=="wider-producer"?"one_product_full_prefix_final_three_limb_export":"complete_dag_final_three_limb_export"},{"extra_intermediate_observations",eager},{"private_residue_transfer_control",cpu_lift},{"logical_payload_estimate_bytes",known_payload},
-    {"ragged_retained_bytes",ragged_retained},{"ragged_materialized_input_bytes",ragged_input_bytes},{"ragged_binding_peak_bytes",ragged_peak},{"recipe_arena_bytes",arena_bytes},{"recipe_retained_lift_bytes",lift_bytes},{"auto_retained_device_bytes",retained_auto},{"selected_compute_prefixes",selected},{"cost_model",cost_model},
+    {"ragged_retained_bytes",ragged_retained},{"ragged_materialized_input_bytes",ragged_input_bytes},{"ragged_binding_peak_bytes",ragged_peak},{"recipe_arena_bytes",arena_bytes},{"recipe_retained_lift_bytes",lift_bytes},{"auto_retained_device_bytes",retained_auto},{"selected_compute_prefixes",selected},{"cost_model",cost_model},{"materialization_plan",materialization_plan},
     {"host_payload_bytes_before_final_export",cpu_lift?cells*prefix:0},{"final_export_payload_bytes",cells*24},{"replay_hip_allocations",after.allocate_calls-before.allocate_calls},{"replay_hip_frees",after.free_calls-before.free_calls},
     {"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},{"exact_reference_passed",true},{"promotion_eligible",false}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

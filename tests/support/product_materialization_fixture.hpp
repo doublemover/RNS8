@@ -24,11 +24,11 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       rns8_plan* export_plan=nullptr;rns8_basis_plan* basis_plan=nullptr;
       if(experimental)basis_plan=experimental_basis_fixture::plan(ctx,basis,semantics,2,2,2,20);
       else REQUIRE(rns8_create_plan(ctx,&gd,&export_plan)==RNS8_SUCCESS);
-      const auto pack=[&](unsigned index) {
+      const auto pack=[&](unsigned index,uint64_t version=1) {
         const uint64_t v=index?3:2;const uint64_t words[]{v,0,99,0,v,99};
-        if(semantics==RNS8_EXACT_WIDE_UNSIGNED)return experimental?rns8_pack_basis_u64(basis_plan,matrices[index],words,3,1):rns8_pack_u64(ctx,matrices[index],words,3,1);
-        return experimental?rns8_pack_basis_i64(basis_plan,matrices[index],reinterpret_cast<const int64_t*>(words),3,1):
-            rns8_pack_i64(ctx,matrices[index],reinterpret_cast<const int64_t*>(words),3,1);
+        if(semantics==RNS8_EXACT_WIDE_UNSIGNED)return experimental?rns8_pack_basis_u64(basis_plan,matrices[index],words,3,version):rns8_pack_u64(ctx,matrices[index],words,3,version);
+        return experimental?rns8_pack_basis_i64(basis_plan,matrices[index],reinterpret_cast<const int64_t*>(words),3,version):
+            rns8_pack_i64(ctx,matrices[index],reinterpret_cast<const int64_t*>(words),3,version);
       };
       REQUIRE(pack(0)==RNS8_SUCCESS);REQUIRE(pack(1)==RNS8_SUCCESS);
       const rns8_matrix* inputs[]{matrices[0],matrices[1]};
@@ -39,7 +39,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes.data();desc.node_count=static_cast<uint32_t>(nodes.size());desc.max_arena_and_lift_bytes=UINT64_MAX;
       rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
       prices.node_count=desc.node_count;prices.max_evaluations=4096;prices.max_chain_frontier=256;
-      std::strcpy(prices.calibration_identity,"synthetic-correctness-only-profile");
+      {constexpr char label[]="synthetic-correctness-only-profile";std::copy_n(label,sizeof(label),prices.calibration_identity);}
       prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
       REQUIRE(rns8_query_product_materialization_identity(ctx,&desc,outputs.data(),2,&prices.identity)==RNS8_SUCCESS);
       REQUIRE(prices.identity.admission_status==RNS8_SUCCESS);CHECK(prices.identity.blocking_node==UINT32_MAX);
@@ -88,7 +88,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
           }
         }
       }
-      REQUIRE(pack(0)==RNS8_SUCCESS);const auto generation=matrices[2]->content_generation;
+      REQUIRE(pack(0,2)==RNS8_SUCCESS);const auto generation=matrices[2]->content_generation;
       CHECK(rns8_execute_product_recipe_outputs(recipe,destinations.data(),2)==RNS8_INVALID_ARGUMENT);
       CHECK(matrices[2]->content_generation==generation);
       REQUIRE(rns8_rebind_product_recipe_inputs(recipe,inputs,2)==RNS8_SUCCESS);

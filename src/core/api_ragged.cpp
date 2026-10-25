@@ -264,7 +264,7 @@ rns8_status rns8::detail::api::drain_failed_ragged_cleanup(rns8_context& ctx) {
 
 
 rns8_status rns8::detail::ragged_recipe_binding_info(rns8_context* ctx,const rns8_ragged_materialization* owner,
-    const rns8_matrix*& source,uint64_t& retained,uint64_t& capacity) {
+    const rns8_matrix*& source,uint64_t& retained,uint64_t& capacity,uint64_t* exact_magnitude_words) {
   if(!ctx || !owner || owner->ctx!=ctx || owner->cleanup_started)return RNS8_INVALID_ARGUMENT;
   if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
   if(owner->pending || owner->active_output || owner->source->in_flight_writer)return RNS8_BUSY;
@@ -276,6 +276,13 @@ rns8_status rns8::detail::ragged_recipe_binding_info(rns8_context* ctx,const rns
   if(!add(owner->device_payload?owner->layout.bytes:owner->host.capacity()) ||
       !add(owner->device_directory?owner->layout.tiles.size()*sizeof(RaggedResidueTile):0) ||
       !add(owner->device_status?sizeof(int):0) || !add(owner->staged_output?owner->staged_capacity:0))return RNS8_RANGE_ERROR;
+  if(exact_magnitude_words) {
+    cpp_int magnitude=owner->bound;const cpp_int mask=(cpp_int(1)<<64)-1;uint64_t words[3]{};
+    if(magnitude<0)return RNS8_RANGE_ERROR;
+    for(auto& word:words){word=(magnitude&mask).convert_to<uint64_t>();magnitude>>=64;}
+    if(magnitude!=0)return RNS8_RANGE_ERROR;
+    std::copy_n(words,3,exact_magnitude_words);
+  }
   capacity=owner->staged_output?owner->staged_capacity:0;return RNS8_SUCCESS;
 }
 rns8_status rns8::detail::retain_ragged_recipe_binding(rns8_ragged_materialization* owner) {

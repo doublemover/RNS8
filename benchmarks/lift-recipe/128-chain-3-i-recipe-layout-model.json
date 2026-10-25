@@ -1,0 +1,14 @@
+{
+  "schema": "lift_recipe_case_v1",
+  "side": 128,
+  "depth": 3,
+  "prefix": 20,
+  "source_prefix": 1,
+  "repeats": 9,
+  "warmups": 3,
+  "model_launch_ns": 5000,
+  "max_payload_bytes": 1073741824,
+  "unsigned_inputs": false,
+  "mode": "recipe-layout-model",
+  "topology": "chain"
+}
