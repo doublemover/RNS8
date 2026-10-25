@@ -152,6 +152,42 @@
   print_target_variant_json(args, info, result, selected_backend);
   print_auto_selector_json(args, info, result, selected_backend);
   print_device_allocation_json(args, result);
+  std::cout << "  \"hipblaslt_metadata\": {\n";
+  std::cout << "    \"abi_version\": 1, \"policy\": \"" << (args.hipblaslt_metadata_per_block_control ? "per_block_control" : "per_call_distinct_geometry") << "\",\n";
+  std::cout << "    \"scope\": \"calling_thread_library_API_attempt_counts_not_allocator_bytes_or_device_work\",\n";
+  std::cout << "    \"cross_call_raw_descriptor_retention\": false,\n";
+  auto print_metadata_counters=[](const rns8::detail::HipblasLtMetadataCounters& v) {
+    std::cout << "{";
+    std::cout << "\"descriptor_create_calls\":" << v.descriptor_create_calls << ",";
+    std::cout << "\"descriptor_destroy_calls\":" << v.descriptor_destroy_calls << ",";
+    std::cout << "\"attribute_set_calls\":" << v.attribute_set_calls << ",";
+    std::cout << "\"preference_create_calls\":" << v.preference_create_calls << ",";
+    std::cout << "\"preference_destroy_calls\":" << v.preference_destroy_calls << ",";
+    std::cout << "\"preference_attribute_calls\":" << v.preference_attribute_calls << ",";
+    std::cout << "\"heuristic_calls\":" << v.heuristic_calls << ",";
+    std::cout << "\"algorithm_cache_hits\":" << v.algorithm_cache_hits << ",";
+    std::cout << "\"descriptor_set_hits\":" << v.descriptor_set_hits << ",";
+    std::cout << "\"descriptor_sets_created\":" << v.descriptor_sets_created << ",";
+    std::cout << "\"matmul_block_calls\":" << v.matmul_block_calls << ",";
+    std::cout << "\"maximum_live_sets\":" << v.maximum_live_sets << "}";
+  };
+  std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
+  std::cout << "    \"after_measured_repeats\": "; print_metadata_counters(result.metadata_after_repeats); std::cout << "\n  },\n";
+
+  std::cout << "  \"immutable_schedule_work\": {\"abi_version\":1,\"scope\":\"calling_thread_source_work_counters_not_latency\",\n";
+  auto print_schedule_work=[](const rns8::detail::api::plan_validation_counters& v) {
+    std::cout << "{\"core_exhaustive_validations\":" << v.exhaustive_validations
+      << ",\"fingerprint_traversals\":" << v.fingerprint_traversals
+      << ",\"canonical_equivalent_comparisons\":" << v.equivalent_comparisons
+      << ",\"backend_schedule_seals\":" << v.backend_schedule_seals
+      << ",\"backend_sealed_tile_visits\":" << v.backend_schedule_sealed_tile_visits
+      << ",\"backend_fast_submissions\":" << v.backend_schedule_fast_submissions
+      << ",\"backend_raw_submissions\":" << v.backend_schedule_raw_submissions << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_schedule_work(result.schedule_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_schedule_work(result.schedule_after_repeats);
+  std::cout << "\n  },\n";
+
   print_reuse_contract_json(args, result, selected_backend, selected_kernel);
   print_exact_output_contract_json(args, result, output_ld, selected_kernel);
   print_export_variant_json(args, result, selected_kernel);

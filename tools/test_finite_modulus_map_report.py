@@ -9,11 +9,16 @@ import tempfile
 from pathlib import Path
 
 import finite_modulus_map_report
+from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
 from test_benchmark_sweep_support import finite_capture
 
 
+def build_report(paths, **kwargs):
+    return finite_modulus_map_report.build_report(independent_fixture_paths(paths), **kwargs)
+
+
 def write_capture(path: Path, capture: dict) -> None:
-    path.write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
+    write_independent_fixture_pair(path, capture)
 
 
 def finite_map_capture(backend: str, end_to_end: int, *, shape: int = 64, modulus: int = 255) -> dict:
@@ -56,7 +61,7 @@ def main() -> int:
         write_capture(direct_path, finite_map_capture("hip-direct", 200))
         write_capture(ck_path, finite_map_capture("ck", 100))
 
-        report = finite_modulus_map_report.build_report(
+        report = build_report(
             [tmp],
             expected_shapes=[64],
             expected_ring_moduli=[255],
@@ -75,7 +80,7 @@ def main() -> int:
         assert group["promotion_eligible"] is False
         assert group["promotion_blockers"] == ["non_promoting_modulus_map"]
 
-        missing_backend = finite_modulus_map_report.build_report(
+        missing_backend = build_report(
             [cpu_path, direct_path],
             expected_shapes=[64],
             expected_ring_moduli=[255],
@@ -90,7 +95,7 @@ def main() -> int:
         not_release_capture["warmups"] = 1
         not_release_path = tmp / "ck-not-release.json"
         write_capture(not_release_path, not_release_capture)
-        not_release = finite_modulus_map_report.build_report(
+        not_release = build_report(
             [cpu_path, direct_path, not_release_path],
             expected_shapes=[64],
             expected_ring_moduli=[255],

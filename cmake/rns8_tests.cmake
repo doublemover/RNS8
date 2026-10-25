@@ -1,11 +1,30 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME residue_dot_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_residue_dot.py")
+  if(TARGET rns8-residue-dot-calibrate AND RNS8_ENABLE_HIP AND (RNS8_EXPERIMENTAL_RESIDUE_DOT4 OR RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL))
+    foreach(_residue_case IN ITEMS independent-p20-sparse grouped-p20-sparse scheduled-p20-sparse region-p20-sparse grouped-fullwidth-k65 grouped-finite247)
+      add_test(NAME residue_dot_${_residue_case}_smoke COMMAND rns8-residue-dot-calibrate "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/residue-dot/${_residue_case}.json" ctest-${_residue_case})
+      set_tests_properties(residue_dot_${_residue_case}_smoke PROPERTIES LABELS "hip;residue-dot;benchmark-smoke" TIMEOUT 120)
+    endforeach()
+  endif()
+  add_test(NAME queue_calibration_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_queue_calibration.py")
+  add_test(NAME hipblaslt_metadata_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_hipblaslt_metadata.py")
+  add_test(NAME streaming_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_measurement.py")
+  add_test(NAME public_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_public_measurement_contracts.py")
+  add_test(NAME wide_magnitude_receipts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_wide_magnitude.py")
+  add_test(NAME ci_benchmark_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ci_benchmark_smoke.py")
+  add_test(NAME observation_cohorts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_observation_cohorts.py")
+  add_test(NAME measurement_evidence_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_measurement_evidence_contracts.py")
+  add_test(NAME tooling_contract_regressions COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_tooling_contracts.py")
   add_test(NAME dependency_policy_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_policy.py")
   add_test(NAME documentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_documentation.py")
   add_test(NAME documentation_links COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_documentation.py")
   add_test(NAME dependency_resolution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_resolution.py")
   add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
   add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
+  add_test(NAME narrow_public_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_narrow_public_calibration.py")
+  add_test(NAME int4_public_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_int4_calibration.py")
+  add_test(NAME public_epilogue_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_epilogue_calibration.py")
   add_test(NAME native_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_calibration.py")
   add_test(NAME finite_verify_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_finite_verify.py")
   add_test(NAME block_sparse_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_block_sparse.py")
@@ -76,8 +95,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
   add_test(NAME arithmetic_composition_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_composition.py")
   add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
+  add_test(NAME native_wmma_logical_checker_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_native_wmma_logic.py")
   add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
+  add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
+  add_test(NAME native_integrity_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_integrity.py")
+  add_test(NAME native_interop_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_interop.py")
+  add_test(NAME lift_recipe_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_lift_recipe.py")
+  add_test(NAME bilinear_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_bilinear_calibration.py")
+  add_test(NAME rank23_october55_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_october55.py")
   add_test(NAME rank23_slp_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_slp.py")
   add_test(NAME residue_integrity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_residue_integrity.py")
   add_test(NAME analytical_planner_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analytical_planner.py")
@@ -188,7 +214,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       ENVIRONMENT "RNS8_WORD_MOD_CALIBRATION_EXE=$<TARGET_FILE:rns8-word-mod-calibrate>"
       LABELS "tools;word-modular;cli")
     if(RNS8_ENABLE_HIP)
-      foreach(_word_method IN ITEMS baseline packed_dot4 byte_wmma)
+      foreach(_mfma_method IN ITEMS asymmetric_fp64_mfma asymmetric_fp64_mfma_rows asymmetric_fp64_mfma_columns)
+        foreach(_mfma_scope IN ITEMS resident repeated_b cold)
+          add_test(NAME word_mod_${_mfma_method}_${_mfma_scope}_smoke
+            COMMAND rns8-word-mod-calibrate 0 ${_mfma_method} ${_mfma_scope} 17 19 18 ring 65536 2 1 1 2 17 ctest-${_mfma_method}-${_mfma_scope})
+          set_tests_properties(word_mod_${_mfma_method}_${_mfma_scope}_smoke PROPERTIES
+            LABELS "hip;word-modular;fp64-mfma;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      foreach(_word_method IN ITEMS baseline packed_dot4 canonical_dot4 byte_wmma)
         foreach(_word_scope IN ITEMS resident cold)
           foreach(_word_domain IN ITEMS ring prime_field)
             if(_word_domain STREQUAL "ring")
@@ -404,12 +438,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(report_capture_inputs_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME bounded_i64_1024_review_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bounded_i64_1024_review.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(bounded_i64_1024_review_self_test PROPERTIES LABELS "benchmark;evidence;autotune")
 
   add_test(
     NAME tile_shape_report_self_test
@@ -432,12 +460,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(adaptive_grouped_scheduler_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
-  add_test(
-    NAME streaming_overlap_report_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_overlap_report.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(streaming_overlap_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
   add_test(
     NAME perf_variance_report_self_test
@@ -453,12 +475,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(error_detection_policy_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME cache_promotion_closeout_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cache_promotion_closeout.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(cache_promotion_closeout_self_test PROPERTIES LABELS "tools;autotune;evidence")
 
   add_test(
     NAME fhe_workload_report_self_test
@@ -875,8 +891,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_moduli.cpp
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
+    tests/unit/test_cpu_amx.cpp
     tests/unit/test_residue_dot.cpp
     tests/unit/test_residue_epilogue.cpp
+    tests/unit/test_exact_lift_workspace.cpp
     tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_direct_crt_constants.cpp
@@ -896,6 +914,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_hipblaslt_metadata.cpp
+    tests/unit/test_streaming_measurement.cpp
+    tests/unit/test_public_sustained.cpp
+    tests/unit/test_wide_magnitude_fixture.cpp
     tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp

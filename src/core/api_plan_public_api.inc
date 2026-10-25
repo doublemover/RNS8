@@ -21,29 +21,17 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     if (requested != ctx->backend) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_HIP_DIRECT &&
+    if (!host_rns_backend(requested) && requested != RNS8_BACKEND_HIP_DIRECT &&
         requested != RNS8_BACKEND_HIPBLASLT && requested != RNS8_BACKEND_CK &&
         requested != RNS8_BACKEND_ROCWMMA && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
         requested != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 && requested != RNS8_BACKEND_AMDGPU_BUILTINS) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    if (!backend_supports_semantics(requested, desc->semantics)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if ((requested == RNS8_BACKEND_CK || requested == RNS8_BACKEND_ROCWMMA ||
-         requested == RNS8_BACKEND_AMDGPU_BUILTINS) &&
-        uses_finite_storage(desc->semantics) &&
-        !rns8::detail::finite_u8::static_byte_modulus_supported(desc->finite_modulus)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (requested == RNS8_BACKEND_HIPBLASLT && is_per_tile_bound_kind(desc->bound_kind)) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
-    if (requested != RNS8_BACKEND_CPU_REFERENCE && requested != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
-        !rns8::detail::qualified_i32_gemm_address(desc->m, desc->n, desc->k,
-                                                desc->k, desc->n, desc->n, std::max(prefix, 1u))) {
-      return RNS8_UNSUPPORTED_BACKEND;
-    }
+    rns8_operation_query operation{};operation.struct_size=sizeof(operation);operation.abi_version=RNS8_ABI_VERSION;
+    operation.operation=RNS8_OP_GEMM;operation.execution_modes=RNS8_EXEC_SYNC;operation.problem=*desc;
+    operation.scratch_budget=UINT64_MAX;operation.device_count=1;
+    const auto support=operation_support(*ctx,operation,requested);
+    if(support.status!=RNS8_SUCCESS)return support.status;
     auto owner = std::make_unique<rns8_plan>();
     auto* plan = owner.get();
     plan->desc = *desc;
@@ -61,6 +49,7 @@ rns8_status rns8_create_plan(rns8_context* ctx, const rns8_gemm_desc* desc, rns8
     plan->prefix = prefix;
     plan->modulus_product = prefix == 0 ? 0 : rns8::detail::modulus_product(prefix);
     plan->backend = requested;
+    if(requested==RNS8_BACKEND_CPU_AMX)plan->cpu_amx_prepared_threads=rns8::detail::cpu_amx_workers();
     const rns8_status schedule_status = configure_plan_schedule(*plan);
     if (schedule_status != RNS8_SUCCESS) {
       return schedule_status;
@@ -401,6 +390,17 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     set_text(out->output_domain_name, sizeof(out->output_domain_name), output_domain_name(out->output_domain));
     set_text(out->next_op_hint, sizeof(out->next_op_hint), next_op_hint_for_plan(*plan));
 
+    if(plan->backend==RNS8_BACKEND_CPU_AMX){
+      out->uses_transient_pack_workspace=1;out->uses_matrix_engine_pack_layout=1;
+      out->reusable_prepack_cache_available=1;
+      out->flags|=RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS;
+      set_text(out->a_layout_version,sizeof(out->a_layout_version),"amx_a_centered_i8_16x64_v1");
+      set_text(out->b_layout_version,sizeof(out->b_layout_version),"amx_b_centered_i8_k4_interleave_16x64_v1");
+      set_text(out->output_layout_version,sizeof(out->output_layout_version),persistent_layout_version_for_plan(*plan));
+      set_text(out->prepack_cache_scope,sizeof(out->prepack_cache_scope),"workspace_owned_matrix_instance_generation_layout_keyed_b");
+      set_text(out->detail,sizeof(out->detail),"Per-worker A packing and local INT32 reduction; repeated B retained in this workspace, never shared with the scalar oracle. Qualification deferred.");
+      return RNS8_SUCCESS;
+    }
     if (plan->backend == RNS8_BACKEND_HIPBLASLT) {
       out->uses_transient_pack_workspace = 1;
       out->uses_matrix_engine_pack_layout = 1;
@@ -550,6 +550,53 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
           sizeof(out->detail),
           "CPU reference consumes persistent host-resident storage directly; no matrix-engine prepack cache.");
     }
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan, rns8_arithmetic_certificate_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if(!plan || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)) ||
+       !plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)return RNS8_INVALID_ARGUMENT;
+    const auto& guard=*plan->arithmetic_guard;const auto& c=guard.certificate;const auto& checked=guard.checked;
+    *out={};out->struct_size=sizeof(*out);out->abi_version=RNS8_ABI_VERSION;out->certificate_version=c.version;
+    out->representation=uint32_t(c.representation);out->algebraic_verdict=uint32_t(checked.algebra);
+    out->finite_exact_verdict=uint32_t(checked.finite_exact);out->layout_verdict=uint32_t(checked.layout);
+    out->target_execution_verdict=uint32_t(checked.target);out->floating_rewrite_verdict=uint32_t(checked.floating_rewrite);
+    out->requires_current_range_guard=checked.requires_range_guard;out->safe_k=checked.safe_k;
+    out->prior_absolute_bound=c.instruction.prior_abs;out->operand_bits=c.instruction.operand_bits;
+    out->accumulator_bits=c.instruction.accumulator_bits;out->basis_count=static_cast<uint32_t>(c.basis.size());
+    std::copy(c.basis.begin(),c.basis.end(),out->ordered_basis);
+    std::copy(checked.sha256.begin(),checked.sha256.end(),out->certificate_sha256);
+    std::copy(checked.lowering_sha256.begin(),checked.lowering_sha256.end(),out->lowering_sha256);
+    return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan,rns8_auto_trace_info* info,
+    rns8_auto_decision* entries,uint32_t capacity,uint32_t* required) {
+  return guard_api([&]() -> rns8_status {
+  if(!plan || !info || !required || (capacity && !entries) ||
+      !rns8::detail::valid_abi(info->struct_size,info->abi_version,sizeof(*info)) || !plan_schedule_contract_matches(*plan))return RNS8_INVALID_ARGUMENT;
+  *required=static_cast<uint32_t>(plan->auto_decisions.size());*info=plan->auto_trace;
+  info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;
+  if(plan->desc.requested_backend!=RNS8_BACKEND_AUTO)set_text(info->decision,sizeof(info->decision),"explicit backend; AUTO not evaluated");
+  if(capacity && *required)std::copy_n(plan->auto_decisions.begin(),std::min(capacity,*required),entries);return RNS8_SUCCESS;
+  });
+}
+
+rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_operation_query* query,
+    rns8_operation_support* results,uint32_t capacity,uint32_t* required) {
+  return guard_api([&]() -> rns8_status {
+    if(!ctx || !query || !required || (capacity && !results) || !rns8::detail::valid_abi(query->struct_size,query->abi_version,sizeof(*query)))return RNS8_INVALID_ARGUMENT;
+    if(query->operation>=RNS8_OP_COUNT || !query->execution_modes || (query->execution_modes&~127u) ||
+       (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
+      return RNS8_INVALID_ARGUMENT;
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
+      RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_CPU_AMX};
+    const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?static_cast<uint32_t>(std::size(backends)):1;
+    if(!all && std::find(std::begin(backends),std::end(backends),query->problem.requested_backend)==std::end(backends))return RNS8_INVALID_ARGUMENT;
+    for(uint32_t index=0;index<std::min(capacity,*required);++index)results[index]=operation_support(*ctx,*query,all?backends[index]:query->problem.requested_backend);
     return RNS8_SUCCESS;
   });
 }

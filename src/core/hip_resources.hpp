@@ -37,17 +37,26 @@ class hip_scoped_device {
 // Failed frees keep their allocation identity. Destruction/move replacement
 // transfers that identity to the existing device-drain retry queue; allocation
 // replacement instead reports failure while leaving the old owner intact.
-class hip_direct_device_buffer {
+struct hip_device_buffer_operations {
+  static rns8_status allocate(int device, std::size_t bytes, void** pointer) {
+    return hip_direct_allocate(device, bytes, pointer);
+  }
+  static rns8_status release(int device, void* pointer) { return hip_direct_free(device, pointer); }
+  static void defer(hip_deferred_buffer_cleanup* record) noexcept { hip_direct_defer_buffer_cleanup(record); }
+};
+
+template<class Operations = hip_device_buffer_operations>
+class basic_hip_device_buffer {
  public:
-  hip_direct_device_buffer() = default;
-  hip_direct_device_buffer(const hip_direct_device_buffer&) = delete;
-  hip_direct_device_buffer& operator=(const hip_direct_device_buffer&) = delete;
-  hip_direct_device_buffer(hip_direct_device_buffer&& other) noexcept { move_from(other); }
-  hip_direct_device_buffer& operator=(hip_direct_device_buffer&& other) noexcept {
+  basic_hip_device_buffer() = default;
+  basic_hip_device_buffer(const basic_hip_device_buffer&) = delete;
+  basic_hip_device_buffer& operator=(const basic_hip_device_buffer&) = delete;
+  basic_hip_device_buffer(basic_hip_device_buffer&& other) noexcept { move_from(other); }
+  basic_hip_device_buffer& operator=(basic_hip_device_buffer&& other) noexcept {
     if(this!=&other) { retire(); move_from(other); }
     return *this;
   }
-  ~hip_direct_device_buffer() { retire(); }
+  ~basic_hip_device_buffer() { retire(); }
   rns8_status allocate(int device_id,std::size_t bytes) {
     if(device_id<0 || !bytes) return RNS8_INVALID_ARGUMENT;
     const auto release_status=reset();
@@ -55,34 +64,53 @@ class hip_direct_device_buffer {
     auto* record=new(std::nothrow) hip_deferred_buffer_cleanup;
     if(!record) return RNS8_INTERNAL_ERROR;
     record->device_id=device_id;
-    const auto status=hip_direct_allocate(device_id,bytes,&record->pointer);
+    const auto status=Operations::allocate(device_id,bytes,&record->pointer);
     if(status!=RNS8_SUCCESS) {delete record;return status;}
     cleanup_=record;bytes_=bytes;return RNS8_SUCCESS;
   }
   rns8_status reset() noexcept {
     if(!cleanup_) return RNS8_SUCCESS;
-    const auto status=hip_direct_free(cleanup_->device_id,cleanup_->pointer);
+    if(pending_)return RNS8_BUSY;
+    const auto status=Operations::release(cleanup_->device_id,cleanup_->pointer);
     if(status!=RNS8_SUCCESS) return status;
     delete cleanup_;cleanup_=nullptr;bytes_=0;return RNS8_SUCCESS;
   }
+  void mark_pending() noexcept {pending_=true;}
+  void mark_completed() noexcept {pending_=false;}
+  bool pending() const noexcept {return pending_;}
   void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}
   std::size_t bytes() const noexcept {return bytes_;}
   explicit operator bool() const noexcept {return get()!=nullptr;}
+  // Keep legacy dispatch aliases non-owning while retaining exception-safe
+  // allocation records in their enclosing API owner.
+  rns8_status allocate_alias(int device_id, std::size_t bytes, void*& alias) {
+    const auto status = allocate(device_id, bytes);
+    alias = get();
+    return status;
+  }
+  rns8_status reset_alias(void*& alias, std::size_t& bytes) noexcept {
+    if (alias != get()) return RNS8_INTERNAL_ERROR;
+    const auto status = reset();
+    if (status == RNS8_SUCCESS) { alias = nullptr; bytes = 0; }
+    return status;
+  }
  private:
   void retire() noexcept {
     if(reset()!=RNS8_SUCCESS) {
       // The node was allocated before device ownership; failure cleanup cannot
       // allocate or discard the only handle needed for a later successful free.
-      hip_direct_defer_buffer_cleanup(cleanup_);cleanup_=nullptr;bytes_=0;
+      Operations::defer(cleanup_);cleanup_=nullptr;bytes_=0;
     }
   }
-  void move_from(hip_direct_device_buffer& other) noexcept {
-    cleanup_=other.cleanup_;bytes_=other.bytes_;
-    other.cleanup_=nullptr;other.bytes_=0;
+  void move_from(basic_hip_device_buffer& other) noexcept {
+    cleanup_=other.cleanup_;bytes_=other.bytes_;pending_=other.pending_;
+    other.cleanup_=nullptr;other.bytes_=0;other.pending_=false;
   }
   hip_deferred_buffer_cleanup* cleanup_=nullptr;
   std::size_t bytes_=0;
+  bool pending_=false;
 };
+using hip_direct_device_buffer = basic_hip_device_buffer<>;
 
 // Capability/status kernels can fail before a context-owned operation exists.
 // This owner keeps their small scratch allocation alive across an uncertain drain.
@@ -290,6 +318,7 @@ class hip_pinned_host_buffer {
   }
   ~hip_pinned_host_buffer() {retire();}
   hipError_t reset() noexcept {
+    if(pending_) return hipErrorNotReady;
     if(!cleanup_) return hipSuccess;
     hip_scoped_device selected(cleanup_->device_id);
     if(selected.status()!=hipSuccess) return selected.status();
@@ -297,7 +326,11 @@ class hip_pinned_host_buffer {
     if(status!=hipSuccess) return status;
     delete cleanup_;cleanup_=nullptr;capacity_=0;return hipSuccess;
   }
+  void mark_pending() noexcept {pending_=true;}
+  void mark_completed() noexcept {pending_=false;}
+  bool pending() const noexcept {return pending_;}
   hipError_t ensure(int device_id,std::size_t bytes) {
+    if(pending_) return hipErrorNotReady;
     if(!bytes || device_id<0) return hipErrorInvalidValue;
     if(cleanup_ && cleanup_->device_id==device_id && capacity_>=bytes) return hipSuccess;
     const auto release_status=reset();
@@ -317,15 +350,16 @@ class hip_pinned_host_buffer {
  private:
   void retire() noexcept {
     if(reset()!=hipSuccess) {
-      hip_direct_defer_buffer_cleanup(cleanup_);cleanup_=nullptr;capacity_=0;
+      hip_direct_defer_buffer_cleanup(cleanup_);cleanup_=nullptr;capacity_=0;pending_=false;
     }
   }
   void move_from(hip_pinned_host_buffer& other) noexcept {
-    cleanup_=other.cleanup_;capacity_=other.capacity_;
-    other.cleanup_=nullptr;other.capacity_=0;
+    cleanup_=other.cleanup_;capacity_=other.capacity_;pending_=other.pending_;
+    other.cleanup_=nullptr;other.capacity_=0;other.pending_=false;
   }
   hip_deferred_buffer_cleanup* cleanup_=nullptr;
   std::size_t capacity_=0;
+  bool pending_=false;
 };
 #endif
 

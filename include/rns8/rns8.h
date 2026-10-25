@@ -16,6 +16,7 @@ extern "C" {
 
 typedef struct rns8_context rns8_context;
 typedef struct rns8_plan rns8_plan;
+typedef struct rns8_quarter_crt_export rns8_quarter_crt_export;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_sparse_matrix rns8_sparse_matrix;
 typedef struct rns8_workspace rns8_workspace;
@@ -24,6 +25,30 @@ typedef struct rns8_result_cache rns8_result_cache;
 typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
+
+/* Optional Linux x86-64 AMX-INT8 provider. Queries never execute tile instructions.
+ * request_permission=1 requests only this process's dynamic xstate permission;
+ * it never changes persistent OS configuration. Explicit context creation and
+ * every participating worker perform the same admission before tile execution. */
+typedef struct rns8_cpu_amx_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t compiled, cpuid_tile, cpuid_int8, osxsave, palette_supported;
+  uint32_t os_supported, permission_enabled, xcr0_enabled, admitted;
+  uint32_t configured_threads;
+  int32_t permission_errno;
+  char cpu_model[64];
+} rns8_cpu_amx_info;
+typedef struct rns8_cpu_amx_workspace_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t prepared_threads, last_execution_threads;
+  uint64_t owned_payload_bytes, packed_b_bytes, output_staging_bytes;
+  uint64_t b_matrix_instance, b_generation, b_pack_count, b_reuse_count;
+  uint32_t layout_version, safe_k;
+} rns8_cpu_amx_workspace_info;
+RNS8_API rns8_status rns8_query_cpu_amx(uint32_t request_permission, rns8_cpu_amx_info* out);
+RNS8_API rns8_status rns8_get_cpu_amx_workspace_info(const rns8_workspace*, rns8_cpu_amx_workspace_info* out);
 
 typedef enum rns8_complex_product_method RNS8_ENUM_BASE {
   RNS8_COMPLEX_THREE_REAL_PRODUCTS = 0,
@@ -279,6 +304,39 @@ RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
+/* Opt-in independent native-input product sentinel, NOT a correctness proof.
+ * Fixed check moduli 257/263 never contribute to the computational CRT range.
+ * Requires uniform direct-HIP exact-wide GEMM and retained original native A/B.
+ * The check executes after the producer and before any output publication.
+ * mode=0 disables; mode=1 enables. Known scratch is four device + four pinned
+ * host bytes, excluding opaque event/stream allocations. No default change. */
+typedef struct rns8_native_integrity_options {
+  uint64_t struct_size;
+  uint32_t abi_version, mode;
+  uint64_t max_scratch_bytes;
+  uint32_t flags, reserved;
+} rns8_native_integrity_options;
+typedef struct rns8_native_integrity_report {
+  uint64_t struct_size;
+  uint32_t abi_version, enabled;
+  /* 0 not checked, 1 consistent, 2 mismatch, 3 execution/dependency error,
+   * 4 canceled. Consistent does not imply arbitrary integer correctness. */
+  uint32_t outcome, failure_mask;
+  rns8_status operation_status;
+  uint32_t computational_basis_version, computational_prefix, unsigned_inputs;
+  uint32_t check_moduli[2];
+  uint64_t operation_id, epoch;
+  uint64_t a_instance, a_generation, b_instance, b_generation;
+  uint64_t c_instance, c_generation, absolute_bound[3];
+  uint64_t retained_device_bytes, retained_pinned_host_bytes;
+} rns8_native_integrity_report;
+RNS8_API rns8_status rns8_set_prepared_native_integrity(
+    rns8_prepared_execution* execution, const rns8_native_integrity_options* options);
+RNS8_API rns8_status rns8_get_prepared_native_integrity_report(
+    const rns8_prepared_execution* execution, rns8_completion_token token,
+    rns8_native_integrity_report* report);
+
+
 /* Explicit direct-HIP bounded i64/u64 or exact-wide fixed-prefix, strict wrap64 byte-limb, or
  * finite ring/field dense submission.
  * Finite operations retain their explicit modulus and never infer integer semantics. Prepare the
@@ -320,6 +378,8 @@ RNS8_API rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph
  * Shape/layout/basis or address changes require new preparation/capture. */
 RNS8_API rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution* execution);
 RNS8_API rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
+/* Owned graph replay with the same token-qualified pending-input proof/waits. */
+RNS8_API rns8_status rns8_submit_prepared_hip_graph_pipeline(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 
 /* Immutable heterogeneous group of 1..65536 prepared executions. Retains its
  * execution handles; their destruction returns BUSY until the group is destroyed.
@@ -402,6 +462,15 @@ typedef struct rns8_device_info {
  * If the scalar envelope fails current admission, full refinement is mandatory.
  */
 #define RNS8_PLAN_EXACT_SCALAR_FIRST 0x00000008u
+/* Explicit synchronous research controls; never selected by AUTO. */
+#define RNS8_PLAN_DIRECT_RNS_PARALLEL 0x00000010u
+#define RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH 0x00000020u
+/* Exact-wide, fixed-prefix opt-in: capacity is chosen for current engine-owned
+ * value proofs, not every possible native64 product. Requires FORCE_FIXED_PREFIX.
+ * Plan creation proves the modular lowering only; each execution rechecks the
+ * actual complete expression and rejects insufficient range before writes.
+ * A caller-supplied estimate is never an execution certificate. */
+#define RNS8_PLAN_EXACT_VALUE_BOUND 0x00000040u
 
 /*
  * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and
@@ -681,6 +750,179 @@ typedef enum rns8_next_op_flags RNS8_ENUM_BASE {
 #define RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS 0x00000001u
 #define RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION 0x00000002u
 
+/* Proof verdicts are independent: a plan-time algebraic guard does not attest
+ * an AMD opcode, lane mapping, synchronization, or performance. */
+typedef enum rns8_proof_verdict RNS8_ENUM_BASE {
+  RNS8_PROOF_UNKNOWN=0, RNS8_PROOF_PROVEN=1, RNS8_PROOF_REFUTED=2,
+  RNS8_PROOF_UNSUPPORTED=3, RNS8_PROOF_NOT_RUN=4
+} rns8_proof_verdict;
+/* Operation-specific discovery. Success is static compatibility, never an
+ * execution lease or a qualification receipt. Current pointers/generations,
+ * concrete code object/API probes and allocation still bind at preparation. */
+typedef enum rns8_operation_kind RNS8_ENUM_BASE {
+  RNS8_OP_GEMM=0,RNS8_OP_EXACT_EPILOGUE=1,RNS8_OP_PACK=2,RNS8_OP_EXPORT=3,
+  RNS8_OP_BASE_EXTEND=4,RNS8_OP_PREPARED_GROUP=5,RNS8_OP_NATIVE_GROUP=6,
+  RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
+  RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
+  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18,
+  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_HOST_IMPORT=21,RNS8_OP_HOST_EXPORT=22,RNS8_OP_COUNT=23
+} rns8_operation_kind;
+typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
+  RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,
+  RNS8_EXEC_CALLER_CAPTURE=8,RNS8_EXEC_GROUP=16,RNS8_EXEC_DAG=32,RNS8_EXEC_MULTI_DEVICE=64
+} rns8_execution_mode_flags;
+typedef enum rns8_support_reason RNS8_ENUM_BASE {
+  RNS8_SUPPORT_COMPATIBLE=0,RNS8_SUPPORT_BAD_DESCRIPTOR=1,RNS8_SUPPORT_NOT_COMPILED=2,
+  RNS8_SUPPORT_OPERATION=3,RNS8_SUPPORT_SEMANTICS=4,RNS8_SUPPORT_MODULUS=5,RNS8_SUPPORT_TARGET=6,
+  RNS8_SUPPORT_SHAPE=7,RNS8_SUPPORT_ADDRESS=8,RNS8_SUPPORT_EXECUTION_MODE=9,RNS8_SUPPORT_MISSING_PROOF=10,
+  RNS8_SUPPORT_RESOURCE_OVERFLOW=11,RNS8_SUPPORT_BUDGET=12,RNS8_SUPPORT_RUNTIME=13,RNS8_SUPPORT_TOPOLOGY=14
+} rns8_support_reason;
+#define RNS8_QUERY_NATIVE_RETAINED 1u
+#define RNS8_QUERY_NARROW_INPUT_PROOF 2u
+#define RNS8_QUERY_CURRENT_RANGE_PROOF 4u
+#define RNS8_QUERY_QUARTER_RANGE_PROOF 8u
+/* Assertions above describe a hypothetical candidate, not trusted value facts. */
+typedef struct rns8_operation_query {
+  uint64_t struct_size;
+  uint32_t abi_version,operation,execution_modes,proof_flags;
+  rns8_gemm_desc problem;
+  int64_t lda,ldb,ldc; /* zero means compact */
+  uint32_t output_limbs,device_count;
+  /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
+   * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror);
+   * input_policy 0 resident,1 retained native i64,2 cached transpose; bilinear 0 Strassen,1 coefficient rank23,
+   * 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
+   * explicit matrix-engine subproducts. Other families require zero. */
+  uint32_t algorithm,orientation,source_prefix;
+  /* Domain 0 infers the concrete family's default; 1 centered RNS,
+   * 2 finite byte,3 wrap byte limbs,4 native64,5 integer limbs. */
+  uint32_t input_domain,output_domain;
+  int64_t alpha,beta; /* exact epilogue coefficients */
+  uint64_t scratch_budget;
+} rns8_operation_query;
+typedef struct rns8_operation_support {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,operation,reason_code;
+  rns8_status status;
+  uint32_t source_implemented,compiled_inventory,runtime_observed,requires_binding;
+  uint32_t correctness_qualified,performance_qualified,supported_execution_modes;
+  uint32_t resource_status; /* known0,opaque_setup_unknown1,overflow2,unsupported3 */
+  uint64_t required_device_bytes,required_host_bytes,required_pinned_host_bytes;
+  uint64_t setup_bytes_lower_bound,alignment,safe_k;
+  char offending_field[48],explanation[160],target_id[128],provider_identity_sha256[65];
+} rns8_operation_support;
+/* AUTO enumerates inventory without probing or allocating GPU storage. Required
+ * count is returned even with zero capacity; truncated copies are explicit. */
+RNS8_API rns8_status rns8_query_operation_support(const rns8_context*,const rns8_operation_query*,
+    rns8_operation_support* results,uint32_t capacity,uint32_t* required_count);
+
+/* Non-promoting analytical shortlist. All bounds are hypothetical until an
+ * execution owner rebinds actual values. Costs never change admissibility.
+ * The budget covers explicit live payloads; opaque backend setup is reported
+ * unknown and is never represented as a successful zero-byte allocation. */
+typedef struct rns8_pipeline_cost_profile {
+  uint64_t struct_size;
+  uint32_t abi_version,backend;
+  char target_id[128],build_identity_sha256[65],calibration_identity[128];
+  /* Per-unit nanoseconds: native transfer byte, encoded byte, multiply-add,
+   * general CRT cell-plane, quarter CRT cell-plane, output transfer byte.
+   * A bit in known_mask requires finite positive ordered bounds. */
+  uint32_t known_mask;
+  double lower_ns_per_unit[6],upper_ns_per_unit[6];
+  double lower_launch_ns,upper_launch_ns;
+} rns8_pipeline_cost_profile;
+typedef struct rns8_pipeline_query {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_operation_query operation;
+  uint64_t output_magnitude_limbs[3];
+  uint32_t output_boundary; /* resident0,signed limbs1,unsigned limbs2,canonical3 */
+  uint32_t retained_operands; /* bit0 A/bit1 B already resident in this prefix */
+  uint64_t reuse_count; /* positive, setup amortized over this many products */
+  uint64_t payload_budget;
+} rns8_pipeline_query;
+typedef struct rns8_pipeline_stage {
+  uint32_t kind,dependencies,resources; /* prior stage bitmask; host1,copy2,compute4 */
+  uint32_t cost_known;
+  uint64_t work_units,allocated_bytes;
+  double earliest_start_ns,earliest_end_ns,latest_start_ns,latest_end_ns;
+} rns8_pipeline_stage;
+typedef struct rns8_pipeline_candidate {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,prefix,reconstruction; /* resident0,general1,quarter2 */
+  rns8_status status;
+  uint32_t reason_code,cost_known,pareto,requires_binding,resource_status;
+  uint64_t peak_payload_bytes,setup_payload_bytes;
+  double lower_amortized_ns,upper_amortized_ns;
+  rns8_gemm_desc executable_problem;
+  uint32_t stage_count;
+  rns8_pipeline_stage stages[8];
+  char provider_identity_sha256[65],explanation[160];
+} rns8_pipeline_candidate;
+RNS8_API rns8_status rns8_get_pipeline_build_identity(char* destination,uint64_t capacity);
+RNS8_API rns8_status rns8_plan_pipeline(const rns8_context*,const rns8_pipeline_query*,
+    const rns8_pipeline_cost_profile* profiles,uint32_t profile_count,
+    rns8_pipeline_candidate* results,uint32_t capacity,uint32_t* required_count);
+
+/* Explicit finite signed-nibble research owner. Default GEMM is unchanged.
+ * mode0 packs B in each tile; mode1 retains v1 packed B. Preparation probes
+ * the actual device code object once. Mutating B invalidates the owner.
+ * On undrainable preparation failure *out retains a cleanup-only owner; callers
+ * must use checked destroy, which remains retryable. No scalar fallback. */
+typedef struct rns8_int4_recipe rns8_int4_recipe;
+typedef struct rns8_int4_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,mode;
+  uint64_t max_preparation_bytes;
+} rns8_int4_desc;
+typedef struct rns8_int4_info {
+  uint64_t struct_size;
+  uint32_t abi_version,mode,layout_version,modulus,signed_operands,source_is_current;
+  uint64_t source_instance,source_generation,retained_device_bytes,safe_k;
+  uint32_t arithmetic_proven,target_qualified,performance_qualified,pending_cleanup;
+  char certificate_sha256[65],target_id[128];
+} rns8_int4_info;
+RNS8_API rns8_status rns8_prepare_int4_recipe(rns8_context*,const rns8_plan*,const rns8_matrix* b,const rns8_int4_desc*,rns8_int4_recipe**);
+RNS8_API rns8_status rns8_get_int4_info(const rns8_int4_recipe*,rns8_int4_info*);
+RNS8_API rns8_status rns8_gemm_int4(rns8_int4_recipe*,const rns8_matrix* a,rns8_matrix* c,rns8_workspace*);
+RNS8_API rns8_status rns8_destroy_int4_recipe(rns8_int4_recipe*);
+
+typedef enum rns8_auto_reason RNS8_ENUM_BASE {
+  RNS8_AUTO_BASELINE_POLICY=0, RNS8_AUTO_UNSUPPORTED_SEMANTICS=1, RNS8_AUTO_UNSUPPORTED_MODULUS=2,
+  RNS8_AUTO_PER_TILE_UNSUPPORTED=3, RNS8_AUTO_NOT_COMPILED=4, RNS8_AUTO_PROBE_FAILED=5,
+  RNS8_AUTO_NO_EXACT_ENTRY=6, RNS8_AUTO_UNVALIDATED_ENTRY=7, RNS8_AUTO_IDENTITY_MISMATCH=8,
+  RNS8_AUTO_WORKSPACE_MISMATCH=9, RNS8_AUTO_SLOWER=10, RNS8_AUTO_SELECTED=11, RNS8_AUTO_ARITHMETIC_REJECTED=12, RNS8_AUTO_TIED=13
+} rns8_auto_reason;
+typedef struct rns8_auto_decision {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,disposition,reason_code; /* rejected0,selected1,baseline2 */
+  uint32_t exact_entry_present,validated_entry_present;
+  uint64_t required_workspace_bytes;
+  double reviewed_median_us; /* zero means no admitted measurement, not free */
+  char key_sha256[65],reason[64];
+} rns8_auto_decision;
+typedef struct rns8_auto_trace_info {
+  uint64_t struct_size;
+  uint32_t abi_version,selection_performed,cache_exists,cache_loaded;
+  uint64_t cache_entry_count;
+  uint32_t selected_exact_entry,selected_validated_entry;
+  char cache_path[512],decision[96];
+} rns8_auto_trace_info;
+/* Captured by the actual selection pass, not a later cache lookup. No probes.
+ * Count-only and truncated copies succeed; required_count always names full size. */
+RNS8_API rns8_status rns8_get_plan_auto_decisions(const rns8_plan*,rns8_auto_trace_info*,
+    rns8_auto_decision* entries,uint32_t capacity,uint32_t* required_count);
+
+typedef struct rns8_arithmetic_certificate_info {
+  uint64_t struct_size;
+  uint32_t abi_version,certificate_version,representation;
+  uint32_t algebraic_verdict,floating_rewrite_verdict,finite_exact_verdict;
+  uint32_t layout_verdict,target_execution_verdict,requires_current_range_guard;
+  uint32_t operand_bits,accumulator_bits,basis_count,ordered_basis[20];
+  uint64_t safe_k,prior_absolute_bound;
+  char certificate_sha256[65],lowering_sha256[65];
+} rns8_arithmetic_certificate_info;
+
 typedef struct rns8_plan_packing_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -865,7 +1107,9 @@ typedef enum rns8_gram_orientation {
 } rns8_gram_orientation;
 typedef enum rns8_gram_method {
   RNS8_GRAM_SCALAR = 0,
-  RNS8_GRAM_WMMA = 1
+  RNS8_GRAM_WMMA = 1,
+  RNS8_GRAM_SCALAR_SEPARATE_MIRROR = 2,
+  RNS8_GRAM_WMMA_SEPARATE_MIRROR = 3
 } rns8_gram_method;
 /* Explicit single-source Gram product. Bounded i64, exact-wide signed and finite ring/field
  * only; CPU scalar or direct HIP scalar/WMMA. Dense symmetric output, same basis.
@@ -1099,6 +1343,9 @@ RNS8_API rns8_status rns8_create_context(
     rns8_context** out);
 
 RNS8_API rns8_status rns8_destroy_context(rns8_context* ctx);
+/* Drain failed synchronous work without publishing partial outputs. Failed
+ * drains retain all borrowed matrix/workspace leases and remain retryable. */
+RNS8_API rns8_status rns8_drain_failed_work(rns8_context* ctx);
 
 RNS8_API rns8_status rns8_get_device_info(
     rns8_context* ctx,
@@ -1138,6 +1385,11 @@ RNS8_API rns8_status rns8_get_plan_backend_info(
  * transient per-dispatch pack workspaces unless a public cache surface is
  * implemented.
  */
+/* Conditional exactness under the declared input alphabet and current range
+ * guard; this query never promotes a target. Immutable for the plan lifetime. */
+RNS8_API rns8_status rns8_get_plan_arithmetic_certificate(
+    const rns8_plan* plan, rns8_arithmetic_certificate_info* out);
+
 RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
     rns8_plan_packing_info* out);
@@ -1153,11 +1405,61 @@ RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
     uint32_t task_count,
     rns8_grouped_dispatch_contract_info* out);
 
+/* Explicit experimental ordering of existing direct-HIP residue schedule work.
+ * No XCD affinity, cache topology or performance qualification is implied.
+ * target_id: 0=actual supported target, 942/950=Instinct experiment, 1100=control.
+ * Unknown/mismatched targets retain ordinary order and report applied=0.
+ * cache_domains/concurrent_groups/cache_bytes are hypothetical model inputs. */
+typedef enum rns8_locality_order {
+  RNS8_LOCALITY_ORDINARY=0,
+  RNS8_LOCALITY_OUTPUT_NEIGHBOR=1,
+  RNS8_LOCALITY_MODULUS=2,
+  RNS8_LOCALITY_SAME_OUTPUT=3
+} rns8_locality_order;
+typedef struct rns8_locality_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_locality_order order;
+  uint32_t target_id;
+  uint32_t topology_version;
+  uint32_t cache_domains;
+  uint32_t concurrent_groups_per_domain;
+  uint64_t cache_bytes_per_domain;
+} rns8_locality_desc;
+typedef struct rns8_locality_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_locality_order requested_order;
+  rns8_locality_order applied_order;
+  uint32_t target_id;
+  uint32_t topology_version;
+  uint32_t applied;
+  uint32_t physical_affinity_established;
+  uint32_t cache_domains;
+  uint32_t concurrent_groups_per_domain;
+  uint64_t cache_bytes_per_domain;
+  uint64_t active_entries;
+  uint64_t directory_bytes;
+  uint64_t k_phases;
+  uint64_t requested_source_bytes;
+  uint64_t unique_source_bytes;
+  uint64_t output_read_write_bytes;
+  uint64_t permutation_fingerprint;
+} rns8_locality_info;
+RNS8_API rns8_status rns8_create_locality_workspace(
+    rns8_context* ctx,const rns8_plan* plan,const rns8_locality_desc* desc,rns8_workspace** out);
+RNS8_API rns8_status rns8_get_workspace_locality_info(
+    const rns8_workspace* workspace,rns8_locality_info* out);
+
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,
     const rns8_plan* plan,
     rns8_workspace** out);
 
+/* Destruction releases successful allocations once. On error the handle remains
+ * owned by the caller and is valid for destruction retry only. The same rule
+ * applies to prepack/result caches and sparse matrices below; BUSY consumes none.
+ * Failed construction publishes no handle and retains failed frees internally. */
 RNS8_API rns8_status rns8_destroy_workspace(rns8_workspace* workspace);
 
 RNS8_API rns8_status rns8_create_matrix(
@@ -1339,6 +1641,19 @@ RNS8_API rns8_status rns8_lift_exact_wide_cpu(
  * exact_range_prefix and invalidates any old host residue materialization.
  * Access must be serialized by the caller. This operation is not graph-safe.
  */
+/* Prepared exact lift uses the existing prepared token/stream/group/graph API.
+ * algorithm 0=wide Garner, 1=shared mixed-radix digits. Scratch budget includes
+ * retained suffix + device status + four pinned status bytes; opaque HIP objects
+ * are additional. Replay preserves logical generation, and failures preserve
+ * the prior source prefix. New values must fit the preparation's bound envelope. */
+typedef struct rns8_exact_lift_options {
+  uint64_t struct_size;
+  uint32_t abi_version, target_prefix, algorithm, flags;
+  uint64_t max_total_scratch_bytes;
+} rns8_exact_lift_options;
+RNS8_API rns8_status rns8_prepare_exact_lift_hip(rns8_context* ctx,rns8_matrix* matrix,
+    const rns8_exact_lift_options* options,rns8_prepared_execution** out);
+
 RNS8_API rns8_status rns8_lift_exact_wide_hip(
     rns8_context* ctx,
     rns8_matrix* matrix,
@@ -1495,6 +1810,33 @@ typedef struct rns8_prepared_gram rns8_prepared_gram;
 RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
     rns8_gram_orientation orientation,rns8_gram_method method,uint64_t max_job_bytes,
     rns8_prepared_gram** out);
+/* Independent Gram input ablations. A transpose adapter is generation-bound;
+ * native input requires retained current signed i64, never a finite-u8 cast. */
+typedef enum rns8_gram_input_policy {
+  RNS8_GRAM_RESIDENT_RESIDUES=0,
+  RNS8_GRAM_RETAINED_NATIVE_I64=1,
+  RNS8_GRAM_RETAINED_TRANSPOSE=2
+} rns8_gram_input_policy;
+/* export_limbs=0 disables reconstruction-once; 1..32 preallocates complete
+ * signed host/device staging. Budget covers all owned job/adapter/export payload,
+ * not caller-owned matrices. Output remains complete dense residues. */
+RNS8_API rns8_status rns8_prepare_gram_ex(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
+    rns8_gram_orientation orientation,rns8_gram_method method,rns8_gram_input_policy input_policy,
+    uint32_t export_limbs,uint64_t max_owned_payload_bytes,rns8_prepared_gram** out);
+/* Reconstruct each independent cell once and mirror signed limb output. Complete
+ * staging succeeds before touching dst; ld is in cells. Generation-bound to the
+ * owner's last successful execution and original source; no device/owned-payload allocation on replay. CPU CRT
+ * may allocate arbitrary-precision temporaries. */
+RNS8_API rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner,uint64_t* dst,int64_t ld);
+typedef struct rns8_prepared_gram_info {
+  uint64_t struct_size;uint32_t abi_version;uint32_t input_policy;
+  uint32_t method;uint32_t export_limbs;
+  uint64_t source_instance,source_generation,output_generation;
+  uint64_t host_job_bytes,device_job_bytes,orientation_adapter_bytes;
+  uint64_t host_export_bytes,device_export_bytes,owned_payload_bytes;
+  uint64_t independent_cells,dense_cells;
+} rns8_prepared_gram_info;
+RNS8_API rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,rns8_prepared_gram_info* info);
 RNS8_API rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner);
 RNS8_API rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner);
 /* Failed drain/free retains the owner and any active reservations for retry. */
@@ -1562,8 +1904,11 @@ typedef struct rns8_product_recipe_resources {
   uint32_t abi_version;
   uint32_t node_count;
   uint64_t arena_bytes;
-  uint64_t lift_scratch_bytes;
+  uint64_t lift_scratch_bytes; /* physically retained HIP status+suffix region, zero on CPU */
   uint64_t unreused_payload_bytes;
+  uint64_t materialized_input_bytes;
+  uint64_t ragged_retained_bytes;
+  uint64_t materialization_peak_bytes;
 } rns8_product_recipe_resources;
 /* Synchronous CPU/direct-HIP exact-wide product DAG with owned intermediate arena.
  * Inputs share semantics/prefix/layout. IDs0..input_count-1 are external inputs;
@@ -1572,11 +1917,37 @@ typedef struct rns8_product_recipe_resources {
  * Sources/context are retained and generation-bound: repacking requires explicit
  * input rebinding within the compiled proof envelope, or a new recipe. Minimum-prefix policy lifts exact suffixes on consumer demand; it is
  * not a measured cost optimizer. Budget includes aligned arena plus peak HIP
- * lift scratch; external matrices and host proof/descriptor overhead are separate.
+ * lift scratch, both physically retained at creation in one allocation; external matrices and host proof/descriptor overhead are separate.
  * Create failure preserves *out. Use/destruction require external host exclusion. */
 RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
     const rns8_product_recipe_desc* desc,rns8_product_recipe** out);
 RNS8_API rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output);
+/* Optional ragged input adapters. Each input_index names the same explicitly
+ * mutable destination supplied in desc.inputs. Destination matrices are caller-
+ * owned conversion scratch: setup/refresh may update them even if a later setup
+ * step fails; observable recipe outputs are never touched by setup/refresh.
+ * Sources are retained and generation-checked on every replay. Conversion occurs
+ * once at binding, not every consumer/replay; all real destination, compact-owner,
+ * staging and arena/lift payload is included in the explicit aggregate budget.
+ * Repeated source owners are counted/retained once. All inputs still share the
+ * ordinary recipe semantic/capacity contract. output_ids/count may be null/zero
+ * for the last node, or explicitly request multiple outputs. */
+typedef struct rns8_ragged_recipe_binding {
+  uint32_t input_index;
+  rns8_ragged_materialization* source;
+  rns8_matrix* destination;
+} rns8_ragged_recipe_binding;
+RNS8_API rns8_status rns8_create_product_recipe_ragged(rns8_context* ctx,
+    const rns8_product_recipe_desc* desc,const rns8_ragged_recipe_binding* bindings,
+    uint32_t binding_count,const uint32_t* output_ids,uint32_t output_count,
+    uint64_t max_total_payload_bytes,rns8_product_recipe** out);
+/* Keep topology, indices and destination allocations; replace ragged owners and
+ * re-materialize/rebind every adapted input. On failure the prior recipe binding
+ * is not republished and any changed scratch generations reject ordinary replay.
+ * Independent non-ragged input generation changes are rebound at the same point. */
+RNS8_API rns8_status rns8_refresh_product_recipe_ragged(rns8_product_recipe* recipe,
+    const rns8_ragged_recipe_binding* bindings,uint32_t binding_count);
+
 /* Compile an explicit ordered set of observable node value IDs. IDs must be
  * distinct produced values (not external inputs). They remain live through final
  * publication, including intermediate values still consumed by later nodes.
@@ -1617,6 +1988,15 @@ typedef struct rns8_encoded_b rns8_encoded_b;
 RNS8_API rns8_status rns8_prepare_encoded_b(rns8_context* ctx,const rns8_matrix* b,
     uint64_t max_bytes,rns8_encoded_b** out);
 RNS8_API rns8_status rns8_destroy_encoded_b(rns8_encoded_b* cache);
+typedef struct rns8_encoded_b_info {
+  uint64_t struct_size;
+  uint32_t abi_version, layout_version;
+  uint64_t source_instance, source_generation, retained_device_bytes;
+  uint32_t prefix, source_is_current;
+  int32_t device_id;
+} rns8_encoded_b_info;
+RNS8_API rns8_status rns8_get_encoded_b_info(const rns8_encoded_b* cache,rns8_encoded_b_info* info);
+
 /* Explicit WMMA group 1/2/4; no per-call device scratch or B re-encoding.
  * A requires a current retained native copy. Common exact-wide plan/output
  * proof, alias/reservation and generation checks apply. No AUTO selection. */
@@ -1642,6 +2022,55 @@ typedef struct rns8_encoded_b_task {
  * No async or independently observable per-task completion is supplied. */
 RNS8_API rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx,
     const rns8_encoded_b_task* tasks,uint32_t count,uint32_t workers,uint64_t max_scratch_bytes);
+
+/** Experimental direct-HIP native WMMA group. Explicit opt-in, never AUTO.
+ * Every child is an existing exact-wide prepared GEMM with retained native inputs.
+ * Preparation binds matrix instances/generations, layouts and optional encoded B.
+ * Schedule: 0 explicit round-robin, 1 task-major, 2 compact round-robin.
+ * ordinary_grid_control launches the SAME native/encoded representation per task.
+ * max_metadata_bytes charges old + replacement device descriptors at preparation.
+ */
+typedef struct rns8_native_group_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t schedule_mode, claim_chunk, workers, ordinary_grid_control;
+  uint64_t max_metadata_bytes;
+} rns8_native_group_desc;
+typedef struct rns8_native_group_binding {
+  uint64_t struct_size;
+  uint32_t abi_version, modulus_group;
+  const rns8_encoded_b* encoded_b; /* optional, held until replacement/destruction */
+} rns8_native_group_binding;
+typedef struct rns8_native_group_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  uint32_t task_count, work_count, schedule_mode, claim_chunk, workers;
+  uint32_t ordinary_grid_control, graph_ready;
+  uint64_t retained_device_metadata_bytes, retained_host_metadata_bytes;
+  uint64_t preparation_peak_device_metadata_bytes;
+  char arithmetic_certificate_sha256[65]; /* ordered children + schedule */
+} rns8_native_group_info;
+RNS8_API rns8_status rns8_prepare_native_group(rns8_prepared_group* group,
+    const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count);
+/* Explicit-work locality permutation; requires schedule_mode=0 and a persistent
+ * or owned-graph launch, not the ordinary-grid control. Hypothetical topology
+ * follows rns8_locality_desc; unknown targets retain ordinary queue order. */
+RNS8_API rns8_status rns8_prepare_native_group_locality(rns8_prepared_group* group,
+    const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count,
+    const rns8_locality_desc* locality);
+RNS8_API rns8_status rns8_get_native_group_locality_info(const rns8_prepared_group* group,rns8_locality_info* info);
+RNS8_API rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,rns8_native_group_info* info);
+/** One borrowed nondefault same-device stream for the whole queue. Tokens use
+ * the existing query/wait/cancel/dependency API. No publication until real event
+ * completion; cancellation invalidates only that child's publication, not peers.
+ * All children must be observed/drained before queue/cursor/graph reuse or destroy.
+ */
+RNS8_API rns8_status rns8_submit_native_group_hip(rns8_prepared_group* group,void* stream,
+    rns8_completion_token* tokens,uint32_t capacity,uint32_t* out_submitted);
+RNS8_API rns8_status rns8_capture_native_group_hip_graph(rns8_prepared_group* group);
+RNS8_API rns8_status rns8_submit_native_group_hip_graph(rns8_prepared_group* group,void* stream,
+    rns8_completion_token* tokens,uint32_t capacity,uint32_t* out_submitted);
+
 
 typedef struct rns8_block_sparse_operand rns8_block_sparse_operand;
 typedef enum rns8_block_sparse_role RNS8_ENUM_BASE {
@@ -1685,7 +2114,9 @@ RNS8_API rns8_status rns8_gemm_block_sparse_exact_with_method(
 
 typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
   RNS8_NARROW_SCALAR_I64 = 0,
-  RNS8_NARROW_BYTE_WMMA = 1
+  RNS8_NARROW_BYTE_WMMA = 1,
+  RNS8_NARROW_SCALAR_FUSED_RNS = 2,
+  RNS8_NARROW_BYTE_WMMA_FUSED_RNS = 3
 } rns8_narrow_product_method;
 
 /* Experimental synchronous direct-HIP exact-wide product with persistent RNS
@@ -1796,6 +2227,27 @@ RNS8_API rns8_status rns8_gemm_exact_wide_cpu_auto(
     rns8_workspace* workspace,
     uint64_t max_staged_residue_bytes,
     uint32_t* out_selected_prefix);
+
+/* Direct-HIP exact-wide selector, with the same deterministic prefix and
+ * strict input uniqueness rules as the CPU selector above. The chosen prefix
+ * never changes the caller's plan. algorithm: 0 wide Garner, 1 mixed radix.
+ * All required input lifts and the product are computed in private device
+ * staging before any resident publication. Source planes/identities/generations
+ * are preserved. A/B suffixes and C proof publish together after successful
+ * copies. A device failure after the C copy starts invalidates C; uncommitted
+ * suffixes stay hidden at their old proven prefixes. Undrainable work pins
+ * all three matrices and the workspace until rns8_drain_failed_work succeeds.
+ * max_device_scratch_bytes covers full staged A/B values when they require a
+ * lift, staged C, aligned reusable suffix/status scratch; one host status word
+ * and opaque driver costs are additional. Scratch is retained by workspace.
+ * No native payload crosses the host; only per-lift status does. This is an
+ * explicit synchronous DIRECT-HIP route, not AUTO backend promotion or an
+ * asynchronous plan. Uniform default basis, no schedule/split-K/epilogue.
+ */
+RNS8_API rns8_status rns8_gemm_exact_wide_hip_auto(
+    rns8_context* ctx,const rns8_plan* plan,rns8_matrix* A,rns8_matrix* B,
+    rns8_matrix* C,rns8_workspace* workspace,uint32_t algorithm,
+    uint64_t max_device_scratch_bytes,uint32_t* out_selected_prefix);
 
 /*
  * Explicit incremental resident RNS GEMM. Dirty regions are output rectangles
@@ -1970,6 +2422,30 @@ RNS8_API rns8_status rns8_export_finite_u8(
  * requires device-current resident RNS output and does not perform an implicit
  * host-to-device upload.
  */
+/* Opt-in quarter-range reconstruction. Defaults remain Garner. Signed0,
+ * unsigned1 and canonical2 are distinct output contracts. Admission requires
+ * an engine-owned current magnitude proof with 4*B<=M and sufficient width.
+ * Source mutation invalidates the prepared owner; no speculative caller writes.
+ * Host proof is not device opcode qualification. */
+typedef struct rns8_quarter_crt_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,mode,limb_count;
+  uint64_t max_scratch_bytes;
+} rns8_quarter_crt_desc;
+typedef struct rns8_quarter_crt_info {
+  uint64_t struct_size;
+  uint32_t abi_version,prefix,mode,limb_count,delayed_digits;
+  uint32_t algebraic_verdict,target_execution_verdict;
+  uint64_t source_instance,source_generation,retained_payload_bytes;
+  uint64_t magnitude_bound[3];
+  char certificate_sha256[65];
+} rns8_quarter_crt_info;
+RNS8_API rns8_status rns8_prepare_quarter_crt_export(rns8_context*,const rns8_plan*,const rns8_matrix*,
+    const rns8_quarter_crt_desc*,rns8_quarter_crt_export**);
+RNS8_API rns8_status rns8_get_quarter_crt_info(const rns8_quarter_crt_export*,rns8_quarter_crt_info*);
+RNS8_API rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export*,uint64_t* dst,int64_t ld);
+RNS8_API rns8_status rns8_destroy_quarter_crt_export(rns8_quarter_crt_export*);
+
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
     const rns8_plan* plan,
@@ -2094,22 +2570,41 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
 typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_STRASSEN = 0,
   RNS8_BILINEAR_RANK23_COEFFICIENTS = 1,
-  RNS8_BILINEAR_RANK23_SLP = 2
+  RNS8_BILINEAR_RANK23_SLP = 2,
+  RNS8_BILINEAR_RANK23_OCTOBER55 = 3,
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE = 4,
+  RNS8_BILINEAR_STRASSEN_MATRIX = 5,
+  RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX = 6,
+  RNS8_BILINEAR_RANK23_SLP_MATRIX = 7,
+  RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX = 8,
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX = 9
 } rns8_bilinear_method;
-/* Opt-in direct-HIP exact-wide signed/unsigned product. One bilinear level,
+/* Opt-in direct-HIP bounded/exact-wide signed/unsigned product. One bilinear level,
  * complete prefix, staged publication, explicit scratch budget and original
- * input range proof. Rank23 SLP uses the pinned alternative-basis program and
- * retains all23 transformed operand/product buffers; it is not a low-memory
- * schedule. Ratio is additional transient bytes/(resident A+B+C bytes), written
+ * input range proof. Methods 5..9 use the same algorithms with explicit AMDGPU
+ * builtin matrix-engine subproducts; unsupported target/build or block K>65536
+ * is rejected without fallback. SLP=2 executes September 51+5 basis additions; October55=3
+ * executes the division-free 13+14+28 DAG. Both retain 23 operand/product buffers.
+ * October55 recompute=4 reuses one A/B pair, retaining 23 products and executing
+ * the input DAG again per product. Ratio is required scratch/(resident A+B+C bytes), written
  * only on success. No AUTO selection or performance qualification is implied. */
+/* Optional eager scratch preparation. The ordinary bilinear call also grows this
+ * workspace-owned arena once as needed; repeated calls reuse it without device
+ * allocation. A failed undrainable call retains the workspace and input/output
+ * leases until rns8_drain_failed_work succeeds. Does not qualify a method. */
+RNS8_API rns8_status rns8_prepare_bilinear_workspace(
+    rns8_context* ctx,const rns8_plan* plan,rns8_bilinear_method method,
+    uint64_t max_scratch_bytes,rns8_workspace* workspace);
+
 RNS8_API rns8_status rns8_gemm_bilinear_exact(rns8_context* ctx,const rns8_plan* plan,
     const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_bilinear_method method,
     uint64_t max_scratch_bytes,rns8_workspace* workspace,double* out_memory_overhead_ratio);
 
-/* Experimental synchronous one-level Strassen for direct-HIP exact-wide signed
+/* Experimental synchronous one-level Strassen for direct-HIP bounded/exact-wide signed
  * or unsigned plans. Requires current resident RNS inputs and ordinary GEMM
  * ownership/range admission. Other levels/backends/semantics are unsupported.
- * Scratch is allocated internally; workspace retains ordinary plan validation.
+ * Scratch is retained by workspace; optional eager preparation excludes setup
+ * allocation from a repeated measurement boundary.
  * On success, out_memory_overhead_ratio receives additional transient residue
  * bytes divided by resident A+B+C residue bytes (not total memory multiplier).
  * Precommit failures preserve C and ratio; failed output commit invalidates C.
@@ -2255,6 +2750,77 @@ RNS8_API rns8_status rns8_import_native_device_verified(rns8_context*,rns8_matri
 /* Requires a current unique scalar range proof fitting the native type.
  * Staged reconstruction/status precedes external writes. */
 RNS8_API rns8_status rns8_export_native_device(rns8_context*,const rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);
+
+/* These imports/exports return the same prepared execution used by GEMM/lift.
+ * import_values=1 imports scalar i64/u64; 0 exports scalar or explicit limbs.
+ * verify_input_bound=1 proves every input magnitude <= max_input_magnitude on
+ * device before committing. Otherwise the full type envelope is used and the
+ * max_input_magnitude field must be zero. Export requires both fields zero.
+ * Total budget includes staged payload, compact status/scan, pinned status and
+ * any retained native matrix copy; opaque runtime objects are additional. */
+typedef struct rns8_native_transfer_options {
+  uint64_t struct_size;
+  uint32_t abi_version,import_values,verify_input_bound,flags;
+  uint64_t max_input_magnitude,max_total_scratch_bytes;
+} rns8_native_transfer_options;
+RNS8_API rns8_status rns8_prepare_native_transfer_hip(rns8_context*,rns8_matrix*,rns8_native_device_lease*,
+    const rns8_native_transfer_options*,rns8_prepared_execution**);
+/* Explicit external mutation window, only while this lease has no device user.
+ * BORROW only. End requires a strictly newer generation and completed producer;
+ * no event/stream ownership is inferred. Refresh prepared inputs afterwards. */
+RNS8_API rns8_status rns8_begin_native_device_write(rns8_native_device_lease*);
+RNS8_API rns8_status rns8_end_native_device_write(rns8_native_device_lease*,uint64_t generation);
+/* Nonblocking readiness handoff: record an owned event after an external
+ * producer on a borrowed same-device nondefault noncapturing stream. Subsequent
+ * prepared transfers enqueue the wait outside their captured body, so replay
+ * consumes the current generation's readiness event rather than an old capture. */
+RNS8_API rns8_status rns8_end_native_device_write_hip(rns8_native_device_lease*,uint64_t generation,void* producer_stream);
+typedef struct rns8_prepared_transfer_info {
+  uint64_t struct_size;
+  uint32_t abi_version,operation,source_prefix,target_prefix;
+  uint64_t prepared_id,epoch,external_owner_identity,external_generation;
+  uint64_t retained_device_bytes,retained_pinned_host_bytes,retained_native_matrix_bytes;
+  uint32_t verified_input_bound,limb_count,external_result_current,reserved;
+} rns8_prepared_transfer_info;
+RNS8_API rns8_status rns8_get_prepared_transfer_info(const rns8_prepared_execution*,rns8_prepared_transfer_info*);
+
+/* Explicit library-owned pinned native storage, never implicit pageable staging.
+ * Access is READ for native->RNS import or WRITE for RNS->native export. CPU
+ * pointers are borrowed only inside the matching begin/end access window and
+ * must not escape it. Shared host/device readers are allowed; writers exclude
+ * every reader. No host pointer may be dereferenced while a device writer runs.
+ * Shared handles require external host serialization, like prepared execution. */
+typedef struct rns8_pinned_host_buffer rns8_pinned_host_buffer;
+typedef struct rns8_pinned_host_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,flags;
+  rns8_native_device_type element_type;
+  rns8_native_device_access access;
+  int64_t rows,cols,ld;
+  uint32_t limb_count,reserved;
+} rns8_pinned_host_desc;
+typedef struct rns8_pinned_host_info {
+  uint64_t struct_size;
+  uint32_t abi_version,current,write_window,device_writer;
+  uint64_t instance,generation,pinned_bytes,host_readers,device_readers,prepared_references;
+} rns8_pinned_host_info;
+RNS8_API rns8_status rns8_query_pinned_host_bytes(const rns8_pinned_host_desc*,uint64_t* out_bytes);
+RNS8_API rns8_status rns8_create_pinned_host_buffer_hip(rns8_context*,const rns8_pinned_host_desc*,uint64_t max_pinned_bytes,rns8_pinned_host_buffer**);
+RNS8_API rns8_status rns8_destroy_pinned_host_buffer(rns8_pinned_host_buffer*);
+RNS8_API rns8_status rns8_get_pinned_host_info(const rns8_pinned_host_buffer*,rns8_pinned_host_info*);
+RNS8_API rns8_status rns8_begin_pinned_host_write(rns8_pinned_host_buffer*,void** out_data,uint64_t* out_bytes);
+/* End is a CPU producer-completion assertion and strictly increases generation. */
+RNS8_API rns8_status rns8_end_pinned_host_write(rns8_pinned_host_buffer*,uint64_t generation);
+RNS8_API rns8_status rns8_begin_pinned_host_read(rns8_pinned_host_buffer*,const void** out_data,uint64_t* out_bytes);
+RNS8_API rns8_status rns8_end_pinned_host_read(rns8_pinned_host_buffer*);
+/* Exact-wide direct-HIP scalar import and scalar/1..32-limb export. Options have
+ * the same bound-verification meaning as native-device transfers. Total budget
+ * includes this retained padded pinned buffer, status word, compact native
+ * device bounce, guarded conversion scratch and optional retained matrix copy.
+ * The result uses the existing prepared token, dependency, cancel and graph APIs. */
+RNS8_API rns8_status rns8_prepare_host_transfer_hip(rns8_context*,rns8_matrix*,rns8_pinned_host_buffer*,
+    const rns8_native_transfer_options*,rns8_prepared_execution**);
+
 
 #ifdef __cplusplus
 }

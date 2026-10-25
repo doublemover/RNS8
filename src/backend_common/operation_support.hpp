@@ -86,7 +86,7 @@ inline OperationSupport query_exact_lift_support(int64_t cells, uint32_t source,
 }
 // Compact persistent output; native staging and the selected input scan overlap.
 inline OperationSupport query_narrow_rns_support(int64_t m, int64_t n, int64_t k,
-    int64_t lda, int64_t ldb, uint32_t prefix, bool byte_wmma, uint64_t budget) {
+    int64_t lda, int64_t ldb, uint32_t prefix, bool byte_wmma, uint64_t budget,bool fused=false) {
   OperationSupport out;
   if (m<=0 || n<=0 || k<=0 || lda<k || ldb<n) return out;
   if (!prefix || prefix>20) { out.constraint=OperationConstraint::prefix; return out; }
@@ -94,7 +94,10 @@ inline OperationSupport query_narrow_rns_support(int64_t m, int64_t n, int64_t k
       !qualified_i32_matrix_address(m,n,n,prefix)) {
     out.status=RNS8_UNSUPPORTED_BACKEND; out.constraint=OperationConstraint::address_span; return out;
   }
-  out.payload_bytes=uint64_t(m)*uint64_t(n)*sizeof(uint64_t);
+  if(byte_wmma && (!qualified_i32_matrix_address(m,k,lda,1,8) || !qualified_i32_matrix_address(k,n,ldb,1,8))) {
+    out.status=RNS8_UNSUPPORTED_BACKEND;out.constraint=OperationConstraint::address_span;return out;
+  }
+  out.payload_bytes=fused?0:uint64_t(m)*uint64_t(n)*sizeof(uint64_t);
   const uint64_t scan_bytes=(byte_wmma ? 4u : 2u)*sizeof(uint64_t);
   if (out.payload_bytes>SIZE_MAX-scan_bytes) {
     out.status=RNS8_RANGE_ERROR; out.constraint=OperationConstraint::address_span; return out;

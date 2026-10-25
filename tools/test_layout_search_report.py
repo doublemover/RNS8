@@ -9,6 +9,7 @@ from pathlib import Path
 
 from benchmark_schema import load_capture
 import layout_search_report
+from test_capture_identity_support import synthetic_independent_runs
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -91,10 +92,10 @@ def main() -> int:
     )
     loser = make_candidate(fixture, name="slow-layout", baseline="default-layout", median=120.0)
     missing = make_candidate(fixture, name="missing-baseline-layout", baseline="absent-layout", median=75.0)
-    report = layout_search_report.build_report([baseline, winner, metadata_only, loser, missing])
+    report = layout_search_report.build_report(synthetic_independent_runs([baseline, winner, metadata_only, loser, missing]))
     rows = {row["layout_variant_name"]: row for row in report["rows"]}
     assert report["schema"] == "rns8_layout_search_report_v1"
-    assert report["baseline_count"] == 1
+    assert report["baseline_count"] == 2
     assert report["candidate_count"] == 4
     assert rows["packed-layout"]["decision"] == "promote locally"
     assert rows["packed-layout"]["speedup_vs_default_layout"] == 1.25

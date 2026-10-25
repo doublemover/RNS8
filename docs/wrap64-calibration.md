@@ -1,8 +1,9 @@
 # Matched canonical wrap64 calibration
 
-`rns8-wrap64-calibrate` compares four private routes on identical canonical
+`rns8-wrap64-calibrate` compares private routes on identical canonical
 compact byte-limb inputs and output: signed carry-recoded WMMA, native unsigned
-IU8 WMMA, ordinary direct-HIP v4, and corrected rocWMMA. Source, fixtures and
+IU8 WMMA, ordinary direct-HIP v4, and corrected rocWMMA on RDNA, a separate signed-INT8 MFMA route on CDNA,
+and a native-U64 vector-ALU control on both. Source, fixtures and
 case sets are authored and unexecuted. This is not public matrix ownership,
 AUTO routing, ISA verification or production promotion. The
 [recoding guide](wrap64-signed-radix.md) owns the arithmetic and current kernel
@@ -27,6 +28,7 @@ wrappers at the same boundaries.
 | Scope | Measured work |
 |---|---|
 | `resident` | R synchronous GEMMs on inputs packed once during setup |
+| `repeated_b` | B packed once in setup; pack/upload A, R GEMMs, export C; buffers retained |
 | `roundtrip` | Pack/upload A and B, R GEMMs, export low64 output; buffers retained |
 | `cold` | Allocate A/B, pack/upload, R GEMMs, export, checked free of A/B and transport buffers |
 
@@ -80,7 +82,7 @@ every exported low64 value, all three host padding columns, every canonical
 output byte and all 64 device canary bytes. Those audits run outside intervals.
 The dataset includes carry-heavy byte boundaries, all-zero products, tails and
 K values around the existing accumulator and matrix-control limits. New radix
-kernels still fold each 16-term MMA; their declared mathematical 131071/33025
+kernels fold each 16-term WMMA or generation-specific 16/32/64-term MFMA; their declared mathematical 131071/33025
 pair bounds are separate metadata and do not claim a longer accumulation slab.
 
 ## Resource and evidence accounting
@@ -95,7 +97,7 @@ It includes host/native inputs and expected outputs, raw/padded audit buffers,
 common canaries, canonical device payload and maximum upload/export staging, including overlapping old/new upload capacity during growth.
 Allocator bookkeeping, driver/HIP-event allocations, context and fixed metadata
 are excluded; this is not measured RSS, a device-memory peak or free-memory
-admission. Radix static LDS 4096 and explicit capability scratch 4 bytes describe
+admission. WMMA static LDS 4096, MFMA explicit LDS 0 and capability scratch 4 bytes describe
 source contracts; legacy LDS and fold lengths remain null where not queried.
 
 Captures bind the immutable source/configuration/external-header manifest.
@@ -132,8 +134,22 @@ ignored `temp/` and explicitly edit the selected device when needed.
 
 Each case/run launches a fresh process. Only independent process sustained batch
 means enter the summary; samples/GEMMs inside a process are not independent runs.
-The summary requires matched process-index sets for all four candidates, or the
-explicit three-way long-K cohort. It reports observed per-process medians/ranges
+The summary requires at least two matched independent process indices per
+candidate. Legacy RDNA four-way/long-K three-way controls remain explicit;
+`rdna-native-u64.json` adds the fifth native-U64 comparator. CDNA small,
+carry-slab, boundary and sustained case sets require MFMA, direct-v4 and native
+U64 together. Cross-family substitution is rejected. Case order is rotated and
+reversed between independent runs rather than running one method to completion. It reports observed per-process medians/ranges
 and direct-v4 ratios at each tested scope and reuse count. Missing cohorts remain
 incomplete. There is no interpolation, confidence claim, inferred break-even,
 route qualification or published performance result before the final campaign.
+
+
+Collector `*.capture.json` companions retain raw `*.stdout.json` and add the
+unchanged executable identity. `gpu_isa_report.py` accepts these captures for
+explicit symbol/target/code-object membership checks, and reports VGPR/SGPR,
+LDS/scratch, spills and matrix-opcode inventories. A shared-library build is
+labelled unresolved until the actual library's artifact identity is supplied;
+an executable hash cannot certify a different library's code object. Static
+membership is not a claim that a profiler observed dynamic execution. No ISA
+or benchmark collector was run while authoring this implementation.

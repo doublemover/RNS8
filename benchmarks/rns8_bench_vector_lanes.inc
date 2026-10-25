@@ -131,6 +131,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
@@ -269,6 +271,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif

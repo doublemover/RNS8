@@ -52,8 +52,9 @@ BUILD_PRESETS = {
 }
 
 
-def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> bool:
-    """Configure and build one accelerator preset."""
+def build_preset(configure_preset: str, build_preset: str, repo_root: Path,
+                 *, configure_only: bool = False, stages: dict[str, int] | None = None) -> bool:
+    """Configure one preset, optionally stopping before its build stage."""
     print(f"\n{'='*60}")
     print(f"Building: {configure_preset}")
     print(f"{'='*60}")
@@ -65,12 +66,23 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
     config_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
                                       capture_output=True, text=True)
     if config_result.returncode != 0:
+        if stages is not None:
+            stages["failed"] += 1
+            stages["build_skipped"] += 1
         print(f"ERROR: configure failed for {configure_preset}")
         if config_result.stdout:
             print(f"  STDOUT: {config_result.stdout[-500:]}")
         if config_result.stderr:
             print(f"  STDERR: {config_result.stderr[-500:]}")
         return False
+
+    if stages is not None:
+        stages["configured"] += 1
+    if configure_only:
+        if stages is not None:
+            stages["build_skipped"] += 1
+        print(f"SUCCESS: configured {configure_preset} (build not requested)")
+        return True
 
     # Build
     print(f"Building {build_preset}...")
@@ -79,6 +91,8 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
     build_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
                                     capture_output=True, text=True)
     if build_result.returncode != 0:
+        if stages is not None:
+            stages["failed"] += 1
         print(f"ERROR: build failed for {build_preset}")
         # Print the last relevant lines from the build output
         error_lines = []
@@ -91,6 +105,8 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
                 print(f"    {line}")
         return False
 
+    if stages is not None:
+        stages["built"] += 1
     print(f"SUCCESS: {configure_preset}")
     return True
 
@@ -130,19 +146,20 @@ def main() -> int:
     print(f"Building {len(configs)} accelerator preset(s)...")
 
     failures = 0
+    stages = dict(configured=0, built=0, failed=0, build_skipped=0)
     for config in configs:
         build = BUILD_PRESETS[config]
-        result = build_preset(config, build, repo_root)
+        result = build_preset(config, build, repo_root, configure_only=args.configure_only, stages=stages)
         if not result:
             failures += 1
-        if args.configure_only:
-            break  # Only configure first one for --configure-only
 
+    print("Stage totals: " + ", ".join(f"{name}={count}" for name, count in stages.items()))
     if failures:
         print(f"\n{failures}/{len(configs)} preset(s) failed")
         return 1
 
-    print(f"\nAll {len(configs)} accelerator preset(s) built successfully")
+    action = "configured" if args.configure_only else "configured and built"
+    print(f"\nAll {len(configs)} accelerator preset(s) {action} successfully")
     return 0
 
 

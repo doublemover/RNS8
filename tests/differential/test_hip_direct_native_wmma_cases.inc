@@ -1,8 +1,10 @@
 #include "backend_hip_direct/encoded_b_backend.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
 template <typename NativeT>
 bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_t prefix,
                               bool generated = false, uint32_t splits = 0,
-                              uint32_t tiled_depth = 0, uint32_t tiled_buffers = 0, bool encoded = false) {
+                              uint32_t tiled_depth = 0, uint32_t tiled_buffers = 0, bool encoded = false,
+                              const rns8::detail::NativeTiledConfig* conversion_config = nullptr) {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
   const int lda = k + 1, ldb = n + 2, ldc = n + 3;
@@ -73,7 +75,41 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
     auto status = RNS8_UNSUPPORTED_BACKEND;
-    if(encoded) {
+    if(conversion_config) {
+      bool started=true;
+      const NativeWmmaTask task{da,db,static_cast<int8_t*>(dc),m,n,k,lda,ldb,ldc,prefix,group,unsigned_inputs?1u:0u};
+      NativeTiledPrepared owner;
+      REQUIRE(owner.execute(started)==RNS8_INVALID_ARGUMENT);REQUIRE_FALSE(started);
+      status=owner.prepare(0,task,*conversion_config);
+      if(status==RNS8_SUCCESS) {
+        auto invalid=task;invalid.prefix=0;
+        REQUIRE(owner.prepare(0,invalid,*conversion_config)==RNS8_INVALID_ARGUMENT);
+        hip_direct_timing_set_enabled(false);
+        const auto before=hip_direct_allocation_counters_snapshot();
+        REQUIRE(owner.execute(started)==RNS8_SUCCESS);REQUIRE(started);
+        REQUIRE(owner.execute(started)==RNS8_SUCCESS);REQUIRE(started);
+        const auto after=hip_direct_allocation_counters_snapshot();
+        REQUIRE(after.allocate_calls==before.allocate_calls);
+        REQUIRE(after.free_calls==before.free_calls);
+        REQUIRE(after.h2d_calls==before.h2d_calls);REQUIRE(after.d2h_calls==before.d2h_calls);
+        REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc,actual.size())==RNS8_SUCCESS);
+        REQUIRE(actual==expected);
+        // Raw inputs are reread, not cached: reverse K in both operands without
+        // re-preparing. It preserves AB while changing every panel's contents.
+        auto changed_a=a,changed_b=b;
+        for(int row=0;row<m;++row)for(int q=0;q<k;++q)changed_a[row*lda+q]=a[row*lda+k-1-q];
+        for(int q=0;q<k;++q)for(int col=0;col<n;++col)changed_b[q*ldb+col]=b[(k-1-q)*ldb+col];
+        REQUIRE(hip_direct_copy_host_to_device(0,da,changed_a.data(),changed_a.size()*sizeof(NativeT))==RNS8_SUCCESS);
+        REQUIRE(hip_direct_copy_host_to_device(0,db,changed_b.data(),changed_b.size()*sizeof(NativeT))==RNS8_SUCCESS);
+        REQUIRE(owner.execute(started)==RNS8_SUCCESS);REQUIRE(started);
+        REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc,actual.size())==RNS8_SUCCESS);
+        REQUIRE(actual==expected);
+        REQUIRE(hip_direct_copy_host_to_device(0,da,a.data(),a.size()*sizeof(NativeT))==RNS8_SUCCESS);
+        REQUIRE(hip_direct_copy_host_to_device(0,db,b.data(),b.size()*sizeof(NativeT))==RNS8_SUCCESS);
+        status=hip_direct_gemm_native_conversion_device(0,task,*conversion_config,started);
+        REQUIRE(started);
+      }
+    } else if(encoded) {
       bool started=false;
       status=encoded_status==RNS8_SUCCESS?hip_gemm_encoded_b(0,da,encoded_storage.get(),dc,
           m,n,k,lda,ldc,prefix,group,unsigned_inputs,started):encoded_status;
@@ -97,10 +133,17 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
           0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
           unsigned_inputs, splits, 32, 0, commit) == RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(commit);
-      status = hip_direct_gemm_native_wmma_split_k_device(
-          0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
-          unsigned_inputs, splits, 32, UINT64_MAX, commit);
-      REQUIRE(commit == (status == RNS8_SUCCESS));
+      for(bool separate_control:{false,true})for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}) {
+        rns8_locality_desc locality{sizeof(locality),RNS8_ABI_VERSION,order,0,1,1,32,1024};rns8_locality_info receipt{};
+        status = hip_direct_gemm_native_wmma_split_k_device(
+            0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
+            unsigned_inputs, splits, 32, UINT64_MAX, commit,separate_control,&locality,&receipt);
+        REQUIRE(commit == (status == RNS8_SUCCESS));
+        if(status==RNS8_SUCCESS) {
+          REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc,actual.size())==RNS8_SUCCESS);
+          REQUIRE(actual==expected);
+        }
+      }
     } else {
       (void)generated;
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
@@ -163,7 +206,7 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
 
 TEST_CASE("persistent native WMMA split K canonicalizes odd moduli before hierarchical merges") {
   if (!hip_available()) SKIP("no HIP device for native WMMA split K");
-  for (const uint32_t splits : {1u, 3u, 129u})
+  for (const uint32_t splits : {1u, 2u, 3u, 127u, 128u, 129u, 257u})
     for (const int k : {257, 65537})
       for (const uint32_t prefix : {3u, 20u}) {
         const int m = k < 1024 ? 17 : 1, n = k < 1024 ? 19 : 1;
@@ -334,4 +377,26 @@ TEST_CASE("public encoded B binds native generations and exact output ownership"
   if(!hip_available()) SKIP("no HIP device for public encoded B");
   SECTION("signed") { check_public_encoded_b_owner<int64_t>(); }
   SECTION("unsigned") { check_public_encoded_b_owner<uint64_t>(); }
+}
+
+TEST_CASE("encode-once native candidates and prepared controls preserve every prefix and slab", "[hip][native][conversion]") {
+  if(!hip_available())SKIP("no HIP device for encode-once candidates");
+  using namespace rns8::detail;
+  const NativeTiledConfig configs[]{
+    {16,0,1,NativeConversion::replicated,65536},
+    {16,0,1,NativeConversion::cooperative,65536},
+    {16,0,4,NativeConversion::cooperative,65536},
+    {16,1,4,NativeConversion::encoded_lds,65536},
+    {32,1,4,NativeConversion::encoded_lds,65536}};
+  for(const auto& config:configs) {
+    for(uint32_t prefix=1;prefix<=20;++prefix)for(int k:{15,16,17}) {
+      if(!check_native_wmma_groups<int64_t>(false,17,19,k,prefix,false,0,0,0,false,&config))
+        SKIP("compiled target lacks qualified RDNA3 WMMA instruction layout");
+      REQUIRE(check_native_wmma_groups<uint64_t>(true,17,19,k,prefix,false,0,0,0,false,&config));
+    }
+    for(int k:{65535,65536,65537}) {
+      REQUIRE(check_native_wmma_groups<int64_t>(false,1,1,k,20,false,0,0,0,false,&config));
+      REQUIRE(check_native_wmma_groups<uint64_t>(true,1,1,k,20,false,0,0,0,false,&config));
+    }
+  }
 }

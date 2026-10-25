@@ -20,7 +20,7 @@ __device__ __forceinline__ int8_t rns8_native_wmma_center(
 // Each wave owns one output tile and Group consecutive default-basis planes.
 // Native loads are outside the channel loop; channels have separate encoded
 // fragments and accumulators. No INT32 or packed-input global workspace exists.
-template <typename NativeT, int Group, bool EncodedB = false>
+template <typename NativeT, int Group, bool EncodedB = false, bool Cooperative = false>
 __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
     const NativeT* a, const NativeT* b, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldc, int prefix,
@@ -42,6 +42,30 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
           rns8_default_moduli_device[first_plane + channel]);
   for (int64_t kk = 0; kk < k; kk += 16) {
     fragment av[Group]{}, bv[Group]{};
+    if constexpr (Cooperative) {
+      static_assert(!EncodedB, "cooperative native ownership cannot reinterpret encoded B");
+      const bool owns_a = rns8::detail::native_lane_owns_a(lane);
+      for (int word = 0; word < 4; ++word) {
+        uint32_t owned[Group]{};
+        for (int byte = 0; byte < 4; ++byte) {
+          const int64_t q = kk + word * 4 + byte;
+          // Exactly one selected native scalar and one common reducer stream.
+          // All 32 lanes remain active, including initialized zero tail lanes.
+          const NativeT raw = owns_a ? (ar < m && q < k ? a[ar*lda+q] : NativeT{}) :
+                                      (bc < n && q < k ? b[q*ldb+bc] : NativeT{});
+#pragma unroll
+          for (int channel = 0; channel < Group; ++channel)
+            if (first_plane + channel < prefix)
+              owned[channel] |= uint32_t(uint8_t(rns8_native_wmma_center(raw, reducers[channel]))) << (8*byte);
+        }
+#pragma unroll
+        for (int channel = 0; channel < Group; ++channel) {
+          const uint32_t partner = __shfl_xor(owned[channel], 16, 32);
+          av[channel][word] = static_cast<int>(owns_a ? owned[channel] : partner);
+          bv[channel][word] = static_cast<int>(owns_a ? partner : owned[channel]);
+        }
+      }
+    } else {
     for (int word = 0; word < 4; ++word) {
       uint32_t ap[Group]{}, bp[Group]{};
       for (int byte = 0; byte < 4; ++byte) {
@@ -71,6 +95,7 @@ __device__ __forceinline__ void rns8_native_grouped_wmma_tile(
               ? static_cast<int>(encoded_b[(uint64_t(plane)*n+bc)*encoded_k_words+uint64_t(kk)/4+word]) : 0;
         } else bv[channel][word] = static_cast<int>(bp[channel]);
       }
+    }
     }
     for (int channel = 0; channel < Group; ++channel) {
       if (first_plane + channel >= prefix) continue;
@@ -157,6 +182,69 @@ __global__ __launch_bounds__(32) void rns8_native_wmma_queue_kernel(
   }
 #else
   (void)tasks; (void)work; (void)count; (void)cursor;
+#endif
+}
+// Compact immutable scheduling uses the identical tile arithmetic. One wave
+// claims a bounded chunk; near the tail singleton claims reduce monopolization.
+// The host admits uint32 counter overshoot for workers*maximum_chunk, not just
+// actual work. No inter-workgroup barrier or speculative counter wrap is used.
+template<class NativeT,int Group,bool Completion=false>
+__global__ __launch_bounds__(32) void rns8_native_wmma_schedule_kernel(
+    const rns8::detail::NativeWmmaTask* tasks,const rns8::detail::NativeWmmaWork* work,
+    const rns8::detail::NativeWmmaTaskRange* ranges,const rns8::detail::NativeWmmaRoundPhase* phases,
+    rns8::detail::NativeWmmaScheduleHeader header,uint32_t* cursor,
+    uint32_t* completed=nullptr,uint64_t* ticks=nullptr,const uint64_t* start=nullptr) {
+#if RNS8_DEVICE_NATIVE_WMMA
+  __shared__ uint32_t first,chunk,valid;
+  __shared__ rns8::detail::NativeWmmaWork item;
+  while(true) {
+    if(!threadIdx.x) {
+      const uint32_t observed=atomicAdd(cursor,0u);
+      const uint64_t tail=uint64_t(gridDim.x)*header.claim_chunk;
+      chunk=uint64_t(observed)+tail>=header.work_count?1u:header.claim_chunk;
+      first=atomicAdd(cursor,chunk);
+    }
+    __syncthreads();
+    if(first>=header.work_count)return;
+    for(uint32_t offset=0;offset<chunk && uint64_t(first)+offset<header.work_count;++offset) {
+      if(!threadIdx.x) {
+        if(header.mode==0){item=work[first+offset];valid=1;}
+        else valid=rns8::detail::decode_native_wmma_schedule(header,ranges,phases,tasks,first+offset,item);
+      }
+      __syncthreads();
+      if(!valid)return; // host immutable-directory admission makes this unreachable
+      const auto task=tasks[item.task];
+      if constexpr(Group!=0) {
+        rns8_native_grouped_wmma_tile<NativeT,Group>(static_cast<const NativeT*>(task.a),
+            static_cast<const NativeT*>(task.b),task.c,task.m,task.n,task.k,task.lda,task.ldb,task.ldc,task.prefix,
+            int64_t(item.tile_row)*16,int64_t(item.tile_col)*16,item.first_plane);
+      } else if(task.unsigned_inputs)rns8_native_queue_tile<uint64_t>(task,item);
+      else rns8_native_queue_tile<int64_t>(task,item);
+      // Each writer publishes its own output stores before the completion
+      // counter. No workgroup waits for another workgroup to be scheduled.
+      if constexpr(Completion) __threadfence();
+      __syncthreads();
+      if constexpr(Completion) if(!threadIdx.x) {
+        const uint32_t required=uint32_t(uint64_t((task.m+15)/16)*((task.n+15)/16)*
+            ((task.prefix+task.group-1)/task.group));
+        if(atomicAdd(completed+item.task,1u)+1==required)
+          ticks[item.task]=uint64_t(wall_clock64())-*start;
+      }
+      __syncthreads();
+    }
+  }
+#else
+  (void)tasks;(void)work;(void)ranges;(void)phases;(void)header;(void)cursor;(void)completed;(void)ticks;(void)start;
+#endif
+}
+// Start is a preceding stream-ordered kernel, so every CTA uses one epoch.
+__global__ void rns8_native_queue_completion_begin(uint32_t count,uint32_t* completed,
+    uint64_t* ticks,uint64_t* start) {
+#if RNS8_DEVICE_NATIVE_WMMA
+  for(uint32_t i=blockIdx.x*blockDim.x+threadIdx.x;i<count;i+=gridDim.x*blockDim.x){completed[i]=0;ticks[i]=0;}
+  if(!blockIdx.x && !threadIdx.x)*start=uint64_t(wall_clock64());
+#else
+  (void)count;(void)completed;(void)ticks;(void)start;
 #endif
 }
 // Plane/column/K-word order: each B fragment word is a single aligned load.

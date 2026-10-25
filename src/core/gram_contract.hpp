@@ -4,7 +4,7 @@
 namespace rns8::detail::api {
 inline rns8_status validate_gram_contract(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
     rns8_gram_orientation orientation,rns8_gram_method method,GramProblem& p,cpp_int& bound) {
-    if(!ctx || !x || !c || x==c || uint32_t(orientation)>1 || uint32_t(method)>1)
+    if(!ctx || !x || !c || x==c || uint32_t(orientation)>1 || uint32_t(method)>3)
       return RNS8_INVALID_ARGUMENT;
     if(ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if(x->in_flight_writer || c->in_flight_writer || c->in_flight_readers) return RNS8_BUSY;

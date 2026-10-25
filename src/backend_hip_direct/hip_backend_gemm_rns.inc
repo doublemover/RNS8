@@ -98,7 +98,7 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc,
-    uint32_t prefix) {
+    uint32_t prefix,bool parallel_skinny) {
   const auto support = query_residue_gemm_support(m,n,k,lda,ldb,ldc,prefix);
   if (support.status != RNS8_SUCCESS) return support.status;
 
@@ -119,20 +119,14 @@ rns8_status hip_direct_gemm_rns_device(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const bool use_persistent_small = (static_cast<int64_t>(m) * static_cast<int64_t>(n) <= 64) && (prefix >= 1) && (lda == k) && (ldb == n) && (ldc == n);
-  hipError_t err;
-  if (use_persistent_small) {
-    err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-      return static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_device(
-          a_base, b_base, c_base, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(prefix)));
-    });
-  } else {
-    err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-      const hipError_t launch_status =
-          launch_direct_rns_gemm_no_sync(a_base, b_base, c_base, m, n, k, lda, ldb, ldc, prefix);
-      return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
-    });
-  }
+  const auto route=direct_rns_route(m,n,k,lda,ldb,ldc,prefix,parallel_skinny);
+  const auto err=timed_hip_operation(direct_rns_route_event(route),[&](){hipError_t launch=hipSuccess;
+    if(route==DirectRnsRoute::persistent_small)return static_cast<hipError_t>(rns8_hip_direct_persistent_small_gemm_rns_device(a_base,b_base,c_base,int(m),int(n),int(k),int(prefix)));
+    if(route==DirectRnsRoute::gemv_n1)launch=static_cast<hipError_t>(rns8_hip_direct_ring_gemv_n1_i8_grouped_prefix_device(a_base,b_base,c_base,int(m),int(k),int(lda),int(ldb),int(ldc),int(prefix),RNS8_SAFE_INT32_K_BLOCK));
+    else if(route==DirectRnsRoute::gemv_small_n)launch=static_cast<hipError_t>(rns8_hip_direct_ring_gemv_small_n_i8_grouped_prefix_device(a_base,b_base,c_base,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),int(prefix),RNS8_SAFE_INT32_K_BLOCK));
+    else launch=launch_direct_rns_gemm_no_sync(a_base,b_base,c_base,m,n,k,lda,ldb,ldc,prefix);
+    return launch==hipSuccess?hipDeviceSynchronize():launch;
+  });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

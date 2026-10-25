@@ -9,7 +9,7 @@ rns8_backend_kind selected_backend_for_events(const Args& args, const BenchmarkR
 }
 
 bool gpu_event_capture_requested(const Args& args, rns8_backend_kind selected_backend) {
-  if (hip_graph_replay_requested(args)) {
+  if (args.production_host_timing || hip_graph_replay_requested(args)) {
     return false;
   }
   return backend_supports_gpu_event_capture(selected_backend);
@@ -901,11 +901,15 @@ void end_gpu_event_phase(bool collect) {
 }
 
 void record_allocation_after_warmups(BenchmarkResult& result) {
+  result.schedule_after_warmups=rns8::detail::api::plan_validation_work;
+  result.metadata_after_warmups=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.allocation_after_warmups = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_warmups_available = true;
 }
 
 void record_allocation_after_repeats(BenchmarkResult& result) {
+  result.schedule_after_repeats=rns8::detail::api::plan_validation_work;
+  result.metadata_after_repeats=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_repeats_available = true;
 }
@@ -915,7 +919,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return false;
   }
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
-  const std::size_t repeats = result.samples.pack_us.size();
+  const std::size_t repeats = result.streaming_overlap_executed ? result.streaming_overlap_measured_repeat_count : result.samples.pack_us.size();
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const auto phase_order = gpu_event_phase_order(args, result, selected_backend, use_prepacked_b_cache);
   if (repeats == 0 || phase_order.empty()) {
@@ -935,3 +939,31 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
   return true;
 }
 
+
+// Diagnostic hooks are disabled once outside the sustained timed region. Each
+// public call still performs its normal proof, status and completion work.
+template<class Call>
+void run_public_sustained(const Args& args, BenchmarkResult& result, Call&& call) {
+  if (!args.sustained_batches) return;
+  rns8::detail::hip_direct_timing_set_enabled(false);
+  uint64_t source_version = static_cast<uint64_t>(args.warmups) + args.repeats + 1;
+  for (uint32_t batch = 0; batch < args.sustained_batches; ++batch)
+    result.sustained_observations.push_back(rns8::bench::measure_sustained(
+        call, args.sustained_min_calls, args.sustained_max_calls, args.sustained_min_ms * 1000.0,
+        measured_task_count(args), source_version));
+}
+
+template<class T>
+void verify_sustained_native_output(const Args& args, const std::vector<T>& a, const std::vector<T>& b,
+                                    const std::vector<T>& c) {
+  if (!args.sustained_batches && !args.streaming_overlap) return;
+  using boost::multiprecision::cpp_int;
+  const int64_t ldc = output_logical_ld(args);
+  for (int64_t row=0;row<args.m;++row) for (int64_t col=0;col<args.n;++col) {
+    cpp_int expected=0;
+    for (int64_t q=0;q<args.k;++q) expected+=cpp_int(a[row*args.k+q])*b[q*args.n+col];
+    if (finite_benchmark_semantics(args.semantics)) expected %= args.finite_modulus;
+    if (args.semantics == BenchSemantics::WrapU64Mod2_64) expected &= (cpp_int(1)<<64)-1;
+    if (expected != cpp_int(c[row*ldc+col])) throw std::runtime_error("sustained public output disagrees with complete integer oracle");
+  }
+}

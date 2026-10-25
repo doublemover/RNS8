@@ -36,6 +36,7 @@ class Identity:
     output_contract: str
     timing_source: str
     profiling_mode: str
+    host_instrumentation_state: str = "not_applicable_instruction_microbenchmark"
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,8 @@ def validate(calibration: Calibration) -> None:
         raise ValueError("unsupported timing source")
     if calibration.identity.profiling_mode not in {"none", "application_replay", "kernel_replay"}:
         raise ValueError("unsupported profiling mode")
+    if calibration.identity.host_instrumentation_state not in {"not_applicable_instruction_microbenchmark", "hooks_disabled", "diagnostic_gpu_events"}:
+        raise ValueError("unknown host instrumentation state")
     if not calibration.work_kind or not calibration.unit or not calibration.runs:
         raise ValueError("work definition and raw runs are required")
     ids = set()
@@ -128,6 +131,10 @@ def summarize(calibration: Calibration) -> dict:
         failures.append("exact_reference_not_passed")
     if any(not run.isa_verified for run in calibration.runs):
         failures.append("isa_not_verified")
+    if calibration.identity.host_instrumentation_state == "diagnostic_gpu_events":
+        failures.append("diagnostic_host_hooks_not_uninstrumented_calibration")
+    if calibration.work_kind in {"public_pipeline", "public_end_to_end"} and calibration.identity.host_instrumentation_state != "hooks_disabled":
+        failures.append("public_pipeline_requires_explicit_hook_disabled_boundary")
     if calibration.identity.profiling_mode != "none":
         failures.append("profiled_time_not_uninstrumented_calibration")
     if len({run.work_units for run in calibration.runs}) != 1:

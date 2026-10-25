@@ -14,6 +14,11 @@ struct FloatingSchedule {
   uint32_t left_digits=0,right_digits=0,slab_k=0,reserved=0;
   uint64_t weights[16]{};
 };
+// Canonical admission x<p proves every digit above this width is zero.
+RNS8_WORD_HD constexpr uint32_t canonical_byte_width(uint64_t modulus) {
+  uint32_t width=1;for(uint64_t value=(modulus-1)>>8;value;value>>=8)++width;
+  return width;
+}
 inline constexpr uint32_t digit_slab_k=4096;
 static_assert(uint64_t(digit_slab_k)*8*255*255<=INT32_MAX,
               "eight byte-pair terms per diagonal must fit signed INT32");
@@ -32,11 +37,12 @@ inline DigitWeights digit_weights(uint64_t modulus) {
   for(unsigned d=1;d<15;++d) weights.values[d]=multiply(weights.values[d-1],256%modulus,modulus);
   return weights;
 }
-inline uint64_t digit_product(uint64_t a,uint64_t b,uint64_t modulus) {
+inline uint64_t digit_product(uint64_t a,uint64_t b,uint64_t modulus,bool canonical_width=false) {
   const auto weights=digit_weights(modulus);uint32_t diagonal[15]{};
-  for(unsigned i=0;i<8;++i) for(unsigned j=0;j<8;++j)
+  const auto width=canonical_width ? canonical_byte_width(modulus) : 8u;
+  for(unsigned i=0;i<width;++i) for(unsigned j=0;j<width;++j)
     diagonal[i+j]+=uint32_t((a>>(8*i))&255)*uint32_t((b>>(8*j))&255);
-  uint64_t sum=0;for(unsigned d=0;d<15;++d) sum=add(sum,multiply(weights.values[d],diagonal[d]%modulus,modulus),modulus);
+  uint64_t sum=0;for(unsigned d=0;d<2*width-1;++d) sum=add(sum,multiply(weights.values[d],diagonal[d]%modulus,modulus),modulus);
   return sum;
 }
 inline uint64_t power(uint64_t a,uint64_t exponent,uint64_t modulus) {

@@ -1,0 +1,45 @@
+{
+  "schema": "native_queue_case_v1",
+  "workers": 32,
+  "chunk": 4,
+  "reuse": 4,
+  "repeats": 9,
+  "warmups": 3,
+  "metadata_budget_mib": 64,
+  "encoded_b": false,
+  "mutate_b": false,
+  "tasks": [
+    {
+      "m": 1,
+      "n": 1,
+      "k": 65537,
+      "prefix": 20,
+      "group": 4,
+      "unsigned": false
+    },
+    {
+      "m": 128,
+      "n": 129,
+      "k": 17,
+      "prefix": 20,
+      "group": 1,
+      "unsigned": false
+    },
+    {
+      "m": 17,
+      "n": 19,
+      "k": 2049,
+      "prefix": 3,
+      "group": 2,
+      "unsigned": true
+    },
+    {
+      "m": 3,
+      "n": 1,
+      "k": 31,
+      "prefix": 1,
+      "group": 1,
+      "unsigned": true
+    }
+  ]
+}

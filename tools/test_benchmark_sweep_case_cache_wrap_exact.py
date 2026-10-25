@@ -2,9 +2,10 @@ with tempfile.TemporaryDirectory() as temp_dir:
     cache_path = Path(temp_dir) / "finite-autotune.json"
     promoted = benchmark_sweep.write_promoted_cache_entries(report, [ck, direct, cpu], cache_path)
     benchmark_sweep.attach_cache_write_status(report, True, cache_path, promoted)
-    assert promoted == 1
-    cache = json.loads(cache_path.read_text(encoding="utf-8"))
-    entry = cache["entries"][0]
+    assert promoted == 0
+    assert not cache_path.exists()
+    # Serialization is still covered independently; this is not installed evidence.
+    entry = benchmark_sweep.cache_entry_from_capture(ck, "synthetic_serialization_only")
     assert entry["finite_modulus"] == 255
     assert ";finite_modulus=255;" in f";{entry['key']};"
 
@@ -53,8 +54,7 @@ exact_group = exact_report["groups"][0]
 assert exact_group["semantics"] == "exact_wide_signed"
 assert exact_group["required_baselines"] == ["cpu-reference", "hip-direct"]
 assert exact_group["missing_required_baselines"] == []
-assert len(exact_report["promotable_autotune_entries"]) == 1
-assert exact_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert exact_report["promotable_autotune_entries"] == []
 
 exact_blocked = benchmark_sweep.review_captures([exact_ck], review_mode="release")
 assert exact_blocked["groups"][0]["missing_required_baselines"] == ["cpu-reference", "hip-direct"]
@@ -69,23 +69,14 @@ with tempfile.TemporaryDirectory() as temp_dir:
     bounded_report = benchmark_sweep.review_captures(
         [bounded_ck, bounded_direct, bounded_vector, bounded_cpu], review_mode="release"
     )
-    assert len(bounded_report["promotable_autotune_entries"]) == 1
-    assert bounded_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
-    assert bounded_report["promotable_autotune_entries"][0]["target_id"] == "gfx1100"
-    assert bounded_report["groups"][0]["fastest_promotable"]["backend"] == "ck"
+    assert bounded_report["promotable_autotune_entries"] == []
     cache_path = Path(temp_dir) / "autotune.json"
     promoted = benchmark_sweep.write_promoted_cache_entries(
         bounded_report, [bounded_ck, bounded_direct, bounded_vector, bounded_cpu], cache_path
     )
-    benchmark_sweep.attach_cache_write_status(bounded_report, True, cache_path, promoted)
-    assert promoted == 1
-    assert bounded_report["cache_write"]["status"] == "written"
-    assert bounded_report["groups"][0]["fastest_promotable"]["cache_write_status"] == "written"
-    assert bounded_report["groups"][0]["candidates"][1]["cache_write_status"] != "written"
-    cache = json.loads(cache_path.read_text(encoding="utf-8"))
-    entry = cache["entries"][0]
-    assert entry["performance_validated"] is True
-    assert entry["validation_status"] == "reviewed_release_same_contract_fastest_windows_gfx1100"
+    assert promoted == 0
+    assert not cache_path.exists()
+    entry = benchmark_sweep.cache_entry_from_capture(bounded_ck, "synthetic_serialization_only")
     assert entry["epilogue"] == bounded_ck["backend_metadata"]["epilogue_mode"]
     assert entry["measured_medians_us"]["pack_a"] == 70.0
     assert entry["measured_medians_us"]["pack_b"] == 30.0

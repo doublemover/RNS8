@@ -39,6 +39,10 @@ rns8_status amdgpu_builtins_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix);
 
+// Compact [batch][plane][row][ld] storage; one matrix-engine grid and completion.
+rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches);
+
 rns8_status amdgpu_builtins_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,

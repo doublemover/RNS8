@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import hashlib
 import math
 import re
 import sys
@@ -13,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from observation_cohorts import canonical_work
+from perf_variance_report import execution_cohort
+from timing_eligibility import capture_identity
 from evidence_database_lib.work_model import classify_bottleneck, estimate_work, roofline_target_for_row
 
 
@@ -65,6 +69,10 @@ def _capture_identity(capture: dict[str, Any], path: Path) -> dict[str, Any]:
         metadata = {}
     return {
         "path": str(path),
+        "capture_sha256": capture_identity(capture),
+        "execution_id": capture.get("execution_id"),
+        "execution_cohort": execution_cohort(capture),
+        "work_contract_key": hashlib.sha256(canonical_work(capture).encode()).hexdigest(),
         "schema_version": capture.get("schema_version"),
         "benchmark": capture.get("benchmark"),
         "benchmark_execution_mode": capture.get("benchmark_execution_mode"),
@@ -152,16 +160,42 @@ def _first_available(*values: Any) -> Any:
 
 
 def _merged_counter_metrics(counter_reports: list[dict[str, Any]]) -> dict[str, float]:
-    merged: dict[str, list[float]] = {}
+    totals: dict[str, float] = {}; counts: dict[str, int] = {}
     for report in counter_reports:
-        averages = report.get("numeric_metric_average")
-        if not isinstance(averages, dict):
-            continue
-        for key, value in averages.items():
-            number = _number(value)
-            if number is not None:
-                merged.setdefault(str(key), []).append(number)
-    return {key: sum(values) / len(values) for key, values in sorted(merged.items()) if values}
+        for key, count in (report.get("numeric_metric_counts") or {}).items():
+            total = _number((report.get("numeric_metric_totals") or {}).get(key))
+            if type(count) is int and count > 0 and total is not None:
+                totals[key] = totals.get(key, 0.0) + total
+                counts[key] = counts.get(key, 0) + count
+    return {key: totals[key] / counts[key] for key in sorted(counts)}
+
+
+def _counter_group_identity(record: dict[str, Any]) -> dict[str, Any]:
+    def first(names):
+        return next((str(record[name]) for name in names if record.get(name) not in (None, "")), None)
+    return {"kernel": first(("KernelName", "Kernel_Name", "kernel_name", "kernel", "Kernel")),
+            "phase": first(("phase", "Phase")), "device": first(("device_id", "DeviceId", "Device_ID", "gpu-id")),
+            "execution_id": first(("execution_id", "run_id", "RunId")),
+            "unit": first(("unit", "Unit", "Units"))}
+
+
+def _merged_counter_groups(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups = {}
+    for report in reports:
+        for group in report.get("kernel_metric_groups", []):
+            key = json.dumps(group["identity"], sort_keys=True)
+            entry = groups.setdefault(key, {"identity": group["identity"], "record_count": 0,
+                "numeric_metric_totals": {}, "numeric_metric_counts": {}, "numeric_metric_minimum": {}, "numeric_metric_maximum": {}})
+            entry["record_count"] += group["record_count"]
+            for metric, count in group["numeric_metric_counts"].items():
+                entry["numeric_metric_counts"][metric] = entry["numeric_metric_counts"].get(metric, 0) + count
+                entry["numeric_metric_totals"][metric] = entry["numeric_metric_totals"].get(metric, 0.0) + group["numeric_metric_totals"][metric]
+                entry["numeric_metric_minimum"][metric] = min(entry["numeric_metric_minimum"].get(metric, float("inf")), group["numeric_metric_minimum"][metric])
+                entry["numeric_metric_maximum"][metric] = max(entry["numeric_metric_maximum"].get(metric, -float("inf")), group["numeric_metric_maximum"][metric])
+    for entry in groups.values():
+        entry["numeric_metric_average"] = _merged_counter_metrics([entry])
+        entry["aggregation_semantics"] = "per_metric_observation_mean_preserved_units_not_time_weighted_rate"
+    return [groups[key] for key in sorted(groups)]
 
 
 def _isa_resource_summary(isa_reports: list[dict[str, Any]]) -> dict[str, Any]:
@@ -223,7 +257,16 @@ def _counter_resource_summary(
     counter_reports: list[dict[str, Any]],
     isa_reports: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    metrics = _merged_counter_metrics(counter_reports)
+    groups = _merged_counter_groups(counter_reports)
+    symbols = {capture.get("selected_kernel")}
+    symbols.update(report.get("selected_symbol") for report in isa_reports)
+    selected = [group for group in groups if group["identity"]["kernel"] in symbols and
+                group["identity"]["kernel"] is not None and
+                group["identity"]["execution_id"] == capture.get("execution_id") and capture.get("execution_id") and
+                group["identity"]["device"] in (None, str((capture.get("device") or {}).get("device_id")))]
+    # A scalar resource summary must not silently choose between phases/units.
+    # All matching groups remain available for per-kernel/phase interpretation.
+    metrics = _merged_counter_metrics(selected) if len(selected) == 1 else {}
     isa_totals = _isa_resource_summary(isa_reports)
     bottleneck = classify_bottleneck(capture)
     work = estimate_work(capture)
@@ -238,6 +281,10 @@ def _counter_resource_summary(
         else None,
     }
     return {
+        "counter_scope": ("execution_and_selected_symbol_bound" if len(selected) == 1 else
+                          "ambiguous_selected_phase_or_units" if selected else "unbound_inventory_only"),
+        "selected_counter_groups": selected,
+        "counter_metric_aggregation": "per_metric_observation_mean_not_resource_requirement_or_time_weighted_rate",
         "vgpr": _first_available(
             _first_metric(metrics, (r"\bvgpr\b", r"vgpr_count", r"num_vgprs")),
             isa_totals.get("vgpr_count"),
@@ -358,30 +405,37 @@ def load_counter_file(path: Path, top_limit: int) -> dict[str, Any]:
     else:
         raise RuntimeError(f"counter input must be .json or .csv: {path}")
 
-    numeric_totals: dict[str, float] = {}
-    numeric_counts: dict[str, int] = {}
-    nonnumeric_keys: set[str] = set()
+    numeric_totals: dict[str, float] = {}; numeric_counts: dict[str, int] = {}
+    numeric_minimum: dict[str, float] = {}; numeric_maximum: dict[str, float] = {}
+    nonnumeric_keys: set[str] = set(); groups = {}
     for record in records:
+        identity = _counter_group_identity(record)
+        group_key = json.dumps(identity, sort_keys=True)
+        group = groups.setdefault(group_key, {"identity": identity, "record_count": 0,
+            "numeric_metric_totals": {}, "numeric_metric_counts": {}, "numeric_metric_minimum": {}, "numeric_metric_maximum": {}})
+        group["record_count"] += 1
         for key, value in record.items():
             number = _number(value)
-            if number is None:
-                nonnumeric_keys.add(str(key))
-                continue
-            numeric_totals[str(key)] = numeric_totals.get(str(key), 0.0) + number
-            numeric_counts[str(key)] = numeric_counts.get(str(key), 0) + 1
-
-    numeric_averages = {
-        key: numeric_totals[key] / numeric_counts[key] for key in sorted(numeric_totals)
-    }
-    return {
-        "path": str(path),
-        "format": suffix.lstrip("."),
-        "record_count": len(records),
-        "numeric_metric_count": len(numeric_averages),
-        "nonnumeric_keys": sorted(nonnumeric_keys - set(numeric_averages)),
-        "numeric_metric_average": numeric_averages,
-        "top_numeric_metrics_by_abs_average": _top_numeric_metrics(numeric_averages, top_limit),
-    }
+            if number is None: nonnumeric_keys.add(str(key)); continue
+            # Keep explicit units separate; never average percent and fraction.
+            metric = str(key) + (" [" + identity["unit"] + "]" if identity["unit"] else "")
+            numeric_totals[metric] = numeric_totals.get(metric, 0.0) + number
+            numeric_counts[metric] = numeric_counts.get(metric, 0) + 1
+            numeric_minimum[metric] = min(numeric_minimum.get(metric, float("inf")), number)
+            numeric_maximum[metric] = max(numeric_maximum.get(metric, -float("inf")), number)
+            group["numeric_metric_totals"][metric] = group["numeric_metric_totals"].get(metric, 0.0) + number
+            group["numeric_metric_counts"][metric] = group["numeric_metric_counts"].get(metric, 0) + 1
+            group["numeric_metric_minimum"][metric] = min(group["numeric_metric_minimum"].get(metric, float("inf")), number)
+            group["numeric_metric_maximum"][metric] = max(group["numeric_metric_maximum"].get(metric, -float("inf")), number)
+    averages = {key: numeric_totals[key] / numeric_counts[key] for key in sorted(numeric_totals)}
+    return {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "format": suffix.lstrip("."), "record_count": len(records),
+        "numeric_metric_count": len(averages), "nonnumeric_keys": sorted(nonnumeric_keys - set(averages)),
+        "numeric_metric_totals": numeric_totals, "numeric_metric_counts": numeric_counts,
+        "numeric_metric_minimum": numeric_minimum, "numeric_metric_maximum": numeric_maximum,
+        "numeric_metric_average": averages, "kernel_metric_groups": [groups[key] for key in sorted(groups)],
+        "aggregation_scope": "all_observations_diagnostic_not_selected_kernel_resource_requirement",
+        "top_numeric_metrics_by_abs_average": _top_numeric_metrics(averages, top_limit)}
 
 
 def load_isa_summary(path: Path) -> dict[str, Any]:
@@ -413,7 +467,13 @@ def report_for_capture(
     capture = load_capture(capture_path)
     validate_capture(capture, capture_path)
     counter_reports = [load_counter_file(path, top_limit) for path in counter_paths]
-    isa_reports = [load_isa_summary(path) for path in isa_paths]
+    isa_inventory = [load_isa_summary(path) for path in isa_paths]
+    from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
+    association = lookup_isa_resources(load_isa_index(isa_paths), capture.get("backend_selected"),
+        (capture.get("device") or {}).get("gcn_arch"), capture)
+    isa_reports = [{"instruction_totals": report["isa_symbols"][0]["counts"],
+                    "selected_symbol": report["isa_selected_symbol"]}
+                   for report in association.get("isa_resource_reports", [])]
     event_medians = _event_medians(capture)
     resource_summary = _counter_resource_summary(capture, counter_reports, isa_reports)
     evidence_status = _evidence_status(counter_reports, isa_reports, event_medians, resource_summary)
@@ -423,7 +483,10 @@ def report_for_capture(
         "policy": COUNTER_REPORT_POLICY,
         "gpu_event_medians_us": event_medians,
         "counter_inputs": counter_reports,
-        "isa_summaries": isa_reports,
+        "isa_summaries": isa_inventory,
+        "isa_selected_association": association,
+        "counter_observation_metrics": _merged_counter_metrics(counter_reports),
+        "counter_kernel_groups": _merged_counter_groups(counter_reports),
         "resource_summary": resource_summary,
         "evidence_status": evidence_status,
         "review_notes": [
@@ -555,7 +618,7 @@ def write_markdown_report(report: dict[str, Any], out_dir: Path, stem: str) -> P
 
 
 def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
-    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    groups: dict[tuple[str, ...], list[dict[str, Any]]] = {}
     for report in reports:
         capture = report["capture"]
         summary = report.get("resource_summary") or {}
@@ -563,10 +626,14 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
             str(capture.get("target_id") or "unknown"),
             str(summary.get("roofline_target") or "unclassified"),
             str(capture.get("semantics") or "unknown"),
+            str(capture.get("work_contract_key") or "unknown"),
+            str(capture.get("execution_cohort") or "unqualified"),
+            str(capture.get("selected_kernel") or "unknown"),
         )
         groups.setdefault(key, []).append(report)
     group_rows = []
-    for (target_id, roofline, semantics), rows in sorted(groups.items()):
+    for (target_id, roofline, semantics, work_contract, cohort, kernel), rows in sorted(groups.items()):
+        rows = sorted(rows, key=lambda row: (str(row["capture"].get("capture_sha256")), str(row["capture"].get("path"))))
         total_count = len(rows)
         signal_summary = {}
         for field in RESOURCE_SIGNAL_FIELDS:
@@ -597,6 +664,8 @@ def build_batch_report(reports: list[dict[str, Any]]) -> dict[str, Any]:
         group_rows.append(
             {
                 "target_id": target_id,
+                "work_contract_key": work_contract, "execution_cohort": cohort, "selected_kernel": kernel,
+                "aggregation_semantics": "descriptive_per_capture_resource_distribution_not_independent_performance_evidence",
                 "roofline_target": roofline,
                 "semantics": semantics,
                 "capture_count": total_count,

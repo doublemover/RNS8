@@ -1,3 +1,6 @@
+option(RNS8_ENABLE_CPU_AMX "Compile optional Linux x86-64 AMX-INT8 provider with runtime OS/thread admission" OFF)
+option(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL "Force scalar residue inner loops, including legacy packed special-modulus kernels; research control only" OFF)
+option(RNS8_EXPERIMENTAL_RESIDUE_DOT4 "Research packed signed-byte inner loops for all residue schedulers; legacy arithmetic when OFF" OFF)
 option(RNS8_EXPERIMENTAL_GARNER_TABLE "Research-only immutable HIP Garner table; not release-qualified" OFF)
 option(RNS8_ENABLE_HIP "Build the direct HIP backend with explicit hipcc integration" OFF)
 option(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA "Compile bounded generated native WMMA research variants" OFF)
@@ -222,3 +225,7 @@ if(RNS8_ENABLE_FLINT AND NOT RNS8_FLINT_FOUND)
   )
 endif()
 
+
+if(RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL AND RNS8_EXPERIMENTAL_RESIDUE_DOT4)
+  message(FATAL_ERROR "Choose either scalar residue control or packed-dot candidate")
+endif()

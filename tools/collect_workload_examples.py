@@ -27,7 +27,7 @@ IDENTITY_KEYS = ("workload", "m", "n", "k", "bits", "seed", "pattern", "repeats"
                  "build_manifest", "workload_source_identity", "semantics", "output_contract", "dataset_recipe",
                  "input_checksum_u64", "checksum_u64", "changed_input_checksum_u64", "changed_checksum_u64",
                  "abs_partial_sum_bound", "bounds", "formula", "lifecycle", "work_definition", "logical_layout", "a_ld", "b_ld", "output_ld",
-                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch", "gram_prepared_owner_cohort",
+                 "declared_memory_budget_bytes", "aggregate_memory_envelope_bytes", "gram_batch", "gram_prepared_owner_cohort", "gram_ablation_cohort",
                  "optional_reference_cohort", "optional_references")
 MASK = (1 << 64) - 1
 
@@ -221,6 +221,8 @@ def requested_gram_batch(arguments: list[str]) -> dict:
 def validate_gram_batch(report: dict, variants: list[dict], requested=None,dataset=None):
     batch=report.get("gram_batch",{})
     prepared_cohort="gram_prepared_owner_cohort" in report
+    ablation_cohort="gram_ablation_cohort" in report
+    if ablation_cohort:demand(exact_value(report["gram_ablation_cohort"],1) and prepared_cohort,"invalid Gram ablation cohort version")
     if prepared_cohort:demand(exact_value(report["gram_prepared_owner_cohort"],1) and bool(batch),"invalid prepared Gram cohort version")
     if "gram_batch" in report:demand(type(batch) is dict and bool(batch),"Gram batch must be nonempty contract object")
     if requested is not None:demand(exact_value(batch,requested),"requested Gram batch differs from capture")
@@ -245,10 +247,14 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None,datas
         demand(("rns8_single_source_gram_wmma" in names)==("rns8_prepared_single_source_gram_wmma" in names),"ordinary/prepared WMMA controls must match")
         magnitudes=dataset["gram_max_magnitudes"]
         expanded=int(magnitudes["changed"])>int(magnitudes["original"])
+    ablation_methods=["scalar"]+(["wmma"] if "rns8_single_source_gram_wmma" in names else [])
+    ablation_names={f"rns8_prepared_single_source_gram_{kind}_{method}" for method in ablation_methods for kind in ("native","transpose","reconstruct_once","separate_mirror")}
+    if ablation_cohort:demand(ablation_names<=names,"Gram native/transpose/reconstruct-once controls must all be present")
     for row in passed:
         name=row["name"];rns=name.startswith("rns8_")
         allowed={"rns8_prepared_dense_gram_control","rns8_single_source_gram_scalar","rns8_single_source_gram_wmma"}
         if prepared_cohort:allowed|={"rns8_prepared_single_source_gram_scalar","rns8_prepared_single_source_gram_wmma"}
+        if ablation_cohort:allowed|=ablation_names
         demand(not rns or name in allowed,"unexpected Gram implementation")
         single=rns and name!="rns8_prepared_dense_gram_control";wmma=name.endswith("_wmma");prepared=name.startswith("rns8_prepared_single_source_gram_")
         expected=dict(batch,implementation="public_prepared_single_source" if prepared else "retained_single_source" if single else "public_prepared_dense" if rns else "cpu_native_comparator",
@@ -273,6 +279,27 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None,datas
         if prepared:
             tiles=(report["n"]+15)//16
             demand(exact_value(row["metadata"].get("modeled_retained_gram_job_payload_bytes"),tiles*(tiles+1)//2*16+4),"prepared Gram job payload model differs")
+            if ablation_cohort:
+                native="_gram_native_" in name;transpose="_gram_transpose_" in name;once="_reconstruct_once_" in name
+                contract=row["metadata"].get("gram_ablations",{})
+                prefix=row["metadata"]["plan"]["selected_prefix"]
+                order=report["n"];limbs=report["output_limbs_per_cell"]
+                adapter=report["k"]*order*prefix if transpose else 0
+                host_export=order*order*limbs*8 if once else 0
+                device_export=host_export+4 if hip and once else 0
+                expected_contract=dict(version=1,input_policy=1 if native else 2 if transpose else 0,
+                    reconstruction_policy="independent_once_then_mirror" if once else "dense_each_cell",
+                    owned_payload_bytes=contract.get("owned_payload_bytes"),adapter_bytes=adapter,
+                    host_export_bytes=host_export,device_export_bytes=device_export,
+                    independent_cells=order*(order+1)//2,dense_cells=order*order,native_storage_retained=native,
+                    adapter_generation_policy="first_execute_after_prepare_or_refresh",mirror_policy="separate_tiled" if "_separate_mirror_" in name else "producer_stores",output_validity="complete_dense_residues")
+                demand(exact_value(contract,expected_contract),"Gram ablation identity or payload mismatch")
+                jobs=tiles*(tiles+1)//2*8
+                device=jobs+(4 if wmma else 0)+adapter if hip else 0
+                if hip and once:device=(device+7)//8*8+device_export
+                minimum=jobs+(adapter if not hip else 0)+host_export+(prefix if once and not hip else 0)+device
+                demand(type(contract["owned_payload_bytes"]) is int and minimum<=contract["owned_payload_bytes"]<=report["declared_memory_budget_bytes"],
+                       "Gram owned payload omits retained adapter/export/alignment")
             unchanged=dict(generation_action="retained_owner",packed_source_version=1,owner_first_execution=False,owner_builds=1,owner_refreshes=0)
             cold=dict(unchanged,owner_first_execution=True)
             changed=dict(generation_action="recreated_owner_for_larger_bound" if expanded else "refreshed_owner",packed_source_version=2,

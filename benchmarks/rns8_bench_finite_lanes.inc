@@ -118,6 +118,8 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -256,6 +258,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_export_grouped_finite_u8_task_outputs_to_host(grouped finite)", status);
         }
+        if (!args.grouped_compact_output) scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "timed grouped per-task materialization");
       }
       (void)task;
       return;
@@ -297,11 +300,27 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
         export_task);
   }
   record_allocation_after_repeats(result);
-  if (grouped_pack_gemm_export_enabled) {
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        c_semantics(args.semantics),
+        matrix_prefix,
+        version,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
+  });
+  if (grouped_pack_gemm_export_enabled && args.grouped_compact_output) {
     scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped finite-u8 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index]);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch finite C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -545,7 +564,9 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);

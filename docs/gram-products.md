@@ -36,7 +36,10 @@ once; diagonal elements have one writer. The output is published only after
 all jobs finish. Scalar code skips dependent cells; WMMA may compute the full
 diagonal tile and mask dependent stores. No floating triangular inversion or
 cross-job mirror race occurs. The initial mirror writes share the producing
-kernel; coalesced separate-mirror and compact-output variants are not implied.
+kernel. Explicit methods 2/3 instead launch a padded 16x17-byte LDS transpose
+mirror with coalesced lower-triangle stores after the triangular producer.
+The second launch is charged; C is not published between the two kernels.
+No compact-triangular value is advertised as complete dense storage.
 
 The HIP WMMA path uses signed centered bytes, wave32 replicated fragments and
 16-term chunks. Reduction after each chunk bounds the INT32 sum independently
@@ -76,11 +79,55 @@ finite moduli, K=65537, exact Boost residue outputs, dense symmetry, budget
 rejection and reservations. Prepared-owner fixtures additionally cover repeated
 execution without GPU allocation, stale generations, refresh, retained lifetimes
 and rejection of an expanded proof envelope. Compilation and execution remain pending.
-Longer-K instruction accumulation and matched sustained dense-GEMM speedup
-measurements remain development/qualification work. Explicit reconstruct-once
-and prepared-owner application cohorts are now authored in the
-[Gram workload guide](gram-prepared-reuse.md). No performance promotion is
-claimed by reducing the number of independent dots.
+Hardware compilation, regression execution, ISA inspection and measured sustained
+profitability remain deferred. No source result qualifies a target or speedup.
+The prime-channel five-product experiment remains separately gated on classical
+hardware qualification; it is not enabled for the composite/even default basis.
+
+## Independent prepared input and output ablations
+
+`rns8_prepare_gram_ex` retains the same symmetry certificate and offers three
+explicit input policies: resident centered bytes; retained current signed i64;
+and a generation-bound compact transposed residue adapter. Native admission
+requires `RNS8_MATRIX_RETAIN_NATIVE_INPUT`; it never reinterprets finite bytes.
+The native scalar and actual gfx11 IU8-WMMA kernels cooperatively stage one
+16x16 raw panel on diagonal jobs and two on off-diagonal jobs, deriving the
+correct distinct A/B fragments from them. Every 16-term slab is reduced modulo
+the channel, including masked K tails and INT64_MIN-safe native reduction.
+These kernels reload panels per residue plane: cross-plane reuse is not claimed.
+Current public packing retains both the RNS proof-bearing materialization and
+native storage; this ablation does not claim to eliminate initial RNS packing.
+
+The transpose adapter is allocated once and built during the first execution
+following preparation or refresh. Its rows/columns and orientation are inverted
+together, preserving the original single-source instance/generation certificate.
+It is not rebuilt for unchanged input. Refresh invalidates adapter readiness and
+the old output certificate, even if repacked values happen to compare equal.
+
+A nonzero `export_limbs` reserves complete signed limb staging and enables
+`rns8_export_prepared_gram_limbs`. It reconstructs N*(N+1)/2 independent cells
+once, mirrors each native result, and preserves the full padded destination.
+CPU uses the independent wide CRT implementation; HIP uses the wide integer CRT
+and checked signed-width guard before any mirror read. Complete private staging
+and checked status transfer precede user-visible host stores. Output generation
+must match the owner's last successful execution and X's bound generation:
+ordinary writes to C or repacking X reject export rather than reusing stale
+symmetry. C itself remains a complete dense residue matrix throughout.
+
+`rns8_get_prepared_gram_info` exposes actual retained job, adapter, export and
+total payload capacities, source/output generations and independent/dense cell
+counts. The shared owner/provider resource planner checks overflow, uint64 limb
+alignment after odd byte adapters, status-word alignment, all host/device payload
+and CPU residue-gather scratch. Caller matrices, allocator/proof metadata and CPU
+arbitrary-precision CRT temporaries are outside that owned-payload budget.
+Replay performs no device or owned-payload allocation. Failed drains retain the
+owner, export staging and reservations until checked cleanup; output publication
+never precedes the complete mirror or export transaction.
+
+The existing [Gram workload guide](gram-prepared-reuse.md) describes matched
+native, transpose, separate-mirror and reconstruct-once controls. These are
+independent ablations, not one bundled result. They retain the dense prepared
+GEMM and full Boost comparators and unchanged-input/generation2 lifecycle.
 
 `integer-cross-product --gram` includes the ordinary dense control and a
 single-source scalar candidate, plus WMMA on RDNA3. Both bounded and wide modes

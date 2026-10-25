@@ -113,7 +113,11 @@ TEST_CASE(
                                                    before.size()) == RNS8_SUCCESS);
             REQUIRE(before == planes[component]);
           }
-          REQUIRE(hip_direct_gemm_complex_residues(0, a, b, c, bounds, method, UINT64_MAX,
+          const auto resources=plan_complex_residue_product(a,b,c,bounds,method,UINT64_MAX);
+          REQUIRE(resources.status==RNS8_SUCCESS);
+          CHECK(resources.staged_real_offset()==resources.products_offset());
+          CHECK(resources.staged_imag_offset()==resources.products_offset()+resources.product_bytes);
+          REQUIRE(hip_direct_gemm_complex_residues(0, a, b, c, bounds, method, resources.scratch_bytes,
                                                    committed) == RNS8_SUCCESS);
           REQUIRE(committed);
           for (std::size_t component = 4; component < 6; ++component) {

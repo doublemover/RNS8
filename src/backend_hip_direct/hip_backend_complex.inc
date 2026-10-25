@@ -28,8 +28,8 @@ rns8_status hip_direct_gemm_complex_residues(int device_id,
   auto *sum_a = static_cast<int8_t *>(storage.get());
   auto *sum_b = sum_a + plan.sum_a_bytes;
   auto *products = sum_b + plan.sum_b_bytes;
-  auto *stage_real = products + plan.products * plan.product_bytes;
-  auto *stage_imag = stage_real + plan.product_bytes;
+  auto *stage_real = static_cast<int8_t*>(storage.get()) + plan.staged_real_offset();
+  auto *stage_imag = static_cast<int8_t*>(storage.get()) + plan.staged_imag_offset();
   const auto &basis = a.real.basis;
   const bool three_real = method == ComplexProductMethod::three_real;
   if (three_real) {
@@ -101,8 +101,8 @@ rns8_status hip_direct_enqueue_complex_no_publish(const rns8_resident_node& node
   auto* sum_a=static_cast<int8_t*>(scratch);
   auto* sum_b=sum_a+resources.sum_a_bytes;
   auto* products=sum_b+resources.sum_b_bytes;
-  auto* real=products+resources.products*resources.product_bytes;
-  auto* imag=real+resources.product_bytes;
+  auto* real=static_cast<int8_t*>(scratch)+resources.staged_real_offset();
+  auto* imag=static_cast<int8_t*>(scratch)+resources.staged_imag_offset();
   const auto bytes=[](const rns8_matrix* matrix){return static_cast<const int8_t*>(matrix->hip_residues);};
   if(three) {
     auto error=rns8_hip_complex_sum(bytes(node.a),bytes(node.a_imag),sum_a,m,k,

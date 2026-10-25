@@ -10,7 +10,8 @@ from typing import Any
 
 from evidence_database_lib.isa import lookup_isa_resources
 from build_manifest import manifest_provenance_complete, manifest_dependencies_compatible
-from timing_eligibility import phase_blockers, pair_blockers, comparison_record
+from timing_eligibility import phase_blockers, pair_blockers, comparison_record, capture_identity, bound_comparison_blockers
+from diagnostic_companion import production_evidence, binding_for_capture
 
 from .capture_metadata import (
     backend_id,
@@ -1610,7 +1611,7 @@ def primary_loss_phase(item: dict[str, Any], direct: dict[str, Any] | None) -> s
     if direct is None:
         return None
     worst_phase = None
-    worst_ratio = 0.0
+    worst_ratio = 1.0
     for phase in PHASES:
         value = median_phase(item, phase)
         baseline = median_phase(direct, phase)
@@ -1706,6 +1707,8 @@ def capture_scenario_promotion_scope(capture: dict[str, Any]) -> str | None:
 
 
 def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
+    if capture.get("locality_schedule") is not None:
+        return ["experimental_locality_workspace_not_runtime_auto_route"]
     scope = capture_scenario_promotion_scope(capture)
     if scope is None or scope == "release_review_candidate":
         return []
@@ -1716,24 +1719,11 @@ def matrix_instruction_histogram(
     capture: dict[str, Any],
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    direct = capture.get("matrix_instruction_histogram")
-    if isinstance(direct, dict):
-        return direct
-    for key in ("gpu_isa_report", "isa_report", "backend_isa_report", "compiled_isa"):
-        report = capture.get(key)
-        if not isinstance(report, dict):
-            continue
-        for nested_key in (
-            "matrix_instruction_histogram",
-            "matrix_instruction_counts",
-            "mnemonic_histogram",
-        ):
-            histogram = report.get(nested_key)
-            if isinstance(histogram, dict):
-                return histogram
+    # Unbound inline/backend-wide histograms remain diagnostic inventories;
+    # selected-opcode admission requires artifact/target/symbol association.
     if isa_index is not None:
         target = capture_device(capture).get("gcn_arch") or capture.get("configured_amdgpu_targets")
-        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target)
+        resources = lookup_isa_resources(isa_index, backend_family_id(backend_id(capture)), target, capture)
         histogram = resources.get("isa_matrix_instruction_histogram")
         if isinstance(histogram, dict):
             return histogram
@@ -1826,6 +1816,7 @@ def review_captures(
     *,
     review_mode: str = "smoke",
     isa_index: dict[str, list[dict[str, Any]]] | None = None,
+    diagnostic_bindings: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if review_mode not in {"smoke", "release"}:
         raise ValueError(f"unsupported review mode: {review_mode}")
@@ -2012,6 +2003,7 @@ def review_captures(
                 if hip_graph_replay_capture
                 else None
             )
+            companion = production_evidence(item,binding_for_capture(item,diagnostic_bindings))
             matrix_histogram = matrix_instruction_histogram(item, isa_index)
             if autotune_promotable_scope(item):
                 blockers = promotion_blockers(
@@ -2043,7 +2035,7 @@ def review_captures(
                     oneshot_capture=oneshot_capture,
                     host_api_batch_capture=host_api_batch_capture,
                     hip_graph_replay_capture=False,
-                    gpu_events_available=capture_gpu_events_available(item),
+                    gpu_events_available=capture_gpu_events_available(item) or companion["eligible"] and companion["binding"] is not None,
                     end_to_end=selection_e2e,
                     cpu=cpu,
                     direct=direct,
@@ -2056,14 +2048,25 @@ def review_captures(
             else:
                 blockers = []
             blockers.extend(phase_blockers(item))
+            blockers.extend(companion["blockers"])
             timing_baseline = direct_baseline or vector_baseline
             timing_comparison = None
+            baseline_evidence = None
             if timing_baseline is not None:
                 blockers.extend(pair_blockers(timing_baseline, item))
+                baseline_evidence=production_evidence(timing_baseline,binding_for_capture(timing_baseline,diagnostic_bindings))
+                blockers.extend("baseline:"+blocker for blocker in baseline_evidence["blockers"])
                 if timing_baseline.get("_path"):
                     timing_comparison = comparison_record(timing_baseline, item, timing_baseline["_path"])
             else:
                 blockers.append("timing_comparison_baseline_missing")
+            additional_baselines=[]
+            for baseline_name,baseline_capture in (("cpu",timed_cpu_capture),("vector",vector_baseline)):
+                if baseline_capture is None or baseline_capture is timing_baseline:continue
+                extra_evidence=production_evidence(baseline_capture,binding_for_capture(baseline_capture,diagnostic_bindings))
+                blockers.extend(baseline_name+"_baseline:"+blocker for blocker in extra_evidence["blockers"])
+                additional_baselines.append({"capture":baseline_capture.get("_path"),
+                    "capture_sha256":capture_identity(baseline_capture),"diagnostic_companion":extra_evidence["binding"]})
             expected_matrix_mnemonic = expected_amdgpu_builtin_matrix_mnemonic(item, metadata)
             if requires_amdgpu_builtin_matrix_isa_proof(backend_family, metadata):
                 if not matrix_histogram:
@@ -2131,6 +2134,10 @@ def review_captures(
                 "backend": backend,
                 "selected_kernel": selected_kernel(item),
                 "capture": item.get("_path"),
+                "capture_sha256": capture_identity(item),
+                "production_timing_evidence": companion,
+                "baseline_production_timing_evidence": baseline_evidence,
+                "additional_baseline_evidence": additional_baselines,
                 "source_metadata": candidate_source_metadata(item),
                 "scenario_promotion_scope": capture_scenario_promotion_scope(item),
                 "accelerator_backend": accelerator,
@@ -2215,6 +2222,11 @@ def review_captures(
                 promotable_entries.append(
                     {
                         "source_capture": source.get("_path"),
+                        "source_capture_sha256": capture_identity(source),
+                        "diagnostic_companion": binding_for_capture(source,diagnostic_bindings),
+                        "timing_comparison": fastest.get("timing_comparison"),
+                        "baseline_diagnostic_companion": (fastest.get("baseline_production_timing_evidence") or {}).get("binding"),
+                        "additional_baseline_evidence": fastest.get("additional_baseline_evidence",[]),
                         "autotune_key": metadata.get("autotune_key"),
                         "selected_backend": fastest["backend"],
                         "selected_kernel": fastest["selected_kernel"],
@@ -2306,6 +2318,7 @@ def review_captures(
     return {
         "schema_version": REVIEW_SCHEMA_VERSION,
         "review_mode": review_mode,
+        "route_comparison_scope": "descriptive_same_instrumentation_only; production promotion separately requires bound hook-disabled evidence",
         "release_review_requirements": {
             "min_warmups": RELEASE_MIN_WARMUPS,
             "min_repeats": RELEASE_MIN_REPEATS,
@@ -2440,17 +2453,43 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
         return 0
     by_path = {str(capture.get("_path")): capture for capture in captures}
     entries = []
+    written_sources=set()
     for item in promotable:
         if not isinstance(item, dict):
             continue
         capture = by_path.get(str(item.get("source_capture")))
         if not capture:
             continue
+        # Defense in depth: a saved/edited review or mutated capture cannot bypass
+        # the production/diagnostic binding at the actual cache mutation boundary.
+        evidence=production_evidence(capture,item.get("diagnostic_companion"))
+        if item.get("source_capture_sha256")!=capture_identity(capture) or not evidence["eligible"] or phase_blockers(capture):
+            item["cache_write_status"]="blocked_revalidation"
+            continue
+        comparison=item.get("timing_comparison")
+        if bound_comparison_blockers(comparison,capture):
+            item["cache_write_status"]="blocked_baseline_revalidation"
+            continue
+        from benchmark_schema import load_capture
+        baseline=load_capture(Path(comparison["baseline_capture"]))
+        if not production_evidence(baseline,item.get("baseline_diagnostic_companion"))["eligible"]:
+            item["cache_write_status"]="blocked_baseline_companion"
+            continue
+        extra_valid=True
+        for receipt in item.get("additional_baseline_evidence",[]):
+            try:
+                other=load_capture(Path(receipt["capture"]))
+                if capture_identity(other)!=receipt["capture_sha256"] or not production_evidence(other,receipt.get("diagnostic_companion"))["eligible"] or pair_blockers(other,capture):
+                    extra_valid=False;break
+            except (KeyError,TypeError,ValueError,OSError):extra_valid=False;break
+        if not extra_valid:
+            item["cache_write_status"]="blocked_additional_baseline_revalidation";continue
         device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
         target_id = normalized_target_id(device.get("gcn_arch")) or "cpu"
         entry = cache_entry_from_capture(capture, reviewed_release_status_for_target(target_id))
         if entry.get("key"):
             entries.append(entry)
+            written_sources.add(str(item.get("source_capture")))
     if not entries:
         return 0
 
@@ -2471,7 +2510,7 @@ def write_promoted_cache_entries(report: dict[str, Any], captures: list[dict[str
         encoding="utf-8",
     )
     for item in promotable:
-        if isinstance(item, dict):
+        if isinstance(item, dict) and str(item.get("source_capture")) in written_sources:
             item["cache_write_status"] = "written"
     return len(entries)
 

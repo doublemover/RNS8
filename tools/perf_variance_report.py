@@ -15,6 +15,7 @@ from typing import Any
 from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
 from timing_eligibility import phase_blockers
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, host_observation_contract, host_observation_count, streaming_executed
 from benchmark_sweep_lib.capture_metadata import (
     backend_id,
     capture_contract_key,
@@ -75,6 +76,14 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
                  "device", "cpu_parallel", "clock_policy", "warmups")}
     timing = capture.get("timing_metadata") or {}
+    identity["captured_environment_sha256"] = (capture.get("request_identity") or {}).get("environment_sha256")
+    identity["host_instrumentation_state"] = host_instrumentation(capture)
+    identity["host_observation_contract"] = host_observation_contract(capture)
+    identity["streaming_schedule"] = (capture.get("streaming_overlap") or {}).get("schedule") if streaming_executed(capture) else None
+    identity["locality_schedule"] = capture.get("locality_schedule")
+    identity["hipblaslt_metadata_policy"] = (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block") if backend_id(capture)=="hipblaslt" else None
+    identity["exact_proof_policy"] = exact_proof_policy(capture)
+    identity["host_batch_contract"] = host_batch_contract(capture)
     identity["timing_contract"] = {key: timing.get(key) for key in
                                    ("host_timing_contract_version", "host_result_kind", "source", "source_scope",
                                     "clock_period_numerator", "clock_period_denominator",
@@ -114,6 +123,7 @@ def _relative_spread(values: list[float]) -> float | None:
 
 
 def _within_capture_rel_spread(capture: dict[str, Any]) -> float | None:
+    if host_observation_contract(capture)["unit"]=="legacy_single_pipeline_batch_repeated_quotient":return None
     median = median_phase(capture, "end_to_end")
     if median is None or median <= 0.0:
         return None
@@ -130,12 +140,7 @@ def _within_capture_rel_spread(capture: dict[str, Any]) -> float | None:
 
 
 def _timing_sample_count(capture: dict[str, Any]) -> int:
-    raw = capture.get("raw_timings_us")
-    values = raw.get("end_to_end") if isinstance(raw, dict) else None
-    if isinstance(values, list):
-        return sum(1 for value in values if isinstance(value, (int, float)))
-    repeats = capture.get("repeats")
-    return int(repeats) if isinstance(repeats, int) and not isinstance(repeats, bool) else 0
+    return host_observation_count(capture)
 
 
 def _capture_entry(

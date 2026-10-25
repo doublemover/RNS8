@@ -1,0 +1,15 @@
+{
+  "schema": "cpu_amx_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 65,
+  "prefix": 5,
+  "threads": 1,
+  "modulus": 0,
+  "warmups": 2,
+  "repeats": 7,
+  "seed": 5454,
+  "mode": "cpu-amx-int8",
+  "residency": "repack-b",
+  "semantics": "bounded-signed"
+}

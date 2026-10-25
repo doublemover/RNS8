@@ -1,4 +1,5 @@
 #include "backend_common/word_mod_plan.hpp"
+#include <random>
 TEST_CASE("word modular arithmetic and decompositions preserve arbitrary rings") {
   using namespace rns8::detail::word_mod;
   using boost::multiprecision::cpp_int;
@@ -76,4 +77,36 @@ TEST_CASE("asymmetric binary64 word-mod schedules certify every coefficient and 
   REQUIRE(preserved.alpha==123);
   for(const auto request:{FloatingRequest{0,2,1},FloatingRequest{2,5,1},FloatingRequest{2,3,0},FloatingRequest{2,3,65537}})
     REQUIRE(floating_schedule(251,request,preserved)==RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("canonical word-mod width omits only identically zero byte products") {
+  using namespace rns8::detail::word_mod;
+  using boost::multiprecision::cpp_int;
+  std::mt19937_64 generator(665166);
+  for(unsigned width=1;width<=8;++width) {
+    const uint64_t upper=width==8 ? UINT64_MAX : uint64_t(1)<<(8*width);
+    for(uint64_t modulus:{upper,upper-1}) {
+      REQUIRE(canonical_byte_width(modulus)==width);
+      CHECK(uint64_t(digit_slab_k)*width*255*255<=INT32_MAX);
+      for(unsigned sample=0;sample<256;++sample) {
+        const uint64_t a=sample<2 ? (sample?modulus-1:0) : generator()%modulus;
+        const uint64_t b=sample<2 ? modulus-1 : generator()%modulus;
+        const auto expected=(cpp_int(a)*b%modulus).convert_to<uint64_t>();
+        REQUIRE(digit_product(a,b,modulus,true)==expected);
+        REQUIRE(digit_product(a,b,modulus,false)==expected);
+      }
+    }
+  }
+}
+
+#include "backend_common/mfma_f64_layout.hpp"
+TEST_CASE("FP64 MFMA fragment coordinates differ from I32 and cover each cell") {
+  using namespace rns8::detail;
+  std::array<unsigned,256> counts{};
+  for(unsigned lane=0;lane<64;++lane)for(unsigned reg=0;reg<4;++reg){const auto c=MfmaF64Layout::c(lane,reg);++counts[c.row*16+c.col];REQUIRE(c.row==4*reg+lane/16);}
+  for(auto count:counts)REQUIRE(count==1);
+  REQUIRE(MfmaF64Layout::c(16,0).row==1);REQUIRE(MfmaI8Layout<16>::c(16,0).row==4);
+  for(unsigned layout:{0u,1u,2u}){word_mod::FloatingSchedule s;REQUIRE(word_mod::floating_schedule(65536,{1,2,17,layout},s)==RNS8_SUCCESS);REQUIRE(s.reserved==layout);}
+  word_mod::FloatingSchedule unchanged;unchanged.alpha=77;
+  REQUIRE(word_mod::floating_schedule(65536,{1,2,17,3},unchanged)==RNS8_INVALID_ARGUMENT);REQUIRE(unchanged.alpha==77);
 }

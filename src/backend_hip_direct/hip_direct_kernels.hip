@@ -11,15 +11,20 @@
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"
 #include "../backend_common/residue_epilogue.hpp"
+#include "../backend_common/complex_residue_algebra.hpp"
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
+#include "../backend_common/quarter_crt.hpp"
 #include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank23_program.hpp"
 #include "../backend_common/rank23_slp.hpp"
+#include "../backend_common/rank23_october55.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
+#include "../backend_common/native_wmma_schedule.hpp"
+#include "../backend_common/native_conversion_layout.hpp"
 #include "../backend_common/fragment_layout.hpp"
 #include "../backend_common/ragged_residues.hpp"
 #include "../backend_common/mixed_radix_lift.hpp"
@@ -85,23 +90,23 @@ extern "C" int rns8_hip_native_byte_wmma(const void* a, const void* b, void* c,
   const dim3 grid((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16);
   if (unsigned_inputs) {
     hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t>), grid, dim3(32), 0, nullptr,
-        static_cast<const uint64_t*>(a), static_cast<const uint64_t*>(b), static_cast<uint64_t*>(c), m, n, k, lda, ldb, ldc);
+        static_cast<const uint64_t*>(a), static_cast<const uint64_t*>(b), static_cast<uint64_t*>(c), m, n, k, lda, ldb, ldc,nullptr,0);
   } else {
     hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t>), grid, dim3(32), 0, nullptr,
-        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), static_cast<int64_t*>(c), m, n, k, lda, ldb, ldc);
+        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), static_cast<int64_t*>(c), m, n, k, lda, ldb, ldc,nullptr,0);
   }
   return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_integrity_check(const void* a,const void* b,const int8_t* candidate,
-    int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures) {
+    int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures,void* stream) {
   const dim3 grid((static_cast<uint64_t>(m)*n+255)/256);
   const rns8_u192_device wide_bound{bound[0],bound[1],bound[2]};
   if(unsigned_inputs) {
-    hipLaunchKernelGGL((rns8_integrity_check_kernel<uint64_t>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<uint64_t>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),candidate,m,n,k,lda,ldb,prefix,false,wide_bound,failures);
   } else {
-    hipLaunchKernelGGL((rns8_integrity_check_kernel<int64_t>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<int64_t>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),candidate,m,n,k,lda,ldb,prefix,true,wide_bound,failures);
   }
   return static_cast<int>(hipGetLastError());
@@ -129,6 +134,21 @@ extern "C" int rns8_hip_rank23_slp_combine(const int8_t* products,int8_t* stage,
     int m,int n,int hm,int hn,int prefix) {
   hipLaunchKernelGGL(rns8_rank23_slp_combine_kernel,
       dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
+      products,stage,m,n,hm,hn,prefix);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_rank23_oct55_transform(const int8_t* source,int8_t* output,
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product) {
+  const dim3 grid((uint64_t(hr)*hc+255)/256,prefix);
+  if(lhs)hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<true>),grid,dim3(256),0,nullptr,
+      source,output,rows,cols,ld,hr,hc,prefix,selected_product);
+  else hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<false>),grid,dim3(256),0,nullptr,
+      source,output,rows,cols,ld,hr,hc,prefix,selected_product);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_rank23_oct55_combine(const int8_t* products,int8_t* stage,
+    int m,int n,int hm,int hn,int prefix) {
+  hipLaunchKernelGGL(rns8_rank23_oct55_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
       products,stage,m,n,hm,hn,prefix);
   return static_cast<int>(hipGetLastError());
 }
@@ -225,9 +245,21 @@ extern "C" int rns8_hip_int4_capability(int* supported) {
 extern "C" int rns8_hip_finite_int4_gemm(
     const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k,
     int lda, int ldb, int ldc, int modulus) {
-  hipLaunchKernelGGL(rns8_finite_int4_wmma_kernel,
+  hipLaunchKernelGGL((rns8_finite_int4_wmma_kernel<false>),
       dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16),
-      dim3(32), 0, nullptr, a, b, c, m, n, k, lda, ldb, ldc, modulus);
+      dim3(32), 0, nullptr, a, b, nullptr, c, m, n, k, lda, ldb, ldc, modulus);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_finite_int4_gemm_packed(const int8_t* a,const uint32_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldc,int modulus) {
+  hipLaunchKernelGGL((rns8_finite_int4_wmma_kernel<true>),
+      dim3((uint64_t(n)+15)/16,(uint64_t(m)+15)/16),dim3(32),0,nullptr,a,nullptr,b,c,m,n,k,lda,n,ldc,modulus);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_pack_finite_int4_b(const int8_t* b,uint32_t* packed,int k,int n,int ldb,int modulus) {
+  const uint64_t words=((uint64_t(k)+15)/16)*uint64_t(n)*2;
+  hipLaunchKernelGGL(rns8_pack_finite_int4_b_kernel,dim3((words+255)/256),dim3(256),0,nullptr,b,packed,k,n,ldb,modulus,words);
   return static_cast<int>(hipGetLastError());
 }
 
@@ -283,23 +315,22 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
     hipError_t e = hipGetLastError();
     if (e != hipSuccess) code = (int)e;
   }
-  if (code != 0) return code;
-  hipError_t e = hipDeviceSynchronize();
-  return e == hipSuccess ? 0 : (int)e;
+  // Enqueue-only, just like the generic and fixed-prefix pack wrappers.
+  return code;
 }
 
 extern "C" int rns8_hip_direct_lift_suffix_device(
     const int8_t* residues, int8_t* suffix, int cells, int source_prefix, int target_prefix,
-    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix) {
+    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix, void* stream) {
   if (!residues || !suffix || !status || cells <= 0 || cells > kRns8MaxInt - 256 ||
       source_prefix <= 0 || target_prefix > kRns8MaxSupportedPrefix || source_prefix >= target_prefix)
     return static_cast<int>(hipErrorInvalidValue);
   if (mixed_radix) {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
                       (rns8_u192_device{bound0, bound1, bound2}), status);
   } else {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
                       (rns8_u192_device{bound0, bound1, bound2}), status);
   }
@@ -309,35 +340,50 @@ extern "C" int rns8_hip_direct_lift_suffix_device(
 extern "C" int rns8_hip_axpby_residues(
     const int8_t* x, const int8_t* d, int8_t* c,
     int m, int n, int ldx, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+  rns8::detail::ResidueAxpbyTable coefficients;
+  if(!rns8::detail::lower_residue_axpby_table(alpha,beta,rns8_default_moduli_host,prefix,coefficients))return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(rns8_axpby_residues_kernel, dim3((int64_t{m} * n + 255) / 256, prefix), dim3(256), 0, nullptr,
-                    x, d, c, m, n, ldx, ldd, ldc, alpha, beta);
+                    x, d, c, m, n, ldx, ldd, ldc, coefficients);
   return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_gemm_rns_axpby(
     const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta, void* stream) {
+  rns8::detail::ResidueAxpbyTable coefficients;
+  if(!rns8::detail::lower_residue_axpby_table(alpha,beta,rns8_default_moduli_host,prefix,coefficients))return int(hipErrorInvalidValue);
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
   hipLaunchKernelGGL(rns8_gemm_rns_axpby_kernel, dim3(blocks, prefix), dim3(256), 0, static_cast<hipStream_t>(stream),
-                    a, b, d, c, m, n, k, lda, ldb, ldd, ldc, alpha, beta);
+                    a, b, d, c, m, n, k, lda, ldb, ldd, ldc, coefficients);
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_native_abs_max(const void* source, int rows, int cols, int ld, void* maximum, bool signed_values) {
+extern "C" int rns8_hip_native_abs_max_on_stream(const void* source, int rows, int cols, int ld, void* maximum, bool signed_values,void* stream) {
   const auto blocks=(uint64_t(rows)*cols+255)/256;
-  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel,dim3(blocks),dim3(256),0,nullptr,
+  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel,dim3(blocks),dim3(256),0,static_cast<hipStream_t>(stream),
       static_cast<const uint64_t*>(source),rows,cols,ld,static_cast<unsigned long long*>(maximum),signed_values);
   return int(hipGetLastError());
+}
+extern "C" int rns8_hip_native_abs_max(const void* source,int rows,int cols,int ld,void* maximum,bool signed_values) {
+  return rns8_hip_native_abs_max_on_stream(source,rows,cols,ld,maximum,signed_values,nullptr);
 }
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t* source, int rows, int cols, int ld, void* maximum) {
   return rns8_hip_native_abs_max(source,rows,cols,ld,maximum,true);
 }
 
+extern "C" int rns8_hip_native_fused_narrow_rns(const void* a,const void* b,int8_t* residues,int m,int n,int k,int lda,int ldb,int prefix,bool byte_wmma,bool unsigned_inputs) {
+  if(byte_wmma){const dim3 grid((uint64_t(n)+15)/16,(uint64_t(m)+15)/16);
+    if(unsigned_inputs)hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t,true>),grid,dim3(32),0,nullptr,static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+    else hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t,true>),grid,dim3(32),0,nullptr,static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+  } else hipLaunchKernelGGL((rns8_native_i64_narrow_gemm_kernel<true>),dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+  return int(hipGetLastError());
+}
+
 extern "C" int rns8_hip_native_i64_narrow_gemm(
     const int64_t* a, const int64_t* b, int64_t* c, int m, int n, int k, int lda, int ldb, int ldc) {
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
-  hipLaunchKernelGGL(rns8_native_i64_narrow_gemm_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                    a, b, c, m, n, k, lda, ldb, ldc);
+  hipLaunchKernelGGL((rns8_native_i64_narrow_gemm_kernel<false>), dim3(blocks), dim3(256), 0, nullptr,
+                    a, b, c, m, n, k, lda, ldb, ldc,nullptr,0);
   return static_cast<int>(hipGetLastError());
 }
 
@@ -365,11 +411,49 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
 #include "hip_direct_finite_verify.cuh"
 
 #include "hip_direct_wrap_radix.cuh"
+#include "hip_direct_wrap_mfma.cuh"
 
 #include "hip_direct_gram.cuh"
 
 #include "hip_direct_fixed_conversion.cuh"
 
 #include "hip_direct_word_mod.cuh"
+#include "hip_direct_word_mod_mfma.cuh"
 
 #include "hip_direct_instruction_roof.cuh"
+
+extern "C" int rns8_hip_export_quarter_crt(const int8_t* residues,uint64_t* output,int cells,int prefix,int digits,int limbs,int mode) {
+  hipLaunchKernelGGL(rns8_export_quarter_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,residues,output,cells,prefix,digits,limbs,mode);
+  return static_cast<int>(hipGetLastError());
+}
+
+// Generic status-gated compact/padded byte commit. The status-producing kernel
+// finishes earlier on this same stream; all destination writes are conditional.
+__global__ void rns8_guarded_copy_bytes_kernel(const uint8_t* source,uint8_t* destination,
+    uint64_t rows,uint64_t row_bytes,uint64_t source_pitch,uint64_t destination_pitch,const int* status) {
+  if(*status)return;
+  const uint64_t cell=uint64_t(blockIdx.x)*blockDim.x+threadIdx.x;
+  if(cell>=rows*row_bytes)return;
+  const uint64_t row=cell/row_bytes,col=cell%row_bytes;
+  destination[row*destination_pitch+col]=source[row*source_pitch+col];
+}
+extern "C" int rns8_hip_guarded_copy_bytes(const void* source,void* destination,uint64_t rows,
+    uint64_t row_bytes,uint64_t source_pitch,uint64_t destination_pitch,const int* status,void* stream) {
+  if(!source || !destination || !status || !rows || !row_bytes || row_bytes>source_pitch || row_bytes>destination_pitch ||
+      row_bytes>uint64_t(PTRDIFF_MAX) || rows>(UINT64_MAX-255)/row_bytes || (rows*row_bytes+255)/256>uint64_t(INT32_MAX) ||
+      rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/source_pitch || rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/destination_pitch)return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_guarded_copy_bytes_kernel,dim3((rows*row_bytes+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),
+      static_cast<const uint8_t*>(source),static_cast<uint8_t*>(destination),rows,row_bytes,source_pitch,destination_pitch,status);
+  return int(hipGetLastError());
+}
+
+__global__ void rns8_native_bound_status_kernel(const uint64_t* maximum,uint64_t limit,int* status) {
+  if(*maximum>limit)*status=static_cast<int>(RNS8_RANGE_ERROR);
+}
+extern "C" int rns8_hip_native_bound_status(const void* maximum,uint64_t limit,int* status,void* stream) {
+  hipLaunchKernelGGL(rns8_native_bound_status_kernel,dim3(1),dim3(1),0,static_cast<hipStream_t>(stream),
+      static_cast<const uint64_t*>(maximum),limit,status);
+  return int(hipGetLastError());
+}
+
+#include "hip_direct_cache_displace.cuh"

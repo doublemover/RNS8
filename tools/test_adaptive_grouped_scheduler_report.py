@@ -10,6 +10,7 @@ from pathlib import Path
 from benchmark_schema import load_capture, validate_capture
 
 import adaptive_grouped_scheduler_report
+from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
 
 
 FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adaptive_hip.json"
@@ -139,8 +140,12 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
     return capture
 
 
+def build_report(paths):
+    return adaptive_grouped_scheduler_report.build_report(independent_fixture_paths(paths))
+
+
 def _write(path: Path, capture: dict) -> Path:
-    path.write_text(__import__("json").dumps(capture, indent=2), encoding="utf-8")
+    write_independent_fixture_pair(path, capture)
     return path
 
 
@@ -149,7 +154,7 @@ with tempfile.TemporaryDirectory() as tmp_name:
     cpu = _write(tmp / "cpu.json", _capture("cpu-reference", 2000))
     direct = _write(tmp / "direct.json", _capture("hip-direct", 1100))
     candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
-    report = adaptive_grouped_scheduler_report.build_report([cpu, direct, candidate])
+    report = build_report([cpu, direct, candidate])
     row = report["rows"][0]
     assert row["decision"] == "promote locally"
     assert row["speedup_vs_direct_hip"] and row["speedup_vs_direct_hip"] > 1.2
@@ -160,7 +165,24 @@ with tempfile.TemporaryDirectory() as tmp_name:
     tmp = Path(tmp_name)
     direct = _write(tmp / "direct.json", _capture("hip-direct", 1100))
     candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
-    report = adaptive_grouped_scheduler_report.build_report([direct, candidate])
+    report = build_report([direct, candidate])
     row = report["rows"][0]
     assert row["decision"] == "keep experimental"
     assert "missing_cpu_baseline" in row["blockers"]
+
+# Ordinary independent baselines, not duplicate paths: neither permutation may
+# hide the 700..1100 us process spread or turn it into promotion evidence.
+with tempfile.TemporaryDirectory() as tmp_name:
+    tmp = Path(tmp_name)
+    cpu = _write(tmp / "cpu.json", _capture("cpu-reference", 2000))
+    slow = _write(tmp / "slow.json", _capture("hip-direct", 1100))
+    fast = _write(tmp / "fast.json", _capture("hip-direct", 700))
+    candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
+    forward = build_report([cpu, slow, fast, candidate])
+    reverse = build_report([candidate, fast, slow, cpu])
+    assert forward == reverse
+    assert forward["rows"][0]["decision"] == "keep experimental"
+    assert forward["rows"][0]["speedup_vs_direct_hip"] is None
+    direct_cohorts = forward["rows"][0]["baseline_observation_cohorts"]["hip-direct"]
+    assert direct_cohorts[0]["independent_runs"] == 4
+    assert "process_spread_exceeds_ten_percent" in direct_cohorts[0]["blockers"]

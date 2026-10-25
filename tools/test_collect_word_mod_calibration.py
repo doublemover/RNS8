@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_word_mod_calibration import (INTEGER_METHODS,METHODS,SCOPES,collect,contract,dataset,load_cases,prime,validate_capture,validate_case,checksum,floating_schedule,ceil_root)
+from collect_word_mod_calibration import (INTEGER_METHODS,FLOAT_METHODS,MFMA_METHODS,METHODS,SCOPES,collect,contract,dataset,load_cases,prime,validate_capture,validate_case,checksum,floating_schedule,ceil_root)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(device=0,method="packed_dot4",scope="resident",m=2,n=3,k=17,domain="prime_field",modulus=251)
@@ -18,9 +18,9 @@ FLOAT=dict(BASE,method="asymmetric_binary64",left_digits=1,right_digits=2,slab_k
 def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
     case=case or BASE;capture=contract(case,run_id,repeats,warmups);synthetic_identity(capture)
     a,b,gold=dataset(case)
-    capture.update(device_name="synthetic mocked GPU only",target="gfx1100",runtime_version=70100000,
+    capture.update(device_name="synthetic mocked GPU only",target="gfx942" if case["method"] in MFMA_METHODS else "gfx1100",runtime_version=70100000,
         a_checksum=checksum(a),b_checksum=checksum(b),output_checksum=checksum(gold),oracle_and_dataset_ns=1000,
-        resident_setup_ns=1000 if case["scope"]=="resident" else None,
+        resident_setup_ns=1000 if case["scope"]!="cold" else None,
         samples=[dict(host_call_ns=150+index,uninstrumented_host_call_ns=100+index,events=[dict(label="word_mod_byte_wmma" if case["method"]=="byte_wmma" else "mock",elapsed_ns=1.5)],
             exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,
@@ -37,8 +37,25 @@ def arguments(directory,cases=None):
 
 def successful(command,**kwargs):
     case=dict(device=int(command[1]),method=command[2],scope=command[3],m=int(command[4]),n=int(command[5]),k=int(command[6]),domain=command[7],modulus=int(command[8]))
-    if case["method"]=="asymmetric_binary64":case.update(left_digits=int(command[11]),right_digits=int(command[12]),slab_k=int(command[13]))
+    if case["method"] in FLOAT_METHODS:case.update(left_digits=int(command[11]),right_digits=int(command[12]),slab_k=int(command[13]))
     return subprocess.CompletedProcess(command,0,json.dumps(fixture(case,command[-1],int(command[9]),int(command[10]))),"")
+
+
+class CanonicalWidthContracts(unittest.TestCase):
+    def test_canonical_width_schedule_is_proof_bound(self):
+        for width in range(1,9):
+            modulus=(1 << (8*width))-1
+            case=dict(BASE,method="canonical_dot4",modulus=modulus,domain="ring")
+            capture=fixture(case);validate_capture(capture,case,"fixture-run",2,1)
+            schedule=capture["canonical_dot4_schedule"]
+            self.assertEqual(schedule["bytes_per_operand"],width)
+            self.assertEqual(schedule["source_dot4_updates_per_four_k"],width*width)
+            self.assertEqual(schedule["diagonals"],2*width-1)
+            self.assertLessEqual(schedule["maximum_accumulator"],(1<<31)-1)
+            self.assertFalse(schedule["issued_instruction_count_measured"])
+            for field in ("bytes_per_operand","maximum_accumulator","width_proof"):
+                wrong=deepcopy(capture);wrong["canonical_dot4_schedule"][field]=None
+                with self.assertRaises(ValueError):validate_capture(wrong,case,"fixture-run",2,1)
 
 
 class Captures(unittest.TestCase):
@@ -62,9 +79,9 @@ class Captures(unittest.TestCase):
 
     def test_tracked_manifests_and_full_width_boundary_words(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks"/"word-mod-calibration"
-        for name,count in (("smoke",12),("widths-tail",156),("slab-boundaries",48),("large",144),("tile-tails",84)):
+        for name,count in (("smoke",16),("widths-tail",208),("slab-boundaries",64),("large",192),("tile-tails",112)):
             cases=load_cases(root/(name+".json"));self.assertEqual(len(cases),count)
-            self.assertEqual({case["method"] for case in cases},set(INTEGER_METHODS));self.assertEqual({case["scope"] for case in cases},set(SCOPES))
+            self.assertEqual({case["method"] for case in cases},set(INTEGER_METHODS));self.assertEqual({case["scope"] for case in cases},{"resident","cold"})
         case=dict(BASE,m=1,n=1,k=4,domain="ring",modulus=(1 << 64)-1)
         a,b,gold=dataset(case);words=[int.from_bytes(a[i:i+8],"little") for i in range(0,len(a),8)]
         self.assertEqual(words,[0,1,(1 << 64)-2,((1 << 64)-1)//2,(1 << 64)-1,(1 << 64)-1])
@@ -224,6 +241,51 @@ class FloatingCaptures(unittest.TestCase):
                     self.assertIn(swapped,cases)
 
 
+class Fp64MfmaContracts(unittest.TestCase):
+    def test_target_exactness_layout_and_concatenation_are_bound(self):
+        for method in MFMA_METHODS:
+            for scope in SCOPES:
+                case=dict(FLOAT,method=method,scope=scope)
+                capture=fixture(case);validate_capture(capture,case,'fixture-run',2,1)
+                self.assertTrue(capture['floating_schedule']['matrix_engine'])
+                layout=capture['fp64_mfma_schedule']
+                self.assertEqual(layout['padded_instruction_terms'],20)
+                self.assertEqual(layout['active_terms_bound'],17)
+                self.assertEqual(capture['explicit_scratch_peak_bytes'],4+layout['coefficient_payload_bytes'])
+                for key,value in [('wave_size',32),('c_map','row=(lane/16)*4+reg;col=lane%16'),
+                                  ('modifiers',[0,0,1]),('tail_padding','undefined'),('physical_isa_verified',True),
+                                  ('active_terms_bound',20),('coefficient_payload_bytes',-1)]:
+                    bad=deepcopy(capture);bad['fp64_mfma_schedule'][key]=value
+                    with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+                bad=deepcopy(capture);bad['target']='gfx1100'
+                with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+                bad=deepcopy(capture);bad['floating_schedule']['matrix_engine']=False
+                with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
+    def test_fp64_isa_adapter_hashes_full_declared_recipe(self):
+        from gpu_isa_report import capture_metadata
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'synthetic.json'
+            identities=[]
+            for method in MFMA_METHODS:
+                capture=fixture(dict(FLOAT,method=method));path.write_text(json.dumps(capture))
+                metadata=capture_metadata(path,'synthetic')
+                self.assertEqual(metadata['selected_kernel'],capture['arithmetic_kernel'])
+                self.assertEqual(metadata['target_id'],'gfx942')
+                identities.append(metadata['generated_reducer_identity'])
+            self.assertEqual(len(set(identities)),3)
+
+    def test_cdna_manifests_have_checked_baseline_and_same_scalar_schedule(self):
+        root=Path(__file__).resolve().parents[1]/'benchmarks/word-mod-calibration'
+        for name,count in [('cdna-fp64.json',750),('cdna-fp64-sustained.json',90)]:
+            cases=load_cases(root/name);self.assertEqual(len(cases),count)
+            self.assertEqual({c['scope'] for c in cases},set(SCOPES))
+            for c in cases:
+                if c['method'] in MFMA_METHODS:
+                    self.assertIn(dict(c,method='asymmetric_binary64'),cases)
+                    self.assertIn({k:v for k,v in dict(c,method='baseline').items() if k not in ('left_digits','right_digits','slab_k')},cases)
+
+
 class Collection(unittest.TestCase):
     def test_byte_wmma_commands_and_metadata_mismatch_receipts(self):
         for corrupt in (False,True):
@@ -243,7 +305,7 @@ class Collection(unittest.TestCase):
                         with self.assertRaises(ValueError):collect(args)
                         failures=[json.loads(p.read_text()) for p in args.output.glob("*.json") if "failure" in json.loads(p.read_text())]
                         self.assertEqual(len(failures),1);self.assertFalse(failures[0]["validated"])
-                    else:self.assertEqual(collect(args)["independent_processes"],3)
+                    else:self.assertEqual(collect(args)["independent_processes"],len(INTEGER_METHODS))
 
     def test_floating_commands_schedule_mismatch_and_retained_failure(self):
         for corrupt in (False,True):
@@ -271,7 +333,7 @@ class Collection(unittest.TestCase):
             with patch("collect_word_mod_calibration.subprocess.run",side_effect=successful):summary=collect(args)
             self.assertEqual(summary["independent_processes"],2);self.assertFalse(summary["promotion_eligible"])
             for path in args.output.glob("*.json"):
-                if path.name.endswith(".summary.json"):continue
+                if path.name.endswith((".summary.json",".capture.json")):continue
                 record=json.loads(path.read_text());self.assertTrue(record["validated"])
                 for key in ("collector_sha256","cases_sha256","python_sha256","artifact_sha256"):self.assertEqual(len(record[key]),64)
                 self.assertIn("build_manifest.py",record["tool_dependencies_sha256"])

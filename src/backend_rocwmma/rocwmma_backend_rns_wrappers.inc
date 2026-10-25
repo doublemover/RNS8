@@ -265,17 +265,8 @@ extern "C" int rns8_rocwmma_exact_axpby_device(
   // Reduce once per plane on the host; passing the small table by value avoids
   // device division, a device allocation, and a coefficient upload kernel.
   RocwmmaExactCoefficients coefficients{};
-  for (int p = 0; p < prefix; ++p) {
-    const uint32_t modulus = kDefaultModuli[p];
-    coefficients.modulus[p] = modulus;
-    coefficients.reciprocal[p] = rns8::detail::finite_u8::modulus_reciprocal_u32(modulus);
-    int64_t ar = alpha % static_cast<int64_t>(modulus);
-    int64_t br = beta % static_cast<int64_t>(modulus);
-    if (ar < 0) ar += modulus;
-    if (br < 0) br += modulus;
-    coefficients.alpha[p] = static_cast<int32_t>(ar);
-    coefficients.beta[p] = static_cast<int32_t>(br);
-  }
+  if(!rns8::detail::lower_residue_axpby_table(alpha,beta,kDefaultModuli,prefix,coefficients))
+    return rocwmma_invalid_argument;
   if (hipSetDevice(device_id) != hipSuccess) return rocwmma_backend_failure;
   hipLaunchKernelGGL(rocwmma_exact_axpby_kernel,
       dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16, prefix),

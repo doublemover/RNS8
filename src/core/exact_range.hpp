@@ -203,10 +203,15 @@ inline rns8_status exact_axpby_range(const rns8_plan& plan, const rns8_matrix& A
     return RNS8_INVALID_ARGUMENT;
   if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix ||
       D.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
-  cpp_int product_bound;
-  exact_gemm_bound(plan, A, B, product_bound);
-  bound = boost::multiprecision::abs(cpp_int(alpha)) * product_bound +
-          boost::multiprecision::abs(cpp_int(beta)) * D.exact_max_magnitude;
+  // Only an original integer zero removes the AB bound. A coefficient that
+  // vanishes in one residue channel still contributes its full integer magnitude.
+  bound=0;
+  if(alpha!=0) {
+    cpp_int product_bound;
+    exact_gemm_bound(plan,A,B,product_bound);
+    bound=boost::multiprecision::abs(cpp_int(alpha))*product_bound;
+  }
+  if(beta!=0)bound+=boost::multiprecision::abs(cpp_int(beta))*D.exact_max_magnitude;
   return exact_range_fits(plan.desc.semantics, bound, plan.modulus_product)
              ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
 }

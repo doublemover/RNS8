@@ -299,15 +299,20 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST;
+  constexpr uint32_t allowed_flags = kSupportedPlanFlags;
   if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   if ((desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0 &&
       desc.semantics != RNS8_EXACT_WIDE_SIGNED && desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)
     return RNS8_INVALID_ARGUMENT;
+  if((desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL) && (desc.requested_backend!=RNS8_BACKEND_HIP_DIRECT || desc.n>8 ||
+      (desc.semantics!=RNS8_BOUNDED_I64 && desc.semantics!=RNS8_BOUNDED_U64 && desc.semantics!=RNS8_EXACT_WIDE_SIGNED && desc.semantics!=RNS8_EXACT_WIDE_UNSIGNED) ||
+      desc.bound_kind==RNS8_BOUND_PER_TILE_MAX_ABS || desc.bound_kind==RNS8_BOUND_PER_TILE_MAX_UNSIGNED))return RNS8_UNSUPPORTED_BACKEND;
+  if((desc.flags&RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH) && (desc.requested_backend!=RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || desc.n<2 || desc.n>8 || desc.k<512))return RNS8_UNSUPPORTED_BACKEND;
   const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
+  if((desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND) && (!fixed_prefix_requested ||
+      (desc.semantics!=RNS8_EXACT_WIDE_SIGNED && desc.semantics!=RNS8_EXACT_WIDE_UNSIGNED)))return RNS8_INVALID_ARGUMENT;
   const bool proven_zero_tile_skips_requested = (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
   const bool proven_zero_row_col_skips_requested =
       (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
@@ -353,6 +358,7 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if(desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND)return RNS8_SUCCESS;
     const cpp_int product = modulus_product(prefix);
     const cpp_int required =
         cpp_int(desc.k) * (cpp_int(1) << (desc.semantics == RNS8_EXACT_WIDE_SIGNED ? 127 : 128));

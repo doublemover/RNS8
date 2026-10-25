@@ -11,6 +11,7 @@ from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
 from timing_eligibility import pair_blockers
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 
 
 TIMING_PHASES = [
@@ -27,6 +28,11 @@ TIMING_PHASES = [
     "end_to_end",
 ]
 CONTRACT_KEYS = [
+    "exact_proof_policy",
+    "host_instrumentation_state",
+    "host_observation_contract",
+    "output_completion_boundary",
+    "host_api_batch.work_contract",
     "semantics",
     "finite_modulus",
     "residue_chain_length",
@@ -122,6 +128,7 @@ CONTRACT_KEYS = [
     "prepack_reuse_strategy",
     "seed",
     "input_distribution",
+    "input_profile",
 ]
 EXPORT_SELECTOR_REVIEW_DIFF_KEYS = {
     "export_variant.name",
@@ -282,6 +289,18 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "host_observation_contract":
+        return host_observation_contract(data)
+    if key == "output_completion_boundary":
+        return output_completion_boundary(data)
+    if key == "host_instrumentation_state":
+        return host_instrumentation(data)
+    if key == "input_profile":
+        return data.get(key, "uniform-small")
+    if key == "exact_proof_policy":
+        return exact_proof_policy(data)
+    if key == "host_api_batch.work_contract":
+        return host_batch_contract(data)
     if key == "finite_modulus":
         if data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}:
             modulus = data.get(key)
@@ -468,13 +487,15 @@ def compare(
     candidate_path: Path,
     *,
     allow_export_selector_diff: bool = False,
+    allow_proof_policy_diff: bool = False,
 ) -> dict[str, Any]:
     contract = {
         key: {
             "baseline": contract_value(baseline, key),
             "candidate": contract_value(candidate, key),
             "match": contract_value(baseline, key) == contract_value(candidate, key),
-            "ignored_for_contract": allow_export_selector_diff and key in EXPORT_SELECTOR_REVIEW_DIFF_KEYS,
+            "ignored_for_contract": (allow_export_selector_diff and key in EXPORT_SELECTOR_REVIEW_DIFF_KEYS) or
+                (allow_proof_policy_diff and key == "exact_proof_policy"),
         }
         for key in CONTRACT_KEYS
     }
@@ -536,7 +557,9 @@ def compare(
             "baseline_version": schema_version(baseline),
             "candidate_version": schema_version(candidate),
         },
-        "comparison_mode": "export_selector_review" if allow_export_selector_diff else "strict_contract",
+        "comparison_mode": "proof_policy_review" if allow_proof_policy_diff else "export_selector_review" if allow_export_selector_diff else "strict_contract",
+        "changed_proof_policy": exact_proof_policy(baseline) != exact_proof_policy(candidate),
+        "same_proof_workload": exact_proof_policy(baseline) == exact_proof_policy(candidate),
         "matching_contract": all(item["match"] or item["ignored_for_contract"] for item in contract.values()),
         "gpu_compatible": gpu_compatible,
         "gpu_compatibility_required": gpu_compatibility_required,
@@ -617,6 +640,8 @@ def main() -> int:
             "while still enforcing the same semantic, shape, limb, signedness, layout, target, and backend contract"
         ),
     )
+    parser.add_argument("--allow-proof-policy-diff", action="store_true",
+        help="explicit eager-versus-scalar-first A/B review; not repeated observations of the same proof workload")
     args = parser.parse_args()
 
     baseline = load_result(args.baseline)
@@ -627,6 +652,7 @@ def main() -> int:
         args.baseline,
         args.candidate,
         allow_export_selector_diff=args.allow_export_selector_diff,
+        allow_proof_policy_diff=args.allow_proof_policy_diff,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

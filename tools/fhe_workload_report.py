@@ -11,6 +11,7 @@ from typing import Any
 
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase
 from report_capture_inputs import load_report_captures
+from observation_cohorts import aggregate_captures, row_identity, partition_rows, evidence, best_row
 
 
 DEFAULT_OUT_DIR = Path("temp") / "fhe-workload-reports"
@@ -89,7 +90,7 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
     extra = _scenario_extra(capture)
     verification = _verification(capture)
     backend = backend_id(capture)
-    blockers: list[str] = []
+    blockers: list[str] = list(evidence(capture)["blockers"])
     family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
     if family != "fhe_lattice_proxy":
         blockers.append("not_fhe_lattice_proxy")
@@ -113,6 +114,7 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
     operation = _operation(capture)
     row = {
         "path": _path(capture),
+        **row_identity(capture),
         "proxy_operation": operation,
         "family": family,
         "tower_basis": extra.get("tower_basis") or extra.get("tower_role") or proxy.get("tower_role") or "unspecified",
@@ -136,12 +138,15 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = load_report_captures(paths)
+    raw = load_report_captures(paths)
+    captures = aggregate_captures(raw)
     rows = [row_for_capture(capture) for capture in captures]
     groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         groups[_group_key(row)].append(row)
 
+    groups = {(*key, *partition): members for key, items in groups.items()
+              for partition, members in partition_rows(items)}
     group_rows: list[dict[str, Any]] = []
     for key, grouped_rows in sorted(groups.items(), key=lambda item: str(item[0])):
         backends = sorted({str(row["backend"]) for row in grouped_rows})
@@ -150,19 +155,11 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             blockers.append("cpu_reference_baseline_missing")
         cpu_rows = [row for row in grouped_rows if row["backend"] in {"cpu-reference", "cpu"}]
         gpu_rows = [row for row in grouped_rows if row["backend"] not in {"cpu-reference", "cpu"}]
-        cpu_median = min(
-            (
-                float(row["median_end_to_end_us"])
-                for row in cpu_rows
-                if isinstance(row["median_end_to_end_us"], (int, float))
-            ),
-            default=None,
-        )
-        fastest_gpu = min(
-            (row for row in gpu_rows if isinstance(row["median_end_to_end_us"], (int, float))),
-            key=lambda row: float(row["median_end_to_end_us"]),
-            default=None,
-        )
+        cpu_best = best_row(cpu_rows)
+        cpu_median = cpu_best["median_end_to_end_us"] if cpu_best else None
+        fastest_gpu = best_row(gpu_rows)
+        if not cpu_best: blockers.append("qualified_cpu_process_cohort_missing")
+        if not fastest_gpu: blockers.append("qualified_gpu_process_cohort_missing")
         fastest_gpu_median = (
             float(fastest_gpu["median_end_to_end_us"])
             if fastest_gpu and isinstance(fastest_gpu.get("median_end_to_end_us"), (int, float))
@@ -182,6 +179,10 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
         group_rows.append(
             {
                 "proxy_operation": key[0],
+                "work_contract": grouped_rows[0]["work_contract"],
+                "comparison_environment": key[-1],
+                "selected_gpu_cohort": fastest_gpu.get("measurement_cohort") if fastest_gpu else None,
+                "selected_cpu_cohort": cpu_best.get("measurement_cohort") if cpu_best else None,
                 "tower_basis": key[1],
                 "reuse_mode": key[2],
                 "output_domain_requirement": key[3],
@@ -212,6 +213,9 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     promotable_profiles = [
         {
             "proxy_operation": group["proxy_operation"],
+            "work_contract": group["work_contract"],
+            "comparison_environment": group["comparison_environment"],
+            "selected_gpu_cohort": group["selected_gpu_cohort"],
             "tower_basis": group["tower_basis"],
             "reuse_mode": group["reuse_mode"],
             "output_domain_requirement": group["output_domain_requirement"],

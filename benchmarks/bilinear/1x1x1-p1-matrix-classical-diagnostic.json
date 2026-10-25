@@ -1,0 +1,18 @@
+{
+  "schema": "bilinear_case_v1",
+  "m": 1,
+  "n": 1,
+  "k": 1,
+  "prefix": 1,
+  "unsigned_inputs": false,
+  "mode": "classical",
+  "subproduct_backend": "matrix",
+  "residency": "resident",
+  "instrumented": true,
+  "repeats": 3,
+  "warmups": 1,
+  "seed": 4855,
+  "max_scratch_bytes": 68719476736,
+  "max_host_bytes": 68719476736,
+  "matrix_variant": 1
+}

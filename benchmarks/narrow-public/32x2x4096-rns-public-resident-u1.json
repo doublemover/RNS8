@@ -1,0 +1,13 @@
+{
+  "schema": "narrow_public_case_v1",
+  "m": 32,
+  "n": 2,
+  "k": 4096,
+  "prefix": 0,
+  "unsigned_inputs": true,
+  "mode": "rns-public",
+  "residency": "resident",
+  "repeats": 9,
+  "warmups": 3,
+  "seed": 5353
+}

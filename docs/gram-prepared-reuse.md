@@ -129,3 +129,27 @@ blocked native64 controls. Existing executable, build/source, command, process,
 clock and device provenance remains attached. Raw captures remain ineligible
 for performance promotion. The fixtures and CTest smoke registrations cover
 both export policies; their authored presence is not execution evidence.
+
+## Native/orientation/mirror/reconstruction ablations
+
+Reports with `gram_ablation_cohort=1` add four independently named prepared
+variants per admitted scalar/WMMA family: `_native_`, `_transpose_`,
+`_separate_mirror_` and `_reconstruct_once_`. They change one mechanism relative
+to the resident prepared control. Native loads use retained original signed64
+panels; transpose retains a generation-bound residue adapter; separate mirror
+uses a second tiled transpose-store launch; reconstruct-once exports each
+independent integer once and mirrors its complete signed limbs. Ordinary dense
+residue output is retained by every variant. Reconstruct-once is distinct from
+`--gram-export once`, which controls how many batch products are exported.
+
+The cohort contract records input, mirror and reconstruction policies, exact
+adapter/export payload, actual total owned capacity, independent/dense cells and
+native retention. A shared aggregate budget reserves a checked envelope before
+owner allocation; actual capacities must fit it. Old job-only envelope metadata
+is retained as a separate conservative component, not mislabeled as the new
+total. Adapter creation is first-execute work and rebuild is charged after source
+refresh. The benchmark's complete Boost validation remains outside timed calls.
+The collector requires every scalar ablation and every matching WMMA ablation,
+recomputes payload/alignment lower bounds, rejects incomplete cohorts and keeps
+the cohort version in comparison identity. These receipts establish declared
+source paths and owned allocations, not measured peak memory or physical ISA.

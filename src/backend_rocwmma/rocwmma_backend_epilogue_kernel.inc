@@ -1,9 +1,6 @@
 // One wave owns a complete output tile and modulus. Only local LDS holds
 // packed byte fragments and INT32 fragment stores; no global AB temporary.
-struct RocwmmaExactCoefficients {
-  uint32_t modulus[20], reciprocal[20];
-  int32_t alpha[20], beta[20];
-};
+using RocwmmaExactCoefficients=rns8::detail::ResidueAxpbyTable;
 __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kernel(
     const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
     int m, int n, int k, int lda, int ldb, int ldd, int ldc, RocwmmaExactCoefficients coefficients) {
@@ -17,10 +14,12 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kern
   int32_t residues[owned]{};
   const int lane = threadIdx.x, plane = blockIdx.z;
   const int64_t tile_row = int64_t{blockIdx.y} * 16, tile_col = int64_t{blockIdx.x} * 16;
-  const int modulus = coefficients.modulus[plane];
-  const uint32_t reciprocal = coefficients.reciprocal[plane];
-  const int32_t alpha = coefficients.alpha[plane], beta = coefficients.beta[plane];
-  for (int64_t begin = 0; begin < k; begin += kRns8SignedSafeInt32KBlock) {
+  const auto coefficient=coefficients.channel[plane];
+  const int modulus=coefficient.modulus;
+  const uint32_t reciprocal=coefficient.reciprocal;
+  const int32_t alpha=coefficient.alpha,beta=coefficient.beta;
+  // Plane-uniform: no wave enters a barrier while another skips this branch.
+  if(alpha!=0)for (int64_t begin = 0; begin < k; begin += kRns8SignedSafeInt32KBlock) {
     const int64_t end = begin + kRns8SignedSafeInt32KBlock < k ? begin + kRns8SignedSafeInt32KBlock : k;
     FragAcc acc;
     fill_fragment(acc, 0);
@@ -52,7 +51,7 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_exact_axpby_kern
     const int64_t row = tile_row + index / 16, col = tile_col + index % 16;
     if (row < m && col < n)
       c[(int64_t{plane} * m + row) * ldc + col] = rns8::detail::finite_u8::reduce_to_centered_i32(
-          alpha * residues[slot] + beta * static_cast<int32_t>(d[(int64_t{plane} * m + row) * ldd + col]),
+          alpha * residues[slot] + (beta?beta * static_cast<int32_t>(d[(int64_t{plane} * m + row) * ldd + col]):0),
           modulus, reciprocal);
   }
 }

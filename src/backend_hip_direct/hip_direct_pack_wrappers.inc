@@ -87,6 +87,31 @@ extern "C" int rns8_hip_direct_pack_i64_device_on_stream(
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+  const int64_t cells = int64_t{rows} * cols;
+  const int blocks = static_cast<int>((cells + 255) / 256);
+  switch (prefix) {
+#define RNS8_ADDITIONAL_FIXED(P) \
+    case P: hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_pack_i64_fixed_prefix_kernel<P>), \
+        dim3(blocks), dim3(256), 0, nullptr, source, residues, rows, cols, ld); break
+    RNS8_ADDITIONAL_FIXED(10); RNS8_ADDITIONAL_FIXED(11); RNS8_ADDITIONAL_FIXED(12);
+    RNS8_ADDITIONAL_FIXED(13); RNS8_ADDITIONAL_FIXED(14); RNS8_ADDITIONAL_FIXED(15);
+    RNS8_ADDITIONAL_FIXED(16); RNS8_ADDITIONAL_FIXED(17); RNS8_ADDITIONAL_FIXED(19);
+#undef RNS8_ADDITIONAL_FIXED
+    default: return rns8_hip_direct_pack_i64_device_on_stream(source, residues, rows, cols, ld, prefix, nullptr);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_direct_pack_i64_generic_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix) {
+  const int64_t total = int64_t{rows} * cols * prefix;
+  hipLaunchKernelGGL(rns8_pack_i64_kernel, dim3((total + 255) / 256), dim3(256),
+                    0, nullptr, source, residues, rows, cols, ld, prefix);
+  return static_cast<int>(hipGetLastError());
+}
+
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
     int8_t* d_residues,
@@ -656,10 +681,8 @@ extern "C" int rns8_hip_direct_pack_i64_persistent_small_device(
   const int block = 256;
   rns8_persistent_small_pack_i64_kernel<<<(total + block - 1) / block, block>>>(
       src, residues, rows, cols, ld, prefix);
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess) return static_cast<int>(err);
-  err = hipDeviceSynchronize();
-  return static_cast<int>(err);
+  // Enqueue-only internal contract; the owning public pack waits once.
+  return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
@@ -673,9 +696,7 @@ extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
   const int cells_per_block = block * 4;
   rns8_pack_i64_4wide_coalesced_kernel<<<static_cast<int>((total + cells_per_block - 1) / cells_per_block), block>>>(
       src, residues, rows, cols, prefix);
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess) return static_cast<int>(err);
-  err = hipDeviceSynchronize();
-  return static_cast<int>(err);
+  // Enqueue-only internal contract; the owning public pack waits once.
+  return static_cast<int>(hipGetLastError());
 }
 

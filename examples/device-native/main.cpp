@@ -9,6 +9,8 @@
 #include <string>
 extern "C" int native_produce(void*,void*,void*);
 extern "C" int native_consume(const void*,void*);
+extern "C" int native_produce_on_stream(void*,void*,void*,void*);
+extern "C" int native_consume_on_stream(const void*,void*,void*);
 namespace {
 void check(rns8_status s) {if(s!=RNS8_SUCCESS) throw std::runtime_error(rns8_status_string(s));}
 void hipcheck(hipError_t s) {if(s!=hipSuccess) throw std::runtime_error(hipGetErrorString(s));}
@@ -25,7 +27,9 @@ rns8_native_device_desc view(void* base,uint64_t bytes,int64_t rows,int64_t cols
   d.owner=&owner;d.acquire=acquire;d.release=release;return d;
 }
 }
-int main() {
+int main(int argc,char** argv) {
+  const bool prepared=argc==2 && std::string(argv[1])=="--prepared";
+  if(argc!=1 && !prepared){std::cerr<<"usage: native-consumer [--prepared]\n";return EXIT_FAILURE;}
   // Failure exits preserve allocations/leases until process teardown. Never
   // release an external allocation merely because a failed operation returned.
   try {
@@ -59,8 +63,37 @@ int main() {
     rns8_native_device_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
     check(rns8_query_native_device(&views[2],&resources));
     check(rns8_export_native_device(ctx,matrices[2],leases[2],resources.export_scratch_bytes));
-    // Success is host-observed before this external consumer is launched.
-    hipcheck(hipMemset(flag,0,4));hipcheck(static_cast<hipError_t>(native_consume(c,flag)));hipcheck(hipDeviceSynchronize());
+    std::array<rns8_prepared_execution*,4> operations{};
+    std::array<hipStream_t,5> streams{};
+    if(prepared) {
+      for(auto& stream:streams)hipcheck(hipStreamCreateWithFlags(&stream,hipStreamNonBlocking));
+      rns8_native_transfer_options transfer{};transfer.struct_size=sizeof(transfer);transfer.abi_version=RNS8_ABI_VERSION;
+      transfer.import_values=1;transfer.verify_input_bound=1;transfer.max_total_scratch_bytes=4096;
+      transfer.max_input_magnitude=5;check(rns8_prepare_native_transfer_hip(ctx,matrices[0],leases[0],&transfer,&operations[0]));
+      transfer.max_input_magnitude=3;check(rns8_prepare_native_transfer_hip(ctx,matrices[1],leases[1],&transfer,&operations[1]));
+      check(rns8_prepare_gemm(ctx,plan,matrices[0],matrices[1],matrices[2],workspace,&operations[2]));
+      transfer.import_values=0;transfer.verify_input_bound=0;transfer.max_input_magnitude=0;
+      check(rns8_prepare_native_transfer_hip(ctx,matrices[2],leases[2],&transfer,&operations[3]));
+      for(auto* operation:operations)check(rns8_capture_prepared_hip_graph(operation));
+      for(auto* lease:leases)check(rns8_begin_native_device_write(lease));
+      hipcheck(static_cast<hipError_t>(native_produce_on_stream(a,b,c,streams[0])));
+      for(auto* lease:leases)check(rns8_end_native_device_write_hip(lease,2,streams[0]));
+      check(rns8_refresh_prepared_inputs(operations[0]));check(rns8_refresh_prepared_inputs(operations[1]));check(rns8_refresh_prepared_inputs(operations[3]));
+      std::array<rns8_completion_token,4> tokens{};
+      check(rns8_submit_prepared_hip_graph(operations[0],streams[1],&tokens[0]));
+      check(rns8_submit_prepared_hip_graph(operations[1],streams[2],&tokens[1]));
+      check(rns8_bind_prepared_dependencies(operations[2],operations.data(),tokens.data(),2));
+      check(rns8_submit_prepared_hip_graph_pipeline(operations[2],streams[3],&tokens[2]));
+      check(rns8_bind_prepared_dependency(operations[3],operations[2],tokens[2]));
+      check(rns8_submit_prepared_hip_graph_pipeline(operations[3],streams[4],&tokens[3]));
+      rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+      check(rns8_wait_prepared_hip(operations[3],tokens[3],&completion));check(completion.operation_status);require(completion.output_is_current,"export not publishable");
+      // An external consumer starts only after proof/status-ready host observation,
+      // not merely after the event recording data-ready reconstruction.
+      hipcheck(hipMemsetAsync(flag,0,4,streams[4]));hipcheck(static_cast<hipError_t>(native_consume_on_stream(c,flag,streams[4])));hipcheck(hipStreamSynchronize(streams[4]));
+    } else {
+      hipcheck(hipMemset(flag,0,4));hipcheck(static_cast<hipError_t>(native_consume(c,flag)));hipcheck(hipDeviceSynchronize());
+    }
     int failure=0;hipcheck(hipMemcpy(&failure,flag,4,hipMemcpyDeviceToHost));require(failure==0,"external consumer rejected native output");
     // Explicit validation-only full readback, outside the device-resident pipeline.
     std::array<int64_t,13> result{};hipcheck(hipMemcpy(result.data(),c,sizeof(result),hipMemcpyDeviceToHost));
@@ -72,12 +105,14 @@ int main() {
       }
       require(result[i]==expected,"independent host product or padding mismatch");
     }
+    for(auto* operation:operations)if(operation)check(rns8_destroy_prepared_execution(operation));
+    for(auto stream:streams)if(stream)hipcheck(hipStreamDestroy(stream));
     for(auto* lease:leases) check(rns8_destroy_native_device_lease(lease));
     for(const auto& owner:owners) require(owner.refs==0 && owner.acquires==1 && owner.releases==1,"owner release mismatch");
     for(auto* matrix:matrices) check(rns8_destroy_matrix(matrix));
     check(rns8_destroy_workspace(workspace));check(rns8_destroy_plan(plan));check(rns8_destroy_context(ctx));
     hipcheck(hipFree(flag));hipcheck(hipFree(c));hipcheck(hipFree(b));hipcheck(hipFree(a));
-    std::cout<<"device_producer_exact_gemm_device_consumer=passed full_host_oracle=passed padding=passed pipeline_host_payload_bytes=0 conversion_summary_bytes=20 validation_payload_bytes=104\n";
+    std::cout<<"mode="<<(prepared?"prepared_graph_pipeline":"synchronous")<<" device_producer_exact_gemm_device_consumer=passed full_host_oracle=passed padding=passed pipeline_host_payload_bytes=0 synchronous_setup_summary_bytes=20 prepared_replay_status_bytes="<<(prepared?12:0)<<" validation_payload_bytes=104\n";
     return EXIT_SUCCESS;
   } catch(const std::exception& error) {std::cerr<<error.what()<<'\n';return EXIT_FAILURE;}
 }

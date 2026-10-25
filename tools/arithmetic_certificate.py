@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from floating_contract import FloatingContract, schema_failures as floating_schema_failures, verify_floating, from_json as floating_from_json
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class InstructionContract:
     operand_alphabet: tuple[int, ...] = ()
     exact_integer_products: bool = True
     measured_evidence_sha256: str | None = None
+    floating: FloatingContract | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,9 @@ class ProductPlane:
     lhs: tuple[int, ...]
     rhs: tuple[int, ...]
     weight: int = 1
+    lhs_codes: tuple[int, ...] = ()
+    rhs_codes: tuple[int, ...] = ()
+    grid_exponent: int = 0
 
 
 @dataclass(frozen=True)
@@ -82,13 +87,19 @@ def _schema_failures(c: ArithmeticCertificate) -> list[str]:
             or type(p.weight) is not int or any(type(x) is not int for x in p.lhs + p.rhs)
             for p in c.planes):
         failures.append("invalid_product_plane_structure")
+    if i.floating is not None:
+        failures.extend(floating_schema_failures(i.floating))
+        if any(type(p.lhs_codes) is not tuple or type(p.rhs_codes) is not tuple
+               or type(p.grid_exponent) is not int or any(type(x) is not int for x in p.lhs_codes+p.rhs_codes)
+               for p in c.planes):
+            failures.append("invalid_floating_plane_codes")
     return failures
 
 
 def certificate_hash(certificate: ArithmeticCertificate) -> str:
     if _schema_failures(certificate):
         raise ValueError("cannot hash a malformed arithmetic certificate")
-    payload = json.dumps({"checker_version": "integer-certificate-v2", "certificate": asdict(certificate)}, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    payload = json.dumps({"checker_version": "integer-floating-certificate-v3", "certificate": asdict(certificate)}, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -184,8 +195,9 @@ def verify(c: ArithmeticCertificate) -> dict:
 
 
 def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict], malformed: bool = False) -> dict:
-    return {"schema": "rns8_arithmetic_certificate_v1", "sha256": None if malformed else certificate_hash(c),
-            "checker_version": "integer-certificate-v2",
+    floating = verify_floating(c) if not malformed and not failures and c.instruction.floating is not None else None
+    result = {"schema": "rns8_arithmetic_certificate_v1", "sha256": None if malformed else certificate_hash(c),
+            "checker_version": "integer-floating-certificate-v3",
             "verdicts": {"algebraic_value_equality": "proven" if not failures else "unknown",
                          "floating_rewrite_equivalence": "unsupported",
                          "finite_exact_recoverability": "proven" if not failures else "unknown",
@@ -196,6 +208,12 @@ def _result(c: ArithmeticCertificate, failures: list[str], intervals: list[dict]
             # An evidence string is a reference, not permission to self-certify.
             "instruction_measured": False, "end_to_end_qualified": False,
             "runtime_dispatch_eligible": False, "certificate": None if malformed else asdict(c)}
+    if floating is not None:
+        result["floating_guard"] = floating
+        result["verdicts"]["finite_exact_recoverability"] = floating["finite_exact_recoverability"]
+        result["proof_failures"] += floating["failures"]
+        result["verdict_scope"] = "algebra-plus-declared-binary-model-not-target-execution"
+    return result
 
 
 def centered_int8(modulus: int, safe_k: int = 65536) -> ArithmeticCertificate:
@@ -208,10 +226,12 @@ def centered_int8(modulus: int, safe_k: int = 65536) -> ArithmeticCertificate:
 
 def from_json(data: dict) -> ArithmeticCertificate:
     data = dict(data)
-    data["planes"] = tuple(ProductPlane(tuple(p["lhs"]), tuple(p["rhs"]), p.get("weight", 1)) for p in data["planes"])
+    data["planes"] = tuple(ProductPlane(tuple(p["lhs"]), tuple(p["rhs"]), p.get("weight", 1), tuple(p.get("lhs_codes", ())), tuple(p.get("rhs_codes", ())), p.get("grid_exponent", 0)) for p in data["planes"])
     instruction = dict(data["instruction"])
     instruction["flags"] = tuple(instruction.get("flags", ()))
     instruction["operand_alphabet"] = tuple(instruction.get("operand_alphabet", ()))
+    if instruction.get("floating") is not None:
+        instruction["floating"] = floating_from_json(instruction["floating"])
     data["instruction"] = InstructionContract(**instruction)
     data["basis"] = tuple(data.get("basis", ()))
     return ArithmeticCertificate(**data)
@@ -250,6 +270,42 @@ def verify_wrap64_recode(data: dict) -> dict:
             "unsigned_pair_k_cap": 33025, "matrix_products_per_k_tile": 36}
 
 
+def verify_wrap64_mfma_recode(data: dict) -> dict:
+    """Bind the ring proof to a declared CDNA generation's distinct wave64 map.
+
+    This is an arithmetic/layout model certificate, not physical ISA evidence.
+    The input map is bijective, but no symbolic map proves a compiler or device.
+    """
+    if not isinstance(data, dict):
+        return {"algebraically_verified": False, "runtime_dispatch_eligible": False,
+                "proof_failures": ["invalid_certificate_structure"]}
+    profiles = {"gfx90a": (16, "mfma_i32_16x16x16i8"),
+                "gfx942": (32, "mfma_i32_16x16x32_i8"),
+                "gfx950": (64, "mfma_i32_16x16x64_i8")}
+    width, opcode = profiles.get(data.get("target"), (0, "unsupported"))
+    extra = {"schema": "rns8_wrap64_signed_mfma_v1", "target": data.get("target"),
+             "opcode": opcode, "wave_size": 64, "input_bytes_per_lane": width//4,
+             "accumulators_per_lane": 4, "instruction_padded_k": width,
+             "a_map": "row=lane%16;k=(lane//16)*(K//4)+byte",
+             "b_map": "k=(lane//16)*(K//4)+byte;col=lane%16",
+             "c_map": "row=(lane//16)*4+reg;col=lane%16",
+             "layout": "cdna_wave64_16x16_signed_radix_register_v1"}
+    failures = [] if width else ["unsupported_target"]
+    for key, value in extra.items():
+        if type(data.get(key)) is not type(value) or data.get(key) != value:
+            failures.append(key)
+    base = {key: value for key, value in data.items() if key not in extra}
+    base.update(schema="rns8_wrap64_signed_radix_v1",
+                layout="tile16_canonical_bytes_recode_v1", instruction_padded_k=width)
+    result = verify_wrap64_recode(base)
+    failures += result["proof_failures"]
+    result.update(algebraically_verified=not failures, proof_failures=failures,
+                  sha256=hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
+                  physical_layout_correctness="not_run", target_execution="not_run",
+                  instruction_measured=False, verdict_scope="declared-ring-and-wave64-coordinate-model")
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("certificate", type=Path)
@@ -261,6 +317,8 @@ def main() -> int:
         data = json.loads(args.certificate.read_text(encoding="utf-8"), parse_constant=reject_constant)
         if data.get("schema") == "rns8_wrap64_signed_radix_v1":
             result = verify_wrap64_recode(data)
+        elif data.get("schema") == "rns8_wrap64_signed_mfma_v1":
+            result = verify_wrap64_mfma_recode(data)
         elif data.get("schema") == "rns8_arithmetic_composition_v1":
             from arithmetic_composition import Node, verify_composition
             result = verify_composition(tuple(Node(**node) for node in data["nodes"]))

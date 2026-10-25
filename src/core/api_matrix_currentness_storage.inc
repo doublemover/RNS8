@@ -280,7 +280,7 @@ bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& 
 void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan) {
   matrix.materialized_rns_schedule.reset();
   if (!bounded_residue_semantics(matrix.desc.semantics)) {
-    matrix.materialized_rns_prefix = matrix.prefix;
+    matrix.materialized_rns_prefix = plan && rns8::detail::exact_wide_semantics(matrix.desc.semantics) ? plan->prefix : matrix.prefix;
     return;
   }
   // Missing publication provenance fails closed rather than promoting capacity.

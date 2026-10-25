@@ -1,4 +1,6 @@
 #include "core/api_internal.hpp"
+#include "core/export_metadata_transaction.hpp"
+#include "backend_common/quarter_crt_certificate.hpp"
 
 namespace rns8::detail::api {
 
@@ -208,73 +210,71 @@ rns8_status ensure_hip_export_tile_metadata(rns8_context& ctx, const rns8_plan& 
   if (metadata_current) {
     return RNS8_SUCCESS;
   }
-  if (zero_a_bytes == 0 && matrix.hip_export_zero_a_rows) {
-    const rns8_status free_status =
-        rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_a_rows);
-    if (free_status != RNS8_SUCCESS) {
-      return free_status;
+  return rns8::detail::replace_export_metadata(matrix, fingerprint, entry_count, max_tile_elements, [&]() {
+    if (zero_a_bytes == 0 && matrix.hip_export_zero_a_rows) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_a_rows);
+      if (free_status != RNS8_SUCCESS) {
+        return free_status;
+      }
+      matrix.hip_export_zero_a_rows = nullptr;
+      matrix.hip_export_zero_a_rows_bytes = 0;
     }
-    matrix.hip_export_zero_a_rows = nullptr;
-    matrix.hip_export_zero_a_rows_bytes = 0;
-  }
-  if (zero_b_bytes == 0 && matrix.hip_export_zero_b_cols) {
-    const rns8_status free_status =
-        rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_b_cols);
-    if (free_status != RNS8_SUCCESS) {
-      return free_status;
+    if (zero_b_bytes == 0 && matrix.hip_export_zero_b_cols) {
+      const rns8_status free_status =
+          rns8::detail::hip_direct_free(ctx.device_id, matrix.hip_export_zero_b_cols);
+      if (free_status != RNS8_SUCCESS) {
+        return free_status;
+      }
+      matrix.hip_export_zero_b_cols = nullptr;
+      matrix.hip_export_zero_b_cols_bytes = 0;
     }
-    matrix.hip_export_zero_b_cols = nullptr;
-    matrix.hip_export_zero_b_cols_bytes = 0;
-  }
-  rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
-      ctx.device_id, schedule_bytes, &matrix.hip_export_tile_schedule, &matrix.hip_export_tile_schedule_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = rns8::detail::hip_direct_ensure_upload_buffer(
-      ctx.device_id, bounds_bytes, &matrix.hip_export_tile_bounds, &matrix.hip_export_tile_bounds_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = rns8::detail::hip_direct_copy_host_to_device(
-      ctx.device_id, matrix.hip_export_tile_schedule, plan.tile_schedule.data(), schedule_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  status = rns8::detail::hip_direct_copy_host_to_device(
-      ctx.device_id, matrix.hip_export_tile_bounds, plan.tile_bounds.data(), bounds_bytes);
-  if (status != RNS8_SUCCESS) {
-    return status;
-  }
-  if (zero_a_bytes != 0) {
+    rns8_status status = rns8::detail::hip_direct_ensure_upload_buffer(
+        ctx.device_id, schedule_bytes, &matrix.hip_export_tile_schedule, &matrix.hip_export_tile_schedule_bytes);
+    if (status != RNS8_SUCCESS) {
+      return status;
+    }
     status = rns8::detail::hip_direct_ensure_upload_buffer(
-        ctx.device_id, zero_a_bytes, &matrix.hip_export_zero_a_rows, &matrix.hip_export_zero_a_rows_bytes);
+        ctx.device_id, bounds_bytes, &matrix.hip_export_tile_bounds, &matrix.hip_export_tile_bounds_bytes);
     if (status != RNS8_SUCCESS) {
       return status;
     }
     status = rns8::detail::hip_direct_copy_host_to_device(
-        ctx.device_id, matrix.hip_export_zero_a_rows, plan.zero_a_rows.data(), zero_a_bytes);
-    if (status != RNS8_SUCCESS) {
-      return status;
-    }
-  }
-  if (zero_b_bytes != 0) {
-    status = rns8::detail::hip_direct_ensure_upload_buffer(
-        ctx.device_id, zero_b_bytes, &matrix.hip_export_zero_b_cols, &matrix.hip_export_zero_b_cols_bytes);
+        ctx.device_id, matrix.hip_export_tile_schedule, plan.tile_schedule.data(), schedule_bytes);
     if (status != RNS8_SUCCESS) {
       return status;
     }
     status = rns8::detail::hip_direct_copy_host_to_device(
-        ctx.device_id, matrix.hip_export_zero_b_cols, plan.zero_b_cols.data(), zero_b_bytes);
+        ctx.device_id, matrix.hip_export_tile_bounds, plan.tile_bounds.data(), bounds_bytes);
     if (status != RNS8_SUCCESS) {
       return status;
     }
-  }
-  matrix.hip_export_tile_schedule_count = entry_count;
-  matrix.hip_export_tile_bounds_count = entry_count;
-  matrix.hip_export_schedule_fingerprint = fingerprint;
-  matrix.hip_export_tile_max_elements = max_tile_elements;
-  return RNS8_SUCCESS;
+    if (zero_a_bytes != 0) {
+      status = rns8::detail::hip_direct_ensure_upload_buffer(
+          ctx.device_id, zero_a_bytes, &matrix.hip_export_zero_a_rows, &matrix.hip_export_zero_a_rows_bytes);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      status = rns8::detail::hip_direct_copy_host_to_device(
+          ctx.device_id, matrix.hip_export_zero_a_rows, plan.zero_a_rows.data(), zero_a_bytes);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+    }
+    if (zero_b_bytes != 0) {
+      status = rns8::detail::hip_direct_ensure_upload_buffer(
+          ctx.device_id, zero_b_bytes, &matrix.hip_export_zero_b_cols, &matrix.hip_export_zero_b_cols_bytes);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+      status = rns8::detail::hip_direct_copy_host_to_device(
+          ctx.device_id, matrix.hip_export_zero_b_cols, plan.zero_b_cols.data(), zero_b_bytes);
+      if (status != RNS8_SUCCESS) {
+        return status;
+      }
+    }
+    return RNS8_SUCCESS;
+  });
 }
 
 rns8_matrix& prepare_mutable_export_cache(
@@ -603,7 +603,7 @@ rns8_status rns8_export_finite_u8(
     uint8_t* dst,
     int64_t ld) {
   return guard_api([&]() -> rns8_status {
-    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {
+    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld, sizeof(uint8_t))) {
       return RNS8_INVALID_ARGUMENT;
     }
     const rns8_status export_status = validate_finite_export_matrix(*ctx, *plan, modulus, *C);
@@ -624,7 +624,7 @@ rns8_status rns8_export_finite_u8(
           dst,
           ld);
     }
-    if (plan->backend == RNS8_BACKEND_CPU_REFERENCE) {
+    if (host_rns_backend(plan->backend)) {
       rns8::detail::export_finite_u8_matrix(*C, dst, ld, modulus);
       return RNS8_SUCCESS;
     }
@@ -805,3 +805,5 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
     return RNS8_SUCCESS;
   });
 }
+
+#include "api_export_quarter_crt.inc"

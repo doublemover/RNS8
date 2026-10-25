@@ -762,7 +762,8 @@
         "compact-bounded-workers",
         "explicit-matrix-owned-native-inputs",
         "shared-static-preflight",
-        "single-owned-native-upload"
+        "single-owned-native-upload",
+        "versioned-distribution-and-complete-output-controls"
       ]
     },
     {
@@ -1539,6 +1540,10 @@
           "reference": "docs/backend-notes.md"
         },
         {
+          "source": "README.md",
+          "reference": "docs/backend-notes.md#explicit-finite-int4-ownership"
+        },
+        {
           "source": "docs/README.md",
           "reference": "backend-notes.md"
         },
@@ -1623,6 +1628,7 @@
         "auto-and-reviewed-caches",
         "backend-implementation-and-selection",
         "experimental-paths-and-reserved-apis",
+        "explicit-finite-int4-ownership",
         "metadata-ownership-and-execution",
         "public-paths"
       ]
@@ -1647,6 +1653,7 @@
       ],
       "anchors": [
         "balanced-crt-device-baseline",
+        "explicit-quarter-range-fma--delayed-carry-export",
         "tile-major-consumer-candidate"
       ]
     },
@@ -1673,6 +1680,7 @@
         }
       ],
       "anchors": [
+        "campaign-order-control",
         "commands-and-observed-comparisons",
         "exact-reference-and-dataset",
         "matched-boundaries",
@@ -1752,7 +1760,12 @@
       ],
       "anchors": [
         "calibration-evidence-and-planner-rates",
-        "crt-collection-executable"
+        "crt-collection-executable",
+        "disjoint-events-and-consistent-work-units",
+        "hipblaslt-immutable-per-call-metadata-controls",
+        "match-production-latency-to-diagnostics-without-mixing-observations",
+        "public-completed-output-timing-and-sustained-controls",
+        "streaming-observations-and-the-matched-serial-pipeline"
       ]
     },
     {
@@ -1789,6 +1802,7 @@
         "arithmetic-contract",
         "exact-complex-residue-composition",
         "internal-matrix-ownership-integration",
+        "layout-v2-dead-product-storage-reuse-unqualified",
         "matched-resident-measurements-at-1bb5e33",
         "memory-and-publication",
         "validation-and-remaining-work"
@@ -1846,8 +1860,10 @@
         }
       ],
       "anchors": [
+        "byte-identity-and-packed-dot-controls",
         "data-verification-and-resources",
         "exact-import-and-crt-conversion-calibration",
+        "public-signed-pack-selection-and-minimal-cold-ownership",
         "reproducible-collection",
         "timing-boundaries"
       ]
@@ -2096,6 +2112,7 @@
       ],
       "anchors": [
         "explicit-k-panel-l1-refinement",
+        "immutable-direct-hip-launch-facts",
         "native-device-bound-discovery"
       ]
     },
@@ -2122,7 +2139,8 @@
         }
       ],
       "anchors": [
-        "independent-native-product-integrity-sentinel"
+        "independent-native-product-integrity-sentinel",
+        "matched-cost-experiments-not-executed"
       ]
     },
     {
@@ -2260,7 +2278,8 @@
       ],
       "anchors": [
         "exact-wide-linear-gemm-epilogue",
-        "explicit-rocwmma-candidate"
+        "explicit-rocwmma-candidate",
+        "zero-channel-lowering-and-production-call-controls"
       ]
     },
     {
@@ -2367,7 +2386,8 @@
         }
       ],
       "anchors": [
-        "bounded-generated-native-wmma-family"
+        "bounded-generated-native-wmma-family",
+        "source-bound-bounded-logical-assurance"
       ]
     },
     {
@@ -2502,6 +2522,7 @@
       "anchors": [
         "exactness-generations-and-measured-work",
         "matched-application-contracts",
+        "nativeorientationmirrorreconstruction-ablations",
         "reproducible-commands",
         "retained-gram-computation-and-reconstruction-cohorts"
       ]
@@ -3011,7 +3032,10 @@
         }
       ],
       "anchors": [
-        "logical-locality-schedules"
+        "explicit-cache-displacement-not-invented-cold-cache-evidence",
+        "explicit-direct-hip-runtime-consumer",
+        "logical-locality-schedules",
+        "native-groups-encoded-b-and-split-fragments"
       ]
     },
     {
@@ -3028,12 +3052,19 @@
           "reference": "../mixed-radix-lift.md"
         },
         {
+          "source": "docs/prepared-execution.md",
+          "reference": "mixed-radix-lift.md"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../mixed-radix-lift.md"
         }
       ],
       "anchors": [
-        "mixed-radix-exact-suffix-candidate"
+        "direct-hip-automatic-prefix-transaction",
+        "mixed-radix-exact-suffix-candidate",
+        "prepared-stream-and-graph-ownership",
+        "shared-liftrecipe-cost-harness-authored-not-executed"
       ]
     },
     {
@@ -3067,7 +3098,9 @@
         }
       ],
       "anchors": [
-        "public-narrow-native-products"
+        "explicit-fused-native-accumulator-to-rns-variants",
+        "public-narrow-native-products",
+        "public-skinny-route-identity-and-width-exact-control"
       ]
     },
     {
@@ -3097,6 +3130,7 @@
         }
       ],
       "anchors": [
+        "encode-once-candidates-and-prepared-conversion-owners",
         "encoded-b-preparation-and-observed-reuse-break-even",
         "four-wave-register-and-lds-controls",
         "matched-native-integer-comparison",
@@ -3199,6 +3233,7 @@
       ],
       "anchors": [
         "bounded-window-execution",
+        "first-merge-fusion-and-bounded-native-controls",
         "native-matrix-engine-split-k",
         "public-reusable-residue-split-k-owner"
       ]
@@ -3340,11 +3375,16 @@
         }
       ],
       "anchors": [
+        "capture-resume-and-retired-reports",
+        "ci-smoke-is-not-a-regression-gate",
         "commands",
         "current-evidence-boundary",
+        "independent-observations-and-profiler-partitions",
         "measurement-contract",
+        "paired-residue-dot-scheduler-controls",
         "performance-evidence-and-promotion",
         "promotion-boundaries",
+        "selected-static-isa-and-proof-work-identity",
         "synchronous-transfer-payload-accounting"
       ]
     },
@@ -3371,7 +3411,10 @@
         }
       ],
       "anchors": [
-        "persistent-native-wmma-queue"
+        "complete-public-controls-authored-not-run",
+        "persistent-native-wmma-queue",
+        "procedural-schedules-and-measured-completion-contract",
+        "public-generation-owned-queue-and-graph-opt-in"
       ]
     },
     {
@@ -3401,7 +3444,9 @@
         }
       ],
       "anchors": [
-        "immutable-plan-validation"
+        "actual-auto-decisions-and-one-shot-plan-ownership",
+        "immutable-plan-validation",
+        "typed-arithmetic-guard-implementation-execution-deferred"
       ]
     },
     {
@@ -3424,7 +3469,9 @@
       ],
       "anchors": [
         "dependency-proven-arena-reuse",
-        "offline-typed-recipe-admission"
+        "explicit-current-value-fixed-basis-plans",
+        "offline-typed-recipe-admission",
+        "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]
     },
     {
@@ -3642,12 +3689,17 @@
       "anchors": [
         "bounded-completion-observation",
         "bounded-prepared-submissions",
+        "cleanup-and-retry-ownership",
         "cooperative-result-discard",
+        "cpu-and-dma-ownership",
         "event-dependent-prepared-submission",
         "explicit-hip-submission",
         "failed-stream-cleanup",
         "heterogeneous-prepared-groups",
         "owned-fixed-envelope-hip-graph",
+        "owned-pinned-host-transfer-boundaries",
+        "preparation-and-publication-costs",
+        "prepared-exact-conversion-variant",
         "prepared-exact-epilogues",
         "prepared-execution-and-completion-ownership",
         "strict-wrap64-resident-edges",
@@ -3722,9 +3774,15 @@
         {
           "source": "docs/strassen-device.md",
           "reference": "rank23-device.md"
+        },
+        {
+          "source": "docs/strassen-device.md",
+          "reference": "rank23-device.md"
         }
       ],
       "anchors": [
+        "matched-matrix-engine-and-public-measurement-controls",
+        "october-division-free-55-addition-dag",
         "one-level-rank-23-modular-prototype",
         "pinned-alternative-basis-slp",
         "private-slp-device-schedule"
@@ -4157,8 +4215,10 @@
         "explicit-asynchronous-direct-hip-dags",
         "failed-stream-cleanup",
         "finite-ring-and-field-products",
+        "generation-bound-ragged-recipe-inputs",
         "paired-complex-nodes",
-        "resident-dag-execution"
+        "resident-dag-execution",
+        "shared-liftrecipe-cost-harness-authored-not-executed"
       ]
     },
     {
@@ -4293,6 +4353,7 @@
       "anchors": [
         "consumer-driven-exact-prefix-materialization",
         "multiple-observable-results",
+        "physically-retained-lift-workspace",
         "public-recipe-lifecycle",
         "rebinding-and-failure-ownership",
         "runtime-product-arena"
@@ -4399,12 +4460,18 @@
           "reference": "word-modular-calibration.md"
         },
         {
+          "source": "docs/word-modular-research.md",
+          "reference": "word-modular-calibration.md#canonical-width-packed-dot-control"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/word-modular-calibration.md"
         }
       ],
       "anchors": [
+        "canonical-width-packed-dot-control",
         "canonical-word-modular-calibration",
+        "cdna-matrix-engine-controls",
         "collection-and-remaining-gates",
         "explicit-contract",
         "explicit-scalar-binary64-schedules",
@@ -4707,6 +4774,7 @@
       "anchors": [
         "attribution-and-provenance",
         "dependencies-and-third-party-policy",
+        "october-rank-23-mathematical-artifact",
         "optional-exact-references-and-accelerator-pins",
         "shared-prerequisites"
       ]
@@ -4811,7 +4879,8 @@
         }
       ],
       "anchors": [
-        "explicit-single-source-gram-products"
+        "explicit-single-source-gram-products",
+        "independent-prepared-input-and-output-ablations"
       ]
     },
     {
@@ -4835,7 +4904,9 @@
       "anchors": [
         "copy-owned-read-leases",
         "explicit-multiword-device-output",
-        "synchronous-native-hip-buffer-leases"
+        "matched-application-cost-experiments-authored-unexecuted",
+        "native-hip-buffer-leases-and-prepared-transfers",
+        "prepared-importexport-and-producer-readiness"
       ]
     },
     {
@@ -4935,6 +5006,7 @@
         }
       ],
       "anchors": [
+        "cdna-fp64-matrix-engine-and-concatenated-schedules",
         "explicit-packed-byte-dot-product-candidate",
         "explicit-scalar-binary64-asymmetric-schedule",
         "unsigned-byte-wmma-integer-candidate",
@@ -4955,6 +5027,10 @@
           "reference": "wrap64-signed-radix.md"
         },
         {
+          "source": "docs/word-modular-research.md",
+          "reference": "wrap64-signed-radix.md"
+        },
+        {
           "source": "docs/wrap64-calibration.md",
           "reference": "wrap64-signed-radix.md"
         },
@@ -4964,7 +5040,8 @@
         }
       ],
       "anchors": [
-        "carry-recoded-wrap64-matrix-candidate"
+        "carry-recoded-wrap64-matrix-candidate",
+        "separate-cdna-signed-int8-mfma-implementation"
       ]
     },
     {
@@ -4982,7 +5059,110 @@
         }
       ],
       "anchors": [
-        "installed-native-hip-producerconsumer"
+        "installed-native-hip-producerconsumer",
+        "prepared-graph-pipeline-new-unqualified"
+      ]
+    },
+    {
+      "path": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "purpose": "Reviewed partial 7900 XTX campaign and stopped execution gates",
+      "audience": "Maintainers and hardware qualification reviewers",
+      "disposition": "historical",
+      "canonical": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "owner": "docs/7900xtx-partial-campaign-2026-10-24.md",
+      "reason": "Preserve the reviewed stopped campaign, exact source provenance and unresolved qualification without implying a completed campaign.",
+      "inbound_links": [
+        {
+          "source": "docs/roadmap.md",
+          "reference": "7900xtx-partial-campaign-2026-10-24.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/7900xtx-partial-campaign-2026-10-24.md"
+        }
+      ],
+      "anchors": [
+        "beneficial-results",
+        "disposition-and-scope",
+        "evidence-and-reproduction",
+        "measurement-and-comparison-rules",
+        "negative-and-incomplete-findings",
+        "qualified-configuration",
+        "representative-observed-ranges",
+        "rx-7900-xtx-reviewed-partial-campaign-october-24-2026"
+      ]
+    },
+    {
+      "path": "docs/exact-wide-magnitude-controls.md",
+      "purpose": "Exact semantic range admission and genuine public multi-limb fixtures",
+      "audience": "Exact arithmetic and performance contributors",
+      "disposition": "keep",
+      "canonical": "docs/exact-wide-magnitude-controls.md",
+      "owner": "benchmarks/exact_wide_magnitude.hpp",
+      "reason": "Describes exact arbitrary-precision preflight and full postflight, profile identity and deferred qualification",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "exact-wide-magnitude-controls.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/exact-wide-magnitude-controls.md"
+        }
+      ],
+      "anchors": [
+        "offline-named-range-profiles",
+        "public-exact-wide-magnitude-controls",
+        "validation-status"
+      ]
+    },
+    {
+      "path": "docs/cpu-amx.md",
+      "purpose": "Optional CPU AMX provider and admission contract",
+      "audience": "CPU backend researchers and API integrators",
+      "disposition": "keep",
+      "canonical": "docs/cpu-amx.md",
+      "owner": "src/cpu/cpu_amx.cpp",
+      "reason": "Issue #54 arithmetic, OS/thread admission and qualification boundaries",
+      "inbound_links": [
+        {
+          "source": "docs/research/README.md",
+          "reference": "../cpu-amx.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/cpu-amx.md"
+        }
+      ],
+      "anchors": [
+        "admission-and-public-contract",
+        "arithmetic-and-storage",
+        "deferred-validation",
+        "instruction-and-os-references",
+        "matched-calibration-implementation-not-executed",
+        "optional-cpu-amx-int8-provider"
+      ]
+    },
+    {
+      "path": "docs/implementation-handoff-20261025.md",
+      "purpose": "Parked implementation source status and exact remaining handoff",
+      "audience": "Maintainers resuming the draft implementation branch",
+      "disposition": "keep",
+      "canonical": "docs/implementation-handoff-20261025.md",
+      "owner": "metadata/remaining-implementation-20261024.json",
+      "reason": "User-requested parking checkpoint with source-complete versus remaining implementation boundaries and explicitly deferred validation.",
+      "inbound_links": [
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/implementation-handoff-20261025.md"
+        }
+      ],
+      "anchors": [
+        "checks-and-unverified-boundaries",
+        "delivered-source-clusters",
+        "exact-remaining-implementation",
+        "parked-implementation-handoff--2026-10-25",
+        "scope-and-honest-completion-boundary"
       ]
     }
   ]

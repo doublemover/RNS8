@@ -1,3 +1,4 @@
+#include "rns8/generated/metadata_registry.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 
@@ -16,6 +17,7 @@
 #  include <hip/hip_runtime_api.h>
 
 
+extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int,const void*,const void*,void*,int,int,int,int,int,int,int,int,int);
 extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
     int device_id,
     const void* device_a_residues,
@@ -162,6 +164,7 @@ bool use_cdna3_smfmac_32x32x32(int64_t m, int64_t n, int64_t k) {
 }
 
 const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_t m, int64_t n, int64_t k) {
+  if(!hip_direct_timing_enabled())return "amdgpu_builtin_uninstrumented";
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && \
     RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && \
     RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
@@ -170,20 +173,16 @@ const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_
   info.abi_version = RNS8_ABI_VERSION;
   if (hip_direct_probe(device_id, info) == RNS8_SUCCESS) {
     if (amdgpu_target_is_rdna3(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel"
-                    : "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna3_wmma_i32_16x16x16_iu8",finite);
     }
     if (amdgpu_target_is_rdna4(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel"
-                    : "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna4_wmma_i32_16x16x16_iu8",finite);
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
       if (use_cdna3_mfma_32x32x16_for_override(m, n, k)) {
-        return finite ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
-                      : "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
+        return rns8::generated_metadata::builtin_event_label("cdna3_mfma_i32_32x32x16_i8",finite);
       }
-      return finite ? "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
-                    : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel";
+      return rns8::generated_metadata::builtin_event_label("cdna3_mfma_i32_16x16x32_i8",finite);
     }
   }
 #else
@@ -204,16 +203,13 @@ const char* amdgpu_builtins_sparse_event_label(int device_id, bool finite, int64
   info.abi_version = RNS8_ABI_VERSION;
   if (hip_direct_probe(device_id, info) == RNS8_SUCCESS) {
     if (amdgpu_target_is_rdna4(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"
-                    : "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna4_swmmac_i32_16x16x32_iu8",finite);
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
       if (use_cdna3_smfmac_32x32x32(m, n, k)) {
-        return finite ? "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel"
-                      : "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_kernel";
+        return rns8::generated_metadata::builtin_event_label("cdna3_smfmac_i32_32x32x32_i8",finite);
       }
-      return finite ? "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"
-                    : "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel";
+      return rns8::generated_metadata::builtin_event_label("cdna3_smfmac_i32_16x16x64_i8",finite);
     }
   }
 #else
@@ -333,6 +329,25 @@ rns8_status amdgpu_builtins_gemm_rns_device(
   (void)ldc;
   (void)prefix;
   return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+rns8_status amdgpu_builtins_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint32_t batches) {
+  if(!a || !b || !c || !prefix || prefix>20 || !batches || batches>64)return RNS8_INVALID_ARGUMENT;
+  if(k>RNS8_SAFE_INT32_K_BLOCK)return RNS8_RANGE_ERROR;
+  if(!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,prefix))return RNS8_UNSUPPORTED_BACKEND;
+  AddressDomain ad{},bd{},cd{};
+  if(!checked_host_plane_address(m,k,lda,prefix*batches,1,ad) || !checked_host_plane_address(k,n,ldb,prefix*batches,1,bd) ||
+      !checked_host_plane_address(m,n,ldc,prefix*batches,1,cd))return RNS8_RANGE_ERROR;
+  if(!nonoverlapping_byte_ranges(c,cd.byte_extent,a,ad.byte_extent) || !nonoverlapping_byte_ranges(c,cd.byte_extent,b,bd.byte_extent))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP && defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
+  const std::string label=std::string(amdgpu_builtins_dense_event_label(device_id,false,m,n,k))+"_batched";
+  const int code=run_timed_device_code(label.c_str(),[&](){return rns8_amdgpu_builtin_gemm_rns_batch_device(
+      device_id,a,b,c,int(m),int(n),int(k),int(lda),int(ldb),int(ldc),int(prefix),int(batches),int(g_dense_kernel_variant_override));});
+  return status_from_device_code(code);
+#else
+  (void)device_id;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 

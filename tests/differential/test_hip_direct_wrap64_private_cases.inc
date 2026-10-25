@@ -627,3 +627,126 @@ TEST_CASE("signed radix and native unsigned WMMA wrap64 agree with independent o
     }
   }
 }
+
+TEST_CASE("CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles") {
+  if (!hip_available()) SKIP("no HIP device for wrap64 matrix candidates");
+  using namespace rns8::detail;
+  for(int k : {1,15,16,17,31,32,33,63,64,65,4095,4096,4097,33025,33026,65535,65536,65537,131071,131072}) {
+    const int m=k<32?17:1,n=k<32?19:1;
+    std::vector<uint64_t> av(m*k),bv(k*n);
+    const uint64_t edge[]={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
+      UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080)};
+    for(size_t i=0;i<av.size();++i) av[i]=edge[i%10];
+    for(size_t i=0;i<bv.size();++i) bv[i]=edge[(i*7+3)%10];
+    std::vector<uint8_t> ah(av.size()*8),bh(bv.size()*8),actual(m*n*8+16,0xa5);
+    for(size_t i=0;i<av.size();++i) store_u64_limbs(ah,i,av[i]);
+    for(size_t i=0;i<bv.size();++i) store_u64_limbs(bh,i,bv[i]);
+    hip_direct_device_buffer a,b,c;
+    REQUIRE(a.allocate(0,ah.size())==RNS8_SUCCESS);
+    REQUIRE(b.allocate(0,bh.size())==RNS8_SUCCESS);
+    REQUIRE(c.allocate(0,actual.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),ah.data(),ah.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),bh.data(),bh.size())==RNS8_SUCCESS);
+    for(int repetition=0;repetition<2;++repetition) {
+      std::fill(actual.begin(),actual.end(),0xa5);
+      REQUIRE(hip_direct_copy_host_to_device(0,c.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      bool started=true;
+      CHECK(hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),c.get(),m,n,k,0,started)
+            ==RNS8_WORKSPACE_TOO_SMALL);
+      CHECK_FALSE(started);
+      CHECK(hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),a.get(),m,n,k,4,started)
+            ==RNS8_INVALID_ARGUMENT);
+      CHECK_FALSE(started);
+      const auto status=hip_direct_wrap_radix_mfma_device(0,a.get(),b.get(),c.get(),m,n,k,4,started);
+      if(status==RNS8_UNSUPPORTED_BACKEND) {
+        CHECK_FALSE(started);
+        SKIP("target lacks compiled CDNA2/3/4 signed INT8 MFMA");
+      }
+      REQUIRE(status==RNS8_SUCCESS); REQUIRE(started);
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),c.get(),actual.size())==RNS8_SUCCESS);
+      for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
+        uint64_t native=0,bytes=0;
+        boost::multiprecision::cpp_int wide=0;
+        for(int q=0;q<k;++q) {
+          native+=av[row*k+q]*bv[q*n+col];
+          bytes+=wrap64_byte_limb_product(av[row*k+q],bv[q*n+col]);
+          wide+=boost::multiprecision::cpp_int(av[row*k+q])*bv[q*n+col];
+        }
+        REQUIRE(load_u64_limbs(actual,row*n+col)==native);
+        REQUIRE(native==bytes);
+        REQUIRE(native==static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1)<<64)-1)));
+      }
+      for(size_t i=m*n*8;i<actual.size();++i) REQUIRE(actual[i]==0xa5);
+    }
+  }
+}
+
+TEST_CASE("native U64 vector wrap64 agrees with independent byte and Boost oracles") {
+  if (!hip_available()) SKIP("no HIP device for wrap64 matrix candidates");
+  using namespace rns8::detail;
+  for(int k : {1,15,16,17,31,32,33,63,64,65,4095,4096,4097,33025,33026,65535,65536,65537,131071,131072}) {
+    const int m=k<32?17:1,n=k<32?19:1;
+    std::vector<uint64_t> av(m*k),bv(k*n);
+    const uint64_t edge[]={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
+      UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080)};
+    for(size_t i=0;i<av.size();++i) av[i]=edge[i%10];
+    for(size_t i=0;i<bv.size();++i) bv[i]=edge[(i*7+3)%10];
+    std::vector<uint8_t> ah(av.size()*8),bh(bv.size()*8),actual(m*n*8+16,0xa5);
+    for(size_t i=0;i<av.size();++i) store_u64_limbs(ah,i,av[i]);
+    for(size_t i=0;i<bv.size();++i) store_u64_limbs(bh,i,bv[i]);
+    hip_direct_device_buffer a,b,c;
+    REQUIRE(a.allocate(0,ah.size())==RNS8_SUCCESS);
+    REQUIRE(b.allocate(0,bh.size())==RNS8_SUCCESS);
+    REQUIRE(c.allocate(0,actual.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),ah.data(),ah.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),bh.data(),bh.size())==RNS8_SUCCESS);
+    for(int repetition=0;repetition<2;++repetition) {
+      std::fill(actual.begin(),actual.end(),0xa5);
+      REQUIRE(hip_direct_copy_host_to_device(0,c.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      bool started=true;
+      CHECK(hip_direct_wrap_native_u64_device(0,a.get(),b.get(),a.get(),m,n,k,started)
+            ==RNS8_INVALID_ARGUMENT);
+      CHECK_FALSE(started);
+      const auto status=hip_direct_wrap_native_u64_device(0,a.get(),b.get(),c.get(),m,n,k,started);
+      REQUIRE(status==RNS8_SUCCESS); REQUIRE(started);
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),c.get(),actual.size())==RNS8_SUCCESS);
+      for(int row=0;row<m;++row) for(int col=0;col<n;++col) {
+        uint64_t native=0,bytes=0;
+        boost::multiprecision::cpp_int wide=0;
+        for(int q=0;q<k;++q) {
+          native+=av[row*k+q]*bv[q*n+col];
+          bytes+=wrap64_byte_limb_product(av[row*k+q],bv[q*n+col]);
+          wide+=boost::multiprecision::cpp_int(av[row*k+q])*bv[q*n+col];
+        }
+        REQUIRE(load_u64_limbs(actual,row*n+col)==native);
+        REQUIRE(native==bytes);
+        REQUIRE(native==static_cast<uint64_t>(wide & ((boost::multiprecision::cpp_int(1)<<64)-1)));
+      }
+      for(size_t i=m*n*8;i<actual.size();++i) REQUIRE(actual[i]==0xa5);
+    }
+  }
+}
+
+TEST_CASE("CDNA MFMA single-hot operands distinguish wave-register coordinate ownership") {
+  if(!hip_available())SKIP("HIP unavailable");
+  using namespace rns8::detail;
+  uint32_t width=0;const auto supported=hip_direct_wrap_radix_mfma_query(0,width);
+  if(supported==RNS8_UNSUPPORTED_BACKEND)SKIP("compiled signed MFMA unavailable");
+  REQUIRE(supported==RNS8_SUCCESS);
+  const int m=17,n=19,k=65;
+  std::vector<uint8_t> a(m*k*8),b(k*n*8),out(m*n*8+64,0xa5);
+  hip_direct_device_buffer da,db,dc;
+  REQUIRE(da.allocate(0,a.size())==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size())==RNS8_SUCCESS);REQUIRE(dc.allocate(0,out.size())==RNS8_SUCCESS);
+  for(int q:{0,1,3,4,7,8,15,16,31,32,63,64}){
+    const int row=(q*5+3)%m,col=(q*7+2)%n;
+    std::fill(a.begin(),a.end(),0);std::fill(b.begin(),b.end(),0);std::fill(out.begin(),out.end(),0xa5);
+    store_u64_limbs(a,row*k+q,255);store_u64_limbs(b,q*n+col,(UINT64_C(1)<<63)+1);
+    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),out.data(),out.size())==RNS8_SUCCESS);
+    bool started=false;REQUIRE(hip_direct_wrap_radix_mfma_device(0,da.get(),db.get(),dc.get(),m,n,k,4,started)==RNS8_SUCCESS);REQUIRE(started);
+    REQUIRE(hip_direct_copy_device_to_host(0,out.data(),dc.get(),out.size())==RNS8_SUCCESS);
+    for(int r=0;r<m;++r)for(int c=0;c<n;++c)REQUIRE(load_u64_limbs(out,r*n+c)==(r==row && c==col?UINT64_C(255)*((UINT64_C(1)<<63)+1):0));
+    for(size_t i=m*n*8;i<out.size();++i)REQUIRE(out[i]==0xa5);
+  }
+}

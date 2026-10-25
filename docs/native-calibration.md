@@ -425,3 +425,71 @@ Fresh WMMA captures now carry this explicit batch contract even at R=1. Older
 records retain their original executable and collector identities; they are
 not rewritten or silently interpreted as new batch captures.
 
+
+### Encode-once candidates and prepared conversion owners
+
+The private `NativeTiledPrepared` owner admits one borrowed native A/B/C binding
+and a typed `NativeTiledConfig`. Preparation checks actual-device LDS capacity
+and the loaded RDNA3 capability kernel once; execution rereads native values,
+launches one grid and synchronizes, without allocating or re-probing. Failed
+re-preparation preserves the old binding; execution failure poisons the owner.
+Borrowed allocations and the device/code-module lifetime must outlive it. This
+is not public matrix generation tracking or a cross-context capability cache.
+The old tiled entrypoint remains an honest one-shot prepare/execute boundary.
+
+Two new source-level conversion candidates retain the same signed/unsigned
+reciprocal map, independent modular accumulators and 65536 live-K slab:
+
+- `NativeConversion::cooperative`: lanes 0–15 own A and lanes 16–31 own B,
+  run a single common conversion stream, then exchange four packed words via
+  wave32 XOR16 shuffle. Both replicated operand halves are populated, including
+  zero-filled tails. One-wave and four-wave register controls share this body.
+- `NativeConversion::encoded_lds`: disjoint producers load and encode each raw
+  scalar once per channel into padded packed-word A-row/K and B-column/K LDS.
+  Four consumer waves read their replicated fragments. A producer/consumer
+  barrier and an end-of-consumption barrier protect every single-buffer reuse.
+  There is no simultaneous raw LDS copy; depths 16/32 and groups 1/2/4 are explicit.
+
+The checked resource query reports raw and encoded LDS separately, simultaneous
+fragment/accumulator source storage and conversion ownership counts. These are
+not measured VGPR allocation, HBM traffic or speedups. The independent host
+fragment interpreter uses exact native remainder and checks coordinate-tagged
+operands, replication and tails; authored mutations cover wrong partners/roles,
+missing tail initialization, wrong shared stride and premature reuse. Device
+regressions cover all prefixes, extrema, padded outputs and K-slab boundaries,
+including changed-input reuse and zero warm-call allocations/transfers.
+
+The layout assumptions follow AMD's [RDNA3 fragment
+specification](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/rdna/rdna3-dense-wmma-builtins.html)
+and [lane-operation
+reference](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/docs-1.0.0/compiler-builtins/cross-arch/wavefront-builtins.html).
+They do not qualify other RDNA/CDNA layouts. HIP compilation, emitted shuffle/
+conversion/barrier/resource inspection, differential execution and matched
+pipeline measurements are deferred; these candidates do not change default AUTO.
+
+The collector now accepts `conversion_cold`, `conversion_prepared` and
+`conversion_pack_gemm`, with explicit depth, buffer count, wave count, conversion
+ownership, reuse count and input-change controls. The cold interval includes
+one preparation, R synchronous GEMMs and release; the prepared interval includes
+R GEMMs and reports actual setup separately. The pack control performs R complete
+pack-pair/direct-GEMM calls. Native conversion candidates reserve no unused
+packed-input device planes. Every lane retains complete Boost/canary checking,
+hook-disabled sampled calls and the bounded sustained burst.
+
+Five `conversion-ownership-*.json` manifests isolate 17×19×257 tails, 512³,
+skinny short-K, a 1024×1024×64 larger grid, and changed native inputs. Each has
+51 bounded cases: eight matched one/four-wave/register/raw-LDS/encoded-LDS
+recipes in cold and prepared forms, plus separate pack+GEMM, at reuse 1/2/8.
+The changed-input cohort reverses the common contraction axis in both operands
+before each sample (and once before a sustained burst), preserving the exact
+product without a stale-input cache assumption. Upload remains explicitly
+outside this resident-input boundary. Grid workgroups and source conversion/
+storage counts are emitted; tested dimensions are not a saturation claim.
+
+`conversion-comparison-*.json` retains every independent observation and reports
+sample medians, sustained means and measured setup separately. Setup-inclusive
+cost adds each process's actual setup to its sampled batch before taking the
+across-process median; it does not subtract a guessed probe constant. No winning
+configuration is installed or declared qualified. The manifests and authored
+collector/CLI/fragment/device regressions have not been executed in this source
+preparation pass.

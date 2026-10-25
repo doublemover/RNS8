@@ -1,0 +1,29 @@
+{
+  "schema": "native_queue_case_v1",
+  "workers": 32,
+  "chunk": 4,
+  "reuse": 1,
+  "repeats": 9,
+  "warmups": 3,
+  "metadata_budget_mib": 64,
+  "encoded_b": false,
+  "mutate_b": false,
+  "tasks": [
+    {
+      "m": 256,
+      "n": 257,
+      "k": 127,
+      "prefix": 20,
+      "group": 4,
+      "unsigned": false
+    },
+    {
+      "m": 257,
+      "n": 256,
+      "k": 129,
+      "prefix": 9,
+      "group": 2,
+      "unsigned": true
+    }
+  ]
+}

@@ -48,7 +48,7 @@ TEST_CASE(
                                              observed.size()) == RNS8_SUCCESS);
       bool committed = true;
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
-                                              ldc, prefix, 0, committed) ==
+                                              ldc, prefix, 0, committed,nullptr,0,false) ==
               RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
@@ -59,15 +59,15 @@ TEST_CASE(
         const auto resources=query_rank23_slp_resources(m,n,k,lda,ldb,ldc,prefix,UINT64_MAX);
         REQUIRE(resources.status==RNS8_SUCCESS);
         REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,resources.total_bytes-1,
-                         committed)==RNS8_WORKSPACE_TOO_SMALL);
+                         committed,nullptr,0,false)==RNS8_WORKSPACE_TOO_SMALL);
         REQUIRE_FALSE(committed);
         REQUIRE(multiply(0,da,db,da,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
-                         committed)==RNS8_INVALID_ARGUMENT);
+                         committed,nullptr,0,false)==RNS8_INVALID_ARGUMENT);
         REQUIRE_FALSE(committed);
       }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, UINT64_MAX,
-                                              committed) == RNS8_SUCCESS);
+                                              committed,nullptr,0,false) == RNS8_SUCCESS);
       REQUIRE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
                                              observed.size()) == RNS8_SUCCESS);
@@ -128,13 +128,18 @@ template<class T> void check_public_strassen_owner(rns8_bilinear_method method=R
   c->in_flight_readers=0;
   CHECK(c->content_generation==initial_generation);
   CHECK(overhead==-1);
+  REQUIRE(rns8_prepare_bilinear_workspace(ctx,plan,method,UINT64_MAX,workspace)==RNS8_SUCCESS);
+  auto* retained=workspace->bilinear_scratch_owner.get();REQUIRE(retained!=nullptr);
   for (int mutation=0; mutation<2; ++mutation) {
     if (mutation) {
       av[0] = std::numeric_limits<T>::max();
       REQUIRE(pack(a,av) == RNS8_SUCCESS);
     }
     {
+      rns8::detail::hip_direct_allocation_counters_reset();
       REQUIRE(run(1)==RNS8_SUCCESS);
+      CHECK(workspace->bilinear_scratch_owner.get()==retained);
+      CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==0);
       CHECK(overhead>0);
       std::vector<uint64_t> limbs(17*17*3);
       if constexpr (std::is_unsigned_v<T>)
@@ -162,8 +167,39 @@ TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves 
 
 TEST_CASE("public rank23 methods retain exact proof and output transaction ownership") {
   if(!hip_available()) SKIP("no HIP device for public rank23 methods");
-  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP}) {
+  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE}) {
     check_public_strassen_owner<int64_t>(method);
     check_public_strassen_owner<uint64_t>(method);
+  }
+}
+
+TEST_CASE("matrix-engine bilinear controls use actual builtin subproducts without scalar fallback") {
+  rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  if(rns8::detail::amdgpu_builtins_probe(0,info)!=RNS8_SUCCESS)SKIP("no compiled builtin matrix provider");
+  for(auto method:{RNS8_BILINEAR_STRASSEN_MATRIX,RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX,
+      RNS8_BILINEAR_RANK23_SLP_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX}) {
+    check_public_strassen_owner<int64_t>(method);check_public_strassen_owner<uint64_t>(method);
+  }
+}
+TEST_CASE("bounded bilinear public owners retain ordinary signed and unsigned range admission") {
+  if(!hip_available())SKIP("no HIP device");
+  for(bool unsigned_output:{false,true})for(auto method:{RNS8_BILINEAR_STRASSEN,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE}) {
+    auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);rns8_plan* plan=nullptr;rns8_workspace* work=nullptr;
+    const auto semantics=unsigned_output?RNS8_BOUNDED_U64:RNS8_BOUNDED_I64;
+    const auto bound_kind=unsigned_output?RNS8_BOUND_GLOBAL_MAX_UNSIGNED:RNS8_BOUND_GLOBAL_MAX_ABS;
+    rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.m=d.n=d.k=3;
+    d.semantics=semantics;d.bound_kind=bound_kind;d.bound=18;d.max_prefix=1;d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;d.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    REQUIRE(rns8_create_plan(ctx,&d,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&work)==RNS8_SUCCESS);
+    auto md=matrix_desc(3,3,semantics,bound_kind);md.max_prefix=1;rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+    REQUIRE(rns8_create_matrix(ctx,&md,&a)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&b)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
+    uint64_t av[9]{2,2,2,2,2,2,2,2,2},bv[9]{3,3,3,3,3,3,3,3,3},out[12]{};
+    if(unsigned_output){REQUIRE(rns8_pack_u64(ctx,a,av,3,1)==RNS8_SUCCESS);REQUIRE(rns8_pack_u64(ctx,b,bv,3,1)==RNS8_SUCCESS);}
+    else{REQUIRE(rns8_pack_i64(ctx,a,reinterpret_cast<int64_t*>(av),3,1)==RNS8_SUCCESS);REQUIRE(rns8_pack_i64(ctx,b,reinterpret_cast<int64_t*>(bv),3,1)==RNS8_SUCCESS);}
+    double ratio=-1;REQUIRE(rns8_gemm_bilinear_exact(ctx,plan,a,b,c,method,UINT64_MAX,work,&ratio)==RNS8_SUCCESS);
+    if(unsigned_output)REQUIRE(rns8_export_u64(ctx,plan,c,out,4)==RNS8_SUCCESS);
+    else REQUIRE(rns8_export_i64(ctx,plan,c,reinterpret_cast<int64_t*>(out),4)==RNS8_SUCCESS);
+    for(int r=0;r<3;++r){for(int col=0;col<3;++col)REQUIRE(out[r*4+col]==18);REQUIRE(out[r*4+3]==0);}
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(work)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
   }
 }

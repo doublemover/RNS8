@@ -1,0 +1,2308 @@
+{
+  "schema_version": 1,
+  "base_branch": "codex/runtime-cache-transactions-20261011",
+  "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
+  "branch": "codex/remaining-implementation-20261024",
+  "scope_refreshed_utc": "2026-10-24T22:47:32Z",
+  "issues": [
+    {
+      "issue": 18,
+      "title": "[P1] Invalidate or roll back bounded outputs after partial GEMM failure; mixed CRT planes currently export successfully",
+      "url": "https://github.com/doublemover/RNS8/issues/18",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Ordinary arithmetic output invalidation exists, but ensure_hip_export_tile_metadata still mutates existing schedule/bounds/masks without invalidating old fingerprint before upload (current comment requirement remains).",
+      "implementation": [
+        {
+          "summary": "Invalidate all tiled reconstruction metadata certificates before any replacement free/resize/upload; publish only a complete bundle.",
+          "files": [
+            "src/core/export_metadata_transaction.hpp",
+            "src/core/api_export.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_matrix_cleanup_cases.inc"
+      ],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+      ],
+      "remaining": [
+        "Regression execution and real device-failure qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 19,
+      "title": "[P2] Bind benchmark provenance to compiled artifacts instead of the runtime checkout HEAD",
+      "url": "https://github.com/doublemover/RNS8/issues/19",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Build artifact manifest exists; relevant comment's qualified ISA association remains backend/target inventory fallback with no artifact/symbol match and cross-target fallback.",
+      "implementation": [
+        {
+          "summary": "Qualified selected-symbol ISA association now requires captured artifact/build identity, concrete target and verified code-object membership; inventories remain diagnostic, cross-target fallback removed, build-separated filenames and output groups, duplicate symbols deduplicated.",
+          "files": [
+            "tools/gpu_isa_report.py",
+            "tools/evidence_database_lib/isa.py",
+            "tools/evidence_database_lib/rows.py",
+            "tools/evidence_database_lib/outputs.py",
+            "tools/benchmark_sweep_lib/review.py"
+          ]
+        },
+        {
+          "summary": "Counter-report selected ISA resources now consume the same artifact-target-symbol association; unbound ISA stays inventory-only.",
+          "files": [
+            "tools/gpu_counter_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_measurement_evidence_contracts.py",
+        "tools/test_evidence_database.py",
+        "tools/test_benchmark_sweep_case_review_metadata.py"
+      ],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73",
+        "abea2f217e4c4b0da04e827b47ba8c237610b540"
+      ],
+      "remaining": [
+        "Regression execution and real artifact/code-object inspection deferred; static association explicitly does not prove dynamic execution."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        31,
+        55
+      ]
+    },
+    {
+      "issue": 20,
+      "title": "[P2] Compute exact-wide admission once and make expensive moment refinement demand-driven",
+      "url": "https://github.com/doublemover/RNS8/issues/20",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Single proof pass and opt-in scalar-first implemented; remaining comment's measurement policy identity missing from result_compare and shared capture_contract_key.",
+      "implementation": [
+        {
+          "summary": "Normalized legacy-eager proof identity shared by strict comparison, sweep contract, artifact/environment cohorts and timing eligibility; explicit labeled proof-policy A/B mode.",
+          "files": [
+            "tools/measurement_contract.py",
+            "tools/result_compare.py",
+            "tools/benchmark_sweep_lib/capture_metadata.py",
+            "tools/perf_variance_report.py",
+            "tools/timing_eligibility.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_result_compare.py"
+      ],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+      ],
+      "remaining": [
+        "Authored regression execution deferred; no measured proof-policy speedup or default change."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        27
+      ]
+    },
+    {
+      "issue": 24,
+      "title": "[P1] Qualify full matrix address ranges before selecting 32-bit HIP indexing",
+      "url": "https://github.com/doublemover/RNS8/issues/24",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Device address domains hardened, but direct CPU limb export/internal wide import still rely on element-count predicates rather than full byte/object host address proof; latest comment scope remains.",
+      "implementation": [
+        {
+          "summary": "Use checked reachable host byte/object extents for native64, finite byte and multi-limb host adapters, preserving harmless one-row pitch.",
+          "files": [
+            "src/core/api_oneshot.cpp",
+            "src/core/api_pack.cpp",
+            "src/core/api_export.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_host_address_cases.inc"
+      ],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+      ],
+      "remaining": [
+        "Regression execution and large-device-address hardware qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 27,
+      "title": "[P2] Count independent same-environment executions in the performance variance gate",
+      "url": "https://github.com/doublemover/RNS8/issues/27",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
+      "implementation": [
+        {
+          "summary": "Strict comparison and timing admission now bind host-batch work per observation and proof fidelity; intentional batch-scaling report preserves explicit aggregate/per-task comparison.",
+          "files": [
+            "tools/measurement_contract.py",
+            "tools/result_compare.py",
+            "tools/timing_eligibility.py",
+            "tools/host_api_batch_report.py"
+          ]
+        },
+        {
+          "summary": "Shared independent-process cohort aggregation for adaptive, finite, layout, bound-discovery and FHE consumers; order-invariant qualified implementation selection, explicit CPU/GPU anchors, all-observation receipts, setup-inclusive per-process estimator, unit/kernel/execution-aware weighted profiler imports.",
+          "files": [
+            "tools/observation_cohorts.py",
+            "tools/adaptive_grouped_scheduler_report.py",
+            "tools/finite_modulus_map_report.py",
+            "tools/finite_distribution_report.py",
+            "tools/layout_search_report.py",
+            "tools/bound_discovery_report.py",
+            "tools/fhe_workload_report.py",
+            "tools/gpu_counter_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_result_compare.py",
+        "tools/test_observation_cohorts.py",
+        "tools/test_adaptive_grouped_scheduler_report.py",
+        "tools/test_gpu_counter_report.py"
+      ],
+      "commits": [
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73",
+        "abea2f217e4c4b0da04e827b47ba8c237610b540"
+      ],
+      "remaining": [
+        "Execute authored report/fixture regressions later; real independent observations, profiler captures and qualification remain unverified."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        19,
+        20
+      ]
+    },
+    {
+      "issue": 29,
+      "title": "[Research P1] Define proof-carrying arithmetic and instruction contracts for every representation",
+      "url": "https://github.com/doublemover/RNS8/issues/29",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Offline integer certificate/composition checker, distinct verdicts and strict endpoints exist. Plan creation/research dispatch do not yet consume typed certificates, and explicit floating format/scale/reduction-schedule contracts from latest body remain unsupported.",
+      "implementation": [
+        {
+          "summary": "Typed exact-integer runtime DAG guards gate plan sealing and public native prepared dispatch; independent public verdicts, build/lowering SHA256, complete canonical workspace keys and autotune revision5. Floating extension remains next.",
+          "files": [
+            "src/backend_common/arithmetic_certificate.hpp",
+            "src/backend_common/sha256.hpp",
+            "src/core/api_plan_arithmetic_certificate.inc",
+            "src/core/api_prepared_native_group.inc"
+          ]
+        },
+        {
+          "summary": "Extended existing integer certificate with exact OCP floating decoding, binary-grid partial/outer/recovery guards, complete scale/reduction/initial-carry contracts and recomputed lowering/model artifact identities; two-evaluator oracle models full outer sequences. No hardware qualification or default floating dispatch.",
+          "files": [
+            "tools/arithmetic_certificate.py",
+            "tools/floating_contract.py",
+            "tools/floating_rewrite_oracle.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_arithmetic_certificate_cases.inc",
+        "tools/test_floating_contract.py"
+      ],
+      "commits": [
+        "9951aaf329ffce9a6d88026d67269e088a0e941e",
+        "f007bd6717ba115e209165874914e37cdfad48f3"
+      ],
+      "remaining": [],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [],
+      "deferred_validation": [
+        "Written regression cases unexecuted; host-only syntax checked; GPU layout/opcode/execution and performance remain unqualified."
+      ]
+    },
+    {
+      "issue": 30,
+      "title": "[Research P1] Add a conversion-aware analytical planner before measured kernel promotion",
+      "url": "https://github.com/doublemover/RNS8/issues/30",
+      "state": "in_progress",
+      "base_gap": "Offline typed planning/resource prototype exists, but shared operation/provider parity query/runtime integration and current actual AUTO rejection decision trace absent; emitter still hardcodes no exact entry.",
+      "implementation": [
+        {
+          "summary": "Retained typed immutable decisions from actual AUTO cache/probe pass, including real losing hits/ties and builtins; public count/truncation query and benchmark/schema consume original trace without later cache reads. Bounded oneshot native-shortcut decline transfers the admitted plan into resident fallback instead of building/sealing twice. Shared operation provider and integrated analytical shortlist remain next.",
+          "files": [
+            "src/core/api_plan_auto_backend.inc",
+            "src/core/api_plan_public_api.inc",
+            "src/core/api_oneshot.cpp",
+            "benchmarks/rns8_bench_json_sections.inc"
+          ]
+        },
+        {
+          "summary": "Shared versioned operation discovery and ordinary/prepared/narrow/bilinear admission; exact-target/build-bound non-promoting runtime shortlist with robust payload bound and minimal-versus-quarter prefix comparison. AUTO trace records actual cache decisions; one-shot fallback transfers the already-created plan.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_plan_auto_backend.inc",
+            "src/core/api_oneshot.cpp",
+            "tools/rns8_inspect.cpp"
+          ]
+        },
+        {
+          "summary": "Shared operation provider admits bounded/exact-wide bilinear algorithms, October55 retained/recomputed scratch and explicit builtin matrix targets/K caps; preparation and execution consume the same predicates.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_gemm.cpp"
+          ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_auto_selector_cases.inc",
+        "tools/test_auto_decision_trace.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
+      ],
+      "commits": [
+        "916152ace5a966e4001fdfc002eb5e2b620143a9",
+        "b1a9d15f20513ee371d52241f408ad03096f7f2d",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "185543a89b8eec07078788b2da3343374b98a928"
+      ],
+      "remaining": [
+        "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
+        "Authored regressions and any execution/benchmark/GPU/scientific qualification not run."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        32
+      ]
+    },
+    {
+      "issue": 31,
+      "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
+      "url": "https://github.com/doublemover/RNS8/issues/31",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Calibration infrastructure and native hook-disabled bursts exist; public hook-disabled lane/minimal cold conversion/batch observation/event hierarchy/work units and prefix1 catalog corrections in relevant comments not all implemented.",
+      "implementation": [
+        {
+          "summary": "Conversion v3 cold scope allocates/uploads only active candidate buffers, reports exact ownership capacity map, includes padded public-selected pack controls; hooks-disabled production timing retained.",
+          "files": [
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "tools/collect_crt_calibration.py"
+          ]
+        },
+        {
+          "summary": "Explicit hook-disabled public single-GEMM latency and bounded sustained completed-output intervals share the actual public ownership/pack/export path, generation policy and full postflight; counterbalanced independent collector, strict instrumentation identity and production rate/promotion gates. Disjoint declared event covers sum aligned raw children before category summaries; batch work includes actual task multiplicity/reuse. Removed duplicate prefix-one labels actually requesting prefix3.",
+          "files": [
+            "benchmarks/public_sustained.hpp",
+            "benchmarks/rns8_bench_event_collection.inc",
+            "tools/collect_public_calibration.py",
+            "tools/evidence_database_lib/event_cover.py",
+            "tools/evidence_database_lib/work_model.py",
+            "tools/measurement_contract.py"
+          ]
+        },
+        {
+          "summary": "Streaming preallocates both device staging slots, warms full multi-call batches, records true bounded batch observations with all statuses/final host copy inside completion and separate setup, and exposes a same-kernel serialized dependency control. GPU stage samples no longer masquerade as host phases; old repeated quotients count as one observation with unknown within-capture variance. Full final Boost oracle and observation-unit identities compose with production/diagnostic collectors.",
+          "files": [
+            "benchmarks/streaming_measurement.hpp",
+            "benchmarks/rns8_bench_streaming_overlap.inc",
+            "tools/benchmark_schema/streaming_timing.py",
+            "tools/measurement_contract.py",
+            "tools/perf_variance_report.py",
+            "tools/timing_eligibility.py"
+          ]
+        },
+        {
+          "summary": "Immutable matched production/diagnostic capture sidecars bind actual artifact, environment/request, arithmetic/layout/kernel/proof/output/checksum/clock contracts and independent execution IDs. Explicit hook-disabled accelerator schema, review/ledger/cache-write revalidation, baseline companion gates and counterbalanced paired collector preserve raw/variance identities. Instrumented historical fixtures remain descriptive and cannot promote.",
+          "files": [
+            "tools/diagnostic_companion.py",
+            "tools/collect_diagnostic_pairs.py",
+            "tools/benchmark_schema/gpu_event_validation.py",
+            "tools/benchmark_sweep_lib/review.py",
+            "tools/benchmark_sweep_lib/cli.py",
+            "tools/promotion_ledger.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_collect_crt_calibration.py",
+        "tests/unit/test_public_sustained.cpp",
+        "tools/test_public_measurement_contracts.py",
+        "tools/test_calibration_manifest.py",
+        "tests/unit/test_streaming_measurement.cpp",
+        "tools/test_streaming_measurement.py",
+        "benchmarks/public-calibration/streaming.json",
+        "tools/test_diagnostic_companion.py",
+        "tools/test_benchmark_sweep_case_review_metadata.py",
+        "tools/test_benchmark_sweep_case_cache_wrap_exact.py"
+      ],
+      "commits": [
+        "833ae93c551bed50a5f65abcef2eac201ea7fcac",
+        "981e7b109428870ed930eae50370e037be95fce7",
+        "709704ed0f53c8197dba0c79c00d17312d5529da",
+        "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
+      ],
+      "remaining": [
+        "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        19,
+        27
+      ]
+    },
+    {
+      "issue": 32,
+      "title": "[Research P2] Extend offline modulus search into a certified hardware-weighted scheme optimizer",
+      "url": "https://github.com/doublemover/RNS8/issues/32",
+      "state": "in_progress",
+      "base_gap": "Offline scheme machinery exists but explicit experimental runtime basis absent and legacy required-prefix full-u64 report still uses product bit_length rather than strict semantic bound, as current comment specifies.",
+      "implementation": [
+        {
+          "summary": "Legacy named profiles now prove strict arbitrary-precision semantic product bounds, including exact signed/unsigned native extremes; product bit length is diagnostic only and noncoprime prefixes cannot certify a range.",
+          "files": [
+            "tools/modulus_set_search.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_modulus_set_search.py"
+      ],
+      "commits": [
+        "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
+      ],
+      "remaining": [
+        "Explicit experimental basis runtime with complete matrix/layout/plan/cache/export identity and pack/GEMM/reconstruction remains to implement.",
+        "Search and qualification execution deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29
+      ]
+    },
+    {
+      "issue": 34,
+      "title": "[Research P1] Build cost-aware device bound discovery and compact adaptive-prefix schedules",
+      "url": "https://github.com/doublemover/RNS8/issues/34",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Device bound scan/adaptive compact producer and sealed core schedule implemented. Remaining direct-HIP ordinary tiled consumer rebuilds checked immutable schedule/active counts each call; current native campaign lacks heterogeneous controls.",
+      "implementation": [
+        {
+          "summary": "Carry derived direct-HIP launch shape, active counts and zero flags in the existing immutable validated plan seal; repeated ordinary public submissions do bounded prefix checks without rebuilding tile grids. Raw backend callers retain exhaustive validation. Snapshot core/backend work counters in the public calibrator and add thin/compute-heavy matched fixtures.",
+          "files": [
+            "src/core/api_plan_workspace_fingerprint.inc",
+            "src/backend_hip_direct/hip_backend_gemm_finite_tiled.inc",
+            "benchmarks/public-calibration/immutable-schedule.json"
+          ]
+        },
+        {
+          "summary": "Versioned deterministic native input distributions, independent exact pre-GPU axis-L1/prefix/work histogram models in C++ and Python, degeneration rejection, complete-capacity paired native/pack/adaptive-grid/compact fixtures and independent-process comparison reporting. Original full-width control preserved.",
+          "files": [
+            "benchmarks/native_dataset.hpp",
+            "benchmarks/rns8_native_calibrate.cpp",
+            "tools/native_dataset.py",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/adaptive-distributions.json"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_plan_validation_cache_cases.inc",
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_adaptive_native_cases.inc",
+        "tools/test_native_dataset.py"
+      ],
+      "commits": [
+        "caf5cea743d1395e8f3acc760382b9eefad9001d",
+        "7954eb326c5b45080fd60f980140672598a0d3aa"
+      ],
+      "remaining": [
+        "Regression execution, device compilation and measured net benefit/fallback overhead remain deferred.",
+        "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        29
+      ]
+    },
+    {
+      "issue": 35,
+      "title": "[Research P1] Fuse native conversion and multiple residue channels inside matrix-engine tiles",
+      "url": "https://github.com/doublemover/RNS8/issues/35",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Native grouped/tiled WMMA register/raw-LDS kernels exist; current encode-once cooperative/encoded-LDS candidates and prepared tiled capability amortization absent. Wrapper still allocates/probes/syncs/readbacks immutable capability per call.",
+      "implementation": [
+        {
+          "summary": "RDNA3 common-stream lane-cooperative packed-word exchange and once-per-CTA encoded LDS kernels; typed conversion/layout/resource identity; transactional device-bound prepared one/four-wave owner removes invariant probes from warm execution.",
+          "files": [
+            "src/backend_common/native_conversion_layout.hpp",
+            "src/backend_common/native_tiled_resources.hpp",
+            "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+            "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+            "src/backend_hip_direct/native_tiled_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_tiled.inc"
+          ]
+        },
+        {
+          "summary": "Matched cold/prepared/pack+GEMM conversion collector with explicit reuse1/2/8, changed-input controls, measured setup-inclusive aggregation, source work/resource counts and five bounded tail/512/skinny/larger-grid/rebuild manifests.",
+          "files": [
+            "benchmarks/rns8_native_calibrate.cpp",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/conversion-ownership-tail.json",
+            "benchmarks/native-calibration/conversion-ownership-512.json",
+            "benchmarks/native-calibration/conversion-ownership-skinny.json",
+            "benchmarks/native-calibration/conversion-ownership-large-grid.json",
+            "benchmarks/native-calibration/conversion-ownership-changed-input.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "src/backend_common/native_conversion_reference.hpp",
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
+      ],
+      "commits": [
+        "cb4e2bebc2e1718cbc494f7127dd5516ed320491",
+        "b5ed9b9f2d51514b8743858c9c9810942c21b7a8"
+      ],
+      "remaining": [
+        "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        34,
+        55
+      ]
+    },
+    {
+      "issue": 36,
+      "title": "[Research P2] Schedule residue and output tiles for measured XCD/cache locality",
+      "url": "https://github.com/doublemover/RNS8/issues/36",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Offline typed locality schedule bijection/cache simulator implemented; no actual target-specific launch remapping consumer or associated kernel integration in source. Hardware execution alone is not the missing item.",
+      "implementation": [
+        {
+          "summary": "Add explicit public locality workspace lowering into the real direct-HIP grouped-active directory, target-bound gfx942/gfx950 and gfx1100 control with ordinary unknown-target fallback; tail cost buckets, immutable permutation identity, source-traffic accounting, public calibration fixtures and non-promotion/cohort integration.",
+          "files": [
+            "src/backend_common/locality_schedule.hpp",
+            "src/core/api_workspace_public_api.inc",
+            "include/rns8/rns8.h",
+            "benchmarks/public-calibration/locality.json"
+          ]
+        },
+        {
+          "summary": "Native explicit-work locality now composes with groups1/2/4, encoded/repeated B, public stream/graph queues, retained refresh and disjoint split-K fragments. Exact consumed-byte interval union and independent permutation receipts pair with actual every-call cache-displacement kernels, submission witnesses, offline split-fragment simulator and matched existing harness corpora. Pending metadata/partial buffers retain ownership on failed drain.",
+          "files": [
+            "src/backend_common/native_locality.hpp",
+            "src/core/api_prepared_native_group.inc",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "src/backend_hip_direct/hip_backend_native_split_k.inc",
+            "src/backend_hip_direct/hip_direct_cache_displace.cuh",
+            "tools/native_locality_contract.py",
+            "tools/locality_schedule.py",
+            "benchmarks/rns8_native_calibrate.cpp",
+            "benchmarks/rns8_public_queue_calibrate.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_plan_validation_cache_cases.inc",
+        "tools/test_locality_schedule.py",
+        "tests/unit/test_native_wmma_queue.cpp",
+        "tests/unit/test_api_matrix_cleanup_cases.inc",
+        "tests/differential/test_hip_direct_native_queue_cases.inc",
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_locality_schedule.py",
+        "tools/test_collect_native_calibration.py",
+        "tools/test_collect_public_queue_calibration.py"
+      ],
+      "commits": [
+        "05a114ac9600958e742f5ce58e4f34a17c126c15"
+      ],
+      "remaining": [
+        "GPU compilation/execution, target counters, physical placement/cache state, measured end-to-end profitability and dispatch promotion are unverified and deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        30,
+        35
+      ]
+    },
+    {
+      "issue": 37,
+      "title": "[Research P2] Add exact split-K/Stream-K with hierarchical modular partial reduction",
+      "url": "https://github.com/doublemover/RNS8/issues/37",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Split-K canonical resident producers, windowed/hierarchical merge and native variant exist. Latest comment's native first-merge fusion and bounded native fragment count control not implemented; separate canonicalization launch remains.",
+      "implementation": [
+        {
+          "summary": "Native WMMA first merge canonicalizes centered bytes in registers, with explicit F=1 centered store; later canonical levels and resident canonical producers stay unchanged. Retain standalone conversion as a matched control and expose bounded fragment-count/merge-policy controls, strict source accounting and paired full-call fixtures.",
+          "files": [
+            "src/backend_common/split_k_partial.hpp",
+            "src/backend_hip_direct/hip_direct_split_k_kernels.cuh",
+            "src/backend_hip_direct/hip_backend_native_split_k.inc",
+            "benchmarks/native-calibration/native-split-merge.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
+      ],
+      "commits": [
+        "dff4bd1821797f488f05076c2b3668a52a707ce9"
+      ],
+      "remaining": [
+        "Device compilation, regression execution and measured same-contract net benefit remain deferred.",
+        "Public native async/prepared and planner selection integration compose with #38/#43/#67; no new automatic selection."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        35
+      ]
+    },
+    {
+      "issue": 38,
+      "title": "[Research P2] Build heterogeneous grouped matrix-engine work queues with bounded persistent scheduling",
+      "url": "https://github.com/doublemover/RNS8/issues/38",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Prepared heterogeneous persistent queue exists; explicit NativeWmmaWork list still O(work_count), no procedural schedule mode; latest benchmark compact versus padded per-repeat scatter boundary remains.",
+      "implementation": [
+        {
+          "summary": "Grouped per-task output now scatters compact slabs inside every timed export; opt-in compact-slab lane explicitly identifies its completed boundary and outside-timing oracle scatter. Native/finite/wide outputs share this contract and comparisons distinguish historical compact captures.",
+          "files": [
+            "benchmarks/rns8_bench_bounded_oneshot_batch.inc",
+            "benchmarks/rns8_bench_finite_lanes.inc",
+            "benchmarks/rns8_bench_exact_wide_batch_lanes.inc",
+            "tools/measurement_contract.py"
+          ]
+        },
+        {
+          "summary": "Versioned task-major and exact-sequence compact round-robin O(tasks) directories; bounded chunk/tail claims share existing WMMA arithmetic and transactional prepared ownership. Canonical directory validation, exact metadata payload high-water accounting, diagnostic completion counts/wall-clock timestamps and independently collected matched heterogeneous/encoded/reuse/mutation controls.",
+          "files": [
+            "src/backend_common/native_wmma_schedule.hpp",
+            "src/backend_common/native_wmma_queue_plan.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+            "benchmarks/rns8_queue_calibrate.cpp",
+            "tools/collect_queue_calibration.py"
+          ]
+        },
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_public_measurement_contracts.py",
+        "benchmarks/public-calibration/grouped-output.json",
+        "tests/unit/test_native_wmma_queue.cpp",
+        "tests/differential/test_hip_direct_native_queue_cases.inc",
+        "tools/test_collect_queue_calibration.py",
+        "benchmarks/native-queue/",
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py"
+      ],
+      "commits": [
+        "981e7b109428870ed930eae50370e037be95fce7",
+        "8aa7e9769f77f18c6b42b444d7f21689f7bcb3e4",
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
+      ],
+      "remaining": [
+        "HIP compilation, GPU/Boost execution, completion fairness and complete-route independent-process performance/target qualification deferred. Optional adaptive/split/locality composition remains tracked by those feature issues, not claimed as a native queue speedup."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        34,
+        35,
+        36
+      ]
+    },
+    {
+      "issue": 39,
+      "title": "[Research P1] Compare overflow-proven direct CRT and balanced merge trees against current Garner",
+      "url": "https://github.com/doublemover/RNS8/issues/39",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Host/device direct CRT, balanced tree and calibrator implemented; latest quarter-range certified correction-free quotient/delayed-carry narrow-limb public export integration absent.",
+      "implementation": [
+        {
+          "summary": "Implemented immutable quarter-range source-generation certificate, exact RNE coefficient/error proof, independent host FMA oracle, HIP fixed-order RNE quotient and delayed16 carry kernel, separate signed/unsigned/canonical public retained export owner with staged publication and failed-drain ownership. Matched harness extension next.",
+          "files": [
+            "src/backend_common/quarter_crt.hpp",
+            "src/backend_common/quarter_crt_certificate.hpp",
+            "src/core/api_export_quarter_crt.inc",
+            "src/backend_hip_direct/hip_direct_direct_crt_kernels.cuh"
+          ]
+        },
+        {
+          "summary": "Extended maintained CRT calibrator/schema/collector with matched quarter-wide canonical controls, signed/unsigned narrow controls and actual public retained-owner exports, cold/full setup and source/output checksums. Independent rational quotient/delayed-carry prototype and all-prefix/tail cohort fixtures authored. Stronger-prefix cost-choice composition remains tracked under planner #30, not automatic promotion.",
+          "files": [
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "tools/crt_research.py",
+            "benchmarks/conversion-calibration/quarter-every-prefix.json",
+            "benchmarks/conversion-calibration/quarter-tails.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_quarter_crt_cases.inc",
+        "tools/test_quarter_crt.py",
+        "tools/test_collect_crt_calibration.py"
+      ],
+      "commits": [
+        "89df5c64a1074cca30de8300f4b0daa12dfdb9fe",
+        "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
+      ],
+      "remaining": [],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        69
+      ]
+    },
+    {
+      "issue": 40,
+      "title": "[Research P2] Co-design residue layouts for packing, matrix tiles and CRT export",
+      "url": "https://github.com/doublemover/RNS8/issues/40",
+      "state": "in_progress",
+      "base_gap": "Real layout converters, ragged owner and consumers exist; executable fragment algebra/GF2 paired-column candidate and latest cost/retention/panel-reuse integrations remain incomplete; ragged materialization still reuploads directory and precopies compact destination.",
+      "implementation": [
+        {
+          "summary": "Reuse the immutable prepared ragged directory and skip only provably unnecessary compact-output precopy, retaining padded private controls, staged proof/status and final publication. Update modeled traffic receipts and authored completed API-copy counter regressions.",
+          "files": [
+            "src/core/api_ragged.cpp",
+            "src/backend_hip_direct/hip_backend_ragged.inc",
+            "tools/collect_ragged.py"
+          ]
+        },
+        {
+          "summary": "Ragged product-recipe input adapters materialize caller-owned conversion matrices once, retain/deduplicate original compact owners, revalidate source generation per replay, freeze staging capacity, and provide compatible whole-binding refresh. Aggregate conversion/owner/arena footprint is explicit. Multi-output diamond fixtures and matched ragged/full/minimum harness modes compose differently tiled source owners with consumer-demand prefix growth.",
+          "files": [
+            "src/core/api_product_recipe_ragged.inc",
+            "src/core/api_product_recipe_ragged_helpers.inc",
+            "src/core/ragged_recipe_binding.hpp",
+            "tests/support/ragged_recipe_fixture.hpp",
+            "benchmarks/rns8_lift_recipe_calibrate.cpp"
+          ]
+        },
+        {
+          "summary": "Executable constexpr wave64 signed-INT8 MFMA coordinate maps for K16/32/64 used by real CDNA wrap kernels and compile-time bijection checks.",
+          "files": [
+            "src/backend_common/mfma_i8_layout.hpp",
+            "src/backend_hip_direct/hip_direct_wrap_mfma.cuh"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_direct_ragged_cases.inc",
+        "tests/support/ragged_recipe_fixture.hpp"
+      ],
+      "commits": [
+        "aa24012745304a17e26ab6efbe0e0718cf9890a1",
+        "003e94daa7f2e273572dc93408a38db08468d762"
+      ],
+      "remaining": [
+        "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
+        "GPU execution and measured layout/performance qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        34,
+        35
+      ]
+    },
+    {
+      "issue": 41,
+      "title": "[Research P1] Implement value-preserving device exact-wide base extension",
+      "url": "https://github.com/doublemover/RNS8/issues/41",
+      "state": "in_progress",
+      "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
+      "implementation": [
+        {
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "files": [
+            "src/core/prepared_transfer.hpp",
+            "src/core/api_prepared_lift.inc",
+            "src/core/api_prepared_pipeline.inc",
+            "src/backend_hip_direct/hip_backend_lift.inc"
+          ]
+        },
+        {
+          "summary": "Synchronous direct-HIP exact-prefix selector stages every required input lift and the complete product before whole A/B-suffix+C publication, using retained workspace scratch and exclusive input reservations. Failed drains retain the entire transaction; unchanged source planes/proofs survive uncommitted suffix errors. Both existing lift algorithms and shared A==B compose.",
+          "files": [
+            "src/core/api_exact_hip_auto.inc",
+            "src/core/api_context.cpp",
+            "tests/differential/test_hip_direct_exact_lift_cases.inc"
+          ]
+        },
+        {
+          "summary": "Shared exact lift/recipe harness covers manual/retained full/minimum/model-cost DAGs, chains/diamonds, wide/shared-digit/graph lifts, explicit CPU-residue-transfer control, wider-producer/no-op controls, allocation counters and boundary-matched independent-process break-even collection.",
+          "files": [
+            "benchmarks/rns8_lift_recipe_calibrate.cpp",
+            "tools/collect_lift_recipe.py",
+            "tools/test_collect_lift_recipe.py"
+          ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_prepared_lift_cases.inc",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tools/test_collect_lift_recipe.py"
+      ],
+      "commits": [
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc",
+        "11ac95b6482386d74e6804d8a854b4629467208f",
+        "185543a89b8eec07078788b2da3343374b98a928"
+      ],
+      "remaining": [
+        "Default-basis selector, synchronous/stream/graph lift and matched harness are written. Nondefault-basis conversion composition remains dependent source work under #32; no generic-basis capability is implied.",
+        "HIP compilation, tests, named-target performance and scientific qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        29,
+        43
+      ]
+    },
+    {
+      "issue": 42,
+      "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
+      "url": "https://github.com/doublemover/RNS8/issues/42",
+      "state": "in_progress",
+      "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
+      "implementation": [
+        {
+          "summary": "Workspace-taking exact lift with status-first aligned alias/capacity admission and unchanged reset/check/staged-copy semantics. Public product recipes physically retain max lift scratch appended to their one owned arena allocation; replay/rebind use it without lift allocation/free. Cost profile v2 binds retained implementation; one-shot combined-allocation helper retained.",
+          "files": [
+            "src/backend_common/exact_lift_workspace.hpp",
+            "src/backend_hip_direct/hip_backend_lift.inc",
+            "src/core/runtime_product_recipe.cpp",
+            "src/backend_common/product_prefix_cost.hpp"
+          ]
+        },
+        {
+          "summary": "Shared exact lift/recipe harness covers manual/retained full/minimum/model-cost DAGs, chains/diamonds, wide/shared-digit/graph lifts, explicit CPU-residue-transfer control, wider-producer/no-op controls, allocation counters and boundary-matched independent-process break-even collection.",
+          "files": [
+            "benchmarks/rns8_lift_recipe_calibrate.cpp",
+            "tools/collect_lift_recipe.py",
+            "tools/test_collect_lift_recipe.py"
+          ]
+        },
+        {
+          "summary": "Ragged product-recipe input adapters materialize caller-owned conversion matrices once, retain/deduplicate original compact owners, revalidate source generation per replay, freeze staging capacity, and provide compatible whole-binding refresh. Aggregate conversion/owner/arena footprint is explicit. Multi-output diamond fixtures and matched ragged/full/minimum harness modes compose differently tiled source owners with consumer-demand prefix growth.",
+          "files": [
+            "src/core/api_product_recipe_ragged.inc",
+            "src/core/api_product_recipe_ragged_helpers.inc",
+            "src/core/ragged_recipe_binding.hpp",
+            "tests/support/ragged_recipe_fixture.hpp",
+            "benchmarks/rns8_lift_recipe_calibrate.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_exact_lift_workspace.cpp",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tests/support/product_recipe_outputs_fixture.hpp",
+        "tests/support/product_recipe_rebind_fixture.hpp",
+        "tools/test_collect_lift_recipe.py",
+        "tests/support/ragged_recipe_fixture.hpp"
+      ],
+      "commits": [
+        "81568e2c2e08f2260a2ced4e93dd182e3157352d",
+        "11ac95b6482386d74e6804d8a854b4629467208f"
+      ],
+      "remaining": [
+        "Synchronous ragged-to-uniform recipe binding, shared materializations, multi-output retention and matched harness are implemented. Generalized packed-B/materialization alternatives remain composed with #40; asynchronous NativeToRns/BaseExtend/Export graph-node adapters remain composed with #43.",
+        "Hardware compilation, authored test execution, independent calibrated stage costs and measured outcomes remain deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        30,
+        41,
+        43
+      ]
+    },
+    {
+      "issue": 43,
+      "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
+      "url": "https://github.com/doublemover/RNS8/issues/43",
+      "state": "in_progress",
+      "base_gap": "Prepared async/graph/token/dependency/cancel/timeout machinery exists. Latest comment's legacy cleanup remains: release_workspace_device_buffer, result/prepack cache destroy null pointers/delete owners even when free fails; general transfer/semantic coverage also incomplete.",
+      "implementation": [
+        {
+          "summary": "Convert workspace, prepack, result snapshot and sparse buffers to existing RAII/deferred-cleanup owner; keep public destroy retryable and constructor exceptions safe.",
+          "files": [
+            "src/core/hip_resources.hpp",
+            "src/core/internal.hpp",
+            "src/core/api_prepack_public_api.inc",
+            "src/core/api_workspace_public_api.inc",
+            "src/core/api_gemm.cpp",
+            "src/core/api_sparse.cpp",
+            "src/backend_hipblaslt/hipblaslt_prepack_cache.inc"
+          ]
+        },
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
+        },
+        {
+          "summary": "Context-owned synchronous failure leases retain borrowed narrow/fused A/B/C/workspace until checked drain; drain releases memory but never publishes output or unpoisons execution.",
+          "files": [
+            "src/core/api_context.cpp",
+            "src/core/internal.hpp"
+          ]
+        },
+        {
+          "summary": "All bilinear producers now borrow workspace-retained scratch under input/output/workspace failure leases; failed publication invalidates C and undrainable work cannot release borrowed storage.",
+          "files": [
+            "src/core/api_gemm.cpp",
+            "src/core/internal.hpp"
+          ]
+        },
+        {
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "files": [
+            "src/core/prepared_transfer.hpp",
+            "src/core/api_prepared_lift.inc",
+            "src/core/api_prepared_pipeline.inc",
+            "src/backend_hip_direct/hip_backend_lift.inc"
+          ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
+        },
+        {
+          "summary": "Synchronous direct-HIP exact-prefix selector stages every required input lift and the complete product before whole A/B-suffix+C publication, using retained workspace scratch and exclusive input reservations. Failed drains retain the entire transaction; unchanged source planes/proofs survive uncommitted suffix errors. Both existing lift algorithms and shared A==B compose.",
+          "files": [
+            "src/core/api_exact_hip_auto.inc",
+            "src/core/api_context.cpp",
+            "tests/differential/test_hip_direct_exact_lift_cases.inc"
+          ]
+        },
+        {
+          "summary": "Owned pinned-host native rectangles with exclusive CPU write windows, shared CPU/DMA readers, stable generations, checked aggregate staging budgets, pitched async H2D/D2H, existing prepared token/dependency/group/owned-graph integration, status-gated publication and retryable pending-resource cleanup. No pageable staging or host synchronization in enqueue.",
+          "files": [
+            "src/core/api_pinned_host.cpp",
+            "src/backend_common/pinned_host_contract.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/hip_resources.hpp",
+            "include/rns8/rns8.h",
+            "include/rns8/rns8.hpp",
+            "docs/prepared-execution.md"
+          ]
+        },
+        {
+          "summary": "Separate exact base-extension source uniqueness from the full-native GEMM plan admission floor; require explicit current-range proof and source/target ordering. Prepared lift scratch and pinned status now retain pending ownership. Correct composed HIP regression to legal public prefix17 to prefix20 plans without weakening ordinary plan range checks.",
+          "files": [
+            "src/core/api_operation_provider.inc",
+            "src/core/api_prepared_lift.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_api_prepared_lift_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_matrix_cleanup_cases.inc",
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py",
+        "tests/unit/test_api_prepared_lift_cases.inc",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tests/unit/test_api_pinned_host_cases.inc"
+      ],
+      "commits": [
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a",
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
+        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc",
+        "c7850412f000a2d1753c5577d14553789e0200de",
+        "185543a89b8eec07078788b2da3343374b98a928"
+      ],
+      "remaining": [
+        "Compiled resident-graph NativeToRns/BaseExtend/Export node adapters and additional semantics/provider-specific asynchronous integration remain.",
+        "Matched pinned-host stream/graph transfer calibration and complete-route HIP compilation/execution/overlap evidence remain; hardware and scientific qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        24
+      ]
+    },
+    {
+      "issue": 45,
+      "title": "[Research P3] Prototype certified FP4/FP6/FP8 modular GEMM with fixed-scale exactness gates",
+      "url": "https://github.com/doublemover/RNS8/issues/45",
+      "state": "implementation_pending",
+      "base_gap": "Offline encoding/certificate groundwork exists; no real FP4/FP6/FP8 HIP modular matrix backend or certified public FP8 representation bridge. Native floating kernel implementation, not merely hardware testing, remains absent.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [
+        "Real FP4/FP6/FP8 matrix-engine provider and public bridge remain; exact floating contracts alone are not a runtime backend.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        55
+      ]
+    },
+    {
+      "issue": 46,
+      "title": "[Research P3] Qualify packed INT4/IU4 kernels for narrow exact semantic subsets",
+      "url": "https://github.com/doublemover/RNS8/issues/46",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Private gfx11 signed-nibble finite INT4 builtin kernel exists; no typed public opt-in recipe/reusable versioned packed-B route or prepared capability ownership as latest scope requires.",
+      "implementation": [
+        {
+          "summary": "Public explicit signed finite INT4 owner with device/code-object preparation, immutable 4-bit arithmetic guard, versioned GPU-packed B, generation binding, no steady probe/allocation, failure-drained leases and matched complete-route collector.",
+          "files": [
+            "src/core/api_int4.inc",
+            "src/backend_hip_direct/hip_direct_int4_kernels.cuh",
+            "benchmarks/rns8_int4_calibrate.cpp",
+            "tools/collect_int4_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_int4_cases.inc",
+        "tools/test_collect_int4_calibration.py"
+      ],
+      "commits": [
+        "70fcacb1d1f01d860739c3fca85dec1ca5e05051"
+      ],
+      "remaining": [
+        "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        35
+      ]
+    },
+    {
+      "issue": 47,
+      "title": "[Research P2] Add exact algebraic epilogue composition without intermediate residue round trips",
+      "url": "https://github.com/doublemover/RNS8/issues/47",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Exact axpby public CPU/direct HIP, rocWMMA fused epilogue and DAG integration implemented; latest zero coefficient/channel specialization and direct-HIP host-hoisted coefficient lowering still absent (helper uses full-width % per output).",
+      "implementation": [
+        {
+          "summary": "Shared by-value host coefficient lowering across CPU/direct HIP synchronous/prepared/graph and rocWMMA. Skip per-channel dead dots and D loads; original alpha-zero skips exact AB proof traversal without weakening input/range/ownership admission. Named native coefficient controls and complete public-expression/padded-export collector with independent process identity and every-channel/full-integer oracle.",
+          "files": [
+            "src/backend_common/residue_epilogue.hpp",
+            "src/core/exact_range.hpp",
+            "src/core/api_exact_epilogue.cpp",
+            "src/backend_hip_direct/hip_direct_epilogue_kernels.cuh",
+            "src/backend_rocwmma/rocwmma_backend_epilogue_kernel.inc",
+            "benchmarks/rns8_epilogue_calibrate.cpp",
+            "tools/collect_epilogue_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_residue_epilogue.cpp",
+        "tests/unit/test_api_exact_epilogue_cases.inc",
+        "tests/differential/test_hip_direct_epilogue_cases.inc",
+        "tools/test_collect_epilogue_calibration.py"
+      ],
+      "commits": [
+        "5204e4be0860103530c1b768fc146fe077827d26"
+      ],
+      "remaining": [
+        "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        71
+      ]
+    },
+    {
+      "issue": 48,
+      "title": "[Research P3] Evaluate certified one-level Strassen and rank-23 modular block GEMM",
+      "url": "https://github.com/doublemover/RNS8/issues/48",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Private/public one-level Strassen and rank23 SLP implemented. Current rank23 is September 56-node alternative-basis program, not required October55 artifact; latest one-correction binary transform lowering still uses general remainder.",
+      "implementation": [
+        {
+          "summary": "Pinned Apache-2.0 October 55-add artifact, strict typed importer, independent immutable-node Python checker and compiler-time allocated 729-tensor verification; actual 13+14+28 HIP DAG with retained/recomputed input variants and widened one-correction signed nodes. Public workspace-owned scratch and synchronous failure leases now cover all bilinear variants.",
+          "files": [
+            "tools/rank23_october55.py",
+            "src/backend_common/rank23_october55.hpp",
+            "src/backend_hip_direct/hip_direct_rank23_slp_kernels.cuh",
+            "src/backend_hip_direct/hip_backend_rank23_slp.inc",
+            "src/core/api_gemm.cpp"
+          ]
+        },
+        {
+          "summary": "Add explicit matrix-engine subproduct variants, a single 23-product batched WMMA/MFMA grid for retained DAGs, bounded signed/unsigned public admission, and a matched public calibrator with exact period-15 full-output oracle, large cohorts, explicit matrix-family tuning controls, independent production/diagnostic processes and complete-route/payload accounting.",
+          "files": [
+            "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip",
+            "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+            "benchmarks/rns8_bilinear_calibrate.cpp",
+            "tools/collect_bilinear_calibration.py"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_rank23_october55.py",
+        "tests/unit/test_rank23_slp.cpp",
+        "tests/differential/test_hip_direct_strassen_cases.inc",
+        "tools/test_collect_bilinear_calibration.py"
+      ],
+      "commits": [
+        "a09a6f4f2aa4a5e10333b0c30553c1b2e5d7b1c7",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
+      ],
+      "remaining": [
+        "Execute authored host/Python/GPU differentials, compiler/ISA checks, matched independent-process benchmarks and reviewed one-level promotion gates later.",
+        "The conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not required before the division-free scheduler proves worthwhile; default modulus256 cannot use it."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        47
+      ]
+    },
+    {
+      "issue": 49,
+      "title": "[Research P3] Add opt-in Freivalds and redundant-residue checks with explicit guarantees",
+      "url": "https://github.com/doublemover/RNS8/issues/49",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Public finite CPU/HIP Freivalds verifier and replay/exact-exponent contract implemented; independent native sentinel is private and not wired to resident/DAG producer publication. Offline redundant checker explicitly does not authorize runtime publication, so commit-boundary integration remains.",
+      "implementation": [
+        {
+          "summary": "Opt-in public native sentinel is a producer commit condition across synchronous, borrowed-stream, owned-graph and native-group prepared execution. Retained four-byte device/pinned flags, actual epoch/generation/basis/bound report, pre-write admission, downstream failure propagation and retryable cleanup; provider query exposes matching envelope. Matched native check-cost harness remains next.",
+          "files": [
+            "src/core/api_prepared_integrity.inc",
+            "src/core/api_prepared_hip.inc",
+            "src/core/api_prepared_native_group.inc",
+            "src/backend_hip_direct/hip_backend_integrity.inc"
+          ]
+        },
+        {
+          "summary": "Matched native-integrity cost harness and independent-process collector cover public compute, transaction-attached sentinel, full multiprecision CPU comparison and separately labeled standalone GPU check, with complete padded exports, cold/repack/resident cohorts, full-width/skinny/large fixtures, actual epoch reports, immutable provenance and nonprobabilistic guarantee admission. Added downstream DAG mismatch and cancellation regressions.",
+          "files": [
+            "benchmarks/rns8_native_integrity_calibrate.cpp",
+            "tools/collect_native_integrity.py",
+            "benchmarks/native-integrity/",
+            "tests/unit/test_api_native_integrity_cases.inc"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_native_integrity_cases.inc",
+        "tools/test_collect_native_integrity.py"
+      ],
+      "commits": [
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "64d8184a77af93e25a13b01f3158bc96d6a49065"
+      ],
+      "remaining": [
+        "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        43
+      ]
+    },
+    {
+      "issue": 50,
+      "title": "[Research P2] Implement true modulus-sharded multi-GPU GEMM with residue-consistency epochs",
+      "url": "https://github.com/doublemover/RNS8/issues/50",
+      "state": "implementation_pending",
+      "base_gap": "Typed distributed planner and mock transport/coverage exist. No real multi-GPU HIP executor, gather-to-owner and complete product publication implementation; M1 remains source-missing independent of absent hardware tests.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [
+        "Real multi-device HIP ownership/executor, full gather and whole-output transactional commit remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        24,
+        29,
+        43
+      ]
+    },
+    {
+      "issue": 51,
+      "title": "[Research P3] Qualify explicit Sparse-A and proof-preserving hybrid block-sparse execution",
+      "url": "https://github.com/doublemover/RNS8/issues/51",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Public block sparse/hybrid and structured paths implemented; current comment's collector counterbalancing and CDNA3 larger-family producer/schema event mapping remain incomplete.",
+      "implementation": [
+        {
+          "summary": "Counterbalanced bounded block-sparse collection schedule with exact case/repeat coverage, rotating method positions, shuffled cohort order, immutable schedule SHA/seed/ordinal/block/start-time receipts. Central generated builtin-family event mapping shared by actual backend hooks, C++ JSON producer and Python schema, including both CDNA3 sparse shapes and finite/RNS semantics.",
+          "files": [
+            "tools/collect_block_sparse.py",
+            "metadata/event_phases.yaml",
+            "tools/metadata_registry.py",
+            "include/rns8/generated/metadata_registry.hpp",
+            "tools/metadata_registry_constants.py",
+            "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+            "benchmarks/rns8_bench_event_phase_helpers.inc",
+            "tools/benchmark_schema/gpu_events.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_collect_block_sparse.py",
+        "tools/test_metadata_registry.py",
+        "tools/test_benchmark_schema_case_events_schedule.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
+      ],
+      "commits": [],
+      "remaining": [
+        "Execute authored regressions and independent sparse campaigns; qualify actual target ISA/runtime, controls, sustained crossover and the structured-sparse >=1.5x end-to-end gate. No measured win or promoted route claimed."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        35
+      ]
+    },
+    {
+      "issue": 52,
+      "title": "[Research P3] Prototype CDNA5 TDM and cluster multicast for shared RNS source tiles",
+      "url": "https://github.com/doublemover/RNS8/issues/52",
+      "state": "implementation_pending",
+      "base_gap": "No CDNA5 TDM/cluster transfer/barrier litmus or two-stage/multicast kernel in current source; existing gfx11/gfx94/gfx95 paths are not this implementation.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [
+        "CDNA5 TDM/cluster barrier target-specific litmus, two-stage transfer and multicast implementation remain; official ISA/compiler support must be verified before emitting target operations.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        55
+      ]
+    },
+    {
+      "issue": 53,
+      "title": "[Research P2] Add proof-selected native narrow-integer paths for tiny and skinny GEMM",
+      "url": "https://github.com/doublemover/RNS8/issues/53",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Proof-admitted public narrow scalar/byte WMMA and controls exist; current public advertised GEMV versus actual generic launch mismatch, width-8 vector control and optional fused persistent-RNS narrow epilogue remain implementation work.",
+      "implementation": [
+        {
+          "summary": "Public direct-HIP metadata and dispatch share actual uniform route; explicit selected-prefix K/plane-parallel skinny control; explicit compile-time N=2..8 full-width UInt192 control with original width8 retained.",
+          "files": [
+            "src/backend_common/direct_rns_route.hpp",
+            "src/backend_vector_alu/vector_alu_kernels.hip",
+            "src/core/api_plan_contract_names.inc"
+          ]
+        },
+        {
+          "summary": "Explicit scalar/byte-WMMA fused exact accumulator-to-RNS epilogues remove native product staging while retaining actual-device partial-sum scans and independent CRT proof; context-owned failed-work leases, complete-public route calibrator/collector and focused crossover fixtures.",
+          "files": [
+            "src/backend_hip_direct/hip_backend_narrow.inc",
+            "src/backend_hip_direct/hip_direct_native_byte_kernels.cuh",
+            "src/core/api_context.cpp",
+            "benchmarks/rns8_narrow_public_calibrate.cpp",
+            "tools/collect_narrow_public_calibration.py"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_direct_narrow_cases.inc",
+        "tests/differential/test_hip_direct_vector_bridge_cases.inc",
+        "tools/test_collect_narrow_public_calibration.py"
+      ],
+      "commits": [
+        "9e8e28915a38b773d651aac4263976abf75a64d0",
+        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
+      ],
+      "remaining": [
+        "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        35,
+        47
+      ]
+    },
+    {
+      "issue": 54,
+      "title": "[Research P3] Add optional CPU matrix-instruction backends while preserving the independent scalar oracle",
+      "url": "https://github.com/doublemover/RNS8/issues/54",
+      "state": "implemented_validation_deferred",
+      "base_gap": "CPU scalar/OpenMP oracle present; no separately named optimized AMX/Arm matrix-instruction backend, runtime OS/thread admission or matrix microkernel implementation.",
+      "implementation": [
+        {
+          "summary": "Separately named opt-in Linux AMX-INT8 backend, CPUID/palette/OS/thread xstate admission, actual 16x16x64 TDPBSSD, centered-prior safe-K certificate, per-worker prepared scratch, generation/layout keyed B reuse, adaptive dense and finite public GEMM, shared host pack/CRT and synchronous prepared groups.",
+          "files": [
+            "src/cpu/cpu_amx.cpp",
+            "src/cpu/cpu_amx.hpp",
+            "src/core/api_gemm.cpp",
+            "src/core/api_operation_provider.inc",
+            "docs/cpu-amx.md"
+          ]
+        },
+        {
+          "summary": "Matched public scalar/AMX full-product harness with cold/resident/A-only/B-only/both repack modes, every-residue/Boost/padding audit outside timing, exact generation/cache/call receipts, CPU model/core/OS/affinity/NUMA and optional scoped RAPL observations, strict independent-process collector and 560 input cases. Backend inspection/discovery now derives inventory size rather than truncating at eight.",
+          "files": [
+            "benchmarks/rns8_cpu_amx_calibrate.cpp",
+            "benchmarks/cpu-amx",
+            "tools/collect_cpu_amx.py",
+            "tools/rns8_inspect.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_cpu_amx.cpp",
+        "tools/test_collect_cpu_amx.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
+      ],
+      "commits": [
+        "3c202bd885aaa83e731a5e30604758269974fd11"
+      ],
+      "remaining": [
+        "No remaining first-platform source implementation identified. Runtime OS/thread admission, exhaustive differential execution, performance/energy and cohort adoption remain unverified.",
+        "A second architecture is explicitly gated on real hardware evidence by the issue; no Arm implementation or cross-platform qualification is claimed."
+      ],
+      "validation": "Host syntax checks with AMX enabled/OpenMP and disabled branches; GCC 14 AMX object compilation emitted tile-load/config/TDPBSSD/store/release instructions. No execution, tests, benchmarks, CPU/GPU campaigns or scientific qualification.",
+      "dependencies": [
+        29,
+        30
+      ]
+    },
+    {
+      "issue": 55,
+      "title": "[Research P2] Generate and prune certified kernel variants with inspectable manifests",
+      "url": "https://github.com/doublemover/RNS8/issues/55",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Bounded native WMMA generator/symbol checker and manifests implemented; current body asks source-bound logical interpreter with mutation/coverage assurance, absent from current generation checker. ISA substring/symbol checks are not that implementation.",
+      "implementation": [
+        {
+          "summary": "Generate actual standalone HIP bodies from a bounded expression/loop/lifetime IR shared with a source-bound symbolic fragment interpreter; exact configuration memory/ownership/modulus/slab checks, no-overflow preconditions, seeded emitted-source mutations, structural-only reuse, source/checker-bound diagnostic attachment to ISA and promotion ledgers. No proof/device result claimed without executing checker.",
+          "files": [
+            "tools/native_wmma_lowering.py",
+            "tools/check_native_wmma_logic.py",
+            "tools/generate_native_wmma.py",
+            "tools/check_generated_native_wmma.py",
+            "tools/promotion_ledger.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_native_wmma_logic.py"
+      ],
+      "commits": [
+        "042153279a4a40f41b42ef00dfb4ed49a64f59a6"
+      ],
+      "remaining": [
+        "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29
+      ]
+    },
+    {
+      "issue": 56,
+      "title": "[Roadmap] Execute the research-derived exact-GEMM architecture backlog",
+      "url": "https://github.com/doublemover/RNS8/issues/56",
+      "state": "implementation_pending",
+      "base_gap": "Roadmap index exists but explicitly owns executing 34 child scopes; multiple source-missing/partial algorithms and integrations confirmed above. Not an issue closed merely by writing backlog.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [
+        "Umbrella implementation remains dependent on unfinished child accelerator/composition issues; hardware qualification also deferred.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        30,
+        31,
+        32,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        59,
+        63,
+        64,
+        66,
+        67,
+        68,
+        69
+      ]
+    },
+    {
+      "issue": 57,
+      "title": "Autodetect GPU toolchains, vcpkg and dependencies in Windows/Linux presets",
+      "url": "https://github.com/doublemover/RNS8/issues/57",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Dependency/preset discovery framework exists; latest comment still true: build_accelerators configure-only invokes full build then breaks after first selected preset, overreporting count.",
+      "implementation": [
+        {
+          "summary": "Configure-only now visits every selected preset without building and reports actual configured/built/failed/skipped stages.",
+          "files": [
+            "tools/build_accelerators.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 58,
+      "title": "Prepare reproducible Linux GPU sessions with preflight, locked setup and bounded run plans",
+      "url": "https://github.com/doublemover/RNS8/issues/58",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Bounded session/preflight/lock infrastructure exists; latest ordinary producer/consumer defect remains: inspector emits numeric hip_available=1 but qualification validates identity with `is True`, preventing successful session GPU identification.",
+      "implementation": [
+        {
+          "summary": "Qualification accepts the inspector numeric 0/1 format strictly while retaining all device identity checks.",
+          "files": [
+            "tools/gpu_qualification.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 59,
+      "title": "[Research P2] Add exact complex 3M GEMM as a residue-resident paired-value composition",
+      "url": "https://github.com/doublemover/RNS8/issues/59",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Complex3M/4M CPU/HIP/public/graph paired publication implemented; latest liveness refinement remains: two extra full product-sized staged component buffers rather than reusing dead p0/p1 slots.",
+      "implementation": [
+        {
+          "summary": "Shared checked layout-v2 reuses dead p0/p1 slots for real/imaginary stages in both ordinary and graph HIP execution. Shared value-taking recombination helper ensures all per-cell product loads precede either overwrite; paired public commit and ownership unchanged. Both 3M/4M optimized, capacity/accounting identities and collector updated.",
+          "files": [
+            "src/backend_common/complex_residue_plan.hpp",
+            "src/backend_common/complex_residue_algebra.hpp",
+            "src/backend_hip_direct/hip_backend_complex.inc",
+            "src/backend_hip_direct/hip_direct_complex_kernels.cuh"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_complex_residue_plan.cpp",
+        "tests/differential/test_hip_direct_complex_cases.inc",
+        "tests/unit/test_api_complex_residue_cases.inc",
+        "tools/test_collect_native_calibration.py"
+      ],
+      "commits": [
+        "8b6c1125d84789ad86324030a4fb5aeda2d8e601"
+      ],
+      "remaining": [
+        "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        29,
+        43,
+        47
+      ]
+    },
+    {
+      "issue": 60,
+      "title": "[Build] Upgrade LLVM/Clang and all dependencies through compatibility-gated locks",
+      "url": "https://github.com/doublemover/RNS8/issues/60",
+      "state": "qualification_deferred",
+      "base_gap": "Version policy/inventory/bootstrap/dependency-resolution tooling implemented with selected/observed/last-tested distinction and explicit exceptions. Issue's newest-compatible upgrade/maintained lock outcome is qualification-dependent; metadata still candidate_pending_qualification with promotion_allowed=false, so source alone cannot establish that outcome. Retained separately rather than treating deferred tests as missing implementation.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        57,
+        58
+      ]
+    },
+    {
+      "issue": 61,
+      "title": "[Docs] Deslopify the README and consolidate all project documentation",
+      "url": "https://github.com/doublemover/RNS8/issues/61",
+      "state": "implemented_validation_deferred",
+      "base_gap": "README/docs consolidation/form/checker implemented, but latest head adds docs/7900xtx-partial-campaign-2026-10-24.md absent from required documentation inventory. This is missing artifact integration, not deferred validation.",
+      "implementation": [
+        {
+          "summary": "Added the new partial-campaign report to the exhaustive inventory and refreshed derived links/anchors.",
+          "files": [
+            "docs/documentation-inventory.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 63,
+      "title": "[Research P2] Add symmetry-aware exact Gram/SYRK execution with triangular ownership and single-source packing",
+      "url": "https://github.com/doublemover/RNS8/issues/63",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Public single-source CPU/direct-HIP scalar+WMMA triangular Gram and prepared reuse implemented. Native fused producer/retained orientation adapter/reconstruct-once triangular output variants in required milestones absent; current API only dense mirrored resident residues.",
+      "implementation": [
+        {
+          "summary": "Prepared Gram adds retained-native scalar/IU8-WMMA panel reuse, generation-bound transpose adapter, independently selected coalesced separate mirror, reconstruction-once signed limb publication, shared provider/owner aligned payload budgeting and matched existing-workload ablations.",
+          "files": [
+            "src/core/api_prepared_gram.cpp",
+            "src/backend_common/gram_plan.hpp",
+            "src/backend_hip_direct/hip_direct_gram.cuh",
+            "examples/workloads/workload_engine.hpp",
+            "tools/collect_workload_examples.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/support/gram_fixture.hpp",
+        "tests/unit/test_api_gram_cases.inc",
+        "tools/test_workload_examples.py"
+      ],
+      "commits": [
+        "c92d84434604156db85342e737f4a086d217ea67"
+      ],
+      "remaining": [
+        "HIP device compilation, CPU/HIP regression execution, physical fragment/ISA qualification and matched measured profitability deferred.",
+        "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        35,
+        43
+      ]
+    },
+    {
+      "issue": 64,
+      "title": "[Research P2] Recode wrap64 into signed radix-256 digits for correction-free matrix-engine convolution",
+      "url": "https://github.com/doublemover/RNS8/issues/64",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Host carry-recode/certificate and real signed/U8 gfx11 WMMA controls implemented. Linux/Instinct signed MFMA target implementation from phased scope absent; current wrap-radix builtin kernel is gfx1100/1101/1102 only.",
+      "implementation": [
+        {
+          "summary": "Distinct gfx90a/gfx942/gfx950 signed INT8 MFMA builtins with target-specific K16/32/64 wave64 typed maps, register-retained recode, exact per-pair U64 folds and safe capability-probe retirement; native-U64 vector control; repeated-B boundaries and counterbalanced independent-process CDNA/RDNA cohorts; target/layout/certificate identities and selected-symbol ISA adapter.",
+          "files": [
+            "src/backend_common/mfma_i8_layout.hpp",
+            "src/backend_hip_direct/hip_direct_wrap_mfma.cuh",
+            "src/backend_hip_direct/hip_backend_wrap_radix.inc",
+            "benchmarks/rns8_wrap64_calibrate.cpp",
+            "tools/collect_wrap64.py",
+            "tools/arithmetic_certificate.py",
+            "tools/gpu_isa_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_wrap64.cpp",
+        "tests/differential/test_hip_direct_wrap64_private_cases.inc",
+        "tools/test_collect_wrap64.py",
+        "tools/test_arithmetic_certificate.py"
+      ],
+      "commits": [
+        "003e94daa7f2e273572dc93408a38db08468d762"
+      ],
+      "remaining": [
+        "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        55
+      ]
+    },
+    {
+      "issue": 65,
+      "title": "[Perf P2] Make resident storage demand-driven and eliminate duplicate native upload materializations",
+      "url": "https://github.com/doublemover/RNS8/issues/65",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Lazy HIP host mirrors and deduplicated retained native materialization implemented; latest finite-mod256 byte-identity host pack/export optimization still absent, existing adapter stages and converts identical bytes.",
+      "implementation": [
+        {
+          "summary": "Finite256 ordinary host pack/export now use logical-rectangle direct copies; no conversion allocation or kernel, padding and generation ownership preserved.",
+          "files": [
+            "src/backend_hip_direct/hip_backend_pack.inc",
+            "src/backend_hip_direct/hip_backend_export_finite_grouped.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_direct_finite_persistent_cases.inc"
+      ],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+      ],
+      "remaining": [
+        "GPU differential/counter execution and performance evidence deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        43
+      ]
+    },
+    {
+      "issue": 66,
+      "title": "[Research P3] Prototype word-size modular GEMM with certified asymmetric multiword lowering",
+      "url": "https://github.com/doublemover/RNS8/issues/66",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Word-mod descriptor/oracle and real scalar/UDOT4/WMMA kernel candidates implemented. Latest packed-dot canonical-width specialization absent: always extracts eight bytes and 8x8 products, unlike width-bounded WMMA sibling.",
+      "implementation": [
+        {
+          "summary": "Canonical-width B=1..8 UDOT4 instantiations share exact modulus-derived width with WMMA, retain full-width control, reduce live digit/diagonal arrays and preserve canonical scan/4096-term slab. Paired cold/resident calibration contracts/manifests retain source-count versus measured-ISA distinction.",
+          "files": [
+            "src/backend_common/word_mod_arithmetic.hpp",
+            "src/backend_hip_direct/hip_direct_word_mod.cuh",
+            "src/backend_hip_direct/hip_backend_word_mod.inc",
+            "benchmarks/rns8_word_mod_calibrate.cpp",
+            "tools/collect_word_mod_calibration.py"
+          ]
+        },
+        {
+          "summary": "Real gfx90a/gfx942 FP64 MFMA word-modular provider with separate FP64 interleaved-row layout, exact bounded asymmetric coefficients, fused and two physical expanded-axis concatenation schedules, budgeted retained-on-failed-drain scratch and canonical output merge. Matched scalar/integer controls, repeated-B scope and artifact/recipe-bound ISA adapter.",
+          "files": [
+            "src/backend_common/mfma_f64_layout.hpp",
+            "src/backend_common/word_mod_plan.hpp",
+            "src/backend_hip_direct/hip_direct_word_mod_mfma.cuh",
+            "src/backend_hip_direct/hip_backend_word_mod.inc",
+            "benchmarks/rns8_word_mod_calibrate.cpp",
+            "tools/collect_word_mod_calibration.py",
+            "tools/gpu_isa_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_word_mod_cases.inc",
+        "tests/differential/test_hip_direct_word_mod_cases.inc",
+        "tools/test_collect_word_mod_calibration.py",
+        "tests/unit/test_word_mod_cases.inc",
+        "tests/differential/test_hip_direct_word_mod_cases.inc",
+        "tools/test_collect_word_mod_calibration.py"
+      ],
+      "commits": [
+        "b65f8bce5880118bb4dd222a92c551c5fbcc510b",
+        "10fe3f844eadaf52932cde964055a3e2768c4d88"
+      ],
+      "remaining": [
+        "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29
+      ]
+    },
+    {
+      "issue": 67,
+      "title": "[Architecture P2] Add public HIP-native buffer import and export with explicit ownership and stream interoperability",
+      "url": "https://github.com/doublemover/RNS8/issues/67",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Public typed device-native leases, verified import/export and installed HIP producer-consumer example implemented. Prepared async external bindings and graph reuse phase missing: only synchronous readiness/lease boundary is exposed.",
+      "implementation": [
+        {
+          "summary": "Public native prepared-group generation/cache ownership, whole-batch reservations, borrowed-stream native/encoded execution, same-representation ordinary control, owned graph capture/replay, existing per-child tokens/cancellation/dependencies, checked descriptor/cache cleanup.",
+          "files": [
+            "src/core/api_prepared_native_group.inc",
+            "src/core/encoded_b_internal.hpp",
+            "src/core/api_prepared.cpp",
+            "src/backend_hip_direct/native_wmma_prepared.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "include/rns8/rns8.h"
+          ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
+        },
+        {
+          "summary": "Matched public interop application harness and counterbalanced independent-process collector cover stream/graph device candidates, explicit host roundtrip, and a clearly distinct resident cost floor; complete Boost/consumer/padding validation, external generation changes, cold binding, sustained p50/p95 and payload/status/resource boundaries.",
+          "files": [
+            "benchmarks/rns8_native_interop_calibrate.cpp",
+            "benchmarks/hip_native_interop_application.hip",
+            "tools/collect_native_interop.py"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py",
+        "tools/test_collect_native_interop.py",
+        "tests/differential/test_hip_native_device_cases.inc"
+      ],
+      "commits": [
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "c7f173f1912fb8cdd04d143ecfdbee54f15af070"
+      ],
+      "remaining": [
+        "HIP compilation and execution, ownership/failure-injection regressions, installed-example qualification and named-target performance/profiler evidence are deferred; no measured speedup or qualified graph reuse is claimed.",
+        "Optional DLPack adapter is explicitly a follow-on after core qualification, not a required implementation gap."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        24,
+        43
+      ]
+    },
+    {
+      "issue": 68,
+      "title": "[Research P2] Execute exact GEMM beyond device memory with budgeted single-GPU panel streaming",
+      "url": "https://github.com/doublemover/RNS8/issues/68",
+      "state": "implementation_pending",
+      "base_gap": "Serial public bounded panel-streaming owner implemented; overlap/retained-B/cost selection phases incomplete and latest nested pinned export staging remains outside declared host budget unless explicitly excluded/charged.",
+      "implementation": [],
+      "regressions": [],
+      "commits": [],
+      "remaining": [
+        "Streaming overlap, retained B reuse, cost selection and nested pinned-memory budget accounting remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        18,
+        24,
+        43,
+        65
+      ]
+    },
+    {
+      "issue": 69,
+      "title": "[Research P2] Accelerate RNS conversion and CRT with fixed-matrix transforms and packed dot products",
+      "url": "https://github.com/doublemover/RNS8/issues/69",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Fixed-matrix scalar/dot/WMMA conversion/CRT prototypes exist. Latest public signed dispatch still uses per-plane pack family and redundant synchronization; shared floor-reciprocal helper still has redundant second correction. Actual current commented implementation refinements not done.",
+      "implementation": [
+        {
+          "summary": "Unified direct/hipBLASLt one-correction reciprocal with algebraic bound; signed specialized wrappers now enqueue-only, public caller waits once.",
+          "files": [
+            "src/backend_common/finite_u8_reducer.hpp",
+            "src/backend_hipblaslt/hipblaslt_kernels.hip",
+            "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
+            "src/backend_hip_direct/hip_direct_kernels.hip"
+          ]
+        },
+        {
+          "summary": "One shared public signed selector plus explicit fixed-prefix-all20 and generic controls; padded/compact calibration, exact source/canary receipts, full-prefix and crossover manifests. Public defaults preserved.",
+          "files": [
+            "src/backend_common/signed_pack_policy.hpp",
+            "src/backend_hip_direct/hip_backend_pack.inc",
+            "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/signed-pack-crossovers.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_crt.cpp",
+        "tools/test_collect_crt_calibration.py",
+        "tests/differential/test_hip_direct_rns_residue_cases.inc"
+      ],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71",
+        "833ae93c551bed50a5f65abcef2eac201ea7fcac"
+      ],
+      "remaining": [
+        "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29
+      ]
+    },
+    {
+      "issue": 70,
+      "title": "[Perf P2] Reuse hipBLASLt matmul metadata across residue planes and warm calls",
+      "url": "https://github.com/doublemover/RNS8/issues/70",
+      "state": "implemented_validation_deferred",
+      "base_gap": "run_matmul_block still constructs matmul_descriptors and creates all six objects before checking algorithm cache, with stack destruction per block. No within-call geometry reuse or preference-on-cache-hit elision.",
+      "implementation": [
+        {
+          "summary": "Bounded full/tail immutable operation/layout sets shared across every residue plane in one GEMM; preference lazy only on algorithm-value miss, error-path drain, unchanged operand generation cache and arithmetic. Private old-path control, actual API accounting, independently counterbalanced public latency/sustained fixtures and strict cohort/schema identities.",
+          "files": [
+            "src/backend_hipblaslt/matmul_metadata_plan.hpp",
+            "src/backend_hipblaslt/hipblaslt_timing_matmul_cache.inc",
+            "benchmarks/public-calibration/hipblaslt-metadata.json",
+            "tools/benchmark_schema/hipblaslt_metadata.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_hipblaslt_metadata.cpp",
+        "tests/differential/test_hipblaslt.cpp",
+        "tools/test_hipblaslt_metadata.py"
+      ],
+      "commits": [
+        "02d7166eb377d715fddb8e36233b1911af025d3b"
+      ],
+      "remaining": [
+        "Regression execution and real hipBLASLt compile/device validation deferred.",
+        "Matched independent-process measurements, including negative/negligible outcomes, unverified.",
+        "Cross-call raw descriptor retention is issue70 slice3 conditional on worthwhile measured benefit, not claimed or selected before that evidence."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        35
+      ]
+    },
+    {
+      "issue": 71,
+      "title": "[Perf P2] Preserve packed-dot residue GEMM across all modulus planes and grouped/scheduled paths",
+      "url": "https://github.com/doublemover/RNS8/issues/71",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Existing dot4 implementation not extended: uniform use_dp4a remains restricted to 256/255/251 and grouped/region/scheduled scalar routes remain. Requested all-modulus/composed compute parity absent.",
+      "implementation": [
+        {
+          "summary": "One target-qualified signed-byte primitive now backs ordinary/finite/grouped/region/scheduled tile loops and persistent small dot, opt-in across all moduli; manifest-bound scalar control and safe tails.",
+          "files": [
+            "src/backend_common/residue_dot.hpp",
+            "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+            "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+            "cmake/modules/FindRNS8HIP.cmake",
+            "cmake/rns8_options.cmake",
+            "cmake/rns8_provenance.cmake"
+          ]
+        },
+        {
+          "summary": "True scalar override includes legacy special-modulus kernels without scheduler changes. Paired arithmetic-only builds, complete production independent/grouped/scheduled/incremental routes, all-plane Boost/padding audits, bounded fixtures, independent-process p50/p95/sustained cohorts, separate actual event-span diagnostics and selected-code-object static dot/gather/resource receipts.",
+          "files": [
+            "src/backend_common/residue_dot.hpp",
+            "benchmarks/rns8_residue_dot_calibrate.cpp",
+            "tools/collect_residue_dot.py",
+            "tools/gpu_isa_report.py",
+            "benchmarks/residue-dot",
+            "cmake/rns8_tests.cmake"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_crt.cpp",
+        "tools/test_collect_residue_dot.py"
+      ],
+      "commits": [
+        "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
+      ],
+      "remaining": [
+        "No identified implementation gap in #71. HIP compiler/ISA signedness, differential execution, dynamic profiler launch counts and measured target-specific wins/losses remain deferred outcomes; no promotion or issue closure."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        29,
+        34
+      ]
+    },
+    {
+      "issue": 72,
+      "title": "[P2] Stop counting three unconditional PASS placeholders as golden regression coverage",
+      "url": "https://github.com/doublemover/RNS8/issues/72",
+      "state": "implemented_validation_deferred",
+      "base_gap": "All three files still only print stub: PASS and remain active golden suite entries; no retirement or meaningful replacement/reporting repair.",
+      "implementation": [
+        {
+          "summary": "Removed executable PASS stubs and CTest entries; golden cases explicitly retire with separate tested/pass/retired accounting.",
+          "files": [
+            "tools/golden_regression_suite.py",
+            "cmake/rns8_tests.cmake"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 73,
+      "title": "[Bench P2] Add genuine multi-limb result-magnitude controls to the public exact-wide benchmark",
+      "url": "https://github.com/doublemover/RNS8/issues/73",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Public persistent and batch exact-wide generators remain hardcoded signed[-16,16]/unsigned[0,16], no genuine multi-limb magnitude profiles in requested benchmark.",
+      "implementation": [
+        {
+          "summary": "Public persistent and batch exact-wide benchmarks support deterministic 2^40/2^62 constant and jitter/mixed-sign profiles, exact preflight product/storage admission, full independent cpp_int postflight across every limb and padding, magnitude receipts, schema/identity partitioning and a small paired CPU/HIP cold/reuse scenario family.",
+          "files": [
+            "benchmarks/exact_wide_magnitude.hpp",
+            "benchmarks/rns8_bench_exact_wide_lanes.inc",
+            "benchmarks/scenarios/exact_wide_magnitude.json",
+            "tools/benchmark_schema/wide_magnitude.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_wide_magnitude_fixture.cpp",
+        "tools/test_wide_magnitude.py"
+      ],
+      "commits": [
+        "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
+      ],
+      "remaining": [
+        "Regression execution, paired public benchmark collection and independent-run qualification deferred.",
+        "Public hook-disabled/sustained timing implementation tracked separately by #31."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        31
+      ]
+    },
+    {
+      "issue": 74,
+      "title": "[P2] Make benchmark sweep's XDG cache destination match runtime AUTO and installer",
+      "url": "https://github.com/doublemover/RNS8/issues/74",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Sweep XDG branch still appends .cache for both XDG_CACHE_HOME and HOME, unlike runtime/installer.",
+      "implementation": [
+        {
+          "summary": "Shared runtime-equivalent Python cache paths across sweep and installer.",
+          "files": [
+            "tools/autotune_paths.py",
+            "tools/install_autotune_cache.py",
+            "tools/benchmark_sweep_lib/execution.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 75,
+      "title": "[P2] Match resumed benchmark captures to requested sampling and execution identity",
+      "url": "https://github.com/doublemover/RNS8/issues/75",
+      "state": "implemented_validation_deferred",
+      "base_gap": "existing_capture_valid still checks only existence/schema; resume does not bind requested seed/repeats/warmups/environment/artifact identity.",
+      "implementation": [
+        {
+          "summary": "Versioned executable/arguments/environment request receipts gate resume; mismatches are counted, retained and recollected without rewriting historical execution labels.",
+          "files": [
+            "tools/benchmark_request.py",
+            "tools/benchmark_sweep_lib/execution.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py"
+      ],
+      "commits": [
+        "319a7f5"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        19,
+        27
+      ]
+    },
+    {
+      "issue": 76,
+      "title": "[Tools] Fix default --object ISA reporting when --build-tree is omitted",
+      "url": "https://github.com/doublemover/RNS8/issues/76",
+      "state": "implemented_validation_deferred",
+      "base_gap": "expected_backends_from_cmake_cache still unconditionally calls read_cmake_cache(build_tree) for backend all, while build_tree optional; None path division remains.",
+      "implementation": [
+        {
+          "summary": "Optional build-tree inventory is handled without dereference; explicit object backends are collected before inspection.",
+          "files": [
+            "tools/gpu_isa_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_tooling_contracts.py",
+        "tools/test_measurement_evidence_contracts.py (object-only complete CLI flow)"
+      ],
+      "commits": [
+        "319a7f5",
+        "4f8b1298916ea19211e5035fc660dd8dd9904d73"
+      ],
+      "remaining": [
+        "Runtime regression execution and applicable platform/GPU qualification deferred."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": []
+    },
+    {
+      "issue": 77,
+      "title": "[P2] Repair the performance-regression workflow's collection and comparison contract",
+      "url": "https://github.com/doublemover/RNS8/issues/77",
+      "state": "implemented_validation_deferred",
+      "base_gap": "Workflow still passes invalid scenario family/argument grouping and unsupported result_compare directory/--baseline/--max-regression args, with no provisioned baseline or real threshold implementation.",
+      "implementation": [
+        {
+          "summary": "Repair the lane as an explicitly non-promoting Release benchmark smoke, using the real sweep parser/command generator, six bounded captures, serialized device/job/capture budgets and fail-closed collection completeness; remove nonexistent baseline/threshold CLI claims.",
+          "files": [
+            ".github/workflows/perf-regression.yml",
+            "tools/ci_benchmark_smoke.py",
+            ".github/workflows/ci.yml"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_ci_benchmark_smoke.py"
+      ],
+      "commits": [
+        "576e7031d1a040da4e5dff64be87a98da63a8045"
+      ],
+      "remaining": [
+        "Authored CLI integration regression, workflow execution and GPU collection are deferred. This lane deliberately does not claim numeric regression qualification."
+      ],
+      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "dependencies": [
+        19,
+        27,
+        31,
+        75
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "kind": "python_syntax",
+      "result": "passed",
+      "scope": "Initial tooling slice only"
+    },
+    {
+      "kind": "documentation_static_lint",
+      "result": "passed",
+      "scope": "128 inventory entries, local links/anchors/command names; no external checks"
+    },
+    {
+      "kind": "git_diff_check",
+      "result": "passed"
+    },
+    {
+      "kind": "C++17_syntax",
+      "result": "passed",
+      "scope": "Changed core pack/export/oneshot/workspace/sparse/GEMM translation units; CPU configuration only, no linking or execution."
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "test_api.cpp, test_crt.cpp, test_hip_direct.cpp and changed core/backend host paths",
+      "result": "passed; no test executables linked or run; HIP conditional paths not compiled"
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "Conversion calibrator (manifest macro syntax placeholder), shared backend host path, CRT unit and HIP differential translation units, Python collector/tests",
+      "result": "passed; HIP code and tests not executed"
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "All changed Python evidence/comparison tools and authored fixtures",
+      "result": "py_compile passed; no test invocation or report execution"
+    },
+    {
+      "scope": "source-bound generated lowering and logical assurance",
+      "performed": [
+        "Python py_compile only"
+      ],
+      "deferred": [
+        "logical proof execution",
+        "mutations",
+        "generated HIP compilation",
+        "tests",
+        "benchmarks",
+        "device qualification"
+      ]
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "Final explicit value-bound plan core, test_api translation unit and six modified public calibration programs; pinned-host adapter and C public header",
+      "result": "Host syntax passed; tests, benchmarks, HIP compilation/execution and hardware/scientific qualification not performed."
+    }
+  ],
+  "parking_snapshot": {
+    "parked_utc": "2026-10-25T06:57:00Z",
+    "reason": "User requested parking, commit/push preservation and draft PR; backlog not complete.",
+    "source_complete_validation_deferred": 39,
+    "advanced_partial": 6,
+    "not_advanced_this_pass": 5,
+    "qualification_only": 1,
+    "remaining_development_issues": [
+      30,
+      32,
+      40,
+      41,
+      42,
+      43,
+      45,
+      50,
+      52,
+      56,
+      68
+    ],
+    "handoff": "docs/implementation-handoff-20261025.md",
+    "tests_executed": false,
+    "benchmarks_executed": false,
+    "hardware_qualification_performed": false,
+    "open_inventory_rechecked_utc": "2026-10-25T06:59:00Z",
+    "open_inventory_count": 51,
+    "new_or_removed_issues": []
+  }
+}

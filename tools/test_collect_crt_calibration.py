@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_crt_calibration import (CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
@@ -23,6 +23,22 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
             exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,elapsed_ns=320000000,mean_call_ns=20000000.,final_exact_reference_passed=True,
             scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else "resident_same_buffers_no_intermediate_poison_or_reference"))
+    if case["candidate"] in QUARTER_CANDIDATES:
+        import math
+        from modulus_set_search import DEFAULT_MODULI
+        narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
+        bound=math.prod(DEFAULT_MODULI[:case["prefix"]])//4
+        if narrow:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
+        if case["candidate"].startswith("public_"):
+            actual=0 if case["cells"]==1 else bound;capture["certified_magnitude_bound"]=str(actual)
+            if case["scope"]=="resident":
+                capture["retained_public_device_payload_bytes"]=case["cells"]*(case["prefix"]+8)+4
+                if case["candidate"].startswith("public_quarter_"):
+                    capture.update(quarter_owner_payload_bytes=case["cells"]*16,quarter_certificate_sha256="a"*64,
+                        delayed_digits=max(1,(actual.bit_length()+1+15)//16))
+        else:capture["quarter_certificate"]=dict(sha256="a"*64,magnitude_bound=str(bound),digits=max(1,(bound.bit_length()+1+15)//16) if narrow else 12,
+            output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
+            target_execution="not_run",source_scope="private_fixture_immutable_for_process")
     return capture
 
 
@@ -40,10 +56,10 @@ def successful(command,**kwargs):
 class Captures(unittest.TestCase):
     def test_tracked_manifests_cover_all_controls_and_prefixes(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
-        for name,count in (("smoke",28),("every-prefix",560),("large",112)):
+        for name,count in (("smoke",40),("every-prefix",800),("large",160)):
             cases=load_cases(root/(name+".json"))
             self.assertEqual(len(cases),count)
-            self.assertEqual({case["candidate"] for case in cases},set(CANDIDATES))
+            self.assertEqual({case["candidate"] for case in cases},set(BASE_CANDIDATES))
             self.assertEqual({case["scope"] for case in cases},set(SCOPES))
         self.assertEqual({case["prefix"] for case in load_cases(root/"every-prefix.json")},set(range(1,21)))
 
@@ -51,7 +67,7 @@ class Captures(unittest.TestCase):
         for candidate in CANDIDATES:
             for scope in SCOPES:
                 for prefix in range(1,21):
-                    for cells in (1,17,256,257):
+                    for cells in (1,17,256,257,512):
                         case=validate_case(dict(candidate=candidate,scope=scope,cells=cells,prefix=prefix))
                         validate_capture(fixture(case),case,"fixture-run",2,1)
         validate_case(dict(BASE,cells=1048576,prefix=20))
@@ -73,6 +89,27 @@ class Captures(unittest.TestCase):
         source,expected=dataset(dict(BASE,candidate="import_scalar_unsigned",cells=6))
         self.assertEqual(int.from_bytes(source[16:24],"little"),(1 << 64)-1)
         self.assertEqual(expected[-64:],bytes([99])*64)
+
+    def test_public_fixed_generic_padded_and_minimal_cold_contracts(self):
+        for cells in (255,256,257,4095,4096,4097,8192):
+            for padded in (False,True):
+                suffix="padded_signed" if padded else "signed"
+                cases=[dict(BASE,candidate="import_"+kind+"_"+suffix,cells=cells,scope="cold") for kind in ("public","fixed","generic")]
+                self.assertEqual(dataset(cases[0]),dataset(cases[1]))
+                self.assertEqual(dataset(cases[1]),dataset(cases[2]))
+                for case in cases:
+                    c=contract(case,"fixture",2,1)
+                    self.assertEqual(c["device_buffer_bytes"]["plain"],0)
+                    self.assertEqual(c["common_status_capacity_bytes"],0)
+                    self.assertEqual(c["output_allocation_bytes"],cells*case["prefix"]+64)
+                    self.assertEqual(c["source_physical_bytes"],c["logical_rows"]*c["logical_ld"]*8)
+                    self.assertFalse(c["public_ownership_measured"])
+        for candidate in ("direct","balanced","tile_balanced","fixed_dot4"):
+            c=contract(dict(BASE,candidate=candidate),"fixture",2,1)
+            self.assertEqual(c["device_buffer_bytes"]["native"],0)
+            self.assertEqual(c["common_status_capacity_bytes"],0)
+        c=contract(dict(BASE,candidate="tile_balanced"),"fixture",2,1)
+        self.assertEqual(c["device_buffer_bytes"]["plain"],0)
 
     def test_malformed_and_irrelevant_controls(self):
         for key,values in {"candidate":("auto",None,True),"scope":("warm",None,True),"cells":(0,1048577,True,1.,"1"),"prefix":(0,21,True,1.)}.items():

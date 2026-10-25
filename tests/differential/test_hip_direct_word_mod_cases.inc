@@ -163,3 +163,85 @@ TEST_CASE("HIP asymmetric binary64 word-mod schedules match exact slab and tail 
         REQUIRE_FALSE(started);
       }
 }
+
+TEST_CASE("canonical-width dot4 agrees with full-width control at byte and slab boundaries") {
+  if(!hip_available())SKIP("no HIP device for canonical-width word-mod dot4");
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  for(uint64_t modulus:{UINT64_C(251),UINT64_C(256),UINT64_C(65521),UINT64_C(65536),UINT64_C(8388593),
+      UINT64_C(4294967296),UINT64_C(1099511627776),UINT64_C(281474976710656),UINT64_C(72057594037927936),UINT64_MAX})
+    for(int k:{1,3,4,5,17,257,4095,4096,4097}) {
+      word_mod::Problem p;p.modulus=modulus;p.m=2;p.n=3;p.k=k;p.lda=k+2;p.ldb=p.ldc=5;
+      std::vector<uint64_t> a(p.m*p.lda,UINT64_MAX),b(p.k*p.ldb,UINT64_MAX),expected(p.m*p.ldc+8,77);
+      for(int row=0;row<p.m;++row)for(int q=0;q<k;++q)a[row*p.lda+q]=(q+row)%3 ? modulus-1 : uint64_t(q)%modulus;
+      for(int q=0;q<k;++q)for(int col=0;col<p.n;++col)b[q*p.ldb+col]=(q+col)%5 ? modulus-1 : uint64_t(q+col)%modulus;
+      for(int row=0;row<p.m;++row)for(int col=0;col<p.n;++col) {
+        cpp_int sum=0;for(int q=0;q<k;++q)sum+=cpp_int(a[row*p.lda+q])*b[q*p.ldb+col];
+        expected[row*p.ldc+col]=(sum%modulus).convert_to<uint64_t>();
+      }
+      hip_direct_device_buffer da,db,dc;
+      REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+      REQUIRE(dc.allocate(0,expected.size()*8)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+      for(bool specialized:{false,true}) {
+        std::vector<uint64_t> observed(expected.size(),77);
+        REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),observed.data(),observed.size()*8)==RNS8_SUCCESS);
+        bool started=false;
+        const auto status=hip_direct_word_mod_device(0,da.get(),db.get(),dc.get(),p,4,started,true,nullptr,false,specialized);
+        if(status==RNS8_UNSUPPORTED_BACKEND)SKIP("compiled target lacks admitted UDOT4");
+        REQUIRE(status==RNS8_SUCCESS);REQUIRE(started);
+        REQUIRE(hip_direct_copy_device_to_host(0,observed.data(),dc.get(),observed.size()*8)==RNS8_SUCCESS);
+        REQUIRE(observed==expected);
+      }
+    }
+}
+
+TEST_CASE("CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references") {
+  if(!hip_available()) SKIP("no HIP device for asymmetric word modular schedule");
+  using namespace rns8::detail;using boost::multiprecision::cpp_int;
+  for(unsigned concatenation:{0u,1u,2u})
+  for(uint64_t modulus:{UINT64_C(251),UINT64_C(65536),UINT64_C(2147483647),UINT64_C(4503599627370496)})
+    for(const auto request:{word_mod::FloatingRequest{1,1,17},word_mod::FloatingRequest{1,2,17},
+        word_mod::FloatingRequest{2,1,17},word_mod::FloatingRequest{2,3,17},word_mod::FloatingRequest{3,2,17}})
+      for(int k:{1,16,17,18,257}) {
+        auto active=request;active.concatenation=concatenation;
+        word_mod::Problem p;p.modulus=modulus;p.domain=modulus==251?word_mod::Domain::prime_field:word_mod::Domain::ring;
+        p.m=k<19?17:2;p.n=k<19?19:3;p.k=k;p.lda=k+2;p.ldb=p.n+2;p.ldc=p.n+3;
+        std::vector<uint64_t> a(p.m*p.lda,UINT64_MAX),b(k*p.ldb,UINT64_MAX),c(p.m*p.ldc+8,77);
+        for(int i=0;i<p.m;++i) for(int q=0;q<k;++q) a[i*p.lda+q]=q%3?modulus-1:uint64_t(i+q)%modulus;
+        for(int q=0;q<k;++q) for(int j=0;j<p.n;++j) b[q*p.ldb+j]=(q+j)%2?modulus-1:uint64_t(q)%modulus;
+        hip_direct_device_buffer da,db,dc;
+        REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+        REQUIRE(dc.allocate(0,c.size()*8)==RNS8_SUCCESS);
+        REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+        REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+        REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),c.data(),c.size()*8)==RNS8_SUCCESS);
+        const uint64_t budget=4+(concatenation?uint64_t(p.m)*p.n*active.left_digits*active.right_digits*8:0);
+        bool started=true;word_mod::FloatingSchedule schedule;
+        const auto expected_admission=word_mod::floating_schedule(modulus,active,schedule);
+        const auto status=hip_direct_word_mod_device(0,da.get(),db.get(),dc.get(),p,budget,started,false,&active,false,false,true);
+        if(status==RNS8_UNSUPPORTED_BACKEND)SKIP("compiled gfx90a/gfx942 FP64 MFMA unavailable");
+        REQUIRE(status==expected_admission);
+        REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc.get(),c.size()*8)==RNS8_SUCCESS);
+        if(status!=RNS8_SUCCESS) {
+          REQUIRE_FALSE(started);for(auto value:c) REQUIRE(value==77);continue;
+        }
+        REQUIRE(started);
+        for(int i=0;i<p.m;++i) for(int j=0;j<p.ldc;++j) {
+          if(j>=p.n) {REQUIRE(c[i*p.ldc+j]==77);continue;}
+          cpp_int exact=0;for(int q=0;q<k;++q) exact+=cpp_int(a[i*p.lda+q])*b[q*p.ldb+j];
+          REQUIRE(c[i*p.ldc+j]==(exact%modulus).convert_to<uint64_t>());
+        }
+        for(size_t i=p.m*p.ldc;i<c.size();++i) REQUIRE(c[i]==77);
+        const auto before=c;
+        if(concatenation){REQUIRE(hip_direct_word_mod_device(0,da.get(),db.get(),dc.get(),p,budget-1,started,false,&active,false,false,true)==RNS8_WORKSPACE_TOO_SMALL);REQUIRE_FALSE(started);}
+        a[0]=modulus;
+        REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+        REQUIRE(hip_direct_word_mod_device(0,da.get(),db.get(),dc.get(),p,budget,started,false,&active,false,false,true)==RNS8_INVALID_ARGUMENT);
+        REQUIRE_FALSE(started);
+        REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc.get(),c.size()*8)==RNS8_SUCCESS);REQUIRE(c==before);
+        REQUIRE(hip_direct_word_mod_device(0,da.get(),db.get(),dc.get(),p,budget,started,true,&active,false,false,true)==RNS8_INVALID_ARGUMENT);
+        REQUIRE_FALSE(started);
+      }
+}

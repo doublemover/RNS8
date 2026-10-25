@@ -105,3 +105,18 @@ TEST_CASE("prepared finite Gram refresh cannot change its modulus") {
   REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(x)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("Gram native, retained transpose and reconstruction-once compose without stale publication") {
+  check_gram_prepared_ablations(RNS8_BACKEND_CPU_REFERENCE);
+}
+TEST_CASE("Gram prepared payload aligns limb staging after odd transpose extents") {
+  using namespace rns8::detail;
+  for(int rows:{1,3,17})for(int cols:{1,5,19})for(uint32_t prefix:{1u,3u,20u})for(bool wmma:{false,true}) {
+    GramProblem p;p.rows=rows;p.cols=cols;p.source_ld=cols;p.output_ld=cols;p.prefix=prefix;p.source_instance=1;
+    const auto r=query_gram_prepared_storage(p,true,wmma,2,3,UINT64_MAX);
+    REQUIRE(r.status==RNS8_SUCCESS);CHECK(r.export_offset%8==0);CHECK(r.status_offset%4==0);
+    CHECK(r.export_offset>=r.adapter_offset+r.adapter_bytes);CHECK(r.device_bytes==r.status_offset+4);
+    CHECK(query_gram_prepared_storage(p,true,wmma,2,3,r.host_bytes+r.device_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(query_gram_prepared_storage(p,true,wmma,3,3,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
+  }
+}

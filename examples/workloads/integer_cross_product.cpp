@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
     report["estimated_host_comparator_envelope_bytes"]=options.memory->reserved;
     if(options.gram_reuse) {
       report["gram_batch"]=gram_batch_contract(options);
-      report["gram_prepared_owner_cohort"]=1;
+      report["gram_prepared_owner_cohort"]=1;report["gram_ablation_cohort"]=1;
       report["bound_method"]="K * max_abs_X_including_changed_X0 squared; no cancellation assumption";
       report["useful_integer_products_per_call"]=uint64_t(options.m)*options.n*options.k*options.gram_reuse;
       report["work_definition"]="R complete identical Gram products per application batch; dense equivalent mathematical products, counted once each";
@@ -68,13 +68,25 @@ int main(int argc, char** argv) {
     variants.push_back(dense_variant(data, options, bound));
     if (options.gram && (options.backend==RNS8_BACKEND_CPU_REFERENCE || options.backend==RNS8_BACKEND_HIP_DIRECT)) {
       variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR));
-      if(options.gram_reuse) variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true));
+      if(options.gram_reuse) {
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RETAINED_TRANSPOSE));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RESIDENT_RESIDUES,true));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR_SEPARATE_MIRROR,true));
+          }
       if (options.backend==RNS8_BACKEND_HIP_DIRECT) {
         rns8::Context probe(options.device,options.backend);
         const std::string target=probe.device_info().gcn_arch;
         if (target.rfind("gfx1100",0)==0 || target.rfind("gfx1101",0)==0 || target.rfind("gfx1102",0)==0) {
           variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA));
-          if(options.gram_reuse) variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true));
+          if(options.gram_reuse) {
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RETAINED_TRANSPOSE));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RESIDENT_RESIDUES,true));
+            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA_SEPARATE_MIRROR,true));
+          }
         }
         else {
           skipped.push_back({{"name","rns8_single_source_gram_wmma"},{"status","unsupported"},{"reason","requires RDNA3 IU8 target"}});

@@ -50,8 +50,10 @@ Admission checks all six views, their common basis/domain, dimensions, strides,
 qualified address ranges and every output/input or output/output overlap before
 allocation or output writes. Shared read-only components are permitted. The
 three-product scratch envelope is one compact sum panel per operand, three
-compact product planes and two staged outputs. The four-product envelope is
-four product planes and two staged outputs. Budget rejection occurs before
+compact product planes. The staged components reuse dead internal p0/p1 slots
+only after the owning cell has loaded every product. The four-product envelope
+is four product planes with the same p0/p1 reuse. No public input/output alias is
+introduced; final dual publication remains a separate stage. Budget rejection occurs before
 device work; failed admission is not a valid zero-byte plan.
 
 Both outputs remain untouched until the final dual-store kernel. A shared
@@ -142,7 +144,7 @@ Small cases show no benefit. Scratch is allocated and freed inside every call;
 no transformed-panel cache is used. Native input upload, four initial packs and
 common allocations are outside these resident timings, as is final integer
 export. These results do not establish an end-to-end exported application gain.
-For 512³, scratch peaks are 35 MiB for 3M and 30 MiB for 4M. Separate cold input
+For the historical layout measured below, explicit scratch was 35 MiB for 3M and 30 MiB for 4M (not the current layout-v2 capacity). Separate cold input
 preparation medians are 431.91 ms [351.10, 488.99] and 351.74 ms [328.76, 428.06]
 respectively, including the common allocation/upload/packing boundary. Cold
 process effects are substantial and must not be hidden by the steady-state gain.
@@ -157,3 +159,24 @@ The paired owner is also available as `RNS8_RESIDENT_COMPLEX_MATMUL` in the
 preflight propagates both proofs and tracks both output writers before any
 node executes. Both components can feed later arithmetic. This integration is
 authored with CPU/Boost and HIP fixtures; async complex nodes remain unsupported.
+
+## Layout-v2 dead-product storage reuse (unqualified)
+
+Ordinary and graph-enqueued HIP routes now derive their staged-component offsets
+from the same checked `ComplexResidueScratch` layout. Recombination loads p0/p1/
+p2 (and p3 for4M) into one cell owner's scalar values before either store. The
+common host/device algebra helper returns both components; only then can that
+cell overwrite p0/p1. No other cell reads those locations, and p2/p3 remain
+separate. This removes two full component buffers from both methods without
+removing the final paired commit or relaxing public aliases, currentness,
+reader/writer reservations, or generation publication. Graph preparation retains
+the reduced maximum across nodes and uses those same offsets on replay.
+
+For512³/P20, the queried scratch capacities are now25MiB (3M) and20MiB (4M),
+10MiB below each historical layout. These are explicit capacity calculations,
+not measured allocation peaks, memory traffic, launch reductions or speedups.
+Calibration receipts identify layout2, reused stage bytes and accounting scope;
+collectors reject the previous layout's capacity as a matched new capture.
+The CPU alias-schedule regressions, exact-budget GPU cases and existing graph
+replay differentials are authored but have not been executed for this change.
+Historical measurements above do not validate the new storage layout.

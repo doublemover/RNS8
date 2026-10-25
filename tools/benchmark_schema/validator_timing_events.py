@@ -42,6 +42,15 @@ class ValidatorTimingEventsMixin:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
         metadata = self.data.get("timing_metadata") or {}
+        from measurement_contract import host_instrumentation
+        try:
+            host_instrumentation(self.data)
+        except ValueError as error:
+            self._error(str(error))
+        from .streaming_timing import validate_streaming_observations, raw_host_sample_count
+        for error in validate_streaming_observations(self.data): self._error(error)
+        from .public_timing import validate_sustained
+        for error in validate_sustained(self.data): self._error(error)
         contract_version = metadata.get("host_timing_contract_version", 1)
         fractional = contract_version == 2
         if contract_version not in (1, 2):
@@ -69,7 +78,7 @@ class ValidatorTimingEventsMixin:
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
                 continue
-            expected_length = repeats if phase in REPEATED_TIMING_PHASES else 1
+            expected_length = raw_host_sample_count(self.data,phase,repeats if phase in REPEATED_TIMING_PHASES else 1)
             if len(values) != expected_length:
                 self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
             parsed: list[float] = []
@@ -86,8 +95,9 @@ class ValidatorTimingEventsMixin:
             if not isinstance(values, list):
                 self._error(f"raw_timings_us.{phase} must be an array")
                 continue
-            if len(values) != repeats:
-                self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {repeats}")
+            expected_length=raw_host_sample_count(self.data,phase,repeats)
+            if len(values) != expected_length:
+                self._error(f"raw_timings_us.{phase} length {len(values)} does not match expected {expected_length}")
             parsed: list[float] = []
             for index, value in enumerate(values):
                 if not (_is_number(value) if fractional else _is_int(value)) or value < 0:

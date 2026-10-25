@@ -1,8 +1,10 @@
 #include "core/runtime_product_recipe.hpp"
 #include "core/api_internal.hpp"
 #include "core/hip_resources.hpp"
+#include "core/ragged_recipe_binding.hpp"
 #include <mutex>
 #include <unordered_set>
+#include <unordered_map>
 namespace rns8::detail {
 using namespace api;
 struct RuntimeProductRecipe::Impl {
@@ -149,7 +151,11 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     for(auto* hold:holds) if(*hold==UINT64_MAX) return RNS8_RANGE_ERROR;
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
-      const auto status=hip_direct_allocate(ctx->device_id,static_cast<size_t>(state->allocation.arena_bytes),&state->device);
+      // Arena slots are 256-byte aligned; append one int-aligned maximum lift
+      // region to the same retained allocation. No per-materialization malloc.
+      if(state->lift_scratch>SIZE_MAX-state->allocation.arena_bytes)return RNS8_RANGE_ERROR;
+      const auto status=hip_direct_allocate(ctx->device_id,
+          static_cast<size_t>(state->allocation.arena_bytes+state->lift_scratch),&state->device);
       if(status!=RNS8_SUCCESS) return status;
     } else state->host.resize(static_cast<size_t>(state->allocation.arena_bytes));
     // Allocate the outer owner and reference list before taking any references.
@@ -279,8 +285,9 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
         for(auto& word:words) { word=(magnitude&mask).convert_to<uint64_t>(); magnitude>>=64; }
         if(magnitude!=0) return RNS8_RANGE_ERROR;
         bool touched=false;
-        const auto status=hip_direct_lift_exact_suffix(state.ctx->device_id,residues,cells,current[id],target,
-            state.semantics==RNS8_EXACT_WIDE_SIGNED,words,touched);
+        auto* lift_workspace=static_cast<int8_t*>(state.device)+state.allocation.arena_bytes;
+        const auto status=hip_direct_lift_exact_suffix_workspace(state.ctx->device_id,residues,cells,current[id],target,
+            state.semantics==RNS8_EXACT_WIDE_SIGNED,words,lift_workspace,state.lift_scratch,touched);
         if(status!=RNS8_SUCCESS) return status;
       } else {
         std::vector<int8_t> cell_residues(current[id]);
@@ -366,7 +373,15 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
 
 struct rns8_product_recipe {
   std::unique_ptr<rns8::detail::RuntimeProductRecipe> owner;
+  rns8_context* ctx=nullptr;std::vector<const rns8_matrix*> inputs;
+  std::vector<rns8_ragged_recipe_binding> ragged;
+  std::vector<rns8_ragged_materialization*> ragged_holds;
+  uint64_t total_budget=UINT64_MAX,materialized_input_bytes=0,ragged_bytes=0,materialization_peak=0;
+  bool binding_valid=true,closing=false;
+  ~rns8_product_recipe(){owner.reset();for(auto* source:ragged_holds)rns8::detail::release_ragged_recipe_binding(source);}
 };
+#include "api_product_recipe_ragged_helpers.inc"
+
 static rns8_status create_product_recipe(rns8_context* ctx,const rns8_product_recipe_desc* desc,
     const std::vector<uint32_t>& outputs,rns8_product_recipe** out) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
@@ -379,7 +394,7 @@ static rns8_status create_product_recipe(rns8_context* ctx,const rns8_product_re
     std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count);
     std::vector<ProductNode> nodes; nodes.reserve(desc->node_count);
     for(uint32_t i=0;i<desc->node_count;++i) nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});
-    auto result=std::make_unique<rns8_product_recipe>();
+    auto result=std::make_unique<rns8_product_recipe>();result->ctx=ctx;result->inputs=inputs;
     const auto status=RuntimeProductRecipe::create(ctx,inputs,nodes,desc->max_arena_and_lift_bytes,result->owner,
         desc->prefix_policy==RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX,nullptr,outputs);
     if(status!=RNS8_SUCCESS) return status;
@@ -401,11 +416,12 @@ rns8_status rns8_execute_product_recipe_outputs(rns8_product_recipe* recipe,
     rns8_matrix* const* outputs,uint32_t count) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if(!recipe || !outputs || !count || count>4096) return RNS8_INVALID_ARGUMENT;
+    const auto binding=validate_ragged_recipe_binding(*recipe);if(binding!=RNS8_SUCCESS)return binding;
     return recipe->owner->execute(std::vector<rns8_matrix*>(outputs,outputs+count));
   });
 }
 rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output) {
-  return recipe?recipe->owner->execute(output):RNS8_INVALID_ARGUMENT;
+  return rns8::detail::api::guard_api([&]() -> rns8_status {if(!recipe)return RNS8_INVALID_ARGUMENT;const auto binding=validate_ragged_recipe_binding(*recipe);return binding==RNS8_SUCCESS?recipe->owner->execute(output):binding;});
 }
 rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,rns8_product_recipe_resources* out) {
   if(!recipe || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))
@@ -415,6 +431,7 @@ rns8_status rns8_get_product_recipe_resources(const rns8_product_recipe* recipe,
   out->arena_bytes=allocation.arena_bytes;
   out->lift_scratch_bytes=recipe->owner->lift_scratch_bytes();
   out->unreused_payload_bytes=allocation.unreused_bytes;
+  out->materialized_input_bytes=recipe->materialized_input_bytes;out->ragged_retained_bytes=recipe->ragged_bytes;out->materialization_peak_bytes=recipe->materialization_peak;
   return RNS8_SUCCESS;
 }
 rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,uint32_t* prefixes,uint32_t capacity) {
@@ -426,7 +443,7 @@ rns8_status rns8_get_product_recipe_prefixes(const rns8_product_recipe* recipe,u
 }
 rns8_status rns8_destroy_product_recipe(rns8_product_recipe* recipe) {
   if(!recipe) return RNS8_SUCCESS;
-  const auto status=recipe->owner->close();if(status!=RNS8_SUCCESS) return status;
+  recipe->closing=true;const auto status=recipe->owner->close();if(status!=RNS8_SUCCESS) return status;
   delete recipe;return RNS8_SUCCESS;
 }
 
@@ -434,6 +451,9 @@ rns8_status rns8_rebind_product_recipe_inputs(rns8_product_recipe* recipe,
     const rns8_matrix* const* inputs,uint32_t count) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     if(!recipe || !inputs || !count || count>4096) return RNS8_INVALID_ARGUMENT;
-    return recipe->owner->rebind(std::vector<const rns8_matrix*>(inputs,inputs+count));
+    if(recipe->closing || !recipe->ragged.empty())return RNS8_INVALID_ARGUMENT;
+    std::vector<const rns8_matrix*> replacement(inputs,inputs+count);const auto status=recipe->owner->rebind(replacement);if(status==RNS8_SUCCESS)recipe->inputs.swap(replacement);return status;
   });
 }
+
+#include "api_product_recipe_ragged.inc"

@@ -31,9 +31,11 @@ struct DenseEngine {
   Json metadata;
   uint32_t prefix = 0;
   int gram_method = -1;
-  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1,bool gram_owner=false)
+  rns8_gram_input_policy gram_input=RNS8_GRAM_RESIDENT_RESIDUES;bool gram_once=false;
+  uint64_t gram_payload_reservation=0;
+  DenseEngine(const Dataset& input, const Options& config, const cpp_int& bound, int gram = -1,bool gram_owner=false,rns8_gram_input_policy policy=RNS8_GRAM_RESIDENT_RESIDUES,bool once=false)
       : data(input), options(config), context(config.device, config.backend),
-        prepared_gram_route(gram_owner),words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n), gram_method(gram) {
+        prepared_gram_route(gram_owner),words(std::size_t(config.m) * config.n * (config.wide ? 3 : 1)), native(std::size_t(config.m) * config.n), gram_method(gram),gram_input(policy),gram_once(once) {
     require(!prepared_gram_route || (options.gram_reuse && gram_method>=0),"prepared Gram route requires an explicit Gram batch");
     metadata["device"] = device_info(context, options);
     const auto desc = gemm_desc(options, options.wide ? RNS8_EXACT_WIDE_SIGNED : RNS8_BOUNDED_I64,
@@ -41,8 +43,10 @@ struct DenseEngine {
     plan = std::make_unique<rns8::Plan>(context, desc);
     require(plan->backend_info().backend == options.backend, "plan changed the explicitly requested backend");
     prefix = plan->schedule_info().max_selected_prefix;
-    const auto matrix = [&](uint32_t rows, uint32_t cols) {
-      return std::make_unique<rns8::Matrix>(context, matrix_desc(rows, cols, desc.semantics, desc.bound_kind, prefix));
+    const auto matrix = [&](uint32_t rows, uint32_t cols,bool retained_native=false) {
+      auto descriptor=matrix_desc(rows,cols,desc.semantics,desc.bound_kind,prefix);
+      if(retained_native)descriptor.flags|=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+      return std::make_unique<rns8::Matrix>(context,descriptor);
     };
     const uint64_t modeled_bytes = (uint64_t(options.m) * options.k + uint64_t(options.k) * options.n + uint64_t(options.m) * options.n) * 128;
     const uint64_t workspace_bytes = plan->backend_info().workspace_required_bytes;
@@ -52,7 +56,7 @@ struct DenseEngine {
     options.memory->reserve(modeled_bytes + workspace_bytes, options.memory_mib * 1024 * 1024, "retained dense candidate storage/workspace");
     workspace = std::make_unique<rns8::Workspace>(context, *plan);
     if (gram_method < 0) a = matrix(options.m, options.k);
-    b = matrix(options.k, options.n); c = matrix(options.m, options.n);
+    b = matrix(options.k, options.n,gram_input==RNS8_GRAM_RETAINED_NATIVE_I64); c = matrix(options.m, options.n);
     metadata["plan"] = plan_info(*plan);
     metadata["storage"] = {{"b", storage_info(*b)}, {"c", storage_info(*c)}};
     if (a) metadata["storage"]["a"] = storage_info(*a);
@@ -60,7 +64,7 @@ struct DenseEngine {
     if (gram_method >= 0) {
       metadata["independent_integer_products_per_call"] = uint64_t(options.n)*(options.n+1)/2*options.k*std::max(options.gram_reuse,1u);
       metadata["dense_equivalent_integer_products_per_call"] = uint64_t(options.n)*options.n*options.k*std::max(options.gram_reuse,1u);
-      metadata["gram_method"] = gram_method == RNS8_GRAM_WMMA ? "wmma" : "scalar";
+      metadata["gram_method"] = (gram_method&1) ? "wmma" : "scalar";
     }
     metadata["modeled_device_storage_envelope_bytes"] = modeled_bytes;
     if (options.gram_reuse) {
@@ -76,6 +80,10 @@ struct DenseEngine {
         const uint64_t job_envelope=jobs*16+4;
         options.memory->reserve(job_envelope,options.memory_mib*UINT64_C(1024)*1024,"modeled retained Gram host/device job payload");
         metadata["modeled_retained_gram_job_payload_bytes"]=job_envelope;
+        const uint64_t extra=(gram_input==RNS8_GRAM_RETAINED_TRANSPOSE?uint64_t(options.k)*options.n*prefix:0)+
+          (gram_once?uint64_t(options.n)*options.n*(options.wide?3:1)*8*(options.backend==RNS8_BACKEND_HIP_DIRECT?2:1):0)+prefix+16;
+        options.memory->reserve(extra,options.memory_mib*UINT64_C(1024)*1024,"checked Gram adapter/export payload envelope");
+        gram_payload_reservation=job_envelope+extra;
         prepare_gram_owner();
       }
       metadata["gram_batch"]=gram_batch_contract(options);
@@ -85,21 +93,32 @@ struct DenseEngine {
       metadata["gram_batch"]["native_serializations_per_batch"]=0;
       metadata["gram_batch"]["prepared_gram_api"]=prepared_gram_route;
       metadata["gram_batch"]["job_list_allocated_per_call"]=gram_method>=0 && !prepared_gram_route;
-      metadata["gram_batch"]["capability_probed_per_call"]=gram_method==RNS8_GRAM_WMMA && !prepared_gram_route;
+      metadata["gram_batch"]["capability_probed_per_call"]=gram_method>=0 && (gram_method&1) && !prepared_gram_route;
       if(prepared_gram_route) {
         metadata["gram_batch"]["generation_policy"]="refresh_or_explicit_recreate_on_expanded_bound";
         metadata["gram_batch"]["host_job_preparation"]="once_per_owner_during_setup_or_changed_input";
         metadata["gram_batch"]["device_job_allocation"]=options.backend==RNS8_BACKEND_HIP_DIRECT?"once_per_owner_during_setup_or_changed_input":"not_applicable";
         metadata["gram_batch"]["device_job_initialization"]=options.backend==RNS8_BACKEND_HIP_DIRECT?"first_execution_per_owner":"not_applicable";
-        metadata["gram_batch"]["wmma_capability_probe"]=gram_method==RNS8_GRAM_WMMA?"first_execution_per_owner":"not_applicable";
+        metadata["gram_batch"]["wmma_capability_probe"]=(gram_method&1)?"first_execution_per_owner":"not_applicable";
       }
     }
   }
   void prepare_gram_owner() {
     rns8_prepared_gram* handle=nullptr;
-    rns8::check(rns8_prepare_gram(context.get(),b->get(),c->get(),RNS8_GRAM_TRANSPOSE_TIMES_SELF,
-        static_cast<rns8_gram_method>(gram_method),options.memory_mib*UINT64_C(1024)*1024,&handle));
+    rns8::check(rns8_prepare_gram_ex(context.get(),b->get(),c->get(),RNS8_GRAM_TRANSPOSE_TIMES_SELF,
+        static_cast<rns8_gram_method>(gram_method),gram_input,gram_once?(options.wide?3:1):0,options.memory_mib*UINT64_C(1024)*1024,&handle));
     prepared_gram.reset(handle);++gram_owner_builds;gram_owner_used=false;
+    rns8_prepared_gram_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    rns8::check(rns8_get_prepared_gram_info(handle,&info));
+    require(info.owned_payload_bytes<=gram_payload_reservation,"actual Gram payload exceeds pre-admitted allocation envelope");
+    metadata["gram_ablations"]={{"version",1},{"input_policy",uint32_t(gram_input)},
+      {"reconstruction_policy",gram_once?"independent_once_then_mirror":"dense_each_cell"},
+      {"owned_payload_bytes",info.owned_payload_bytes},{"adapter_bytes",info.orientation_adapter_bytes},
+      {"host_export_bytes",info.host_export_bytes},{"device_export_bytes",info.device_export_bytes},
+      {"independent_cells",info.independent_cells},{"dense_cells",info.dense_cells},
+      {"native_storage_retained",gram_input==RNS8_GRAM_RETAINED_NATIVE_I64},
+      {"adapter_generation_policy","first_execute_after_prepare_or_refresh"},
+      {"mirror_policy",(gram_method&2)?"separate_tiled":"producer_stores"},{"output_validity","complete_dense_residues"}};
   }
   Json gram_execution_evidence() const {
     return {{"generation_action",gram_generation_action},{"packed_source_version",packed_version},
@@ -123,7 +142,8 @@ struct DenseEngine {
   }
   void reconstruct(Phases& phases) {
     phases.measure("reconstruction_and_download_ns",[&] {
-      if(options.wide) rns8::check(rns8_export_exact_wide_signed_limbs(context.get(),plan->get(),c->get(),words.data(),options.n,3));
+      if(gram_once)rns8::check(rns8_export_prepared_gram_limbs(prepared_gram.get(),words.data(),options.n));
+      else if(options.wide) rns8::check(rns8_export_exact_wide_signed_limbs(context.get(),plan->get(),c->get(),words.data(),options.n,3));
       else {
         rns8::check(rns8_export_i64(context.get(),plan->get(),c->get(),native.data(),options.n));
         for(size_t index=0;index<native.size();++index) words[index]=bits_of(native[index]);
@@ -168,10 +188,11 @@ inline Variant dense_variant(const Dataset& data, const Options& options, const 
   return result;
 }
 inline Variant gram_variant(const Dataset& data, const Options& options, const cpp_int& bound,
-                            rns8_gram_method method,bool prepared=false) {
-  const auto start=Clock::now();auto state=std::make_shared<DenseEngine>(data,options,bound,int(method),prepared);
+                            rns8_gram_method method,bool prepared=false,rns8_gram_input_policy policy=RNS8_GRAM_RESIDENT_RESIDUES,bool once=false) {
+  const auto start=Clock::now();auto state=std::make_shared<DenseEngine>(data,options,bound,int(method),prepared,policy,once);
   Variant result;
-  result.name=std::string(prepared?"rns8_prepared_single_source_gram_":"rns8_single_source_gram_")+(method==RNS8_GRAM_WMMA?"wmma":"scalar");
+  result.name=std::string(prepared?"rns8_prepared_single_source_gram_":"rns8_single_source_gram_")+((uint32_t(method)&1)?"wmma":"scalar");
+  if(policy || once || (uint32_t(method)&2))result.name=std::string("rns8_prepared_single_source_gram_")+(policy==RNS8_GRAM_RETAINED_NATIVE_I64?"native_":policy==RNS8_GRAM_RETAINED_TRANSPOSE?"transpose_":"")+((uint32_t(method)&2)?"separate_mirror_":"")+(once?"reconstruct_once_":"")+((uint32_t(method)&1)?"wmma":"scalar");
   result.setup_ns=since(start);result.metadata=state->metadata;
   result.execute=[state](Phases& phases,uint64_t version){state->execute(phases,version);};
   result.output=[state]() -> const Words& {return state->words;};

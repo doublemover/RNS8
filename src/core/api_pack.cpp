@@ -323,7 +323,7 @@ rns8_status rns8_pack_finite_u8(
     uint64_t source_version) {
   return guard_api([&]() -> rns8_status {
     if (ctx && ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
-    if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld) ||
+    if (!ctx || !matrix || !src || !valid_matrix_access(matrix->desc.rows, matrix->desc.cols, ld, sizeof(uint8_t)) ||
         !rns8::detail::valid_finite_modulus_for_semantics(matrix->desc.semantics, modulus)) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -362,7 +362,7 @@ rns8_status rns8_pack_finite_u8(
         return status;
       }
       mark_device_residues_current(*matrix);
-    } else if (ctx->backend == RNS8_BACKEND_CPU_REFERENCE) {
+    } else if (host_rns_backend(ctx->backend)) {
       write.emplace(*matrix);
       rns8::detail::pack_finite_u8_matrix(*matrix, src, ld, modulus);
       mark_host_residues_current(*matrix);
@@ -386,13 +386,12 @@ rns8_status rns8::detail::api::import_exact_wide_limbs(
     const auto expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
     require_matrix_writable(matrix);
     if (!src || limb_count == 0 || limb_count > 32 || matrix.desc.semantics != expected ||
-        ctx.backend != matrix.backend || !valid_matrix_access(matrix.desc.rows, matrix.desc.cols, ld) ||
+        ctx.backend != matrix.backend || !valid_limb_export_access(matrix.desc.rows, matrix.desc.cols, ld, limb_count) ||
         !rns_matrix_storage_matches(matrix, ctx.backend, matrix.desc.rows, matrix.desc.cols, matrix.prefix) ||
         (hip_resident_rns_backend(ctx.backend) && matrix.hip_device_id != ctx.device_id))
       return RNS8_INVALID_ARGUMENT;
     std::size_t cells = 0;
-    if (!matrix_cell_count(matrix.desc.rows, matrix.desc.cols, cells) ||
-        static_cast<uint64_t>(ld) > std::numeric_limits<std::size_t>::max() / limb_count / matrix.desc.rows)
+    if (!matrix_cell_count(matrix.desc.rows, matrix.desc.cols, cells))
       return RNS8_INVALID_ARGUMENT;
     std::vector<boost::multiprecision::cpp_int> values(cells);
     for (int64_t row = 0; row < matrix.desc.rows; ++row) {

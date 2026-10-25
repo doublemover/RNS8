@@ -13,6 +13,30 @@ def descriptor(**changes):
 
 
 class LocalityTests(unittest.TestCase):
+    def test_split_fragments_and_modulus_groups_preserve_shuffled_full_products(self):
+        for fragments in (1,2,3,7):
+            for group in (1,2,4):
+                for order in ("output-neighbor","modulus","same-output"):
+                    d=descriptor(k=9,slab_k=4,fragments=fragments,group_size=group,order=order)
+                    schedule=Schedule(d);seen=set();partials={}
+                    for phase in schedule.phases:
+                        shuffled=list(phase);random.Random(3637).shuffle(shuffled)
+                        for work in shuffled:
+                            self.assertNotIn(work,seen);seen.add(work)
+                            begin=d.k*work.fragment//fragments+work.slab*d.slab_k
+                            extent=schedule.extents(work)
+                            for r in range(work.row*d.tile_m,work.row*d.tile_m+extent[0]):
+                                for c in range(work.col*d.tile_n,work.col*d.tile_n+extent[1]):
+                                    for p in range(work.first_plane,work.first_plane+work.planes):
+                                        key=(work.fragment,p,r,c)
+                                        partials[key]=(partials.get(key,0)+sum((r-q)*(q+c) for q in range(begin,begin+extent[2])))%(p+2)
+                    for r in range(d.m):
+                        for c in range(d.n):
+                            for p in range(d.prefixes[(r//d.tile_m)*schedule.cols+c//d.tile_n]):
+                                self.assertEqual(sum(partials.get((f,p,r,c),0) for f in range(fragments))%(p+2),sum((r-q)*(q+c) for q in range(d.k))%(p+2))
+                    report=simulate(schedule)
+                    self.assertFalse(report['physical_affinity_verified']);self.assertEqual(report['fragments'],fragments)
+
     def test_bijection(self):
         for m in range(1, 5):
             for n in range(1, 6):
@@ -105,6 +129,28 @@ class LocalityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             schedule.encode(Work(0, 0, 0, 0, 1))
 
+
+
+class RuntimeLocalityMetadataTests(unittest.TestCase):
+    def capture(self):
+        return {'k':65537,'locality_schedule':dict(version=1,requested_order=3,applied_order=3,target_id=942,topology_version=1,
+            modulus_group_size=1,representation='resident_residue8',applied=True,physical_affinity_established=False,
+            cache_domains_model=1,concurrent_groups_per_domain_model=4,cache_bytes_per_domain_model=0,
+            active_entries=9,directory_bytes=720,k_phases=2,requested_source_bytes=900,unique_source_bytes=600,
+            output_read_write_bytes=300,permutation_fingerprint=123,traffic_scope='active_arithmetic_only_excludes_pack_zero_fill_export',actual_hbm_bytes=None,measured_cache_hit_rate=None,promotion_eligible=False)}
+    def test_schema_and_nonpromotion(self):
+        import copy
+        from benchmark_schema.locality import validate_locality
+        from benchmark_sweep_lib.review import scenario_promotion_blockers
+        capture=self.capture();self.assertEqual(validate_locality(capture),[])
+        self.assertEqual(scenario_promotion_blockers(capture),['experimental_locality_workspace_not_runtime_auto_route'])
+        for key,value in [('physical_affinity_established',True),('actual_hbm_bytes',900),('measured_cache_hit_rate',0.9),
+                          ('promotion_eligible',True),('unique_source_bytes',901),('target_id',9999),('k_phases',1),('applied_order',0),
+                          ('active_entries',True),('representation','native64')]:
+            bad=copy.deepcopy(capture);bad['locality_schedule'][key]=value
+            with self.subTest(key=key):self.assertTrue(validate_locality(bad))
+        capture['locality_schedule'].update(applied=False,applied_order=0,target_id=0)
+        self.assertEqual(validate_locality(capture),[])
 
 if __name__ == "__main__":
     unittest.main()

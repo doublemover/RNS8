@@ -124,6 +124,8 @@ BenchmarkResult run_wrap_u64_rocwmma_candidate(rns8_context* ctx, const Args& ar
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
@@ -163,7 +165,8 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
 
   if (hip_graph_replay_full_wrap64_pack_export_requested(args)) {
     run_hip_graph_replay_wrap64_pack_gemm_export(args, result, A, B, C, ldc);
-    result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
+    verify_sustained_native_output(args, A, B, C);
+  result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
     rns8_destroy_workspace(workspace);
     rns8_destroy_plan(plan);
     return result;
@@ -259,6 +262,8 @@ BenchmarkResult run_wrap_u64(rns8_context* ctx, const Args& args, uint64_t bound
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   rns8_destroy_matrix(c_matrix);

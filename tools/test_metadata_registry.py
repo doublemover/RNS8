@@ -24,6 +24,20 @@ def main() -> int:
     if errors:
         raise SystemExit("\n".join(errors))
 
+    from benchmark_schema.gpu_events import amdgpu_builtin_gpu_event_label
+    for row in registry.event_phases()['amdgpu_builtin_event_families']:
+        for semantic in ('bounded_i64','bounded_u64','exact_wide_signed','exact_wide_unsigned','finite_ring_u8','finite_field_u8'):
+            expected=row['finite_event'] if semantic.startswith('finite_') else row['integer_event']
+            assert amdgpu_builtin_gpu_event_label('amdgpu_builtin_'+row['family']+'_sparse_a_v1',semantic)==expected
+    for mutation in ('duplicate','unknown_event','missing_field'):
+        broken=metadata_registry.Registry(copy.deepcopy(registry.files));rows=broken.event_phases()['amdgpu_builtin_event_families']
+        if mutation=='duplicate':rows.append(copy.deepcopy(rows[0]))
+        elif mutation=='unknown_event':rows[0]['finite_event']='not_registered'
+        else:del rows[0]['integer_event']
+        try:metadata_registry.validate_registry(broken)
+        except metadata_registry.MetadataRegistryError:pass
+        else:raise AssertionError('malformed family mapping accepted: '+mutation)
+
     stale_kernel_group = metadata_registry.Registry(copy.deepcopy(registry.files))
     stale_kernel_group.files["kernels"]["selected_kernel_groups"]["vector_alu"].append(
         "hip_vector_alu_unregistered_kernel_v9"

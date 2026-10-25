@@ -6,6 +6,7 @@ import re
 
 from metadata_registry_constants import (
     AMDGPU_BUILTIN_DEEP_GPU_EVENT_LABELS,
+    AMDGPU_BUILTIN_EVENT_FAMILIES,
     CK_DEEP_GPU_EVENT_LABELS,
     ROCWMMA_DEEP_GPU_EVENT_LABELS,
 )
@@ -104,36 +105,9 @@ def vector_gpu_event_phases(semantics: object, selected_kernel: object) -> list[
 def amdgpu_builtin_gpu_event_label(selected_kernel: object, semantics: object = None) -> str:
     kernel = selected_kernel if isinstance(selected_kernel, str) else ""
     finite = semantics in {"finite_ring_u8", "finite_field_u8"}
-    if "cdna3_mfma_i32_32x32x16_i8" in kernel:
-        return (
-            "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
-            if finite
-            else "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel"
-        )
-    if "cdna3_mfma_i32_16x16x32_i8_finite" in kernel:
-        return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
-    if "cdna3_mfma_i32_16x16x32_i8" in kernel:
-        return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel"
-    if "rdna3_wmma_i32_16x16x16_iu8_finite" in kernel:
-        return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel"
-    if "rdna3_wmma_i32_16x16x16_iu8" in kernel:
-        return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel"
-    if "rdna4_wmma_i32_16x16x16_iu8_finite" in kernel:
-        return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel"
-    if "rdna4_wmma_i32_16x16x16_iu8" in kernel:
-        return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel"
-    if "cdna3_smfmac_i32_16x16x64_i8" in kernel:
-        return (
-            "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"
-            if finite
-            else "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel"
-        )
-    if "rdna4_swmmac_i32_16x16x32_iu8" in kernel:
-        return (
-            "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"
-            if finite
-            else "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel"
-        )
+    for row in AMDGPU_BUILTIN_EVENT_FAMILIES:
+        if row['family'] in kernel:
+            return row['finite_event'] if finite or '_finite' in kernel else row['integer_event']
     return "amdgpu_builtin_rns_matrix_core_kernel"
 
 

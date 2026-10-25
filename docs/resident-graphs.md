@@ -333,3 +333,73 @@ plan destruction, invalidation and a synthetic fingerprint-collision rejection.
 Synchronous strict-wrap graphs use the CPU byte-limb backend or direct HIP.
 The CPU byte-limb graph admits only wrap64 MatMul nodes; exact-wide, finite and
 conversion nodes retain their existing backend requirements.
+
+
+## Shared lift/recipe cost harness (authored, not executed)
+
+`rns8-lift-recipe-calibrate` and `tools/collect_lift_recipe.py` bind identical
+integer/output boundaries across full-prefix manual execution, transactional
+minimum-prefix execution, and retained full/minimum/cost-model recipe arenas.
+Chains and diamonds exercise consumer-demand extension and shared operands.
+The explicit analytical cost model is unqualified; it is recorded in each
+capture and cannot be mistaken for a calibrated or AUTO-promoted profile.
+
+Separate one-product cohorts compare wide-Garner, shared-digit, and captured
+prepared lifts with a private CPU-lift control that transfers source residue
+planes down and only the new suffix up, and with producing the wider basis from
+the start. No-op lifts are included. This private residue-transfer control is
+labeled; it is not a public native-host import API. All routes finish with the
+same padded three-limb export and independent full-integer audit. Extra eager
+intermediate observations live in a different cohort and never establish a
+like-for-like speedup.
+
+Captures retain cold setup, first use, complete phase timings, p50/p95 and three
+sustained bursts, actual HIP allocation/free counters around warm samples,
+selected prefixes, arena/retained-lift/automatic-staging bytes, and explicit
+payload boundaries. The collector rejects recipe replay allocation and
+independently checks every selected prefix against propagated exact bounds.
+Immutable artifact/build/target/environment cohorts require independent
+processes. Break-even reuse is computed only when a matched measured replay
+saving is positive; otherwise it remains unknown. These are enabling tools,
+not results: no tests, benchmarks or GPU qualification were run.
+
+## Generation-bound ragged recipe inputs
+
+`rns8_create_product_recipe_ragged` connects immutable compact-prefix owners to
+ordinary product DAGs through explicit caller-owned uniform conversion matrices.
+The source tile geometry need not match any consumer GEMM geometry. Binding
+performs exact reconstruction/extension once; all consumers and later replays
+share that materialization. The existing minimum-prefix consumer planner still
+selects/lifts intermediate values independently, including a diamond whose two
+branches demand different prefixes and multiple retained outputs.
+
+Each adapter names an input index, ragged owner and mutable destination equal to
+that descriptor input. The destination is **conversion scratch**, not an
+observable recipe result: setup/refresh may have updated its generation if a
+later setup step fails. Graph outputs remain untouched until ordinary execution.
+Topology, source identity, cross-source/output aliasing and aggregate payload
+admission are checked before conversion. A failing refresh does not republish a
+valid recipe binding; retry a compatible refresh or create a new recipe.
+
+The recipe retains each unique ragged owner once, preventing destruction, and
+validates its original source generation before every replay. Direct source
+mutation rejects replay even though old converted bytes remain in storage.
+`rns8_refresh_product_recipe_ragged` can replace owners/tile geometries while
+keeping topology, adapter indices and destination allocations; ordinary uniform
+inputs are rebound at the same point. Existing per-input bound envelopes still
+apply. Frozen owner references prevent unaccounted staging growth; use another
+owner when another consumer requires greater retained capacity.
+
+Resource reporting separates materialized input capacities, compact owner
+payload/directory/status/staging, CPU conversion peak, and recipe arena/lift
+storage. The adapter's aggregate budget charges these simultaneously; original
+external source matrices, unrelated ordinary inputs, caller output matrices,
+allocator/driver overhead and opaque runtime objects are outside that explicitly
+named envelope. Shared owner handles are deduplicated, not assumed free.
+
+CPU and HIP regression fixtures cover nonuniform source prefixes, 3×5→5×3 owner
+refresh, a shared diamond with different branch-prefix demands, two observed
+outputs, complete padded Boost results, stale-source rejection, busy destruction,
+and unchanged-replay allocation/copy counters. The shared cost harness includes
+ragged full/minimum routes and charges conversion setup/retention separately.
+All new regression and performance execution remains deferred.

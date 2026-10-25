@@ -237,17 +237,13 @@ bool sparse_device_backend_supported(rns8_backend_kind backend) {
 rns8_status free_sparse_device_storage(rns8_sparse_matrix& matrix) {
   rns8_status status = RNS8_SUCCESS;
   if (matrix.hip_packed_values) {
-    status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_packed_values);
-    matrix.hip_packed_values = nullptr;
-    matrix.hip_packed_value_bytes = 0;
+    status = matrix.packed_values_owner.reset_alias(matrix.hip_packed_values, matrix.hip_packed_value_bytes);
   }
   if (matrix.hip_packed_indices) {
-    const rns8_status free_status = rns8::detail::hip_direct_free(matrix.hip_device_id, matrix.hip_packed_indices);
+    const rns8_status free_status = matrix.packed_indices_owner.reset_alias(matrix.hip_packed_indices, matrix.hip_packed_index_bytes);
     if (status == RNS8_SUCCESS) {
       status = free_status;
     }
-    matrix.hip_packed_indices = nullptr;
-    matrix.hip_packed_index_bytes = 0;
   }
   matrix.device_current = false;
   return status;
@@ -270,14 +266,14 @@ rns8_status ensure_sparse_device_storage(rns8_context& ctx, rns8_sparse_matrix& 
     }
   }
   if (!matrix.hip_packed_values) {
-    rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, value_bytes, &matrix.hip_packed_values);
+    rns8_status status = matrix.packed_values_owner.allocate_alias(ctx.device_id, value_bytes, matrix.hip_packed_values);
     if (status != RNS8_SUCCESS) {
       return status;
     }
     matrix.hip_packed_value_bytes = value_bytes;
   }
   if (!matrix.hip_packed_indices) {
-    rns8_status status = rns8::detail::hip_direct_allocate(ctx.device_id, index_bytes, &matrix.hip_packed_indices);
+    rns8_status status = matrix.packed_indices_owner.allocate_alias(ctx.device_id, index_bytes, matrix.hip_packed_indices);
     if (status != RNS8_SUCCESS) {
       (void)free_sparse_device_storage(matrix);
       return status;
@@ -537,7 +533,8 @@ rns8_status rns8_create_sparse_matrix(
     if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && !sparse_device_backend_supported(ctx->backend)) {
       return RNS8_UNSUPPORTED_BACKEND;
     }
-    auto* matrix = new (std::nothrow) rns8_sparse_matrix();
+    auto owner = std::unique_ptr<rns8_sparse_matrix>(new (std::nothrow) rns8_sparse_matrix());
+    auto* matrix = owner.get();
     if (!matrix) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -551,7 +548,7 @@ rns8_status rns8_create_sparse_matrix(
     matrix->packed_indices.assign(static_cast<std::size_t>(counts.group_count), 0);
     matrix->hip_device_id = ctx->device_id;
     matrix->cache_key = build_sparse_cache_key(*matrix);
-    *out = matrix;
+    *out = owner.release();
     return RNS8_SUCCESS;
   });
 }
@@ -559,6 +556,7 @@ rns8_status rns8_create_sparse_matrix(
 rns8_status rns8_destroy_sparse_matrix(rns8_sparse_matrix* matrix) {
   if (matrix) {
     const rns8_status status = free_sparse_device_storage(*matrix);
+    if (status != RNS8_SUCCESS) return status;
     delete matrix;
     return status;
   }

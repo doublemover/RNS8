@@ -427,3 +427,114 @@ record is metadata, separate from requested device payload capacity. Invalid
 zero-size or negative-device replacement preserves the current allocation.
 This cleanup bookkeeping does not authorize freeing resources with live public
 reservations or establish a new asynchronous execution path.
+
+### Cleanup and retry ownership
+
+Workspace, prepack-cache, result-cache and sparse-matrix destruction consume the
+handle only on success. A failed release retains the pointer and byte accounting;
+retry destruction after recovering the backend. Do not execute with a partially
+retired handle. Construction owns device buffers through preallocated RAII cleanup
+records from the first allocation: an exception or failed release transfers
+unpublished buffers to the existing device-drain cleanup queue, not a lost raw
+pointer. No failure-injection or hardware qualification is implied by this rule.
+
+
+## Prepared exact conversion variant
+
+Exact HIP base extension now uses the same prepared execution and completion
+token, rather than an unrelated transfer completion system. See
+[mixed-radix lift](mixed-radix-lift.md) for its frozen range/suffix envelope,
+retained pinned status and status-gated device commit. It composes with existing
+pending-value dependencies and independent groups; no whole-device wait is
+hidden in submission. Counted token-ordered writers keep a producer→lift chain
+reserved until its last actual writer finishes. Ordinary arithmetic defaults
+are unchanged, and caller-owned stream capture remains unsupported.
+
+Destroy first retires graph/event identities with checked HIP status, then
+releases transfer scratch. A failed destroy preserves the handle for cleanup
+retry, marks it closing and rejects further execution; it never erases a failed
+HIP object's only identity. Hardware execution and cleanup-failure qualification
+for this extension remain deferred.
+
+## Owned pinned-host transfer boundaries
+
+`rns8_create_pinned_host_buffer_hip` owns a pinned native rectangle on one
+explicit direct-HIP context. `rns8_prepare_host_transfer_hip` binds it to an
+exact-wide matrix using the **existing** prepared execution, completion token,
+stream, dependency, cancellation and owned-graph APIs. This is not a second
+completion system or an implicit change to synchronous pack/export. Signed and
+unsigned 64-bit imports and scalar or 1–32-limb exports are supported; bounded,
+finite, wrap, borrowed pageable pointers and compiled resident-graph transfer
+nodes are not inferred from this adapter.
+
+The buffer descriptor uses element strides: for limb output, one element is
+`limb_count * 8` bytes. Allocation includes `rows * ld` elements, including the
+last row's padding; DMA copies only logical columns. A checked size query is
+available without HIP. Creation rejects an insufficient explicit pinned budget
+before allocation. Buffer storage is zeroed but initially **not current**.
+
+### CPU and DMA ownership
+
+1. Open an exclusive `rns8_begin_pinned_host_write` window, write logical input
+   (and optional padding), then publish a strictly newer, nonzero generation
+   with `rns8_end_pinned_host_write`. All CPU writes must have finished first.
+2. Prepare the import and optionally capture it outside execution. An existing
+   prepared owner must be refreshed after the buffer generation changes.
+3. Submit on a borrowed nondefault stream, or replay an owned graph. Multiple
+   independent imports can read the same input buffer. CPU reads may share this
+   immutable input; CPU writes remain BUSY until **all** DMA readers finish.
+4. For output, prepare export from a current proved matrix; bind a pending
+   producer token before pipeline submission. An accepted output write makes
+   the buffer unreadable, including its previous value. Wait/query completion
+   success only retrieves a record: check `operation_status` and
+   `output_is_current` before opening `rns8_begin_pinned_host_read`.
+5. End every CPU access window. Destroy prepared dependents before their
+   producers, then buffers, matrices/workspaces/plans, then context. Destruction
+   is BUSY while referenced or in use. `rns8::PinnedHostBuffer::close` preserves
+   its handle on failure; its destructor neither waits nor repairs a wrong
+   destruction order. Explicit close/retry is necessary for fallible cleanup.
+
+CPU pointers are valid **only inside their access window**. Keeping an escaped
+pointer and touching it during DMA violates the contract even if its address
+has not changed. Calls sharing handles require external host serialization.
+A successful export increments the buffer's generation and permits replay at
+stable addresses. A failed or canceled attempted export remains unreadable;
+there is no rollback promise for its private contents. Device drain failure
+keeps reservations and storage alive and poisons the context rather than
+assuming DMA stopped.
+
+### Preparation and publication costs
+
+Preparation retains a compact native device bounce buffer, a conversion stage,
+a four-byte pinned status, and a private stream. Imports optionally retain the
+matrix's requested native representation. The total-scratch limit includes the
+already-owned full padded host rectangle, status, both device stages, and that
+optional native copy. Provider queries report the same known byte boundary;
+HIP's opaque stream/event/graph allocations are additional, not claimed zero.
+
+The submitted path performs pitched `hipMemcpy2DAsync` plus existing guarded
+conversion/CRT kernels: no allocation, host callback, pageable staging or host
+synchronization is inserted into enqueue. Imports publish RNS/native currentness
+only after bound status and completion observation. Exports hold their host
+writer reservation through CRT status and DMA completion, including upstream
+failure/cancellation observation. An old host export remains a valid independent
+snapshot after the source matrix changes, but its original prepared token no
+longer certifies a current source generation.
+
+The upstream [HIP asynchronous execution contract](https://rocm.docs.amd.com/projects/HIP/en/latest/how-to/hip_runtime_api/asynchronous.html)
+and [host-memory guide](https://rocm.docs.amd.com/projects/HIP/en/latest/how-to/hip_runtime_api/memory_management/host_memory.html)
+explain why pinned storage and explicit lifetime are needed. They do not qualify
+this implementation or guarantee useful copy/compute overlap. The authored
+regressions cover padded import→GEMM→limb-export stream/graph pipelines, failed
+bound publication, stale generations, budget arithmetic and two shared H2D
+readers completed in reverse order. Execution, HIP compilation, overlap traces,
+performance and platform qualification remain deferred.
+
+Base-extension discovery is a value-preserving transfer contract, not a new
+native GEMM: a short source/target basis is admitted using the current source
+uniqueness proof and concrete owner binding. It does not relax ordinary public
+GEMM plan creation's full-native range floor. The composed prepared-lift fixture
+therefore uses legal prefix17→prefix20 public plans; a separate pure provider
+fixture covers prefix3→prefix9 discovery, missing proof and reversed prefixes.
+Both lift device scratch and pinned status are explicitly pending until checked
+completion/drain. These newly authored/corrected fixtures have not been run.

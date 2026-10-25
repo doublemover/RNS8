@@ -30,6 +30,7 @@ extern "C" int rns8_hip_word_mod_gemm(const void* a,const void* b,void* c,int m,
 #define RNS8_WORD_DOT4 0
 #endif
 __global__ void rns8_word_mod_dot4_capability(int* flag) {*flag=RNS8_WORD_DOT4;}
+template<unsigned Bytes>
 __global__ void rns8_word_mod_dot4_kernel(const uint64_t* a,const uint64_t* b,uint64_t* c,
     int m,int n,int k,int lda,int ldb,int ldc,uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
 #if RNS8_WORD_DOT4
@@ -38,23 +39,23 @@ __global__ void rns8_word_mod_dot4_kernel(const uint64_t* a,const uint64_t* b,ui
   const int row=index/n,col=index%n;uint64_t result=0;
   for(int64_t begin=0;begin<k;begin+=digit_slab_k) {
     const int64_t end=begin+digit_slab_k<k?begin+digit_slab_k:k;
-    uint32_t diagonal[15]{};
+    uint32_t diagonal[2*Bytes-1]{};
     for(int64_t q=begin;q<end;q+=4) {
-      uint32_t left[8]{},right[8]{};
+      uint32_t left[Bytes]{},right[Bytes]{};
       for(unsigned lane=0;lane<4;++lane) {
         const uint64_t av=q+lane<end?a[int64_t(row)*lda+q+lane]:0;
         const uint64_t bv=q+lane<end?b[(q+lane)*ldb+col]:0;
-        for(unsigned digit=0;digit<8;++digit) {
+        for(unsigned digit=0;digit<Bytes;++digit) {
           left[digit]|=uint32_t((av>>(8*digit))&255)<<(8*lane);
           right[digit]|=uint32_t((bv>>(8*digit))&255)<<(8*lane);
         }
       }
-      for(unsigned i=0;i<8;++i) for(unsigned j=0;j<8;++j)
+      for(unsigned i=0;i<Bytes;++i) for(unsigned j=0;j<Bytes;++j)
         diagonal[i+j]=__builtin_amdgcn_udot4(left[i],right[j],diagonal[i+j],false);
     }
     // Each diagonal has at most eight products per K term; the fixed 4096
     // slab keeps even the largest one below INT32_MAX. Reduce before folding.
-    for(unsigned d=0;d<15;++d)
+    for(unsigned d=0;d<2*Bytes-1;++d)
       result=add(result,multiply(weights.values[d],diagonal[d]%modulus,modulus),modulus);
   }
   c[int64_t(row)*ldc+col]=result;
@@ -67,9 +68,27 @@ extern "C" int rns8_hip_word_mod_dot4_capability(int* flag) {
 }
 extern "C" int rns8_hip_word_mod_dot4(const void* a,const void* b,void* c,int m,int n,int k,int lda,int ldb,int ldc,
     uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
-  hipLaunchKernelGGL(rns8_word_mod_dot4_kernel,dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,
+  hipLaunchKernelGGL((rns8_word_mod_dot4_kernel<8>),dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,
       static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),static_cast<uint64_t*>(c),m,n,k,lda,ldb,ldc,modulus,weights);
   return int(hipGetLastError());
+}
+template<unsigned Bytes>
+int rns8_launch_word_mod_dot4_width(const void* a,const void* b,void* c,int m,int n,int k,int lda,int ldb,int ldc,
+    uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
+  hipLaunchKernelGGL((rns8_word_mod_dot4_kernel<Bytes>),dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,
+      static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),static_cast<uint64_t*>(c),m,n,k,lda,ldb,ldc,modulus,weights);
+  return int(hipGetLastError());
+}
+extern "C" int rns8_hip_word_mod_dot4_width(const void* a,const void* b,void* c,int m,int n,int k,int lda,int ldb,int ldc,
+    uint64_t modulus,rns8::detail::word_mod::DigitWeights weights) {
+  // No caller-supplied width hint: derive the canonical proof at dispatch.
+  switch(rns8::detail::word_mod::canonical_byte_width(modulus)) {
+#define RNS8_WORD_WIDTH(B) case B:return rns8_launch_word_mod_dot4_width<B>(a,b,c,m,n,k,lda,ldb,ldc,modulus,weights)
+    RNS8_WORD_WIDTH(1);RNS8_WORD_WIDTH(2);RNS8_WORD_WIDTH(3);RNS8_WORD_WIDTH(4);
+    RNS8_WORD_WIDTH(5);RNS8_WORD_WIDTH(6);RNS8_WORD_WIDTH(7);RNS8_WORD_WIDTH(8);
+#undef RNS8_WORD_WIDTH
+  }
+  return int(hipErrorInvalidValue);
 }
 #undef RNS8_WORD_DOT4
 
@@ -125,7 +144,7 @@ __global__ __launch_bounds__(32) void rns8_word_mod_wmma_kernel(
   using accumulator=int __attribute__((ext_vector_type(8)));
   const int lane=threadIdx.x,row=int(blockIdx.y)*16+(lane&15),col=int(blockIdx.x)*16+(lane&15);
   uint64_t result[8]{};
-  unsigned bytes=1;for(uint64_t remaining=(modulus-1)>>8;remaining;remaining>>=8) ++bytes;
+  const unsigned bytes=canonical_byte_width(modulus);
   for(int64_t begin=0;begin<k;begin+=digit_slab_k) {
     const int64_t end=begin+digit_slab_k<k?begin+digit_slab_k:k;
     for(unsigned diagonal=0;diagonal<2*bytes-1;++diagonal) {

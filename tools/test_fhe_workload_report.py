@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import fhe_workload_report
+from test_capture_identity_support import write_independent_fixture_pair
 from benchmark_schema import validate_capture
 from test_benchmark_schema_support_metadata import add_target_variant_fields
 from test_benchmark_sweep_support import bounded_capture
@@ -68,7 +69,7 @@ def write(path: Path, capture: dict) -> Path:
     else:
         capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
     validate_capture(capture, path)
-    path.write_text(json.dumps(capture, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_independent_fixture_pair(path, capture)
     return path
 
 

@@ -23,6 +23,7 @@ class Descriptor:
     concurrent_groups_per_domain: int = 1
     cache_bytes_per_domain: int = 0
     version: int = 1
+    fragments: int = 1
 
 
 @dataclass(frozen=True, order=True)
@@ -32,16 +33,17 @@ class Work:
     col: int
     first_plane: int
     planes: int
+    fragment: int = 0
 
 
 class Schedule:
     def __init__(self, desc: Descriptor):
         positive = (desc.m, desc.n, desc.k, desc.tile_m, desc.tile_n,
                     desc.slab_k, desc.group_size, desc.cache_domains,
-                    desc.concurrent_groups_per_domain)
+                    desc.concurrent_groups_per_domain, desc.fragments)
         if (any(type(x) is not int or x <= 0 for x in positive)
                 or type(desc.cache_bytes_per_domain) is not int
-                or desc.cache_bytes_per_domain < 0 or desc.version != 1
+                or desc.cache_bytes_per_domain < 0 or desc.version != 1 or desc.fragments > desc.k
                 or not desc.target or not desc.topology_version
                 or desc.representation not in ("native64", "residue8")
                 or desc.order not in ("output-neighbor", "modulus", "same-output")):
@@ -54,8 +56,10 @@ class Schedule:
             raise ValueError("one valid prefix is required per output tile")
         self.phases: list[tuple[Work, ...]] = []
         self.inverse: dict[Work, tuple[int, int]] = {}
-        for slab in range((desc.k + desc.slab_k - 1) // desc.slab_k):
-            work = [Work(slab, row, col, first, min(desc.group_size, prefix - first))
+        for slab in range(((desc.k+desc.fragments-1)//desc.fragments + desc.slab_k - 1) // desc.slab_k):
+            work = [Work(slab, row, col, first, min(desc.group_size, prefix - first), fragment)
+                    for fragment in range(desc.fragments)
+                    if slab*desc.slab_k < desc.k*(fragment+1)//desc.fragments-desc.k*fragment//desc.fragments
                     for row in range(self.rows) for col in range(self.cols)
                     for prefix in (desc.prefixes[row * self.cols + col],)
                     for first in range(0, prefix, desc.group_size)]
@@ -63,11 +67,11 @@ class Schedule:
             def key(item: Work):
                 # Bucket compatible tail/cost shapes first. Basis indices are
                 # immutable; sorting only changes their launch IDs.
-                bucket = (self.extents(item)[:2], item.planes)
+                bucket = (self.extents(item)[:2], item.planes, self.extents(item)[2])
                 local = {"output-neighbor": (item.row, item.first_plane, item.col),
                          "modulus": (item.first_plane, item.row, item.col),
                          "same-output": (item.row, item.col, item.first_plane)}[desc.order]
-                return bucket, local
+                return bucket, local, item.fragment
 
             phase = tuple(sorted(work, key=key))
             self.phases.append(phase)
@@ -78,7 +82,7 @@ class Schedule:
         d = self.desc
         return (min(d.tile_m, d.m - item.row * d.tile_m),
                 min(d.tile_n, d.n - item.col * d.tile_n),
-                min(d.slab_k, d.k - item.slab * d.slab_k))
+                min(d.slab_k, d.k*(item.fragment+1)//d.fragments-d.k*item.fragment//d.fragments - item.slab*d.slab_k))
 
     def decode(self, phase: int, launch: int) -> Work:
         if not 0 <= phase < len(self.phases) or not 0 <= launch < len(self.phases[phase]):
@@ -99,10 +103,10 @@ class Schedule:
         source_planes = (-1,) if d.representation == "native64" else planes
         width = 8 if d.representation == "native64" else 1
         for plane in source_planes:
-            yield ("a", item.row, item.slab, plane), m * k * width, True
-            yield ("b", item.col, item.slab, plane), n * k * width, True
+            yield ("a", item.row, item.fragment, item.slab, plane), m * k * width, True
+            yield ("b", item.col, item.fragment, item.slab, plane), n * k * width, True
         for plane in planes:
-            yield ("c", item.row, item.col, plane), m * n, False
+            yield ("c", item.row, item.col, item.fragment, plane), m * n, False
 
 
 def simulate(schedule: Schedule, hot: bool = False) -> dict:
@@ -176,5 +180,8 @@ def simulate(schedule: Schedule, hot: bool = False) -> dict:
                   model="logical-block LRU; round-robin hypothetical domains; phase barriers",
                   target=d.target, topology_version=d.topology_version,
                   physical_affinity_verified=False, promotion_eligible=False,
-                  actual_hbm_bytes=None, measured_cache_hit_rate=None)
+                  actual_hbm_bytes=None, measured_cache_hit_rate=None,
+                  fragments=d.fragments, partial_outputs_are_disjoint=True,
+                  canonical_merge_required=d.fragments>1,
+                  merge_execution_in_trace=False)
     return report

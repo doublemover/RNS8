@@ -6,8 +6,13 @@
 #include <string>
 #include <vector>
 
+#include "exact_wide_magnitude.hpp"
+#include "public_sustained.hpp"
+#include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "core/plan_lowering.hpp"
+#include "core/api_internal.hpp"
 #include "rns8/rns8.h"
 
 namespace rns8::bench {
@@ -37,6 +42,10 @@ enum class InputProfile {
   FiniteLowHamming,
   FiniteSmallCentered,
   FiniteFullUniform,
+  WideTwoLimbConstant,
+  WideThreeLimbConstant,
+  WideTwoLimbMixed,
+  WideThreeLimbMixed,
 };
 
 enum class BoundSource {
@@ -68,6 +77,8 @@ struct Args {
   uint32_t cpu_threads = 0;
   uint64_t cpu_parallel_threshold = UINT64_C(1) << 20;
   bool progress = false;
+  bool production_host_timing = false;
+  uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096, sustained_min_ms = 250;
   std::string cpu_reference_mode = "timed-baseline";
   uint64_t seed = 1;
   uint32_t tile_m = 128;
@@ -108,12 +119,19 @@ struct Args {
   std::string export_variant = "default";
   std::string reconstruction_variant = "default_garner";
   uint32_t grouped_dispatch_tasks = 1;
+  bool grouped_compact_output = false;
   bool hip_graph_replay = false;
   std::string workload_proxy = "none";
   bool resident_lifetime = false;
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
+  bool hipblaslt_metadata_per_block_control = false;
+  std::string locality_order;
+  uint32_t locality_model_domains=1,locality_model_concurrency=1;
+  uint64_t locality_model_cache_bytes=0;
   bool streaming_overlap = false;
+  bool streaming_serial_control = false;
+  uint32_t streaming_batches = 9;
   std::string k_block_policy = "auto";
   std::string resident_redesign_candidate;
   std::vector<std::string> resident_redesign_dimensions;
@@ -147,6 +165,11 @@ enum class PrepackReuseStrategy {
 };
 
 struct BenchmarkResult {
+  rns8_auto_trace_info auto_trace{};
+  std::vector<rns8_auto_decision> auto_decisions;
+  bool auto_trace_available=false;
+  ExactWideMagnitudeStats exact_wide_magnitude{};
+  std::vector<SustainedObservation> sustained_observations;
   double plan_us = 0;
   double schedule_query_us = 0;
   double global_bound_scan_us = 0;
@@ -187,6 +210,9 @@ struct BenchmarkResult {
   uint32_t streaming_overlap_stream_count = 0;
   uint32_t streaming_overlap_buffer_count = 0;
   uint32_t streaming_overlap_measured_repeat_count = 0;
+  std::vector<StreamingBatchObservation> streaming_observations;
+  double streaming_first_use_batch_us=0;
+  uint32_t streaming_warmup_batch_count=0;
   double streaming_overlap_batch_wall_us = 0;
   double streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";
@@ -222,6 +248,9 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_before{};
   rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
+  rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
+  rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};
+  rns8_locality_info locality_info{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
   bool allocation_after_repeats_available = false;

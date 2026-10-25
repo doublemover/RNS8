@@ -526,7 +526,8 @@ def validate_gpu_events(self) -> None:
     if not isinstance(metadata, dict):
         return
     enabled = metadata.get("gpu_event_timing")
-    repeats = self.data.get("repeats")
+    from .streaming_timing import gpu_stage_sample_count
+    repeats = gpu_stage_sample_count(self.data,self.data.get("repeats"))
     if not isinstance(enabled, bool) or not _is_int(repeats):
         return
     selected_backend = self.data.get("backend_selected")
@@ -535,6 +536,9 @@ def validate_gpu_events(self) -> None:
         selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
         and enabled is not True
         and not residue_current_chain
+        and not (metadata.get("host_instrumentation_state")=="hooks_disabled" and
+                 metadata.get("gpu_event_timing_status")=="not_requested_production_timing" and
+                 metadata.get("gpu_event_timing_reason")=="explicit_production_hooks_disabled")
     ):
         self._error(f"{selected_backend} captures must include HIP event operation-group timings")
     timings = self.data.get("gpu_event_timings_us")

@@ -1,8 +1,12 @@
+#include "backend_common/native_locality.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
+#include "backend_common/direct_rns_route.hpp"
 #include "backend_common/instruction_roof_plan.hpp"
 #include "backend_common/split_k_plan.hpp"
 #include "backend_common/word_mod_plan.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_common/operation_support.hpp"
+#include "backend_common/exact_lift_workspace.hpp"
 #include "backend_common/balanced_crt.hpp"
 #include "backend_common/bilinear_resources.hpp"
 #include "backend_common/rank23_slp_resources.hpp"
@@ -13,6 +17,7 @@
 #include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_hip_direct/finite_verify_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
 
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
@@ -32,8 +37,9 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
 extern "C" int rns8_hip_direct_lift_suffix_device(
-    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool);
+    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool, void*);
 
+extern "C" int rns8_hip_guarded_copy_bytes(const void*,void*,uint64_t,uint64_t,uint64_t,uint64_t,const int*,void*);
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
     int8_t* d_residues,
@@ -681,6 +687,7 @@ rns8_status hip_direct_collect_deferred_buffers(int device_id) {
 #include "hip_backend_wide_gemm.inc"
 #include "hip_backend_native_byte.inc"
 #include "hip_backend_native_queue.inc"
+#include "hip_backend_cache_displace.inc"
 #include "hip_backend_native_split_k.inc"
 #include "hip_backend_bounds.inc"
 #include "hip_backend_ragged.inc"

@@ -62,7 +62,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
-  status = rns8_create_workspace(ctx, plan, &workspace);
+  status = create_benchmark_workspace(ctx, plan, args, result, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
   capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
@@ -545,41 +545,23 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     run_hip_graph_replay_resident_chain(
         args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
   } else if (streaming_overlap_path) {
-    for (uint32_t r = 0; r < args.warmups; ++r) {
-      run_bounded_streaming_overlap_pipeline(
-          args,
-          result,
-          plan,
-          a_matrix,
-          a_stream_matrix,
-          b_matrix,
-          c_matrix,
-          c_stream_matrix,
-          A,
-          C,
-          bound,
-          static_cast<uint64_t>(r) + 1,
-          1,
-          false);
+    rns8::bench::StreamingMeasurementPlan measurement;
+    if(!rns8::bench::streaming_measurement_plan(args.warmups,args.repeats,args.streaming_batches,measurement))
+      fail_status("invalid streaming measurement controls",RNS8_INVALID_ARGUMENT);
+    uint64_t version=1;
+    for(uint32_t batch=0;batch<args.warmups;++batch) {
+      run_bounded_streaming_overlap_pipeline(args,result,plan,a_matrix,a_stream_matrix,b_matrix,c_matrix,c_stream_matrix,
+          A,C,bound,version,measurement.warmup_calls,false,false);
+      version+=measurement.warmup_calls;
     }
     record_allocation_after_warmups(result);
-    run_bounded_streaming_overlap_pipeline(
-        args,
-        result,
-        plan,
-        a_matrix,
-        a_stream_matrix,
-        b_matrix,
-        c_matrix,
-        c_stream_matrix,
-        A,
-        C,
-        bound,
-        static_cast<uint64_t>(args.warmups) + 1,
-        args.repeats,
-        result.gpu_events.requested);
+    for(uint32_t batch=0;batch<measurement.batches;++batch) {
+      run_bounded_streaming_overlap_pipeline(args,result,plan,a_matrix,a_stream_matrix,b_matrix,c_matrix,c_stream_matrix,
+          A,C,bound,version,measurement.measured_calls,result.gpu_events.requested,true);
+      version+=measurement.measured_calls;
+    }
     record_allocation_after_repeats(result);
-    latest_output_matrix = c_matrix;
+    latest_output_matrix=(measurement.measured_calls&1u)?c_matrix:c_stream_matrix;
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
@@ -589,11 +571,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
   }
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {

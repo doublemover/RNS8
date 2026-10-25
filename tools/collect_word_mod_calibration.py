@@ -17,9 +17,11 @@ import uuid
 from build_manifest import manifest_provenance_complete
 from collect_finite_verify import demand, integer, positive, same, strict_json, checksum, validate_provenance
 
-INTEGER_METHODS=("baseline","packed_dot4","byte_wmma")
-METHODS=(*INTEGER_METHODS,"asymmetric_binary64")
-SCOPES=("resident","cold")
+INTEGER_METHODS=("baseline","packed_dot4","canonical_dot4","byte_wmma")
+MFMA_METHODS=("asymmetric_fp64_mfma","asymmetric_fp64_mfma_rows","asymmetric_fp64_mfma_columns")
+FLOAT_METHODS=("asymmetric_binary64",*MFMA_METHODS)
+METHODS=(*INTEGER_METHODS,*FLOAT_METHODS)
+SCOPES=("resident","repeated_b","cold")
 MASK=(1 << 64)-1
 BUDGET=512*1024*1024
 KEYS={"device","method","scope","m","n","k","domain","modulus"}
@@ -46,7 +48,7 @@ def prime(n):
 
 def validate_case(case):
     demand(type(case) is dict,"case must be object")
-    floating=case.get("method")=="asymmetric_binary64"
+    floating=case.get("method") in FLOAT_METHODS
     expected_keys=KEYS|FLOAT_KEYS if floating else KEYS
     demand(set(case)==expected_keys,"case requires exactly documented controls; floating digits/slab are explicit and method-specific")
     demand(integer(case["device"],0,63) and case["method"] in METHODS and case["scope"] in SCOPES,"invalid device/method/scope")
@@ -77,10 +79,10 @@ def floating_schedule(case):
     weights=[0]*16
     for i in range(left):
         for j in range(right):weights[i*4+j]=(pow(alpha,i,p)*pow(beta,j,p))%p
-    return dict(version=1,arithmetic="scalar_binary64_fma_integer_coefficients",left_digits=left,right_digits=right,slab_k=slab,
+    return dict(version=1,arithmetic="cdna_fp64_mfma_integer_coefficients" if case["method"] in MFMA_METHODS else "scalar_binary64_fma_integer_coefficients",left_digits=left,right_digits=right,slab_k=slab,
         alpha=alpha,beta=beta,mantissa_bits=53,admission_lhs_decimal=str(lhs),admission_limit_decimal=str(1 << 53),
         coefficient_max_decimal=str(slab*(alpha-1)*(beta-1)),weights_stride=4,weights=weights,
-        weighting="overflow_safe_integer_modular_recombination",matrix_engine=False)
+        weighting="overflow_safe_integer_modular_recombination",matrix_engine=case["method"] in MFMA_METHODS)
 
 
 def load_cases(path):
@@ -93,23 +95,32 @@ def load_cases(path):
 
 def contract(case,run_id,repeats,warmups):
     m,n,k,p=case["m"],case["n"],case["k"],case["modulus"];ac=m*(k+2);bc=k*(n+3);cc=m*(n+3)+8
-    dot=case["method"]=="packed_dot4";wmma=case["method"]=="byte_wmma";floating=case["method"]=="asymmetric_binary64";cold=case["scope"]=="cold"
+    canonical=case["method"]=="canonical_dot4";dot=canonical or case["method"]=="packed_dot4";wmma=case["method"]=="byte_wmma";floating=case["method"] in FLOAT_METHODS;cold=case["scope"]=="cold"
+    concatenation={"asymmetric_fp64_mfma_rows":"word_major","asymmetric_fp64_mfma_columns":"cell_major"}.get(case["method"],"none")
+    coefficient_bytes=m*n*case["left_digits"]*case["right_digits"]*8 if concatenation!="none" else 0
     operand_bytes=((p-1).bit_length()+7)//8
     result={"schema":"rns8_word_mod_microcase_v1","run_id":run_id,**case,"lda":k+2,"ldb":n+3,"ldc":n+3,
         "operand_bits":(p-1).bit_length(),"modulus_bits":p.bit_length(),"device_requested":case["device"],"device_actual":case["device"],
         "backend_requested":"hip-direct","backend_actual":"hip-direct","seed":6651,
         "dataset_recipe":"splitmix64_word_mod_seed6651_canonical_extrema_padding_v1","repeats":repeats,"warmups":warmups,
-        "input_contract":"canonical_u64_padded_rows","output_contract":"canonical_u64_modulus_with_padding","output_boundary":"host" if cold else "device",
+        "input_contract":"canonical_u64_padded_rows","output_contract":"canonical_u64_modulus_with_padding","output_boundary":"device" if case["scope"]=="resident" else "host",
         "reference_method":"boost_int256_all_products_modulus_with_cpp_int_row_edge_audits","a_allocation_bytes":ac*8,"b_allocation_bytes":bc*8,
-        "output_allocation_bytes":cc*8,"explicit_scratch_peak_bytes":4,"compiler_private_scratch_bytes":None,"canary_bytes":64,"logical_payload_envelope_bytes":(3*(ac+bc)+4*cc)*8+16384,
-        "memory_budget_bytes":BUDGET,"slab_k":case["slab_k"] if floating else 4096 if dot or wmma else None,"digit_diagonals":2*operand_bytes-1 if wmma else 15 if dot else 0,
-        "max_diagonal_accumulator":4096*operand_bytes*65025 if wmma else 2130739200 if dot else None,
-        "arithmetic_kernel":"word_mod_byte_wmma" if wmma else "word_mod_asymmetric_binary64" if floating else "word_mod_byte_dot4" if dot else "word_mod_double_add",
-        "timing_scope":"allocate_upload_checked_compute_readback_checked_free" if cold else "resident_checked_compute_including_canonical_scan_and_domain_admission",
+        "output_allocation_bytes":cc*8,"explicit_scratch_peak_bytes":4+coefficient_bytes,"compiler_private_scratch_bytes":None,"canary_bytes":64,"logical_payload_envelope_bytes":(3*(ac+bc)+4*cc)*8+16384+coefficient_bytes,
+        "memory_budget_bytes":BUDGET,"slab_k":case["slab_k"] if floating else 4096 if dot or wmma else None,"digit_diagonals":2*operand_bytes-1 if wmma or canonical else 15 if dot else 0,
+        "max_diagonal_accumulator":4096*operand_bytes*65025 if wmma or canonical else 2130739200 if dot else None,
+        "arithmetic_kernel":"word_mod_asymmetric_fp64_concat" if concatenation!="none" else "word_mod_asymmetric_fp64_mfma" if case["method"] in MFMA_METHODS else "word_mod_byte_dot4_canonical_width" if canonical else "word_mod_byte_wmma" if wmma else "word_mod_asymmetric_binary64" if floating else "word_mod_byte_dot4" if dot else "word_mod_double_add",
+        "timing_scope":"retained_b_upload_a_checked_compute_readback" if case["scope"]=="repeated_b" else "allocate_upload_checked_compute_readback_checked_free" if cold else "resident_checked_compute_including_canonical_scan_and_domain_admission",
         "input_preservation_scope":"one_separate_resident_audit_before_warmups" if cold else "outside_each_verified_call_and_final_burst",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,"public_ownership_measured":False,
         "asymmetric_floating_schedule_implemented":floating,"actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
     if floating:result["floating_schedule"]=floating_schedule(case)
+    if case["method"] in MFMA_METHODS:
+        result["fp64_mfma_schedule"]=dict(version=1,opcode="mfma_f64_16x16x4f64",wave_size=64,tile_m=16,tile_n=16,instruction_k=4,modifiers=[0,0,0],layout="cdna_fp64_interleaved_rows_v1",a_map="row=lane%16;k=lane/16",b_map="k=lane/16;col=lane%16",c_map="row=4*reg+lane/16;col=lane%16",active_terms_bound=case['slab_k'],padded_instruction_terms=((case['slab_k']+3)//4)*4,tail_padding="exact_zero",source_pairs_per_instruction_tile=1 if concatenation!='none' else case['left_digits']*case['right_digits'],concatenation=concatenation,coefficient_payload_bytes=coefficient_bytes,physical_isa_verified=False)
+    if canonical:
+        result["canonical_dot4_schedule"]=dict(version=1,bytes_per_operand=operand_bytes,diagonals=2*operand_bytes-1,
+            source_dot4_updates_per_four_k=operand_bytes**2,slab_k=4096,maximum_accumulator=4096*operand_bytes*65025,
+            width_proof="canonical_inputs_less_than_modulus",zero_pad_k_tail=True,full_width_control="packed_dot4",
+            issued_instruction_count_measured=False)
     if wmma:
         result["operand_bytes"]=operand_bytes
         result["byte_wmma_schedule"]=dict(version=1,arithmetic="unsigned_radix256_wmma_diagonal_integer_recombination",bytes_per_operand=operand_bytes,
@@ -147,16 +158,18 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     demand(type(capture) is dict,"capture must be object")
     for key,value in contract(case,run_id,repeats,warmups).items():
         demand(key in capture and same(capture[key],value),f"metadata mismatch: {key}")
-    if case["method"]!="asymmetric_binary64":
+    if case["method"] not in FLOAT_METHODS:
         demand(not {"floating_schedule","left_digits","right_digits"}&capture.keys(),"irrelevant floating schedule on integer method")
     if case["method"]!="byte_wmma":demand(not {"operand_bytes","byte_wmma_schedule"}&capture.keys(),"irrelevant WMMA schedule on another method")
     for key in ("device_name","target"):
         demand(type(capture.get(key)) is str and bool(capture[key].strip()),f"missing identity: {key}")
     demand(re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"invalid target")
-    if case["method"] in ("packed_dot4","byte_wmma"):demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"byte-instruction target not admitted")
+    if case["method"] in ("packed_dot4","canonical_dot4","byte_wmma"):demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"byte-instruction target not admitted")
+    if case["method"] in MFMA_METHODS:demand(capture["target"].split(":")[0] in ("gfx90a","gfx942"),"FP64 MFMA target not admitted")
+    else:demand("fp64_mfma_schedule" not in capture,"irrelevant MFMA schedule")
     demand(integer(capture.get("runtime_version"),1,(1 << 31)-1),"invalid runtime identity")
     demand(positive(capture.get("oracle_and_dataset_ns")),"invalid oracle timing")
-    demand(positive(capture.get("resident_setup_ns")) if case["scope"]=="resident" else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")
+    demand(positive(capture.get("resident_setup_ns")) if case["scope"]!="cold" else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")
     expected=reference_checksums(*(case[key] for key in ("m","n","k","modulus")))
     demand(tuple(capture.get(key) for key in ("a_checksum","b_checksum","output_checksum"))==expected,"full replay checksum mismatch")
     samples=capture.get("samples");demand(type(samples) is list and len(samples)==repeats,"invalid sample count")
@@ -200,7 +213,7 @@ def collect(args):
     for ordinal,(case,repeat) in enumerate(tasks):
         unchanged();run_id=str(uuid.uuid4())
         command=[str(exe),str(case["device"]),case["method"],case["scope"],*(str(case[key]) for key in ("m","n","k")),case["domain"],str(case["modulus"]),str(args.repeats),str(args.warmups)]
-        if case["method"]=="asymmetric_binary64":command.extend(str(case[key]) for key in ("left_digits","right_digits","slab_k"))
+        if case["method"] in FLOAT_METHODS:command.extend(str(case[key]) for key in ("left_digits","right_digits","slab_k"))
         command.append(run_id)
         record=dict(schema="rns8_word_mod_collection_v1",campaign_id=campaign,run_id=run_id,case=case,command=command,ordinal=ordinal,
             independent_repeat=repeat,order_seed=args.order_seed,started_unix_ns=time.time_ns(),artifact_sha256=artifact,collector_sha256=identities[Path(__file__).name],
@@ -221,7 +234,10 @@ def collect(args):
             demand(same(identity,cohort),"compiled build/device/runtime cohort mismatch")
             key=tuple(case[field] for field in ("m","n","k","modulus","domain"))
             demand(capture["output_checksum"]==outputs.setdefault(key,capture["output_checksum"]),"matched output mismatch")
-            unchanged();record.update(validated=True,provenance_complete=manifest_provenance_complete(capture["build_manifest"]))
+            unchanged();capture["execution_id"]=run_id
+            capture["artifact_capture"]=dict(executable_sha256=artifact,unchanged_during_run=True,rns8_linkage="static" if capture["build_manifest"].get("linkage")=="static-rns8" else "unresolved-shared")
+            with (output/f"{run_id}.capture.json").open("x",encoding="utf-8") as stream:json.dump(capture,stream,indent=2,allow_nan=False)
+            record.update(validated=True,provenance_complete=manifest_provenance_complete(capture["build_manifest"]))
             observations.append(dict(case=case,run_id=run_id,independent_repeat=repeat,sustained_mean_ns=capture["sustained"]["mean_call_ns"],
                 median_production_ns=statistics.median(sample["uninstrumented_host_call_ns"] for sample in capture["samples"])))
         except Exception as error:

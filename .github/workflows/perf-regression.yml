@@ -1,9 +1,21 @@
-name: Performance Regression Check
+name: Non-promoting Benchmark Smoke
+
+# This lane collects bounded diagnostic captures; it has no regression baseline
+# or numeric speed gate. Scientific release qualification is a separate campaign.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize physical-device use across every ref without interrupting a running
+# capture. Runner assignment must reserve gfx1100 from other device campaigns.
+concurrency:
+  group: rns8-gfx1100-benchmark-smoke
+  cancel-in-progress: false
 
 jobs:
   benchmark:
@@ -26,22 +38,24 @@ jobs:
           temp/dependency-tools/Scripts/python.exe -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
           "$pwd/temp/dependency-tools/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Build HIP debug
+      - name: Build HIP Release
         run: |
-          python tools/windows_dev.py cmake --preset windows-msvc-hip-debug
-          python tools/windows_dev.py cmake --build --preset windows-debug
+          python tools/windows_dev.py cmake --preset windows-msvc-hip-release
+          python tools/windows_dev.py cmake --build --preset windows-release
 
-      - name: Run lightweight benchmark matrix
+      - name: Plan bounded smoke through the supported sweep parser
         run: |
-          python tools/benchmark_sweep.py --scenario bounded-i64-512 bounded-u64-512 finite-field-u8-512 --bench build/windows-msvc-hip-debug/rns8-bench.exe --out-root temp/perf-regression-ci --warmups 1 --repeats 3 --progress
+          python tools/ci_benchmark_smoke.py --bench build/windows-msvc-hip-release/rns8-bench.exe --out-root temp/benchmark-smoke-ci --plan-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Compare against baseline
+      - name: Collect smoke captures (no promotion or regression claim)
         run: |
-          python tools/result_compare.py temp/perf-regression-ci --baseline temp/perf-baseline.json --max-regression 5.0
+          python tools/ci_benchmark_smoke.py --bench build/windows-msvc-hip-release/rns8-bench.exe --out-root temp/benchmark-smoke-ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Archive results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2; Node24 runner >=2.327.1
         with:
-          name: perf-results
-          path: temp/perf-regression-ci
+          name: non-promoting-benchmark-smoke-${{ github.sha }}
+          path: temp/benchmark-smoke-ci

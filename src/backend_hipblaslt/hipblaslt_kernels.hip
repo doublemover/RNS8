@@ -13,11 +13,7 @@ uint32_t rns8_modulus_reciprocal_host(int modulus) {
 }
 
 __device__ uint32_t rns8_reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
-  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
-  uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
 __device__ int8_t rns8_reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {

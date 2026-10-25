@@ -62,9 +62,9 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     __syncthreads();
 
     if (output_active) {
-      for (int kk = 0; kk < tile_extent; ++kk) {
-        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
-      }
+      acc = rns8::detail::accumulate_residue_tile(
+          &a_tile[thread_row][0], &b_tile[0][thread_col],
+          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
     }
 
     __syncthreads();
@@ -289,9 +289,9 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN) rns8_ring_gemm_
     __syncthreads();
 
     if (output_active && !output_zero_by_row_col) {
-      for (int kk = 0; kk < tile_extent; ++kk) {
-        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
-      }
+      acc = rns8::detail::accumulate_residue_tile(
+          &a_tile[thread_row][0], &b_tile[0][thread_col],
+          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
     }
 
     __syncthreads();
@@ -432,9 +432,9 @@ __global__ void __launch_bounds__(kRns8HipTileM * kRns8HipTileN)
     __syncthreads();
 
     if (output_active && !output_zero_by_row_col) {
-      for (int kk = 0; kk < tile_extent; ++kk) {
-        acc += static_cast<int32_t>(a_tile[thread_row][kk]) * static_cast<int32_t>(b_tile[kk][thread_col]);
-      }
+      acc = rns8::detail::accumulate_residue_tile(
+          &a_tile[thread_row][0], &b_tile[0][thread_col],
+          sizeof(b_tile[0]) / sizeof(b_tile[0][0]), tile_extent, acc);
     }
 
     __syncthreads();

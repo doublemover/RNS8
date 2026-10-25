@@ -1,4 +1,5 @@
 #include "backend_common/address_domain.hpp"
+#include "backend_common/residue_epilogue.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/api_internal.hpp"
 #include "backend_common/complex_residue_plan.hpp"
@@ -7,6 +8,7 @@ using namespace rns8::detail::api;
 #include "core/api_complex_residue.inc"
 #include "core/api_block_sparse.inc"
 #include "core/api_encoded_b.inc"
+#include "core/api_int4.inc"
 
 rns8_status rns8_gemm_complex_exact_signed(
     rns8_context* ctx, const rns8_plan* plan,
@@ -31,11 +33,15 @@ rns8_status rns8_gemm_narrow_exact(
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !C || !workspace || A==C || B==C ||
-        (method!=RNS8_NARROW_SCALAR_I64 && method!=RNS8_NARROW_BYTE_WMMA))
+        (uint32_t(method)>3))
       return RNS8_INVALID_ARGUMENT;
     if (plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics) ||
-        (method==RNS8_NARROW_SCALAR_I64 && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
+        (!(uint32_t(method)&1) && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
       return RNS8_UNSUPPORTED_BACKEND;
+    rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
+    query.operation=RNS8_OP_NARROW_NATIVE;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;query.algorithm=method;
+    query.proof_flags=RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_NARROW_INPUT_PROOF;query.lda=A->desc.cols;query.ldb=B->desc.cols;query.ldc=C->desc.cols;query.scratch_budget=max_scratch_bytes;
+    const auto provider=operation_support(*ctx,query,plan->backend);if(provider.status!=RNS8_SUCCESS)return provider.status;
     auto status=validate_plan_context_workspace(*ctx,*plan,*workspace);
     if (status!=RNS8_SUCCESS) return status;
     status=validate_rns_gemm_operands(*ctx,*plan,*A,*B,*C,true);
@@ -43,7 +49,7 @@ rns8_status rns8_gemm_narrow_exact(
     if (C->generation_exhausted) return RNS8_RANGE_ERROR;
     const bool unsigned_inputs=plan->desc.semantics==RNS8_EXACT_WIDE_UNSIGNED;
     const auto support=query_narrow_rns_support(plan->desc.m,plan->desc.n,plan->desc.k,
-        A->desc.cols,B->desc.cols,plan->prefix,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes);
+        A->desc.cols,B->desc.cols,plan->prefix,bool(uint32_t(method)&1),max_scratch_bytes,method>=RNS8_NARROW_SCALAR_FUSED_RNS);
     if (support.status!=RNS8_SUCCESS) return support.status;
     const auto native=[&](const rns8_matrix& input) -> const void* {
       if (!(input.desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT) || !input.device_native_current ||
@@ -59,20 +65,17 @@ rns8_status rns8_gemm_narrow_exact(
     rns8_exact_matrix_ranges ranges;
     status=exact_gemm_range(*plan,*A,*B,bound,&ranges);
     if (status!=RNS8_SUCCESS) return status;
-    bool commit_started=false;
-    struct CommitGuard {
-      rns8_matrix& output;
-      bool& started;
-      bool published=false;
-      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
-    } write{*C,commit_started};
+    bool commit_started=false;size_t lease_token=0;
+    status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
+    struct LeaseGuard {rns8_context& ctx;size_t token;bool& written;bool active=true;
+      ~LeaseGuard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} lease{*ctx,lease_token,commit_started};
     status=hip_direct_gemm_narrow_rns_device(ctx->device_id,a,b,C->hip_residues,
         plan->desc.m,plan->desc.n,plan->desc.k,A->desc.cols,B->desc.cols,plan->prefix,
-        unsigned_inputs,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes,commit_started);
+        unsigned_inputs,bool(uint32_t(method)&1),max_scratch_bytes,commit_started,method>=RNS8_NARROW_SCALAR_FUSED_RNS);
+    finish_synchronous_lease(*ctx,lease_token,status,commit_started);lease.active=false;
     if (status!=RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C,*plan,bound,&ranges);
-    write.published=true;
     return RNS8_SUCCESS;
   });
 }
@@ -215,25 +218,18 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
       const auto m = plan->desc.m, n = plan->desc.n, k = plan->desc.k;
       for (uint32_t p = 0; p < plan->prefix; ++p) {
         const int64_t modulus = kDefaultModuli[p];
-        const int64_t am = alpha % modulus, bm = beta % modulus;
+        const auto coefficients=lower_residue_axpby(alpha,beta,uint32_t(modulus));
         for (int64_t row = 0; row < m; ++row)
           for (int64_t col = 0; col < n; ++col) {
             int64_t sum = 0;
-            for (int64_t q = 0; q < k; ++q)
+            if(coefficients.alpha!=0)for (int64_t q = 0; q < k; ++q)
               sum =
                   (sum + int64_t{A->residues[(int64_t{p} * m + row) * k + q]} *
                              B->residues[(int64_t{p} * k + q) * n + col]) %
                   modulus;
-            int64_t result =
-                (am * sum +
-                 bm * D->residues[(int64_t{p} * m + row) * n + col]) %
-                modulus;
-            if (result < 0)
-              result += modulus;
-            if (result >= (modulus + 1) / 2)
-              result -= modulus;
-            C->residues[(int64_t{p} * m + row) * n + col] =
-                static_cast<int8_t>(result);
+            const int8_t product=finite_u8::reduce_to_centered_i32(int32_t(sum),uint32_t(modulus),coefficients.reciprocal);
+            const int8_t addend=coefficients.beta?D->residues[(int64_t{p}*m+row)*n+col]:int8_t{0};
+            C->residues[(int64_t{p}*m+row)*n+col]=centered_residue_axpby_reduced(product,addend,coefficients);
           }
       }
       mark_output_host_residues_current(*C, plan);

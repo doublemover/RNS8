@@ -157,6 +157,8 @@ const char* selector_family_for_backend(rns8_backend_kind backend) {
       return "wrap64_byte_limb_family";
     case RNS8_BACKEND_CPU_REFERENCE:
       return "cpu_reference_family";
+    case RNS8_BACKEND_CPU_AMX:
+      return "cpu_amx_explicit_matrix_engine_family";
     case RNS8_BACKEND_AUTO:
       return "auto_exact_cache_family";
   }

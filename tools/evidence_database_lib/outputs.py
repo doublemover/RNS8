@@ -181,6 +181,15 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 value_heading=label,
                 counts=scenario_metadata_counts(database, row_key),
             )
+    inventory_rows = [row for row in database["rows"] if (row.get("isa_inventory") or {}).get("isa_report_count")]
+    if inventory_rows:
+        lines.extend(["", "## Unqualified ISA inventory diagnostics", "",
+            "These reports are preserved independently of selected-symbol admission. Missing bindings do not provide per-capture resource values.", "",
+            "| capture | inventory reports | selected association |", "|---|---:|---|"])
+        for row in inventory_rows:
+            association = row.get("isa_association") or {}
+            state = "qualified static mapping" if association.get("qualified") else ", ".join(association.get("reasons") or ["unknown"])
+            lines.append(f"| {row.get('capture_path')} | {row['isa_inventory']['isa_report_count']} | {state} |")
     isa_rows = [row for row in database["rows"] if row.get("isa_report_count")]
     if isa_rows:
         lines.extend(
@@ -188,19 +197,28 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 "",
                 "## ISA Resources",
                 "",
-                "| backend | target | captures | reports | matrix | dense int | sparse int | WMMA | MFMA | SMFMAC | SWMMAC | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
-                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "Artifact-bound selected static symbols only; counts are opcode inventory, not executed work. Resource maxima across an explicit symbol set are not one kernel's occupancy.",
+                "",
+                "| backend | target | kernel | artifact/symbol identity | captures | reports | matrix | dense int | sparse int | WMMA | MFMA | SMFMAC | SWMMAC | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
+                "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
-        groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+        groups = defaultdict(list)
         for row in isa_rows:
-            groups[(str(row.get("backend")), ",".join(row.get("isa_report_targets") or []))].append(row)
-        for (backend, target), grouped_rows in sorted(groups.items()):
+            identities = sorted((str((r.get("isa_capture_binding") or {}).get("artifact_sha256")),
+                                 str(r.get("isa_code_object_sha256")), str(r.get("isa_selected_symbol")))
+                                for r in row.get("isa_resource_reports", []))
+            identity = json.dumps(identities, separators=(",", ":"))
+            groups[(str(row.get("backend")), ",".join(row.get("isa_report_targets") or []),
+                    str(row.get("selected_kernel")), identity)].append(row)
+        for (backend, target, kernel, identity), grouped_rows in sorted(groups.items()):
             representative = grouped_rows[0]
             lines.append(
-                "| {backend} | {target} | {captures} | {reports} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {smfmac} | {swmmac} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
+                "| {backend} | {target} | {kernel} | {identity} | {captures} | {reports} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {smfmac} | {swmmac} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
                     backend=backend,
                     target=target,
+                    kernel=kernel,
+                    identity=identity,
                     captures=len(grouped_rows),
                     reports=representative.get("isa_report_count"),
                     matrix=format_number(representative.get("isa_matrix_instruction_count")),

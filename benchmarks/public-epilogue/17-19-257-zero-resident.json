@@ -1,0 +1,11 @@
+{
+  "schema": "epilogue_public_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 257,
+  "repeats": 9,
+  "warmups": 3,
+  "backend": "hip-direct",
+  "coefficient_profile": "zero",
+  "residency": "resident"
+}

@@ -34,8 +34,10 @@ def verify_generated_source(directory, root=None):
     return manifest
 
 
-def inspect(config, directory):
+def inspect(config, directory, logical_report=None):
     manifest = verify_generated_source(directory)
+    from check_native_wmma_logic import load_bound_report
+    logical = load_bound_report(directory, logical_report) if logical_report else None
     if any(entry["spec"]["target"] != config.target for entry in manifest["variants"]):
         raise ValueError("inspection target does not match generated target")
     reports, failures = [], []
@@ -65,6 +67,7 @@ def inspect(config, directory):
                             "remainder_diagnostics": forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)})
     return {"schema": "rns8_generated_native_isa_v1", "target": config.target, "artifact": artifact,
             "generated_source_sha256": manifest["source_sha256"], "symbols": reports,
+            "logical_assurance": logical,
             "inspection_failures": failures, "inspection_passed": not failures,
             "checker_sha256": sha(Path(__file__).read_bytes()),
             "device_differential_executed": False, "performance_qualified": False, "promotion_eligible": False}
@@ -75,6 +78,7 @@ def main():
     parser.add_argument("--object", type=Path, required=True)
     parser.add_argument("--generated-dir", type=Path, required=True)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--logical-report", type=Path)
     parser.add_argument("--hipcc", type=Path)
     parser.add_argument("--scratch-root", type=Path, default=Path("temp"))
     parser.add_argument("--output", type=Path, required=True)
@@ -82,7 +86,7 @@ def main():
     config = IsaToolConfig(args.object, args.target, sibling_tool(args.hipcc, "llvm-objcopy"),
                            sibling_tool(args.hipcc, "llvm-objdump"), sibling_tool(args.hipcc, "clang-offload-bundler"),
                            args.scratch_root)
-    result = inspect(config, args.generated_dir)
+    result = inspect(config, args.generated_dir, args.logical_report)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     print("Generated native WMMA ISA:", "PASS" if result["inspection_passed"] else "FAIL")

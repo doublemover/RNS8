@@ -51,23 +51,16 @@ const char* bound_contract_name_for_plan(const rns8_plan& plan) {
 }
 
 bool direct_hip_bounded_skinny_gemv_n1_plan(const rns8_plan& plan) {
-  return plan.backend == RNS8_BACKEND_HIP_DIRECT &&
-         plan.tile_schedule.empty() &&
-         plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
-         plan.desc.n == 1 &&
-         (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64);
+  return plan.backend==RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
+      (plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n==1;
 }
-
 bool direct_hip_bounded_skinny_gemv_small_n_plan(const rns8_plan& plan) {
-  return plan.backend == RNS8_BACKEND_HIP_DIRECT &&
-         plan.tile_schedule.empty() &&
-         plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
-         plan.desc.n > 1 &&
-         plan.desc.n <= 8 &&
-         (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64);
+  return plan.backend==RNS8_BACKEND_HIP_DIRECT && plan.tile_schedule.empty() &&
+      (plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL) && plan.desc.n>1 && plan.desc.n<=8;
 }
 
 std::string selected_kernel_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_int8_16x16x64_centered_v1";
   if (plan.backend == RNS8_BACKEND_CPU_REFERENCE) {
     return uses_finite_storage(plan.desc.semantics) ? "cpu_reference_finite_u8_gemm_v1"
                                                     : "cpu_reference_scalar_rns_gemm_v1";
@@ -91,22 +84,8 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
       }
       return "direct_hip_tiled_finite_u8_gemm_v1";
     }
-    if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
-      return plan.desc.semantics == RNS8_BOUNDED_I64 ? "direct_hip_prefix9_rns_gemv_n1_i64_v1"
-                                                     : "direct_hip_prefix9_rns_gemv_n1_u64_v1";
-    }
-    if (direct_hip_bounded_skinny_gemv_small_n_plan(plan)) {
-      return plan.desc.semantics == RNS8_BOUNDED_I64 ? "direct_hip_prefix9_rns_gemv_small_n_i64_v1"
-                                                     : "direct_hip_prefix9_rns_gemv_small_n_u64_v1";
-    }
-    if (plan.tile_schedule.empty() && plan.prefix == RNS8_DEFAULT_BOUNDED_PREFIX &&
-        (plan.desc.semantics == RNS8_BOUNDED_I64 || plan.desc.semantics == RNS8_BOUNDED_U64)) {
-      return "direct_hip_prefix9_grouped_rns_gemm_v1";
-    }
-    if (plan.tile_schedule.empty() && plan.prefix == RNS8_MAX_SUPPORTED_PREFIX &&
-        (plan.desc.semantics == RNS8_EXACT_WIDE_SIGNED || plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED)) {
-      return "direct_hip_prefix20_grouped_rns_gemm_v1";
-    }
+    if(plan.tile_schedule.empty())return rns8::detail::direct_rns_route_name(rns8::detail::direct_rns_route(
+      plan.desc.m,plan.desc.n,plan.desc.k,plan.desc.k,plan.desc.n,plan.desc.n,plan.prefix,(plan.desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL)!=0));
     if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
       if ((plan.schedule_flags & RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT) != 0) {
         return "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1";
@@ -124,6 +103,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
                                                      : "hip_vector_alu_u64_gemv_n1_exact_192b_v1";
     }
     if (plan.desc.n > 1 && plan.desc.n <= 8 && plan.desc.k >= 512) {
+      if(plan.desc.flags&RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH)return std::string(plan.desc.semantics==RNS8_BOUNDED_I64?"hip_vector_alu_i64_gemv_n":"hip_vector_alu_u64_gemv_n")+std::to_string(plan.desc.n)+"_exact_width_192b_v1";
       return plan.desc.semantics == RNS8_BOUNDED_I64 ? "hip_vector_alu_i64_gemv_small_n_exact_192b_v1"
                                                      : "hip_vector_alu_u64_gemv_small_n_exact_192b_v1";
     }
@@ -181,6 +161,7 @@ std::string selected_kernel_for_plan(const rns8_plan& plan) {
 }
 
 std::string epilogue_mode_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_tile_local_centered_then_reference_crt";
   if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
     return "low64_wrap_export";
   }
@@ -239,6 +220,7 @@ std::string epilogue_mode_for_plan(const rns8_plan& plan) {
 }
 
 std::string workspace_mode_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu_amx_per_worker_tiles_cached_b_transactional_output";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (direct_hip_bounded_skinny_gemv_n1_plan(plan)) {
       return "resident_rns_inputs_skinny_n1_output";
@@ -310,6 +292,7 @@ bool concrete_device_target_id(const std::string& target) {
 }
 
 std::string target_id_for_plan_context(const rns8_plan& plan, const rns8_context* ctx) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "cpu-amx-int8";
   if (!hip_device_backend(plan.backend)) {
     return "cpu";
   }
@@ -362,6 +345,7 @@ const char* next_op_hint_for_plan(const rns8_plan& plan) {
 }
 
 std::string isa_evidence_for_plan(const rns8_plan& plan) {
+  if(plan.backend==RNS8_BACKEND_CPU_AMX)return "source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified";
   if (plan.backend == RNS8_BACKEND_HIP_DIRECT) {
     if (plan.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
       return "wrap64_byte_gemm36_isa_gate_no_variable_divide_no_matrix_engine";
@@ -456,7 +440,8 @@ uint32_t accumulator_safe_for_k_block_for_plan(const rns8_plan& plan) {
   if (k_block == 0 || product == 0) {
     return 0u;
   }
-  return product <= static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) / k_block ? 1u : 0u;
+  const uint64_t previous=plan.backend==RNS8_BACKEND_CPU_AMX?128:0;
+  return product <= (static_cast<uint64_t>(std::numeric_limits<int32_t>::max())-previous) / k_block ? 1u : 0u;
 }
 
 std::string accumulator_input_domain_for_plan(const rns8_plan& plan) {

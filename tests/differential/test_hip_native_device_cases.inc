@@ -231,3 +231,136 @@ TEST_CASE("native HIP limb exports preserve exact wide products and padded desti
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("native transfer prepared owners retain leases, refresh generations and replay checked graphs") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  using namespace rns8::detail;using namespace native_device_fixture;
+  if(!hip_available())SKIP("no HIP device");auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool u:{false,true}) {
+    hip_direct_device_buffer input,output;std::vector<uint64_t> values(24,99),observed(24,77);
+    for(int r=0;r<3;++r)for(int c=0;c<5;++c)values[1+r*7+c]=u?uint64_t(r*5+c):uint64_t(int64_t(r*5+c)-7);
+    REQUIRE(input.allocate(0,192)==RNS8_SUCCESS);REQUIRE(output.allocate(0,192)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,input.get(),values.data(),192)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,output.get(),observed.data(),192)==RNS8_SUCCESS);
+    Owner source_owner,destination_owner;auto source=descriptor(input.get(),192,source_owner),destination=descriptor(output.get(),192,destination_owner);
+    source.element_type=destination.element_type=u?RNS8_NATIVE_DEVICE_U64:RNS8_NATIVE_DEVICE_I64;destination.access=RNS8_NATIVE_DEVICE_WRITE;destination.owner_identity=202;
+    rns8_native_device_lease *read=nullptr,*write=nullptr;REQUIRE(rns8_create_native_device_lease(ctx,&source,&read)==RNS8_SUCCESS);REQUIRE(rns8_create_native_device_lease(ctx,&destination,&write)==RNS8_SUCCESS);
+    auto md=matrix_desc(3,5,u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED,RNS8_BOUND_NONE);md.max_prefix=3;md.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    rns8_native_transfer_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.import_values=1;options.verify_input_bound=1;options.max_input_magnitude=14;options.max_total_scratch_bytes=184;
+    rns8_prepared_execution *importer=nullptr,*exporter=nullptr;
+    REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrix,read,&options,&importer)==RNS8_WORKSPACE_TOO_SMALL);REQUIRE(!importer);
+    options.max_total_scratch_bytes=185; // 45 RNS + 16 status/scan + 4 pinned + 120 retained native
+    REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrix,read,&options,&importer)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_native_device_lease(read)==RNS8_BUSY);REQUIRE(source_owner.released==0);
+    REQUIRE(rns8_capture_prepared_hip_graph(importer)==RNS8_SUCCESS);
+    rns8_completion_token initial{};REQUIRE(rns8_execute_prepared(importer,&initial)==RNS8_SUCCESS);
+    REQUIRE(matrix->device_native_current);REQUIRE(matrix->exact_max_magnitude==14);
+    options.import_values=0;options.verify_input_bound=0;options.max_input_magnitude=0;options.max_total_scratch_bytes=128;
+    REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrix,write,&options,&exporter)==RNS8_SUCCESS);REQUIRE(rns8_capture_prepared_hip_graph(exporter)==RNS8_SUCCESS);
+    hip_unique_stream producer_stream,import_stream,export_stream;
+    REQUIRE(producer_stream.create_non_blocking()==hipSuccess);REQUIRE(import_stream.create_non_blocking()==hipSuccess);REQUIRE(export_stream.create_non_blocking()==hipSuccess);
+    for(bool invalid:{false,true}) {
+      REQUIRE(rns8_begin_native_device_write(read)==RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_native_device_lease(read)==RNS8_BUSY);
+      REQUIRE(rns8_end_native_device_write(read,1)==RNS8_INVALID_ARGUMENT);
+      // Device producer writes one scalar on its own stream, without a host
+      // payload transfer. Invalid input is an authored value, not fault injection.
+      REQUIRE(hipMemsetAsync(static_cast<uint8_t*>(input.get())+8,invalid?0xff:0,8,producer_stream.get())==hipSuccess);
+      // Signed -1 fits; force unsigned 255 / signed +255 with a separate byte.
+      if(invalid){REQUIRE(hipMemsetAsync(static_cast<uint8_t*>(input.get())+8,0,8,producer_stream.get())==hipSuccess);
+        REQUIRE(hipMemsetAsync(static_cast<uint8_t*>(input.get())+8,0xff,1,producer_stream.get())==hipSuccess);}
+      REQUIRE(rns8_end_native_device_write_hip(read,invalid?3:2,producer_stream.get())==RNS8_SUCCESS);
+      rns8_completion_token untouched{99,99};REQUIRE(rns8_submit_prepared_hip_graph(importer,import_stream.get(),&untouched)==RNS8_INVALID_ARGUMENT);REQUIRE(untouched.epoch==99);
+      REQUIRE(rns8_refresh_prepared_inputs(importer)==RNS8_SUCCESS);
+      const auto before=hip_direct_allocation_counters_snapshot();rns8_completion_token imported{},exported{};
+      REQUIRE(rns8_submit_prepared_hip_graph(importer,import_stream.get(),&imported)==RNS8_SUCCESS);
+      REQUIRE(rns8_begin_native_device_write(read)==RNS8_BUSY);REQUIRE(rns8_destroy_prepared_execution(importer)==RNS8_BUSY);
+      REQUIRE(rns8_bind_prepared_dependency(exporter,importer,imported)==RNS8_SUCCESS);
+      REQUIRE(rns8_submit_prepared_hip_graph_pipeline(exporter,export_stream.get(),&exported)==RNS8_SUCCESS);
+      rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_wait_prepared_hip(exporter,exported,&completion)==RNS8_SUCCESS);
+      REQUIRE(completion.operation_status==(invalid?RNS8_RANGE_ERROR:RNS8_SUCCESS));REQUIRE(bool(completion.output_is_current)==!invalid);
+      const auto after=hip_direct_allocation_counters_snapshot();REQUIRE(after.allocate_calls==before.allocate_calls);REQUIRE(after.free_calls==before.free_calls);
+      rns8_prepared_transfer_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_prepared_transfer_info(importer,&info)==RNS8_SUCCESS);REQUIRE(info.external_generation==(invalid?3u:2u));REQUIRE(info.retained_native_matrix_bytes==120);REQUIRE(info.verified_input_bound);
+      REQUIRE(rns8_get_prepared_transfer_info(exporter,&info)==RNS8_SUCCESS);REQUIRE(bool(info.external_result_current)==!invalid);
+      if(!invalid){REQUIRE(hip_direct_copy_device_to_host(0,observed.data(),output.get(),192)==RNS8_SUCCESS);
+        values[1]=0;for(int r=0;r<3;++r)for(int c=0;c<5;++c)REQUIRE(observed[1+r*7+c]==values[1+r*7+c]);
+        REQUIRE(observed[0]==77);REQUIRE(observed[6]==77);REQUIRE(observed[23]==77);}
+    }
+    REQUIRE(rns8_destroy_prepared_execution(exporter)==RNS8_SUCCESS);REQUIRE(rns8_destroy_prepared_execution(importer)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_native_device_lease(write)==RNS8_SUCCESS);REQUIRE(rns8_destroy_native_device_lease(read)==RNS8_SUCCESS);
+    REQUIRE(source_owner.released==1);REQUIRE(destination_owner.released==1);REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#else
+  SKIP("HIP not compiled");
+#endif
+}
+
+
+TEST_CASE("prepared native export shares every signed/unsigned prefix and limb-width kernel") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  using namespace rns8::detail;using namespace native_device_fixture;
+  if(!hip_available())SKIP("no HIP device");auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool u:{false,true})for(uint32_t prefix:{1u,3u,9u,18u,20u}) {
+    auto md=matrix_desc(1,1,u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED,RNS8_BOUND_NONE);md.max_prefix=prefix;
+    rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    const uint64_t one=u?1:UINT64_MAX;REQUIRE((u?rns8_pack_u64(ctx,matrix,&one,1,0):rns8_pack_i64(ctx,matrix,reinterpret_cast<const int64_t*>(&one),1,0))==RNS8_SUCCESS);
+    for(uint32_t limbs:{1u,2u,3u,4u,8u,16u,32u}) {
+      const uint64_t width=8*limbs;std::vector<uint64_t> values(3*limbs,99);hip_direct_device_buffer output;REQUIRE(output.allocate(0,width*3)==RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(0,output.get(),values.data(),width*3)==RNS8_SUCCESS);
+      Owner owner;auto desc=descriptor(output.get(),width*3,owner);desc.rows=desc.cols=1;desc.ld=3;desc.byte_offset=width;desc.access=RNS8_NATIVE_DEVICE_WRITE;
+      desc.element_type=u?RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS:RNS8_NATIVE_DEVICE_SIGNED_LIMBS;desc.limb_count=limbs;
+      rns8_native_device_lease* lease=nullptr;REQUIRE(rns8_create_native_device_lease(ctx,&desc,&lease)==RNS8_SUCCESS);
+      rns8_native_transfer_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.max_total_scratch_bytes=width+8;
+      rns8_prepared_execution* prepared=nullptr;REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrix,lease,&options,&prepared)==RNS8_SUCCESS);
+      REQUIRE(rns8_capture_prepared_hip_graph(prepared)==RNS8_SUCCESS);hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+      rns8_completion_token token{};REQUIRE(rns8_submit_prepared_hip_graph(prepared,stream.get(),&token)==RNS8_SUCCESS);
+      rns8_completion_info result{};result.struct_size=sizeof(result);result.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_wait_prepared_hip(prepared,token,&result)==RNS8_SUCCESS);REQUIRE(result.output_is_current);
+      REQUIRE(hip_direct_copy_device_to_host(0,values.data(),output.get(),width*3)==RNS8_SUCCESS);
+      for(uint32_t i=0;i<3*limbs;++i)REQUIRE(values[i]==(i<limbs || i>=2*limbs?99:u?(i==limbs?1:0):UINT64_MAX));
+      REQUIRE(rns8_destroy_prepared_execution(prepared)==RNS8_SUCCESS);REQUIRE(rns8_destroy_native_device_lease(lease)==RNS8_SUCCESS);REQUIRE(owner.released==1);
+    }
+    REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#else
+  SKIP("HIP not compiled");
+#endif
+}
+
+TEST_CASE("distinct immutable native leases share reads but never an external writer or mutation epoch") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  using namespace rns8::detail;using namespace native_device_fixture;
+  if(!hip_available())SKIP("no HIP device");auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  hip_direct_device_buffer input;REQUIRE(input.allocate(0,8)==RNS8_SUCCESS);int64_t value=2;REQUIRE(hip_direct_copy_host_to_device(0,input.get(),&value,8)==RNS8_SUCCESS);
+  Owner owner;auto desc=descriptor(input.get(),8,owner);desc.rows=desc.cols=desc.ld=1;desc.byte_offset=0;
+  rns8_native_device_lease *leases[2]{};REQUIRE(rns8_create_native_device_lease(ctx,&desc,&leases[0])==RNS8_SUCCESS);REQUIRE(rns8_create_native_device_lease(ctx,&desc,&leases[1])==RNS8_SUCCESS);
+  auto writer=desc;writer.access=RNS8_NATIVE_DEVICE_WRITE;rns8_native_device_lease* rejected=nullptr;
+  REQUIRE(rns8_create_native_device_lease(ctx,&writer,&rejected)==RNS8_INVALID_ARGUMENT);REQUIRE(!rejected);
+  REQUIRE(rns8_begin_native_device_write(leases[0])==RNS8_BUSY);
+  rns8_matrix* matrices[2]{};rns8_prepared_execution* operations[2]{};
+  auto md=matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED,RNS8_BOUND_NONE);md.max_prefix=3;
+  rns8_native_transfer_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.import_values=1;options.verify_input_bound=1;options.max_input_magnitude=2;options.max_total_scratch_bytes=23;
+  for(unsigned i=0;i<2;++i){REQUIRE(rns8_create_matrix(ctx,&md,&matrices[i])==RNS8_SUCCESS);REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrices[i],leases[i],&options,&operations[i])==RNS8_SUCCESS);}
+  rns8_prepared_execution* same=nullptr;REQUIRE(rns8_prepare_native_transfer_hip(ctx,matrices[1],leases[0],&options,&same)==RNS8_SUCCESS);
+  rns8_prepared_execution* duplicate[]{operations[0],same};rns8_prepared_group* group=nullptr;
+  REQUIRE(rns8_create_prepared_group(duplicate,2,&group)==RNS8_INVALID_ARGUMENT);REQUIRE(!group);REQUIRE(rns8_destroy_prepared_execution(same)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_prepared_group(operations,2,&group)==RNS8_SUCCESS);hip_unique_stream streams[2];for(auto& stream:streams)REQUIRE(stream.create_non_blocking()==hipSuccess);
+  void* raw[]{streams[0].get(),streams[1].get()};rns8_completion_token tokens[2]{};uint32_t issued=0;
+  REQUIRE(rns8_submit_prepared_group_hip(group,raw,2,tokens,2,&issued)==RNS8_SUCCESS);REQUIRE(issued==2);
+  for(int i:{1,0}){rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_wait_prepared_hip(operations[i],tokens[i],&completion)==RNS8_SUCCESS);REQUIRE(completion.output_is_current);REQUIRE(owner.released==0);}
+  REQUIRE(rns8_destroy_prepared_group(group)==RNS8_SUCCESS);
+  for(auto* operation:operations)REQUIRE(rns8_destroy_prepared_execution(operation)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_native_device_lease(leases[1])==RNS8_SUCCESS);REQUIRE(owner.released==1);
+  REQUIRE(rns8_begin_native_device_write(leases[0])==RNS8_SUCCESS);REQUIRE(rns8_end_native_device_write(leases[0],2)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_native_device_lease(leases[0])==RNS8_SUCCESS);REQUIRE(owner.acquired==2);REQUIRE(owner.released==2);
+  for(auto* matrix:matrices)REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+#else
+  SKIP("HIP not compiled");
+#endif
+}

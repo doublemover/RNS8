@@ -15,7 +15,9 @@ struct ProductNodeCosts {
   ProductNodeCosts() { gemm.fill(UINT64_MAX); lift.fill(UINT64_MAX); }
 };
 struct ProductCostProfile {
-  uint32_t version=1, max_evaluations=4096;
+  // v2 lift estimates price retained suffix/status scratch on HIP (including
+  // reset/check/staged copy), or inline host extension on CPU; not one-shot malloc.
+  uint32_t version=2, max_evaluations=4096;
   uint64_t graph_key=0;
   rns8_backend_kind backend=RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
@@ -95,7 +97,7 @@ inline ProductPrefixSelection select_product_prefixes(const std::vector<ProductS
     uint64_t budget,bool gpu,const ProductCostProfile& costs,
     const std::vector<uint32_t>& outputs = {}) {
   ProductPrefixSelection best;
-  if(costs.version!=1 || costs.provenance.empty() || costs.target.empty() ||
+  if(costs.version!=2 || costs.provenance.empty() || costs.target.empty() ||
       costs.max_evaluations<2 || costs.max_evaluations>65536 || nodes.size()>64 ||
       costs.nodes.size()!=nodes.size() || minimum.size()!=nodes.size() ||
       costs.graph_key!=product_graph_key(inputs,nodes,prefix,outputs)) {

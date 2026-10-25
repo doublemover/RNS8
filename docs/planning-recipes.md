@@ -83,3 +83,73 @@ Authored fixtures cover ordered reuse, forks, retained results, producer/consume
 overlap, reversed declarations, uint64 limits, cyclic graphs and predictor
 accounting. They await the consolidated validation pass. Runtime adapters and
 measured planner promotion remain separate work.
+
+## Runtime discovery and shortlist (implementation, not qualification)
+
+`rns8_query_operation_support` is a read-only, versioned provider query. It
+separates source inventory, compiled availability, context observation and the
+always-independent correctness/performance qualification fields. It does not
+probe a GPU, allocate device storage, read a reviewed cache or authorize caller
+proof assertions. Concrete methods, representations, coefficient signedness,
+full padded spans, execution modes and checked scratch are explicit. Ordinary
+plan creation, prepared admission and narrow/bilinear owners consume the same
+provider; their existing actual-value, generation, pointer, alias and target
+binding remains mandatory. Opaque runtime/graph setup is unknown, not zero.
+
+`rns8-inspect --operations [--json]` renders the same records for a documented
+sample problem; it is **not** a universal support matrix or an on-device receipt.
+The C++ `operation_support` wrapper preserves all rejection records.
+
+`rns8_plan_pipeline` returns a non-promoting shortlist of executable ordinary
+plan descriptors and stage DAGs. For uniform exact-wide input it compares the
+minimum unique-integer prefix with a possibly stronger prefix satisfying
+`4 B <= M` for the real quarter-CRT owner. A resident output requests no CRT.
+It charges native import, packing, per-plane multiply-add, reconstruction and
+readback, with retained-A/B and setup-reuse contracts. Calibrations bind backend,
+exact target and this build identity; missing/stale rates produce unknown cost,
+not a zero-cost winner. Positive finite lower/upper rates schedule dependencies
+and shared host/copy/compute resources explicitly. Costs cannot alter arithmetic
+or resource admissibility or create an AUTO reviewed-cache record.
+
+Memory admission uses a conservative **simultaneous live payload sum**, not the
+peak of optimistic/slow endpoint schedules. This remains sound for interior
+rates and deliberately reports opaque setup separately. The budget is explicit
+payload storage, not a claim about process RSS, allocator overhead, library
+caches or graph internals. A shortlist still requires ordinary plan/owner
+creation and current-value binding; hypothetical range flags never certify an
+actual matrix. CPU table-driven parity, budget, stronger-prefix, stale-cost and
+resident-boundary regressions are authored; execution and hardware/model
+qualification are deferred.
+
+### Explicit current-value fixed-basis plans
+
+`RNS8_PLAN_EXACT_VALUE_BOUND | RNS8_PLAN_FORCE_FIXED_PREFIX` admits an exact-wide
+plan with a 1–20-plane capacity chosen for current values, rather than for every
+possible native64 product. Ordinary plan creation without this explicit opt-in
+retains its full-native admission floor. The new flag is invalid for bounded,
+finite or wrap semantics and without fixed-prefix execution.
+
+This is **not** a trusted caller range assertion. The static arithmetic
+certificate proves the physical modular lowering; its integer output bound is
+unknown. Every ordinary/prepared/group/resident expression still binds current
+matrix generations, materialized planes and engine-owned range proofs before
+writes. Insufficient range rejects without replacing the previous output. An
+exact epilogue proves the complete expression, not an unobserved product whose
+coefficient may be zero. A changed input can invalidate an otherwise reusable
+plan or prepared execution.
+
+Before binding, schedule range bits are zero (unknown), and required/selected
+prefix fields name the fixed capacity, not a proved output range. The policy is
+part of the autotune key, arithmetic identity and immutable plan fingerprint.
+The public pipeline shortlist emits these explicit descriptors; its supplied
+magnitude is a planning estimate only and cannot bypass binding.
+
+Public narrow, bilinear, native-queue/integrity/interop and lift-producer
+calibrators now request this policy where their declared small-value workload
+uses a short fixed basis. Their full-width and automatically selected controls
+remain separately identified. This repairs the prior mismatch between authored
+small-prefix cases and ordinary full-native admission; no measured result or
+previous execution receipt is claimed. Regression source covers every capacity,
+default rejection, illegal flag combinations, runtime range failure, unchanged
+old outputs, stale prepared values and whole-expression epilogues. Execution is
+deferred.

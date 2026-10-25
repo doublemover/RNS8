@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+from observation_cohorts import aggregate_captures, canonical_work, phase_median, evidence, qualified, best_implementation
 
 
 DEFAULT_OUT_DIR = Path("temp") / "adaptive-grouped-scheduler-reports"
@@ -23,43 +24,11 @@ def _backend(capture: dict[str, Any]) -> str:
 
 
 def _median(capture: dict[str, Any], phase: str = "end_to_end") -> float | None:
-    summary = capture.get("timing_summary_us")
-    if isinstance(summary, dict):
-        phase_summary = summary.get(phase)
-        if isinstance(phase_summary, dict) and isinstance(phase_summary.get("median"), (int, float)):
-            return float(phase_summary["median"])
-    timings = capture.get("timings_us")
-    if isinstance(timings, dict):
-        values = timings.get(phase)
-        if isinstance(values, list) and values:
-            numeric = sorted(float(value) for value in values if isinstance(value, (int, float)))
-            if numeric:
-                return numeric[len(numeric) // 2]
-    avg_key = f"avg_{phase}_us"
-    if isinstance(capture.get(avg_key), (int, float)):
-        return float(capture[avg_key])
-    return None
+    return phase_median(capture, phase)
 
 
 def _same_contract_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    schedule = capture.get("schedule_metadata") if isinstance(capture.get("schedule_metadata"), dict) else {}
-    return (
-        capture.get("semantics"),
-        capture.get("bound_mode"),
-        capture.get("m"),
-        capture.get("n"),
-        capture.get("k"),
-        capture.get("tile_m"),
-        capture.get("tile_n"),
-        capture.get("prefix"),
-        capture.get("input_distribution"),
-        schedule.get("tile_count"),
-        schedule.get("min_required_prefix"),
-        schedule.get("max_required_prefix"),
-        schedule.get("min_selected_prefix"),
-        schedule.get("max_selected_prefix"),
-        schedule.get("prefix_group_count"),
-    )
+    return (canonical_work(capture, exclude=("adaptive_grouped_scheduler.requested", "adaptive_grouped_scheduler.strategy")),)
 
 
 def _gpu_events_available(capture: dict[str, Any]) -> bool:
@@ -112,13 +81,14 @@ def _baseline_map(captures: list[dict[str, Any]]) -> dict[tuple[Any, ...], dict[
         backend = _backend(capture)
         adaptive = _adaptive_metadata(capture)
         if backend in {"cpu-reference", "cpu"}:
-            baselines.setdefault(key, {})["cpu"] = capture
+            baselines.setdefault(key, {}).setdefault("cpu", []).append(capture)
         elif backend == "hip-direct" and adaptive.get("requested") is not True:
-            baselines.setdefault(key, {})["direct_hip"] = capture
+            baselines.setdefault(key, {}).setdefault("direct_hip", []).append(capture)
     return baselines
 
 
 def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> float | None:
+    if not qualified(candidate) or not qualified(baseline): return None
     candidate_median = _median(candidate)
     baseline_median = _median(baseline) if baseline is not None else None
     if candidate_median is None or baseline_median is None or candidate_median <= 0:
@@ -129,9 +99,9 @@ def _speedup(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> floa
 def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]]) -> dict[str, Any]:
     adaptive = _adaptive_metadata(candidate)
     schedule = candidate.get("schedule_metadata") if isinstance(candidate.get("schedule_metadata"), dict) else {}
-    cpu = baselines.get("cpu")
-    direct = baselines.get("direct_hip")
-    blockers: list[str] = []
+    cpu = best_implementation(baselines.get("cpu", []), candidate=candidate, cpu_anchor=True)
+    direct = best_implementation(baselines.get("direct_hip", []), candidate=candidate)
+    blockers: list[str] = list(evidence(candidate)["blockers"])
     if adaptive.get("capture_status") != "executed":
         blockers.append("adaptive_grouped_scheduler_not_executed")
     if adaptive.get("promotion_eligible") is not False:
@@ -170,6 +140,9 @@ def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]]) -> dic
         blockers.append("no_setup_inclusive_direct_hip_win")
     return {
         "capture_path": candidate.get("_path"),
+        "measurement_cohort": evidence(candidate),
+        "baseline_observation_cohorts": {name: [evidence(c) for c in values] for name, values in baselines.items()},
+        "selected_direct_cohort": evidence(direct),
         "semantics": candidate.get("semantics"),
         "shape": [candidate.get("m"), candidate.get("n"), candidate.get("k")],
         "backend": _backend(candidate),
@@ -195,13 +168,15 @@ def _row(candidate: dict[str, Any], baselines: dict[str, dict[str, Any]]) -> dic
 
 
 def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = [_load(path) for path in paths]
+    raw = [_load(path) for path in paths]
+    captures = aggregate_captures(raw)
     candidates = [capture for capture in captures if _candidate(capture)]
     baselines = _baseline_map(captures)
     rows = [_row(candidate, baselines.get(_same_contract_key(candidate), {})) for candidate in candidates]
     return {
         "schema": "rns8_adaptive_grouped_scheduler_report_v1",
-        "capture_count": len(captures),
+        "capture_count": len(raw),
+        "implementation_cohort_count": len(captures),
         "candidate_count": len(candidates),
         "rows": rows,
         "decision_counts": {

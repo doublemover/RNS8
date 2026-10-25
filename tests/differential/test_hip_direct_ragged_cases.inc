@@ -22,6 +22,22 @@ TEST_CASE("HIP ragged exact extension feeds a GEMM crossing source tile boundari
     REQUIRE(commit);
     REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),output,actual.size())==RNS8_SUCCESS);
     REQUIRE(actual==expected);
+    // Prepared directory replay preserves padded output but omits H2D metadata.
+    auto before=hip_direct_allocation_counters_snapshot();
+    REQUIRE(hip_direct_materialize_ragged_residues(0,source,f.layout,output,target,71,9,4096,commit,staged.get(),directory.get(),flag.get(),true)==RNS8_SUCCESS);
+    auto after=hip_direct_allocation_counters_snapshot();CHECK(after.h2d_bytes==before.h2d_bytes);CHECK(after.d2h_bytes-before.d2h_bytes==4);
+    CHECK(after.d2d_bytes-before.d2d_bytes==2*target.bytes); // padded: precopy + commit
+    ResidueLayout compact;REQUIRE(make_residue_layout(ResidueLayoutKind::modulus_major,3,5,5,20,0,0,compact));
+    before=hip_direct_allocation_counters_snapshot();
+    REQUIRE(hip_direct_materialize_ragged_residues(0,source,f.layout,output,compact,71,9,4096,commit,staged.get(),directory.get(),flag.get(),true)==RNS8_SUCCESS);
+    after=hip_direct_allocation_counters_snapshot();CHECK(after.h2d_bytes==before.h2d_bytes);CHECK(after.d2h_bytes-before.d2h_bytes==4);
+    CHECK(after.d2d_bytes-before.d2d_bytes==compact.bytes); // compact: only final commit
+    std::vector<int8_t> compact_actual(compact.bytes),compact_expected(compact.bytes);
+    REQUIRE(hip_direct_copy_device_to_host(0,compact_actual.data(),output,compact.bytes)==RNS8_SUCCESS);
+    REQUIRE(materialize_ragged_residues_host(f.bytes.data(),f.layout,compact_expected.data(),compact,71,9,compact.bytes)==RNS8_SUCCESS);CHECK(compact_actual==compact_expected);
+    // Restore the padded control and its immutable directory for the following
+    // forged-proof rejection and next-consumer exact product checks.
+    REQUIRE(hip_direct_copy_host_to_device(0,output,expected.data(),expected.size())==RNS8_SUCCESS);
     REQUIRE(hip_direct_materialize_ragged_residues(0,source,f.layout,output,target,71,10,4096,commit,staged.get(),directory.get(),flag.get())==RNS8_INVALID_ARGUMENT);
     REQUIRE_FALSE(commit);
     auto bad=f.layout; bad.tiles[0].magnitude_bound[0]=0;

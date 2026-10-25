@@ -9,7 +9,7 @@ extern "C" int rns8_hip_strassen_commit(const int8_t *, int8_t *, int, int, int,
 static rns8_status hip_direct_gemm_bilinear_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started, bool rank23) {
+    uint64_t max_scratch_bytes, bool &commit_started, bool rank23, void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   commit_started = false;
   if (!a || !b || !c)
     return RNS8_INVALID_ARGUMENT;
@@ -25,15 +25,17 @@ static rns8_status hip_direct_gemm_bilinear_device(
   const auto hm = resources.block_m, hn = resources.block_n,
              hk = resources.block_k;
   const auto cb = resources.output_bytes;
+  if(matrix_subproducts && (hk>RNS8_SAFE_INT32_K_BLOCK || !amdgpu_builtins_compiled()))return RNS8_UNSUPPORTED_BACKEND;
+  const auto arena_status=validate_bilinear_arena(resources,retained_scratch,retained_bytes,a,b,c);
+  if(arena_status!=RNS8_SUCCESS)return arena_status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS)
     return status;
   hip_direct_device_buffer scratch;
-  status = scratch.allocate(device_id, resources.total_bytes);
-  if (status != RNS8_SUCCESS)
-    return status;
-  auto *ta = static_cast<int8_t *>(scratch.get());
+  if(retained_scratch && retained_bytes<resources.total_bytes)return RNS8_WORKSPACE_TOO_SMALL;
+  if(!retained_scratch) {status=scratch.allocate(device_id,resources.total_bytes);if(status!=RNS8_SUCCESS)return status;}
+  auto *ta = static_cast<int8_t *>(retained_scratch?retained_scratch:scratch.get());
   auto *tb = ta + resources.b_offset;
   auto *product = ta + resources.product_offset;
   auto *stage = ta + resources.output_offset;
@@ -59,8 +61,8 @@ static rns8_status hip_direct_gemm_bilinear_device(
         });
     if (error != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    status = hip_direct_gemm_rns_device(device_id, ta, tb, product, hm, hn, hk,
-                                        hk, hn, hn, prefix);
+    status = matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix):
+        hip_direct_gemm_rns_device(device_id,ta,tb,product,hm,hn,hk,hk,hn,hn,prefix);
     if (status != RNS8_SUCCESS)
       return status;
     error = timed_hip_operation(
@@ -91,16 +93,16 @@ static rns8_status hip_direct_gemm_bilinear_device(
 rns8_status hip_direct_gemm_strassen_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, false);
+                                         commit_started, false,retained_scratch,retained_bytes,matrix_subproducts);
 }
 rns8_status hip_direct_gemm_rank23_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, true);
+                                         commit_started, true,retained_scratch,retained_bytes,matrix_subproducts);
 }

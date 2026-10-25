@@ -1,4 +1,5 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_fused_narrow_rns(const void*,const void*,int8_t*,int,int,int,int,int,int,bool,bool);
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t*, int, int, int, void*);
 extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t*, const int64_t*, int64_t*, int, int, int, int, int, int);
 #endif
@@ -6,11 +7,13 @@ extern "C" int rns8_hip_native_i64_narrow_gemm(const int64_t*, const int64_t*, i
 rns8_status hip_direct_gemm_i64_narrow_checked_device(
     int device_id, const int64_t* a, const int64_t* b, int64_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
-    uint64_t* out_abs_sum_bound) {
+    uint64_t* out_abs_sum_bound,uint32_t rns_prefix,bool* write_started) {
+  if(write_started)*write_started=false;
+  if(rns_prefix>20 || (rns_prefix && ldc!=n))return RNS8_INVALID_ARGUMENT;
   if (!a || !b || !c || !out_abs_sum_bound || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n)
     return RNS8_INVALID_ARGUMENT;
-  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) return RNS8_UNSUPPORTED_BACKEND;
-  const uint64_t bytes = static_cast<uint64_t>(m) * ldc * sizeof(int64_t);
+  if (!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc) || (rns_prefix && !qualified_i32_matrix_address(m,n,ldc,rns_prefix)))return RNS8_UNSUPPORTED_BACKEND;
+  const uint64_t bytes = static_cast<uint64_t>(m) * ldc * (rns_prefix?rns_prefix:sizeof(int64_t));
   if (!nonoverlapping_byte_ranges(c, bytes, a, static_cast<uint64_t>(m) * lda * sizeof(int64_t)) ||
       !nonoverlapping_byte_ranges(c, bytes, b, static_cast<uint64_t>(k) * ldb * sizeof(int64_t)))
     return RNS8_INVALID_ARGUMENT;
@@ -38,8 +41,9 @@ rns8_status hip_direct_gemm_i64_narrow_checked_device(
   uint64_t sum_bound = 0;
   if (!native_partial_sum_bound(bounds[0], bounds[1], static_cast<uint64_t>(k), limit, sum_bound))
     return RNS8_RANGE_ERROR;
-  const auto error = timed_hip_operation("narrow_native_i64_gemm_kernel", [&]() {
-    const auto launched = static_cast<hipError_t>(rns8_hip_native_i64_narrow_gemm(
+  if(write_started)*write_started=true;
+  const auto error = timed_hip_operation(rns_prefix?"narrow_native_i64_fused_rns_kernel":"narrow_native_i64_gemm_kernel", [&]() {
+    const auto launched = static_cast<hipError_t>(rns_prefix?rns8_hip_native_fused_narrow_rns(a,b,reinterpret_cast<int8_t*>(c),int(m),int(n),int(k),int(lda),int(ldb),int(rns_prefix),false,false):rns8_hip_native_i64_narrow_gemm(
         a, b, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
         static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc)));
     return launched == hipSuccess ? hipDeviceSynchronize() : launched;
@@ -57,17 +61,20 @@ rns8_status hip_direct_gemm_narrow_rns_device(
     int device_id, const void* a, const void* b, void* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
     uint32_t prefix, bool unsigned_inputs, bool byte_wmma,
-    uint64_t budget, bool& commit_started) {
+    uint64_t budget, bool& commit_started,bool fused) {
   commit_started=false;
   if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
   if (unsigned_inputs && !byte_wmma) return RNS8_UNSUPPORTED_BACKEND;
-  const auto support=query_narrow_rns_support(m,n,k,lda,ldb,prefix,byte_wmma,budget);
+  const auto support=query_narrow_rns_support(m,n,k,lda,ldb,prefix,byte_wmma,budget,fused);
   if (support.status!=RNS8_SUCCESS) return support.status;
   const uint64_t output_bytes=uint64_t(m)*uint64_t(n)*prefix;
   if (!nonoverlapping_byte_ranges(c,output_bytes,a,uint64_t(m)*uint64_t(lda)*8) ||
       !nonoverlapping_byte_ranges(c,output_bytes,b,uint64_t(k)*uint64_t(ldb)*8))
     return RNS8_INVALID_ARGUMENT;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(fused){uint64_t bound=0;
+    return byte_wmma?hip_direct_gemm_native_byte_wmma_checked_device(device_id,a,b,c,m,n,k,lda,ldb,n,unsigned_inputs,&bound,prefix,&commit_started):
+      hip_direct_gemm_i64_narrow_checked_device(device_id,static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),static_cast<int64_t*>(c),m,n,k,lda,ldb,n,&bound,prefix,&commit_started);}
   hip_direct_device_buffer product;
   auto status=product.allocate(device_id,static_cast<size_t>(support.payload_bytes));
   if (status!=RNS8_SUCCESS) return status;

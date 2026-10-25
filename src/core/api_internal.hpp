@@ -31,6 +31,10 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
+rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
+bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
+rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
 
 template<class Matrix> struct ComplexMatrixPair {
   Matrix* real = nullptr;
@@ -152,6 +156,9 @@ struct resident_oneshot_state {
 
 rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend);
 
+inline bool host_rns_backend(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_CPU_AMX;
+}
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 
 bool known_backend_kind(rns8_backend_kind backend);
@@ -196,7 +203,7 @@ rns8_matrix_desc make_matrix_desc(
     uint32_t tile_m = 128,
     uint32_t tile_n = 128);
 
-bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld);
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld, uint64_t element_bytes = sizeof(uint64_t));
 
 bool valid_api_tile_size(uint32_t value);
 
@@ -405,6 +412,10 @@ struct plan_validation_counters {
   uint64_t exhaustive_validations = 0;
   uint64_t fingerprint_traversals = 0;
   uint64_t equivalent_comparisons = 0;
+  uint64_t backend_schedule_seals = 0;
+  uint64_t backend_schedule_sealed_tile_visits = 0;
+  uint64_t backend_schedule_fast_submissions = 0;
+  uint64_t backend_schedule_raw_submissions = 0;
 };
 inline thread_local plan_validation_counters plan_validation_work{};
 

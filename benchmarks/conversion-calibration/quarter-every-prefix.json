@@ -1,0 +1,3845 @@
+{
+  "schema": "rns8_conversion_cases_v1",
+  "cases": [
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "direct_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "balanced_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "quarter_narrow_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "garner_narrow_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_quarter_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_signed",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 1,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 2,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 3,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 4,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 5,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 6,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 7,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 8,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 9,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 10,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 11,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 12,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 13,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 14,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 15,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 16,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 17,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 18,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 19,
+      "scope": "cold"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "resident"
+    },
+    {
+      "candidate": "public_garner_unsigned",
+      "cells": 257,
+      "prefix": 20,
+      "scope": "cold"
+    }
+  ]
+}

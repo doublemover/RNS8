@@ -176,7 +176,8 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         demand(same(first,final) and first["source_generation"]==initial["source_generation"] and first["directory_bytes"]==initial["directory_bytes"],"owner binding/capacity changed after first use")
         directory=initial["directory_bytes"]
     for key,expected in (("modeled_prepare_directory_d2h_bytes",directory if hip else 0),("modeled_prepare_status_d2h_bytes",4 if hip and not uniform else 0),
-        ("modeled_prepare_directory_h2d_bytes",directory if hip else 0),("modeled_materialization_directory_h2d_bytes_per_call",directory if hip else 0),
+        ("modeled_prepare_directory_h2d_bytes",directory if hip else 0),("modeled_materialization_directory_h2d_bytes_per_call",0),
+        ("modeled_materialization_precopy_d2d_bytes_per_call",0),("modeled_materialization_commit_d2d_bytes_per_call",20*case["rows"]*case["cols"] if hip and not uniform else 0),
         ("modeled_materialization_status_d2h_bytes_per_call",4 if hip and not uniform else 0)):
         demand(same(capture.get(key),expected),f"modeled transfer contract mismatch: {key}")
     for key,owned in zip(("matrix_allocations_at_setup","matrix_allocations_after_first","matrix_allocations_final"),owner_bytes):validate_allocations(capture.get(key),case,owned)

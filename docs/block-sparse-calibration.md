@@ -136,3 +136,29 @@ observed cold range below the dense range. This is a descriptive range test,
 not a confidence interval, interpolation, calibrated universal crossover or
 production promotion. Larger shapes, other targets, resource/ISA reports and
 measured end-to-end break-even remain qualification work.
+
+## Campaign-order control
+
+The collector no longer executes every repeat of dense before any sparse case.
+`--order-seed` (default 5151) generates bounded matched blocks keyed by device,
+shape, dataset and reuse count. Each block contains one process per requested
+mode/threshold at the same independent-repeat index. Its initial order is
+seed-shuffled, rotates by one position each repeat, and matched-block order is
+also shuffled. Thus controls do not occupy one fixed early/late position and
+all requested case/repeat pairs occur exactly once. This is counterbalancing,
+not proof that thermal or frequency drift was absent.
+
+Before launching any process, an immutable campaign schedule records every
+ordinal, original case index, independent repeat, matched block and position.
+Its SHA256 and seed accompany every raw receipt and the summary; each receipt
+also records its actual attempt start time. Schedule/case/executable changes
+reject the campaign. Missing/cohort-mismatched data still cannot become a reuse
+win. Scheduling/receipt regressions are authored but unexecuted.
+
+Structured Sparse-A event families are separately centralized in
+`metadata/event_phases.yaml`. The generated C++ helper is consumed by actual
+backend hooks and benchmark JSON construction; the Python validator consumes
+the same generated rows. Both CDNA3 16x16x64 and 32x32x32 SMFMAC, RDNA4 sparse,
+and dense controls therefore bind their finite versus bounded/exact-wide phase
+names to one source. This fixes larger-family collection metadata, not sparse
+arithmetic, issued ISA or the >=1.5x measured structured-sparse gate.

@@ -147,6 +147,12 @@ def _prepack_cache_key_fields(cache_key: str) -> dict[str, str] | None:
 
 
 def validate_contract_metadata(self: Any) -> None:
+    from .locality import validate_locality
+    for error in validate_locality(self.data): self._error(error)
+    from .immutable_schedule import validate_immutable_schedule
+    for error in validate_immutable_schedule(self.data): self._error(error)
+    from .hipblaslt_metadata import validate_hipblaslt_metadata
+    for error in validate_hipblaslt_metadata(self.data): self._error(error)
     reuse = self.data.get("reuse_contract")
     if reuse is not None:
         if not isinstance(reuse, dict):
@@ -923,7 +929,7 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error("executed streaming_overlap captures must use at least three streams")
                 if _is_int(buffer_count) and buffer_count < 2:
                     self._error("executed streaming_overlap captures must use at least two buffers")
-                if _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
+                if overlap.get("observation_contract_version")!=2 and _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
                     self._error("streaming_overlap.measured_repeat_count must match repeats when executed")
                 if _is_number(batch_wall_us) and batch_wall_us <= 0:
                     self._error("executed streaming_overlap captures must record batch_wall_us > 0")

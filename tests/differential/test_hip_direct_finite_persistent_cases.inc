@@ -265,7 +265,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   }
 
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
-  constexpr const char* grouped_kernel = "direct_hip_prefix9_grouped_rns_gemm_v1";
+  constexpr const char* grouped_kernel = "direct_hip_selected_prefix_grouped_rns_gemm_v1";
   for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
     CAPTURE(semantics);
     auto desc = semantics == RNS8_BOUNDED_I64
@@ -287,7 +287,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
     rns8_destroy_plan(plan);
   }
 
-  constexpr const char* exact_grouped_kernel = "direct_hip_prefix20_grouped_rns_gemm_v1";
+  constexpr const char* exact_grouped_kernel = "direct_hip_selected_prefix_grouped_rns_gemm_v1";
   for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     CAPTURE(semantics);
     auto desc = semantics == RNS8_EXACT_WIDE_SIGNED ? exact_signed_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT)
@@ -577,3 +577,79 @@ TEST_CASE("private HIP ring GEMM rejects mismatched modulus metadata before laun
 #endif
 }
 
+
+TEST_CASE("finite256 host boundary copies logical bytes without conversion scratch or launches") {
+  if (!hip_available()) SKIP("no HIP device for finite256 boundary regression");
+  auto* context = create_context(RNS8_BACKEND_HIP_DIRECT);
+  for (int64_t padding : {0, 7}) {
+    for (uint16_t modulus : {uint16_t{256}, uint16_t{255}}) {
+      constexpr int64_t rows = 16, cols = 16;
+      const int64_t ld = cols + padding;
+      auto desc = finite_desc(rows, cols, 1, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
+      auto md = matrix_desc(rows, cols, RNS8_FINITE_RING_U8, RNS8_BOUND_NONE);
+      rns8_plan* plan = nullptr;
+      rns8_matrix* matrix = nullptr;
+      REQUIRE(rns8_create_plan(context, &desc, &plan) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_matrix(context, &md, &matrix) == RNS8_SUCCESS);
+      std::vector<uint8_t> source(rows * ld, 0xa5), output(rows * ld, 0xcc);
+      for (int64_t r = 0; r < rows; ++r)
+        for (int64_t c = 0; c < cols; ++c) source[r * ld + c] = static_cast<uint8_t>(r * cols + c);
+      for (uint64_t version : {1u, 2u}) {
+        source[0] = static_cast<uint8_t>(version - 1);
+        rns8::detail::hip_direct_allocation_counters_reset();
+        rns8::detail::hip_direct_timing_set_enabled(true);
+        rns8::detail::hip_direct_timing_reset();
+        REQUIRE(rns8_pack_finite_u8(context, matrix, modulus, source.data(), ld, version) == RNS8_SUCCESS);
+        REQUIRE(rns8_export_finite_u8(context, plan, modulus, matrix, output.data(), ld) == RNS8_SUCCESS);
+        const auto counts = rns8::detail::hip_direct_allocation_counters_snapshot();
+        const auto events = rns8::detail::hip_direct_timing_snapshot();
+        rns8::detail::hip_direct_timing_set_enabled(false);
+        if (modulus == 256) {
+          CHECK(matrix->hip_upload_buffer == nullptr);
+          CHECK(matrix->hip_export_buffer == nullptr);
+          CHECK(counts.h2d_bytes == rows * cols);
+          CHECK(counts.d2h_bytes == rows * cols);
+          CHECK_FALSE(has_timing_label(events, "finite_pack_kernel"));
+          CHECK_FALSE(has_timing_label(events, "finite_export_kernel"));
+        } else {
+          CHECK(has_timing_label(events, "finite_pack_kernel"));
+          CHECK(has_timing_label(events, "finite_export_kernel"));
+        }
+        for (int64_t r = 0; r < rows; ++r) {
+          for (int64_t c = 0; c < cols; ++c) CHECK(output[r * ld + c] == source[r * ld + c] % modulus);
+          for (int64_t c = cols; c < ld; ++c) CHECK(output[r * ld + c] == 0xcc);
+        }
+        CHECK(matrix->source_version == version);
+        CHECK(matrix->device_residues_current);
+      }
+      REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_plan(plan) == RNS8_SUCCESS);
+    }
+  }
+  REQUIRE(rns8_destroy_context(context) == RNS8_SUCCESS);
+}
+
+#include "backend_common/direct_rns_route.hpp"
+TEST_CASE("public skinny RNS metadata agrees with launch family across minimal and fixed prefixes") {
+  if(!hip_available())SKIP("no HIP device for public route consistency");
+  using namespace rns8::detail;auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool u:{false,true})for(int64_t m:{8,128})for(int64_t n:{1,4})for(bool fixed:{false,true})for(bool parallel:{false,true}){
+    constexpr int64_t k=4096;auto d=u?unsigned_desc(m,n,k,k,RNS8_BACKEND_HIP_DIRECT):signed_desc(m,n,k,k,RNS8_BACKEND_HIP_DIRECT);
+    d.flags=(fixed?RNS8_PLAN_FORCE_FIXED_PREFIX:0)|(parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0);rns8_plan* plan=nullptr;rns8_workspace* work=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&d,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&work)==RNS8_SUCCESS);
+    const auto route=direct_rns_route(m,n,k,k,n,n,plan->prefix,parallel);rns8_plan_backend_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(plan,&info)==RNS8_SUCCESS);CHECK(std::string(info.selected_kernel)==direct_rns_route_name(route));
+    rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;auto am=matrix_desc(m,k,d.semantics,d.bound_kind),bm=matrix_desc(k,n,d.semantics,d.bound_kind),cm=matrix_desc(m,n,d.semantics,d.bound_kind);
+    am.max_prefix=bm.max_prefix=cm.max_prefix=plan->prefix;REQUIRE(rns8_create_matrix(ctx,&am,&a)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&bm,&b)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&cm,&c)==RNS8_SUCCESS);
+    std::vector<uint64_t> av(m*k,1),bv(k*n,1),output(m*(n+2),99);
+    if(u){REQUIRE(rns8_pack_u64(ctx,a,av.data(),k,1)==RNS8_SUCCESS);REQUIRE(rns8_pack_u64(ctx,b,bv.data(),n,1)==RNS8_SUCCESS);}
+    else{REQUIRE(rns8_pack_i64(ctx,a,reinterpret_cast<const int64_t*>(av.data()),k,1)==RNS8_SUCCESS);REQUIRE(rns8_pack_i64(ctx,b,reinterpret_cast<const int64_t*>(bv.data()),n,1)==RNS8_SUCCESS);}
+    hip_direct_timing_set_enabled(true);hip_direct_timing_reset();REQUIRE(rns8_gemm_rns(ctx,plan,a,b,c,work)==RNS8_SUCCESS);
+    hip_direct_timing_flush_pending_events();const auto events=hip_direct_timing_snapshot();hip_direct_timing_set_enabled(false);
+    CHECK(std::any_of(events.begin(),events.end(),[&](const auto& event){return event.label==direct_rns_route_event(route);}));
+    if(u)REQUIRE(rns8_export_u64(ctx,plan,c,output.data(),n+2)==RNS8_SUCCESS);else REQUIRE(rns8_export_i64(ctx,plan,c,reinterpret_cast<int64_t*>(output.data()),n+2)==RNS8_SUCCESS);
+    for(int64_t r=0;r<m;++r)for(int64_t col=0;col<n+2;++col)CHECK(output[r*(n+2)+col]==uint64_t(col<n?k:99));
+    REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);REQUIRE(rns8_destroy_workspace(work)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

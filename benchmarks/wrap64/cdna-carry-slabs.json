@@ -1,0 +1,335 @@
+{
+  "schema": "rns8_wrap64_cases_v1",
+  "cases": [
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4095,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4095,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4096,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4096,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4097,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4097,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33024,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33024,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33025,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33025,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33026,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33026,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65535,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65535,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65536,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65536,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131070,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131070,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "signed_radix_mfma",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131071,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "direct_v4",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131071,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4095,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4096,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 4097,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33024,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33025,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 33026,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65535,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65536,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 65537,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131070,
+      "pattern": "carry",
+      "reuse_count": 1
+    },
+    {
+      "device": 0,
+      "candidate": "native_u64",
+      "scope": "resident",
+      "m": 2,
+      "n": 3,
+      "k": 131071,
+      "pattern": "carry",
+      "reuse_count": 1
+    }
+  ]
+}

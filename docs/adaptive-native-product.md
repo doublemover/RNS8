@@ -118,3 +118,43 @@ The ordinary unretained packing route is unchanged. Successful replacement by
 GEMM still retires native currentness, and failed packing cannot publish a
 partially converted value. The existing native-to-residue kernel performs the
 conversion; matched conversion and end-to-end timings remain pending.
+
+## Versioned distribution and complete-output controls
+
+The native calibrator and collector accept paired `dataset_profile` and
+`dataset_seed` controls for capacity-20 `wmma`, `pack_gemm`, `adaptive_grid` and
+`adaptive_compact` cases, one complete product per call. The original full-width
+MT19937-64/forced-extrema stream remains `full-width-v1`. New deterministic
+SplitMix-derived profiles are `uniform-small-v2`, `mixed-tiles-v2` (alternating
+16-row/column small and 48-bit magnitudes), `zero-tiles-v2`, and
+`localized-outlier-v2` (one 60-bit A/B pair). Signed signs are independently
+seeded; a small cancellation result is never used as a range certificate.
+
+Before probing or allocating on the GPU, the executable computes exact axis-L1
+summaries from the actual inputs, independently compares multiprecision tile
+bounds and strict uniqueness prefixes against the production helpers, and
+rejects degenerate advertised bucket/zero/savings distributions. It records all
+21 required and executed histogram bins, zero tiles, required/executed channels,
+`sum ceil(prefix/group)` work, the fixed-capacity control, a deterministic input
+hash and the globally sufficient prefix. Executed adaptive prefixes currently
+equal required prefixes; a partially filled group is not rounded up into a
+claim of executed channels. Counts model source work, not ISA or speedup.
+
+The collector independently regenerates inputs and exact histograms, validates
+all fields, includes its model source in provenance, and can emit a `--plan-only`
+preflight without opening the executable. The tracked
+`adaptive-distributions.json` corpus pairs all four complete-output routes on
+small, tail and 512-square shapes, retaining full-width no-benefit controls and
+an unsigned heterogeneous cross-check. Every adaptive call still pays discovery,
+compaction, scratch ownership, exact suffix completion, staged commit and sync;
+there is no hidden count readback or amortized-away discovery. Existing complete
+Boost residue/padding checks and hook-disabled sustained bursts remain intact.
+
+Comparison reports keep input/seed, semantic, shape, group and capacity cohorts
+separate, with one sustained complete-call observation per independent process
+and diagnostic events retained alongside it. A globally minimal-prefix route
+with completed full-basis output is **not implemented by this harness** and is
+explicitly marked absent, rather than comparing an incomplete-output shortcut.
+The harness compares axis-L1 only, so it does not advertise a K-panel-skew
+ablation. No new measurements, regression execution or promotion accompanies
+these authored fixtures.

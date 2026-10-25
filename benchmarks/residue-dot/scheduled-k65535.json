@@ -1,0 +1,14 @@
+{
+  "schema": "residue_dot_case_v1",
+  "m": 3,
+  "n": 5,
+  "k": 65535,
+  "prefix": 9,
+  "modulus": 0,
+  "tasks": 1,
+  "repeats": 7,
+  "warmups": 2,
+  "mode": "scheduled",
+  "domain": "bounded",
+  "dataset": "centered"
+}

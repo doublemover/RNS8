@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "bounded-i64-compact-slab-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "9",
+        "--output-ld-padding",
+        "0",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "compact-slab"
+      ]
+    },
+    {
+      "name": "bounded-i64-per-task-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "9",
+        "--output-ld-padding",
+        "3",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "per-task"
+      ]
+    },
+    {
+      "name": "bounded-i64-per-task-ordinary",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "bounded-i64",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "9",
+        "--output-ld-padding",
+        "3",
+        "--host-api-batch-size",
+        "8"
+      ]
+    },
+    {
+      "name": "finite-u8-ring-compact-slab-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "finite-u8-ring",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--modulus",
+        "251",
+        "--output-ld-padding",
+        "0",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "compact-slab"
+      ]
+    },
+    {
+      "name": "finite-u8-ring-per-task-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "finite-u8-ring",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--modulus",
+        "251",
+        "--output-ld-padding",
+        "3",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "per-task"
+      ]
+    },
+    {
+      "name": "finite-u8-ring-per-task-ordinary",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "finite-u8-ring",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--modulus",
+        "251",
+        "--output-ld-padding",
+        "3",
+        "--host-api-batch-size",
+        "8"
+      ]
+    },
+    {
+      "name": "exact-wide-signed-compact-slab-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "exact-wide-signed",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "20",
+        "--exact-wide-limbs",
+        "3",
+        "--output-ld-padding",
+        "0",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "compact-slab"
+      ]
+    },
+    {
+      "name": "exact-wide-signed-per-task-grouped",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "exact-wide-signed",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "20",
+        "--exact-wide-limbs",
+        "3",
+        "--output-ld-padding",
+        "3",
+        "--grouped-dispatch",
+        "8",
+        "--grouped-output",
+        "per-task"
+      ]
+    },
+    {
+      "name": "exact-wide-signed-per-task-ordinary",
+      "arguments": [
+        "--backend",
+        "hip-direct",
+        "--semantics",
+        "exact-wide-signed",
+        "--m",
+        "16",
+        "--n",
+        "17",
+        "--k",
+        "65",
+        "--max-prefix",
+        "20",
+        "--exact-wide-limbs",
+        "3",
+        "--output-ld-padding",
+        "3",
+        "--host-api-batch-size",
+        "8"
+      ]
+    }
+  ]
+}

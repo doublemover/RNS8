@@ -1,9 +1,10 @@
-# Synchronous native HIP buffer leases
+# Native HIP buffer leases and prepared transfers
 
 The experimental public C boundary provides `rns8_query_native_device`,
 `rns8_create_native_device_lease`, `rns8_import_native_device`,
 `rns8_import_native_device_verified`, `rns8_export_native_device`, and `rns8_destroy_native_device_lease`.
-The initial execution mode is explicitly synchronous direct HIP. CPU builds
+Ordinary import/export remain explicitly synchronous direct HIP; the prepared
+exact-wide adapter below adds stream, owned-graph and dependency execution. CPU builds
 support descriptor/resource queries and reject lease creation. No host pointer
 API accepts a device pointer implicitly.
 
@@ -30,16 +31,18 @@ pointer as an allocation base rejects. Unsupported pointer-query/runtime
 capabilities are explicit failures. A failed creation after acquisition releases
 that reference; an unsuccessful acquire transfers no reference.
 
-The caller must complete producer work before creation, truthfully set
-producer_complete=1, and exclude all external writes/recycling while a read
-lease exists. A write lease excludes other external readers/writers until each
+The caller must complete initial producer work before creation, truthfully set
+producer_complete=1, and exclude external writes/recycling outside the explicit
+mutation window described below. A write lease excludes other external readers/writers until each
 synchronous export returns success. Binding generations and owner IDs describe
 the immutable view; they cannot detect a caller violating this lifetime
-contract. Destroy/recreate a lease to refresh a view. Recycled allocations need
+contract. Changed address/layout/owner requires destroy/recreate; a stable view can use the
+explicit generation refresh below. Recycled allocations need
 new owner IDs. No cache hit is inferred from pointer equality or external
 source generation, and external generations never enter host-pack's version
-cache. Concurrent conflicting leases are a caller error in this synchronous
-V1; prepared-token reservations and external stream dependencies remain work.
+cache. Overlapping immutable READ leases may coexist. A WRITE lease rejects any
+overlapping live lease in the same context before acquisition. Separate contexts
+and out-of-band framework writes remain the caller's synchronization obligation.
 
 Import reuses existing strided device pack kernels into ordinary owned RNS
 storage. It certifies the complete native type envelope (2^63 signed magnitude
@@ -95,9 +98,9 @@ RNS storage, export stages native data and performs a D2D copy, and compact
 status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
 Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
-Prepared async/graph binding, failed-drain
-mock fixtures, DLPack and matched performance
-receipts remain implementation/qualification work. No measured speedup or
+Prepared async/graph binding is implemented below. DLPack remains optional;
+new execution/failed-drain qualification and matched performance receipts remain
+unverified. No measured speedup or
 broader target support is claimed.
 
 The installed `examples/device-native` consumer supplies custom HIP producer and
@@ -158,3 +161,97 @@ Authored descriptor and GPU/Boost fixtures cover widths 1, 2, 3 and 32,
 full-width input products, signed negative results, range rejection, padding,
 owner release and exact payload/status transfer counters. Execution is deferred
 to the consolidated campaign.
+
+
+## Prepared import/export and producer readiness
+
+`rns8_prepare_native_transfer_hip` returns the existing prepared execution owner,
+not a second completion type. It admits exact-wide i64/u64 import and scalar or
+1..32-word export. The shared operation provider exposes the same domains,
+complete native spans, proof prerequisites, algorithms and known memory budget.
+Export freezes an actually proven/materialized prefix rather than requiring
+unused allocation capacity. Stream exports now share the ordinary generic and
+fixed-prefix CRT kernels for every admitted prefix/word width.
+
+Import either uses the complete native type envelope or verifies an explicit
+magnitude ceiling on device. The latter does **not** trust a caller assertion:
+a device maximum scan and status comparison precede status-gated commits of
+staged RNS and optional compact retained-native data. Every replay resets status.
+Export similarly stages reconstruction and uses a status-gated logical-row copy.
+Four pinned status bytes are copied on the same stream before the completion
+event. No allocation, host payload copy or whole-device synchronization occurs
+inside prepared submission/replay. Preparation charges staged payload, status/
+scan, pinned status and the retained native matrix allocation; copied lease
+snapshots and opaque runtime objects are separately owned costs.
+
+`rns8_begin_native_device_write` opens a mutation window only when the lease has
+no device user and no overlapping live lease. This prevents silently changing
+another immutable view's generation. `rns8_end_native_device_write` asserts that
+producer work has already completed; its HIP variant records an owned readiness
+event on a verified same-device borrowed nondefault/noncapturing producer stream
+without waiting. Both require a strictly newer generation. Refresh prepared
+inputs after ending the window. Captured bodies retain stable addresses and
+proof ceilings; current-generation readiness waits are enqueued **outside** the
+captured body before each replay. Changed view/owner/device/width requires a new
+lease/owner, not a pointer-equality cache hit.
+
+One lease has one in-flight transfer. Distinct immutable read leases can feed
+independent consumers and complete in reverse order. Active operations, pending
+producer readiness and mutation windows remain in the context's alias registry;
+failed drains preserve owner references. Groups reject duplicate lease
+reservations and conflicting external/internal byte spans before any enqueue.
+A failed external producer event cannot release its allocation before a proven
+drain. Destruction waits for explicitly recorded readiness and preserves failed
+event/free identities for retry.
+
+Native import → GEMM → native export can be submitted as token-qualified stream
+or owned-graph pipelines. A producer's device work may run before host proof
+observation, but its failure suppresses all downstream publication. An external
+consumer must wait for successful operation status and current-result reporting;
+physical writes alone are not a valid-result signal. `rns8_get_prepared_transfer_info`
+reports the actual external owner/generation, retained payload/status bytes,
+verified-bound mode, prefix and width. Cancellation never authorizes consumption.
+
+The installed device-native example's `--prepared` mode demonstrates this path
+using five borrowed streams, custom device producer/consumer kernels, current
+readiness events, captured import/GEMM/export bodies and one final host observation.
+Its setup and validation traffic are labeled separately. New all-prefix/width,
+small-bound rejection, graph-generation, independent reader, alias, padding,
+lease lifetime and failure-propagation fixtures are authored, **not executed**.
+No overlap, latency or throughput benefit is claimed from this source work.
+
+
+## Matched application cost experiments (authored, unexecuted)
+
+`rns8-native-interop-calibrate` and `tools/collect_native_interop.py` compare
+complete custom HIP producer → public RNS8 product → custom HIP consumer
+transactions. Stream and owned-graph candidates use the same three-limb,
+padded signed/unsigned output as the explicit device→host→host-pack and
+host-export→device control. Inputs include small and full-width boundaries.
+Every timed call advances all external owner generations, including unchanged
+values; import independently verifies its envelope. The consumer digests every
+output limb. An independent Boost product and padding/digest audit run outside
+every measured sample in **all** modes, not just the control.
+
+A separate resident control repeats the same external application work but
+retains already-established, unchanged internal inputs. It intentionally
+excludes input binding/conversion and is a labeled cost floor, **not** a matched
+speedup claim. It is never included in candidate/control ratios. Initial
+allocation, binding, verified import, product, and graph construction are timed
+as cold setup, separately from first-call, p50/p95, and three sustained bursts.
+The two true device candidates issue imports, product, and export across
+nondefault streams and observe only the final dependency completion.
+
+Captures name payload transfers, compact status bytes (12 per device candidate,
+4 for the resident export), validation-only readback, logical host/device
+payload estimates, and separate plan workspace. Opaque runtime/driver objects,
+Boost allocation capacity, host matrix capacity, and profiler launch counts
+are explicitly unknown, not zero or inferred from API counts. Wall subphases
+include overlapping enqueues/observations; they are **not** per-kernel GPU
+durations. A named-target profiler remains necessary for actual launch/memory
+peaks. No benchmark or hardware profiler has been run for this addition.
+
+The collector counterbalances independent processes, refuses reused process
+identities, checks immutable executable/build/environment provenance, requires
+complete phase/sustained observations and exact validation, and reports only
+same-cohort device/host-roundtrip ratios. Captures remain nonpromoting.

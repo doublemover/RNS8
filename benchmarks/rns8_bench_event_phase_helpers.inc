@@ -47,41 +47,7 @@ const char* amdgpu_builtin_matrix_core_event_label(const Args& args, const Bench
                                                                                       : "";
   const std::string kernel(selected_kernel);
   const bool finite = finite_benchmark_semantics(args.semantics);
-  if (kernel.find("cdna3_mfma_i32_32x32x16_i8") != std::string::npos) {
-    return finite ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
-                  : "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
-  }
-  if (kernel.find("cdna3_mfma_i32_16x16x32_i8_finite") != std::string::npos) {
-    return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel";
-  }
-  if (kernel.find("cdna3_mfma_i32_16x16x32_i8") != std::string::npos) {
-    return "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel";
-  }
-  if (kernel.find("rdna3_wmma_i32_16x16x16_iu8_finite") != std::string::npos) {
-    return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel";
-  }
-  if (kernel.find("rdna3_wmma_i32_16x16x16_iu8") != std::string::npos) {
-    return "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel";
-  }
-  if (kernel.find("rdna4_wmma_i32_16x16x16_iu8_finite") != std::string::npos) {
-    return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel";
-  }
-  if (kernel.find("rdna4_wmma_i32_16x16x16_iu8") != std::string::npos) {
-    return "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
-  }
-  if (kernel.find("cdna3_smfmac_i32_32x32x32_i8") != std::string::npos) {
-    return finite ? "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel"
-                  : "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_kernel";
-  }
-  if (kernel.find("cdna3_smfmac_i32_16x16x64_i8") != std::string::npos) {
-    return finite ? "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"
-                  : "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel";
-  }
-  if (kernel.find("rdna4_swmmac_i32_16x16x32_iu8") != std::string::npos) {
-    return finite ? "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"
-                  : "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel";
-  }
-  return "amdgpu_builtin_rns_matrix_core_kernel";
+  return rns8::generated_metadata::builtin_event_label(kernel,finite);
 }
 
 void append_accelerator_deep_event_phases(

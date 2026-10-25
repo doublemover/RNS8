@@ -8,14 +8,14 @@
 // 7e5d2249242ddeff8dd88ff7da80b4d4e0689d06. No upstream code is executed.
 namespace rns8::detail::rank23::slp {
 constexpr int capacity = 64;
-struct Assignment { int target, left, right; bool subtract; }; // right=-1: alias
+struct Assignment { int target, left, right; bool subtract; bool negate = false; }; // right=-1: alias
 struct RawStage {
   int inputs = 0, outputs = 0, count = 0;
   Assignment assignments[capacity]{};
   int results[23]{};
 };
-struct Node { int left = 0, right = 0; bool subtract = false; };
-struct Step { int target = 0, left = 0, right = 0; bool subtract = false; };
+struct Node { int left = 0, right = 0; bool subtract = false; bool negate = false; };
+struct Step { int target = 0, left = 0, right = 0; bool subtract = false; bool negate = false; };
 struct Plan {
   bool valid = false;
   int inputs = 0, outputs = 0, count = 0, slots = 0, source_additions = 0;
@@ -52,11 +52,11 @@ constexpr Plan compile(const RawStage &raw) {
     int found = -1;
     for (int j = 0; j < plan.count; ++j)
       if (nodes[j].left == left && nodes[j].right == right &&
-          nodes[j].subtract == instruction.subtract) { found = j; break; }
+          nodes[j].subtract == instruction.subtract && nodes[j].negate == instruction.negate) { found = j; break; }
     if (found < 0) {
       if (plan.count == capacity) return Plan{};
       found = plan.count++;
-      nodes[found] = {left, right, instruction.subtract};
+      nodes[found] = {left, right, instruction.subtract, instruction.negate};
     }
     names[instruction.target] = raw.inputs + found;
   }
@@ -85,7 +85,7 @@ constexpr Plan compile(const RawStage &raw) {
     locations[raw.inputs + i] = destination;
     occupied[destination] = last[raw.inputs + i] >= i;
     if (destination >= plan.slots) plan.slots = destination + 1;
-    plan.steps[i] = {destination, left, right, node.subtract};
+    plan.steps[i] = {destination, left, right, node.subtract, node.negate};
   }
   for (int i = 0; i < raw.outputs; ++i) plan.results[i] = locations[outputs[i]];
   plan.valid = true;
@@ -110,7 +110,7 @@ constexpr bool matches_coefficients() {
       for (int i = 0; i < plan.count; ++i) {
         const auto op = plan.steps[i];
         const int left = slots[op.left], right = slots[op.right];
-        slots[op.target] = left + (op.subtract ? -right : right);
+        slots[op.target] = (op.negate ? -1 : 1) * (left + (op.subtract ? -right : right));
       }
       for (int output = 0; output < plan.outputs; ++output) {
         const int expected = stage == 0 ? original.products[output].a[input] :
@@ -129,13 +129,21 @@ inline int center(int value, int modulus) {
   if (value < 0) value += modulus;
   return value >= (modulus + 1) / 2 ? value - modulus : value;
 }
+// Each input is already centered. A widened binary sum/difference (including
+// free unary negation of -128) lies within one correction of the centered ring.
+#if defined(__HIPCC__)
+__host__ __device__
+#endif
+constexpr int center_binary(int value, int modulus) {
+  return value < -(modulus/2) ? value+modulus : value > (modulus-1)/2 ? value-modulus : value;
+}
 inline void evaluate(const Plan &plan, const int8_t *input, int8_t *output, int modulus) {
   int slots[capacity]{};
   for (int i = 0; i < plan.inputs; ++i) slots[i] = center(input[i], modulus);
   for (int i = 0; i < plan.count; ++i) {
     const auto op = plan.steps[i];
     const int left = slots[op.left], right = slots[op.right];
-    slots[op.target] = center(left + (op.subtract ? -right : right), modulus);
+    slots[op.target] = center_binary((op.negate ? -1 : 1) * (left + (op.subtract ? -right : right)), modulus);
   }
   for (int i = 0; i < plan.outputs; ++i) output[i] = static_cast<int8_t>(slots[plan.results[i]]);
 }

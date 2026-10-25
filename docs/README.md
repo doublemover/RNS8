@@ -51,6 +51,8 @@ issue links.
 - [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
 - [Expanded local correctness record](local-all-features-20261023.md)
 
+- [Genuine exact-wide magnitude controls](exact-wide-magnitude-controls.md): public two/three-limb profiles and exact admission; validation deferred
+
 ## Contribute
 
 - [Contributor workflow](../CONTRIBUTING.md): CPU oracle, tests, sanitizers, packaging and documentation checks

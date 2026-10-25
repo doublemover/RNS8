@@ -117,6 +117,37 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
           }
         }
         REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes * 2) == RNS8_SUCCESS);
+        for(auto mode:{NativeWmmaScheduleMode::explicit_round_robin,NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin})
+          for(uint32_t chunk:{1u,4u,32u}) {
+            NativeWmmaPreparedQueue compact;
+            REQUIRE(compact.prepare(0,tasks,workers,UINT64_MAX,{1,mode,chunk})==RNS8_SUCCESS);
+            CHECK(compact.prepare(0,tasks,workers,compact.device_metadata_bytes()*2-1,{1,mode,chunk})==RNS8_WORKSPACE_TOO_SMALL);
+            for(unsigned repeat=0;repeat<2;++repeat) {
+              REQUIRE(compact.execute(touched)==RNS8_SUCCESS);REQUIRE(touched);
+              for(uint32_t id=0;id<tasks.size();++id) {
+                REQUIRE(hip_direct_copy_device_to_host(0,actual[id].data(),tasks[id].c,actual[id].size())==RNS8_SUCCESS);
+                REQUIRE(actual[id]==expected[id]);
+              }
+            }
+            NativeWmmaCompletionTelemetry receipt;
+            REQUIRE(compact.execute_completion(receipt,touched)==RNS8_SUCCESS);
+            REQUIRE(receipt.wall_clock_rate_khz>0);
+            for(uint32_t id=0;id<tasks.size();++id) {
+              const auto& task=tasks[id];
+              CHECK(receipt.completed_work[id]==uint64_t((task.m+15)/16)*((task.n+15)/16)*((task.prefix+task.group-1)/task.group));
+              CHECK(receipt.completion_ticks[id]>0);
+              REQUIRE(hip_direct_copy_device_to_host(0,actual[id].data(),tasks[id].c,actual[id].size())==RNS8_SUCCESS);
+              REQUIRE(actual[id]==expected[id]);
+            }
+          }
+        for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}) {
+          rns8_locality_desc locality{sizeof(locality),RNS8_ABI_VERSION,order,0,1,1,workers,1024};NativeWmmaPreparedQueue reordered;
+          REQUIRE(reordered.prepare(0,tasks,workers,UINT64_MAX,{},&locality)==RNS8_SUCCESS);
+          CHECK(reordered.locality_info().physical_affinity_established==0);
+          REQUIRE(reordered.execute(touched)==RNS8_SUCCESS);REQUIRE(touched);
+          for(uint32_t id=0;id<tasks.size();++id){REQUIRE(hip_direct_copy_device_to_host(0,actual[id].data(),tasks[id].c,actual[id].size())==RNS8_SUCCESS);REQUIRE(actual[id]==expected[id]);}
+          REQUIRE(reordered.close()==RNS8_SUCCESS);
+        }
         if (workers == 128) {
           // Contents are reread, not cached under the pointer. Mutate each A
           // after prior executions; unchanged layout needs no descriptor upload.
@@ -147,5 +178,15 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
         }
       }
     }
+  }
+}
+
+TEST_CASE("explicit cache displacement touches exactly one word per line without claiming cold state") {
+  if(!hip_available())SKIP("no HIP device for cache-displacement witness");using namespace rns8::detail;
+  for(uint64_t bytes:{64u,192u,65536u}){hip_direct_device_buffer buffer;REQUIRE(buffer.allocate(0,bytes)==RNS8_SUCCESS);REQUIRE(hip_direct_zero(0,buffer.get(),bytes)==RNS8_SUCCESS);
+    CHECK(hip_direct_cache_displace(0,buffer.get(),bytes-1,1)==RNS8_INVALID_ARGUMENT);
+    REQUIRE(hip_direct_cache_displace(0,buffer.get(),bytes,2)==RNS8_SUCCESS);std::vector<uint32_t> observed(bytes/4);
+    REQUIRE(hip_direct_copy_device_to_host(0,observed.data(),buffer.get(),bytes)==RNS8_SUCCESS);
+    for(size_t word=0;word<observed.size();++word)CHECK(observed[word]==(word%16?0u:uint32_t(2*UINT64_C(0x9e3779b9)+1)));
   }
 }

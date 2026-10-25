@@ -1,3 +1,4 @@
+#include "backend_common/split_k_partial.hpp"
 // Each (fragment, plane, cell) has one producer. Fragment length <= 65536
 // bounds every signed-byte dot by 65536*128*128 = 2^30, without a carry.
 __global__ void rns8_split_k_produce_kernel(
@@ -36,6 +37,7 @@ __global__ void rns8_split_k_canonicalize_kernel(uint8_t* values, int64_t cells,
 
 // Fixed fan-in 128: canonical inputs are <=255, sum <=32640. Every level
 // reduces before global storage, so the proof is independent of tree depth.
+template<bool CenteredInput=false>
 __global__ void rns8_split_k_merge_kernel(
     const uint8_t* input, uint8_t* output, int64_t cells, int prefix, int fragments) {
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -44,11 +46,14 @@ __global__ void rns8_split_k_merge_kernel(
   const int begin = group * 128, end = min(begin + 128, fragments);
   uint32_t value = 0;
   for (int f = begin; f < end; ++f)
-    value += input[(static_cast<int64_t>(f) * prefix + plane) * cells + cell];
+    value += rns8::detail::split_k_partial_canonical(
+        input[(static_cast<int64_t>(f) * prefix + plane) * cells + cell],
+        rns8_default_moduli_device[plane],CenteredInput);
   output[(static_cast<int64_t>(group) * prefix + plane) * cells + cell] =
       static_cast<uint8_t>(value % rns8_default_moduli_device[plane]);
 }
 
+template<bool CenteredInput=false>
 __global__ void rns8_split_k_store_kernel(const uint8_t* input, int8_t* output, int m, int n, int ldc) {
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   const int64_t cells = static_cast<int64_t>(m) * n;
@@ -56,7 +61,7 @@ __global__ void rns8_split_k_store_kernel(const uint8_t* input, int8_t* output, 
   const int plane = blockIdx.y, modulus = rns8_default_moduli_device[plane];
   const int value = input[static_cast<int64_t>(plane) * cells + cell];
   output[static_cast<int64_t>(plane) * m * ldc + (cell / n) * ldc + cell % n] =
-      static_cast<int8_t>(value >= (modulus + 1) / 2 ? value - modulus : value);
+      rns8::detail::split_k_partial_centered(static_cast<uint8_t>(value),modulus,CenteredInput);
 }
 
 // Window-local slots have global fragment identities. Fragment boundaries are

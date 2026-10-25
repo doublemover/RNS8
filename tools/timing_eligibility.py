@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
@@ -12,12 +13,19 @@ def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
     if timing.get("host_timing_contract_version") != 2:
         return ["legacy_host_timing_unqualified"]
     blockers = []
-    if timing.get("host_result_kind") not in {"single_operation", "amortized_batch"}:
+    observation=host_observation_contract(capture)
+    if observation["unit"]=="legacy_single_pipeline_batch_repeated_quotient":
+        blockers.append("legacy_repeated_batch_quotients_not_repeat_observations")
+    if timing.get("host_result_kind") not in {"single_operation", "amortized_batch", "pipeline_batch_throughput"}:
         blockers.append("host_result_kind_unqualified")
+    if timing.get("host_result_kind")=="pipeline_batch_throughput" and observation["unit"]!="completed_pipeline_batch_mean_per_call_v2":
+        blockers.append("pipeline_batch_observation_contract_missing")
     if (timing.get("phase_states") or {}).get(phase) != "measured":
         blockers.append(f"{phase}_timing_not_measured")
     threshold = timing.get("censor_threshold_us")
     samples = (capture.get("raw_timings_us") or {}).get(phase)
+    if phase=="end_to_end" and observation["unit"]=="completed_pipeline_batch_mean_per_call_v2":
+        samples=[b.get("duration_us") for b in (capture.get("streaming_overlap") or {}).get("batches",[]) if isinstance(b,dict)]
     if (type(threshold) not in (int, float) or not math.isfinite(threshold) or threshold < 0
             or not isinstance(samples, list) or not samples):
         blockers.append(f"{phase}_resolution_evidence_missing")
@@ -32,6 +40,16 @@ def pair_blockers(baseline: dict, candidate: dict, phase: str = "end_to_end") ->
     if ((baseline.get("timing_metadata") or {}).get("host_result_kind") !=
             (candidate.get("timing_metadata") or {}).get("host_result_kind")):
         blockers.append("host_result_kind_mismatch")
+    if host_observation_contract(baseline) != host_observation_contract(candidate):
+        blockers.append("host_observation_contract_mismatch")
+    if host_instrumentation(baseline) != host_instrumentation(candidate):
+        blockers.append("host_instrumentation_state_mismatch")
+    if output_completion_boundary(baseline) != output_completion_boundary(candidate):
+        blockers.append("output_completion_boundary_mismatch")
+    if exact_proof_policy(baseline) != exact_proof_policy(candidate):
+        blockers.append("exact_proof_policy_mismatch")
+    if host_batch_contract(baseline) != host_batch_contract(candidate):
+        blockers.append("host_batch_workload_mismatch")
     return blockers
 
 

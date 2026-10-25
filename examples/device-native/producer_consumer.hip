@@ -24,3 +24,12 @@ extern "C" int native_consume(const void* c,void* failure) {
   hipLaunchKernelGGL(consume,dim3(1),dim3(32),0,nullptr,static_cast<const int64_t*>(c),static_cast<int*>(failure));
   return int(hipGetLastError());
 }
+
+extern "C" int native_produce_on_stream(void* a,void* b,void* c,void* stream) {
+  hipLaunchKernelGGL(produce,dim3(1),dim3(32),0,static_cast<hipStream_t>(stream),static_cast<int64_t*>(a),static_cast<int64_t*>(b),static_cast<int64_t*>(c));
+  return int(hipGetLastError());
+}
+extern "C" int native_consume_on_stream(const void* c,void* failure,void* stream) {
+  hipLaunchKernelGGL(consume,dim3(1),dim3(32),0,static_cast<hipStream_t>(stream),static_cast<const int64_t*>(c),static_cast<int*>(failure));
+  return int(hipGetLastError());
+}

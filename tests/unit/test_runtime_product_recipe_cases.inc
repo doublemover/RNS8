@@ -128,6 +128,9 @@ TEST_CASE("prefix cost selection prices shared incremental lifts and exact arena
     }
   };
   fill(1);
+  costs.version=1;
+  CHECK(select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,false,costs).status==RNS8_INVALID_ARGUMENT);
+  costs.version=2;
   auto cheap=select_product_prefixes(inputs,nodes,3,{1,1,1,1},UINT64_MAX,false,costs);
   REQUIRE(cheap.status==RNS8_SUCCESS);CHECK(cheap.exhaustive);CHECK(cheap.evaluated==81);
   CHECK(cheap.prefixes==std::vector<uint32_t>{1,1,1,1});CHECK(cheap.estimated_ns==401);

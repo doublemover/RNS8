@@ -127,3 +127,93 @@ prefixes 1/3/9/20 and K-block splits above 65536. These new fixtures and the SLP
 kernels are authored only, pending the consolidated validation batch. Earlier
 dated coefficient-route evidence does not qualify this new route. Large-shape
 execution, ISA/resources and matched end-to-end speedup remain open gates.
+
+## October division-free 55-addition DAG
+
+`RNS8_BILINEAR_RANK23_OCTOBER55` executes the pinned
+[gsidebottom/logic artifact](https://github.com/gsidebottom/logic/blob/938ea3feddc3ebf44eace7a55222d0292a96c1dd/matmul/external/i19-55adds-slp.txt),
+Git blob `f3b618ea06ec620180317e6054b3e901b24a0781`. The unchanged artifact and
+Apache-2.0 license/attribution are checked in. It is **not** the September
+51-addition alternative-basis program: this DAG has 13 A, 14 B and 28 output
+binary additions, 23 ordered products and no basis change or division.
+
+A strict data-only importer emits typed nodes and hashes the artifact, DAG and
+allocated schedule. The C++ compiler independently expands the allocated schedule
+and statically checks all 729 ordered tensor coefficients against classical 3×3
+multiplication, plus the exact 8/6/11 intermediate coefficient L1 bounds. The
+separate Python verifier uses immutable nodes and checks the allocated schedule
+against them; its execution is deferred. Ordered A×B coefficients preserve the
+noncommutative block-ring identity, including even/composite moduli.
+
+The shared liveness compiler supports explicit widened unary negation. Each
+binary node reads centered operands into `int`, applies signs/addition, then uses
+one conditional modular correction. Negating -128 never happens in `int8_t`.
+The existing September DAG also uses this one-correction path; arbitrary input
+loads and product reductions retain their general reducers.
+
+Retained October mode evaluates each input DAG once per local cell and writes
+23 transformed matrices. `RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE` explicitly
+reevaluates the input DAG for each product, retaining only one transformed A/B
+pair. Both execute the actual 28-add output DAG over 23 product buffers. The
+recompute query removes exactly `22*(A_block_bytes+B_block_bytes)`; it does not
+pretend that local register reuse eliminates the remaining global products.
+These are distinct arithmetic/launch/memory tradeoffs, not an asserted speedup.
+
+All public bilinear methods now retain scratch in the ordinary workspace, with
+optional eager `rns8_prepare_bilinear_workspace`. Repeats with enough capacity
+allocate no bilinear scratch. A/B reader, C writer and workspace leases cover the
+whole synchronous operation. Precommit failure preserves C; possible-commit
+failure invalidates C; an undrainable failure retains the scratch and all leases
+until explicit draining succeeds. Checked workspace destruction retains failed
+free identities. Successful publication installs residues and the original
+complete-expression range proof together, including exceptions during publishing.
+
+Host C++ syntax/constexpr checks passed; generated data and metadata were refreshed.
+Regressions for all byte rings, signs, altered coefficients, recomputation budgets,
+and public signed/unsigned routes are authored but unexecuted. HIP compilation,
+real-device failure paths and matched performance campaigns remain deferred. The
+one-level N≥16384 / ≥1.15× / ≤2.2× total-memory promotion gates are unchanged.
+
+### Matched matrix-engine and public measurement controls
+
+Methods 5–9 repeat the same five algorithms with explicitly requested AMDGPU
+builtin matrix-engine subproducts. They require a compiled supported target and
+block K≤65536; there is no scalar fallback. Ordinary methods 0–4 keep the direct
+RNS subproduct baseline. Both bounded signed/unsigned and exact-wide contracts
+now use the same original plan/range admission, with per-tile/adaptive plans
+rejected before writes. Explicit finite/wrap reinterpretation is not admitted.
+
+Retained September/October matrix variants launch their 23 independent products
+as one `[product][plane][tile]` grid. The existing RDNA3/RDNA4 WMMA and CDNA3 MFMA
+kernels have a distinct batched instantiation; batch=1 keeps the original
+nonbatched specialization. Full per-product and aggregate byte domains are
+checked before dispatch, every output belongs to one product/plane/tile, and one
+completion replaces 23 serial discovery/launch/completion boundaries. Recompute
+mode remains serial because its single A/B pair is overwritten between products.
+This changes source-level scheduling; no measured benefit is asserted.
+
+`rns8-bilinear-calibrate` and its independent-process collector compare classical,
+Strassen, coefficient rank23, September SLP, October retained and October
+recomputed routes through public packing, preparation, product and padded
+three-limb export. Cases bind the subproduct backend, explicit/automatic matrix
+family, prefix, signedness, residency, budgets and instrumentation. Separate
+16×16/32×32/automatic CDNA-family controls enable tuning the classical comparator
+without silently moving a candidate into another family cohort. All transforms,
+reductions, commits, synchronization and cold cleanup stay in the measured route.
+
+An independent period-15 exact integer oracle checks every output in O(15MN),
+including N=16384 cases; it does not infer large correctness from tiny samples.
+A post-timing all-plane audit checks residues and every output/padding limb.
+Fixtures include odd rectangles, prefix tails, full-byte-ring source regressions,
+transformed K=65535/65536/65537 boundaries, negative smaller controls, cold calls,
+resident repeats and repacking. Matrix-cap/address/budget failures stay rejected,
+not extrapolated into supported large cohorts.
+
+Production processes disable timing hooks; separately labeled diagnostic
+processes retain transform/subproduct/recombine/commit events. The collector
+binds actual executable/build/process/target/runtime/environment identities,
+never mixes diagnostic latency into production medians, and reports paired
+complete-route costs and known live payload ratios. It reports allocator/driver
+and opaque runtime overhead as excluded—not a proven total-memory measurement.
+The ≥1.15×/≤2.2×/N≥16384 gates still require real reviewed evidence and cannot be
+satisfied by this source implementation or a logical scratch ratio alone.

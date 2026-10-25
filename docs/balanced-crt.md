@@ -70,3 +70,70 @@ The [conversion calibration guide](conversion-calibration.md) also defines an
 explicit cold allocation/upload/readback/free scope and the v2 receipt. Cold
 comparisons retain the same tile input and canonical value contract, with a host
 output boundary. Do not combine them with resident device-output timings.
+
+## Explicit quarter-range FMA / delayed-carry export
+
+The opt-in `rns8_prepare_quarter_crt_export` owner admits only an engine-proven
+current exact-wide source with `4*B <= M`. Ordinary exports remain unchanged.
+Signed, unsigned and canonical output modes have separate width checks. The
+immutable certificate binds the ordered prefix, full weights `W_i=(M/m_i)*y_i`,
+canonical representative interval, bound, source instance/generation, target,
+build, plan proof and fixed FP operation order. A source mutation makes the
+owner stale; missing/insufficient proofs return a range error before publication.
+Callers may retain the ordinary general exporter for those cases.
+
+The table generator rounds `y_i/m_i` to binary32 with integer tie-to-even logic;
+it never uses an approximate reciprocal. For all twenty prefixes, each
+coefficient error is at most `2^-25`. With `r_i<=255`, fixed ordered RNE FMAs and
+all partial sums below 8192, the total error is bounded by
+`20*(255+8192)/2^25 = 168940/33554432 < 1/64`. Together with `B/M<=1/4`, rounding
+the quotient is strictly separated from the wrong half-integer decision.
+The host certificate recomputes products, inverses, full weights and each
+coefficient bound using exact integers. The independent host evaluator models
+binary32 FMA with fixed-point integer rounding; no host rounding mode is assumed.
+
+The HIP source uses explicit RNE FMA and float-to-integer intrinsics in prefix
+order. These intrinsics are documented in AMD's
+[HIP device API table](https://rocm.docs.amd.com/projects/HIPIFY/en/amd-staging/reference/tables/CUDA_Device_API_supported_by_HIP.html);
+the emitted AMD instruction sequence still requires inspection and execution.
+No source-level spelling is treated as that evidence.
+
+Reconstruction accumulates 16-bit weight columns in bounded 32-bit registers,
+subtracts `q*M` and propagates an explicit Euclidean carry/borrow. The complete
+ordered sum/subtraction/carry bound is below INT32_MAX. Truncation is justified
+only by the final admitted signed-fit bound; it is not reused for unrestricted
+CRT. Signed output is sign-extended; unsigned is zero-extended. Canonical output
+uses a full-width centered result and adds M when negative. It never substitutes
+a centered array for the older canonical three-limb contract.
+
+Preparation retains bounded scratch. Export stages the complete result and
+publishes only after successful device completion/readback. An uncertain drain
+retains its source reader and buffers, poisons the context, and permits checked
+cleanup retry; failed cleanup never drops ownership. Public padding is untouched.
+Regression sources cover every prefix, +/-quarter extrema, quotient agreement
+with Boost, corrupted constants, carries/borrows, narrowing, stale generations,
+public ownership, tail padding and authored HIP differentials. They remain
+**unexecuted**; only host syntax was checked. No default selection or speedup is
+claimed, and target execution qualification remains not-run.
+
+The existing `rns8-crt-calibrate` and v3 collector now include matched quarter
+cohorts, rather than comparing them with out-of-contract random canonical tuples.
+Wide signed/unsigned cohorts compare the new canonical adapter with maintained
+Garner, direct and balanced controls. Native-width cohorts compare delayed-carry
+signed/unsigned exports with matching one-limb Garner. Four public-owner controls
+exercise real packing proofs, retained export preparation, complete staging,
+readback and caller publication; cold cases also charge context/plan/pack/prepare
+and checked destruction. Resident setup and private certificate setup are
+reported separately, not silently amortized into a claimed kernel win.
+
+The independent Python replay reproduces all dataset/output bytes and checks
+quarter bounds, widths, signedness and canaries. Pairing keys include dataset and
+output contract, so canonical, signed, unsigned and public/private boundaries
+cannot accidentally share an output identity. The exact-rational CRT prototype
+independently derives coefficient errors, rounds every FMA, performs Euclidean
+16-bit carry and checks recovered residues. Tracked cohorts cover all twenty
+prefixes, single cells and tail sizes, with both resident and fresh-allocation
+scopes. These are **harness/fixture implementations, not collected results**.
+VGPR/spill/ISA inspection, hardware counters and target-specific profitability
+remain unverified. Public logical-payload budgets exclude runtime/plan metadata;
+reported retained payload is not asserted to equal physical process memory.

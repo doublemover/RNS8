@@ -27,6 +27,16 @@ TEST_CASE("heterogeneous prepared groups preflight all tasks before executing", 
   REQUIRE(rns8_create_prepared_group(duplicate, 2, &bad) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_create_prepared_group(executions, 2, &group) == RNS8_SUCCESS);
   REQUIRE(rns8_destroy_prepared_execution(executions[0]) == RNS8_BUSY);
+  // Native queue opt-in cannot relabel a CPU/finite route as matrix execution.
+  rns8_native_group_desc native{sizeof(native),RNS8_ABI_VERSION,2,4,3,0,UINT64_MAX};
+  rns8_native_group_binding native_bindings[2]{};
+  for(auto& binding:native_bindings)binding={sizeof(binding),RNS8_ABI_VERSION,1,nullptr};
+  CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_UNSUPPORTED_BACKEND);
+  native.claim_chunk=33;CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_INVALID_ARGUMENT);
+  native.claim_chunk=1;native.schedule_mode=3;CHECK(rns8_prepare_native_group(group,&native,native_bindings,2)==RNS8_INVALID_ARGUMENT);
+  rns8_native_group_info native_info{sizeof(native_info),RNS8_ABI_VERSION};
+  CHECK(rns8_get_native_group_info(group,&native_info)==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_capture_native_group_hip_graph(group)==RNS8_INVALID_ARGUMENT);
   rns8_completion_token tokens[2]{{123,456},{123,456}};
   uint32_t executed = 999;
   const auto before = c[0]->content_generation;

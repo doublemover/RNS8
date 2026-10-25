@@ -2,6 +2,8 @@
 #define RNS8_CORE_INTERNAL_HPP
 
 #include "backend_common/address_domain.hpp"
+#include "backend_common/arithmetic_certificate.hpp"
+#include "core/hip_resources.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -12,11 +14,19 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "cpu/cpu_amx.hpp"
 
+struct rns8_synchronous_lease {
+  const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
+  bool input_writers=false;
+};
 struct rns8_context {
+  std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;
+  rns8_native_device_lease* active_native_operations = nullptr;
+  rns8_native_device_lease* native_leases = nullptr;
   rns8_native_device_lease* failed_native_cleanup = nullptr;
   mutable uint64_t prepared_references = 0;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
@@ -30,13 +40,27 @@ struct rns8_context {
 
 // Created only after exhaustive construction validation. Public plans have no
 // mutation API. Internal diagnostic mutation must first discard this seal.
+struct rns8_sealed_schedule_launch {
+  uint64_t entry_count = 0;
+  uint32_t max_row_blocks = 0, max_col_blocks = 0, max_elements = 0;
+  uint32_t max_selected_prefix = 0, uniform_zero_selected_prefix = 0;
+  bool zero_output_tiles = false, zero_row_col_products = false;
+  bool i32_launch_qualified = true;
+};
+
 struct rns8_validated_plan_contract {
+  std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
   uint64_t fingerprint = 0;
   std::vector<uint64_t> canonical_workspace_key;
   uint64_t active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+  rns8_sealed_schedule_launch launch;
 };
 
 struct rns8_plan {
+  uint32_t cpu_amx_prepared_threads = 1;
+  rns8_auto_trace_info auto_trace{};
+  std::vector<rns8_auto_decision> auto_decisions;
+  std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
   std::shared_ptr<const rns8_validated_plan_contract> validated_contract;
   mutable uint64_t prepared_references = 0;
   rns8_gemm_desc desc{};
@@ -113,6 +137,9 @@ struct rns8_matrix {
   mutable uint64_t prepared_references = 0;
   mutable uint64_t in_flight_readers = 0;
   bool in_flight_writer = false;
+  // Token-ordered prepared writer chains (e.g. GEMM -> exact lift). Other
+  // owners still see the aggregate boolean and cannot interleave mutations.
+  uint64_t prepared_in_flight_writers = 0;
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
@@ -175,6 +202,8 @@ struct rns8_matrix {
 };
 
 struct rns8_sparse_matrix {
+  rns8::detail::hip_direct_device_buffer packed_values_owner;
+  rns8::detail::hip_direct_device_buffer packed_indices_owner;
   rns8_sparse_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;
@@ -198,6 +227,15 @@ struct rns8_sparse_matrix {
 };
 
 struct rns8_workspace {
+  std::shared_ptr<rns8::detail::CpuAmxWorkspace> cpu_amx;
+  rns8::detail::hip_direct_device_buffer arena_owner;
+  rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
+  rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;
+  rns8::detail::hip_direct_device_buffer int32_scratch_owner;
+  rns8::detail::hip_direct_device_buffer matmul_workspace_owner;
+  rns8::detail::hip_direct_device_buffer a_prepack_owner;
+  rns8::detail::hip_direct_device_buffer b_prepack_owner;
+  rns8::detail::hip_direct_device_buffer accelerator_workspace_owner;
   std::shared_ptr<const rns8_validated_plan_contract> validated_plan_contract;
   mutable std::shared_ptr<const rns8_validated_plan_contract> equivalent_plan_contract;
   mutable uint64_t prepared_references = 0;
@@ -244,9 +282,11 @@ struct rns8_workspace {
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
   uint64_t hip_tile_schedule_count = 0;
+  rns8_locality_info locality_info{};
   void* hip_tile_schedule_active_entries = nullptr;
   std::size_t hip_tile_schedule_active_entries_bytes = 0;
   uint64_t hip_tile_schedule_active_entries_count = 0;
+  // Prefix-sum count certificate; locality directories may permute physical entries.
   uint64_t hip_tile_schedule_active_offsets[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint64_t hip_tile_schedule_active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint32_t hip_tile_schedule_active_prefix_count = 0;
@@ -294,6 +334,7 @@ struct rns8_workspace {
 };
 
 struct rns8_prepack_cache {
+  rns8::detail::hip_direct_device_buffer data_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_operand_role operand_role = RNS8_OPERAND_B;
@@ -326,6 +367,7 @@ struct rns8_prepack_cache {
 };
 
 struct rns8_result_cache {
+  rns8::detail::hip_direct_device_buffer snapshot_owner;
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   rns8_semantics semantics = RNS8_BOUNDED_I64;
   rns8_bound_kind bound_kind = RNS8_BOUND_NONE;
@@ -369,6 +411,12 @@ struct rns8_result_cache {
 namespace rns8::detail {
 
 using boost::multiprecision::cpp_int;
+
+// Descriptor admission and immutable schedule sealing must accept the same flags.
+constexpr uint32_t kSupportedPlanFlags = RNS8_PLAN_FORCE_FIXED_PREFIX |
+    RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS | RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS |
+    RNS8_PLAN_EXACT_SCALAR_FIRST | RNS8_PLAN_DIRECT_RNS_PARALLEL |
+    RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH | RNS8_PLAN_EXACT_VALUE_BOUND;
 
 constexpr uint16_t kDefaultModuli[RNS8_DEFAULT_MODULUS_COUNT] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,

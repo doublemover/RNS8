@@ -366,6 +366,25 @@ amdgpu_sparse_exact["gpu_event_timing_summary_us"] = {
 }
 validate_capture(amdgpu_sparse_exact)
 
+# Ordinary producer-shaped larger-family deep-event fixtures, explicitly synthetic.
+# Replace the complete selected family in event keys/order, backend metadata and
+# autotune identity; retain each semantics' real pack/export event boundary.
+def _larger_sparse_family(value):
+    if isinstance(value,str):return value.replace('16x16x64','32x32x32').replace('m=64;','m=128;').replace('k=64;','k=128;').replace('k_block_size=64;','k_block_size=128;').replace('--m 64','--m 128').replace('--k 64','--k 128')
+    if isinstance(value,list):return [_larger_sparse_family(x) for x in value]
+    if isinstance(value,dict):return {_larger_sparse_family(k):_larger_sparse_family(v) for k,v in value.items()}
+    return value
+for smaller in (amdgpu_sparse_finite,amdgpu_sparse_rns,amdgpu_sparse_exact):
+    larger=_larger_sparse_family(copy.deepcopy(smaller))
+    larger.update(m=128,n=128,k=128)
+    larger['backend_metadata']['accumulator_safety']['k_block_size']=128
+    validate_capture(larger)
+    mismatched=copy.deepcopy(larger)
+    phases=mismatched['timing_metadata']['gpu_event_phase_order']
+    index=next(i for i,p in enumerate(phases) if '32x32x32' in p)
+    phases[index]='amdgpu_builtin_rns_matrix_core_kernel'
+    expect_invalid(mismatched,'GPU event')
+
 missing_sparse_a_index_event = copy.deepcopy(amdgpu_sparse_finite)
 missing_sparse_a_index_event["timing_metadata"]["gpu_event_phase_order"].remove("sparse_a_indices_h2d")
 del missing_sparse_a_index_event["gpu_event_timings_us"]["sparse_a_indices_h2d"]

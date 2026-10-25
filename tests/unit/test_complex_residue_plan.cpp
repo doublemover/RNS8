@@ -34,11 +34,11 @@ TEST_CASE("complex residue plan proves both final bounds and peak scratch") {
   REQUIRE(three.status == RNS8_SUCCESS);
   CHECK(three.real_bound == 7 * (2 * 5 + 3 * 7));
   CHECK(three.imag_bound == 7 * (2 * 7 + 3 * 5));
-  CHECK(three.scratch_bytes == (3 * 7 + 7 * 5 + 5 * 3 * 5) * 20);
+  CHECK(three.scratch_bytes == (3 * 7 + 7 * 5 + 3 * 3 * 5) * 20);
   CHECK(f.query(three.scratch_bytes - 1).status == RNS8_WORKSPACE_TOO_SMALL);
   CHECK(f.query(three.scratch_bytes).status == RNS8_SUCCESS);
   const auto four = f.query(UINT64_MAX, ComplexProductMethod::four_real);
-  CHECK(four.scratch_bytes == 6 * 3 * 5 * 20);
+  CHECK(four.scratch_bytes == 4 * 3 * 5 * 20);
   CHECK(four.real_bound == three.real_bound);
   CHECK(four.imag_bound == three.imag_bound);
   f.bounds = {cpp_int(1) << 63, cpp_int(1) << 63, cpp_int(1) << 63, cpp_int(1) << 63};
@@ -127,4 +127,38 @@ TEST_CASE("complex admission distinguishes exact signed ranges from finite rings
   }
   set_basis({ComplexResidueDomain::finite_ring, 1, 1, 257});
   CHECK(f.query().status == RNS8_INVALID_ARGUMENT);
+}
+
+#include "backend_common/complex_residue_algebra.hpp"
+#include <algorithm>
+#include <numeric>
+#include <vector>
+TEST_CASE("complex internal dead-slot recombination preserves every channel under reordered cell ownership") {
+  for(unsigned modulus=2;modulus<=256;++modulus)for(bool three:{false,true})for(unsigned cells:{1u,15u,323u}){
+    const unsigned products=three?3:4;std::vector<int8_t> storage(products*cells+2,91),expected(2*cells);
+    for(unsigned p=0;p<products;++p)for(unsigned i=0;i<cells;++i)storage[1+p*cells+i]=int8_t(center(cpp_int(i*73+p*111),modulus));
+    auto* values=storage.data()+1;
+    for(unsigned i=0;i<cells;++i){
+      expected[i]=int8_t(center(cpp_int(values[i])-values[cells+i],modulus));
+      cpp_int imaginary=values[2*cells+i];if(three)imaginary-=cpp_int(values[i])+values[cells+i];else imaginary+=values[3*cells+i];
+      expected[cells+i]=int8_t(center(imaginary,modulus));
+    }
+    std::vector<unsigned> order(cells);std::iota(order.begin(),order.end(),0);std::reverse(order.begin(),order.end());
+    for(auto i:order){
+      const auto pair=complex_recombine_cell(values[i],values[cells+i],values[2*cells+i],three?0:values[3*cells+i],three,modulus,finite_u8::modulus_reciprocal_u32(modulus));
+      values[i]=pair.real;values[cells+i]=pair.imag;
+    }
+    CHECK(std::equal(expected.begin(),expected.end(),values));CHECK(storage.front()==91);CHECK(storage.back()==91);
+  }
+}
+TEST_CASE("complex queried storage admits exactly the shared reduced scratch envelope") {
+  ComplexFixture f;
+  for(auto method:{ComplexProductMethod::three_real,ComplexProductMethod::four_real}){
+    const auto plan=f.query(UINT64_MAX,method);REQUIRE(plan.status==RNS8_SUCCESS);
+    CHECK(plan.layout_version==2);CHECK(plan.staged_real_offset()==plan.products_offset());
+    CHECK(plan.staged_imag_offset()+plan.product_bytes<=plan.scratch_bytes);
+    CHECK(plan.scratch_bytes==plan.sum_a_bytes+plan.sum_b_bytes+plan.products*plan.product_bytes);
+    CHECK(f.query(plan.scratch_bytes,method).status==RNS8_SUCCESS);
+    CHECK(f.query(plan.scratch_bytes-1,method).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
 }

@@ -193,6 +193,10 @@ const char* input_profile_name(const Args& args) {
       return "finite-small-centered";
     case InputProfile::FiniteFullUniform:
       return "finite-full-uniform";
+    case InputProfile::WideTwoLimbConstant: return "wide-two-limb-constant";
+    case InputProfile::WideThreeLimbConstant: return "wide-three-limb-constant";
+    case InputProfile::WideTwoLimbMixed: return "wide-two-limb-mixed";
+    case InputProfile::WideThreeLimbMixed: return "wide-three-limb-mixed";
   }
   return "unknown";
 }

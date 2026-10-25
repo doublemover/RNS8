@@ -1,4 +1,7 @@
   std::cout << "  \"timing_metadata\": {\n";
+  std::cout << "    \"host_instrumentation_state\": \"" << (result.gpu_events.requested ? "diagnostic_gpu_events" : "hooks_disabled") << "\",\n";
+  std::cout << "    \"host_boundary_scope\": \"completed_declared_output_with_production_checks\",\n";
+  std::cout << "    \"host_observation_unit\": \"" << (result.streaming_overlap_executed ? "completed_pipeline_batch_mean_per_call_v2" : "completed_call_or_task_batch") << "\",\n";
   const auto& host_clock = rns8::bench::host_clock_calibration();
   const auto phase_state = [&](const std::vector<double>& samples, const char* declared) {
     if (declared) return declared;
@@ -7,6 +10,10 @@
       return value <= host_clock.censor_threshold_us;
     }) ? "below_resolution" : "measured";
   };
+  const char* streaming_state=nullptr;
+  if(result.streaming_overlap_executed) {
+    streaming_state=std::any_of(result.streaming_observations.begin(),result.streaming_observations.end(),[&](const auto& b){return b.duration_us<=host_clock.censor_threshold_us;})?"below_resolution":"measured";
+  }
   const char* pack_state = args.oneshot ? "fused" :
       (reuses_all_packed_inputs(args) || all_zero_direct_hip_pack_elided ? "elided" : nullptr);
   const char* export_state = args.oneshot ? "fused" : (chain_residue_output ? "elided" : nullptr);
@@ -17,7 +24,7 @@
             << "\"pack\": \"" << phase_state(result.samples.pack_us, pack_state) << "\", "
             << "\"rns_gemm\": \"" << phase_state(result.samples.gemm_us, nullptr) << "\", "
             << "\"crt_export\": \"" << phase_state(result.samples.export_us, export_state) << "\", "
-            << "\"end_to_end\": \"" << phase_state(result.samples.end_to_end_us, nullptr) << "\"},\n";
+            << "\"end_to_end\": \"" << phase_state(result.samples.end_to_end_us, streaming_state) << "\"},\n";
 
   std::cout << "    \"host_timing_contract_version\": 2,\n";
   std::cout << "    \"host_sample_representation\": \"fractional_microseconds_from_clock_ticks\",\n";
@@ -29,9 +36,9 @@
   std::cout << "    \"censor_threshold_us\": " << host_clock.censor_threshold_us << ",\n";
   std::cout << "    \"timer_overhead_samples\": 1001,\n";
   std::cout << "    \"host_result_kind\": \""
-            << (host_batch ? "amortized_batch" : "single_operation") << "\",\n";
-  std::cout << "    \"inner_repetitions\": " << (host_batch ? args.host_api_batch_size : 1) << ",\n";
-  std::cout << "    \"amortization_policy\": \"explicit_independent_task_batch_with_per_task_output\",\n";
+            << (result.streaming_overlap_executed ? "pipeline_batch_throughput" : host_batch ? "amortized_batch" : "single_operation") << "\",\n";
+  std::cout << "    \"inner_repetitions\": " << (result.streaming_overlap_executed ? args.repeats : host_batch ? args.host_api_batch_size : 1) << ",\n";
+  std::cout << "    \"amortization_policy\": \"" << (result.streaming_overlap_executed ? "one_completed_fill_drain_batch_divided_by_actual_calls" : "explicit_independent_task_batch_with_per_task_output") << "\",\n";
   std::cout << "    \"unit\": \"microseconds\",\n";
   std::cout << "    \"source\": \"std::chrono::steady_clock\",\n";
   std::cout << "    \"source_scope\": \"host_wall_clock\",\n";
@@ -173,7 +180,11 @@
   } else {
     std::cout << "      \"matrix_alloc\": \"one-time persistent matrix allocation host timing\",\n";
   }
-  if (hip_graph_replay_full_pack_export_used(result)) {
+  if(result.streaming_overlap_executed) {
+    std::cout << "      \"pack\": \"host phase unavailable; separate per-call GPU stage events when diagnostic hooks enabled\",\n";
+    std::cout << "      \"rns_gemm\": \"host phase unavailable; separate per-call GPU stage events when diagnostic hooks enabled\",\n";
+    std::cout << "      \"crt_export\": \"host phase unavailable; status checks and final host destination copy belong to batch completion\",\n";
+  } else if (hip_graph_replay_full_pack_export_used(result)) {
     std::cout << "      \"pack\": \"captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay so raw_timings_us.pack is zero and setup-inclusive comparisons use end_to_end plus graph setup\",\n";
     if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
       std::cout << "      \"rns_gemm\": \"captured inside one HIP Graph launch with the Direct-HIP finite-u8 pack and canonical export work\",\n";
@@ -354,7 +365,9 @@
     std::cout << "      \"rns_gemm\": \"per-repeat host timing for rns8_gemm_rns\",\n";
     std::cout << "      \"crt_export\": \"per-repeat host timing for export/reconstruction into logical output\",\n";
   }
-  if (hip_graph_replay_full_pack_export_used(result)) {
+  if(result.streaming_overlap_executed) {
+    std::cout << "      \"end_to_end\": \"one actual batch duration divided by actual completed calls; includes pipeline fill/drain, all status checks and final host destination copy; excludes separately recorded resource setup; not per-call latency\"\n";
+  } else if (hip_graph_replay_full_pack_export_used(result)) {
     if (result.hip_graph_replay_scope == "direct_hip_finite_u8_pack_gemm_export") {
       std::cout << "      \"end_to_end\": \"measured duration for one hipGraphLaunch plus stream synchronization containing the complete finite-u8 pack, modular GEMM, canonical export, and D2H path; excludes one-time hip_graph_replay.capture_us and hip_graph_replay.instantiate_us only\"\n";
     } else if (result.hip_graph_replay_scope == "direct_hip_exact_wide_pack_gemm_export") {

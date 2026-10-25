@@ -14,6 +14,7 @@ function(rns8_configure_library target_name)
   target_compile_definitions(
     ${target_name}
     PRIVATE
+      $<$<BOOL:${RNS8_ENABLE_CPU_AMX}>:RNS8_ENABLE_CPU_AMX=1>
       $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
       $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>
@@ -84,7 +85,7 @@ set_target_properties(rns8_static PROPERTIES OUTPUT_NAME rns8_static)
 if(RNS8_BUILD_TOOLS)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)
   target_include_directories(rns8-inspect PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(rns8-inspect PRIVATE rns8_static)
+  target_link_libraries(rns8-inspect PRIVATE rns8_static nlohmann_json::nlohmann_json)
   rns8_copy_windows_clang_asan_runtime(rns8-inspect)
 
   add_executable(rns8-verify tools/rns8_verify.cpp)
@@ -170,26 +171,52 @@ if(RNS8_BUILD_BENCHMARKS)
     list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
+  add_executable(rns8-cpu-amx-calibrate benchmarks/rns8_cpu_amx_calibrate.cpp)
   add_executable(rns8-crt-calibrate benchmarks/rns8_crt_calibrate.cpp)
   add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
+  add_executable(rns8-epilogue-calibrate benchmarks/rns8_epilogue_calibrate.cpp)
   add_executable(rns8-finite-verify-calibrate benchmarks/rns8_finite_verify_calibrate.cpp)
   add_executable(rns8-block-sparse-calibrate benchmarks/rns8_block_sparse_calibrate.cpp)
   add_executable(rns8-wrap64-calibrate benchmarks/rns8_wrap64_calibrate.cpp)
   add_executable(rns8-word-mod-calibrate benchmarks/rns8_word_mod_calibrate.cpp)
   add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
   add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
+  add_executable(rns8-queue-calibrate benchmarks/rns8_queue_calibrate.cpp)
+  add_executable(rns8-public-queue-calibrate benchmarks/rns8_public_queue_calibrate.cpp)
   add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
+  add_executable(rns8-narrow-public-calibrate benchmarks/rns8_narrow_public_calibrate.cpp)
+  add_executable(rns8-bilinear-calibrate benchmarks/rns8_bilinear_calibrate.cpp)
+  add_executable(rns8-native-integrity-calibrate benchmarks/rns8_native_integrity_calibrate.cpp)
+  add_executable(rns8-native-interop-calibrate benchmarks/rns8_native_interop_calibrate.cpp)
+  add_executable(rns8-residue-dot-calibrate benchmarks/rns8_residue_dot_calibrate.cpp)
+  add_executable(rns8-lift-recipe-calibrate benchmarks/rns8_lift_recipe_calibrate.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(RNS8_INTEROP_APPLICATION_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_native_interop_application.hip")
+    target_sources(rns8-native-interop-calibrate PRIVATE "${RNS8_INTEROP_APPLICATION_OBJECT}")
+  endif()
+  add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   foreach(_calibrator IN ITEMS
+      rns8-cpu-amx-calibrate
       rns8-crt-calibrate
       rns8-native-calibrate
+      rns8-epilogue-calibrate
       rns8-finite-verify-calibrate
       rns8-block-sparse-calibrate
       rns8-wrap64-calibrate
       rns8-word-mod-calibrate
       rns8-instruction-roof-calibrate
       rns8-split-k-calibrate
+      rns8-queue-calibrate
+      rns8-public-queue-calibrate
       rns8-ragged-calibrate
+      rns8-int4-calibrate
+      rns8-bilinear-calibrate
+      rns8-native-integrity-calibrate
+      rns8-native-interop-calibrate
+      rns8-residue-dot-calibrate
+      rns8-lift-recipe-calibrate
+      rns8-narrow-public-calibrate
       rns8-stream-panel-calibrate)
     rns8_bind_manifest(${_calibrator})
     target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")

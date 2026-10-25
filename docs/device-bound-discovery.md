@@ -58,3 +58,24 @@ The extension and test executable compiled with VS2026/HIP 7.1 for gfx1100.
 The dated record owns applicable tests at its named source/configuration. New
 compiler/source changes await the consolidated campaign; per-method performance
 and broader target qualification remain separate gates.
+
+## Immutable direct-HIP launch facts
+
+Ordinary tiled public GEMM now carries the existing plan's validated seal into
+its direct-HIP consumer. Construction derives block maxima, element maxima,
+per-prefix active counts and zero-fill flags once. The backend checks the seal's
+owned array/shape binding and the workspace's bounded (at most 20) count/offset
+contract without rebuilding a grid or walking immutable tile/mask arrays.
+Canonical equivalent-plan workspace reuse remains structural, not hash-only;
+current device, storage, generations and output ownership remain per-call duties.
+Raw internal callers without a plan seal still receive exhaustive validation.
+
+`rns8-bench` captures `immutable_schedule_work` before/after measured repeats,
+including backend seal tile visits, fast submissions and raw submissions, beside
+its existing one-time planning and complete-call timings. These are source-work
+counters, not GPU instructions or latency. The public-calibration
+`immutable-schedule.json` corpus pairs global and per-tile conservative bounds
+for identical seeded adaptive-band inputs, thin K and compute-heavy K, several
+tile counts, retained inputs and padded export. Production/hook-disabled and
+diagnostic/GPU-event collection remain separate. No timings or regressions have
+been executed for this change.

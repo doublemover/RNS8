@@ -398,3 +398,106 @@ TEST_CASE("static direct provider rejection agrees with launch preflight without
   CHECK(hip_finite_verify_trial(-1,&a,&b,&c,INT64_MAX,2,1,251,&r,&br,&flag,result)==verify.status);
   CHECK(result==77); CHECK(c==37);
 }
+
+#include "backend_common/native_conversion_reference.hpp"
+#include "backend_common/native_conversion_layout.hpp"
+TEST_CASE("encode-once fragment ownership is exact and rejects mapping mutations", "[native][layout][cpu]") {
+  namespace ref=rns8::detail::native_conversion_reference;
+  constexpr uint32_t m=17,n=19,k=17,lda=23,ldb=29;
+  std::vector<uint64_t> a(m*lda,UINT64_MAX),b(k*ldb,UINT64_MAX);
+  for(uint32_t row=0;row<m;++row)for(uint32_t q=0;q<k;++q)a[row*lda+q]=(uint64_t(row+1)<<59)^(q*7919u+row);
+  for(uint32_t q=0;q<k;++q)for(uint32_t col=0;col<n;++col)b[q*ldb+col]=(uint64_t(col+1)<<58)^(q*3571u+col*31u);
+  auto matches=[&](const ref::Fragments& f,uint32_t row0,uint32_t col0,uint32_t base,uint32_t modulus,bool unsign) {
+    for(uint32_t lane=0;lane<32;++lane)for(uint32_t word=0;word<4;++word)for(uint32_t byte=0;byte<4;++byte) {
+      const auto row=row0+lane%16,col=col0+lane%16,q=base+word*4+byte;
+      const auto av=row<m && q<k ? a[row*lda+q] : 0;
+      const auto bv=col<n && q<k ? b[q*ldb+col] : 0;
+      if(ref::byte(f.a[lane][word],byte)!=uint8_t(ref::center(av,unsign,modulus)) ||
+         ref::byte(f.b[lane][word],byte)!=uint8_t(ref::center(bv,unsign,modulus)))return false;
+    }
+    return true;
+  };
+  for(bool unsign:{false,true})for(uint32_t modulus:{256u,255u,253u,251u,167u})for(uint32_t base:{0u,16u}) {
+    const auto f=ref::cooperative(a,b,m,n,k,lda,ldb,0,0,base,modulus,unsign);
+    CHECK(matches(f,0,0,base,modulus,unsign));CHECK(f.conversions==512);
+    const auto tiled=ref::encoded_lds(a,b,m,n,k,lda,ldb,0,0,base,16,0,modulus,unsign);
+    CHECK(tiled[0].conversions==1024);
+    for(uint32_t wave=0;wave<4;++wave)CHECK(matches(tiled[wave],(wave/2)*16,(wave%2)*16,base,modulus,unsign));
+  }
+  for(auto mutation:{ref::Mutation{1},ref::Mutation{16,true},ref::Mutation{16,false,true}})
+    CHECK_FALSE(matches(ref::cooperative(a,b,m,n,k,lda,ldb,0,0,16,251,false,mutation),0,0,16,251,false));
+  for(auto mutation:{ref::Mutation{16,false,false,true},ref::Mutation{16,false,false,false,true}}) {
+    const auto broken=ref::encoded_lds(a,b,m,n,k,lda,ldb,0,0,0,32,0,251,false,mutation);
+    CHECK_FALSE(matches(broken[0],0,0,0,251,false));
+  }
+  for(uint32_t group:{1u,2u,4u})for(uint32_t depth:{16u,32u}) {
+    const auto encoded=rns8::detail::query_native_tiled_resources(depth,1,65536,rns8::detail::NativeConversion::encoded_lds,group);
+    REQUIRE(encoded.status==RNS8_SUCCESS);
+    CHECK(encoded.raw_lds_bytes==0);
+    CHECK(encoded.encoded_lds_bytes==uint64_t(group)*2*32*(depth/4+1)*4);
+    CHECK(encoded.conversions_per_panel==uint64_t(group)*2*32*depth);
+    CHECK(rns8::detail::query_native_tiled_resources(depth,1,encoded.total_lds_bytes-1,rns8::detail::NativeConversion::encoded_lds,group).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+  CHECK(rns8::detail::query_native_tiled_resources(16,2,65536,rns8::detail::NativeConversion::encoded_lds,1).status==RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::query_native_tiled_resources(16,1,65536,rns8::detail::NativeConversion::cooperative,1).status==RNS8_INVALID_ARGUMENT);
+}
+
+#include "../../benchmarks/native_dataset.hpp"
+TEST_CASE("versioned native datasets certify heterogeneous buckets before GPU work", "[native][bounds][fixture]") {
+  using namespace rns8::bench;
+  for(bool u:{false,true})for(const std::string profile:{"full-width-v1","uniform-small-v2","mixed-tiles-v2","zero-tiles-v2","localized-outlier-v2"})
+    for(uint32_t k:{1u,17u,257u}) {
+      constexpr uint32_t m=17,n=19;
+      std::vector<uint64_t> a(m*k),b(k*n);std::mt19937_64 rng(3135);
+      fill_native_dataset(a,b,m,n,k,u,profile,3135,rng);
+      for(uint32_t group:{1u,2u,4u}) {
+        const auto model=model_native_dataset(a,b,m,n,k,u,group,profile);
+        uint64_t tiles=0,channels=0,groups=0;
+        for(uint32_t p=0;p<=20;++p) {tiles+=model.required_histogram[p];channels+=p*model.required_histogram[p];groups+=((p+group-1)/group)*model.required_histogram[p];}
+        CHECK(tiles==4);CHECK(channels==model.required_channels);CHECK(groups==model.group_work_items);
+        CHECK(model.required_histogram==model.executed_histogram);
+        if(profile=="zero-tiles-v2")CHECK(model.zero_tiles==3);
+        if(profile!="full-width-v1")CHECK(model.group_work_items<model.fixed_capacity_group_work_items);
+      }
+      const auto first=model_native_dataset(a,b,m,n,k,u,1,profile);a[0]^=1;
+      // Input mutation is visible even when a conservative bound bucket stays unchanged.
+      CHECK(model_native_dataset(a,b,m,n,k,u,1,profile).input_hash!=first.input_hash);
+    }
+  std::vector<uint64_t> a(16*17),b(17*16);std::mt19937_64 rng(0);
+  fill_native_dataset(a,b,16,16,17,false,"mixed-tiles-v2",0,rng);
+  CHECK_THROWS_AS(model_native_dataset(a,b,16,16,17,false,1,"mixed-tiles-v2"),std::invalid_argument);
+}
+
+#include "backend_common/split_k_partial.hpp"
+TEST_CASE("native first merge normalizes centered bytes without changing canonical trees", "[split-k][arithmetic]") {
+  using namespace rns8::detail;
+  for(uint32_t p=2;p<=256;++p) {
+    for(uint32_t r=0;r<p;++r) {
+      const int32_t centered=r>=(p+1)/2?int32_t(r)-int32_t(p):int32_t(r);
+      const auto bits=static_cast<uint8_t>(centered);
+      CHECK(split_k_partial_canonical(bits,p,true)==r);
+      CHECK(split_k_partial_centered(bits,p,true)==centered);
+      CHECK(split_k_partial_centered(static_cast<uint8_t>(r),p,false)==centered);
+    }
+    for(uint32_t fragments:{1u,2u,3u,127u,128u,129u,257u,4096u}) {
+      std::vector<uint8_t> partials(fragments);uint64_t reference=0;
+      for(uint32_t f=0;f<fragments;++f) {
+        const uint32_t r=(f*127u+(f%2?p-1:0))%p;reference+=r;
+        partials[f]=static_cast<uint8_t>(r>=(p+1)/2?int32_t(r)-int32_t(p):int32_t(r));
+      }
+      bool centered=true;
+      while(partials.size()>1) {
+        std::vector<uint8_t> next((partials.size()+127)/128);
+        for(std::size_t first=0;first<partials.size();first+=128) {
+          uint32_t sum=0;
+          for(auto f=first;f<std::min(first+128,partials.size());++f)sum+=split_k_partial_canonical(partials[f],p,centered);
+          REQUIRE(sum<=32640);next[first/128]=static_cast<uint8_t>(sum%p);
+        }
+        centered=false;partials=std::move(next);
+      }
+      const uint32_t canonical=reference%p;
+      CHECK(split_k_partial_centered(partials[0],p,centered)==
+        static_cast<int8_t>(canonical>=(p+1)/2?int32_t(canonical)-int32_t(p):int32_t(canonical)));
+    }
+  }
+}

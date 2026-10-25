@@ -97,7 +97,7 @@ public API envelope.
 | Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; new binding validation pending | [Complex owner](complex-residue-composition.md) |
 | Wide-index residue control | Private scalar 64-bit global offsets; no public large-shape packing/export support or measured large allocation | [Wide-index control](wide-index-gemm.md) |
 | Strassen / rank-23 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23; new public qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
-| Packed INT4/IU4 | Internal certified subset/prototypes; public research semantics rejected | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Packed INT4/IU4 | Explicit public finite signed-nibble owner and versioned packed B; gfx1100/1101/1102 implementation; target/performance qualification deferred | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Floating encodings / Ozaki | Scalar certificates and host rational/binary32 rewrite oracle; no public floating backend | [Generated encodings](generated-encodings.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
 | Sparse/hybrid | Public explicit structured Sparse-A plus opt-in generation-bound scalar block-sparse materializations; no hybrid selection | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
@@ -121,3 +121,31 @@ separately: the public staged-residue budget still limits payload, preserving it
 documented meaning. Pointer aliases, generations, value proofs and stream ownership
 remain dynamic admission steps. Provider parity/budget fixtures await final validation;
 this is an incremental runtime provider surface, not a complete recipe planner.
+
+### Explicit finite INT4 ownership
+
+`rns8_prepare_int4_recipe` prepares the real signed-mode IU4 WMMA candidate for
+finite rings 2..16 and eligible prime fields. Mode 0 converts inside the tile;
+mode 1 retains B as `[ceil(K/16)][N][2]` little-nibble uint32 fragments (lower K
+in the low nibble). Odd/tail K is numerical zero, never uninitialized payload.
+Both wave halves consume the documented duplicated B fragment. This is not an
+unsigned-nibble path and does not truncate the ordinary RNS basis.
+
+The shared arithmetic guard models four-bit signed inputs, signed prior residue
+and every 65,536-product slab: `65536*64+15 < INT32_MAX`. Preparation probes the
+actual device code object once; steady execution neither probes nor allocates.
+The immutable owner binds B instance/generation, modulus, format, target, build
+and certificate. Source mutation rejects before C invalidation. Device failure
+invalidates C and retains borrowed storage until a checked drain; preparation
+may return a non-null cleanup-only owner on an undrainable failure. Checked
+destruction remains retryable. Default finite GEMM/AUTO are unchanged.
+
+`rns8-int4-calibrate` and `collect_int4_calibration.py` provide matched ordinary
+INT8, on-the-fly INT4 and packed-B routes, including full cold ownership, repeated
+B and repeated A+B, padded complete export, setup/execute/export/cleanup phases,
+sustained uninstrumented intervals and counterbalanced independent processes.
+Fixtures cover tails, all slab boundaries and multiple slabs; authored regressions
+cover every finite nibble alphabet, packed tails, stale generations and full
+public output. No regressions or campaigns were executed. Neither emitted ISA,
+actual lane mapping nor a speedup (including the specification's 1.25x gate) is
+claimed from source. Public reachability is not target qualification.

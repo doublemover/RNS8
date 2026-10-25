@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 from typing import Any
+import json
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 
 from .config import PHASES, PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
 
@@ -23,6 +25,11 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     else:
         next_op_contract = requested_next_op.get("resolved") if isinstance(requested_next_op, dict) else None
     parts = [
+        f"exact_proof_policy={exact_proof_policy(capture)}",
+        f"host_instrumentation_state={host_instrumentation(capture)}",
+        f"host_observation_contract={json.dumps(host_observation_contract(capture), sort_keys=True)}",
+        f"output_completion_boundary={output_completion_boundary(capture)}",
+        f"host_batch_contract={json.dumps(host_batch_contract(capture), sort_keys=True)}",
         f"scenario_identity={capture_scenario_identity(capture)}",
         f"checksum_policy={capture_checksum_policy(capture)}",
         f"host_api_batch_size={capture_host_api_batch_size(capture)}",
@@ -49,6 +56,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"residue_output_mode={residue_output_mode}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
+        f"input_profile={capture.get('input_profile', 'uniform-small')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
         f"next_op_contract={next_op_contract}",
@@ -139,6 +147,9 @@ def capture_reconstruction_variant_name(capture: dict[str, Any]) -> str:
 
 
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
+    aggregate = capture.get("_observation_aggregate")
+    if isinstance(aggregate, dict):
+        return aggregate.get("phase_medians_us", {}).get(phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None

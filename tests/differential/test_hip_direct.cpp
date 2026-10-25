@@ -3,6 +3,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstdint>
 #include <iterator>
@@ -105,3 +106,16 @@ TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
 #include "test_hip_native_device_cases.inc"
 
 #include "test_hip_instruction_roof_cases.inc"
+
+#include "test_hip_public_native_group_cases.inc"
+
+#include "../support/ragged_recipe_fixture.hpp"
+TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
+  if(!hip_available())SKIP("no HIP device for ragged recipe binding");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("direct HIP Gram native, transpose and independent reconstruction ablations") {
+  if(!hip_available()){SKIP("HIP direct unavailable");}
+  check_gram_prepared_ablations(RNS8_BACKEND_HIP_DIRECT);
+}
