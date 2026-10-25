@@ -1,12 +1,13 @@
 # Parked implementation handoff — 2026-10-25
 
-Subsequent development resumed with validation deferred. The #68 serial owner now
-has a bounded retained-B cache, conflict-aware reload accounting, and authored
-regressions/calibration controls. Serial export now disables unbudgeted nested pinned staging. Overlap and general
-cost selection remain unfinished. Counts below describe the original parked
-snapshot; the per-issue ledger records subsequent partial implementations.
-The #40 hipBLASLt path also has independent none/A/B/both retention controls,
-composed metadata controls and packing receipts, with all execution deferred.
+This is the original parked source snapshot. Subsequent development and the
+[consolidated local validation](local-validation-20261025.md) supersede its
+execution-deferred status: local applicable checks now pass, six tooling issues
+are closed, and the report records the remaining source/hardware/performance
+gates. The per-issue ledger retains the historical counts below alongside its
+new `validation_closeout` record. Later #68 work includes retained B, overlap
+and calibrated panel shortlisting; later #40 work includes paired-column
+layout algebra and independent operand reuse controls.
 
 Development was parked at the user's request, **not because the backlog is
 finished**. This branch starts at `5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70` on

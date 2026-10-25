@@ -2614,10 +2614,6 @@
           "reference": "docs/local-all-features-20261023.md"
         },
         {
-          "source": "README.md",
-          "reference": "docs/local-all-features-20261023.md"
-        },
-        {
           "source": "docs/7900xtx-large-throughput-2026-10-23.md",
           "reference": "local-all-features-20261023.md"
         },
@@ -3610,6 +3606,10 @@
         },
         {
           "source": "docs/documentation-maintenance.md",
+          "reference": "platform-windows.md"
+        },
+        {
+          "source": "docs/local-validation-20261025.md",
           "reference": "platform-windows.md"
         },
         {
@@ -5063,7 +5063,7 @@
       ],
       "anchors": [
         "installed-native-hip-producerconsumer",
-        "prepared-graph-pipeline-new-unqualified"
+        "prepared-graph-pipeline"
       ]
     },
     {
@@ -5075,6 +5075,10 @@
       "owner": "docs/7900xtx-partial-campaign-2026-10-24.md",
       "reason": "Preserve the reviewed stopped campaign, exact source provenance and unresolved qualification without implying a completed campaign.",
       "inbound_links": [
+        {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "7900xtx-partial-campaign-2026-10-24.md"
+        },
         {
           "source": "docs/roadmap.md",
           "reference": "7900xtx-partial-campaign-2026-10-24.md"
@@ -5192,6 +5196,52 @@
       ],
       "anchors": [
         "experimental-ordered-runtime-bases"
+      ]
+    },
+    {
+      "path": "docs/local-validation-20261025.md",
+      "purpose": "Windows/gfx1100 consolidated correctness validation, repairs and issue closeout on October 25",
+      "audience": "Developers and evidence reviewers",
+      "disposition": "historical",
+      "canonical": "docs/local-validation-20261025.md",
+      "owner": "metadata/local-validation-20261025.json",
+      "reason": "Preserve exact artifact-scoped local results; current release gates remain in docs/roadmap.md.",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/local-validation-20261025.md"
+        },
+        {
+          "source": "README.md",
+          "reference": "docs/local-validation-20261025.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "local-validation-20261025.md"
+        },
+        {
+          "source": "docs/implementation-handoff-20261025.md",
+          "reference": "local-validation-20261025.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "local-validation-20261025.md"
+        },
+        {
+          "source": "examples/device-native/README.md",
+          "reference": "../../docs/local-validation-20261025.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/local-validation-20261025.md"
+        }
+      ],
+      "anchors": [
+        "failures-repaired",
+        "issue-closeout-and-remaining-gates",
+        "reproduction",
+        "results-and-coverage",
+        "windows-and-gfx1100-validation--2026-10-25"
       ]
     }
   ]

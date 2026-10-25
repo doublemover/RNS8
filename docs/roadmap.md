@@ -8,6 +8,13 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The [October 25 consolidated validation](local-validation-20261025.md) records
+the expanded Windows/gfx1100 and CPU ASan correctness coverage, repaired
+failures, installed static/shared graph consumers and six closed tooling issues.
+Its separate artifact boundaries and pending dependency/external-link gates
+are explicit. Research performance and broader hardware qualification remain
+with their issue-specific gates below.
+
 The [October 24 partial campaign](7900xtx-partial-campaign-2026-10-24.md) records
 `ad71df5` production validation (747 passes, three expected skips), 5,382 admitted
 benchmark captures and reviewed matched gains. Collection is stopped by user

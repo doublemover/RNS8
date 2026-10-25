@@ -4,6 +4,7 @@ from email.message import Message
 import importlib.util
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -130,11 +131,22 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertNotIn("## Build without a GPU", text)
         self.assertNotIn("ctest --", text)
-        self.assertIn("c7f7e05", text)
+        records = re.findall(r"\]\((docs/local-validation-\d{8}\.md)\)", text)
+        self.assertTrue(records, "README needs a dated local validation record")
+        for path in set(records):
+            record = ROOT / path
+            receipts = re.findall(r"\]\((\.\./metadata/local-validation-\d{8}\.json)\)", record.read_text(encoding="utf-8"))
+            self.assertTrue(receipts, "validation must bind its actual compiled artifacts")
+            for receipt in receipts:
+                artifacts = json.loads((record.parent / receipt).read_text(encoding="utf-8"))["artifacts"]
+                self.assertTrue(artifacts)
+                for artifact in artifacts.values():
+                    self.assertRegex(artifact["build_commit"], r"^[0-9a-f]{7,40}$")
+                    self.assertRegex(artifact["sha256"], r"^[0-9a-f]{64}$")
         self.assertIn("Internal checked native-byte WMMA", text)
         self.assertIn("Public AMDGPU builtins", text)
         self.assertIn("examples/workloads/README.md", text)
-        self.assertIn("application performance and installed-platform", text)
+        self.assertIn("application performance and other", text)
 
 
 class HardwareOfferTest(unittest.TestCase):

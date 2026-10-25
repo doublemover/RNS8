@@ -50,7 +50,8 @@ issue links.
 - [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; authored, validation pending
 - [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
 - [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
-- [Expanded local correctness record](local-all-features-20261023.md)
+- [October 25 consolidated local correctness and issue closeout](local-validation-20261025.md)
+- [October 23 local correctness record](local-all-features-20261023.md)
 
 - [Genuine exact-wide magnitude controls](exact-wide-magnitude-controls.md): public two/three-limb profiles and exact admission; validation deferred
 

@@ -138,7 +138,7 @@
       "issue": 27,
       "title": "[P2] Count independent same-environment executions in the performance variance gate",
       "url": "https://github.com/doublemover/RNS8/issues/27",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
       "implementation": [
         {
@@ -174,10 +174,8 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73",
         "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
-      "remaining": [
-        "Execute authored report/fixture regressions later; real independent observations, profiler captures and qualification remain unverified."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": [
         19,
         20
@@ -2385,7 +2383,7 @@
       "issue": 72,
       "title": "[P2] Stop counting three unconditional PASS placeholders as golden regression coverage",
       "url": "https://github.com/doublemover/RNS8/issues/72",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "All three files still only print stub: PASS and remain active golden suite entries; no retirement or meaningful replacement/reporting repair.",
       "implementation": [
         {
@@ -2402,10 +2400,8 @@
       "commits": [
         "319a7f5"
       ],
-      "remaining": [
-        "Runtime regression execution and applicable platform/GPU qualification deferred."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": []
     },
     {
@@ -2445,7 +2441,7 @@
       "issue": 74,
       "title": "[P2] Make benchmark sweep's XDG cache destination match runtime AUTO and installer",
       "url": "https://github.com/doublemover/RNS8/issues/74",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Sweep XDG branch still appends .cache for both XDG_CACHE_HOME and HOME, unlike runtime/installer.",
       "implementation": [
         {
@@ -2463,17 +2459,15 @@
       "commits": [
         "319a7f5"
       ],
-      "remaining": [
-        "Runtime regression execution and applicable platform/GPU qualification deferred."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": []
     },
     {
       "issue": 75,
       "title": "[P2] Match resumed benchmark captures to requested sampling and execution identity",
       "url": "https://github.com/doublemover/RNS8/issues/75",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "existing_capture_valid still checks only existence/schema; resume does not bind requested seed/repeats/warmups/environment/artifact identity.",
       "implementation": [
         {
@@ -2490,10 +2484,8 @@
       "commits": [
         "319a7f5"
       ],
-      "remaining": [
-        "Runtime regression execution and applicable platform/GPU qualification deferred."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": [
         19,
         27
@@ -2503,7 +2495,7 @@
       "issue": 76,
       "title": "[Tools] Fix default --object ISA reporting when --build-tree is omitted",
       "url": "https://github.com/doublemover/RNS8/issues/76",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "expected_backends_from_cmake_cache still unconditionally calls read_cmake_cache(build_tree) for backend all, while build_tree optional; None path division remains.",
       "implementation": [
         {
@@ -2521,17 +2513,15 @@
         "319a7f5",
         "4f8b1298916ea19211e5035fc660dd8dd9904d73"
       ],
-      "remaining": [
-        "Runtime regression execution and applicable platform/GPU qualification deferred."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": []
     },
     {
       "issue": 77,
       "title": "[P2] Repair the performance-regression workflow's collection and comparison contract",
       "url": "https://github.com/doublemover/RNS8/issues/77",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Workflow still passes invalid scenario family/argument grouping and unsupported result_compare directory/--baseline/--max-regression args, with no provisioned baseline or real threshold implementation.",
       "implementation": [
         {
@@ -2549,10 +2539,8 @@
       "commits": [
         "576e7031d1a040da4e5dff64be87a98da63a8045"
       ],
-      "remaining": [
-        "Authored CLI integration regression, workflow execution and GPU collection are deferred. This lane deliberately does not claim numeric regression qualification."
-      ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [],
+      "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": [
         19,
         27,
@@ -2712,6 +2700,24 @@
       45,
       50,
       52
-    ]
+    ],
+    "result": "Consolidated local validation completed with repaired failures and six evidence-supported issue closures; issue-specific research/hardware/performance gates remain open."
+  },
+  "validation_closeout": {
+    "date": "2026-10-25",
+    "report": "metadata/local-validation-20261025.json",
+    "documentation": "docs/local-validation-20261025.md",
+    "closed_issues": [
+      27,
+      72,
+      74,
+      75,
+      76,
+      77
+    ],
+    "open_issues": 45,
+    "local_correctness_complete": true,
+    "performance_campaign_resumed": false,
+    "all_research_issues_complete": false
   }
 }

@@ -16,7 +16,7 @@ an application can build around.
 
 | GPU / family | Target | OS + tested stack | Implementation availability | Actual RNS8 validation evidence | Next needed check |
 |---|---|---|---|---|---|
-| **RX 7900 XTX / RDNA3** | `gfx1100` | Windows, VS2026, HIP 7.1 | Public direct HIP, vector ALU, wrap64; opt-in hipBLASLt, CK, rocWMMA, builtins | [All-feature correctness at `c7f7e05`](docs/local-all-features-20261023.md); [matched 512³/1024³ measurements](docs/7900xtx-large-throughput-2026-10-23.md) | Requalify changed kernels/configurations; Linux GPU run |
+| **RX 7900 XTX / RDNA3** | `gfx1100` | Windows, VS2026, HIP 7.1 | Public direct HIP, vector ALU, wrap64; opt-in hipBLASLt, CK, rocWMMA, builtins | [October 25 local correctness and sanitizer coverage](docs/local-validation-20261025.md); [matched 512³/1024³ measurements](docs/7900xtx-large-throughput-2026-10-23.md) | Matched timing for the expanded source; Linux GPU run |
 | Radeon PRO W6800 / RDNA2 | `gfx1030` | No RNS8 GPU run; Linux ROCm 7.1 candidate | Direct HIP source; optional backends subject to target support | **Validation wanted / unvalidated** | Supported Linux stack, compile and CPU differentials |
 | RX 9060 / 9060 XT / RDNA4 | `gfx1200` | No RNS8 GPU run; AMD lists Linux 7.1 and Windows HIP SDK 7.1.1 | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Exact SKU/OS/compiler check and device differentials |
 | RX 9070 / 9070 XT / 9070 GRE / RDNA4 | `gfx1201` | No RNS8 GPU run; same AMD release matrices | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Per-device compilation, arithmetic and ISA checks |
@@ -159,16 +159,16 @@ and [one-level Strassen](docs/strassen-device.md#public-owner-authored-validatio
 under their documented subsets. Explicit [narrow native products](docs/narrow-native-owner.md),
 [encoded B](docs/encoded-b-native.md) and [block-sparse materializations](docs/block-sparse.md#public-generation-bound-owner)
 also publish complete persistent RNS outputs with ordinary generation/proof checks.
-These new bindings and their fixtures await the
-consolidated validation batch; they inherit no device qualification from older kernels.
+The [October 25 validation](docs/local-validation-20261025.md) records their
+applicable local correctness fixtures and remaining target/performance gates.
 
 Start with the [example index](examples/README.md) for complete checked API
 programs and their execution boundaries. The [practical GPU workload catalogue](examples/workloads/README.md)
 adds integer Gram/cross-products, GF(251) transforms, resident versus
 export/reimport chains, split-complex products and an exactness walkthrough, using
-explicit backend and device requests. Their application performance and installed-platform
-qualification remain pending execution; existing measured kernel results above
-do not establish their application speedups.
+explicit backend and device requests. Windows installed static/shared execution
+is included in the October 25 record. Their application performance and other
+platform qualification remain open.
 
 Install a configured build with `cmake --install <build-dir> --prefix <install-dir>`.
 Consumers use `find_package(RNS8 CONFIG REQUIRED)` and link `rns8::rns8_static`,

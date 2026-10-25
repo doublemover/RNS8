@@ -45,7 +45,7 @@ The installed static and shared variants are checked with the public HIP
 producer/consumer test, including the full host oracle and padding canaries.
 
 
-## Prepared graph pipeline (new, unqualified)
+## Prepared graph pipeline
 
 Pass `--prepared` to run an additional replay after the explicitly synchronous
 setup. The example retains two verified-bound import owners, GEMM and native
@@ -59,6 +59,8 @@ replay; setup retains its separately reported twenty summary bytes. No host
 payload transfer enters either application path. The independent final output
 readback remains validation-only.
 
-This newly authored mode and its static/shared installation variants have not
-been compiled with HIP or executed here; the earlier original-mode receipts do
-not qualify it. It is a lifecycle/ordering example, not a performance benchmark.
+The [October 25 local validation](../../docs/local-validation-20261025.md)
+compiled this installed example with HIP 7.1 / VS2026 and passed both modes
+with static and shared linkage on the RX 7900 XTX (`gfx1100`). The record binds
+the result to its installed library artifact. This tiny example checks
+lifecycle and ordering; matched performance and other targets remain separate.
