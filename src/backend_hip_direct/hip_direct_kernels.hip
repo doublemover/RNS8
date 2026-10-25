@@ -14,6 +14,7 @@
 #include "../backend_common/complex_residue_algebra.hpp"
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
+#include "../backend_common/quarter_crt.hpp"
 #include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank23_program.hpp"
@@ -379,3 +380,8 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
 #include "hip_direct_word_mod.cuh"
 
 #include "hip_direct_instruction_roof.cuh"
+
+extern "C" int rns8_hip_export_quarter_crt(const int8_t* residues,uint64_t* output,int cells,int prefix,int digits,int limbs,int mode) {
+  hipLaunchKernelGGL(rns8_export_quarter_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,residues,output,cells,prefix,digits,limbs,mode);
+  return static_cast<int>(hipGetLastError());
+}

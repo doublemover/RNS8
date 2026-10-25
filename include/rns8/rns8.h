@@ -16,6 +16,7 @@ extern "C" {
 
 typedef struct rns8_context rns8_context;
 typedef struct rns8_plan rns8_plan;
+typedef struct rns8_quarter_crt_export rns8_quarter_crt_export;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_sparse_matrix rns8_sparse_matrix;
 typedef struct rns8_workspace rns8_workspace;
@@ -2092,6 +2093,30 @@ RNS8_API rns8_status rns8_export_finite_u8(
  * requires device-current resident RNS output and does not perform an implicit
  * host-to-device upload.
  */
+/* Opt-in quarter-range reconstruction. Defaults remain Garner. Signed0,
+ * unsigned1 and canonical2 are distinct output contracts. Admission requires
+ * an engine-owned current magnitude proof with 4*B<=M and sufficient width.
+ * Source mutation invalidates the prepared owner; no speculative caller writes.
+ * Host proof is not device opcode qualification. */
+typedef struct rns8_quarter_crt_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,mode,limb_count;
+  uint64_t max_scratch_bytes;
+} rns8_quarter_crt_desc;
+typedef struct rns8_quarter_crt_info {
+  uint64_t struct_size;
+  uint32_t abi_version,prefix,mode,limb_count,delayed_digits;
+  uint32_t algebraic_verdict,target_execution_verdict;
+  uint64_t source_instance,source_generation,retained_payload_bytes;
+  uint64_t magnitude_bound[3];
+  char certificate_sha256[65];
+} rns8_quarter_crt_info;
+RNS8_API rns8_status rns8_prepare_quarter_crt_export(rns8_context*,const rns8_plan*,const rns8_matrix*,
+    const rns8_quarter_crt_desc*,rns8_quarter_crt_export**);
+RNS8_API rns8_status rns8_get_quarter_crt_info(const rns8_quarter_crt_export*,rns8_quarter_crt_info*);
+RNS8_API rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export*,uint64_t* dst,int64_t ld);
+RNS8_API rns8_status rns8_destroy_quarter_crt_export(rns8_quarter_crt_export*);
+
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,
     const rns8_plan* plan,

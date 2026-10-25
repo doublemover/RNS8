@@ -129,6 +129,11 @@ rns8_status hip_direct_gemm_finite_int4_device(
 // uint64 limbs per cell. This does not infer signedness or bounded output semantics.
 rns8_status hip_direct_export_canonical_direct_crt_device(
     int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
+// Admitted quarter-range caller only. The mode is signed0/unsigned1/canonical2.
+// Separate host certificate owns source/range/width identity; this raw primitive
+// does not infer that identity or claim target instruction qualification.
+rns8_status hip_direct_export_quarter_crt_device(int device_id,const void* residues,void* limbs,
+    int64_t cells,uint32_t prefix,uint32_t digits,uint32_t limb_count,uint32_t mode);
 rns8_status hip_direct_export_canonical_balanced_crt_device(
     int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
 

@@ -213,7 +213,8 @@
         "tools/test_floating_contract.py"
       ],
       "commits": [
-        "9951aaf329ffce9a6d88026d67269e088a0e941e"
+        "9951aaf329ffce9a6d88026d67269e088a0e941e",
+        "f007bd6717ba115e209165874914e37cdfad48f3"
       ],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -586,10 +587,22 @@
       "issue": 39,
       "title": "[Research P1] Compare overflow-proven direct CRT and balanced merge trees against current Garner",
       "url": "https://github.com/doublemover/RNS8/issues/39",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Host/device direct CRT, balanced tree and calibrator implemented; latest quarter-range certified correction-free quotient/delayed-carry narrow-limb public export integration absent.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Implemented immutable quarter-range source-generation certificate, exact RNE coefficient/error proof, independent host FMA oracle, HIP fixed-order RNE quotient and delayed16 carry kernel, separate signed/unsigned/canonical public retained export owner with staged publication and failed-drain ownership. Matched harness extension next.",
+          "files": [
+            "src/backend_common/quarter_crt.hpp",
+            "src/backend_common/quarter_crt_certificate.hpp",
+            "src/core/api_export_quarter_crt.inc",
+            "src/backend_hip_direct/hip_direct_direct_crt_kernels.cuh"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_quarter_crt_cases.inc"
+      ],
       "commits": [],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",

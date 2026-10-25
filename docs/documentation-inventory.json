@@ -1648,6 +1648,7 @@
       ],
       "anchors": [
         "balanced-crt-device-baseline",
+        "explicit-quarter-range-fma--delayed-carry-export",
         "tile-major-consumer-candidate"
       ]
     },
