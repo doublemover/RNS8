@@ -792,6 +792,29 @@ RNS8_API rns8_status rns8_plan_pipeline(const rns8_context*,const rns8_pipeline_
     const rns8_pipeline_cost_profile* profiles,uint32_t profile_count,
     rns8_pipeline_candidate* results,uint32_t capacity,uint32_t* required_count);
 
+/* Explicit finite signed-nibble research owner. Default GEMM is unchanged.
+ * mode0 packs B in each tile; mode1 retains v1 packed B. Preparation probes
+ * the actual device code object once. Mutating B invalidates the owner.
+ * On undrainable preparation failure *out retains a cleanup-only owner; callers
+ * must use checked destroy, which remains retryable. No scalar fallback. */
+typedef struct rns8_int4_recipe rns8_int4_recipe;
+typedef struct rns8_int4_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,mode;
+  uint64_t max_preparation_bytes;
+} rns8_int4_desc;
+typedef struct rns8_int4_info {
+  uint64_t struct_size;
+  uint32_t abi_version,mode,layout_version,modulus,signed_operands,source_is_current;
+  uint64_t source_instance,source_generation,retained_device_bytes,safe_k;
+  uint32_t arithmetic_proven,target_qualified,performance_qualified,pending_cleanup;
+  char certificate_sha256[65],target_id[128];
+} rns8_int4_info;
+RNS8_API rns8_status rns8_prepare_int4_recipe(rns8_context*,const rns8_plan*,const rns8_matrix* b,const rns8_int4_desc*,rns8_int4_recipe**);
+RNS8_API rns8_status rns8_get_int4_info(const rns8_int4_recipe*,rns8_int4_info*);
+RNS8_API rns8_status rns8_gemm_int4(rns8_int4_recipe*,const rns8_matrix* a,rns8_matrix* c,rns8_workspace*);
+RNS8_API rns8_status rns8_destroy_int4_recipe(rns8_int4_recipe*);
+
 typedef enum rns8_auto_reason RNS8_ENUM_BASE {
   RNS8_AUTO_BASELINE_POLICY=0, RNS8_AUTO_UNSUPPORTED_SEMANTICS=1, RNS8_AUTO_UNSUPPORTED_MODULUS=2,
   RNS8_AUTO_PER_TILE_UNSUPPORTED=3, RNS8_AUTO_NOT_COMPILED=4, RNS8_AUTO_PROBE_FAILED=5,

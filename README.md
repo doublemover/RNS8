@@ -201,3 +201,7 @@ async/multi-GPU work.
 [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md) ·
 [Roadmap](docs/roadmap.md) · [Security](SECURITY.md) · [MIT license](LICENSE) ·
 [Financial sponsorship](https://github.com/sponsors/doublemover)
+
+Explicit finite signed-INT4 research execution and reusable packed-B ownership
+are now publicly reachable; default finite routing is unchanged. See the
+[implementation/qualification distinction](docs/backend-notes.md#explicit-finite-int4-ownership).

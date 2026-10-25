@@ -256,7 +256,8 @@
         "tests/unit/test_api_operation_provider_cases.inc"
       ],
       "commits": [
-        "916152ace5a966e4001fdfc002eb5e2b620143a9"
+        "916152ace5a966e4001fdfc002eb5e2b620143a9",
+        "b1a9d15f20513ee371d52241f408ad03096f7f2d"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -808,12 +809,27 @@
       "issue": 46,
       "title": "[Research P3] Qualify packed INT4/IU4 kernels for narrow exact semantic subsets",
       "url": "https://github.com/doublemover/RNS8/issues/46",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Private gfx11 signed-nibble finite INT4 builtin kernel exists; no typed public opt-in recipe/reusable versioned packed-B route or prepared capability ownership as latest scope requires.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Public explicit signed finite INT4 owner with device/code-object preparation, immutable 4-bit arithmetic guard, versioned GPU-packed B, generation binding, no steady probe/allocation, failure-drained leases and matched complete-route collector.",
+          "files": [
+            "src/core/api_int4.inc",
+            "src/backend_hip_direct/hip_direct_int4_kernels.cuh",
+            "benchmarks/rns8_int4_calibrate.cpp",
+            "tools/collect_int4_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_int4_cases.inc",
+        "tools/test_collect_int4_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,

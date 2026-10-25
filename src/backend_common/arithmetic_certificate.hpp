@@ -11,7 +11,7 @@ using Integer=boost::multiprecision::cpp_int;
 enum class Verdict:uint32_t { unknown=0,proven=1,refuted=2,unsupported=3,not_run=4 };
 enum class Equality:uint32_t { integer_value=0,modular_value=1,physical_layout=2 };
 enum class Operation:uint32_t { input=0,add=1,multiply=2,dot=3,canonical_reduce=4,centered_reduce=5,exact_divide=6,wrap_reduce=7,layout=8,wrap_add=9,wrap_multiply=10,wrap_dot=11 };
-enum class Representation:uint32_t { centered_rns_i8=1,canonical_finite_u8=2,wrap_byte_limbs=3,native_exact_limbs=4 };
+enum class Representation:uint32_t { centered_rns_i8=1,canonical_finite_u8=2,wrap_byte_limbs=3,native_exact_limbs=4,signed_finite_i4=5 };
 struct Interval {Integer low=0,high=0,multiple=1;uint32_t modulus=0,wrapped_bits=0;};
 struct Node {
   Operation operation=Operation::input;Equality equality=Equality::integer_value;
@@ -69,14 +69,15 @@ inline std::string canonical(const Certificate& c) {
 inline Checked verify(const Certificate& c) {
   Checked result;result.requires_range_guard=c.requires_range_guard;result.safe_k=c.instruction.safe_k;
   const auto fail=[&](const char* reason,uint32_t node=UINT32_MAX){result.failure=reason;result.failed_node=node;result.algebra=Verdict::refuted;result.finite_exact=Verdict::unknown;return result;};
-  if(uint32_t(c.representation)<1 || uint32_t(c.representation)>4 || c.version!=1 || c.dag.empty() || c.dag.size()>4096 || c.basis.size()>20)return fail("certificate_structure");
+  if(uint32_t(c.representation)<1 || uint32_t(c.representation)>5 || c.version!=1 || c.dag.empty() || c.dag.size()>4096 || c.basis.size()>20)return fail("certificate_structure");
   const auto& instruction=c.instruction;
   if(instruction.target.empty() || instruction.opcode.empty() || instruction.compiler_build.empty() || instruction.compiler_flags.empty() || instruction.lowering_identity.empty())return fail("instruction_identity");
   Integer product=1;for(auto p:c.basis){if(p<2 || p>256 || gcd(product,p)!=1)return fail("ordered_basis_not_coprime");product*=p;}
   if(c.bound_known && (c.output_bound<0 || (c.requires_range_guard && (c.basis.empty() || product<=c.output_bound*(c.signed_output?2:1)))))return fail("strict_integer_range");
-  if(c.representation==Representation::centered_rns_i8 || c.representation==Representation::canonical_finite_u8) {
-    if(instruction.operand_bits!=8 || instruction.accumulator_bits!=32 || !instruction.signed_operands || !instruction.signed_accumulator ||
-        !instruction.safe_k || instruction.lhs_abs>128 || instruction.rhs_abs>128)return fail("signed_i8_instruction_contract");
+  if(c.representation==Representation::centered_rns_i8 || c.representation==Representation::canonical_finite_u8 || c.representation==Representation::signed_finite_i4) {
+    const bool nibble=c.representation==Representation::signed_finite_i4;
+    if(instruction.operand_bits!=(nibble?4u:8u) || instruction.accumulator_bits!=32 || !instruction.signed_operands || !instruction.signed_accumulator ||
+        !instruction.safe_k || instruction.lhs_abs>(nibble?8u:128u) || instruction.rhs_abs>(nibble?8u:128u))return fail("signed_i8_instruction_contract");
     if(Integer(instruction.safe_k)*instruction.lhs_abs*instruction.rhs_abs+instruction.prior_abs>INT32_MAX)return fail("instruction_slab_plus_prior_overflow");
   }
   result.intervals.reserve(c.dag.size());bool has_layout=false;

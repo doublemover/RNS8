@@ -1540,6 +1540,10 @@
           "reference": "docs/backend-notes.md"
         },
         {
+          "source": "README.md",
+          "reference": "docs/backend-notes.md#explicit-finite-int4-ownership"
+        },
+        {
           "source": "docs/README.md",
           "reference": "backend-notes.md"
         },
@@ -1624,6 +1628,7 @@
         "auto-and-reviewed-caches",
         "backend-implementation-and-selection",
         "experimental-paths-and-reserved-apis",
+        "explicit-finite-int4-ownership",
         "metadata-ownership-and-execution",
         "public-paths"
       ]

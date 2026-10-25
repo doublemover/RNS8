@@ -229,9 +229,21 @@ extern "C" int rns8_hip_int4_capability(int* supported) {
 extern "C" int rns8_hip_finite_int4_gemm(
     const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k,
     int lda, int ldb, int ldc, int modulus) {
-  hipLaunchKernelGGL(rns8_finite_int4_wmma_kernel,
+  hipLaunchKernelGGL((rns8_finite_int4_wmma_kernel<false>),
       dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16),
-      dim3(32), 0, nullptr, a, b, c, m, n, k, lda, ldb, ldc, modulus);
+      dim3(32), 0, nullptr, a, b, nullptr, c, m, n, k, lda, ldb, ldc, modulus);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_finite_int4_gemm_packed(const int8_t* a,const uint32_t* b,int8_t* c,
+    int m,int n,int k,int lda,int ldc,int modulus) {
+  hipLaunchKernelGGL((rns8_finite_int4_wmma_kernel<true>),
+      dim3((uint64_t(n)+15)/16,(uint64_t(m)+15)/16),dim3(32),0,nullptr,a,nullptr,b,c,m,n,k,lda,n,ldc,modulus);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_pack_finite_int4_b(const int8_t* b,uint32_t* packed,int k,int n,int ldb,int modulus) {
+  const uint64_t words=((uint64_t(k)+15)/16)*uint64_t(n)*2;
+  hipLaunchKernelGGL(rns8_pack_finite_int4_b_kernel,dim3((words+255)/256),dim3(256),0,nullptr,b,packed,k,n,ldb,modulus,words);
   return static_cast<int>(hipGetLastError());
 }
 

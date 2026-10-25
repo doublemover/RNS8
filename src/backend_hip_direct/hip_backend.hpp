@@ -125,6 +125,12 @@ rns8_status hip_direct_gemm_native_wmma_grouped_device(
 rns8_status hip_direct_gemm_finite_int4_device(
     int device_id, const int8_t* a, const int8_t* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t modulus);
+// Explicit preparation caches a device/code-object capability result. Admitted
+// execution never probes or allocates. Caller owns currentness and failure drain.
+rns8_status hip_direct_prepare_int4_capability(int device_id);
+rns8_status hip_direct_pack_int4_b(int device_id,const int8_t* b,void* packed,int64_t k,int64_t n,int64_t ldb,uint32_t modulus);
+rns8_status hip_direct_gemm_int4_admitted(int device_id,const int8_t* a,const int8_t* b,const void* packed_b,int8_t* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t modulus);
 // Research direct CRT to canonical [0,P) values, always three little-endian
 // uint64 limbs per cell. This does not infer signedness or bounded output semantics.
 rns8_status hip_direct_export_canonical_direct_crt_device(

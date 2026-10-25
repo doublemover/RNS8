@@ -20,7 +20,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t output_domain=query.operation==RNS8_OP_EXPORT?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):(query.operation==RNS8_OP_QUARTER_CRT?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_STRASSEN?2:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_NARROW_NATIVE?1:0);
+  const uint32_t max_algorithm=query.operation==RNS8_OP_STRASSEN?2:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
@@ -130,6 +130,9 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     const auto support=rns8::detail::query_gram_support(p,UINT64_MAX,hip,query.algorithm!=0);
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"gram_resources","shared Gram provider rejected orientation/shape/address domain");
     out.required_host_bytes=support.job_bytes;scratch=hip?support.job_bytes+(query.algorithm?4:0):0;}
+  if(query.operation==RNS8_OP_INT4){out.safe_k=65536;out.setup_bytes_lower_bound=4;
+    if(query.algorithm){const uint64_t blocks=(uint64_t(d.k)+15)/16;
+      if(blocks>UINT64_MAX/uint64_t(d.n)/8)out.resource_status=2;else scratch=blocks*uint64_t(d.n)*8;}}
   // Events, graph executables, opaque vendor allocations and specialized
   // directories have no portable sizeof. Expose the known arithmetic lower
   // bound and unknown setup instead of pretending those owners consume zero.
@@ -139,6 +142,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(hip_device_backend(backend))out.required_device_bytes=scratch;else if(!add(out.required_host_bytes,scratch))out.resource_status=2;
   if(out.resource_status==2)return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"resources","checked provider resource arithmetic overflowed");
   uint64_t aggregate=out.required_host_bytes;if(!add(aggregate,out.required_device_bytes))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"resources","host/device aggregate overflowed");
+  aggregate=std::max(aggregate,out.setup_bytes_lower_bound);
   if(aggregate>query.scratch_budget)return reject(RNS8_WORKSPACE_TOO_SMALL,RNS8_SUPPORT_BUDGET,"scratch_budget","known required scratch exceeds budget; unknown setup is additional");
   std::string identity="operation-provider-v1;backend="+std::to_string(backend)+";operation="+std::to_string(query.operation)+";modes="+std::to_string(query.execution_modes)+
     ";algorithm="+std::to_string(query.algorithm)+";orientation="+std::to_string(query.orientation)+";sourceprefix="+std::to_string(query.source_prefix)+

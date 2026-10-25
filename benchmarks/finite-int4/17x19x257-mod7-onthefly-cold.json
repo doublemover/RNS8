@@ -1,0 +1,12 @@
+{
+  "schema": "finite_int4_public_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 257,
+  "modulus": 7,
+  "mode": "onthefly",
+  "residency": "cold",
+  "repeats": 9,
+  "warmups": 3,
+  "seed": 4646
+}
