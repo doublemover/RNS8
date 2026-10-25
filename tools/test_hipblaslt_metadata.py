@@ -1,11 +1,37 @@
 import copy
 import json
+import math
 import unittest
 from benchmark_schema.hipblaslt_metadata import FIELDS,PREPACK_FIELDS,validate_hipblaslt_metadata,validate_hipblaslt_prepack,validate_hipblaslt_algorithms,hipblaslt_algorithm_signature
-from collect_public_calibration import commands
+from collect_public_calibration import commands,validate_initial_plan_capacity
 from pathlib import Path
+from benchmark_schema.wide_magnitude import MODULI
 
 class MetadataContracts(unittest.TestCase):
+    def test_all_declared_profiles_admit_the_initial_native_type_plan(self):
+        root=Path(__file__).resolve().parents[1]
+        for profile in ('hipblaslt-metadata.json','hipblaslt-prepack.json'):
+            cases=json.loads((root/'benchmarks/public-calibration'/profile).read_text())['cases']
+            self.assertTrue(commands(Path('binary'),cases,2,1,Path('out')))
+        for k in (65535,65536,65537):
+            args=['--semantics','exact-wide-signed','--k',str(k),'--max-prefix','18',
+                '--input-profile','wide-two-limb-constant','--exact-proof-scalar-first']
+            with self.assertRaisesRegex(ValueError,'full-native-type'):
+                validate_initial_plan_capacity(args,'invalid-envelope')
+            args[5]='19';validate_initial_plan_capacity(args,'admitted-envelope')
+
+    def test_initial_plan_capacity_uses_strict_full_native_range(self):
+        for semantic,shift in (('exact-wide-signed',127),('exact-wide-unsigned',128)):
+            limit=(math.prod(MODULI[:18])-1)//(1<<shift)
+            args=['--semantics',semantic,'--max-prefix','18','--k',str(limit)]
+            validate_initial_plan_capacity(args,'last-admitted')
+            args[-1]=str(limit+1)
+            with self.assertRaisesRegex(ValueError,'full-native-type'):
+                validate_initial_plan_capacity(args,'first-rejected')
+        for suffix in (['--k'],['--k','1','--k','2']):
+            with self.assertRaises(ValueError):
+                validate_initial_plan_capacity(['--semantics','exact-wide-signed',*suffix],'malformed')
+
     def prepack_fixture(self,policy):
         def counts(calls):
             result=dict.fromkeys(PREPACK_FIELDS,0)

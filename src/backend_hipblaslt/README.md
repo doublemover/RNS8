@@ -84,5 +84,13 @@ The SDK-compiled C bridge keeps the official extension declaration out of the
 MSVC host translation unit; the feature probe separately compiles that exact
 bridge and links it with the host compiler/library.
 
-This observation increment is authored; its focused build/runtime checks and
-same-algorithm metadata-policy measurements remain pending.
+The observation increment passes the local full CPU sanitizer and gfx1100 GPU
+suite at `668f9ea`, including warm-cache physical indices and query reuse.
+Same-algorithm metadata-policy measurements remain separate.
+
+The ordinary benchmark creates an exact-wide plan before binding input values.
+Its initial envelope is therefore the full native-type range even for a small
+magnitude profile. The public collector checks that envelope before executing
+any case. The K=65535/65536/65537 metadata controls use prefix 19 rather than 18;
+prefix 18 remains covered at smaller K. A profile change never relaxes the
+library's range admission or substitutes caller data for an unbound proof.

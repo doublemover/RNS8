@@ -7,9 +7,39 @@ capture envelope; instrumented and production programs remain separate cohorts.
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from benchmark_sweep_lib.execution import run_command, validate_paths
 from observation_cohorts import aggregate_captures
+from benchmark_schema.wide_magnitude import MODULI
+
+
+def validate_initial_plan_capacity(arguments, name):
+    """Check the benchmark's full-native-type planning envelope before any run.
+
+    The ordinary CLI creates its plan before binding actual input values. A
+    small magnitude profile or scalar-first proof does not relax that initial
+    type-wide capacity requirement; explicit value-bound owners are separate.
+    """
+    def option(flag, default=None):
+        if flag not in arguments:
+            return default
+        if arguments.count(flag) != 1:
+            raise ValueError(f"{name}: duplicate {flag}")
+        index = arguments.index(flag)
+        if index + 1 >= len(arguments):
+            raise ValueError(f"{name}: missing {flag} value")
+        return arguments[index + 1]
+    semantics = option("--semantics")
+    if semantics not in ("exact-wide-signed", "exact-wide-unsigned"):
+        return
+    prefix = int(option("--max-prefix", "20"))
+    k = int(option("--k", "64"))
+    if not 1 <= prefix <= len(MODULI) or k < 1:
+        raise ValueError(f"{name}: invalid exact-wide planning dimensions/prefix")
+    shift = 127 if semantics == "exact-wide-signed" else 128
+    if math.prod(MODULI[:prefix]) <= (k << shift):
+        raise ValueError(f"{name}: prefix {prefix} cannot admit the initial full-native-type exact-wide plan at K={k}")
 
 
 def commands(binary, cases, runs, seed, output):
@@ -23,6 +53,7 @@ def commands(binary, cases, runs, seed, output):
         names.add(name)
         arguments=case["arguments"]
         if not isinstance(arguments,list) or not all(isinstance(x,str) for x in arguments): raise ValueError("arguments list")
+        validate_initial_plan_capacity(arguments, name)
         if any(x.startswith(("--host-timing","--sustained-","--warmups","--repeats","--write-autotune")) for x in arguments):
             raise ValueError("collector owns timing/sampling controls and never writes a cache")
         first=int(hashlib.sha256(f"{seed}:{name}".encode()).hexdigest(),16)&1
