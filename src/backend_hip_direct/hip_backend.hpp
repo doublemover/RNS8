@@ -98,7 +98,7 @@ rns8_status hip_direct_materialize_ragged_residues(
     int device_id, const void* source, const RaggedResidueLayout& layout,
     void* destination, const ResidueLayout& target, uint64_t instance, uint64_t generation,
     uint64_t max_scratch_bytes, bool& commit_started,
-    void* staged, void* directory, void* device_status);
+    void* staged, void* directory, void* device_status, bool prepared_directory_current=false);
 // Synchronous private discovery for fixed 16x16 output tiles. Caller allocates
 // ceil(m/16)*ceil(n/16) bounds/indices and 22 offsets. Bucket 0 is proven zero;
 // buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.

@@ -71,3 +71,19 @@ drain before releasing anything. Failures after publication starts invalidate th
 output; earlier staged failures preserve its previous value. The private borrowed
 interface documents the same caller drain obligation. These are authored lifecycle
 and reuse changes, with counter assertions queued for the final validation pass.
+
+The prepared owner's finalized directory now stays device-current after initial
+compaction: ordinary materialization performs no repeated directory upload.
+Compact targets omit the old-output→staging precopy because the successful
+kernel overwrites every destination byte. Padded modulus-major or edge-padded
+tile-major private targets retain that precopy. Both paths retain staging,
+per-call reconstruction/range status, and the final publication copy; neither
+writes directly into the public output before proof success. The independent
+borrowed backend entry point still uploads by default unless its owner explicitly
+supplies the immutable-current-directory contract.
+
+The existing public ragged collector now models zero per-call directory H2D and
+zero compact precopy D2D, separately naming the required final D2D commit.
+Authored compact/padded regressions assert completed API-copy payload counters,
+all logical residues/canaries and a cross-tile next GEMM. These are not physical
+HBM measurements; no regression or benchmark was executed for this change.

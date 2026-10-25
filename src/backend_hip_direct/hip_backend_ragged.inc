@@ -6,7 +6,7 @@ rns8_status hip_direct_materialize_ragged_residues(
     int device_id, const void* source, const RaggedResidueLayout& layout,
     void* destination, const ResidueLayout& target, uint64_t instance, uint64_t generation,
     uint64_t max_scratch_bytes, bool& commit_started,
-    void* staged, void* directory, void* device_status) {
+    void* staged, void* directory, void* device_status,bool prepared_directory_current) {
   commit_started = false;
   if (!compatible_ragged_destination(layout, target, instance, generation) ||
       !nonoverlapping_byte_ranges(source, layout.bytes, destination, target.bytes)) return RNS8_INVALID_ARGUMENT;
@@ -24,11 +24,14 @@ rns8_status hip_direct_materialize_ragged_residues(
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
-  status = hip_direct_copy_host_to_device(device_id, directory, layout.tiles.data(), metadata_bytes);
-  if (status != RNS8_SUCCESS) return status;
-  // Preserve every destination padding byte in the staged publication.
-  status = hip_direct_copy_device_to_device(device_id, staged, destination, target.bytes);
-  if (status != RNS8_SUCCESS) return status;
+  // Only the generation-bound immutable public owner supplies true. Borrowed
+  // independent callers keep the ordinary upload-on-call contract by default.
+  if(!prepared_directory_current){status=hip_direct_copy_host_to_device(device_id,directory,layout.tiles.data(),metadata_bytes);if(status!=RNS8_SUCCESS)return status;}
+  // No compact destination byte survives a successful materialization. Retain
+  // the old-output precopy only when physical padding really must be preserved.
+  const bool overwritten=target.kind==ResidueLayoutKind::modulus_major?target.ld==target.cols:
+      target.rows%target.tile_rows==0 && target.cols%target.tile_cols==0;
+  if(!overwritten){status=hip_direct_copy_device_to_device(device_id,staged,destination,target.bytes);if(status!=RNS8_SUCCESS)return status;}
   if (hipMemset(device_status, 0, sizeof(int)) != hipSuccess) return RNS8_BACKEND_FAILURE;
   const auto error = timed_hip_operation("ragged_exact_materialization_kernel", [&]() {
     const auto launched = static_cast<hipError_t>(rns8_hip_materialize_ragged(
@@ -47,7 +50,7 @@ rns8_status hip_direct_materialize_ragged_residues(
   const auto drain=hip_direct_synchronize(device_id);
   return status==RNS8_SUCCESS?drain:status;
 #else
-  (void)device_id;
+  (void)device_id;(void)prepared_directory_current;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

@@ -127,7 +127,8 @@ rns8_status rns8_prepare_ragged_materialization(rns8_context* ctx,const rns8_mat
       if(status!=RNS8_SUCCESS) return status;
       owner->pending=false;
       --source->in_flight_readers;owner->source_reader=false;
-      // Directory scratch is retained for explicit, retryable owner cleanup.
+      // This finalized immutable directory is retained and already current on device;
+      // later materializations must not upload the same records again.
     }
     *out=owner.release();return RNS8_SUCCESS;
   });
@@ -230,7 +231,7 @@ rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,const rns8_ragged_ma
       } reservation{execution,started};
       status=hip_direct_materialize_ragged_residues(ctx->device_id,owner->device_payload,owner->layout,
           output->hip_residues,target,source.matrix_instance_id,source.content_generation,budget,started,
-          execution.staged_output,execution.device_directory,execution.device_status);
+          execution.staged_output,execution.device_directory,execution.device_status,true);
       if(status!=RNS8_SUCCESS) return status;
       mark_output_device_residues_current(*output);
       reservation.release();reservation.completed=true;

@@ -682,14 +682,25 @@
       "issue": 40,
       "title": "[Research P2] Co-design residue layouts for packing, matrix tiles and CRT export",
       "url": "https://github.com/doublemover/RNS8/issues/40",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Real layout converters, ragged owner and consumers exist; executable fragment algebra/GF2 paired-column candidate and latest cost/retention/panel-reuse integrations remain incomplete; ragged materialization still reuploads directory and precopies compact destination.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Reuse the immutable prepared ragged directory and skip only provably unnecessary compact-output precopy, retaining padded private controls, staged proof/status and final publication. Update modeled traffic receipts and authored completed API-copy counter regressions.",
+          "files": [
+            "src/core/api_ragged.cpp",
+            "src/backend_hip_direct/hip_backend_ragged.inc",
+            "tools/collect_ragged.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/differential/test_hip_direct_ragged_cases.inc"
+      ],
       "commits": [],
       "remaining": [
-        "Fragment GF(2) paired-column layout/cost/retention and panel reuse; ragged directory upload/precopy composition remain source work.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Executable fragment algebra/MFMA map and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
+        "GPU execution and measured layout/performance qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -738,7 +749,8 @@
       ],
       "commits": [
         "f30d1817b6208f781c64d9169aedf672f96319a0",
-        "d403c9711b74e51d4d61ecfed365f9681f4103bc"
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc",
+        "11ac95b6482386d74e6804d8a854b4629467208f"
       ],
       "remaining": [
         "Default-basis selector, synchronous/stream/graph lift and matched harness are written. Nondefault-basis conversion composition remains dependent source work under #32; no generic-basis capability is implied.",
@@ -784,7 +796,8 @@
         "tools/test_collect_lift_recipe.py"
       ],
       "commits": [
-        "81568e2c2e08f2260a2ced4e93dd182e3157352d"
+        "81568e2c2e08f2260a2ced4e93dd182e3157352d",
+        "11ac95b6482386d74e6804d8a854b4629467208f"
       ],
       "remaining": [
         "Required ragged-producer to differently tiled/prefixed consumer recipe binding and retained conversion composition remain source work; do not count only the latest scratch-reuse comment as the full issue.",

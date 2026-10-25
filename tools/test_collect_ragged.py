@@ -33,7 +33,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
         logical_payload_envelope_bytes=envelope(case),source_instance=1,source_version=7 if wide else 1,output_instance=0 if uniform else 2,
         ragged_resources_at_prepare=initial,ragged_resources_after_first=first,ragged_resources_final=deepcopy(first),
         modeled_prepare_directory_d2h_bytes=directory if hip else 0,modeled_prepare_status_d2h_bytes=4 if hip and not uniform else 0,
-        modeled_prepare_directory_h2d_bytes=directory if hip else 0,modeled_materialization_directory_h2d_bytes_per_call=directory if hip else 0,
+        modeled_prepare_directory_h2d_bytes=directory if hip else 0,modeled_materialization_directory_h2d_bytes_per_call=0,modeled_materialization_precopy_d2d_bytes_per_call=0,modeled_materialization_commit_d2d_bytes_per_call=20*cells if hip and not uniform else 0,
         modeled_materialization_status_d2h_bytes_per_call=4 if hip and not uniform else 0,
         matrix_allocations_at_setup=[allocation() for _ in range(1 if uniform else 2)],matrix_allocations_after_first=[allocation() for _ in range(1 if uniform else 2)],matrix_allocations_final=[allocation() for _ in range(1 if uniform else 2)],
         preparation_samples=[] if uniform else [dict(preparation_ns=20,destruction_ns=10,resources=deepcopy(initial)) for _ in range(repeats)],
