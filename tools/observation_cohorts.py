@@ -8,7 +8,7 @@ import math
 import statistics
 from typing import Any, Iterable
 
-from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, host_observation_contract, host_observation_count
 from perf_variance_report import execution_cohort, execution_id, DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD, DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD, DEFAULT_MIN_REPEATS
 from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
@@ -28,6 +28,7 @@ def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
     identity = {"source_commit": manifest.get("source_commit"), "source_digest": manifest.get("source_digest"),
                 "exact_proof_policy": exact_proof_policy(capture),
                 "host_instrumentation_state": host_instrumentation(capture),
+                "host_observation_contract": host_observation_contract(capture),
                 "host_batch_contract": host_batch_contract(capture)}
     if not cpu_anchor:
         identity.update({key: capture.get(key) for key in ("compiler", "hip_toolchain", "configured_amdgpu_targets",
@@ -96,7 +97,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         for capture in observations:
             blockers.update(phase_blockers(capture))
             samples = (capture.get("raw_timings_us") or {}).get("end_to_end", [])
-            if len(samples) < DEFAULT_MIN_REPEATS: blockers.add("insufficient_repeat_samples")
+            if host_observation_count(capture) < DEFAULT_MIN_REPEATS: blockers.add("insufficient_repeat_samples")
             if type(capture.get("warmups")) is not int or capture["warmups"] < 3:
                 blockers.add("insufficient_warmups")
             summary = (capture.get("timing_summary_us") or {}).get("end_to_end") or {}

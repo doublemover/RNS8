@@ -124,3 +124,45 @@ annotations against the request without weakening range admission.
 The new public lanes, regression sources and collection recipes are authored;
 only lightweight syntax/static checks were performed. Test execution, hardware
 collection, performance outcomes and scientific qualification remain deferred.
+
+### Streaming observations and the matched serial pipeline
+
+The bounded Direct-HIP two-slot benchmark now preallocates upload/export/status
+capacity for **both** slots before any timed batch. Each requested warmup runs
+`max(2, repeats)` pipeline calls, visiting both slots and the actual dependency
+chain rather than repeatedly warming slot zero. A contiguous pinned status slab
+replaces one pinned allocation per call. Pinned input/output storage, streams and
+events are still created outside each batch; their setup duration is recorded
+separately, not silently treated as retained production resources.
+
+`--streaming-batches` selects 3–64 actual observations (default 9), with
+`--repeats` meaning calls per batch for this explicitly named pipeline mode.
+Each observation retains calls, duration, setup duration, source-version interval
+and device-buffer allocation deltas inside the measurement. The complete
+interval includes fill/drain, every export-status check and the final copy into
+the declared host destination. The final output is independently checked with
+Boost outside timing. The first-use batch is retained separately. A batch mean
+is `duration / calls`; it is stored **once per measured batch**, never copied N
+times and called N latency samples. Per-call p95 is unavailable; p95 across batch
+means has the declared batch-throughput meaning. Timer censoring uses the actual
+batch duration rather than the divided quotient.
+
+Host pack/GEMM/export samples are unavailable in this overlapped lane. Optional
+GPU events retain one service-time observation per stage/call and their own
+sample count. They are not relabeled host phases or added as elapsed wall time.
+Legacy captures remain readable, but their repeated whole-batch quotient counts
+as one observation, supplies no within-capture variance estimate and cannot
+satisfy repeat-independence admission. Observation units participate in comparison,
+cohort, capture-key and timing-eligibility contracts without rewriting raw files.
+
+`--streaming-schedule serial` adds a dependency from each new pack to the previous
+export. This uses the same three streams, two slots, pinned transfers, pack/GEMM/
+export kernels, B residency and final output boundary, but serializes the GPU
+pipeline without introducing a per-call host synchronization. It is a matched
+**serialized pipeline**, not a claim about the ordinary public API. The focused
+`benchmarks/public-calibration/streaming.json` controls additionally retain that
+ordinary public reuse-B route. Both diagnostic and hook-disabled captures are
+collected in counterbalanced independent processes; streaming controls use their
+own batch loop rather than the incompatible ordinary sustained-loop option.
+All streaming experiments remain non-promoting. The new regressions are authored
+but unexecuted, and no overlap, latency or allocation result on hardware is claimed.

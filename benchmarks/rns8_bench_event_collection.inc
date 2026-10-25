@@ -915,7 +915,7 @@ bool gpu_event_timing_available(const Args& args, const BenchmarkResult& result)
     return false;
   }
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
-  const std::size_t repeats = result.samples.pack_us.size();
+  const std::size_t repeats = result.streaming_overlap_executed ? result.streaming_overlap_measured_repeat_count : result.samples.pack_us.size();
   const bool use_prepacked_b_cache = uses_runtime_b_prepack_cache(result);
   const auto phase_order = gpu_event_phase_order(args, result, selected_backend, use_prepacked_b_cache);
   if (repeats == 0 || phase_order.empty()) {
@@ -952,7 +952,7 @@ void run_public_sustained(const Args& args, BenchmarkResult& result, Call&& call
 template<class T>
 void verify_sustained_native_output(const Args& args, const std::vector<T>& a, const std::vector<T>& b,
                                     const std::vector<T>& c) {
-  if (!args.sustained_batches) return;
+  if (!args.sustained_batches && !args.streaming_overlap) return;
   using boost::multiprecision::cpp_int;
   const int64_t ldc = output_logical_ld(args);
   for (int64_t row=0;row<args.m;++row) for (int64_t col=0;col<args.n;++col) {

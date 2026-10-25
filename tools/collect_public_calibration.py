@@ -30,7 +30,7 @@ def commands(binary, cases, runs, seed, output):
             modes=("instrumented","production") if (first+run)%2==0 else ("production","instrumented")
             for position,mode in enumerate(modes):
                 command=[str(binary),*arguments,"--warmups","3","--repeats","9","--host-timing",mode]
-                if mode=="production":command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
+                if mode=="production" and "--streaming-overlap" not in arguments:command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
                 result.append(dict(case=name,run=run,position=position,mode=mode,command=command,
                                    output=str(output/f"{name}-run{run:03d}-{mode}.json")))
     return result

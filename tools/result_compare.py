@@ -11,7 +11,7 @@ from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
 from timing_eligibility import pair_blockers
-from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 
 
 TIMING_PHASES = [
@@ -30,6 +30,7 @@ TIMING_PHASES = [
 CONTRACT_KEYS = [
     "exact_proof_policy",
     "host_instrumentation_state",
+    "host_observation_contract",
     "output_completion_boundary",
     "host_api_batch.work_contract",
     "semantics",
@@ -288,6 +289,8 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "host_observation_contract":
+        return host_observation_contract(data)
     if key == "output_completion_boundary":
         return output_completion_boundary(data)
     if key == "host_instrumentation_state":

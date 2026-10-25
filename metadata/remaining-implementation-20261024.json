@@ -236,20 +236,33 @@
             "tools/evidence_database_lib/work_model.py",
             "tools/measurement_contract.py"
           ]
+        },
+        {
+          "summary": "Streaming preallocates both device staging slots, warms full multi-call batches, records true bounded batch observations with all statuses/final host copy inside completion and separate setup, and exposes a same-kernel serialized dependency control. GPU stage samples no longer masquerade as host phases; old repeated quotients count as one observation with unknown within-capture variance. Full final Boost oracle and observation-unit identities compose with production/diagnostic collectors.",
+          "files": [
+            "benchmarks/streaming_measurement.hpp",
+            "benchmarks/rns8_bench_streaming_overlap.inc",
+            "tools/benchmark_schema/streaming_timing.py",
+            "tools/measurement_contract.py",
+            "tools/perf_variance_report.py",
+            "tools/timing_eligibility.py"
+          ]
         }
       ],
       "regressions": [
         "tools/test_collect_crt_calibration.py",
         "tests/unit/test_public_sustained.cpp",
         "tools/test_public_measurement_contracts.py",
-        "tools/test_calibration_manifest.py"
+        "tools/test_calibration_manifest.py",
+        "tests/unit/test_streaming_measurement.cpp",
+        "tools/test_streaming_measurement.py",
+        "benchmarks/public-calibration/streaming.json"
       ],
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac",
         "981e7b109428870ed930eae50370e037be95fce7"
       ],
       "remaining": [
-        "Streaming overlap warm-both-slots and true batch observation contract remain to implement.",
         "Matched diagnostic companion binding for production accelerator promotion remains separate from conservative ledger admission.",
         "Hardware calibration, independent collection, counters, held-out prediction and scientific qualification deferred."
       ],
@@ -424,7 +437,8 @@
         "benchmarks/native-queue/"
       ],
       "commits": [
-        "981e7b109428870ed930eae50370e037be95fce7"
+        "981e7b109428870ed930eae50370e037be95fce7",
+        "8aa7e9769f77f18c6b42b444d7f21689f7bcb3e4"
       ],
       "remaining": [
         "Public prepared execution generation/read-write reservation integration of the private heterogeneous native route remains dependency work; no second raw-pointer value cache introduced.",

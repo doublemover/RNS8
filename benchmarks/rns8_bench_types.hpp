@@ -8,6 +8,7 @@
 
 #include "exact_wide_magnitude.hpp"
 #include "public_sustained.hpp"
+#include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
@@ -123,6 +124,8 @@ struct Args {
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
   bool streaming_overlap = false;
+  bool streaming_serial_control = false;
+  uint32_t streaming_batches = 9;
   std::string k_block_policy = "auto";
   std::string resident_redesign_candidate;
   std::vector<std::string> resident_redesign_dimensions;
@@ -198,6 +201,9 @@ struct BenchmarkResult {
   uint32_t streaming_overlap_stream_count = 0;
   uint32_t streaming_overlap_buffer_count = 0;
   uint32_t streaming_overlap_measured_repeat_count = 0;
+  std::vector<StreamingBatchObservation> streaming_observations;
+  double streaming_first_use_batch_us=0;
+  uint32_t streaming_warmup_batch_count=0;
   double streaming_overlap_batch_wall_us = 0;
   double streaming_overlap_per_repeat_pipeline_us = 0;
   std::string schedule_source = "rns8_get_plan_schedule_info";

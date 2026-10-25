@@ -50,3 +50,31 @@ def output_completion_boundary(capture: dict[str, Any]) -> str:
     if grouped.get("batched_export_enabled") is True or timing.get("grouped_dispatch_batched_export_enabled") is True:
         return "compact_task_major_host_slab"
     return "per_task_host_destinations"
+
+
+def streaming_executed(capture: dict[str, Any]) -> bool:
+    overlap=capture.get("streaming_overlap") or {}
+    return overlap.get("requested") is True and overlap.get("capture_status")=="executed"
+
+
+def host_observation_contract(capture: dict[str, Any]) -> dict[str, Any]:
+    if not streaming_executed(capture): return {"unit":"completed_call_or_task_batch"}
+    overlap=capture["streaming_overlap"]
+    if overlap.get("observation_contract_version")!=2:
+        return {"unit":"legacy_single_pipeline_batch_repeated_quotient","calls":overlap.get("measured_repeat_count")}
+    return {"unit":"completed_pipeline_batch_mean_per_call_v2","calls_per_batch":capture.get("repeats"),
+            "fill_drain_policy":overlap.get("fill_drain_policy"),"per_call_latency_available":False}
+
+
+def host_observation_count(capture: dict[str, Any]) -> int:
+    import math
+    if streaming_executed(capture):
+        overlap=capture["streaming_overlap"]
+        if overlap.get("observation_contract_version")!=2:
+            return int(type(overlap.get("batch_wall_us")) in (int,float) and math.isfinite(overlap["batch_wall_us"]) and overlap["batch_wall_us"]>0)
+        batches=overlap.get("batches")
+        return len(batches) if isinstance(batches,list) else 0
+    values=(capture.get("raw_timings_us") or {}).get("end_to_end")
+    if isinstance(values,list):return sum(type(v) in (int,float) and math.isfinite(v) for v in values)
+    repeats=capture.get("repeats")
+    return repeats if type(repeats) is int and repeats>=0 else 0

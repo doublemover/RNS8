@@ -249,7 +249,7 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "  \"streaming_overlap\": {\n";
   std::cout << "    \"requested\": " << (args.streaming_overlap ? "true" : "false") << ",\n";
   std::cout << "    \"pipeline\": \""
-            << (streaming_executed ? "pack_next_gemm_current_export_previous" : args.streaming_overlap
+            << (streaming_executed ? (args.streaming_serial_control ? "serialized_same_pipeline_stages" : "pack_next_gemm_current_export_previous") : args.streaming_overlap
                           ? "pack_next_gemm_current_export_previous"
                           : "serial_default_stream")
             << "\",\n";
@@ -262,6 +262,23 @@ void print_residency_arena_overlap_json(const Args& args, const BenchmarkResult&
   std::cout << "    \"stream_count\": " << result.streaming_overlap_stream_count << ",\n";
   std::cout << "    \"buffer_count\": " << result.streaming_overlap_buffer_count << ",\n";
   std::cout << "    \"measured_repeat_count\": " << result.streaming_overlap_measured_repeat_count << ",\n";
+  std::cout << "    \"final_exact_reference_passed\": " << (streaming_executed ? "true" : "false") << ",\n";
+  std::cout << "    \"observation_contract_version\": 2,\n";
+  std::cout << "    \"schedule\": \"" << (args.streaming_serial_control ? "serial_dependency_chain" : "overlapped_three_stream") << "\",\n";
+  std::cout << "    \"fill_drain_policy\": \"fresh_pinned_stream_event_setup_separate;full_fill_drain_status_and_final_host_copy_inside_each_batch\",\n";
+  std::cout << "    \"warmup_batch_count\": " << result.streaming_warmup_batch_count << ",\n";
+  std::cout << "    \"warmup_calls_per_batch\": " << (streaming_executed ? std::max(2u,args.repeats) : 0) << ",\n";
+  std::cout << "    \"first_use_batch_wall_us\": " << result.streaming_first_use_batch_us << ",\n";
+  std::cout << "    \"per_call_latency_available\": false,\n";
+  std::cout << "    \"batches\": [";
+  for(std::size_t i=0;i<result.streaming_observations.size();++i) {
+    const auto& batch=result.streaming_observations[i];if(i)std::cout << ",";
+    std::cout << "{\"calls\":" << batch.calls << ",\"duration_us\":" << batch.duration_us
+              << ",\"setup_us\":" << batch.setup_us << ",\"first_source_version\":" << batch.first_source_version
+              << ",\"device_allocate_calls_inside_batch\":" << batch.device_allocate_calls
+              << ",\"device_allocated_bytes_inside_batch\":" << batch.device_allocated_bytes << "}";
+  }
+  std::cout << "],\n";
   std::cout << "    \"batch_wall_us\": " << result.streaming_overlap_batch_wall_us << ",\n";
   std::cout << "    \"per_repeat_pipeline_us\": " << result.streaming_overlap_per_repeat_pipeline_us << ",\n";
   std::cout << "    \"explicit_dependency_events\": " << (streaming_executed ? "true" : "false") << ",\n";

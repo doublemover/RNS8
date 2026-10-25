@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 import json
-from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary, host_observation_contract
 
 from .config import PHASES, PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
 
@@ -27,6 +27,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     parts = [
         f"exact_proof_policy={exact_proof_policy(capture)}",
         f"host_instrumentation_state={host_instrumentation(capture)}",
+        f"host_observation_contract={json.dumps(host_observation_contract(capture), sort_keys=True)}",
         f"output_completion_boundary={output_completion_boundary(capture)}",
         f"host_batch_contract={json.dumps(host_batch_contract(capture), sort_keys=True)}",
         f"scenario_identity={capture_scenario_identity(capture)}",

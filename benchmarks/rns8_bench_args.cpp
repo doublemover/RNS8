@@ -344,6 +344,12 @@ Args parse_args(int argc, char** argv) {
       args.adaptive_grouped_scheduler = true;
     } else if (arg == "--streaming-overlap") {
       args.streaming_overlap = true;
+    } else if (arg == "--streaming-batches" && i + 1 < argc) {
+      args.streaming_batches=parse_u32(argv[++i], "--streaming-batches");
+    } else if (arg == "--streaming-schedule" && i + 1 < argc) {
+      const std::string mode=argv[++i];
+      if(mode!="overlapped" && mode!="serial")usage_error("streaming schedule must be overlapped or serial");
+      args.streaming_serial_control=mode=="serial";
     } else if (arg == "--k-block-policy" && i + 1 < argc) {
       args.k_block_policy = argv[++i];
     } else if (arg == "--resident-redesign-candidate" && i + 1 < argc) {
@@ -427,7 +433,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--resident-lifetime]\n"
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
-          << "                  [--streaming-overlap]\n"
+          << "                  [--streaming-overlap --streaming-batches 3..64 --streaming-schedule overlapped|serial]\n"
           << "                  [--k-block-policy NAME]\n"
           << "                  [--resident-redesign-candidate NAME]\n"
           << "                  [--resident-redesign-dimensions a,b,c]\n"
@@ -652,6 +658,11 @@ Args parse_args(int argc, char** argv) {
   if (args.grouped_compact_output && (args.grouped_dispatch_tasks <= 1 || args.output_ld_padding != 0 ||
       (exact_wide_benchmark_semantics(args.semantics) && args.exact_wide_limb_count < 3)))
     usage_error("compact-slab output requires grouped dispatch and no per-task padding");
+  StreamingMeasurementPlan streaming_plan;
+  if(args.streaming_overlap && !streaming_measurement_plan(args.warmups,args.repeats,args.streaming_batches,streaming_plan))
+    usage_error("streaming requires calls/repeats1..65536, batches3..64, measured calls<=1048576 and warmups<=1024");
+  if(!args.streaming_overlap && (args.streaming_serial_control || args.streaming_batches!=9))
+    usage_error("streaming controls require --streaming-overlap");
   if (args.sustained_batches > 64 || !args.sustained_min_calls || args.sustained_min_calls > args.sustained_max_calls ||
       args.sustained_max_calls > 65536 || args.sustained_min_ms > 60000) usage_error("invalid sustained bounds");
   if (args.sustained_batches && (!args.production_host_timing || args.residue_chain_length != 1 ||

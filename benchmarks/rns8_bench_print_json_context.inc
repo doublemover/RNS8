@@ -77,7 +77,7 @@
       gpu_event_scope = "\"direct_hip_streaming_overlap_multistream_operation_groups\"";
       gpu_event_caveat =
           "\"HIP event timings record benchmark-owned nonblocking pack, GEMM, and export streams with explicit "
-          "dependency events. The end_to_end timing samples are per-repeat pipeline throughput from the measured "
+          "dependency events. Each end_to_end sample is one complete batch mean per call, not independent per-call latency. Separate "
           "batch wall clock, not a serial sum of pack, GEMM, and export phase timings\"";
     } else if (chain_residue_output) {
       gpu_event_reason = "captured_by_residue_current_chain_backend_hooks";

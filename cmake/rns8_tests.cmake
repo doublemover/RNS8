@@ -1,6 +1,7 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_test(NAME queue_calibration_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_queue_calibration.py")
+  add_test(NAME streaming_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_measurement.py")
   add_test(NAME public_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_public_measurement_contracts.py")
   add_test(NAME wide_magnitude_receipts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_wide_magnitude.py")
   add_test(NAME ci_benchmark_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ci_benchmark_smoke.py")
@@ -885,6 +886,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_streaming_measurement.cpp
     tests/unit/test_public_sustained.cpp
     tests/unit/test_wide_magnitude_fixture.cpp
     tests/unit/test_exact_wide.cpp

@@ -526,7 +526,8 @@ def validate_gpu_events(self) -> None:
     if not isinstance(metadata, dict):
         return
     enabled = metadata.get("gpu_event_timing")
-    repeats = self.data.get("repeats")
+    from .streaming_timing import gpu_stage_sample_count
+    repeats = gpu_stage_sample_count(self.data,self.data.get("repeats"))
     if not isinstance(enabled, bool) or not _is_int(repeats):
         return
     selected_backend = self.data.get("backend_selected")

@@ -923,7 +923,7 @@ def validate_contract_metadata(self: Any) -> None:
                     self._error("executed streaming_overlap captures must use at least three streams")
                 if _is_int(buffer_count) and buffer_count < 2:
                     self._error("executed streaming_overlap captures must use at least two buffers")
-                if _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
+                if overlap.get("observation_contract_version")!=2 and _is_int(measured_repeat_count) and measured_repeat_count != self.data.get("repeats"):
                     self._error("streaming_overlap.measured_repeat_count must match repeats when executed")
                 if _is_number(batch_wall_us) and batch_wall_us <= 0:
                     self._error("executed streaming_overlap captures must record batch_wall_us > 0")
