@@ -10,6 +10,7 @@ from collections import Counter
 import copy
 import hashlib
 import json
+import operator
 from pathlib import Path
 import time
 
@@ -47,13 +48,26 @@ def fail(condition, detail):
     if not condition: raise Refuted(detail)
 
 
+_INDEX_OPERATIONS = {
+    "+": operator.add, "*": operator.mul, "//": operator.floordiv,
+    "%": operator.mod, "<": lambda a, b: int(a < b),
+    "and": lambda a, b: int(bool(a) and bool(b)), "min": min,
+}
+
+
 def eval_index(node, env):
     # Every intermediate operation fits the exact nonnegative signed-64 domain.
     # Render casts each variable to int64_t before arithmetic. No signed overflow
     # or floor-vs-truncating division simplification is assumed.
     if isinstance(node, list):
-        for child in node[1:]: eval_index(child, env)
-    value = expression(node, env)
+        # Reuse the checked child values. Reinterpreting the entire subtree at
+        # every ancestor repeats the same work for millions of fragment slots.
+        if len(node) != 3 or node[0] not in _INDEX_OPERATIONS:
+            raise Unsupported("unsupported index expression")
+        a, b = eval_index(node[1], env), eval_index(node[2], env)
+        value = _INDEX_OPERATIONS[node[0]](a, b)
+    else:
+        value = expression(node, env)
     if not 0 <= value <= (1 << 63) - 1:
         raise Unsupported("index intermediate outside nonnegative signed-64 domain")
     return value

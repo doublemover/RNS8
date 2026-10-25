@@ -9,11 +9,39 @@ import tempfile
 
 from generate_native_wmma import Variant, generate
 from native_wmma_lowering import recipe, render, mutations
-from check_native_wmma_logic import CONFIGURATIONS, check, inspect, load_bound_report
+from check_native_wmma_logic import CONFIGURATIONS, Unsupported, check, eval_index, inspect, load_bound_report
+from native_wmma_lowering import expression
 from promotion_ledger import build_ledger
 
 
 def main():
+    # Independent legacy traversal checks every intermediate before interpreting
+    # a whole subtree; the optimized interpreter must retain the same decisions.
+    def reference(node, env):
+        if isinstance(node, list):
+            for child in node[1:]: reference(child, env)
+        result = expression(node, env)
+        if not 0 <= result <= (1 << 63) - 1:
+            raise Unsupported("reference intermediate overflow")
+        return result
+
+    for config in CONFIGURATIONS:
+        env = dict(config, bx=0, by=0, bz=0, channel=0, reg=7, lane=31, word=3, byte=3, kk=config['k']-1)
+        for key, node in recipe(4, False).items():
+            if key.endswith(('_index', '_mask')) or key == 'plane':
+                assert eval_index(node, env) == reference(node, env), key
+        for op in ('+', '*', '//', '%', '<', 'and', 'min'):
+            node = [op, ['+', 'lane', 1], 3]
+            assert eval_index(node, env) == reference(node, env), op
+    # A bounded root cannot hide overflow in a child, even if min masks it.
+    overflowing = ['min', ['+', 'lda', 1], 0]
+    for interpreter in (reference, eval_index):
+        try: interpreter(overflowing, {'lda': (1 << 63) - 1})
+        except Unsupported: pass
+        else: raise AssertionError('hidden intermediate overflow accepted')
+        try: interpreter(['//', 1, 0], {})
+        except ZeroDivisionError: pass
+        else: raise AssertionError('division by zero accepted')
     for unsigned in (False, True):
         for group in (1, 2, 4):
             ir = recipe(group, unsigned)
