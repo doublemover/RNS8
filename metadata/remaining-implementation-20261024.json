@@ -2712,6 +2712,16 @@
             "benchmarks/public-calibration/hipblaslt-metadata.json",
             "tools/benchmark_schema/hipblaslt_metadata.py"
           ]
+        },
+        {
+          "summary": "Authored opt-in physical algorithm-index observations tied to the existing cached algorithms, bounded per-thread inventory, actual SDK compile/host-link feature detection, warm/repeat JSON receipts and scoped comparison checks. The official extension header is compiled through an SDK C bridge because its unrelated packed declarations fail under MSVC.",
+          "files": [
+            "src/backend_hipblaslt/hipblaslt_algorithm_index_bridge.hpp",
+            "src/backend_hipblaslt/hipblaslt_timing_matmul_cache.inc",
+            "src/backend_hipblaslt/hipblaslt_metadata.cpp",
+            "cmake/modules/FindRNS8HIPBLASLT.cmake",
+            "tools/benchmark_schema/hipblaslt_metadata.py"
+          ]
         }
       ],
       "regressions": [
@@ -2723,7 +2733,7 @@
         "02d7166eb377d715fddb8e36233b1911af025d3b"
       ],
       "remaining": [
-        "Local hipBLASLt metadata/reuse differentials pass. Independent cold/warm setup/submission and complete-route observations remain; cross-call descriptor retention stays conditional."
+        "The metadata and operand-retention controls pass the preceding local regressions. The new physical algorithm-identity observation increment passes minimal syntax and actual compiler/link feature checks; its focused runtime validation and independent same-algorithm metadata-policy measurements remain pending. No speedup or route promotion is established by API-count reduction."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [

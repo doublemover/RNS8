@@ -190,10 +190,18 @@ if(RNS8_ENABLE_HIP)
   if(RNS8_ENABLE_HIPBLASLT)
     find_package(RNS8HIPBLASLT REQUIRED)
     set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS})
+    if(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE)
+      list(APPEND RNS8_HIP_SOURCE_COMPILE_OPTIONS "-DRNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE=1")
+      list(APPEND RNS8_HIP_SOURCE_DEPENDS "${RNS8_HIPBLASLT_INCLUDE_DIR}/hipblaslt/hipblaslt-ext.hpp")
+      list(APPEND RNS8_HIP_SOURCE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_algorithm_index_bridge.hpp")
+    endif()
     rns8_compile_hip_source(
       RNS8_HIPBLASLT_KERNEL_OBJECT
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_kernels.hip"
     )
+    if(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE)
+      list(POP_BACK RNS8_HIP_SOURCE_COMPILE_OPTIONS)
+    endif()
     unset(RNS8_HIP_SOURCE_DEPENDS)
     list(APPEND RNS8_SOURCES src/backend_hipblaslt/hipblaslt_backend.cpp "${RNS8_HIPBLASLT_KERNEL_OBJECT}")
   endif()

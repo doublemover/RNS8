@@ -3,6 +3,20 @@
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include <catch2/catch_test_macros.hpp>
 using namespace rns8::detail;
+TEST_CASE("hipBLASLt algorithm observations retain physical identities and explicit overflow") {
+  HipblasLtAlgorithmInventory inventory;
+  HipblasLtMetadataKey key{0,16,32,64,32,4096};
+  inventory.record(key,7);inventory.record(key,7);inventory.record(key,8);
+  REQUIRE(inventory.size==2);CHECK(inventory.entries[0].calls==2);CHECK(inventory.entries[1].algorithm_index==8);
+  for(int index=9;index<23;++index)inventory.record(key,index);
+  REQUIRE(inventory.size==16);CHECK(inventory.complete);
+  inventory.record(key,23);CHECK_FALSE(inventory.complete);CHECK(inventory.size==16);
+  inventory={};inventory.record(key,-1);CHECK_FALSE(inventory.complete);CHECK(inventory.entries[0].algorithm_index==-1);
+  inventory={};inventory.record(key,7);inventory.entries[0].calls=UINT64_MAX;
+  inventory.record(key,7);CHECK_FALSE(inventory.complete);CHECK(inventory.entries[0].calls==UINT64_MAX);
+  hipblaslt_algorithm_observations_set_enabled(false);
+  CHECK_FALSE(hipblaslt_algorithm_observations_snapshot().complete);
+}
 TEST_CASE("hipBLASLt operand retention policies are independent and reject unknown bits") {
   const auto original=hipblaslt_prepack_policy();
   struct Restore {HipblasLtPrepackPolicy policy;~Restore(){(void)hipblaslt_prepack_set_policy(policy);}} restore{original};

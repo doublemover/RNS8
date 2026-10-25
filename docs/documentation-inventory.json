@@ -4672,7 +4672,8 @@
         }
       ],
       "anchors": [
-        "hipblaslt-backend"
+        "hipblaslt-backend",
+        "selected-algorithm-observations"
       ]
     },
     {
@@ -5251,6 +5252,10 @@
         {
           "source": "examples/device-native/README.md",
           "reference": "../../docs/local-validation-20261025.md"
+        },
+        {
+          "source": "src/backend_hipblaslt/README.md",
+          "reference": "../../docs/local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },
         {
           "source": "docs/documentation-inventory.json",

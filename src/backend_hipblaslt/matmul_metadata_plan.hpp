@@ -23,7 +23,10 @@ struct HipblasLtCallMetadataDirectory {
   std::array<HipblasLtMetadataKey,2> keys{};
   std::array<bool,2> ready{};
   int find(const HipblasLtMetadataKey& key) const {
-    for(unsigned i=0;i<2;++i)if(ready[i]&&keys[i]==key)return int(i);return -1;
+    for(unsigned i=0;i<2;++i) {
+      if(ready[i]&&keys[i]==key)return int(i);
+    }
+    return -1;
   }
   int free_slot() const {for(unsigned i=0;i<2;++i)if(!ready[i])return int(i);return -1;}
   bool publish(unsigned slot,const HipblasLtMetadataKey& key) {
@@ -49,6 +52,33 @@ struct HipblasLtMetadataCounters {
   uint64_t preference_create_calls=0,preference_destroy_calls=0,preference_attribute_calls=0;
   uint64_t heuristic_calls=0,algorithm_cache_hits=0,descriptor_set_hits=0,descriptor_sets_created=0;
   uint64_t matmul_block_calls=0,maximum_live_sets=0;
+};
+
+struct HipblasLtAlgorithmObservation {
+  HipblasLtMetadataKey key{};
+  int algorithm_index=-1;
+  uint64_t calls=0;
+};
+// An opt-in benchmark observation, not another algorithm/descriptor cache.
+// Keep indices scoped to the actual library/build/device and padded geometry.
+struct HipblasLtAlgorithmInventory {
+  std::array<HipblasLtAlgorithmObservation,16> entries{};
+  uint32_t size=0;
+  bool available=false,complete=true;
+  uint64_t index_queries=0;
+  void record(const HipblasLtMetadataKey& key,int index) noexcept {
+    if(index<0)complete=false;
+    for(uint32_t i=0;i<size;++i) {
+      auto& entry=entries[i];
+      if(entry.key==key && entry.algorithm_index==index) {
+        if(entry.calls==UINT64_MAX)complete=false;
+        else ++entry.calls;
+        return;
+      }
+    }
+    if(size==entries.size()){complete=false;return;}
+    entries[size++]={key,index,1};
+  }
 };
 }
 #endif

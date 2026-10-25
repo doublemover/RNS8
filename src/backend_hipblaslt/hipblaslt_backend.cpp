@@ -16,6 +16,9 @@
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
 #  include <hip/hip_runtime_api.h>
 #  include <hipblaslt/hipblaslt.h>
+#  if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+extern "C" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);
+#  endif
 
 extern "C" int rns8_hipblaslt_reduce_i32_to_centered_device(
     const int32_t* scratch,

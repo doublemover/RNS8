@@ -234,6 +234,8 @@ using matmul_algorithm_cache_key=HipblasLtMetadataKey;
 struct matmul_algorithm_cache_entry {
   matmul_algorithm_cache_key key{};
   hipblasLtMatmulAlgo_t algo{};
+  int algorithm_index=-1;
+  bool identity_attempted=false;
 };
 
 std::mutex& matmul_algorithm_cache_mutex() {
@@ -246,26 +248,43 @@ std::vector<matmul_algorithm_cache_entry>& matmul_algorithm_cache_entries() {
   return entries;
 }
 
-bool find_cached_matmul_algorithm(const matmul_algorithm_cache_key& key, hipblasLtMatmulAlgo_t& algo) {
+int observe_algorithm_index(const hipblasLtMatmulAlgo_t& algo) {
+#if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+  auto& inventory=hipblaslt_metadata_state::algorithm_inventory;
+  if(inventory.index_queries==UINT64_MAX)inventory.complete=false;
+  else ++inventory.index_queries;
+  return rns8_hipblaslt_algorithm_index(&algo);
+#else
+  (void)algo;return -1;
+#endif
+}
+
+bool find_cached_matmul_algorithm(const matmul_algorithm_cache_key& key, hipblasLtMatmulAlgo_t& algo,int& index) {
   std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
-  const auto& entries = matmul_algorithm_cache_entries();
+  auto& entries = matmul_algorithm_cache_entries();
   const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
   if (it == entries.end()) {
     return false;
   }
   algo = it->algo;
+  if(hipblaslt_metadata_state::algorithm_observations_enabled && !it->identity_attempted) {
+    it->algorithm_index=observe_algorithm_index(it->algo);
+    it->identity_attempted=true;
+  }
+  index=it->algorithm_index;
   return true;
 }
 
-void remember_matmul_algorithm(const matmul_algorithm_cache_key& key, const hipblasLtMatmulAlgo_t& algo) {
+void remember_matmul_algorithm(const matmul_algorithm_cache_key& key, const hipblasLtMatmulAlgo_t& algo,int index,bool attempted) {
   std::lock_guard<std::mutex> lock(matmul_algorithm_cache_mutex());
   auto& entries = matmul_algorithm_cache_entries();
   const auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.key == key; });
   if (it != entries.end()) {
     it->algo = algo;
+    it->algorithm_index=index;it->identity_attempted=attempted;
     return;
   }
-  entries.push_back(matmul_algorithm_cache_entry{key, algo});
+  entries.push_back(matmul_algorithm_cache_entry{key, algo,index,attempted});
 }
 
 hipblasStatus_t create_matmul_descriptors(
@@ -375,7 +394,8 @@ hipblasStatus_t run_matmul_block(
   }
   auto& descriptors=*selected;
   hipblasLtMatmulAlgo_t algo{};
-  if (!find_cached_matmul_algorithm(cache_key, algo)) {
+  int algorithm_index=-1;
+  if (!find_cached_matmul_algorithm(cache_key, algo,algorithm_index)) {
     status=create_matmul_preference(workspace_bytes,descriptors);
     if(status!=HIPBLAS_STATUS_SUCCESS)return status;
     hipblasLtMatmulHeuristicResult_t heuristic{};
@@ -394,13 +414,17 @@ hipblasStatus_t run_matmul_block(
         &heuristic_count);
     if (status == HIPBLAS_STATUS_SUCCESS && heuristic_count > 0 && heuristic.state == HIPBLAS_STATUS_SUCCESS) {
       algo = heuristic.algo;
-      remember_matmul_algorithm(cache_key, algo);
+      const bool observe=hipblaslt_metadata_state::algorithm_observations_enabled;
+      if(observe)algorithm_index=observe_algorithm_index(algo);
+      remember_matmul_algorithm(cache_key, algo,algorithm_index,observe);
     } else if (status == HIPBLAS_STATUS_SUCCESS || status == HIPBLAS_STATUS_NOT_SUPPORTED) {
       return HIPBLAS_STATUS_NOT_SUPPORTED;
     } else {
       return status;
     }
   } else ++metadata_counters.algorithm_cache_hits;
+  if(hipblaslt_metadata_state::algorithm_observations_enabled)
+    hipblaslt_metadata_state::algorithm_inventory.record(cache_key,algorithm_index);
 
   const int32_t alpha = 1;
   const int32_t beta = 0;

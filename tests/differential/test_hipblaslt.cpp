@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 
 #include <cstdint>
 #include <limits>
@@ -715,6 +716,11 @@ TEST_CASE("hipBLASLt rejects adaptive per-tile bounded schedules") {
 TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite output at slab edges") {
   if(!hipblaslt_available())SKIP("hipBLASLt backend unavailable");
   using namespace rns8::detail;
+  struct ObserveAlgorithms {
+    bool original=hipblaslt_metadata_state::algorithm_observations_enabled;
+    ObserveAlgorithms(){hipblaslt_algorithm_observations_set_enabled(true);}
+    ~ObserveAlgorithms(){hipblaslt_algorithm_observations_set_enabled(original);}
+  } observe_algorithms;
   struct restore_policy {HipblasLtMetadataPolicy value=hipblaslt_metadata_policy();~restore_policy(){hipblaslt_metadata_set_policy(value);}} restore;
   struct RestoreRetention {HipblasLtPrepackPolicy value=hipblaslt_prepack_policy();~RestoreRetention(){(void)hipblaslt_prepack_set_policy(value);}} restore_retention;
   auto* ctx=create_backend_context(RNS8_BACKEND_HIPBLASLT);
@@ -734,6 +740,7 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         sb[inner*(n+2)+col]=sign && (col%2==0)?-int64_t(v):int64_t(v);ub[inner*(n+2)+col]=v;
       }
       auto execute=[&](rns8_context* context,rns8_backend_kind backend,HipblasLtMetadataPolicy policy,HipblasLtPrepackPolicy retention){
+        hipblaslt_metadata_counters_reset();
         hipblaslt_metadata_set_policy(policy);
         REQUIRE(hipblaslt_prepack_set_policy(retention)==RNS8_SUCCESS);
         auto desc=wide?(sign?exact_signed_desc(m,n,k,backend):exact_unsigned_desc(m,n,k,backend)):
@@ -747,7 +754,9 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         REQUIRE((sign?rns8_pack_i64(context,a,sa.data(),k+2,generation):rns8_pack_u64(context,a,ua.data(),k+2,generation))==RNS8_SUCCESS);
         REQUIRE((sign?rns8_pack_i64(context,b,sb.data(),n+2,generation):rns8_pack_u64(context,b,ub.data(),n+2,generation))==RNS8_SUCCESS);
         // Warm the algorithm-value cache, then inspect only another successful call.
-        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);hipblaslt_metadata_counters_reset();hipblaslt_prepack_counters_reset();
+        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);
+        const auto warmed_algorithms=hipblaslt_algorithm_observations_snapshot();
+        hipblaslt_metadata_counters_reset();hipblaslt_prepack_counters_reset();
         REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);
         const auto counts=hipblaslt_metadata_counters_snapshot();
         if(backend==RNS8_BACKEND_HIPBLASLT){
@@ -757,6 +766,19 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
           CHECK(counts.descriptor_create_calls==5*counts.descriptor_sets_created);CHECK(counts.descriptor_destroy_calls==counts.descriptor_create_calls);
           CHECK(counts.attribute_set_calls==2*counts.descriptor_sets_created);
           CHECK(counts.preference_create_calls==(policy==HipblasLtMetadataPolicy::per_call?0:blocks));CHECK(counts.preference_destroy_calls==counts.preference_create_calls);
+          const auto algorithms=hipblaslt_algorithm_observations_snapshot();
+          if(algorithms.available) {
+            REQUIRE(algorithms.complete);REQUIRE(warmed_algorithms.complete);
+            CHECK(algorithms.size==geometries);CHECK(algorithms.index_queries==0);
+            uint64_t observed_calls=0;
+            for(uint32_t i=0;i<algorithms.size;++i) {
+              const auto& entry=algorithms.entries[i];observed_calls+=entry.calls;
+              CHECK(entry.algorithm_index>=0);
+              CHECK(std::any_of(warmed_algorithms.entries.begin(),warmed_algorithms.entries.begin()+warmed_algorithms.size,
+                  [&](const auto& warm){return warm.key==entry.key && warm.algorithm_index==entry.algorithm_index;}));
+            }
+            CHECK(observed_calls==blocks);
+          }
           const auto packed=hipblaslt_prepack_counters_snapshot();
           const bool keep_a=k<=65536 && hipblaslt_prepack_a_enabled(retention);
           const bool keep_b=k<=65536 && hipblaslt_prepack_b_enabled(retention);

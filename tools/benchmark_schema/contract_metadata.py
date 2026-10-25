@@ -151,8 +151,9 @@ def validate_contract_metadata(self: Any) -> None:
     for error in validate_locality(self.data): self._error(error)
     from .immutable_schedule import validate_immutable_schedule
     for error in validate_immutable_schedule(self.data): self._error(error)
-    from .hipblaslt_metadata import validate_hipblaslt_metadata,validate_hipblaslt_prepack
+    from .hipblaslt_metadata import validate_hipblaslt_metadata,validate_hipblaslt_prepack,validate_hipblaslt_algorithms
     for error in validate_hipblaslt_metadata(self.data): self._error(error)
+    for error in validate_hipblaslt_algorithms(self.data): self._error(error)
     for error in validate_hipblaslt_prepack(self.data): self._error(error)
     from .rocwmma_packing import validate_rocwmma_packing
     for error in validate_rocwmma_packing(self.data): self._error(error)

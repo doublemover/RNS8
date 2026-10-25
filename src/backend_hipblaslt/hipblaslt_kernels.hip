@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+#if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+#include "hipblaslt_algorithm_index_bridge.hpp"
+#endif
+
 #include "../backend_common/finite_u8_reducer.hpp"
 
 namespace {

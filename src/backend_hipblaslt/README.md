@@ -39,8 +39,9 @@ both operands at the warmup and measured-repeat boundaries. These are source
 work counts, not byte capacities or elapsed time. Reports keep different
 retention policies in separate implementation cohorts. The authored
 `benchmarks/public-calibration/hipblaslt-prepack.json` controls include both
-metadata modes, ragged/large shapes and a split-K case. These additions have not
-been built, executed or measured; validation remains deferred.
+metadata modes, ragged/large shapes and a split-K case. The [October 25 integration](../../docs/local-validation-20261025.md#allocation-and-global-control-integration-retry)
+passes the applicable local correctness and receipt checks. Independent physical
+metadata/retention timing remains a separate qualification gate.
 
 Supported contracts:
 
@@ -61,3 +62,27 @@ records matched public calls and setup-inclusive operand reuse. Metadata retains
 `perf_validated=0` until the relevant reviewed routing gate is satisfied.
 CK, rocWMMA and AMDGPU builtins are separate opt-in implemented paths; consult
 the backend reference for their contract and target limits.
+
+
+### Selected algorithm observations
+
+The benchmark opts into a bounded inventory of actual library algorithm indices
+per device and padded geometry. A compile/link probe feature-detects
+[`hipblaslt_ext::getIndexFromAlgo`](https://rocm.docs.amd.com/projects/hipBLASLt/en/docs-7.0.2/reference/ext-reference.html).
+The query runs once per cached algorithm when observation is enabled, using a
+copy of the selected object. Normal library callers leave observation disabled.
+The existing cache retains the queried integer with its actual algorithm; this
+does not retain another descriptor set or alter algorithm selection.
+
+`hipblaslt_algorithms` records warmup/repeat inventories, query counts and explicit
+availability/completeness. Indices are scoped to the captured library/build,
+device and complete padded geometry; the same integer from another library is
+not an identity match. Missing APIs, negative/unknown indices, bounded-inventory
+overflow and counter overflow never become a known algorithm zero. These cases
+leave arithmetic available while withholding complete comparison evidence.
+The SDK-compiled C bridge keeps the official extension declaration out of the
+MSVC host translation unit; the feature probe separately compiles that exact
+bridge and links it with the host compiler/library.
+
+This observation increment is authored; its focused build/runtime checks and
+same-algorithm metadata-policy measurements remain pending.

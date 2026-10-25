@@ -260,6 +260,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
+  rns8::detail::HipblasLtAlgorithmInventory algorithms_after_warmups{},algorithms_after_repeats{};
   rns8::detail::HipblasLtPrepackCounters prepack_after_warmups{},prepack_after_repeats{};
   rns8::detail::RocwmmaPackingStats rocwmma_after_warmups{},rocwmma_after_repeats{};
   rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};

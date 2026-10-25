@@ -173,6 +173,28 @@
   };
   std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
   std::cout << "    \"after_measured_repeats\": "; print_metadata_counters(result.metadata_after_repeats); std::cout << "\n  },\n";
+  const auto print_algorithms=[](const rns8::detail::HipblasLtAlgorithmInventory& inventory) {
+    std::cout << "{\"available\":" << (inventory.available?"true":"false")
+              << ",\"complete\":" << (inventory.complete?"true":"false")
+              << ",\"index_queries\":" << inventory.index_queries << ",\"entries\":[";
+    for(uint32_t i=0;i<inventory.size;++i) {
+      const auto& entry=inventory.entries[i];const auto& key=entry.key;
+      if(i)std::cout << ',';
+      std::cout << "{\"device_id\":" << key.device_id << ",\"m\":" << key.m << ",\"n\":" << key.n
+                << ",\"k\":" << key.k << ",\"scratch_ld\":" << key.scratch_ld
+                << ",\"workspace_bytes\":" << key.workspace_bytes << ",\"attribute_abi\":" << key.attribute_abi
+                << ",\"algorithm_index\":";
+      if(entry.algorithm_index<0)std::cout << "null";else std::cout << entry.algorithm_index;
+      std::cout << ",\"matmul_calls\":" << entry.calls << '}';
+    }
+    std::cout << "]}";
+  };
+  std::cout << "  \"hipblaslt_algorithms\": {\"abi_version\":1,"
+            << "\"scope\":\"library_build_device_padded_geometry_algorithm_index\","
+            << "\"query_policy\":\"opt_in_once_per_cached_algorithm\",\"after_warmups\":";
+  print_algorithms(result.algorithms_after_warmups);
+  std::cout << ",\"after_measured_repeats\":";print_algorithms(result.algorithms_after_repeats);
+  std::cout << "},\n";
   std::cout << "  \"rocwmma_packing\": {\"abi_version\":1,\"policy\":\"" << args.rocwmma_packing_policy
       << "\",\"scope\":\"calling_thread_successful_submissions_not_bytes_or_time\",\n";
   const auto print_rocwmma=[](const rns8::detail::RocwmmaPackingStats& v) {

@@ -185,6 +185,81 @@ if(RNS8_PROBE_ACCELERATORS AND MSVC AND TARGET roc::hipblaslt)
   endif()
 endif()
 
+set(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE FALSE)
+# This selects an optional compiled API in an explicitly enabled backend.
+# It is independent of the evidence-only component-discovery probes above.
+if(RNS8_ENABLE_HIPBLASLT AND RNS8_HIP_HIPCC AND RNS8_HIPBLASLT_LIBRARY)
+  set(_rns8_algo_index_source "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-probe.hip")
+  file(WRITE "${_rns8_algo_index_source}"
+    "#include <hip/hip_runtime.h>\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_algorithm_index_bridge.hpp\"\n")
+  set(_rns8_algo_index_args -std=c++17)
+  if(NOT WIN32)
+    list(APPEND _rns8_algo_index_args -fPIC)
+  endif()
+  foreach(_target IN LISTS RNS8_AMDGPU_TARGETS)
+    list(APPEND _rns8_algo_index_args "--offload-arch=${_target}")
+  endforeach()
+  if(MSVC)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      list(APPEND _rns8_algo_index_args -fms-runtime-lib=dll_dbg -D_DEBUG -D_ITERATOR_DEBUG_LEVEL=2)
+    else()
+      list(APPEND _rns8_algo_index_args -fms-runtime-lib=dll -DNDEBUG -D_ITERATOR_DEBUG_LEVEL=0)
+    endif()
+  endif()
+  foreach(_include IN ITEMS "${RNS8_HIP_STL_OVERLAY}" "${RNS8_HIPBLASLT_INCLUDE_DIR}")
+    if(_include)
+      if(WIN32)
+        # hipcc forwards attached include flags as command text on Windows.
+        list(APPEND _rns8_algo_index_args "-I\"${_include}\"")
+      else()
+        list(APPEND _rns8_algo_index_args "-I${_include}")
+      endif()
+    endif()
+  endforeach()
+  set(_rns8_algo_index_object "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-probe${CMAKE_CXX_OUTPUT_EXTENSION}")
+  execute_process(COMMAND "${CMAKE_COMMAND}" -E env ${RNS8_HIP_COMPILER_ENVIRONMENT}
+      "${RNS8_HIP_HIPCC}" ${_rns8_algo_index_args} -c "${_rns8_algo_index_source}" -o "${_rns8_algo_index_object}"
+    RESULT_VARIABLE _rns8_algo_index_result OUTPUT_VARIABLE _rns8_algo_index_stdout
+    ERROR_VARIABLE _rns8_algo_index_stderr TIMEOUT 60)
+  set(RNS8_HIPBLASLT_ALGO_INDEX_PROBE_OUTPUT "${_rns8_algo_index_stdout}\n${_rns8_algo_index_stderr}")
+  if(_rns8_algo_index_result STREQUAL "0" AND TARGET roc::hipblaslt)
+    set(_rns8_algo_index_main "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-main.cpp")
+    file(WRITE "${_rns8_algo_index_main}"
+      "#include <hipblaslt/hipblaslt.h>\nextern \"C\" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);\nint main() { hipblasLtMatmulAlgo_t algo{}; return rns8_hipblaslt_algorithm_index(&algo); }\n")
+    if(DEFINED CMAKE_TRY_COMPILE_CONFIGURATION)
+      set(_rns8_had_try_configuration TRUE)
+      set(_rns8_saved_try_configuration "${CMAKE_TRY_COMPILE_CONFIGURATION}")
+    else()
+      set(_rns8_had_try_configuration FALSE)
+    endif()
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set(CMAKE_TRY_COMPILE_CONFIGURATION Debug)
+    else()
+      set(CMAKE_TRY_COMPILE_CONFIGURATION Release)
+    endif()
+    try_compile(_rns8_algo_index_linked
+      "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-link-probe"
+      SOURCES "${_rns8_algo_index_main}" CXX_STANDARD 17
+      COMPILE_DEFINITIONS "-D__HIP_PLATFORM_AMD__=1"
+      LINK_LIBRARIES "${_rns8_algo_index_object}" roc::hipblaslt ${RNS8_HIP_LIBRARIES}
+      OUTPUT_VARIABLE _rns8_algo_index_link_output)
+    if(_rns8_had_try_configuration)
+      set(CMAKE_TRY_COMPILE_CONFIGURATION "${_rns8_saved_try_configuration}")
+    else()
+      unset(CMAKE_TRY_COMPILE_CONFIGURATION)
+    endif()
+    string(APPEND RNS8_HIPBLASLT_ALGO_INDEX_PROBE_OUTPUT "\n${_rns8_algo_index_link_output}")
+    if(_rns8_algo_index_linked)
+      set(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE TRUE)
+    endif()
+  endif()
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-probe.log"
+    "compiler=${RNS8_HIP_HIPCC}\ncompile_result=${_rns8_algo_index_result}\navailable=${RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE}\n${RNS8_HIPBLASLT_ALGO_INDEX_PROBE_OUTPUT}")
+endif()
+if(RNS8_HIPBLASLT_EVIDENCE)
+  list(APPEND RNS8_HIPBLASLT_EVIDENCE "algorithm_index_query=${RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE}")
+endif()
+
 set(RNS8_HIPBLASLT_BACKEND_READY FALSE)
 set(RNS8_HIPBLASLT_BACKEND_ENABLEMENT "disabled")
 set(RNS8HIPBLASLT_FOUND "${RNS8_HIPBLASLT_CANDIDATE}")
