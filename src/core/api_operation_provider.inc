@@ -15,12 +15,12 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const auto valid=rns8::detail::validate_gemm_desc(d,prefix);
   if(valid!=RNS8_SUCCESS)return reject(valid,RNS8_SUPPORT_BAD_DESCRIPTOR,"problem","ordinary semantic, range, shape or basis descriptor rejected");
   const uint32_t default_domain=finite?2:d.semantics==RNS8_WRAP_U64_MOD_2_64?3:1;
-  const bool native=query.operation==RNS8_OP_NATIVE_GROUP || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_NATIVE_LEASE || query.operation==RNS8_OP_NATIVE_INTEGRITY || query.operation==RNS8_OP_NATIVE_IMPORT;
+  const bool native=query.operation==RNS8_OP_NATIVE_GROUP || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_NATIVE_LEASE || query.operation==RNS8_OP_NATIVE_INTEGRITY || query.operation==RNS8_OP_NATIVE_IMPORT || (query.operation==RNS8_OP_GRAM && query.algorithm/4==1);
   const uint32_t input_domain=query.operation==RNS8_OP_PACK?(finite?2:4):(native?4:default_domain);
   const uint32_t output_domain=query.operation==RNS8_OP_NATIVE_EXPORT?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):(query.operation==RNS8_OP_QUARTER_CRT?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
+  const uint32_t max_algorithm=query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
@@ -82,7 +82,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(query.operation==RNS8_OP_GRAM && !finite && d.semantics!=RNS8_EXACT_WIDE_SIGNED && d.semantics!=RNS8_BOUNDED_I64)
         return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","Gram provider requires signed or finite arithmetic");
       if(d.m!=d.n)return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_SHAPE,"shape","Gram query is normalized as square output M=N, reduction K");
-      if(query.algorithm && (!hip || !rdna3))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current Gram WMMA provider requires gfx11 direct HIP");break;
+      if((query.algorithm&1) && (!hip || !rdna3))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current Gram WMMA provider requires gfx11 direct HIP");
+      if(query.algorithm/4==1 && !(query.proof_flags&RNS8_QUERY_NATIVE_RETAINED))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_storage","native Gram requires current retained signed64 input");break;
     case RNS8_OP_INT4:
       if(!hip || !finite || d.finite_modulus>16)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_MODULUS,"finite_modulus","INT4 is an explicit direct-HIP finite 2..16 representation, not byte RNS truncation");
       if(!rdna3)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"target","INT4 WMMA provider requires gfx1100/1101/1102");break;
@@ -150,9 +151,11 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     if(query.execution_modes&~uint32_t(RNS8_EXEC_SYNC)){out.required_host_bytes=4;out.required_pinned_host_bytes=4;}}
   if(query.operation==RNS8_OP_GRAM){rns8::detail::GramProblem p{};p.source_instance=1;p.orientation=static_cast<rns8::detail::GramOrientation>(query.orientation);p.semantics=d.semantics;
     p.rows=query.orientation?d.m:d.k;p.cols=query.orientation?d.k:d.n;p.source_ld=query.lda?query.lda:p.cols;p.output_ld=ldc;p.prefix=finite?1:prefix;p.modulus=finite?d.finite_modulus:0;
-    const auto support=rns8::detail::query_gram_support(p,UINT64_MAX,hip,query.algorithm!=0);
+    const auto support=rns8::detail::query_gram_support(p,UINT64_MAX,hip,bool(query.algorithm&1));
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"gram_resources","shared Gram provider rejected orientation/shape/address domain");
-    out.required_host_bytes=support.job_bytes;scratch=hip?support.job_bytes+(query.algorithm?4:0):0;}
+    const auto storage=rns8::detail::query_gram_prepared_storage(p,hip,bool(query.algorithm&1),query.algorithm/4,query.output_limbs,UINT64_MAX);
+    if(storage.status!=RNS8_SUCCESS)return reject(storage.status,RNS8_SUPPORT_ADDRESS,"gram_prepared_resources","prepared adapter/export address or semantic domain rejected");
+    out.required_host_bytes=storage.host_bytes;scratch=storage.device_bytes;}
   if(query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_NATIVE_EXPORT){
     const bool importing=query.operation==RNS8_OP_NATIVE_IMPORT;const uint64_t width=importing?8:8*uint64_t(query.output_limbs?query.output_limbs:1);
     if(!rns8::detail::qualified_i32_matrix_address(d.m,d.n,importing?lda:ldc,1,width))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"native_span","complete native scalar/limb view exceeds address domain");

@@ -1489,14 +1489,29 @@
       "issue": 63,
       "title": "[Research P2] Add symmetry-aware exact Gram/SYRK execution with triangular ownership and single-source packing",
       "url": "https://github.com/doublemover/RNS8/issues/63",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Public single-source CPU/direct-HIP scalar+WMMA triangular Gram and prepared reuse implemented. Native fused producer/retained orientation adapter/reconstruct-once triangular output variants in required milestones absent; current API only dense mirrored resident residues.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Prepared Gram adds retained-native scalar/IU8-WMMA panel reuse, generation-bound transpose adapter, independently selected coalesced separate mirror, reconstruction-once signed limb publication, shared provider/owner aligned payload budgeting and matched existing-workload ablations.",
+          "files": [
+            "src/core/api_prepared_gram.cpp",
+            "src/backend_common/gram_plan.hpp",
+            "src/backend_hip_direct/hip_direct_gram.cuh",
+            "examples/workloads/workload_engine.hpp",
+            "tools/collect_workload_examples.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/support/gram_fixture.hpp",
+        "tests/unit/test_api_gram_cases.inc",
+        "tools/test_workload_examples.py"
+      ],
       "commits": [],
       "remaining": [
-        "Native fused Gram, retained orientation adapter and reconstruct-once triad composition remain.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "HIP device compilation, CPU/HIP regression execution, physical fragment/ISA qualification and matched measured profitability deferred.",
+        "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

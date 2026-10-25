@@ -2522,6 +2522,7 @@
       "anchors": [
         "exactness-generations-and-measured-work",
         "matched-application-contracts",
+        "nativeorientationmirrorreconstruction-ablations",
         "reproducible-commands",
         "retained-gram-computation-and-reconstruction-cohorts"
       ]
@@ -4872,7 +4873,8 @@
         }
       ],
       "anchors": [
-        "explicit-single-source-gram-products"
+        "explicit-single-source-gram-products",
+        "independent-prepared-input-and-output-ablations"
       ]
     },
     {

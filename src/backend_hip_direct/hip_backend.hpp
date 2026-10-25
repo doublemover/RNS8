@@ -1329,11 +1329,14 @@ rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const 
     int64_t m,int64_t n,int64_t k,bool signed_digits,uint64_t max_scratch_bytes,bool& commit_started);
 
 rns8_status hip_direct_gram_device(int device_id,const void* x,void* c,const GramProblem& problem,
-    uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started);
+    uint64_t source_instance,uint64_t source_generation,bool wmma,uint64_t budget,bool& commit_started,bool separate_mirror=false);
 
 rns8_status hip_direct_gram_prepared_device(int device_id,const void* x,void* c,const GramProblem& problem,
     const GramTile* host_jobs,void* device_jobs,uint64_t device_job_bytes,bool wmma,
-    bool& jobs_ready,bool& commit_started);
+    bool& jobs_ready,bool& commit_started,bool native_i64=false,bool separate_mirror=false);
+rns8_status hip_direct_gram_transpose(int device_id,const void* source,void* target,const GramProblem& problem);
+rns8_status hip_direct_gram_export_once(int device_id,const void* residues,void* staged,int* device_status,
+    const void* device_jobs,int64_t order,uint32_t prefix,uint32_t limbs,uint64_t job_count);
 // Private fixed-transform modes: 0 signed native import, 1 unsigned import,
 // 2 canonical three-limb CRT; modes 3/4/5 are corresponding unsigned-byte
 // WMMA transforms. Explicit RDNA3 research candidates only.

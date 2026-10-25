@@ -51,6 +51,41 @@ inline GramSupport query_gram_support(const GramProblem& p,uint64_t budget,bool 
   if(wmma && !gpu) {s.status=RNS8_UNSUPPORTED_BACKEND;return s;}
   s.status=RNS8_SUCCESS;return s;
 }
+// Common prepared-payload plan used by the owner and static provider. All
+// offsets are checked, including the byte transpose -> uint64 staging boundary.
+struct GramPreparedStorage {
+  rns8_status status=RNS8_INVALID_ARGUMENT;
+  uint64_t host_bytes=0,device_bytes=0,job_device_bytes=0,adapter_bytes=0;
+  uint64_t export_bytes=0,export_residue_bytes=0,adapter_offset=0,export_offset=0,status_offset=0;
+};
+inline GramPreparedStorage query_gram_prepared_storage(const GramProblem& p,bool gpu,bool wmma,
+    uint32_t policy,uint32_t limbs,uint64_t budget) {
+  GramPreparedStorage r;const auto support=query_gram_support(p,UINT64_MAX,gpu,wmma);
+  if(support.status!=RNS8_SUCCESS){r.status=support.status;return r;}
+  if(policy>2 || limbs>32)return r;
+  if((policy==1 || limbs) && p.modulus){r.status=RNS8_UNSUPPORTED_BACKEND;return r;}
+  if(policy==1 && gpu && !qualified_i32_matrix_address(p.rows,p.cols,p.source_ld,1,8)){
+    r.status=RNS8_UNSUPPORTED_BACKEND;return r;}
+  AddressDomain exported;
+  if(limbs && (!checked_host_plane_address(support.order,support.order,support.order,1,uint64_t(limbs)*8,exported) ||
+      (gpu && !qualified_i32_matrix_address(support.order,support.order,support.order,1,uint64_t(limbs)*8)))){
+    r.status=RNS8_RANGE_ERROR;return r;}
+  const auto add=[](uint64_t& target,uint64_t value){if(value>UINT64_MAX-target)return false;target+=value;return true;};
+  r.adapter_bytes=policy==2?uint64_t(p.rows)*p.cols*p.prefix:0;
+  r.export_bytes=limbs?exported.byte_extent:0;r.export_residue_bytes=limbs && !gpu?p.prefix:0;
+  r.host_bytes=support.job_bytes;
+  if(!add(r.host_bytes,r.export_bytes) || !add(r.host_bytes,r.export_residue_bytes) || (!gpu && !add(r.host_bytes,r.adapter_bytes))){r.status=RNS8_RANGE_ERROR;return r;}
+  if(gpu){r.job_device_bytes=support.job_bytes+(wmma?4:0);r.adapter_offset=r.job_device_bytes;r.device_bytes=r.job_device_bytes;
+    if(!add(r.device_bytes,r.adapter_bytes)){r.status=RNS8_RANGE_ERROR;return r;}
+    if(limbs){if(!add(r.device_bytes,(8-r.device_bytes%8)%8)){r.status=RNS8_RANGE_ERROR;return r;}
+      r.export_offset=r.device_bytes;
+      if(!add(r.device_bytes,r.export_bytes)){r.status=RNS8_RANGE_ERROR;return r;}
+      r.status_offset=r.device_bytes;if(!add(r.device_bytes,4)){r.status=RNS8_RANGE_ERROR;return r;}}
+  }
+  if(r.host_bytes>uint64_t(PTRDIFF_MAX) || r.device_bytes>uint64_t(PTRDIFF_MAX)){r.status=RNS8_RANGE_ERROR;return r;}
+  if(r.host_bytes>budget || r.device_bytes>budget-r.host_bytes){r.status=RNS8_WORKSPACE_TOO_SMALL;return r;}
+  r.status=RNS8_SUCCESS;return r;
+}
 inline std::vector<GramTile> gram_tiles(const GramSupport& s) {
   std::vector<GramTile> jobs;
   jobs.reserve(static_cast<size_t>(s.tile_count));
@@ -61,7 +96,7 @@ inline std::vector<GramTile> gram_tiles(const GramSupport& s) {
 // CPU reference deliberately accumulates one product at a time modulo q.
 // Caller supplies the basis admitted by the problem and certified input proof.
 inline void gram_residues_cpu(const int8_t* x,int8_t* c,const GramProblem& p,
-                              const std::vector<GramTile>& jobs,const uint16_t* moduli) {
+                              const std::vector<GramTile>& jobs,const uint16_t* moduli,bool separate_mirror=false) {
   const int64_t n=p.orientation==GramOrientation::transpose_times_self?p.cols:p.rows;
   const int64_t k=p.orientation==GramOrientation::transpose_times_self?p.rows:p.cols;
   for(uint32_t plane=0;plane<p.prefix;++plane) for(auto job:jobs)
@@ -79,7 +114,9 @@ inline void gram_residues_cpu(const int8_t* x,int8_t* c,const GramProblem& p,
       if(sum<0) sum+=modulus;
       if(sum>=(modulus+1)/2) sum-=modulus;
       c[(int64_t(plane)*n+row)*p.output_ld+col]=int8_t(sum);
-      if(row!=col) c[(int64_t(plane)*n+col)*p.output_ld+row]=int8_t(sum);
+      if(row!=col && !separate_mirror) c[(int64_t(plane)*n+col)*p.output_ld+row]=int8_t(sum);
     }
+  if(separate_mirror)for(uint32_t plane=0;plane<p.prefix;++plane)for(int64_t row=0;row<n;++row)for(int64_t col=0;col<row;++col)
+    c[(int64_t(plane)*n+row)*p.output_ld+col]=c[(int64_t(plane)*n+col)*p.output_ld+row];
 }
 }

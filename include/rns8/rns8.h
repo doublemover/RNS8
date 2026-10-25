@@ -759,7 +759,8 @@ typedef struct rns8_operation_query {
   int64_t lda,ldb,ldc; /* zero means compact */
   uint32_t output_limbs,device_count;
   /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
-   * Gram 0 scalar,1 WMMA; bilinear 0 Strassen,1 coefficient rank23,
+   * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror);
+   * input_policy 0 resident,1 retained native i64,2 cached transpose; bilinear 0 Strassen,1 coefficient rank23,
    * 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
    * explicit matrix-engine subproducts. Other families require zero. */
   uint32_t algorithm,orientation,source_prefix;
@@ -1076,7 +1077,9 @@ typedef enum rns8_gram_orientation {
 } rns8_gram_orientation;
 typedef enum rns8_gram_method {
   RNS8_GRAM_SCALAR = 0,
-  RNS8_GRAM_WMMA = 1
+  RNS8_GRAM_WMMA = 1,
+  RNS8_GRAM_SCALAR_SEPARATE_MIRROR = 2,
+  RNS8_GRAM_WMMA_SEPARATE_MIRROR = 3
 } rns8_gram_method;
 /* Explicit single-source Gram product. Bounded i64, exact-wide signed and finite ring/field
  * only; CPU scalar or direct HIP scalar/WMMA. Dense symmetric output, same basis.
@@ -1777,6 +1780,33 @@ typedef struct rns8_prepared_gram rns8_prepared_gram;
 RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
     rns8_gram_orientation orientation,rns8_gram_method method,uint64_t max_job_bytes,
     rns8_prepared_gram** out);
+/* Independent Gram input ablations. A transpose adapter is generation-bound;
+ * native input requires retained current signed i64, never a finite-u8 cast. */
+typedef enum rns8_gram_input_policy {
+  RNS8_GRAM_RESIDENT_RESIDUES=0,
+  RNS8_GRAM_RETAINED_NATIVE_I64=1,
+  RNS8_GRAM_RETAINED_TRANSPOSE=2
+} rns8_gram_input_policy;
+/* export_limbs=0 disables reconstruction-once; 1..32 preallocates complete
+ * signed host/device staging. Budget covers all owned job/adapter/export payload,
+ * not caller-owned matrices. Output remains complete dense residues. */
+RNS8_API rns8_status rns8_prepare_gram_ex(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
+    rns8_gram_orientation orientation,rns8_gram_method method,rns8_gram_input_policy input_policy,
+    uint32_t export_limbs,uint64_t max_owned_payload_bytes,rns8_prepared_gram** out);
+/* Reconstruct each independent cell once and mirror signed limb output. Complete
+ * staging succeeds before touching dst; ld is in cells. Generation-bound to the
+ * owner's last successful execution and original source; no device/owned-payload allocation on replay. CPU CRT
+ * may allocate arbitrary-precision temporaries. */
+RNS8_API rns8_status rns8_export_prepared_gram_limbs(rns8_prepared_gram* owner,uint64_t* dst,int64_t ld);
+typedef struct rns8_prepared_gram_info {
+  uint64_t struct_size;uint32_t abi_version;uint32_t input_policy;
+  uint32_t method;uint32_t export_limbs;
+  uint64_t source_instance,source_generation,output_generation;
+  uint64_t host_job_bytes,device_job_bytes,orientation_adapter_bytes;
+  uint64_t host_export_bytes,device_export_bytes,owned_payload_bytes;
+  uint64_t independent_cells,dense_cells;
+} rns8_prepared_gram_info;
+RNS8_API rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,rns8_prepared_gram_info* info);
 RNS8_API rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner);
 RNS8_API rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner);
 /* Failed drain/free retains the owner and any active reservations for retry. */

@@ -170,6 +170,41 @@ class GramBatchReports(unittest.TestCase):
         report["variants"][-1]["metadata"]["gram_batch"]["capability_probed_per_call"]=True
         with self.assertRaises(ValueError):collector.validate_report(report,"run1","hip-direct",0)
 
+    def test_gram_ablation_payload_and_matched_controls(self):
+        for hip in (False,True):
+            report=prepared_gram_fixture(hip=hip);report["gram_ablation_cohort"]=1
+            report.setdefault("declared_memory_budget_bytes",1<<26)
+            prepared=[row for row in report["variants"] if row["name"].startswith("rns8_prepared_single_source_gram_")]
+            for original in prepared:
+                method="wmma" if original["name"].endswith("_wmma") else "scalar"
+                for kind in ("native","transpose","reconstruct_once","separate_mirror"):
+                    row=copy.deepcopy(original);row["name"]=f"rns8_prepared_single_source_gram_{kind}_{method}";report["variants"].append(row)
+            n,k=report["n"],report["k"];prefix=3;limbs=report["output_limbs_per_cell"]
+            for row in report["variants"]:
+                name=row["name"]
+                if not name.startswith("rns8_prepared_single_source_gram_"):continue
+                row["metadata"]["plan"]={"selected_prefix":prefix}
+                native="_gram_native_" in name;transpose="_gram_transpose_" in name;once="_reconstruct_once_" in name;wmma=name.endswith("_wmma")
+                adapter=k*n*prefix if transpose else 0;host=n*n*limbs*8 if once else 0;device_export=host+4 if hip and once else 0
+                jobs=((n+15)//16)*((n+15)//16+1)//2*8;device=jobs+(4 if wmma else 0)+adapter if hip else 0
+                if hip and once:device=(device+7)//8*8+device_export
+                row["metadata"]["gram_ablations"]=dict(version=1,input_policy=1 if native else 2 if transpose else 0,
+                    reconstruction_policy="independent_once_then_mirror" if once else "dense_each_cell",
+                    owned_payload_bytes=jobs+(adapter if not hip else 0)+host+(prefix if once and not hip else 0)+device,
+                    adapter_bytes=adapter,host_export_bytes=host,device_export_bytes=device_export,
+                    independent_cells=n*(n+1)//2,dense_cells=n*n,native_storage_retained=native,
+                    adapter_generation_policy="first_execute_after_prepare_or_refresh",mirror_policy="separate_tiled" if "_separate_mirror_" in name else "producer_stores",
+                    output_validity="complete_dense_residues")
+            # Direct schema validation avoids inventing timing-order receipts for
+            # these synthetic added variants. Full producer fixtures run separately.
+            dataset=collector.dataset_identity(report)
+            collector.validate_gram_batch(report,report["variants"],dataset=dataset)
+            for key in ("owned_payload_bytes","independent_cells","host_export_bytes","input_policy"):
+                bad=copy.deepcopy(report);bad["variants"][-2]["metadata"]["gram_ablations"][key]=-1
+                with self.assertRaises(ValueError):collector.validate_gram_batch(bad,bad["variants"],dataset=dataset)
+            bad=copy.deepcopy(report);bad["variants"].pop()
+            with self.assertRaises(ValueError):collector.validate_gram_batch(bad,bad["variants"],dataset=dataset)
+
     def test_sustained_prepared_gram_reuses_initialized_owner(self):
         report=prepared_gram_fixture();report["sustained_ms"]=1
         report["sustained_order"]=[row["name"] for row in report["variants"]]
