@@ -18,7 +18,7 @@ class LiftRecipeContracts(unittest.TestCase):
             replay_hip_h2d_calls=2*nodes*c['repeats'] if native else 0,replay_hip_d2h_calls=nodes*c['repeats'] if native else c['repeats'],
             build_manifest={},execution_id='process1',target='gfx1100',device='fixture',artifact_capture=dict(unchanged_during_run=True,executable_sha256='a'*64),
             ragged_retained_bytes=0,ragged_materialized_input_bytes=0,ragged_binding_peak_bytes=0,recipe_arena_bytes=25600,recipe_retained_lift_bytes=17412,auto_retained_device_bytes=0,replay_hip_allocations=0,replay_hip_frees=0,selected_compute_prefixes=[p]*nodes if c['mode'] in ('manual-full','manual-scalar-first','native-roundtrip','eager-observe') else [1,2,3],cost_model=None,materialization_plan=None,
-            stage_price_identity=None,timing_source='host_monotonic_completed_public_call',nominal_clock_tick_ns=1.,setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
+            stage_price_identity=None,stage_price_training_charge_ns=0,stage_price_graph_identity=None,timing_source='host_monotonic_completed_public_call',nominal_clock_tick_ns=1.,setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
     def test_chain_diamond_bounds_and_noop_lift(self):
         c=self.case();self.assertEqual(bounds(c),[1,1,32,1024,32768]);self.assertEqual(validate_case(c),c)
         c.update(topology='diamond',depth=4);self.assertEqual(bounds(c)[-1],32**5);self.assertEqual(validate_case(c),c)

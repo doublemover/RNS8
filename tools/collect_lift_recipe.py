@@ -98,10 +98,15 @@ def validate_capture(c,entry):
     if mode=='recipe-measured':
         document=entry.get('stage_price_document');prices=price_cells(document);identity=price_identity(document)
         if c.get('stage_price_identity')!=identity:raise ValueError('frozen stage price identity')
+        minimum=[next(q for q in range(1,p+1) if math.prod(MODULI[:q])>factor*b) for b in bounds(case)[2:]]
+        actual=c.get('stage_price_graph_identity')
+        if type(actual) is not dict or actual!=document['identity'] or any(type(actual.get(k)) is not type(v) for k,v in document['identity'].items()) or any(type(q) is not int for q in actual['minimum_prefixes']) or document['identity']['minimum_prefixes']!=minimum:
+            raise ValueError('actual measured graph/build/range identity')
+        if type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=document['training_charge_ns']:raise ValueError('stage training charge receipt')
         expected_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=2,price_sha256=identity,qualified=False)
         if document['identity']['target']!=c['target'] or document['identity']['node_count']!=nodes or document['device']!=c['device'] or document['runtime_version']!=c['runtime_version']:raise ValueError('measured graph/target/device/runtime')
     elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
-    if mode!='recipe-measured' and c.get('stage_price_identity',False) is not None:raise ValueError('unrequested stage prices')
+    if mode!='recipe-measured' and (c.get('stage_price_identity',False) is not None or c.get('stage_price_graph_identity',False) is not None or type(c.get('stage_price_training_charge_ns')) is not int or c['stage_price_training_charge_ns']!=0):raise ValueError('unrequested stage prices')
     validate_materializations(c,case,selected,prices)
     if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
     if not positive(c.get('setup_us')) or not positive(c.get('nominal_clock_tick_ns')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup/clock')
@@ -177,7 +182,9 @@ def summarize(observations):
         validate_capture(c,entry)
         identity=dict(case={k:v for k,v in entry['case'].items() if k!='mode'},boundary=c['output_boundary'],extra_intermediate_observations=c['extra_intermediate_observations'],build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
+        training_us=c['stage_price_training_charge_ns']/1000
         cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=entry['case']['mode'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],setup_us=c['setup_us'],
+            stage_price_identity=c['stage_price_identity'],training_charge_us=training_us,inclusive_setup_us=c['setup_us']+training_us,
             p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),sustained_us=statistics.median(s['per_call_us'] for s in c['sustained'])))
     result=[]
     for key,rows in cohorts.items():
@@ -186,14 +193,18 @@ def summarize(observations):
         for mode in MODES:
             selected=[r for r in rows if r['mode']==mode]
             if selected and len({r['independent_run'] for r in selected})<2:raise ValueError('independent process evidence')
-            if selected:modes[mode]={metric:statistics.median(r[metric] for r in selected) for metric in ('setup_us','p50_us','p95_us','sustained_us')}
+            if selected and len({r['stage_price_identity'] for r in selected})!=1:raise ValueError('measured mode mixed frozen price identities')
+            if selected:modes[mode]={metric:statistics.median(r[metric] for r in selected) for metric in ('setup_us','training_charge_us','inclusive_setup_us','p50_us','p95_us','sustained_us')}
         baseline='manual-scalar-first' if 'manual-scalar-first' in modes else 'manual-full' if 'manual-full' in modes else 'wider-producer' if 'wider-producer' in modes else None
         pairs={}
         if baseline:
             for mode,metrics in modes.items():
                 if mode==baseline:continue
-                saving=modes[baseline]['sustained_us']-metrics['sustained_us'];extra_setup=max(0,metrics['setup_us']-modes[baseline]['setup_us'])
-                pairs[mode]=dict(cost_ratio=metrics['sustained_us']/modes[baseline]['sustained_us'],break_even_replays=math.ceil(extra_setup/saving) if saving>0 else None,profitable_measured_replay=saving>0)
+                saving=modes[baseline]['sustained_us']-metrics['sustained_us'];extra_setup=max(0,metrics['inclusive_setup_us']-modes[baseline]['inclusive_setup_us'])
+                pretrained_setup=max(0,metrics['setup_us']-modes[baseline]['setup_us'])
+                pairs[mode]=dict(cost_ratio=metrics['sustained_us']/modes[baseline]['sustained_us'],break_even_replays=math.ceil(extra_setup/saving) if saving>0 else None,
+                    conditional_pretrained_break_even_replays=math.ceil(pretrained_setup/saving) if saving>0 else None,
+                    amortization_scope='inclusive_training_charge' if mode=='recipe-measured' else 'owner_setup',profitable_measured_replay=saving>0)
         result.append(dict(identity=json.loads(key),observations=rows,median_process_metrics=modes,baseline=baseline,matched_comparisons=pairs,promotion_eligible=False))
     return result
 

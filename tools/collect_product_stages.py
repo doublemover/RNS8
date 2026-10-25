@@ -122,7 +122,8 @@ def price_bundle(observations):
     bundle=dict(schema='rns8_product_stage_prices_v1',cost_schema_version=2,identity=captures[0]['identity'],
         training_run_ids=[c['run_id'] for c in captures],training_execution_ids=[c['execution_id'] for c in captures],
         source_artifacts=[dict(executable_sha256=c['artifact_capture']['executable_sha256'],capture_sha256=hashlib.sha256(json.dumps(c,sort_keys=True,separators=(',',':')).encode()).hexdigest()) for c in captures],
-        dataset=captures[0]['dataset'],cache_state=captures[0]['cache_state'],timing_source=captures[0]['timing_source'],device=captures[0]['device'],runtime_version=captures[0]['runtime_version'],cells=cells,qualified=False,promotion_eligible=False)
+        dataset=captures[0]['dataset'],cache_state=captures[0]['cache_state'],timing_source=captures[0]['timing_source'],device=captures[0]['device'],runtime_version=captures[0]['runtime_version'],
+        training_charge_ns=math.ceil(sum(c['calibration_total_us'] for c in captures)*1000),cells=cells,qualified=False,promotion_eligible=False)
     price_cells(bundle)
     return bundle,dict(schema='rns8_product_stage_training_report_v1',cohort=expected,intervals=reports,
         charged_training_us=sum(c['calibration_total_us'] for c in captures),training_cost_scope='context_setup_warmups_samples_fixture_transfers_and_oracles_excluding_process_start_and_output_serialization',

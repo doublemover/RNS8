@@ -3,6 +3,7 @@
 #include "backend_common/sha256.hpp"
 #include "rns8/experimental_product.h"
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <set>
@@ -16,16 +17,28 @@ inline bool stage_digest(const StageJson& value) {
   if(!value.is_string())return false;const auto s=value.get<std::string>();
   return s.size()==64 && s.find_first_not_of("0123456789abcdef")==std::string::npos;
 }
+inline std::string product_stage_price_identity(const StageJson& document) {
+  static_assert(sizeof(double)==sizeof(uint64_t) && std::numeric_limits<double>::is_iec559);
+  // Serializers need not spell identical binary64 values identically. Normalize
+  // intervals to exact bit words before hashing their sorted JSON identity.
+  auto normalized=document;
+  for(auto& cell:normalized.at("cells"))for(auto& endpoint:cell.at("interval_ns")) {
+    const double value=endpoint.get<double>();uint64_t bits=0;std::memcpy(&bits,&value,sizeof(bits));
+    endpoint="binary64:"+std::to_string(bits);
+  }
+  return detail::sha256(normalized.dump());
+}
 // Measured estimates remain caller data. The public identity/range checker owns
 // admission; this parser cannot waive it or install an AUTO route.
 inline void apply_product_stage_prices(const StageJson& document,
     const rns8_product_materialization_identity& identity,uint32_t prefix,const std::string& device,int runtime_version,detail::ProductMaterializationProfile& profile) {
-  if(document.size()!=14 || document.at("schema")!="rns8_product_stage_prices_v1" ||
+  if(document.size()!=15 || document.at("schema")!="rns8_product_stage_prices_v1" ||
       stage_uint(document.at("cost_schema_version"),2,2)!=2 || document.at("promotion_eligible")!=false || document.at("qualified")!=false ||
       document.at("timing_source")!="host_monotonic_completed_backend_call" || document.at("cache_state")!="hot_repeated_stage" ||
       document.at("dataset")!="all_one_inputs_exact_integer_dag_v1" || document.at("device")!=device ||
       stage_uint(document.at("runtime_version"),1,INT32_MAX)!=uint64_t(runtime_version) || identity.admission_status!=RNS8_SUCCESS || !prefix || prefix>20)
     throw std::invalid_argument("stage price schema/scope");
+  (void)stage_uint(document.at("training_charge_ns"),1,UINT64_MAX-1);
   const auto& key=document.at("identity");
   if(key.size()!=5 || !stage_digest(key.at("graph_sha256")) || !stage_digest(key.at("build_sha256")) ||
       key.at("graph_sha256")!=identity.graph_sha256 || key.at("build_sha256")!=identity.build_sha256 ||
@@ -71,7 +84,7 @@ inline void apply_product_stage_prices(const StageJson& document,
     else if(kind=="publish" && !capacity && !old && p==prefix && node+1==identity.node_count){}
     else throw std::invalid_argument("stage price physical axes/range");
   }
-  next.cost_schema_version=2;next.uniform.provenance="measured-stage-prices-unqualified:"+detail::sha256(document.dump());profile=std::move(next);
+  next.cost_schema_version=2;next.uniform.provenance="measured-stage-prices-unqualified:"+product_stage_price_identity(document);profile=std::move(next);
 }
 inline StageJson read_product_stage_prices(const std::string& path) {
   std::ifstream input(path,std::ios::binary|std::ios::ate);

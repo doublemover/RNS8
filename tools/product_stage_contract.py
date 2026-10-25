@@ -3,18 +3,24 @@ import hashlib
 import json
 import math
 import re
+import copy
+import struct
 
 
 def price_identity(document):
-    return hashlib.sha256(json.dumps(document,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+    normalized=copy.deepcopy(document)
+    for cell in normalized['cells']:
+        cell['interval_ns']=['binary64:'+str(struct.unpack('>Q',struct.pack('>d',float(v)))[0]) for v in cell['interval_ns']]
+    return hashlib.sha256(json.dumps(normalized,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
 
 
 def price_cells(document):
-    keys={'schema','cost_schema_version','identity','training_run_ids','training_execution_ids','source_artifacts','dataset','cache_state','timing_source','device','runtime_version','cells','qualified','promotion_eligible'}
+    keys={'schema','cost_schema_version','identity','training_run_ids','training_execution_ids','source_artifacts','dataset','cache_state','timing_source','device','runtime_version','training_charge_ns','cells','qualified','promotion_eligible'}
     if type(document) is not dict or set(document)!=keys or document['schema']!='rns8_product_stage_prices_v1' or type(document['cost_schema_version']) is not int or document['cost_schema_version']!=2 or document['qualified'] is not False or document['promotion_eligible'] is not False:
         raise ValueError('stage price ABI')
     if document['dataset']!='all_one_inputs_exact_integer_dag_v1' or document['cache_state']!='hot_repeated_stage' or document['timing_source']!='host_monotonic_completed_backend_call':raise ValueError('stage price scope')
     if type(document['device']) is not str or not document['device'] or type(document['runtime_version']) is not int or not 1<=document['runtime_version']<=2**31-1:raise ValueError('stage price device/runtime')
+    if type(document['training_charge_ns']) is not int or not 1<=document['training_charge_ns']<2**64-1:raise ValueError('stage training charge')
     identity=document['identity']
     def digest(v):return type(v) is str and re.fullmatch('[0-9a-f]{64}',v) is not None
     if type(identity) is not dict or set(identity)!={'graph_sha256','build_sha256','target','node_count','minimum_prefixes'} or not all(digest(identity[k]) for k in ('graph_sha256','build_sha256')) or type(identity['target']) is not str or not identity['target']:

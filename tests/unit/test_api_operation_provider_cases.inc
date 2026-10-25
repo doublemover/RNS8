@@ -95,7 +95,8 @@ TEST_CASE("operation import discovery rejects export-only limb formats before in
       device.allocation_base=storage;device.allocation_bytes=sizeof(storage);device.rows=device.cols=device.ld=1;device.device_id=0;
       device.producer_complete=1;device.policy=RNS8_NATIVE_DEVICE_BORROW;device.owner_identity=device.generation=1;
       device.acquire=[](void*){return RNS8_SUCCESS;};device.release=[](void*){};
-      rns8_native_device_resources resources{};REQUIRE(rns8_query_native_device(&device,&resources)==RNS8_SUCCESS);
+      rns8_native_device_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_query_native_device(&device,&resources)==RNS8_SUCCESS);
       const auto compact=resources.compact_native_bytes;
       device.element_type=sign?RNS8_NATIVE_DEVICE_SIGNED_LIMBS:RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS;device.limb_count=limbs;
       CHECK(rns8_query_native_device(&device,&resources)==support.status);CHECK(resources.compact_native_bytes==compact);

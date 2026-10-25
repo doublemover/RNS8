@@ -62,7 +62,7 @@ int main(int argc,char** argv){try {
     std::fill(native_values[0].begin(),native_values[0].end(),1);
     std::fill(native_values[1].begin(),native_values[1].end(),1);
   }
-  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0;json cost_model=nullptr,materialization_plan=nullptr,stage_price_identity=nullptr;
+  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0,stage_price_training_charge_ns=0;json cost_model=nullptr,materialization_plan=nullptr,stage_price_identity=nullptr,stage_price_graph_identity=nullptr;
   if(ragged){matrix(ctx,&ragged_converted);check(rns8_prepare_ragged_materialization(ctx,matrices[0],3,5,budget-known_payload,&ragged_source));inputs[0]=ragged_converted;
     std::vector<rns8_product_node> public_nodes;for(auto node:nodes)public_nodes.push_back({node.a,node.b});rns8_product_recipe_desc descriptor{};descriptor.struct_size=sizeof(descriptor);descriptor.abi_version=RNS8_ABI_VERSION;
     descriptor.inputs=inputs.data();descriptor.input_count=inputs.size();descriptor.nodes=public_nodes.data();descriptor.node_count=public_nodes.size();descriptor.prefix_policy=mode=="recipe-ragged-full"?RNS8_PRODUCT_FULL_PREFIX:RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;descriptor.max_arena_and_lift_bytes=budget-known_payload;
@@ -96,8 +96,11 @@ int main(int argc,char** argv){try {
         descriptor.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;descriptor.max_arena_and_lift_bytes=budget-known_payload;
         rns8_product_materialization_identity identity{};identity.struct_size=sizeof(identity);identity.abi_version=RNS8_ABI_VERSION;
         check(rns8_query_product_materialization_identity(ctx,&descriptor,nullptr,0,&identity));
+        std::vector<uint32_t> minimum(identity.minimum_prefixes,identity.minimum_prefixes+identity.node_count);
+        stage_price_graph_identity={{"graph_sha256",identity.graph_sha256},{"build_sha256",identity.build_sha256},{"target",identity.target},
+          {"node_count",identity.node_count},{"minimum_prefixes",minimum}};
         const auto document=rns8::bench::read_product_stage_prices(argv[3]);rns8::bench::apply_product_stage_prices(document,identity,prefix,ctx->device_info.name,ctx->device_info.hip_runtime_version,layouts);
-        stage_price_identity=sha256(document.dump());
+        stage_price_identity=rns8::bench::product_stage_price_identity(document);stage_price_training_charge_ns=document.at("training_charge_ns").get<uint64_t>();
         cost_model={{"kind","measured-stage-prices-unqualified"},{"cost_schema_version",2},{"price_sha256",stage_price_identity},{"qualified",false}};
       }
     }
@@ -184,5 +187,5 @@ int main(int argc,char** argv){try {
     {"replay_hip_counter_samples",repeats},{"replay_hip_h2d_bytes",after.h2d_bytes-before.h2d_bytes},{"replay_hip_d2h_bytes",after.d2h_bytes-before.d2h_bytes},
     {"replay_hip_h2d_calls",after.h2d_calls-before.h2d_calls},{"replay_hip_d2h_calls",after.d2h_calls-before.d2h_calls},
     {"replay_hip_allocations",after.allocate_calls-before.allocate_calls},{"replay_hip_frees",after.free_calls-before.free_calls},
-    {"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},{"exact_reference_passed",true},{"promotion_eligible",false}}).dump(2)<<'\n';return 0;
+    {"stage_price_training_charge_ns",stage_price_training_charge_ns},{"stage_price_graph_identity",stage_price_graph_identity},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},{"exact_reference_passed",true},{"promotion_eligible",false}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

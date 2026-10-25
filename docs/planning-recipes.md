@@ -369,6 +369,9 @@ unavailable. The nominal clock tick is recorded separately from empirically
 qualified timer resolution. Calibration wall time charges context setup,
 warmups, samples, fixture transfers and audits; it excludes process startup and
 JSON output serialization. Training is a cost when evaluating setup amortization.
+The frozen file carries an integer `training_charge_ns` for all five training
+processes. Matched summaries include it in setup and break-even projections;
+conditional reuse of an already-trained profile is reported separately.
 
 For example, after a clean build:
 
@@ -388,7 +391,11 @@ is transactional. Malformed, stale or partial files cannot leave partially
 applied prices, lower the exact minimum or install an AUTO route.
 
 `recipe-measured` uses only these supplied cells and reports their immutable
-content digest. Collection independently replays its selected stage cost trace.
+content digest. Interval endpoints normalize to exact binary64 bit words before
+sorted UTF-8 JSON hashing, avoiding C++/Python float-format differences. Capture
+also emits the actual queried graph/build/minimum-prefix identity. Collection
+independently checks that identity, replays the selected stage cost trace and
+rejects pooling different price files into one measured-mode cohort.
 Held-out processes must be disjoint from training and share one graph, build,
 dataset and selected plan. The discrepancy report compares the entire measured
 process interval against the expanded prediction, including final publication;

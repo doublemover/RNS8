@@ -12,8 +12,11 @@ inline void test_product_stage_price_ingestion() {
   StageJson document={{"schema","rns8_product_stage_prices_v1"},{"cost_schema_version",2},{"qualified",false},{"promotion_eligible",false},
     {"identity",{{"graph_sha256",id.graph_sha256},{"build_sha256",id.build_sha256},{"target",id.target},{"node_count",1},{"minimum_prefixes",{1}}}},
     {"training_run_ids",runs},{"training_execution_ids",executions},{"source_artifacts",artifacts},
-    {"dataset","all_one_inputs_exact_integer_dag_v1"},{"cache_state","hot_repeated_stage"},{"timing_source","host_monotonic_completed_backend_call"},{"device","synthetic-device"},{"runtime_version",7},
+    {"dataset","all_one_inputs_exact_integer_dag_v1"},{"cache_state","hot_repeated_stage"},{"timing_source","host_monotonic_completed_backend_call"},{"device","synthetic-device"},{"runtime_version",7},{"training_charge_ns",1000000},
     {"cells",{cell("uniform_gemm",0,0,1,100),cell("packed_gemm",2,0,1,80),cell("pack",2,0,1,20),cell("lift",0,1,2,40),cell("publish",0,0,3,10)}}};
+  auto shared=document;shared["training_run_ids"][0]="run-\xCF\x80";shared["cells"][0]["interval_ns"][1]=1e15;
+  if(product_stage_price_identity(shared)!="8e855ea53bf370b41e52a727e647673f36d4dc794d5730cf62b9ee7a74db4e9b")
+    throw std::runtime_error("shared Python/C++ binary64 price digest regression");
   detail::ProductMaterializationProfile profile;apply_product_stage_prices(document,id,3,"synthetic-device",7,profile);
   const auto assert_valid=[&]{if(profile.uniform.nodes[0].gemm[1]!=100 || profile.uniform.nodes[0].gemm[2]!=UINT64_MAX ||
       profile.packed[0].gemm[detail::ProductPackedCosts::gemm_index(2,1)]!=80 ||
@@ -31,6 +34,7 @@ inline void test_product_stage_price_ingestion() {
   bad=document;bad["cost_schema_version"]=2.0;reject(bad);
   bad=document;bad["device"]="other-device";reject(bad);
   bad=document;bad["runtime_version"]=8;reject(bad);
+  bad=document;bad["training_charge_ns"]=0;reject(bad);
   bad=document;bad["training_execution_ids"][4]="process0";reject(bad);
   bad=document;bad["training_run_ids"].erase(4);reject(bad);
   bad=document;bad["cells"].push_back(bad["cells"][0]);reject(bad);
