@@ -513,7 +513,10 @@ def build_ledger(
     *,
     require_variance_gate: bool = False,
     diagnostic_binding_paths: list[Path] | None = None,
+    generated_logical_reports: list[tuple[Path, Path]] | None = None,
 ) -> dict[str, Any]:
+    from check_native_wmma_logic import load_bound_report
+    logical = [load_bound_report(directory, path) for directory, path in (generated_logical_reports or [])]
     diagnostic_bindings=load_bindings(diagnostic_binding_paths or [])
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
@@ -562,6 +565,8 @@ def build_ledger(
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",
+        "generated_logical_assurance": logical,
+        "generated_logical_assurance_policy": "source_current_diagnostic_only_never_satisfies_execution_or_promotion_gates",
         "cache_path": str(cache_path) if cache_path else None,
         "review_report_count": len(review_reports or []),
         "variance_report_count": len(variance_reports or []),
@@ -677,6 +682,8 @@ def main() -> int:
         help="shape_family_shadow_report.py output; recorded as non-routing recommendation/blocker metadata",
     )
     parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[])
+    parser.add_argument("--generated-logical-report", type=Path, nargs=2, action="append", default=[],
+                        metavar=("GENERATED_DIR", "REPORT"))
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -689,6 +696,7 @@ def main() -> int:
         args.shape_family_shadow_report,
         require_variance_gate=args.require_variance_gate,
         diagnostic_binding_paths=args.diagnostic_binding,
+        generated_logical_reports=args.generated_logical_report,
     )
     if args.json:
         print(json.dumps(ledger, indent=2, sort_keys=True))

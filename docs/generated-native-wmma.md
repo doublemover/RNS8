@@ -9,8 +9,8 @@ The supported envelope is a 16x16x16 matrix instruction, one wave per CTA,
 masked tails, native row-major inputs, planar centered-byte outputs, independent
 channel accumulators, and K=65536 reduction slabs. Vector width, pipeline depth,
 split-K, layout, output semantics and group specifications outside that envelope
-are rejected before emitting files. The generator emits standalone kernels that
-share the inspected native WMMA tile implementation. Target/builtin mismatches
+are rejected before emitting files. The generator emits standalone kernel bodies from the same structured lowering
+that the bounded logical interpreter consumes. Target/builtin mismatches
 are compile errors; a scalar fallback cannot acquire a generated variant ID.
 
 Stable IDs bind the exact specification, ordered basis, per-modulus arithmetic
@@ -72,3 +72,55 @@ This is a bounded first matrix-family implementation for #55. Broader generated
 layouts, split-K combinations, measured Pareto pruning, held-out performance,
 upstream regression qualification and production promotion remain open. No
 register-use, occupancy, throughput or compile-time improvement is claimed.
+
+
+## Source-bound bounded logical assurance
+
+`native_wmma_lowering.py` now owns a small expression/loop/lifetime IR. The
+emitted HIP body—not a wrapper around an independently modeled tile—takes its
+operand addresses, predicates, plane selection, store ownership, K/slab loops,
+zero initialization and centered modular carry from that IR. The manifest binds
+the full IR, its hash and the lowering source. The existing source checker
+regenerates and compares the complete manifest, source and header before either
+logical or selected-symbol ISA assurance can attach.
+
+`check_native_wmma_logic.py` compares every physical fragment's symbolic native
+cell with an independently indexed scalar residue specification. It verifies
+initialized logical reads (padding is poison), initialized masked zero slots,
+exact K-term coverage, independent modulus domains and exactly one final writer
+per output. Accumulator bounds are proved before integer-algebra simplification;
+all interpreted address intermediates must fit nonnegative signed 64-bit values,
+matching explicit casts in emitted expressions. Centered carry closes the
+composed byte-range invariant. No numerical sampling establishes equality.
+
+Coverage is strictly the listed configurations: interior 16³; padded 17×19×31;
+ragged 1×3×17; scalar-output K=65535/65536/65537; and a 20-plane padded tail case.
+Every signedness/group variant is checked independently. Reuse requires full
+structural equality, identical preconditions and the explicitly recorded empty
+variable renaming; equal tile sizes alone never reuse a result. Work/time/cache
+counts are produced only when the checker is actually run. Unknown instructions,
+out-of-scope expressions, oversized checking budgets and unsupported arithmetic
+stay unresolved. No shape extrapolation is made.
+
+Seeded mutations change both the IR and its emitted body: wrong stride, omitted
+mask, uninitialized accumulator, discarded prior slab, wrong modulus, missing or
+duplicated slab, and wrong/duplicate store ownership. Authored regressions require
+refutation; the command-line mutation report accepts only detection or an explicit
+unsupported verdict, never silent success. Existing device poison/canary,
+full-width, failure-publication and paired unfused differentials remain required.
+
+Logical and memory-model verdicts are distinct from physical-lane correctness
+and target execution. Trusted assumptions name RDNA3's matrix lane algebra,
+source-bound native reducer semantics, compiler behavior, initialized input
+allocations and nonaliasing/no-concurrent-mutation launch ownership. Single-wave
+program-order reasoning does not certify emitted barriers or AMD scheduling.
+`check_generated_native_wmma.py` can attach the source-current report; the existing
+promotion ledger accepts the same bound report as **diagnostic-only evidence**,
+without satisfying any execution, performance or promotion gate. Ingestion
+reopens/hashes the bytes and verifies source/checker identities; it explicitly
+does not independently replay expensive logical checks.
+
+Only Python syntax checks were performed for this implementation. The logical
+checker, mutation suite, generated HIP compilation, AMD differentials, timing and
+qualification have **not** been executed. No logical proof outcome or speedup is
+claimed by checking in this machinery.

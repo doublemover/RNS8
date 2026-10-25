@@ -783,7 +783,8 @@
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
-        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
+        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -997,7 +998,8 @@
         "tools/test_collect_narrow_public_calibration.py"
       ],
       "commits": [
-        "9e8e28915a38b773d651aac4263976abf75a64d0"
+        "9e8e28915a38b773d651aac4263976abf75a64d0",
+        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
       ],
       "remaining": [
         "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
@@ -1029,12 +1031,27 @@
       "issue": 55,
       "title": "[Research P2] Generate and prune certified kernel variants with inspectable manifests",
       "url": "https://github.com/doublemover/RNS8/issues/55",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Bounded native WMMA generator/symbol checker and manifests implemented; current body asks source-bound logical interpreter with mutation/coverage assurance, absent from current generation checker. ISA substring/symbol checks are not that implementation.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Generate actual standalone HIP bodies from a bounded expression/loop/lifetime IR shared with a source-bound symbolic fragment interpreter; exact configuration memory/ownership/modulus/slab checks, no-overflow preconditions, seeded emitted-source mutations, structural-only reuse, source/checker-bound diagnostic attachment to ISA and promotion ledgers. No proof/device result claimed without executing checker.",
+          "files": [
+            "tools/native_wmma_lowering.py",
+            "tools/check_native_wmma_logic.py",
+            "tools/generate_native_wmma.py",
+            "tools/check_generated_native_wmma.py",
+            "tools/promotion_ledger.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_native_wmma_logic.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29
@@ -1706,6 +1723,20 @@
       "kind": "syntax_only",
       "scope": "All changed Python evidence/comparison tools and authored fixtures",
       "result": "py_compile passed; no test invocation or report execution"
+    },
+    {
+      "scope": "source-bound generated lowering and logical assurance",
+      "performed": [
+        "Python py_compile only"
+      ],
+      "deferred": [
+        "logical proof execution",
+        "mutations",
+        "generated HIP compilation",
+        "tests",
+        "benchmarks",
+        "device qualification"
+      ]
     }
   ]
 }

@@ -10,6 +10,7 @@ from arithmetic_composition import Node, verify_composition
 from analytical_planner import Stage
 from planning_recipe import ResourcePlan, checked_resources
 from modulus_set_search import DEFAULT_MODULI
+from native_wmma_lowering import recipe, render, fingerprint
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,8 @@ DEPENDENCIES = ("src/backend_hip_direct/hip_direct_device_common.cuh",
                 "src/backend_common/fragment_layout.hpp",
                 "src/backend_common/address_domain.hpp",
                 "tools/arithmetic_certificate.py", "tools/arithmetic_composition.py",
-                "tools/planning_recipe.py", "tools/analytical_planner.py", "tools/modulus_set_search.py")
+                "tools/planning_recipe.py", "tools/analytical_planner.py", "tools/modulus_set_search.py",
+                "tools/native_wmma_lowering.py")
 
 
 def digest(value):
@@ -101,7 +103,12 @@ def generate(directory, variants, root=None):
             (Stage("fused", "generated_native", (), ("matrix",), (), 0),), 0)
         if resource["status"] != "success":
             raise ValueError("generated resource plan failed")
-        identity = {"spec": asdict(v), "dependencies": dependencies, "generator_sha256": generator,
+        lowering = recipe(v.group, v.unsigned_inputs)
+        identity = {"spec": asdict(v), "lowering": lowering, "lowering_sha256": fingerprint(lowering),
+                    "logical_assurance": {"logical_equivalence": "not_run", "memory_model": "not_run",
+                        "target_execution": "not_run", "scope": "exact_configurations_only",
+                        "trusted_assumptions": ["RDNA3 signed IU8 lane/instruction contract",
+                            "source-bound native64 reducer semantics", "compiler preserves emitted C++ semantics"]}, "dependencies": dependencies, "generator_sha256": generator,
                     "arithmetic_certificates": proof_hashes, "ordered_basis": DEFAULT_MODULI[:20],
                     "fragment_layout": {"version": 1, "instruction": "rdna3_iu8_16x16x16_wave32_v1",
                         "definition_sha256": dependencies["src/backend_common/fragment_layout.hpp"],
@@ -131,17 +138,13 @@ def generate(directory, variants, root=None):
               "namespace {", "constexpr int kRns8DefaultModulusCount = 28;",
               "constexpr int rns8_default_moduli_host[28] = {" + ",".join(map(str, DEFAULT_MODULI)) + "};",
               '#include "backend_hip_direct/hip_direct_device_common.cuh"',
-              '#include "backend_hip_direct/hip_direct_gemm_native_kernels.cuh"',
-              '#include "backend_hip_direct/hip_direct_native_wmma_kernels.cuh"', "}"]
+              "}"]
     header = ["#pragma once", "#include <cstdint>"]
     signature = "const void* a, const void* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc, int prefix"
     for v, entry in zip(variants, entries):
         kernel, launch = entry["kernel_symbol"], entry["launch_symbol"]
-        native = "uint64_t" if v.unsigned_inputs else "int64_t"
         source += [f'extern "C" __global__ __launch_bounds__(32) void {kernel}({signature}) {{',
-                   f"  rns8_native_grouped_wmma_tile<{native}, {v.group}>(static_cast<const {native}*>(a),",
-                   f"      static_cast<const {native}*>(b), c, m,n,k,lda,ldb,ldc,prefix,",
-                   f"      static_cast<int64_t>(blockIdx.y)*16, static_cast<int64_t>(blockIdx.x)*16, blockIdx.z*{v.group});", "}",
+                   render(entry["lowering"]), "}",
                    f'extern "C" int {launch}({signature}) {{',
                    "  using namespace rns8::detail;",
                    "  if (!a || !b || !c || prefix < 1 || prefix > 20 ||",
@@ -169,7 +172,8 @@ def generate(directory, variants, root=None):
                 "resource_evidence": "launch_bounds_32_and_no_explicit_LDS_only_registers_unmeasured",
                 "required_tests": ["signed_unsigned_full_width", "tails_and_padded_strides", "prefix_group_tails",
                                    "k_65535_65536_65537", "cpu_Boost_differential", "paired_pack_then_gemm",
-                                   "paired_reverse_k", "launched_symbol_ISA_resources"]}
+                                   "paired_reverse_k", "launched_symbol_ISA_resources",
+                                   "source_bound_logical_interpreter", "seeded_lowering_mutations"]}
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "native_variants.hip").write_bytes(source_text.encode())
     (directory / "native_variants.hpp").write_bytes(header_text.encode())

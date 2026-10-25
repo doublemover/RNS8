@@ -2384,7 +2384,8 @@
         }
       ],
       "anchors": [
-        "bounded-generated-native-wmma-family"
+        "bounded-generated-native-wmma-family",
+        "source-bound-bounded-logical-assurance"
       ]
     },
     {
