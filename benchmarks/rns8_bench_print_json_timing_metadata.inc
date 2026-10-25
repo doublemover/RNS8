@@ -118,6 +118,16 @@
             << (gpu_events_available ? "\"hipEventElapsedTime\"" : "null") << ",\n";
   std::cout << "    \"gpu_event_timing_source_scope\": " << gpu_event_scope << ",\n";
   std::cout << "    \"gpu_event_timing_caveat\": " << gpu_event_caveat << ",\n";
+  std::cout << "    \"gpu_event_failure_observer_complete\": "
+            << (result.gpu_events.failure_observer_complete ? "true" : "false") << ",\n";
+  std::cout << "    \"gpu_event_failure_diagnostics\": [";
+  for(size_t i=0;i<result.gpu_events.failure_diagnostics.size();++i) {
+    const auto& failure=result.gpu_events.failure_diagnostics[i];
+    if(i)std::cout << ',';
+    std::cout << "{\"label\":\"" << json_escape(failure.label) << "\",\"phase\":\""
+              << json_escape(failure.phase) << "\",\"backend_status\":" << failure.backend_status << '}';
+  }
+  std::cout << "],\n";
   if (!gpu_events_available && !result.gpu_events.unavailable_reasons.empty()) {
     std::cout << "    \"gpu_event_timing_unavailable_reasons\": ";
     print_string_array(result.gpu_events.unavailable_reasons);

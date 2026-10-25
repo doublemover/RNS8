@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from timing_diagnostics import is_censored_gpu_event_capture
 
 from .core_shared import *
 
@@ -713,7 +714,7 @@ class ValidatorScheduleMixin:
         if schedule.get("adaptive_prefix_active") is not True and schedule.get("adaptive_skip_active") is not True:
             self._error("per-tile adaptive captures must apply prefix grouping or prefix skipping")
         metadata = self.data.get("timing_metadata")
-        if isinstance(metadata, dict):
+        if isinstance(metadata, dict) and not is_censored_gpu_event_capture(self.data):
             if self.data.get("backend_selected") == "hip-direct":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error("direct-HIP per-tile adaptive captures must include HIP event timings")

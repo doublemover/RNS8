@@ -156,10 +156,16 @@ struct TimingSamples {
   std::vector<double> end_to_end_us;
 };
 
+struct GpuEventFailureDiagnostic {
+  std::string label, phase;
+  int backend_status = 0;
+};
 struct GpuEventSamples {
   bool requested = false;
   bool complete = true;
   std::vector<std::string> unavailable_reasons;
+  std::vector<GpuEventFailureDiagnostic> failure_diagnostics;
+  bool failure_observer_complete = true;
   std::map<std::string, std::vector<double>> timings_us;
 };
 

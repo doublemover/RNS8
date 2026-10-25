@@ -778,3 +778,38 @@ bad_event_phase_order_nullability["timing_metadata"]["gpu_event_timing_source_sc
 bad_event_phase_order_nullability["gpu_event_timings_us"] = None
 bad_event_phase_order_nullability["gpu_event_timing_summary_us"] = None
 expect_invalid(bad_event_phase_order_nullability, "gpu_event_phase_order must be null")
+
+
+# Event loss is a valid censored observation, never an event-timing success.
+from timing_diagnostics import is_censored_gpu_event_capture
+for original in (v4_ck_adaptive_u64, v4_rocwmma_i64, v4_finite_ring_ck, bounded):
+    censored = copy.deepcopy(original)
+    diagnostic = dict(label="operation", phase="synchronized_host_fallback", backend_status=-1)
+    censored["timing_metadata"].update(
+        gpu_event_timing=False, gpu_event_timing_status="unavailable_missing_expected_events",
+        gpu_event_timing_reason="backend_event_capture_incomplete", gpu_event_timing_source=None,
+        gpu_event_timing_source_scope=None, gpu_event_phase_order=None,
+        gpu_event_failure_diagnostics=[diagnostic], gpu_event_failure_observer_complete=True,
+        gpu_event_timing_unavailable_reasons=["HIP timing unavailable: operation synchronized_host_fallback status=-1"])
+    censored["gpu_event_timings_us"] = censored["gpu_event_timing_summary_us"] = None
+    validate_capture(censored)
+    assert is_censored_gpu_event_capture(censored)
+    for field, value in (("phase", []), ("phase", "invented"), ("label", ""), ("backend_status", True)):
+        malformed = copy.deepcopy(censored)
+        malformed["timing_metadata"]["gpu_event_failure_diagnostics"][0][field] = value
+        expect_invalid(malformed, "censored GPU event diagnostics")
+    silent = copy.deepcopy(censored)
+    silent["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = []
+    expect_invalid(silent, "censored GPU event diagnostics")
+    fabricated = copy.deepcopy(censored)
+    fabricated["timing_metadata"]["gpu_event_timing"] = True
+    expect_invalid(fabricated, "censored GPU event diagnostics")
+    missing = copy.deepcopy(censored)
+    del missing["timing_metadata"]["gpu_event_failure_observer_complete"]
+    expect_invalid(missing, "censored GPU event diagnostics")
+    overflow = copy.deepcopy(censored)
+    overflow["timing_metadata"]["gpu_event_failure_diagnostics"] = []
+    overflow["timing_metadata"]["gpu_event_failure_observer_complete"] = False
+    overflow["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = ["HIP timing failure observer incomplete"]
+    validate_capture(overflow)
+    assert is_censored_gpu_event_capture(overflow)

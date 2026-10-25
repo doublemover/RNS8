@@ -266,3 +266,12 @@ unavailable. A host duration therefore cannot masquerade as an event duration.
 The per-tile GPU differential still checks every produced/untouched residue
 against CPU output; its separate event assertion accepts an available duration
 or an explicit timing-failure record. New telemetry regressions await execution.
+
+
+Benchmark schema v4 retains censored event captures as valid observations when
+structured failure diagnostics reconcile with the unavailable reasons and all
+GPU-event arrays/source fields are null. The bounded diagnostic list records
+unique label/phase/backend-status triples; observer overflow is explicit. Such a
+capture still fails event-timing and promotion admission. AUTO-cache and packing
+correctness smokes accept this explicit loss while retaining their numerical,
+selection and reuse assertions; silent loss and fabricated zero timings fail.

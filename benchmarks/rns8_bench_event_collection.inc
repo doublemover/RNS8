@@ -30,9 +30,18 @@ void push_gpu_event_value(GpuEventSamples& events, const std::string& label, dou
 }
 std::vector<rns8::detail::hip_direct_timing_sample> collect_timing_samples(GpuEventSamples& events) {
   auto samples=rns8::detail::hip_direct_timing_snapshot();
-  for(const auto& failure:rns8::detail::hip_direct_timing_failure_snapshot())
+  for(const auto& failure:rns8::detail::hip_direct_timing_failure_snapshot()) {
     add_unavailable_reason(events,"HIP timing unavailable: "+failure.label+" "+failure.phase+" status="+std::to_string(failure.backend_status));
-  if(!rns8::detail::hip_direct_timing_failures_complete())add_unavailable_reason(events,"HIP timing failure observer incomplete");
+    const auto duplicate=std::find_if(events.failure_diagnostics.begin(),events.failure_diagnostics.end(),[&](const auto& value) {
+      return value.label==failure.label && value.phase==failure.phase && value.backend_status==failure.backend_status;
+    });
+    if(duplicate==events.failure_diagnostics.end()) {
+      if(events.failure_diagnostics.size()<1024)events.failure_diagnostics.push_back({failure.label,failure.phase,failure.backend_status});
+      else events.failure_observer_complete=false;
+    }
+  }
+  if(!rns8::detail::hip_direct_timing_failures_complete())events.failure_observer_complete=false;
+  if(!events.failure_observer_complete)add_unavailable_reason(events,"HIP timing failure observer incomplete");
   return samples;
 }
 

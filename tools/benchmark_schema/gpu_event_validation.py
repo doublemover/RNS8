@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from timing_diagnostics import is_censored_gpu_event_capture, timing_failure_metadata_errors
 
 from .core import (
     ACCELERATOR_GPU_EVENT_SCOPES,
@@ -525,6 +526,8 @@ def validate_gpu_events(self) -> None:
     metadata = self.data.get("timing_metadata")
     if not isinstance(metadata, dict):
         return
+    for error in timing_failure_metadata_errors(self.data):
+        self._error(error)
     enabled = metadata.get("gpu_event_timing")
     from .streaming_timing import gpu_stage_sample_count
     repeats = gpu_stage_sample_count(self.data,self.data.get("repeats"))
@@ -535,6 +538,7 @@ def validate_gpu_events(self) -> None:
     if (
         selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
         and enabled is not True
+        and not is_censored_gpu_event_capture(self.data)
         and not residue_current_chain
         and not (metadata.get("host_instrumentation_state")=="hooks_disabled" and
                  metadata.get("gpu_event_timing_status")=="not_requested_production_timing" and
