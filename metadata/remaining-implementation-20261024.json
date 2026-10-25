@@ -1310,6 +1310,17 @@
             "benchmarks/rns8_stream_panel_calibrate.cpp",
             "tools/collect_stream_panels.py"
           ]
+        },
+        {
+          "summary": "Complete public matched pageable-sync/pinned-sync/pinned-stream/pinned-owned-graph calibration at the same readable padded host-limb boundary, with coarse native64 proof bootstrap, changed source generations, complete queried payloads, outside-timer Boost/padding audits, separate enqueue/observation/capture/setup and counterbalanced artifact-bound independent-process collection.",
+          "files": [
+            "benchmarks/rns8_host_transfer_calibrate.cpp",
+            "benchmarks/host-transfers",
+            "tools/collect_host_transfers.py",
+            "tools/test_collect_host_transfers.py",
+            "cmake/rns8_targets.cmake",
+            "cmake/rns8_tests.cmake"
+          ]
         }
       ],
       "regressions": [
@@ -1324,7 +1335,9 @@
         "tests/differential/test_hip_native_device_cases.inc",
         "tests/unit/test_stream_panel_plan_cases.inc",
         "tests/differential/test_hip_direct_stream_panels_cases.inc",
-        "tools/test_collect_stream_panels.py"
+        "tools/test_collect_stream_panels.py",
+        "tools/test_collect_host_transfers.py",
+        "host_transfer_{i,u}_{pageable-sync,pinned-sync,pinned-stream,pinned-graph}_smoke"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -1340,8 +1353,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Typed NativeToRns/BaseExtend/Export graph adapters are authored. Additional semantics/provider-specific asynchronous integrations require reviewing the concrete offered owners rather than inferring capability from registry entries.",
-        "Matched pinned-host stream/graph transfer calibration remains source work; complete-route builds, tests, overlap evidence and hardware/scientific qualification remain deferred."
+        "Matched pinned-host sync/stream/graph calibration and the concrete direct-HIP async/graph adapters are authored. Consolidated build/test validation is now requested. Provider-specific async/capture support outside those concrete owners remains explicitly unsupported; no blanket graph-safety or measured overlap claim."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2657,6 +2669,11 @@
       "kind": "minimal_compile",
       "scope": "Explicit-basis typed provider inventory, ordinary provider registry and authored API fixtures",
       "result": "MSVC /Zs passed for api_experimental_basis.cpp, api_plan.cpp and test_api.cpp. No linked builds, test execution, benchmark or qualification."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Initial pinned-host complete-public calibration driver and Python receipt/fixture sources",
+      "result": "Initial driver MSVC /Zs and py_compile passed. Later proof-bootstrap/resource/audit refinements, target wiring and cases await the user-requested consolidated build/test pass after the next commit. No calibration campaign executed."
     }
   ],
   "parking_snapshot": {
@@ -2686,5 +2703,15 @@
     "open_inventory_rechecked_utc": "2026-10-25T06:59:00Z",
     "open_inventory_count": 51,
     "new_or_removed_issues": []
+  },
+  "validation_transition": {
+    "request": "After the next commit, begin consolidated validation and close only issues supported by the resulting evidence.",
+    "source_checkpoint": "pinned-host matched calibration slice",
+    "campaign_resumed": false,
+    "hardware_deferred": [
+      45,
+      50,
+      52
+    ]
   }
 }

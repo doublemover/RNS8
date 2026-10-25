@@ -538,3 +538,34 @@ therefore uses legal prefix17→prefix20 public plans; a separate pure provider
 fixture covers prefix3→prefix9 discovery, missing proof and reversed prefixes.
 Both lift device scratch and pinned status are explicitly pending until checked
 completion/drain. These newly authored/corrected fixtures have not been run.
+# Matched pinned-host transfer calibration
+
+`rns8-host-transfer-calibrate` compares ordinary pageable synchronous calls,
+pinned synchronous calls, pinned borrowed-stream pipelines and pinned owned
+graph pipelines at one readable padded three-limb host-result boundary. Every
+mode imports both native64 operands on each call and performs the same product
+and final export. Pinned imports use the full native64 envelope without a
+redundant input-bound scan; ordinary packing keeps its engine-owned host scan.
+Both use prefix20 and explicit signed/unsigned exact-wide semantics. The ordinary
+export control explicitly disables optional nested pinned export staging.
+
+The driver reports construction/proof bootstrap and graph capture separately,
+submission and terminal observation, two source generations, full outside-timer
+Boost/padding audits and bounded sustained calls. Synchronous submission already
+includes completion. Queried matrix/transfer payloads, caller capacities and a
+bounded reference reservation are charged; graph/driver setup remains opaque.
+No overlap is inferred from stream count. The 64 matched cases include skinny,
+tail, 128³ and K65537 workloads with small and full-width inputs.
+
+```powershell
+$hostTransferCases = (Get-ChildItem -LiteralPath benchmarks/host-transfers -Filter '*.json').FullName
+python tools/collect_host_transfers.py --binary build/issues-all/rns8-host-transfer-calibrate.exe --cases $hostTransferCases --output temp/host-transfers --runs 5
+```
+
+On Linux, pass the case paths through the shell's normal glob handling. The
+collector counterbalances independent processes, binds artifact/build/environment
+identity, validates both generations and complete payload/audit/call receipts,
+and preserves p50/p95/sustained regressions. Its gains table contains only modes
+that improve all three observed metrics over the matched ordinary control.
+These sources await the consolidated validation pass; they establish no measured
+speedup or hardware qualification by themselves.

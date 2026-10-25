@@ -61,16 +61,16 @@ schedule sealing share one flag mask, including the existing research controls.
 | Issue | Remaining source work |
 | --- | --- |
 | #30 | Finish provider/binding parity as unfinished representation, distributed and asynchronous owners land; do not infer implementation from a registry record. |
-| #32 | Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/conversion are authored; general layout/recipe/provider identity integration remains. |
-| #40 | General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A/panel reuse; hipBLASLt retention/composed controls are authored, execution deferred. |
-| #41 | Default-basis lifts/selector and explicit nondefault-basis conversion are authored; general layout/recipe binding remains. |
-| #42 | General packed/materialization alternatives with #40; general packed/materialization alternatives with #40; NativeToRns/BaseExtend/Export graph adapters are authored. |
-| #43 | Additional semantic/provider async integration, and matched pinned-host transfer calibration. |
+| #32 | Explicit bases now compose with uniform layouts, product recipes and typed provider inventory; builds/execution/calibration remain unqualified. |
+| #40 | GF(2) algebra/paired-column consumer, rocWMMA direct-A/call-local reuse and hipBLASLt independent retention controls are authored; execution/measurement deferred. |
+| #41 | Default and nondefault conversion/lift paths and product-recipe binding are authored; execution/measurement deferred. |
+| #42 | NativeToRns/BaseExtend/Export graph adapters, ragged input adapters and prefix cost selection are authored. General packed representation selection remains source work. |
+| #43 | Matched pinned-host sync/stream/graph calibration is authored. Remaining provider-specific async/capture support stays explicit rather than inferred. |
 | #45 | Actual FP4/FP6/FP8 matrix-engine provider and public representation bridge; contracts alone are not a backend. |
 | #50 | Real multi-device HIP owners/executor, full gather and whole-output transactional commit. |
 | #52 | Verified compiler/ISA-specific CDNA5 TDM/cluster-barrier litmus, two-stage transfer and multicast kernels; do not invent target interfaces. |
 | #56 | Complete the unfinished child implementation scopes; roadmap text is not implementation. |
-| #68 | Overlapped streaming and calibrated panel selection; bounded retained-B reuse and serial export budget repair are authored, execution deferred. |
+| #68 | Serial/retained-B/three-stream execution and identity-bound panel shortlisting are authored; correctness, real overlap/capacity and held-out calibration await validation. |
 
 Resume dependency-first: #32→#41 and #40/#43→#42, then remaining independent
 accelerator/distributed/streaming slices. Preserve a source-completion ledger

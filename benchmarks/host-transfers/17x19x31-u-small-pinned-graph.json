@@ -1,0 +1,14 @@
+{
+  "schema": "host_transfer_case_v1",
+  "device": 0,
+  "m": 17,
+  "n": 19,
+  "k": 31,
+  "unsigned_inputs": true,
+  "dataset": "small",
+  "mode": "pinned-graph",
+  "repeats": 9,
+  "warmups": 3,
+  "seed": 4343,
+  "max_payload_bytes": 67108864
+}

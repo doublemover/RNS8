@@ -188,6 +188,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-bilinear-calibrate benchmarks/rns8_bilinear_calibrate.cpp)
   add_executable(rns8-native-integrity-calibrate benchmarks/rns8_native_integrity_calibrate.cpp)
   add_executable(rns8-native-interop-calibrate benchmarks/rns8_native_interop_calibrate.cpp)
+  add_executable(rns8-host-transfer-calibrate benchmarks/rns8_host_transfer_calibrate.cpp)
   add_executable(rns8-residue-dot-calibrate benchmarks/rns8_residue_dot_calibrate.cpp)
   add_executable(rns8-lift-recipe-calibrate benchmarks/rns8_lift_recipe_calibrate.cpp)
   if(RNS8_ENABLE_HIP)
@@ -214,6 +215,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-bilinear-calibrate
       rns8-native-integrity-calibrate
       rns8-native-interop-calibrate
+      rns8-host-transfer-calibrate
       rns8-residue-dot-calibrate
       rns8-lift-recipe-calibrate
       rns8-narrow-public-calibrate
