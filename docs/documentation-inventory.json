@@ -4934,6 +4934,10 @@
       "reason": "Current public contract, implementation boundaries and qualification requirements.",
       "inbound_links": [
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/out-of-core-panels.md"
         }
@@ -4941,7 +4945,8 @@
       "anchors": [
         "bounded-out-of-core-panel-planning",
         "explicit-physical-capacity-fixture",
-        "public-serial-panel-calibration"
+        "public-serial-panel-calibration",
+        "real-32-gib-input-on-the-24-gib-rx-7900-xtx"
       ]
     },
     {
@@ -5282,8 +5287,10 @@
         "address-domain-and-algorithm-identity-integration",
         "allocation-and-global-control-integration-retry",
         "failures-repaired",
+        "first-invocation-hipblaslt-metadata-setup",
         "issue-closeout-and-remaining-gates",
         "matched-hipblaslt-metadata-policy-observations",
+        "physical-beyond-vram-streaming-capacity",
         "reproduction",
         "results-and-coverage",
         "subsequent-materialization-integration",

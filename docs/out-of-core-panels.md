@@ -268,11 +268,53 @@ and rejects an insufficient caller budget without querying a GPU or allocating
 the dataset. Physical execution is always explicit; unavailable RAM/device
 capacity returns 77. This three-call gate establishes capacity/correctness when
 executed, and does not substitute for independent crossover or overlap traces.
-The fixture, CPU oracle regressions and CLI contracts are authored; their build,
-runtime and actual capacity qualification remain pending.
+The fixture is qualified locally at `6a52665` as described below.
 
 The collector pins the executable, assigns separate process/run identities,
 counterbalances schedule order and retains timeouts/skips/failures without a
 retry or resume. It independently checks the exact generation-dependent weighted
 checksums, complete tail-panel coverage and submitted payload/transfer totals,
 as well as queried/observed memory bounds. Its output directory must be new.
+
+### Real >32 GiB input on the 24 GiB RX 7900 XTX
+
+All four independent processes pass at compiled source **6a52665**: two serial
+and two three-stream processes, in reversed order on the second pair. Each
+executes cold, unchanged-generation warm and changed-A-generation products.
+That is **12 complete GEMMs**, **2,359,332 exact output checks**, and complete
+input/output padding checks. All owner payload retires to its prior live baseline.
+
+| Capacity / observed requested payload | Value |
+|---|---:|
+| HIP-reported total memory on the nominal 24 GiB card | **23.984 GiB** |
+| Actual allocated, filled native A | **32.002 GiB** |
+| Minimum proved RNS A, eight planes | **32.001 GiB** |
+| Selected nine-plane full A representation | 36.001 GiB |
+| Serial device payload peak | **17.219 MiB** |
+| Three-stream device payload peak | **34.424 MiB** |
+| Serial / three-stream pinned-host payload peaks | **0 / 16.200 MiB** |
+
+Both the actual input and its minimum proved full RNS representation exceed
+the device's total memory. The successful complete computation therefore
+demonstrates physical out-of-core capacity independently of the selected 64 MiB
+working-set allowance. It uses a real complete caller allocation and submits
+34,765,019,168 native input bytes per completed product, including repeated B
+loads. The exact replay also checks 4,369 completed panels, 8,738 H2D requests
+and 514 D2H requests per product. These are submitted payload counts, not a
+physical PCIe/HBM traffic measurement.
+
+Completed public-call times range **11.009–15.537 s serial** and
+**6.617–7.466 s three-stream** in these capacity runs. Required whole-input bound
+scans, packing, uploads, arithmetic, modular merges, export and synchronization
+are included; the independent oracle/padding audit is outside the interval.
+Two processes per schedule with three distinct lifecycle phases do not replace
+the independent steady crossover/achieved-overlap-trace gate. No performance
+promotion follows from this capacity result.
+
+The supporting focused batch passes **19/19 GPU checks**, plus **13 sanitizer
+passes / three target skips / zero failures**, and all five affected Python
+contract scripts. This batch reuses unchanged production implementation; the
+earlier full 935-test GPU qualification retains its `668f9ea` identity. Raw
+capture hashes, clean manifests, resource queries, all phase receipts, exact
+checksums and the focused tests are preserved in the reviewed
+[capacity qualification](../metadata/stream-capacity-qualification-20261025.json).

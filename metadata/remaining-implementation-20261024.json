@@ -133,7 +133,7 @@
       "issue": 24,
       "title": "[P1] Qualify full matrix address ranges before selecting 32-bit HIP indexing",
       "url": "https://github.com/doublemover/RNS8/issues/24",
-      "state": "validated_ready_to_close",
+      "state": "validated_closed",
       "base_gap": "Device address domains hardened, but direct CPU limb export/internal wide import still rely on element-count predicates rather than full byte/object host address proof; latest comment scope remains.",
       "implementation": [
         {
@@ -162,7 +162,9 @@
         "tools/test_qualify_large_addresses.py"
       ],
       "commits": [
-        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a",
+        "668f9ea2188bbc31879b3db260140d014478fa79",
+        "382a0970a759d987e36870927cdc8565dd0a91fb"
       ],
       "remaining": [],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
@@ -174,7 +176,8 @@
         "receipt": "metadata/address-domain-qualification-20261025.json",
         "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
         "scope": "Full local sanitizer/GPU suite plus five real >2 GiB finite-address runs, exact high-address RNS control, selected ISA and exact-code module occupancy capacity. No default routing/promotion; unavailable gfx942 is deferred."
-      }
+      },
+      "github_closed_at": "2026-10-25T21:23:51Z"
     },
     {
       "issue": 27,
@@ -2648,7 +2651,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Build and qualify the new >32 GiB host/minimum-RNS capacity fixture on the 24 GiB gfx1100 device, after its CPU/CLI/collector checks. Existing owner correctness passes; achieved overlap traces, independent crossover and held-out panel calibration remain separate."
+        "Real >32 GiB capacity and observed requested allocation reconciliation pass on the 24 GiB gfx1100 card. Achieved overlap traces, independent steady crossover and held-out panel calibration remain separate."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2664,6 +2667,20 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "capacity_qualification": {
+        "receipt": "metadata/stream-capacity-qualification-20261025.json",
+        "compiled_source_commit": "6a52665",
+        "independent_processes": 4,
+        "completed_native_gemms": 12,
+        "numerical_output_checks": 2359332,
+        "actual_native_a_bytes": 34362359840,
+        "minimum_eight_plane_a_bytes": 34360786952,
+        "reported_device_total_bytes": 25753026560,
+        "serial_requested_device_peak": 18054912,
+        "three_stream_requested_device_peak": 36096000,
+        "three_stream_requested_pinned_peak": 16986624,
+        "all_payload_retired": true
       }
     },
     {
@@ -2723,7 +2740,7 @@
       "issue": 70,
       "title": "[Perf P2] Reuse hipBLASLt matmul metadata across residue planes and warm calls",
       "url": "https://github.com/doublemover/RNS8/issues/70",
-      "state": "implemented_validation_deferred",
+      "state": "validated_ready_to_close",
       "base_gap": "run_matmul_block still constructs matmul_descriptors and creates all six objects before checking algorithm cache, with stack destruction per block. No within-call geometry reuse or preference-on-cache-hit elision.",
       "implementation": [
         {
@@ -2754,9 +2771,7 @@
       "commits": [
         "02d7166eb377d715fddb8e36233b1911af025d3b"
       ],
-      "remaining": [
-        "Fresh first-invocation plan/workspace, matrix-allocation and completed-call accounting remains. The 300-capture sustained cohort is complete, with no added qualified elapsed gain; cross-call raw descriptor retention remains intentionally unnecessary/optional after the negligible timing result."
-      ],
+      "remaining": [],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         35
@@ -2777,7 +2792,16 @@
         "comparisons": 15,
         "elapsed_gain_admitted": false,
         "descriptor_construction_reduction": "9-20x for multi-plane controls; API work only, not allocator bytes or an elapsed gain."
-      }
+      },
+      "first_call_measurements": {
+        "receipt": "metadata/hipblaslt-first-call-observations-20261025.json",
+        "completed_captures": 60,
+        "matched_contracts": 6,
+        "independent_processes_per_policy": 5,
+        "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+        "same_artifact_as_steady": true
+      },
+      "accepted_result": "Within-call O(distinct geometries) descriptors and preference-only-on-miss pass exact/algorithm parity. Cold and steady timings are negligible/negative amid variation; no elapsed promotion or optional cross-call raw descriptor retention."
     },
     {
       "issue": 71,
@@ -3223,5 +3247,11 @@
     "cpu_ci_successful_checks": 18,
     "physical_large_address_processes": 5,
     "new_qualified_elapsed_gains": 0
+  },
+  "physical_capacity_review": {
+    "receipt": "metadata/stream-capacity-qualification-20261025.json",
+    "source_commit": "6a52665",
+    "capacity_gate_passed": true,
+    "performance_promotion": false
   }
 }

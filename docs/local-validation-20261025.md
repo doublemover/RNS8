@@ -391,3 +391,61 @@ capture hashes and the retained failed attempt are in the reviewed
 GitHub's two CPU/OpenMP workflow runs at **c7b1e45** complete **18/18 checks
 successfully**. This qualifies that revision's Linux CPU matrix; native Linux
 GPU execution and later source additions retain their separate gates.
+
+## Physical beyond-VRAM streaming capacity
+
+Compiled source **6a52665** passes the explicit >32 GiB capacity gate on the
+24 GiB RX 7900 XTX. All four independent serial/three-stream processes pass
+their cold, warm and changed-generation products: **12 complete GEMMs** with
+every output/padding byte checked, **2,359,332 numerical output checks**, exact
+coverage/DMA replay and complete tracked payload retirement.
+
+The actual native A allocation is **34,362,359,840 bytes**. Its minimum proved
+eight-plane RNS form requires **34,360,786,952 bytes**, exceeding the actual
+HIP-reported device total of **25,753,026,560 bytes**. This qualifies real
+beyond-device-memory capacity rather than just a manually reduced budget.
+Observed requested device peaks are **18,054,912 bytes serial** and
+**36,096,000 bytes three-stream**, within the declared 64 MiB working allowance.
+The three-stream pinned-host peak is **16,986,624 bytes**; the serial path
+allocates none. All owned device/pinned payload returns to its live baseline.
+
+Before the physical run, the focused source batch passes **19 GPU checks** and
+**13 sanitizer checks with three expected skips**; all five affected Python
+contract scripts pass. Both target builds complete with clean source manifests.
+The new driver also passes MSVC and strict GCC CPU syntax. No production library
+implementation changes are introduced after `668f9ea`; its full qualification
+is retained separately. The original benchmark executable stays unchanged for
+the same-artifact first-invocation metadata experiment.
+
+See the [capacity report](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx)
+and [reviewed receipt](../metadata/stream-capacity-qualification-20261025.json).
+These capacity runs do not stand in for an achieved-overlap trace, a five-process
+steady crossover or held-out panel-price qualification. Those issue gates remain.
+
+## First-invocation hipBLASLt metadata setup
+
+The separate first-invocation collection passes **60/60 captures**, using the
+same unchanged `668f9ea` executable as the 300-capture steady study. Six
+representative contracts cover P1/9/18/20, signed/unsigned/finite semantics,
+small/skinny/512³ shapes and full/tail geometries. Each policy has five fresh
+processes, zero warmups and one completed hook-disabled call. All six matched
+policy comparisons have equal physical algorithm/work identities and input/output
+witnesses.
+
+Totals add the disjoint measured planning/workspace/metadata-query setup,
+matrix allocation and first completed call. Context creation, input generation
+and the independent oracle remain outside this explicitly named boundary.
+Per-block versus per-call median totals are **122.812/114.922 ms** for the
+finite P1 control, **158.763/155.309 ms** for bounded P9,
+**164.381/160.491 ms** for signed P18, **162.415/159.159 ms** for unsigned P20,
+**455.097/462.519 ms** for 512³ signed P20 and **161.923/166.128 ms** for the
+K=65537 P9 tail control. First-invocation samples are not relabeled as steady
+observations or mixed into the sustained means.
+
+This completes the within-call metadata/preference optimization study requested
+by #70. The source/API reduction and exact parity pass; the negligible/negative
+elapsed result is accepted without promoting AUTO or adding cross-call raw
+descriptor ownership. The reviewed
+[first-call record](../metadata/hipblaslt-first-call-observations-20261025.json)
+contains all samples, counters, scoped algorithms, capture hashes and collector
+identity. Together the two metadata cohorts contain **360 complete captures**.

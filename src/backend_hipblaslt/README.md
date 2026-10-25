@@ -92,12 +92,18 @@ physical algorithm/work identities match. Descriptor constructions fall by
 9–20× in multi-plane controls, while small elapsed-time differences do not
 qualify amid process variation. No additional throughput gain or routing
 promotion follows. See the [reviewed observations](../../metadata/hipblaslt-metadata-observations-20261025.json).
-Fresh first-invocation setup accounting is a separate remaining gate. The
+Fresh first-invocation setup accounting also passes: 60/60 captures across
+six representative contracts, both policies and five independent processes,
+with matching physical algorithm/work/input-output identities. The
 collector's `--first-call` mode owns zero warmups/one completed production call,
 then reports disjoint plan/workspace, matrix allocation and completed-call costs
 after context creation. It excludes input generation and the independent oracle;
 these observations never enter steady-state promotion. The representative
-`hipblaslt-first-call.json` corpus is authored for that gate.
+`hipblaslt-first-call.json` corpus and the
+[first-invocation review](../../metadata/hipblaslt-first-call-observations-20261025.json)
+retain all setup/call samples separately. The completed cold/steady study accepts
+the negligible/no-benefit timing result; cross-call raw descriptor retention is
+not justified by this evidence.
 
 The ordinary benchmark creates an exact-wide plan before binding input values.
 Its initial envelope is therefore the full native-type range even for a small
