@@ -1,8 +1,8 @@
 TEST_CASE("forced-budget serial streaming completes one product across all panel tails") {
   if(!hip_available()) SKIP("no HIP device for out-of-core panels");
   auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool signed_values:{false,true}) {
-    rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+  for(auto schedule:{RNS8_STREAM_GEMM_SERIAL,RNS8_STREAM_GEMM_OVERLAPPED})for(bool signed_values:{false,true}) {
+    rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.schedule=schedule;d.abi_version=RNS8_ABI_VERSION;
     d.semantics=signed_values?RNS8_BOUNDED_I64:RNS8_BOUNDED_U64;
     d.m=17;d.n=19;d.k=33;d.lda=35;d.ldb=21;d.ldc=23;
     d.panel_m=3;d.panel_n=4;d.panel_k=5;d.prefix=9;d.max_abs_a=5;d.max_abs_b=3;
@@ -27,6 +27,9 @@ TEST_CASE("forced-budget serial streaming completes one product across all panel
     for(uint64_t generation:{1,2}) {
       if(generation==2) a[0]=1;
       REQUIRE(rns8_execute_stream_gemm(plan,a.data(),b.data(),c.data(),11,generation,12,1,&result)==RNS8_SUCCESS);
+      CHECK(result.d2h_bytes==uint64_t(d.m*d.n)*8+4*r.output_tiles);
+      CHECK(result.h2d_transfers==result.completed_panels+result.b_panel_loads);
+      CHECK(result.d2h_transfers==2*r.output_tiles);
       CHECK(result.output_valid==1);CHECK(result.output_started==1);CHECK(result.quarantined==0);
       CHECK(result.epoch==generation);CHECK(result.completed_tiles==r.output_tiles);
       CHECK(result.completed_panels==r.output_tiles*r.k_panels_per_tile);
@@ -60,8 +63,8 @@ TEST_CASE("forced-budget serial streaming completes one product across all panel
 TEST_CASE("streaming retained B panels bind generations addresses and conflict eviction") {
   if(!hip_available()) SKIP("no HIP device for retained streaming panels");
   auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
-  for(bool signed_values:{false,true}) for(uint64_t slots:{0,4,6}) {
-    rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
+  for(auto schedule:{RNS8_STREAM_GEMM_SERIAL,RNS8_STREAM_GEMM_OVERLAPPED})for(bool signed_values:{false,true}) for(uint64_t slots:{0,4,6}) {
+    rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.schedule=schedule;d.abi_version=RNS8_ABI_VERSION;
     d.semantics=signed_values?RNS8_BOUNDED_I64:RNS8_BOUNDED_U64;
     d.m=7;d.n=5;d.k=9;d.lda=11;d.ldb=7;d.ldc=8;
     d.panel_m=d.panel_n=3;d.panel_k=4;d.prefix=9;d.max_abs_a=3;d.max_abs_b=2;

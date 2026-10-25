@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_stream_panels import (MODES,KEYS,BUDGET,MASK,MODULI,collect,contract,load_cases,memory,
+from collect_stream_panels import (dma_receipt,MODES,KEYS,BUDGET,MASK,MODULI,collect,contract,load_cases,memory,
     reference,resources,validate_case,validate_capture,word_checksum,words)
 from test_capture_identity_support import synthetic_identity
 
@@ -23,20 +23,20 @@ def observed(case,epoch):
     if case["mode"]=="incore":return None
     r=resources(case)
     loads=r["cold_b_panel_loads"] if epoch==1 else r["warm_b_panel_loads"]
-    return dict(b_panel_loads=loads,b_panel_cache_hits=r["output_tiles"]*r["k_panels_per_tile"]-loads,epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
+    return dict(**dma_receipt(case,epoch),b_panel_loads=loads,b_panel_cache_hits=r["output_tiles"]*r["k_panels_per_tile"]-loads,epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
 
 
 def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
     case=case or BASE;capture=contract(case,run_id,repeats,warmups)
     identity={};synthetic_identity(identity);capture["build_manifest"]=identity["build_manifest"]
-    panel=case["mode"]=="stream";reuse=case["reuse"]
+    panel=case["mode"]!="incore";reuse=case["reuse"]
     allocations=[]
     if not panel:
         for cells in (case["m"]*case["k"],case["k"]*case["n"],case["m"]*case["n"]):
             allocations.append(dict(logical_primary_bytes=cells*case["prefix"],host_payload_capacity_bytes=0,device_payload_capacity_bytes=cells*case["prefix"],device_upload_staging_bytes=0,device_export_staging_bytes=0,device_status_and_schedule_bytes=0,device_total_capacity_bytes=cells*case["prefix"]))
     ab=case["m"]*case["k"]+case["k"]*case["n"]
     capture.update(device_name="synthetic mocked GPU",target="gfx1100",hip_runtime_version=70100000,hip_driver_version=70100000,
-        selected_control="serial_panel_public_rns_axpby" if panel else "mock dense control",clock_period_numerator=1,clock_period_denominator=1000000000,
+        selected_control=("overlapped_panel_public_rns_axpby" if case["mode"]=="stream-overlap" else "serial_panel_public_rns_axpby") if panel else "mock dense control",clock_period_numerator=1,clock_period_denominator=1000000000,
         query_ns=10 if panel else 0,initial_setup_ns=100,owner_prepare_ns=20 if panel else 0,owner_release_ns=10 if panel else 0,
         reference_fixed_operand_object_bytes=48,reference_operand_storage_bytes=48*ab,plan_workspace_bytes=0,logical_live_payload_envelope_bytes=memory(case)[1],matrix_allocations_after_final_audit=deepcopy(allocations))
     phases=[];epoch=0
@@ -58,7 +58,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
 
 def arguments(root,cases=None):
     root=Path(root);exe=root/"fake.exe";exe.write_bytes(b"mock artifact");manifest=root/"cases.json"
-    manifest.write_text(json.dumps(dict(schema="rns8_stream_panel_cases_v2",cases=cases or [BASE])))
+    manifest.write_text(json.dumps(dict(schema="rns8_stream_panel_cases_v3",cases=cases or [BASE])))
     return argparse.Namespace(exe=exe,cases=manifest,output=root/"captures",runs=1,repeats=2,warmups=1,timeout=10,order_seed=6811)
 
 
@@ -70,6 +70,37 @@ def successful(command,**kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_dma_replay_matches_independent_tail_and_cache_walk(self):
+        for mode in ('stream','stream-overlap'):
+            for retained in (0,4*256,6*256):
+                case=dict(BASE,mode=mode,m=7,n=5,k=9,panel_m=3,panel_n=3,panel_k=4,
+                    device_budget_bytes=65536,host_budget_bytes=65536,retained_b_budget_bytes=retained)
+                r=resources(case);tags=[None]*r['retained_b_entries']
+                for epoch in (1,2):
+                    uploaded=transfers=downloaded=downloads=0
+                    for row in range(0,case['m'],3):
+                        for col in range(0,case['n'],3):
+                            rows=min(3,case['m']-row);cols=min(3,case['n']-col)
+                            for q in range(0,case['k'],4):
+                                depth=min(4,case['k']-q);key=(col//3)*3+q//4
+                                uploaded+=8*rows*depth;transfers+=1
+                                hit=bool(tags) and tags[key%len(tags)]==key
+                                if not hit:
+                                    uploaded+=8*depth*cols;transfers+=1
+                                    if tags:tags[key%len(tags)]=key
+                            downloaded+=8*rows*cols+4;downloads+=2
+                    self.assertEqual(dma_receipt(case,epoch),dict(h2d_bytes=uploaded,d2h_bytes=downloaded,
+                        h2d_transfers=transfers,d2h_transfers=downloads))
+
+    def test_overlap_receipts_do_not_infer_observed_overlap(self):
+        case=dict(BASE,mode='stream-overlap');capture=fixture(case)
+        validate_capture(capture,case,'fixture-run',2,1)
+        self.assertIsNone(capture['observed_overlap'])
+        self.assertEqual(capture['panel_resources']['event_count'],8)
+        for field in ('h2d_bytes','d2h_bytes','h2d_transfers','d2h_transfers'):
+            bad=deepcopy(capture);bad['phases'][0]['samples'][0]['coverage'][field]+=1
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
     def test_retained_b_capacity_conflicts_counters_and_budget_fallback(self):
         base=dict(BASE,m=17,n=19,k=33,panel_m=3,panel_n=4,panel_k=5)
         baseline=resources(base)
@@ -129,7 +160,7 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_case(case)
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"cases.json"
-            for text in ('[]','{"schema":"rns8_stream_panel_cases_v2","cases":[]}',json.dumps(dict(schema="rns8_stream_panel_cases_v2",cases=[BASE,BASE])),
+            for text in ('[]','{"schema":"rns8_stream_panel_cases_v3","cases":[]}',json.dumps(dict(schema="rns8_stream_panel_cases_v3",cases=[BASE,BASE])),
                 '{"schema":1,"schema":2,"cases":[]}','{"schema":NaN}'):
                 path.write_text(text)
                 with self.assertRaises(ValueError):load_cases(path)

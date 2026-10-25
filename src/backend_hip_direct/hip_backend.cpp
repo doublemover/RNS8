@@ -698,6 +698,7 @@ rns8_status hip_direct_collect_deferred_buffers(int device_id) {
 #include "hip_backend_fixed_conversion.inc"
 #include "hip_backend_word_mod.inc"
 #include "hip_backend_native_interop.inc"
+#include "hip_backend_stream_panels.inc"
 #include "hip_backend_instruction_roof.inc"
 #include "hip_backend_layout.inc"
 #include "hip_backend_direct_crt.inc"

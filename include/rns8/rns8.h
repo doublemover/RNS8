@@ -1095,6 +1095,10 @@ typedef struct rns8_matrix_storage_info {
 } rns8_matrix_storage_info;
 
 typedef struct rns8_stream_gemm_plan rns8_stream_gemm_plan;
+typedef enum rns8_stream_gemm_schedule {
+  RNS8_STREAM_GEMM_SERIAL=0,
+  RNS8_STREAM_GEMM_OVERLAPPED=1
+} rns8_stream_gemm_schedule;
 typedef struct rns8_stream_gemm_desc {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -1106,6 +1110,8 @@ typedef struct rns8_stream_gemm_desc {
   /* Optional maximum retained B residue payload, within device_budget_bytes.
    * Zero disables caching. Metadata also consumes host_budget_bytes. */
   uint64_t retained_b_budget_bytes;
+  rns8_stream_gemm_schedule schedule;
+  uint32_t reserved;
 } rns8_stream_gemm_desc;
 typedef struct rns8_stream_gemm_resources {
   uint64_t struct_size;
@@ -1118,6 +1124,8 @@ typedef struct rns8_stream_gemm_resources {
   /* Upload/conversion counts for a cold call and a repeated identical B binding.
    * These model the selected direct-mapped cache, including conflict reloads. */
   uint64_t cold_b_panel_loads,warm_b_panel_loads;
+  uint64_t pinned_host_bytes,ordinary_host_bytes,control_reservation_bytes;
+  uint32_t stream_count,event_count;
 } rns8_stream_gemm_resources;
 typedef struct rns8_stream_gemm_result {
   uint64_t struct_size;
@@ -1126,12 +1134,18 @@ typedef struct rns8_stream_gemm_result {
   uint64_t epoch,completed_tiles,completed_panels;
   uint32_t output_started,output_valid,quarantined,reserved;
   uint64_t b_panel_cache_hits,b_panel_loads;
+  /* Logical bytes submitted to DMA; not measured physical PCIe/HBM traffic. */
+  uint64_t h2d_bytes,d2h_bytes,h2d_transfers,d2h_transfers;
 } rns8_stream_gemm_result;
-/* Explicit experimental serial host-to-host bounded i64/u64 GEMM. Bounds are
+/* Explicit experimental host-to-host bounded i64/u64 GEMM. Bounds are
  * verified against all native inputs before writes. No implicit in-core fallback.
  * Input/output addresses use the native signedness declared by semantics.
  * Retained B panels require an immutable pointer/instance/generation binding.
- * Advance the generation whenever logical B values change between calls. */
+ * Advance the generation whenever logical B values change between calls.
+ * OVERLAPPED uses two bounded pinned rings and three owned streams. The public
+ * call still completes synchronously. Stream count does not certify overlap.
+ * Completed tiles may overwrite the caller destination before whole success;
+ * a post-write failure invalidates the entire result. No rollback is implied. */
 RNS8_API rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,
     rns8_stream_gemm_resources* resources);
 RNS8_API rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_desc* desc,

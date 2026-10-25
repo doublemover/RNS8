@@ -1,7 +1,8 @@
-"""Collect public serial-panel versus in-core native host-to-host controls.
+"""Collect serial/overlapped panel versus in-core native host-to-host controls.
 
 One process is one independent observation. All capacities are queried payloads,
-all modeled transfer bytes are absent, and no overlap or qualification is inferred.
+DMA requests are replayed from geometry/cache identity; no physical traffic,
+useful overlap or qualification is inferred from stream count or submitted bytes.
 """
 from __future__ import annotations
 import argparse
@@ -21,7 +22,7 @@ import uuid
 from build_manifest import manifest_provenance_complete
 from collect_finite_verify import demand,integer,positive,same,strict_json,checksum,validate_provenance
 
-MODES=("incore","stream")
+MODES=("incore","stream","stream-overlap")
 KEYS={"device","mode","m","n","k","domain","bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","retained_b_budget_bytes","reuse"}
 MATCH=("device","m","n","k","domain","bits","prefix","reuse")
 MASK=(1<<64)-1
@@ -35,11 +36,18 @@ def resources(case):
     m,n,k=(min(case[axis],case["panel_"+axis]) for axis in ("m","n","k"));p=case["prefix"]
     align=lambda size:(size+255)//256*256
     slots=(m*k*p,k*n*p,m*n*p,m*n*p,8*m*k,8*k*n,8*m*n,4)
+    overlap=case["mode"]=="stream-overlap"
+    if overlap:slots+=(m*k*p,k*n*p,8*m*k,8*k*n,8*m*n,4)
     result=dict(device_bytes=sum(map(align,slots)),host_bytes=8*(m*k+k*n+m*n),minimum_device_bytes=2048,minimum_host_bytes=24,
         source_a_span_bytes=8*((case["m"]-1)*(case["k"]+3)+case["k"]),
         source_b_span_bytes=8*((case["k"]-1)*(case["n"]+3)+case["n"]),
         destination_span_bytes=8*((case["m"]-1)*(case["n"]+3)+case["n"]),
         output_tiles=((case["m"]+m-1)//m)*((case["n"]+n-1)//n),k_panels_per_tile=(case["k"]+k-1)//k)
+    result.update(pinned_host_bytes=0,ordinary_host_bytes=result['host_bytes'],control_reservation_bytes=0,stream_count=0,event_count=0)
+    if overlap:
+        pinned=2*sum(map(align,(8*m*k,8*k*n,8*m*n,4)))
+        result.update(host_bytes=pinned+256,pinned_host_bytes=pinned,ordinary_host_bytes=256,
+            control_reservation_bytes=256,stream_count=3,event_count=8,minimum_device_bytes=3584,minimum_host_bytes=2304)
     stride=align(k*n*p);panels=((case["n"]+n-1)//n)*result["k_panels_per_tile"]
     entries=max(0,min(panels,case["retained_b_budget_bytes"]//stride,
         (case["device_budget_bytes"]-result["device_bytes"])//stride,
@@ -49,7 +57,7 @@ def resources(case):
     row_tiles=(case["m"]+m-1)//m
     result.update(retained_b_entries=entries,retained_b_device_bytes=entries*stride,
         cold_b_panel_loads=panels+(row_tiles-1)*(panels-singleton),warm_b_panel_loads=row_tiles*(panels-singleton))
-    result["device_bytes"]+=entries*stride;result["host_bytes"]+=entries*32
+    result["device_bytes"]+=entries*stride;result["host_bytes"]+=entries*32;result["ordinary_host_bytes"]+=entries*32
     return result
 
 
@@ -80,7 +88,7 @@ def validate_case(case):
 
 def load_cases(path):
     doc=strict_json(Path(path).read_text(encoding="utf-8-sig"))
-    demand(type(doc) is dict and set(doc)=={"schema","cases"} and doc["schema"]=="rns8_stream_panel_cases_v2","invalid manifest schema")
+    demand(type(doc) is dict and set(doc)=={"schema","cases"} and doc["schema"]=="rns8_stream_panel_cases_v3","invalid manifest schema")
     demand(type(doc["cases"]) is list and 1<=len(doc["cases"])<=2048,"invalid manifest case count")
     cases=[validate_case(case) for case in doc["cases"]];ids=[json.dumps(case,sort_keys=True) for case in cases]
     demand(len(ids)==len(set(ids)),"duplicate cases do not establish independent evidence")
@@ -88,8 +96,8 @@ def load_cases(path):
 
 
 def contract(case,run_id,repeats,warmups):
-    panel=case["mode"]=="stream";m,n,k=(case[key] for key in ("m","n","k"));maximum=(1<<case["bits"])-1
-    return dict(schema="rns8_stream_panel_microcase_v2",promotion_eligible=False,run_id=run_id,**case,device_actual=case["device"],
+    panel=case["mode"]!="incore";m,n,k=(case[key] for key in ("m","n","k"));maximum=(1<<case["bits"])-1
+    return dict(schema="rns8_stream_panel_microcase_v3",promotion_eligible=False,run_id=run_id,**case,device_actual=case["device"],
         backend_requested="hip-direct",backend_actual="hip-direct",repeats=repeats,warmups=warmups,semantics="bounded_i64" if case["domain"]=="signed" else "bounded_u64",
         max_abs_a=maximum,max_abs_b=maximum,full_expression_bound=k*maximum*maximum,lda=k+3,ldb=n+3,ldc=n+3,
         dataset_recipe="splitmix64_seed6811_bounded_native_A0_B0_max_then_A0_zero_v1",dataset_seed=6811,source_instance_labels=[101,202],
@@ -128,11 +136,32 @@ def reference(m,n,k,domain,bits,generation):
     return word_checksum(a),word_checksum(b),word_checksum(out)
 
 
+def dma_receipt(case,epoch):
+    """Replay logical submitted bytes from panel geometry and actual cache conflicts.
+
+    A range sum avoids walking millions of tiny panels. These are DMA requests,
+    never a physical bus-traffic measurement or evidence of useful overlap.
+    """
+    r=resources(case);m,n,k=(case[key] for key in ('m','n','k'))
+    pm,pn,pk=(min(case[key],case['panel_'+key]) for key in ('m','n','k'))
+    mt=(m+pm-1)//pm;nt=(n+pn-1)//pn;kp=(k+pk-1)//pk;q=nt*kp;s=r['retained_b_entries']
+    def prefix_bytes(t):
+        ni,ki=divmod(t,kp)
+        return 8*(min(ni*pn,n)*k+(min(pn,n-ni*pn)*min(ki*pk,k) if ni<nt else 0))
+    singleton=prefix_bytes(s)-prefix_bytes(q-s) if s>q//2 else 0
+    conflict=8*n*k-singleton
+    b_bytes=8*n*k+(mt-1)*conflict if epoch==1 else mt*conflict
+    loads=r['cold_b_panel_loads'] if epoch==1 else r['warm_b_panel_loads']
+    return dict(h2d_bytes=8*m*k*nt+b_bytes,d2h_bytes=8*m*n+4*r['output_tiles'],
+        h2d_transfers=r['output_tiles']*kp+loads,d2h_transfers=2*r['output_tiles'])
+
+
 def coverage(record,case,epoch):
     if case["mode"]=="incore":demand(record is None,"in-core cannot claim panel coverage");return
     r=resources(case);expected=dict(epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
     loads=r["cold_b_panel_loads"] if epoch==1 else r["warm_b_panel_loads"]
     expected.update(b_panel_loads=loads,b_panel_cache_hits=expected["completed_panels"]-loads)
+    expected.update(dma_receipt(case,epoch))
     demand(type(record) is dict and same(record,expected),"incomplete observed panel coverage/epoch/cache")
 
 
@@ -155,9 +184,9 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         "logical_live_payload_envelope_bytes","plan_workspace_bytes","matrix_allocations_after_final_audit","production_native_calls","out_of_bound_probe","recreation","owner_release_ns","phases"}
     demand(set(capture)==set(required)|dynamic,"unexpected or missing capture fields")
     for key,value in required.items():demand(same(capture[key],value),f"metadata mismatch: {key}")
-    panel=case["mode"]=="stream";reuse=case["reuse"]
+    panel=case["mode"]!="incore";reuse=case["reuse"]
     demand(type(capture.get("device_name")) is str and capture["device_name"].strip() and type(capture.get("target")) is str and re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"missing target/device identity")
-    demand(type(capture.get("selected_control")) is str and bool(capture["selected_control"].strip()) and (not panel or capture["selected_control"]=="serial_panel_public_rns_axpby"),"missing or false control identity")
+    demand(type(capture.get("selected_control")) is str and bool(capture["selected_control"].strip()) and (not panel or capture["selected_control"]==("overlapped_panel_public_rns_axpby" if case["mode"]=="stream-overlap" else "serial_panel_public_rns_axpby")),"missing or false control identity")
     for key in ("hip_runtime_version","hip_driver_version","clock_period_numerator","clock_period_denominator","initial_setup_ns"):demand(integer(capture.get(key),1,(1<<63)-1),f"invalid identity/timer: {key}")
     for key in ("query_ns","owner_prepare_ns","owner_release_ns"):demand(integer(capture.get(key),1 if panel else 0,(1<<63)-1 if panel else 0),f"invalid owner lifecycle timing: {key}")
     demand(capture["initial_setup_ns"]>=capture["owner_prepare_ns"],"owner preparation outside setup boundary")
@@ -203,7 +232,8 @@ def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def summarize(observations):
     groups={}
     for item in observations:groups.setdefault(tuple(item["case"][key] for key in MATCH),[]).append(item)
-    return [dict(matched_identity=dict(zip(MATCH,key)),complete_two_mode_cohort=set(MODES)<={item["case"]["mode"] for item in group},observations=group,
+    return [dict(matched_identity=dict(zip(MATCH,key)),complete_two_mode_cohort={"incore","stream"}<={item["case"]["mode"] for item in group},
+        complete_three_mode_cohort=set(MODES)<={item["case"]["mode"] for item in group},observations=group,
         comparison_rule="observed phase-matched independent processes only; panel sizes/budgets remain separate observations; no peak/overlap/crossover extrapolation") for key,group in groups.items()]
 
 

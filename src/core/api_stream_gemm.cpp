@@ -1,9 +1,11 @@
 #include "core/api_internal.hpp"
 #include "backend_common/stream_panel_plan.hpp"
+#include "core/hip_resources.hpp"
 #include <mutex>
 #include <cstring>
 using namespace rns8::detail;
 using namespace rns8::detail::api;
+struct StreamPanelOverlap;
 struct rns8_stream_gemm_plan {
   rns8_context* ctx=nullptr;
   rns8_stream_gemm_desc desc{};
@@ -14,14 +16,17 @@ struct rns8_stream_gemm_plan {
   void* arena=nullptr;
   uint64_t bound=0,epoch=0;
   bool quarantined=false;
+  bool retiring=false;
+  std::unique_ptr<StreamPanelOverlap> overlap;
   std::mutex mutex;
 };
+#include "api_stream_gemm_overlap.inc"
 namespace {
 rns8_status stream_description(const rns8_stream_gemm_desc* d,StreamPanelProblem& p,
                                StreamPanelResources& r,uint64_t& bound) {
-  if(!d || !valid_abi(d->struct_size,d->abi_version,sizeof(*d))) return RNS8_INVALID_ARGUMENT;
+  if(!d || !valid_abi(d->struct_size,d->abi_version,sizeof(*d)) || d->reserved) return RNS8_INVALID_ARGUMENT;
   p={1,d->semantics,d->m,d->n,d->k,d->lda,d->ldb,d->ldc,d->panel_m,d->panel_n,d->panel_k,
-     d->prefix,d->device_budget_bytes,d->host_budget_bytes,d->retained_b_budget_bytes};
+     d->prefix,d->device_budget_bytes,d->host_budget_bytes,d->retained_b_budget_bytes,d->schedule};
   r=plan_stream_panels(p);
   if(r.status!=RNS8_SUCCESS && r.status!=RNS8_WORKSPACE_TOO_SMALL) return r.status;
   if(d->semantics==RNS8_BOUNDED_I64 && (d->max_abs_a>(UINT64_C(1)<<63) || d->max_abs_b>(UINT64_C(1)<<63)))
@@ -58,6 +63,8 @@ rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,rns8_stream
     info.output_tiles=r.tile_count;info.k_panels_per_tile=r.panels_per_tile;
     info.retained_b_entries=r.b_cache_entries;info.retained_b_device_bytes=r.b_cache_bytes;
     info.cold_b_panel_loads=r.b_cold_loads;info.warm_b_panel_loads=r.b_warm_loads;
+    info.pinned_host_bytes=r.pinned_bytes;info.ordinary_host_bytes=r.ordinary_bytes;info.control_reservation_bytes=r.control_bytes;
+    info.stream_count=r.streams;info.event_count=r.events;
     *out=info;return status;
   });
 }
@@ -71,9 +78,13 @@ rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_des
     if(status!=RNS8_SUCCESS) return status;
     if(ctx->prepared_references==UINT64_MAX) return RNS8_RANGE_ERROR;
     plan->ctx=ctx;plan->desc=*desc;
-    plan->host_a.resize(plan->resources.bytes[stream_native_a]/8);
-    plan->host_b.resize(plan->resources.bytes[stream_native_b]/8);
-    plan->host_c.resize(plan->resources.bytes[stream_export]/8);
+    if(desc->schedule==RNS8_STREAM_GEMM_OVERLAPPED) {
+      status=create_stream_overlap(*plan);if(status!=RNS8_SUCCESS)return status;
+    } else {
+      plan->host_a.resize(plan->resources.bytes[stream_native_a]/8);
+      plan->host_b.resize(plan->resources.bytes[stream_native_b]/8);
+      plan->host_c.resize(plan->resources.bytes[stream_export]/8);
+    }
     const auto capacity=uint64_t(plan->host_a.capacity())+plan->host_b.capacity()+plan->host_c.capacity();
     const auto metadata=plan->resources.b_cache_entries*sizeof(StreamPanelCacheEntry);
     if(capacity>(desc->host_budget_bytes-metadata)/8) return RNS8_WORKSPACE_TOO_SMALL;
@@ -91,6 +102,7 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
        !a || !b || !c || !ai || !bi || (reinterpret_cast<uintptr_t>(a)%8) ||
        (reinterpret_cast<uintptr_t>(b)%8) || (reinterpret_cast<uintptr_t>(c)%8)) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(plan->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
+    if(plan->retiring)return RNS8_INVALID_ARGUMENT;
     if(plan->quarantined || plan->ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     const auto& d=plan->desc;const auto& r=plan->resources;
     if(!nonoverlapping_byte_ranges(c,r.c_span,a,r.a_span) || !nonoverlapping_byte_ranges(c,r.c_span,b,r.b_span))
@@ -101,6 +113,9 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
        !stream_input_bound(b,d.k,d.n,d.ldb,signed_values,d.max_abs_b)) return RNS8_RANGE_ERROR;
     rns8_stream_gemm_result result{};result.struct_size=sizeof(result);result.abi_version=RNS8_ABI_VERSION;
     result.epoch=++plan->epoch;
+    if(plan->overlap) {
+      const auto status=execute_stream_overlap(*plan,a,b,c,ai,ag,bi,bg,result);*out=result;return status;
+    }
     const auto pointer=[&](StreamPanelSlot slot){return static_cast<uint8_t*>(plan->arena)+r.offsets[slot];};
     void* current=pointer(stream_c0);void* next=pointer(stream_c1);
     StreamPanelCoverage coverage(plan->problem,r,result.epoch,ai,ag,bi,bg);StreamPanelStep step;
@@ -129,6 +144,7 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
       auto status=hip_direct_copy_host_to_device(plan->ctx->device_id,pointer(stream_native_a),
                                                 plan->host_a.data(),step.rows*step.depth*8);
       if(status!=RNS8_SUCCESS) return fail(status);
+      result.h2d_bytes+=step.rows*step.depth*8;++result.h2d_transfers;
       const auto convert=signed_values?hip_direct_native_i64_to_rns_device:hip_direct_native_u64_to_rns_device;
       status=convert(plan->ctx->device_id,pointer(stream_native_a),pointer(stream_a),step.rows,step.depth,d.prefix);
       if(status!=RNS8_SUCCESS) return fail(status);
@@ -139,6 +155,7 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
         status=hip_direct_copy_host_to_device(plan->ctx->device_id,pointer(stream_native_b),
                                              plan->host_b.data(),step.depth*step.cols*8);
         if(status!=RNS8_SUCCESS) return fail(status);
+        result.h2d_bytes+=step.depth*step.cols*8;++result.h2d_transfers;
         status=convert(plan->ctx->device_id,pointer(stream_native_b),b_residues,step.depth,step.cols,d.prefix);
         if(status!=RNS8_SUCCESS) return fail(status);
         if(entry) *entry={b,bi,bg,b_key};
@@ -166,6 +183,7 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
               plan->host_c.data(),step.cols,false);
         if(status!=RNS8_SUCCESS) return fail(status);
         result.output_started=1;
+        result.d2h_bytes+=step.rows*step.cols*8+4;result.d2h_transfers+=2;
         for(uint64_t row=0;row<step.rows;++row)
           std::memcpy(static_cast<uint8_t*>(c)+((step.row+row)*d.ldc+step.col)*8,
                       plan->host_c.data()+row*step.cols,step.cols*8);
@@ -179,7 +197,11 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
 rns8_status rns8_destroy_stream_gemm(rns8_stream_gemm_plan* plan) {
   if(!plan) return RNS8_SUCCESS;
   std::unique_lock<std::mutex> lock(plan->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
+  plan->retiring=true;
   if(plan->quarantined && hip_direct_synchronize(plan->ctx->device_id)!=RNS8_SUCCESS) return RNS8_BACKEND_FAILURE;
+  if(plan->overlap) {
+    const auto status=close_stream_overlap(*plan);if(status!=RNS8_SUCCESS)return status;
+  }
   const auto status=hip_direct_free(plan->ctx->device_id,plan->arena);
   if(status!=RNS8_SUCCESS) return status;
   plan->arena=nullptr;--plan->ctx->prepared_references;

@@ -1,5 +1,30 @@
 # Bounded out-of-core panel planning
 
+`RNS8_STREAM_GEMM_OVERLAPPED` explicitly selects a second bounded schedule.
+It uses two native/RNS input slots and two output/status slots with three owned
+nonblocking streams and eight reusable events. The query charges the complete
+device arena, two aligned pinned input/export rings, cache tags and a 256-byte
+control reservation. It reports pinned and ordinary host bytes independently.
+Driver-internal handle/allocator overhead remains opaque. Serial scheduling is
+the zero-valued default and retains its smaller unpinned storage contract.
+
+The host refills an input slot only after its upload event; upload waits for
+the previous compute consumer before replacing device bytes. Conversion and
+GEMM share the compute stream, including retained-B cache replacement. Export
+staging cannot be overwritten until its download/status completes. Caller
+outputs receive only checked completed tiles; whole-operation validity still
+requires every tile and terminal stream drain. Failed drains quarantine the
+entire owner and poison its context. Destruction retires handles/buffers in a
+retryable order and prevents further execution after partial retirement.
+
+The v3 calibration manifests match in-core, serial and overlapped modes with
+the same arithmetic/output boundary. Receipts include logical H2D/D2H submitted
+bytes and transfer counts; the collector independently replays tail geometry
+and direct-mapped cache conflicts. These quantities are not hardware bus
+traffic. `observed_overlap` remains unknown until a real trace demonstrates it.
+The new schedule and fixtures are source implementations awaiting the deferred
+validation and benchmark batch.
+
 `StreamPanelProblem` is an internal versioned contract for one host-backed
 bounded i64/u64 product, with explicit M/N/K panels and one uniform prefix.
 `plan_stream_panels` checks the complete padded host spans before admitting

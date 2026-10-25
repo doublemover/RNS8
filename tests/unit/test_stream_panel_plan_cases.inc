@@ -1,4 +1,31 @@
 #include "backend_common/stream_panel_plan.hpp"
+TEST_CASE("overlapped panel storage reserves both rings and hard-budgeted pinned controls") {
+  using namespace rns8::detail;
+  StreamPanelProblem p;p.m=17;p.n=19;p.k=33;p.lda=35;p.ldb=21;p.ldc=23;
+  p.panel_m=3;p.panel_n=4;p.panel_k=5;p.prefix=9;p.device_budget=p.host_budget=UINT64_MAX;
+  const auto serial=plan_stream_panels(p);REQUIRE(serial.status==RNS8_SUCCESS);
+  p.schedule=RNS8_STREAM_GEMM_OVERLAPPED;
+  const auto overlap=plan_stream_panels(p);REQUIRE(overlap.status==RNS8_SUCCESS);
+  CHECK(overlap.device_bytes>serial.device_bytes);CHECK(overlap.pinned_bytes>0);
+  CHECK(overlap.host_bytes==overlap.pinned_bytes+overlap.control_bytes);CHECK(overlap.ordinary_bytes==overlap.control_bytes);
+  CHECK(overlap.streams==3);CHECK(overlap.events==8);CHECK(overlap.minimum_device_bytes==3584);CHECK(overlap.minimum_host_bytes==2304);
+  CHECK(overlap.total_steps==serial.total_steps);CHECK(overlap.tile_count==serial.tile_count);
+  uint64_t end=0;
+  for(size_t i=0;i<stream_slot_count;++i) {
+    CHECK(overlap.offsets[i]>=end);CHECK(overlap.offsets[i]%256==0);end=overlap.offsets[i]+overlap.bytes[i];
+  }
+  CHECK(end<=overlap.device_bytes);
+  end=0;
+  for(auto slot:{stream_native_a,stream_native_b,stream_export,stream_status,stream_native_a1,stream_native_b1,stream_export1,stream_status1}) {
+    CHECK(overlap.host_offsets[slot]>=end);CHECK(overlap.host_offsets[slot]%256==0);
+    end=overlap.host_offsets[slot]+overlap.bytes[slot];
+  }
+  CHECK(end<=overlap.pinned_bytes);
+  p.device_budget=overlap.device_bytes-1;CHECK(plan_stream_panels(p).status==RNS8_WORKSPACE_TOO_SMALL);
+  p.device_budget=overlap.device_bytes;p.host_budget=overlap.host_bytes-1;CHECK(plan_stream_panels(p).status==RNS8_WORKSPACE_TOO_SMALL);
+  p.host_budget=overlap.host_bytes;CHECK(plan_stream_panels(p).status==RNS8_SUCCESS);
+  p.schedule=static_cast<rns8_stream_gemm_schedule>(2);CHECK(plan_stream_panels(p).status==RNS8_INVALID_ARGUMENT);
+}
 TEST_CASE("out-of-core panel plan accounts bounded storage and exact K coverage") {
   using namespace rns8::detail;
   for(uint32_t pm:{1,3,16}) for(uint32_t pn:{1,4,16}) for(uint32_t pk:{1,5,16}) {

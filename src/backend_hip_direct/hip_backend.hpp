@@ -1366,6 +1366,9 @@ rns8_status hip_direct_validate_native_allocation(int device_id,const void* base
 rns8_status hip_direct_enqueue_native_import(int device_id,const void* source,void* residues,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,bool verify,uint64_t bound,
     void* retained,void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream);
+rns8_status hip_direct_enqueue_panel_pack(int,const void*,void*,int64_t,int64_t,uint32_t,bool,void*);
+rns8_status hip_direct_enqueue_panel_gemm(int,const void*,const void*,const void*,void*,int64_t,int64_t,int64_t,uint32_t,void*);
+rns8_status hip_direct_enqueue_panel_export(int,const void*,void*,void*,int64_t,int64_t,uint32_t,uint64_t,bool,void*);
 rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,void* destination,
     int64_t rows,int64_t cols,int64_t ld,uint32_t prefix,bool signed_values,uint32_t limbs,uint64_t bound,
     void* scratch,uint64_t scratch_bytes,void* pinned_status,void* stream);

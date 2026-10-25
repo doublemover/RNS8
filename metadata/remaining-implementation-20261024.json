@@ -1266,6 +1266,16 @@
             "tests/differential/test_hip_native_device_cases.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Explicit budgeted three-stream out-of-core panel schedule with two pinned/native/RNS input slots, two checked export slots, eight reusable events, last-reader ordering and retryable cleanup/quarantine. Serial/overlap/in-core v3 controls expose submitted DMA receipts independently replayed from tail geometry and bounded B-cache conflicts.",
+          "files": [
+            "src/core/api_stream_gemm_overlap.inc",
+            "src/backend_common/stream_panel_plan.hpp",
+            "src/backend_hip_direct/hip_backend_stream_panels.inc",
+            "benchmarks/rns8_stream_panel_calibrate.cpp",
+            "tools/collect_stream_panels.py"
+          ]
         }
       ],
       "regressions": [
@@ -1277,7 +1287,10 @@
         "tests/unit/test_api_pinned_host_cases.inc",
         "tests/unit/test_api_resident_export_cases.inc",
         "tests/unit/test_api_resident_graph_cases.inc",
-        "tests/differential/test_hip_native_device_cases.inc"
+        "tests/differential/test_hip_native_device_cases.inc",
+        "tests/unit/test_stream_panel_plan_cases.inc",
+        "tests/differential/test_hip_direct_stream_panels_cases.inc",
+        "tools/test_collect_stream_panels.py"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -2155,17 +2168,29 @@
             "src/core/api_stream_gemm.cpp",
             "tests/differential/test_hip_direct_stream_panels_cases.inc"
           ]
+        },
+        {
+          "summary": "Explicit budgeted three-stream out-of-core panel schedule with two pinned/native/RNS input slots, two checked export slots, eight reusable events, last-reader ordering and retryable cleanup/quarantine. Serial/overlap/in-core v3 controls expose submitted DMA receipts independently replayed from tail geometry and bounded B-cache conflicts.",
+          "files": [
+            "src/core/api_stream_gemm_overlap.inc",
+            "src/backend_common/stream_panel_plan.hpp",
+            "src/backend_hip_direct/hip_backend_stream_panels.inc",
+            "benchmarks/rns8_stream_panel_calibrate.cpp",
+            "tools/collect_stream_panels.py"
+          ]
         }
       ],
       "regressions": [
+        "tests/unit/test_stream_panel_plan_cases.inc",
+        "tests/differential/test_hip_direct_stream_panels_cases.inc",
+        "tools/test_collect_stream_panels.py",
         "tests/unit/test_stream_panel_plan_cases.inc",
         "tests/differential/test_hip_direct_stream_panels_cases.inc",
         "tools/test_collect_stream_panels.py"
       ],
       "commits": [],
       "remaining": [
-        "Overlapped upload/compute/download scheduling and calibrated panel selection remain source work. Any future overlap must charge all pinned staging and events to its declared resource plan.",
-        "All new cache builds, tests, benchmarks and qualification are deferred by the latest user instruction."
+        "Calibrated panel shortlist selection remains source work. Serial retained-B and bounded three-stream overlap schedules are authored; useful overlap, peak reconciliation, correctness and capacity/crossover evidence await the deferred validation/trace/benchmark batch."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2574,6 +2599,11 @@
       "kind": "minimal_compile",
       "scope": "GF(2) algebra, paired-column HIP kernel, host provider/resources/calibrator and CPU/HIP fixture translation units; collector/fixtures Python syntax",
       "result": "HIP gfx1100 host/device -fsyntax-only, MSVC /Zs and py_compile passed. No linked builds, tests, workloads, benchmarks or qualification."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Bounded three-stream panel owner, enqueue-only HIP host adapters, calibrator and initial CPU/HIP fixture translation units; v3 receipt/schema Python syntax",
+      "result": "MSVC /Zs and py_compile passed. Later small DMA-replay fixture/API-comment refinements await final batch. No linked builds, tests, workloads, benchmarks, traces or hardware qualification executed."
     }
   ],
   "parking_snapshot": {
