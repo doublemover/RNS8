@@ -333,11 +333,12 @@ class CaseTest(unittest.TestCase):
 
 class ConversionContracts(unittest.TestCase):
     def test_every_typed_recipe_repeats_and_preparation_boundary(self):
-        recipes=((16,0,1,"replicated"),(16,0,1,"cooperative"),(16,0,4,"cooperative"),
+        recipes=((16,0,1,"replicated"),(16,0,1,"cooperative"),(16,0,1,"paired_columns"),(16,0,4,"cooperative"),
                  (16,1,4,"replicated"),(32,2,4,"replicated"),(16,1,4,"encoded_lds"),(32,1,4,"encoded_lds"))
         for depth,buffers,waves,mode in recipes:
             for candidate in ("conversion_cold","conversion_prepared"):
                 for group in (1,2,4):
+                    if mode=="paired_columns" and group==4:continue
                     case=case_for(candidate,k_depth=depth,lds_buffers=buffers,waves=waves,conversion=mode,group=group,reuse_count=8,input_change="reverse_k")
                     capture=capture_for(case);validate_capture(capture,case,"fixture-run",3,1)
                     contract=conversion_contract(case)
@@ -345,6 +346,13 @@ class ConversionContracts(unittest.TestCase):
                     if mode=="encoded_lds":
                         self.assertEqual(contract["conversion_raw_lds_bytes"],0)
                         self.assertEqual(contract["conversion_scalars_per_interior_panel"],2*32*depth*group)
+                    if mode=="paired_columns":
+                        self.assertEqual(contract['conversion_output_tile_cols'],32)
+                        self.assertEqual(contract['conversion_column_map']['columns'],[2,4,8,16,1])
+                        self.assertEqual(contract['conversion_accumulator_i32_per_lane'],16*group)
+                        for field,value in [('columns',[1,2,4,8,16]),('wave_size',64),('fingerprint',0)]:
+                            wrong=copy.deepcopy(capture);wrong['conversion_column_map'][field]=value
+                            with self.assertRaises(ValueError):validate_capture(wrong,case,"fixture-run",3,1)
                     for field in ("conversion_identity","conversion_preparation_in_batch","conversion_total_lds_bytes"):
                         wrong=copy.deepcopy(capture);wrong[field]=None
                         with self.assertRaises(ValueError):validate_capture(wrong,case,"fixture-run",3,1)

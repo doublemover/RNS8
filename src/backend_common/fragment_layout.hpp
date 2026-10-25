@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "binary_layout.hpp"
 
 #if defined(__HIPCC__)
 #define RNS8_FRAGMENT_HD __host__ __device__
@@ -37,6 +38,10 @@ struct Map {
 inline constexpr Map a{1,1,32,Role::a,9,8,2,true,{1,2,4,8,0,64,128,16,32}};
 inline constexpr Map b{1,1,32,Role::b,9,8,2,true,{16,32,64,128,0,4,8,1,2}};
 inline constexpr Map c{1,1,32,Role::accumulator,8,32,1,true,{16,32,64,128,1,2,4,8,0}};
+constexpr binary_layout::Map linear_map(const Map& fragment) {
+  binary_layout::Map map;map.input_bits=fragment.physical_bits;map.output_bits=8;
+  for(unsigned i=0;i<9;++i)map.columns[i]=fragment.basis[i];return map;
+}
 
 RNS8_FRAGMENT_HD constexpr uint32_t input_slot(uint32_t lane, uint32_t word, uint32_t byte) {
   return lane | (word << 5) | (byte << 7);

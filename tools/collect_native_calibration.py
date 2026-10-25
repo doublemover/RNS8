@@ -72,7 +72,8 @@ def validate_case(case):
     if case["candidate"] in CONVERSION:
         depth,buffers,waves,mode=(case.get(key) for key in ("k_depth","lds_buffers","waves","conversion"))
         if (type(depth) is not int or depth not in (16,32) or type(buffers) is not int or buffers not in (0,1,2)
-                or type(waves) is not int or waves not in (1,4) or mode not in ("replicated","cooperative","encoded_lds")
+                or type(waves) is not int or waves not in (1,4) or mode not in ("replicated","cooperative","encoded_lds","paired_columns")
+                or (mode=="paired_columns" and (waves!=1 or buffers or depth!=16 or case["group"]>2))
                 or (not buffers and depth!=16) or (waves==1 and (buffers or depth!=16))
                 or (mode=="cooperative" and buffers) or (mode=="encoded_lds" and (buffers!=1 or waves!=4))
                 or case.get("input_change") not in ("stable","reverse_k")
@@ -193,27 +194,38 @@ def conversion_contract(case):
     packed=case["candidate"]=="conversion_pack_gemm"
     raw=0 if mode=="encoded_lds" or packed else buffers*(32*(depth+1)+depth*33)*8
     encoded=case["group"]*2*32*(depth//4+1)*4 if mode=="encoded_lds" and not packed else 0
-    distinct=2*(16 if waves==1 else 32)*depth
+    rows=16 if waves==1 else 32
+    cols=32 if mode=="paired_columns" else rows
+    distinct=(rows+cols)*depth
     conversions=distinct*case["group"] if mode=="encoded_lds" else waves*2*16*depth*case["group"]*(1 if mode=="cooperative" else 2)
+    if mode=="paired_columns":conversions=32*3*depth*case["group"]
     identity={"replicated":"rdna3_replicated_native_conversion_v1",
               "cooperative":"rdna3_wave32_own_ab_half_xor16_packed_v1",
-              "encoded_lds":"rdna3_cta32x32_encode_once_ab_axis_kword_pad1_v1"}[mode]
-    return {"conversion_identity":identity,"batch_gemm_calls":case["reuse_count"],
+              "encoded_lds":"rdna3_cta32x32_encode_once_ab_axis_kword_pad1_v1",
+              "paired_columns":"rdna3_wave32_gf2_even_odd_columns_reuse_a_v1"}[mode]
+    result={"conversion_identity":identity,"batch_gemm_calls":case["reuse_count"],
         "conversion_preparation_in_batch":case["candidate"]=="conversion_cold",
         "conversion_prepared_capability_bytes":0 if packed else 4,"conversion_public_ownership_measured":False,
         "conversion_raw_lds_bytes":raw,"conversion_encoded_lds_bytes":encoded,"conversion_total_lds_bytes":raw+encoded,
-        "conversion_output_tile_rows":0 if packed else (16 if waves==1 else 32),
-        "conversion_output_tile_cols":0 if packed else (16 if waves==1 else 32),
-        "conversion_grid_workgroups":0 if packed else ((case["m"]+(16 if waves==1 else 32)-1)//(16 if waves==1 else 32))*
-            ((case["n"]+(16 if waves==1 else 32)-1)//(16 if waves==1 else 32))*((case["prefix"]+case["group"]-1)//case["group"]),
+        "conversion_output_tile_rows":0 if packed else rows,
+        "conversion_output_tile_cols":0 if packed else cols,
+        "conversion_grid_workgroups":0 if packed else ((case["m"]+rows-1)//rows)*
+            ((case["n"]+cols-1)//cols)*((case["prefix"]+case["group"]-1)//case["group"]),
         "conversion_source_counts_measured":False,"conversion_scalars_per_interior_panel":0 if packed else conversions,
         "conversion_raw_scalars_per_interior_panel":0 if packed else distinct,
-        "conversion_accumulator_i32_per_lane":0 if packed else 8*case["group"],
-        "conversion_fragment_words_per_lane":0 if packed else 8*case["group"],
+        "conversion_accumulator_i32_per_lane":0 if packed else (16 if mode=="paired_columns" else 8)*case["group"],
+        "conversion_fragment_words_per_lane":0 if packed else (12 if mode=="paired_columns" else 8)*case["group"],
         "conversion_lds_word_layout":"A_row_Kword_B_column_Kword_odd_padded_stride" if mode=="encoded_lds" else "not_applicable",
         "conversion_dataset":"full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
         "conversion_input_upload_scope":"alternate_common_K_reversal_before_each_sample_and_once_before_sustained_burst_outside_interval"
             if case["input_change"]=="reverse_k" else "initial_upload_only"}
+    if mode=="paired_columns":
+        columns=[2,4,8,16,1];fingerprint=14695981039346656037
+        for word in [1,0x11,32,1,8,5,5]+columns+[0]*11:
+            for byte in word.to_bytes(4,'little'):fingerprint=((fingerprint^byte)*1099511628211)&((1<<64)-1)
+        result['conversion_column_map']=dict(version=1,target_family='rdna3_wmma_iu8_wave32',wave_size=32,opcode=1,
+            element_bits=8,input_bits=5,output_bits=5,columns=columns,fingerprint=fingerprint)
+    return result
 
 
 def epilogue_contract(case):

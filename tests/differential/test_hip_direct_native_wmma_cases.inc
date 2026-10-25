@@ -72,6 +72,7 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
   }
   bool supported = true;
   for (uint32_t group : {1u, 2u, 4u}) {
+    if(conversion_config && conversion_config->conversion==NativeConversion::paired_columns && group==4)continue;
     std::fill(actual.begin(), actual.end(), 99);
     REQUIRE(hip_direct_copy_host_to_device(0, dc, actual.data(), actual.size()) == RNS8_SUCCESS);
     auto status = RNS8_UNSUPPORTED_BACKEND;
@@ -385,10 +386,15 @@ TEST_CASE("encode-once native candidates and prepared controls preserve every pr
   const NativeTiledConfig configs[]{
     {16,0,1,NativeConversion::replicated,65536},
     {16,0,1,NativeConversion::cooperative,65536},
+    {16,0,1,NativeConversion::paired_columns,65536},
     {16,0,4,NativeConversion::cooperative,65536},
     {16,1,4,NativeConversion::encoded_lds,65536},
     {32,1,4,NativeConversion::encoded_lds,65536}};
   for(const auto& config:configs) {
+    if(config.conversion==NativeConversion::paired_columns) {
+      REQUIRE(check_native_wmma_groups<int64_t>(false,17,35,17,20,false,0,0,0,false,&config));
+      REQUIRE(check_native_wmma_groups<uint64_t>(true,16,32,16,20,false,0,0,0,false,&config));
+    }
     for(uint32_t prefix=1;prefix<=20;++prefix)for(int k:{15,16,17}) {
       if(!check_native_wmma_groups<int64_t>(false,17,19,k,prefix,false,0,0,0,false,&config))
         SKIP("compiled target lacks qualified RDNA3 WMMA instruction layout");

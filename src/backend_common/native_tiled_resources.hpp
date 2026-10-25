@@ -19,7 +19,9 @@ inline NativeTiledResources query_native_tiled_resources(uint32_t depth, uint32_
                                                         uint32_t group = 1, uint32_t waves = 4) {
   NativeTiledResources out;
   if ((group != 1 && group != 2 && group != 4) || (waves != 1 && waves != 4) ||
-      (conversion != NativeConversion::replicated && conversion != NativeConversion::cooperative && conversion != NativeConversion::encoded_lds) ||
+      (conversion != NativeConversion::replicated && conversion != NativeConversion::cooperative &&
+       conversion != NativeConversion::encoded_lds && conversion != NativeConversion::paired_columns) ||
+      (conversion == NativeConversion::paired_columns && (waves!=1 || buffers || depth!=16 || group>2)) ||
       (waves == 1 && (buffers || depth != 16)) ||
       (conversion == NativeConversion::cooperative && buffers) ||
       (conversion == NativeConversion::encoded_lds && (buffers != 1 || waves != 4)) ||
@@ -27,12 +29,17 @@ inline NativeTiledResources query_native_tiled_resources(uint32_t depth, uint32_
   // A uses a padded depth stride, B a padded 32-column stride. Native i64/u64
   // have identical eight-byte storage; encoded fragments remain in registers.
   out.waves = waves; out.output_rows = out.output_cols = waves == 1 ? 16 : 32;
-  out.raw_operand_scalars_per_panel = uint64_t(2) * out.output_rows * depth;
+  if(conversion==NativeConversion::paired_columns)out.output_cols=32;
+  out.raw_operand_scalars_per_panel = uint64_t(out.output_rows+out.output_cols) * depth;
   out.conversions_per_panel = conversion == NativeConversion::encoded_lds ? out.raw_operand_scalars_per_panel * group :
       uint64_t(waves) * 2 * 16 * depth * group * (conversion == NativeConversion::cooperative ? 1 : 2);
   out.accumulator_i32_per_lane = 8 * group;
   out.fragment_words_per_lane = 8 * group;
   out.live_native_words_per_producer = conversion == NativeConversion::encoded_lds ? 1 : 2;
+  if(conversion==NativeConversion::paired_columns) {
+    out.conversions_per_panel=uint64_t(32)*3*depth*group;
+    out.accumulator_i32_per_lane=16*group;out.fragment_words_per_lane=12*group;out.live_native_words_per_producer=3;
+  }
   out.raw_lds_bytes = conversion == NativeConversion::encoded_lds ? 0 : uint64_t(buffers) * (32 * (depth + 1) + depth * 33) * 8;
   out.encoded_lds_bytes = conversion == NativeConversion::encoded_lds ? uint64_t(group) * 2 * 32 * native_encoded_stride(depth) * 4 : 0;
   out.total_lds_bytes = out.raw_lds_bytes + out.encoded_lds_bytes;

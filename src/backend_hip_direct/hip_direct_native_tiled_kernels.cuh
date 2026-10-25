@@ -1,3 +1,4 @@
+#include "../backend_common/binary_layout.hpp"
 // Four waves own the four 16x16 quadrants of a 32x32 output tile.
 // Staged modes share raw native inputs, not encoded residues, across waves.
 template<class T, int Depth>
@@ -177,4 +178,82 @@ __global__ __launch_bounds__(32) void rns8_native_conversion_wave_kernel(
     const T* a,const T* b,int8_t* c,int m,int n,int k,int lda,int ldb,int ldc,int prefix) {
   rns8_native_grouped_wmma_tile<T,Group,false,Cooperative>(a,b,c,m,n,k,lda,ldb,ldc,prefix,
       int64_t(blockIdx.y)*16,int64_t(blockIdx.x)*16,blockIdx.z*Group);
+}
+
+// One wave computes a 16x32 tile. The GF(2) column map interleaves the two
+// instruction tiles, and a single encoded A fragment feeds both instructions.
+template<class T,int Group>
+__global__ __launch_bounds__(32) void rns8_native_paired_columns_kernel(
+    const T* a,const T* b,int8_t* c,int m,int n,int k,int lda,int ldb,int ldc,int prefix) {
+#if RNS8_DEVICE_NATIVE_WMMA
+  static_assert(Group==1 || Group==2,"paired columns bound accumulator pressure explicitly");
+  using fragment=int __attribute__((ext_vector_type(4)));
+  using accumulator=int __attribute__((ext_vector_type(8)));
+  namespace layout=rns8::detail::fragment_layout;
+  namespace binary=rns8::detail::binary_layout;
+  const int lane=threadIdx.x&31,first=blockIdx.z*Group;
+  const int64_t row0=int64_t(blockIdx.y)*16,col0=int64_t(blockIdx.x)*32;
+  const int64_t ar=row0+layout::row(layout::a_coordinate(lane,0,0));
+  accumulator acc[Group][2]{};
+  rns8::detail::finite_u8::Native64Reducer reducers[Group]{};
+#pragma unroll
+  for(int channel=0;channel<Group;++channel)if(first+channel<prefix)
+    reducers[channel]=rns8::detail::finite_u8::native64_reducer(rns8_default_moduli_device[first+channel]);
+  for(int64_t base=0;base<k;base+=16) {
+    fragment av[Group]{},bv[Group][2]{};
+#pragma unroll
+    for(int word=0;word<4;++word) {
+      uint32_t aw[Group]{},bw[Group][2]{};
+#pragma unroll
+      for(int byte=0;byte<4;++byte) {
+        const int64_t q=base+layout::col(layout::a_coordinate(lane,word,byte));
+        const T va=ar<m && q<k?a[ar*lda+q]:T{};
+        T vb[2]{};
+#pragma unroll
+        for(unsigned pair=0;pair<2;++pair) {
+          const int64_t col=col0+binary::paired_column(lane,pair);
+          if(q<k && col<n)vb[pair]=b[q*ldb+col];
+        }
+#pragma unroll
+        for(int channel=0;channel<Group;++channel)if(first+channel<prefix) {
+          aw[channel]|=uint32_t(uint8_t(rns8_native_wmma_center(va,reducers[channel])))<<(8*byte);
+#pragma unroll
+          for(unsigned pair=0;pair<2;++pair)
+            bw[channel][pair]|=uint32_t(uint8_t(rns8_native_wmma_center(vb[pair],reducers[channel])))<<(8*byte);
+        }
+      }
+#pragma unroll
+      for(int channel=0;channel<Group;++channel) {
+        av[channel][word]=int(aw[channel]);
+#pragma unroll
+        for(unsigned pair=0;pair<2;++pair)bv[channel][pair][word]=int(bw[channel][pair]);
+      }
+    }
+#pragma unroll
+    for(int channel=0;channel<Group;++channel)if(first+channel<prefix)
+#pragma unroll
+      for(unsigned pair=0;pair<2;++pair) {
+        acc[channel][pair]=__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32(true,av[channel],true,bv[channel][pair],acc[channel][pair],false);
+        if((base+16)%65536==0)
+#pragma unroll
+          for(int reg=0;reg<8;++reg)acc[channel][pair][reg]%=int(reducers[channel].modulus);
+      }
+  }
+#pragma unroll
+  for(int channel=0;channel<Group;++channel)if(first+channel<prefix)
+#pragma unroll
+    for(unsigned pair=0;pair<2;++pair) {
+      const int64_t col=col0+binary::paired_column(lane,pair);const int modulus=reducers[channel].modulus;
+#pragma unroll
+      for(unsigned reg=0;reg<8;++reg) {
+        const int64_t row=row0+layout::row(layout::c_coordinate(lane,reg));
+        if(row<m && col<n) {
+          int value=acc[channel][pair][reg]%modulus;if(value<0)value+=modulus;if(value>=(modulus+1)/2)value-=modulus;
+          c[(int64_t(first+channel)*m+row)*ldc+col]=int8_t(value);
+        }
+      }
+    }
+#else
+  (void)a;(void)b;(void)c;(void)m;(void)n;(void)k;(void)lda;(void)ldb;(void)ldc;(void)prefix;
+#endif
 }

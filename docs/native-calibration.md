@@ -493,3 +493,28 @@ across-process median; it does not subtract a guessed probe constant. No winning
 configuration is installed or declared qualified. The manifests and authored
 collector/CLI/fragment/device regressions have not been executed in this source
 preparation pass.
+# GF(2) paired-column control
+
+The explicit conversion mode `paired_columns` uses one RDNA3 wave32 for a
+16×32 output tile. Four lane-axis bits select even columns and a fifth pair bit
+selects the adjacent odd column. Two WMMA operations share the encoded A
+fragment. Only depth16, buffers0, waves1 and groups1/2 are admitted; group4 is
+rejected to bound source accumulator pressure. Output edges remain masked and
+the safe 65536-K reduction schedule is unchanged. Cold/prepared controls and
+common-K reversal use the existing owned preparation and independent Boost
+output checks. `native-calibration/paired-columns.json` supplies matched controls.
+
+Captures carry the complete binary column map, target instruction family, wave,
+element width and diagnostic fingerprint. The collector checks the complete map
+and actual 16×32 grid/resource accounting. Source work counts describe reduced
+encoding and increased accumulator storage; they are not measured speedups.
+
+`binary_layout.hpp` supplies checked GF(2) elimination, nullspace/replica bases,
+right inverses, composition, constrained preimages and register/wave/LDS
+conversion classification. Existing admitted fragment maps project into that
+algebra. Its separate LDS model admits explicit aligned scalar b32 phases on
+32 four-byte banks, accounts for read broadcasts, rejects ambiguous write
+aliases and reports unknown instruction contracts as unsupported. This model
+does not certify compiler-selected LDS instructions or measured conflicts.
+CPU mapping/model regressions and HIP exact-output fixtures are authored;
+runtime validation and performance qualification remain deferred.

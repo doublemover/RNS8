@@ -56,7 +56,8 @@ rns8_status NativeTiledPrepared::execute(bool& outputs_may_be_written) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status=set_hip_device(device_id_);
   if(status!=RNS8_SUCCESS)return status;
-  const char* label=config_.conversion==NativeConversion::cooperative ? "native_cooperative_encode_once_gemm" :
+  const char* label=config_.conversion==NativeConversion::paired_columns ? "native_gf2_paired_columns_gemm" :
+      config_.conversion==NativeConversion::cooperative ? "native_cooperative_encode_once_gemm" :
       config_.conversion==NativeConversion::encoded_lds ? "native_encoded_lds_once_gemm" :
       config_.waves==1 ? "native_prepared_one_wave_gemm" : config_.buffers==0 ? "native_tiled_register_gemm" :
       config_.buffers==1 ? "native_tiled_one_buffer_gemm" : "native_tiled_two_buffer_gemm";

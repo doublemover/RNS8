@@ -37,6 +37,15 @@ int rns8_launch_native_conversion(const void* a,const void* b,int8_t* c,int m,in
     int lda,int ldb,int ldc,int prefix,int depth,int buffers,int waves,int conversion) {
   using Mode=rns8::detail::NativeConversion;
   const auto mode=static_cast<Mode>(conversion);
+  if(mode==Mode::paired_columns) {
+    if constexpr(Group<=2) {
+      if(waves!=1 || buffers || depth!=16)return int(hipErrorInvalidValue);
+      const dim3 paired_grid((uint64_t(n)+31)/32,(uint64_t(m)+15)/16,(prefix+Group-1)/Group);
+      hipLaunchKernelGGL((rns8_native_paired_columns_kernel<T,Group>),paired_grid,dim3(32),0,nullptr,
+          static_cast<const T*>(a),static_cast<const T*>(b),c,m,n,k,lda,ldb,ldc,prefix);
+      return int(hipGetLastError());
+    } else return int(hipErrorInvalidValue);
+  }
   const int edge=waves==1 ? 16 : 32;
   const dim3 grid((uint64_t(n)+edge-1)/edge,(uint64_t(m)+edge-1)/edge,(prefix+Group-1)/Group);
   if(waves==1) {

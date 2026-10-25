@@ -5,7 +5,75 @@
 #include "backend_common/residue_layout.hpp"
 #include "backend_common/fragment_layout.hpp"
 #include "backend_rocwmma/rocwmma_packing_policy.hpp"
+#include "backend_common/native_tiled_resources.hpp"
 #include <array>
+
+TEST_CASE("binary fragment algebra preserves image replicas inverse and composition") {
+  namespace binary=rns8::detail::binary_layout;namespace fragment=rns8::detail::fragment_layout;
+  for(const auto f:{fragment::a,fragment::b,fragment::c}) {
+    const auto map=fragment::linear_map(f);REQUIRE(binary::valid(map));
+    const auto elimination=binary::eliminate(map);CHECK(elimination.rank==8);
+    CHECK(elimination.nullity==map.input_bits-8);
+    const auto inverse=binary::right_inverse(map);REQUIRE(inverse.valid);
+    const auto identity=binary::compose(map,inverse.map);REQUIRE(identity.valid);
+    for(unsigned logical=0;logical<256;++logical) {
+      CHECK(identity.map.apply(logical)==logical);
+      const auto solved=binary::solve(map,logical);REQUIRE(solved.valid);CHECK(map.apply(solved.value)==logical);
+      for(unsigned i=0;i<elimination.nullity;++i)CHECK(map.apply(solved.value^elimination.kernel[i])==logical);
+    }
+    for(unsigned slot=0;slot<(1u<<map.input_bits);++slot)CHECK(map.apply(slot)==f.logical(slot));
+  }
+  binary::Physical a{fragment::linear_map(fragment::a),5,4,0,8},b{fragment::linear_map(fragment::b),5,4,0,8};
+  CHECK(binary::conversion(a,a)==binary::Conversion::register_only);
+  CHECK(binary::conversion(a,b)==binary::Conversion::within_wave);
+  binary::Physical source{{6,6,{1,2,4,8,16,32}},5,0,1,8},destination=source;
+  std::swap(destination.map.columns[0],destination.map.columns[5]);
+  CHECK(binary::conversion(source,destination)==binary::Conversion::cross_wave_lds);
+  source.map.columns[5]=0;
+  CHECK(binary::conversion(source,destination)==binary::Conversion::unsupported);
+  CHECK_FALSE(binary::right_inverse(source.map).valid);
+  auto malformed=source.map;malformed.columns[15]=1;CHECK_FALSE(binary::valid(malformed));
+  CHECK_FALSE(binary::compose(source.map,fragment::linear_map(fragment::a)).valid);
+  CHECK_FALSE(binary::solve(source.map,64).valid);
+  CHECK_FALSE(binary::solve(source.map,0,1,2).valid);
+}
+
+TEST_CASE("GF2 paired columns cover exactly two adjacent instruction outputs") {
+  namespace binary=rns8::detail::binary_layout;
+  std::array<unsigned,32> visits{};const auto inverse=binary::right_inverse(binary::paired_columns);
+  REQUIRE(inverse.valid);
+  for(unsigned axis=0;axis<16;++axis)for(unsigned pair=0;pair<2;++pair) {
+    const auto col=binary::paired_column(axis,pair);CHECK(col==axis*2+pair);++visits[col];
+    CHECK(inverse.map.apply(col)==(axis|(pair<<4)));
+  }
+  for(auto count:visits)CHECK(count==1);
+  const auto identity=binary::fingerprint(binary::paired_columns,0x1100,32,1,8);
+  CHECK(identity!=binary::fingerprint(binary::paired_columns,0x1100,64,1,8));
+  CHECK(identity!=binary::fingerprint(binary::paired_columns,0x1101,32,1,8));
+  CHECK(identity!=binary::fingerprint(binary::paired_columns,0x1100,32,2,8));
+  for(unsigned group:{1u,2u}) {
+    const auto r=rns8::detail::query_native_tiled_resources(16,0,0,rns8::detail::NativeConversion::paired_columns,group,1);
+    REQUIRE(r.status==RNS8_SUCCESS);CHECK(r.output_rows==16);CHECK(r.output_cols==32);
+    CHECK(r.accumulator_i32_per_lane==16*group);CHECK(r.fragment_words_per_lane==12*group);CHECK(r.total_lds_bytes==0);
+    CHECK(r.conversions_per_panel==1536*group);CHECK(r.raw_operand_scalars_per_panel==768);
+  }
+  CHECK(rns8::detail::query_native_tiled_resources(16,0,0,rns8::detail::NativeConversion::paired_columns,4,1).status==RNS8_INVALID_ARGUMENT);
+}
+
+TEST_CASE("LDS bank model requires explicit scalar instruction phases and handles broadcasts") {
+  namespace binary=rns8::detail::binary_layout;
+  std::array<uint64_t,64> addresses{};binary::LdsContract c;c.opcode=binary::LdsOpcode::read_b32;
+  for(unsigned i=0;i<64;++i)addresses[i]=4*i;
+  auto model=binary::analyze_banks(addresses.data(),32,c);REQUIRE(model.supported);CHECK(model.max_bank_words==1);CHECK_FALSE(model.measured);
+  for(unsigned i=0;i<32;++i)addresses[i]=128*i;
+  CHECK(binary::analyze_banks(addresses.data(),32,c).max_bank_words==32);
+  addresses.fill(0);CHECK(binary::analyze_banks(addresses.data(),32,c).max_bank_words==1);
+  c.opcode=binary::LdsOpcode::write_b32;CHECK_FALSE(binary::analyze_banks(addresses.data(),32,c).supported);
+  c.opcode=binary::LdsOpcode::read_b32;c.wave_lanes=64;
+  CHECK(binary::analyze_banks(addresses.data(),64,c).phases==2);
+  c.opcode=binary::LdsOpcode::unknown;CHECK_FALSE(binary::analyze_banks(addresses.data(),64,c).supported);
+  c.opcode=binary::LdsOpcode::read_b32;addresses[7]=1;CHECK_FALSE(binary::analyze_banks(addresses.data(),64,c).supported);
+}
 
 TEST_CASE("rocWMMA direct-A admission proves complete aligned fragment loads") {
   using namespace rns8::detail;

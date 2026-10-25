@@ -3,6 +3,7 @@
 #include "backend_hip_direct/native_tiled_prepared.hpp"
 #include "backend_hip_direct/encoded_b_backend.hpp"
 #include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/binary_layout.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
 #include "backend_vector_alu/vector_alu_backend.hpp"
 #include "core/hip_resources.hpp"
@@ -153,6 +154,7 @@ int main(int argc, char** argv) {
       conversion_config.waves=number(argv[13],1,4);conversion_name=argv[14];conversion_input=argv[16];
       if(conversion_name=="cooperative")conversion_config.conversion=NativeConversion::cooperative;
       else if(conversion_name=="encoded_lds")conversion_config.conversion=NativeConversion::encoded_lds;
+      else if(conversion_name=="paired_columns")conversion_config.conversion=NativeConversion::paired_columns;
       else if(conversion_name!="replicated")throw std::invalid_argument("unknown conversion ownership");
       const auto resources=query_native_tiled_resources(conversion_config.depth,conversion_config.buffers,65536,
           conversion_config.conversion,group,conversion_config.waves);
@@ -540,6 +542,10 @@ int main(int argc, char** argv) {
           {"waves",conversion_config.waves},{"conversion",conversion_name},{"input_change",conversion_input},
           {"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
           {"conversion_identity",native_conversion_identity(conversion_config.conversion)},
+          {"conversion_column_map",conversion_config.conversion==NativeConversion::paired_columns ?
+              nlohmann::json{{"version",1},{"target_family","rdna3_wmma_iu8_wave32"},{"wave_size",32},{"opcode",1},
+                {"element_bits",8},{"input_bits",5},{"output_bits",5},{"columns",{2,4,8,16,1}},
+                {"fingerprint",rns8::detail::binary_layout::fingerprint(rns8::detail::binary_layout::paired_columns,0x11,32,1,8)}} : nlohmann::json(nullptr)},
           {"conversion_prepare_ns",conversion_prepared?nlohmann::json(conversion_prepare_ns):nlohmann::json(nullptr)},
           {"conversion_preparation_in_batch",!conversion_prepared && !conversion_pack},
           {"conversion_prepared_capability_bytes",conversion_pack?0:4},

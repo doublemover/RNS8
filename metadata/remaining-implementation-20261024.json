@@ -815,7 +815,7 @@
       "issue": 40,
       "title": "[Research P2] Co-design residue layouts for packing, matrix tiles and CRT export",
       "url": "https://github.com/doublemover/RNS8/issues/40",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Real layout converters, ragged owner and consumers exist; executable fragment algebra/GF2 paired-column candidate and latest cost/retention/panel-reuse integrations remain incomplete; ragged materialization still reuploads directory and precopies compact destination.",
       "implementation": [
         {
@@ -878,6 +878,17 @@
             "benchmarks/public-calibration/rocwmma-packing.json",
             "tools/benchmark_schema/rocwmma_packing.py"
           ]
+        },
+        {
+          "summary": "Checked bounded GF(2) fragment algebra with replica/nullspace analysis, constrained preimages, right inverse/composition and register/wave/LDS conversion classes; explicit scalar LDS-bank model. Executable RDNA3 16x32 paired-column WMMA consumer reuses encoded A and binds complete map and resource receipts in cold/prepared calibration.",
+          "files": [
+            "src/backend_common/binary_layout.hpp",
+            "src/backend_common/fragment_layout.hpp",
+            "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+            "src/backend_common/native_tiled_resources.hpp",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/paired-columns.json"
+          ]
         }
       ],
       "regressions": [
@@ -889,15 +900,17 @@
         "tools/test_observation_cohorts.py",
         "tests/differential/test_rocwmma_packing_cases.inc",
         "tests/unit/test_residue_layout.cpp",
-        "tools/test_rocwmma_packing.py"
+        "tools/test_rocwmma_packing.py",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
       ],
       "commits": [
         "aa24012745304a17e26ab6efbe0e0718cf9890a1",
         "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
-        "General fragment algebra and GF(2) paired-column consumer remain source work. Independent hipBLASLt retention and rocWMMA direct-A/call-local panel-reuse controls are authored; packed/default policies unchanged pending measurements.",
-        "Independent hipBLASLt operand-retention controls, composed metadata controls and receipts are authored; compilation, regression execution, measurements and qualification remain deferred."
+        "General GF(2) algebra, paired-column consumer, rocWMMA direct-A/panel reuse and hipBLASLt operand retention source are authored. Full builds, execution, independent measurements, ISA/compiler resource inspection and qualification remain deferred; no default policy promotion."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1087,6 +1100,17 @@
             "src/backend_common/product_prefix_cost.hpp",
             "src/core/runtime_product_recipe.cpp"
           ]
+        },
+        {
+          "summary": "Checked bounded GF(2) fragment algebra with replica/nullspace analysis, constrained preimages, right inverse/composition and register/wave/LDS conversion classes; explicit scalar LDS-bank model. Executable RDNA3 16x32 paired-column WMMA consumer reuses encoded A and binds complete map and resource receipts in cold/prepared calibration.",
+          "files": [
+            "src/backend_common/binary_layout.hpp",
+            "src/backend_common/fragment_layout.hpp",
+            "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+            "src/backend_common/native_tiled_resources.hpp",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/paired-columns.json"
+          ]
         }
       ],
       "regressions": [
@@ -1100,7 +1124,10 @@
         "tests/unit/test_api_resident_graph_cases.inc",
         "tests/differential/test_hip_native_device_cases.inc",
         "tests/unit/test_residue_layout.cpp",
-        "tests/support/product_recipe_outputs_fixture.hpp"
+        "tests/support/product_recipe_outputs_fixture.hpp",
+        "tests/unit/test_residue_layout.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
@@ -2542,6 +2569,11 @@
       "kind": "minimal_compile",
       "scope": "rocWMMA direct-A/panel reuse kernels, host backend, authored CPU/HIP fixtures and benchmark argument/dispatch source; Python receipt/cohort syntax",
       "result": "HIP gfx1100 host/device -fsyntax-only and MSVC /Zs passed. Benchmark host syntax used the equivalent core include/feature recipe to avoid malformed multiline historical command-line version definitions. py_compile passed. Final small fixture refinements await batch; no tests, linking, benchmark execution or qualification."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "GF(2) algebra, paired-column HIP kernel, host provider/resources/calibrator and CPU/HIP fixture translation units; collector/fixtures Python syntax",
+      "result": "HIP gfx1100 host/device -fsyntax-only, MSVC /Zs and py_compile passed. No linked builds, tests, workloads, benchmarks or qualification."
     }
   ],
   "parking_snapshot": {
