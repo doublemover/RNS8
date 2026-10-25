@@ -78,6 +78,9 @@ struct rns8_exact_axis_range {
   boost::multiprecision::cpp_int minimum = 0;
   boost::multiprecision::cpp_int maximum = 0;
   boost::multiprecision::cpp_int deviation_sum = 0;
+  // Upper bound on sum(value^2); native packing computes it exactly.
+  boost::multiprecision::cpp_int squared_sum = 0;
+  bool squared_sum_known = false;
   bool sum_known = false;
 };
 

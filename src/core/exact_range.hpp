@@ -36,6 +36,8 @@ inline void add_exact_native_value(rns8_exact_axis_range& axis, const cpp_int& v
   axis.max_magnitude = std::max(axis.max_magnitude, magnitude);
   axis.absolute_sum += magnitude;
   axis.sum += value;
+  axis.squared_sum += value * value;
+  axis.squared_sum_known = true;
   if (first) {
     axis.minimum = value;
     axis.maximum = value;
@@ -81,6 +83,28 @@ inline cpp_int exact_axis_product_bound(const rns8_exact_axis_range& a, const rn
   cpp_int bound = cpp_int(k) * a.max_magnitude * b.max_magnitude;
   tighten_exact_bound(bound, a.absolute_sum * b.max_magnitude);
   tighten_exact_bound(bound, a.max_magnitude * b.absolute_sum);
+  if (a.squared_sum_known && b.squared_sum_known) {
+    // Cauchy-Schwarz with integer rounding: an integer |dot| below a real
+    // square root is also below its floor. No floating-point approximation.
+    const cpp_int squares = a.squared_sum * b.squared_sum;
+    if (squares < bound * bound)
+      tighten_exact_bound(bound, boost::multiprecision::sqrt(squares));
+    if (a.sum_known && b.sum_known) {
+      // K*dot - sum(a)*sum(b) is the centered covariance numerator.
+      // The variance numerators are nonnegative even when squared sums are
+      // upper bounds. Exact signed sums, however, are mandatory here.
+      const cpp_int va = cpp_int(k) * a.squared_sum - a.sum * a.sum;
+      const cpp_int vb = cpp_int(k) * b.squared_sum - b.sum * b.sum;
+      const cpp_int variance_product = va * vb;
+      const cpp_int center = boost::multiprecision::abs(a.sum * b.sum);
+      const cpp_int gap = cpp_int(k) * bound - center;
+      // Avoid integer roots that cannot improve the already established bound.
+      if (gap > 0 && variance_product < gap * gap) {
+        const cpp_int remainder = boost::multiprecision::sqrt(variance_product);
+        tighten_exact_bound(bound, (center + remainder) / k);
+      }
+    }
+  }
   if (a.sum_known && b.sum_known) {
     const cpp_int ca = exact_axis_center(a);
     const cpp_int cb = exact_axis_center(b);
@@ -136,6 +160,11 @@ inline void exact_gemm_bound(const rns8_plan& plan, const rns8_matrix& A, const 
           c.max_magnitude = std::max(c.max_magnitude, bound);
           r.absolute_sum += bound;
           c.absolute_sum += bound;
+          const cpp_int squared = bound * bound;
+          r.squared_sum += squared;
+          c.squared_sum += squared;
+          r.squared_sum_known = true;
+          c.squared_sum_known = true;
         }
       }
     }

@@ -74,7 +74,8 @@ rns8_matrix_desc matrix_desc(rns8_semantics semantics, int64_t rows, int64_t col
 bool same_axis(const rns8_exact_axis_range& a, const rns8_exact_axis_range& b) {
   return a.max_magnitude == b.max_magnitude && a.absolute_sum == b.absolute_sum && a.sum == b.sum &&
          a.minimum == b.minimum && a.maximum == b.maximum && a.deviation_sum == b.deviation_sum &&
-         a.sum_known == b.sum_known;
+         a.sum_known == b.sum_known && a.squared_sum == b.squared_sum &&
+         a.squared_sum_known == b.squared_sum_known;
 }
 
 bool same_axes(const std::vector<rns8_exact_axis_range>& a, const std::vector<rns8_exact_axis_range>& b) {

@@ -497,8 +497,9 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   CHECK(warmed_snapshot.c_upload == nullptr);
   CHECK(warmed_snapshot.c_upload_bytes == 0);
   REQUIRE(warmed_snapshot.c_export != nullptr);
-  // Prefix 9 direct export elides status (structurally covers full u64 range)
-  REQUIRE(warmed_snapshot.c_status == nullptr);
+  // Prefix 9 covers native u64 inputs, but its CRT product also represents
+  // larger integers. Export must still check both the caller bound and u64.
+  REQUIRE(warmed_snapshot.c_status != nullptr);
   REQUIRE(warmed_snapshot.allocations.allocate_calls > 0);
 
   fill_inputs(1);
@@ -517,6 +518,17 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   CHECK(a_matrix->hip_residues == a_device_residues);
   CHECK(b_matrix->hip_residues == b_device_residues);
   CHECK(c_matrix->hip_residues == c_device_residues);
+
+  auto tight_desc = hip_desc;
+  tight_desc.bound = 1;
+  rns8_plan* tight_plan = nullptr;
+  REQUIRE(rns8_create_plan(hip, &tight_desc, &tight_plan) == RNS8_SUCCESS);
+  REQUIRE(tight_plan->prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
+  std::vector<uint64_t> rejected(static_cast<std::size_t>(m * ldc), sentinel);
+  CHECK(rns8_export_u64(hip, tight_plan, c_matrix, rejected.data(), ldc) == RNS8_RANGE_ERROR);
+  CHECK(rejected == std::vector<uint64_t>(static_cast<std::size_t>(m * ldc), sentinel));
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  rns8_destroy_plan(tight_plan);
 
   rns8_destroy_matrix(c_matrix);
   rns8_destroy_matrix(b_matrix);
