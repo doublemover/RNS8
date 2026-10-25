@@ -318,6 +318,7 @@ class hip_pinned_host_buffer {
   }
   ~hip_pinned_host_buffer() {retire();}
   hipError_t reset() noexcept {
+    if(pending_) return hipErrorNotReady;
     if(!cleanup_) return hipSuccess;
     hip_scoped_device selected(cleanup_->device_id);
     if(selected.status()!=hipSuccess) return selected.status();
@@ -325,7 +326,11 @@ class hip_pinned_host_buffer {
     if(status!=hipSuccess) return status;
     delete cleanup_;cleanup_=nullptr;capacity_=0;return hipSuccess;
   }
+  void mark_pending() noexcept {pending_=true;}
+  void mark_completed() noexcept {pending_=false;}
+  bool pending() const noexcept {return pending_;}
   hipError_t ensure(int device_id,std::size_t bytes) {
+    if(pending_) return hipErrorNotReady;
     if(!bytes || device_id<0) return hipErrorInvalidValue;
     if(cleanup_ && cleanup_->device_id==device_id && capacity_>=bytes) return hipSuccess;
     const auto release_status=reset();
@@ -345,15 +350,16 @@ class hip_pinned_host_buffer {
  private:
   void retire() noexcept {
     if(reset()!=hipSuccess) {
-      hip_direct_defer_buffer_cleanup(cleanup_);cleanup_=nullptr;capacity_=0;
+      hip_direct_defer_buffer_cleanup(cleanup_);cleanup_=nullptr;capacity_=0;pending_=false;
     }
   }
   void move_from(hip_pinned_host_buffer& other) noexcept {
-    cleanup_=other.cleanup_;capacity_=other.capacity_;
-    other.cleanup_=nullptr;other.capacity_=0;
+    cleanup_=other.cleanup_;capacity_=other.capacity_;pending_=other.pending_;
+    other.cleanup_=nullptr;other.capacity_=0;other.pending_=false;
   }
   hip_deferred_buffer_cleanup* cleanup_=nullptr;
   std::size_t capacity_=0;
+  bool pending_=false;
 };
 #endif
 

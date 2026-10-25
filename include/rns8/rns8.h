@@ -759,7 +759,7 @@ typedef enum rns8_operation_kind RNS8_ENUM_BASE {
   RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
   RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
   RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18,
-  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_COUNT=21
+  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_HOST_IMPORT=21,RNS8_OP_HOST_EXPORT=22,RNS8_OP_COUNT=23
 } rns8_operation_kind;
 typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
   RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,
@@ -2777,6 +2777,44 @@ typedef struct rns8_prepared_transfer_info {
   uint32_t verified_input_bound,limb_count,external_result_current,reserved;
 } rns8_prepared_transfer_info;
 RNS8_API rns8_status rns8_get_prepared_transfer_info(const rns8_prepared_execution*,rns8_prepared_transfer_info*);
+
+/* Explicit library-owned pinned native storage, never implicit pageable staging.
+ * Access is READ for native->RNS import or WRITE for RNS->native export. CPU
+ * pointers are borrowed only inside the matching begin/end access window and
+ * must not escape it. Shared host/device readers are allowed; writers exclude
+ * every reader. No host pointer may be dereferenced while a device writer runs.
+ * Shared handles require external host serialization, like prepared execution. */
+typedef struct rns8_pinned_host_buffer rns8_pinned_host_buffer;
+typedef struct rns8_pinned_host_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,flags;
+  rns8_native_device_type element_type;
+  rns8_native_device_access access;
+  int64_t rows,cols,ld;
+  uint32_t limb_count,reserved;
+} rns8_pinned_host_desc;
+typedef struct rns8_pinned_host_info {
+  uint64_t struct_size;
+  uint32_t abi_version,current,write_window,device_writer;
+  uint64_t instance,generation,pinned_bytes,host_readers,device_readers,prepared_references;
+} rns8_pinned_host_info;
+RNS8_API rns8_status rns8_query_pinned_host_bytes(const rns8_pinned_host_desc*,uint64_t* out_bytes);
+RNS8_API rns8_status rns8_create_pinned_host_buffer_hip(rns8_context*,const rns8_pinned_host_desc*,uint64_t max_pinned_bytes,rns8_pinned_host_buffer**);
+RNS8_API rns8_status rns8_destroy_pinned_host_buffer(rns8_pinned_host_buffer*);
+RNS8_API rns8_status rns8_get_pinned_host_info(const rns8_pinned_host_buffer*,rns8_pinned_host_info*);
+RNS8_API rns8_status rns8_begin_pinned_host_write(rns8_pinned_host_buffer*,void** out_data,uint64_t* out_bytes);
+/* End is a CPU producer-completion assertion and strictly increases generation. */
+RNS8_API rns8_status rns8_end_pinned_host_write(rns8_pinned_host_buffer*,uint64_t generation);
+RNS8_API rns8_status rns8_begin_pinned_host_read(rns8_pinned_host_buffer*,const void** out_data,uint64_t* out_bytes);
+RNS8_API rns8_status rns8_end_pinned_host_read(rns8_pinned_host_buffer*);
+/* Exact-wide direct-HIP scalar import and scalar/1..32-limb export. Options have
+ * the same bound-verification meaning as native-device transfers. Total budget
+ * includes this retained padded pinned buffer, status word, compact native
+ * device bounce, guarded conversion scratch and optional retained matrix copy.
+ * The result uses the existing prepared token, dependency, cancel and graph APIs. */
+RNS8_API rns8_status rns8_prepare_host_transfer_hip(rns8_context*,rns8_matrix*,rns8_pinned_host_buffer*,
+    const rns8_native_transfer_options*,rns8_prepared_execution**);
+
 
 #ifdef __cplusplus
 }

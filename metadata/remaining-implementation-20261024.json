@@ -940,6 +940,18 @@
             "src/core/api_context.cpp",
             "tests/differential/test_hip_direct_exact_lift_cases.inc"
           ]
+        },
+        {
+          "summary": "Owned pinned-host native rectangles with exclusive CPU write windows, shared CPU/DMA readers, stable generations, checked aggregate staging budgets, pitched async H2D/D2H, existing prepared token/dependency/group/owned-graph integration, status-gated publication and retryable pending-resource cleanup. No pageable staging or host synchronization in enqueue.",
+          "files": [
+            "src/core/api_pinned_host.cpp",
+            "src/backend_common/pinned_host_contract.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/hip_resources.hpp",
+            "include/rns8/rns8.h",
+            "include/rns8/rns8.hpp",
+            "docs/prepared-execution.md"
+          ]
         }
       ],
       "regressions": [
@@ -947,7 +959,8 @@
         "tests/differential/test_hip_public_native_group_cases.inc",
         "tools/test_collect_public_queue_calibration.py",
         "tests/unit/test_api_prepared_lift_cases.inc",
-        "tests/differential/test_hip_direct_exact_lift_cases.inc"
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tests/unit/test_api_pinned_host_cases.inc"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -961,9 +974,8 @@
         "d403c9711b74e51d4d61ecfed365f9681f4103bc"
       ],
       "remaining": [
-        "Async transfers/export/lift and additional semantics/provider integration still to implement.",
-        "All execution and hardware qualification deferred.",
-        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
+        "Compiled resident-graph NativeToRns/BaseExtend/Export node adapters and additional semantics/provider-specific asynchronous integration remain.",
+        "Matched pinned-host stream/graph transfer calibration and complete-route HIP compilation/execution/overlap evidence remain; hardware and scientific qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

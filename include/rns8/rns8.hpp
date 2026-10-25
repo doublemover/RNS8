@@ -284,6 +284,29 @@ class PrepackCache final {
   rns8_prepack_cache* handle_ = nullptr;
 };
 
+// Declare before prepared owners; explicitly close those owners and all access
+// windows before close(). A failed close retains the handle for safe retry.
+class PinnedHostBuffer final {
+ public:
+  PinnedHostBuffer(Context& context,const rns8_pinned_host_desc& desc,uint64_t budget) {
+    check(rns8_create_pinned_host_buffer_hip(context.get(),&desc,budget,&handle_));
+  }
+  PinnedHostBuffer(const PinnedHostBuffer&)=delete;
+  PinnedHostBuffer& operator=(const PinnedHostBuffer&)=delete;
+  PinnedHostBuffer(PinnedHostBuffer&& other) noexcept:handle_(std::exchange(other.handle_,nullptr)){}
+  PinnedHostBuffer& operator=(PinnedHostBuffer&& other){if(this!=&other){check(close());handle_=std::exchange(other.handle_,nullptr);}return *this;}
+  ~PinnedHostBuffer(){(void)rns8_destroy_pinned_host_buffer(handle_);}
+  rns8_status close() noexcept {const auto status=rns8_destroy_pinned_host_buffer(handle_);if(status==RNS8_SUCCESS)handle_=nullptr;return status;}
+  rns8_pinned_host_buffer* get() const noexcept {return handle_;}
+  std::pair<void*,uint64_t> begin_write(){void* data=nullptr;uint64_t bytes=0;check(rns8_begin_pinned_host_write(handle_,&data,&bytes));return {data,bytes};}
+  void end_write(uint64_t generation){check(rns8_end_pinned_host_write(handle_,generation));}
+  std::pair<const void*,uint64_t> begin_read(){const void* data=nullptr;uint64_t bytes=0;check(rns8_begin_pinned_host_read(handle_,&data,&bytes));return {data,bytes};}
+  void end_read(){check(rns8_end_pinned_host_read(handle_));}
+  rns8_pinned_host_info info() const {rns8_pinned_host_info out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;check(rns8_get_pinned_host_info(handle_,&out));return out;}
+ private:
+  rns8_pinned_host_buffer* handle_=nullptr;
+};
+
 class Workspace final {
  public:
   Workspace(Context& context, const Plan& plan) {
