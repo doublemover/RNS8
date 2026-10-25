@@ -19,7 +19,7 @@ class NativeDatasetTests(unittest.TestCase):
                     if profile=='zero-tiles-v2':self.assertEqual(hist[0],3)
                     if profile!='full-width-v1':self.assertLess(value['adaptive_group_work_items'],value['fixed_capacity_group_work_items'])
     def test_strict_capture_binding(self):
-        for candidate in ('wmma','pack_gemm','adaptive_grid','adaptive_compact'):
+        for candidate in ('wmma','pack_gemm','adaptive_grid','adaptive_compact','global_minimum'):
             case=case_for(candidate,prefix=20,dataset_profile='mixed-tiles-v2',dataset_seed=3135)
             capture=capture_for(case);validate_capture(capture,case,'fixture-run',3,1)
             for field in ('required_channels','adaptive_group_work_items','input_hash_fnv1a64','zero_tiles'):
@@ -32,3 +32,14 @@ class NativeDatasetTests(unittest.TestCase):
         for changes in ({'dataset_seed':True},{'dataset_profile':'unversioned'},{'prefix':9},{'m':16}):
             with self.assertRaises(ValueError):case_for('adaptive_grid',**dict({'dataset_profile':'mixed-tiles-v2','dataset_seed':3135},**changes))
         with self.assertRaises(ValueError):case_for('queue',dataset_profile='uniform-small-v2',dataset_seed=3135)
+
+    def test_global_uniform_prefix_uses_same_certificate_and_counts_uniform_work(self):
+        for unsigned in (False,True):
+            for group in (1,2,4):
+                adaptive=model(17,19,17,unsigned,group,'zero-tiles-v2',3135,True)
+                uniform=model(17,19,17,unsigned,group,'zero-tiles-v2',3135,False,True)
+                self.assertEqual(uniform['required_prefix_histogram'],adaptive['required_prefix_histogram'])
+                self.assertEqual(uniform['globally_required_prefix'],adaptive['globally_required_prefix'])
+                self.assertEqual(uniform['actual_candidate_group_work_items'],4*((max(1,uniform['globally_required_prefix'])+group-1)//group))
+                self.assertGreater(uniform['actual_candidate_group_work_items'],adaptive['actual_candidate_group_work_items'])
+                self.assertEqual(len(uniform['global_bound_magnitude_limbs']),3)

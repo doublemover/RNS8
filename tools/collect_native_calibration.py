@@ -17,7 +17,7 @@ from native_dataset import PROFILES as DATASET_PROFILES, identity as dataset_ide
 
 CONVERSION = ("conversion_cold", "conversion_prepared", "conversion_pack_gemm")
 CANDIDATES = (*CONVERSION, "pack_pair", "packed_gemm", "pack_gemm", "wmma", "grid_prepared", "queue", "queue_prepared", "split_k",
-              "adaptive_grid", "adaptive_compact",
+              "adaptive_grid", "adaptive_compact", "global_minimum",
               "tiled_register", "tiled_lds",
               "encoded_b_cold", "encoded_b_warm",
               "complex_3m", "complex_4m",
@@ -25,6 +25,7 @@ CANDIDATES = (*CONVERSION, "pack_pair", "packed_gemm", "pack_gemm", "wmma", "gri
               "narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
 QUEUED = ("queue", "queue_prepared", "split_k")
 ADAPTIVE = ("adaptive_grid", "adaptive_compact")
+BOUND_CONTROLS = (*ADAPTIVE,"global_minimum")
 TILED = ("tiled_register", "tiled_lds")
 ENCODED = ("encoded_b_cold", "encoded_b_warm")
 REUSE = ("wmma", *ENCODED)
@@ -52,7 +53,7 @@ def validate_case(case):
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
         raise ValueError("invalid native calibration shape/prefix")
-    native = case["candidate"] in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)
+    native = case["candidate"] in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *BOUND_CONTROLS, *TILED)
     narrow = case["candidate"] in ("narrow_wmma", "narrow_scalar", "narrow_vector", "narrow_rns")
     if (case["candidate"] not in CANDIDATES
             or type(case["group"]) is not int or case["group"] not in (1, 2, 4)
@@ -64,7 +65,7 @@ def validate_case(case):
         raise ValueError("narrow cases require prefix=1, K<=32768; scalar is signed only")
     if case["candidate"].startswith("complex_") and (case["prefix"] != 20 or case["unsigned_inputs"]):
         raise ValueError("complex cases require signed inputs, prefix20 and group1")
-    if case["candidate"] in ADAPTIVE:
+    if case["candidate"] in BOUND_CONTROLS:
         if case["prefix"] != 20 or case.get("bound_method") != "axis_l1":
             raise ValueError("adaptive cases require prefix20 and explicit bound_method=axis_l1")
     elif "bound_method" in case:
@@ -92,7 +93,7 @@ def validate_case(case):
         raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
     if 'dataset_profile' in case or 'dataset_seed' in case:
-        if (case['candidate'] not in (*ADAPTIVE,'wmma','pack_gemm') or case['prefix']!=20
+        if (case['candidate'] not in (*BOUND_CONTROLS,'wmma','pack_gemm') or case['prefix']!=20
                 or case.get('dataset_profile') not in DATASET_PROFILES
                 or type(case.get('dataset_seed')) is not int or not 0<=case['dataset_seed']<=0xffffffff):
             raise ValueError('dataset controls require paired adaptive/wmma/pack_gemm capacity20, versioned profile and uint32 seed')
@@ -168,6 +169,36 @@ def adaptive_contract(case):
             "adaptive_kernel_selection": ("compact_group_" if compact else "grid_group_") + str(case["group"])
                 + ("_unsigned_axis_l1" if case["unsigned_inputs"] else "_signed_axis_l1"),
             "adaptive_output_scope": "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}
+
+
+def global_minimum_contract(case):
+    if case['candidate']!='global_minimum':return {}
+    m,n,k,cap=(case[key] for key in ('m','n','k','prefix'))
+    rows,cols=(m+15)//16,(n+15)//16;tiles=rows*cols
+    suffix=m*n*(cap-1)+4 if cap>1 else 0
+    peak=m*n*cap+tiles*32+(tiles+23)*4+(rows+cols)*24+43*4+32+suffix
+    return {'global_minimum_control':dict(version=1,proof_source='fresh_device_axis_l1_tile_bound_maximum',summary_reuse=False,
+        zero_compute_prefix_floor=1,proof_readback_bytes_per_call=36,requested_scratch_high_water_bytes=peak,
+        scratch_is_observed_allocator_peak=False,output_scope='uniform_minimum_prefix_then_exact_suffix_and_staged_full_capacity_commit')}
+
+
+def validate_global_minimum_sample(receipt,case,host_ns):
+    fields={'required_prefix','compute_prefix','bound_limbs','proof_readback_bytes','discovery_ns','conversion_product_ns','completion_ns','commit_ns','cleanup_ns'}
+    if type(receipt) is not dict or set(receipt)!=fields:raise ValueError('global minimum sample ABI')
+    model=dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
+        case.get('dataset_profile','full-width-v1'),case.get('dataset_seed',3135),False,True)
+    required=model['globally_required_prefix'];compute=max(1,required)
+    if any(type(receipt[k]) is not int for k in ('required_prefix','compute_prefix','proof_readback_bytes')) or receipt['required_prefix']!=required or receipt['compute_prefix']!=compute or receipt['proof_readback_bytes']!=36:
+        raise ValueError('global minimum device prefix/readback')
+    limbs=receipt['bound_limbs']
+    if type(limbs) is not list or len(limbs)!=3 or any(type(x) is not int or not 0<=x<2**64 for x in limbs):raise ValueError('global bound limbs')
+    if limbs!=model['global_bound_magnitude_limbs']:raise ValueError('global device bound differs from exact oracle')
+    bound=sum(x<<(64*i) for i,x in enumerate(limbs));threshold=bound*(1 if case['unsigned_inputs'] else 2)
+    selected=0 if not bound else next((p for p in range(1,case['prefix']+1) if math.prod(DEFAULT_MODULI[:p])>threshold),21)
+    if selected!=required:raise ValueError('global bound strict uniqueness')
+    phases=[receipt[k] for k in ('discovery_ns','conversion_product_ns','completion_ns','commit_ns','cleanup_ns')]
+    if any(type(x) not in (int,float) or not math.isfinite(x) or x<0 for x in phases) or not positive_number(phases[0]) or not positive_number(phases[1]) or not positive_number(phases[3]) or sum(phases)>host_ns+1e-6:
+        raise ValueError('global minimum complete charged phases')
 
 
 def tiled_contract(case):
@@ -315,7 +346,10 @@ def capture_contract(case, run_id, repeats, warmups):
     if 'dataset_profile' in case:
         expected['dataset_identity']=dataset_identity(case['dataset_profile'],case['dataset_seed'])
         expected['dataset_model']=dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
-            case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE)
+            case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE,case['candidate']=='global_minimum')
+    if case['candidate']=='global_minimum' and 'dataset_profile' not in case:
+        expected.update(dataset_profile='full-width-v1',dataset_seed=3135,dataset_identity=dataset_identity('full-width-v1',3135),
+            dataset_model=dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],'full-width-v1',3135,False,True))
     if case['candidate']=='split_k':
         fragments=case['fragments'];cells=case['m']*case['n']*case['prefix'];separate=case['merge_policy']=='separate-control'
         expected.update(native_partial_format='centered_int8',merge_output_format='canonical_uint8',
@@ -325,6 +359,7 @@ def capture_contract(case, run_id, repeats, warmups):
             source_counts_not_measured_HBM=True)
     expected.update(scheduling_contract(case))
     expected.update(adaptive_contract(case))
+    expected.update(global_minimum_contract(case))
     expected.update(tiled_contract(case))
     expected.update(narrow_contract(case))
     if case["candidate"].startswith("complex_"):
@@ -438,6 +473,11 @@ def validate_capture(capture, case, run_id, repeats, warmups):
                 or not positive_number(sample.get("uninstrumented_host_call_ns"))
                 or not isinstance(sample.get("events"), list)):
             raise ValueError("invalid sample verification/timing")
+        if case['candidate']=='global_minimum':
+            validate_global_minimum_sample(sample.get('global_minimum'),case,sample['host_call_ns'])
+            validate_global_minimum_sample(sample.get('uninstrumented_global_minimum'),case,sample['uninstrumented_host_call_ns'])
+        elif sample.get('global_minimum') is not None or sample.get('uninstrumented_global_minimum') is not None:
+            raise ValueError('unrequested global minimum receipt')
         for event in sample["events"]:
             if (not isinstance(event, dict) or type(event.get("label")) is not str or not event["label"]
                     or "elapsed_ns" not in event
@@ -569,7 +609,7 @@ def main():
     args = parser.parse_args()
     try:
         cases = strict_json(args.cases.read_text(encoding="utf-8"))
-        if (not isinstance(cases, list) or not 1 <= len(cases) <= 64 or not 1 <= args.runs <= 100
+        if (not isinstance(cases, list) or not 1 <= len(cases) <= 80 or not 1 <= args.runs <= 100
                 or not 1 <= args.repeats <= 10000 or not 1 <= args.warmups <= 1000 or args.timeout <= 0):
             raise ValueError("invalid case/run/repeat/timeout domain")
         cases = [validate_case(c) for c in cases]
@@ -582,7 +622,7 @@ def main():
         if 'dataset_profile' in case:
             preflight.append({'case':case,'dataset_identity':dataset_identity(case['dataset_profile'],case['dataset_seed']),
                 'model':dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
-                    case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE)})
+                    case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE,case['candidate']=='global_minimum')})
     if args.plan_only:
         print(json.dumps({'schema':'rns8_native_dataset_preflight_v2','cases':preflight,'gpu_work_executed':False},indent=2));return 0
     exe = args.exe.resolve(strict=True)
@@ -607,7 +647,7 @@ def main():
         if case["candidate"] in (*QUEUED, "adaptive_compact"):
             command.append(str(case["workers"]))
         if case["candidate"]=='split_k':command.extend([str(case['fragments']),case['merge_policy']])
-        if case["candidate"] in ADAPTIVE:
+        if case["candidate"] in BOUND_CONTROLS:
             command.append(case["bound_method"])
         if case["candidate"] in TILED:
             command.extend(str(case[key]) for key in ("k_depth", "lds_buffers"))
@@ -640,6 +680,7 @@ def main():
             record["comparison_identity"] = {"artifact_sha256": artifact, **identity,
                                              "case": case, **scheduling_contract(case),
                                              **adaptive_contract(case),
+                                             **global_minimum_contract(case),
                                              **tiled_contract(case),
                                              **conversion_contract(case),
                                              **reuse_contract(case),
@@ -707,7 +748,7 @@ def main():
         summary=[]
         for key,candidates in groups.items():
             item={'work_contract':dict(zip(('m','n','k','prefix','group','unsigned_inputs','dataset_profile','dataset_seed'),key)),
-                  'candidates':{},'missing_controls':sorted({'wmma','pack_gemm','adaptive_grid','adaptive_compact'}-set(candidates))}
+                  'candidates':{},'missing_controls':sorted({'wmma','pack_gemm','adaptive_grid','adaptive_compact','global_minimum'}-set(candidates))}
             for candidate,observations in candidates.items():
                 times=[row['sustained_mean_call_ns'] for row in observations]
                 item['candidates'][candidate]={'independent_processes':len(times),'complete_call_ns_process_median':statistics.median(times),
@@ -716,7 +757,7 @@ def main():
             summary.append(item)
         with (args.output/('adaptive-distribution-comparison-'+campaign+'.json')).open('x',encoding='utf-8') as stream:
             json.dump({'schema':'rns8_adaptive_distribution_comparison_v2','groups':summary,'promotion_eligible':False,
-                'global_minimal_completed_output_control_implemented':False,
+                'global_minimal_completed_output_control_implemented':True,
                 'estimator':'one complete sustained mean per independent process; no pooling different input distributions',
                 'warning':'modeled channel/group savings are not measured speedups; all complete discovery/compaction/suffix/commit costs remain charged'},stream,indent=2)
     print(f"Collected {len(jobs)} independent native microcase records; qualification remains pending")

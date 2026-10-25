@@ -1,5 +1,6 @@
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/adaptive_native_support.hpp"
+#include "backend_hip_direct/native_global_minimum.hpp"
 #include "backend_common/garner_constants.hpp"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -500,4 +501,19 @@ TEST_CASE("native first merge normalizes centered bytes without changing canonic
         static_cast<int8_t>(canonical>=(p+1)/2?int32_t(canonical)-int32_t(p):int32_t(canonical)));
     }
   }
+}
+
+TEST_CASE("global minimum control admits complete simultaneous scratch before any execution") {
+  using namespace rns8::detail;
+  for(uint32_t capacity:{1u,2u,20u})for(uint32_t group:{1u,2u,4u}) {
+    const auto support=query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,UINT64_MAX);
+    REQUIRE(support.status==RNS8_SUCCESS);
+    CHECK(support.peak_scratch_bytes==support.discovery.peak_scratch_bytes+sizeof(NativeTileBound)+support.suffix_bytes);
+    CHECK(support.suffix_bytes==(capacity==1?0:17*19*(capacity-1)+sizeof(int)));
+    CHECK(query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,support.peak_scratch_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,support.peak_scratch_bytes).status==RNS8_SUCCESS);
+  }
+  CHECK(query_native_global_minimum_support(INT64_MAX,1,1,1,1,1,20,1,UINT64_MAX).status==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(query_native_global_minimum_support(1,1,1,1,1,1,0,1,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_native_global_minimum_support(1,1,1,1,1,1,20,3,UINT64_MAX).status==RNS8_INVALID_ARGUMENT);
 }

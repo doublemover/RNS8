@@ -19,6 +19,7 @@
 #include "backend_hip_direct/finite_verify_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 #include "backend_hip_direct/native_tiled_prepared.hpp"
+#include "backend_hip_direct/native_global_minimum.hpp"
 
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
@@ -706,6 +707,7 @@ rns8_status hip_direct_collect_deferred_buffers(int device_id) {
 #include "hip_backend_strassen.inc"
 #include "hip_backend_rank23_slp.inc"
 #include "hip_backend_adaptive_native.inc"
+#include "hip_backend_native_global_minimum.inc"
 #include "hip_backend_integrity.inc"
 #include "hip_backend_finite_verify.inc"
 

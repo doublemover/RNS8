@@ -54,7 +54,7 @@ struct NativeDatasetModel {
   std::array<uint64_t,21> required_histogram{}, executed_histogram{};
   uint64_t required_channels=0,executed_channels=0,group_work_items=0,fixed_capacity_group_work_items=0;
   uint64_t input_hash=1469598103934665603ULL,zero_tiles=0;
-  uint32_t globally_required_prefix=0;
+  uint32_t globally_required_prefix=0;std::array<uint64_t,3> global_bound_magnitude{};
 };
 inline NativeDatasetModel model_native_dataset(const std::vector<uint64_t>& a,const std::vector<uint64_t>& b,
     uint32_t m,uint32_t n,uint32_t k,bool unsigned_inputs,uint32_t group,const std::string& profile) {
@@ -82,11 +82,13 @@ inline NativeDatasetModel model_native_dataset(const std::vector<uint64_t>& a,co
   for(const auto* values:{&a,&b})for(uint64_t bits:*values)for(int byte=0;byte<8;++byte) {
     result.input_hash^=(bits>>(byte*8))&255;result.input_hash*=1099511628211ULL;
   }
+  cpp_int global_bound=0;
   for(const auto& lhs:rows)for(const auto& rhs:cols) {
     const cpp_int al1=cpp_int(lhs.l1_low)+(cpp_int(lhs.l1_high)<<64);
     const cpp_int bl1=cpp_int(rhs.l1_low)+(cpp_int(rhs.l1_high)<<64);
     cpp_int exact=cpp_int(lhs.maximum)*rhs.maximum*k;
     exact=std::min(exact,cpp_int(lhs.maximum*bl1));exact=std::min(exact,cpp_int(rhs.maximum*al1));
+    global_bound=std::max(global_bound,exact);
     auto production=native_axis_l1_bound(lhs,rhs,k);
     const cpp_int actual=cpp_int(production.magnitude[0])+(cpp_int(production.magnitude[1])<<64)+(cpp_int(production.magnitude[2])<<128);
     if(actual!=exact)throw std::logic_error("axis bound differs from independent exact model");
@@ -99,6 +101,7 @@ inline NativeDatasetModel model_native_dataset(const std::vector<uint64_t>& a,co
     result.group_work_items+=(required+group-1)/group;
     result.globally_required_prefix=std::max(result.globally_required_prefix,required);
   }
+  for(auto& limb:result.global_bound_magnitude){limb=static_cast<uint64_t>(global_bound&((cpp_int(1)<<64)-1));global_bound>>=64;}
   result.zero_tiles=result.required_histogram[0];
   result.fixed_capacity_group_work_items=uint64_t{rows.size()}*cols.size()*((20+group-1)/group);
   uint32_t buckets=0;for(uint32_t p=1;p<=20;++p)buckets+=result.required_histogram[p]!=0;

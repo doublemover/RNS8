@@ -262,5 +262,15 @@
     "conversion": "replicated",
     "reuse_count": 1,
     "input_change": "stable"
+  },
+  {
+    "candidate": "global_minimum",
+    "m": 17,
+    "n": 19,
+    "k": 17,
+    "prefix": 20,
+    "group": 2,
+    "unsigned_inputs": false,
+    "bound_method": "axis_l1"
   }
 ]

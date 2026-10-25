@@ -118,3 +118,27 @@ __global__ void rns8_native_bound_scatter_kernel(
   const uint32_t slot = atomicAdd(cursors + bounds[tile].required_prefix, 1u);
   indices[slot] = static_cast<uint32_t>(tile);
 }
+
+// Reduce the SAME tile certificates consumed by adaptive execution.
+__global__ void rns8_native_global_bound_kernel(const rns8::detail::NativeTileBound* bounds,
+    uint64_t count,rns8::detail::NativeTileBound* output,uint32_t capacity,bool signed_result) {
+  using namespace rns8::detail;
+  __shared__ uint64_t magnitudes[256][3];
+  const uint32_t lane=threadIdx.x;NativeTileBound maximum{};
+  for(uint64_t i=lane;i<count;i+=256)if(native_bound_less(maximum,bounds[i]))maximum=bounds[i];
+  for(int limb=0;limb<3;++limb)magnitudes[lane][limb]=maximum.magnitude[limb];
+  __syncthreads();
+  for(uint32_t step=128;step;step/=2) {
+    if(lane<step) {
+      NativeTileBound other{};
+      for(int limb=0;limb<3;++limb)other.magnitude[limb]=magnitudes[lane+step][limb];
+      if(native_bound_less(maximum,other))maximum=other;
+      for(int limb=0;limb<3;++limb)magnitudes[lane][limb]=maximum.magnitude[limb];
+    }
+    __syncthreads();
+  }
+  if(!lane) {
+    select_native_bound_prefix(maximum,signed_result,capacity,rns8_direct_crt_table.products);
+    *output=maximum;
+  }
+}

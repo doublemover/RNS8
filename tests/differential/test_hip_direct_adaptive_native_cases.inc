@@ -1,3 +1,4 @@
+#include "backend_hip_direct/native_global_minimum.hpp"
 template <typename T>
 void check_adaptive_native_product() {
   using namespace rns8::detail;
@@ -335,4 +336,84 @@ TEST_CASE("adaptive grid and compact complete versioned heterogeneous datasets",
       REQUIRE(actual==expected);
     }
   }
+}
+
+template<class T> void check_global_minimum_completed_native() {
+  using namespace rns8::detail;using boost::multiprecision::cpp_int;
+  constexpr int m=17,n=19,k=17,lda=19,ldb=22,ldc=23,capacity=20;
+  constexpr bool uns=std::is_unsigned_v<T>;
+  std::vector<T> a(m*lda),b(k*ldb);
+  hip_direct_device_buffer da,db,dc;
+  REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+  REQUIRE(dc.allocate(0,capacity*m*ldc)==RNS8_SUCCESS);
+  auto mag=[](T value){cpp_int x=value;return x<0?cpp_int(-x):x;};
+  for(unsigned mutation=0;mutation<3;++mutation) {
+    for(int r=0;r<m;++r)for(int q=0;q<k;++q)a[r*lda+q]=mutation==2?T(0):mutation==1?std::numeric_limits<T>::max():T(r<16?2:7);
+    for(int q=0;q<k;++q)for(int c=0;c<n;++c)b[q*ldb+c]=mutation==2?T(0):mutation==1?std::numeric_limits<T>::max():T(c<16?3:5);
+    if constexpr(!uns)if(mutation==1)a[16*lda]=std::numeric_limits<T>::min();
+    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+    cpp_int bound=0;
+    for(int tr=0;tr<m;tr+=16)for(int tc=0;tc<n;tc+=16) {
+      cpp_int am=0,al=0,bm=0,bl=0;
+      for(int r=tr;r<std::min(m,tr+16);++r){cpp_int sum=0;for(int q=0;q<k;++q){auto v=mag(a[r*lda+q]);sum+=v;am=std::max(am,v);}al=std::max(al,sum);}
+      for(int c=tc;c<std::min(n,tc+16);++c){cpp_int sum=0;for(int q=0;q<k;++q){auto v=mag(b[q*ldb+c]);sum+=v;bm=std::max(bm,v);}bl=std::max(bl,sum);}
+      cpp_int tile=am*bm*k;tile=std::min(tile,cpp_int(am*bl));tile=std::min(tile,cpp_int(bm*al));bound=std::max(bound,tile);
+    }
+    uint32_t required=0;cpp_int product=1,threshold=bound*(uns?1:2);
+    if(bound!=0)do{product*=rns8_default_modulus(required++);}while(product<=threshold);
+    std::vector<int8_t> expected(capacity*m*ldc,99);
+    for(int r=0;r<m;++r)for(int c=0;c<n;++c) {
+      cpp_int exact=0;for(int q=0;q<k;++q)exact+=cpp_int(a[r*lda+q])*b[q*ldb+c];
+      for(int plane=0;plane<capacity;++plane){const auto mod=rns8_default_modulus(plane);int v=(exact%mod).template convert_to<int>();if(v<0)v+=mod;if(v>=(mod+1)/2)v-=mod;expected[(plane*m+r)*ldc+c]=int8_t(v);}
+    }
+    for(uint32_t group:{1u,2u,4u}) {
+      std::vector<int8_t> actual(expected.size(),99);REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      bool written=true;NativeGlobalMinimumReceipt receipt;
+      const auto status=hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,capacity,group,1<<20,written,receipt);
+      if(status==RNS8_UNSUPPORTED_BACKEND){CHECK_FALSE(written);SKIP("global minimum control needs compiled RDNA3 native WMMA");}
+      REQUIRE(status==RNS8_SUCCESS);CHECK(written);CHECK(receipt.required_prefix==required);CHECK(receipt.compute_prefix==std::max(1u,required));CHECK(receipt.proof_readback_bytes==36);
+      const cpp_int observed_bound=cpp_int(receipt.bound.magnitude[0])+(cpp_int(receipt.bound.magnitude[1])<<64)+(cpp_int(receipt.bound.magnitude[2])<<128);
+      CHECK(observed_bound==bound);
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);REQUIRE(actual==expected);
+      const auto support=query_native_global_minimum_support(m,n,k,lda,ldb,ldc,capacity,group,UINT64_MAX);
+      written=true;CHECK(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,capacity,group,support.peak_scratch_bytes-1,written,receipt)==RNS8_WORKSPACE_TOO_SMALL);CHECK_FALSE(written);
+      if(required>1){written=true;CHECK(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,1,group,1<<20,written,receipt)==RNS8_RANGE_ERROR);CHECK_FALSE(written);}
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);CHECK(actual==expected);
+      written=true;CHECK(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(da.get()),m,n,k,lda,ldb,ldc,uns,capacity,group,1<<20,written,receipt)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(written);
+    }
+  }
+}
+TEST_CASE("global minimum device proof completes full output and refreshes after native mutation") {
+  if(!hip_available())SKIP("no HIP device for global minimum native control");
+  check_global_minimum_completed_native<int64_t>();check_global_minimum_completed_native<uint64_t>();
+}
+
+TEST_CASE("global minimum reduction includes a unique maximum beyond its first 256 certificates") {
+  using namespace rns8::detail;using boost::multiprecision::cpp_int;
+  if(!hip_available())SKIP("no HIP device for global minimum native control");
+  constexpr int m=257,n=257,k=1,ldc=259,capacity=20;
+  std::vector<uint64_t> a(m,1),b(n,1);a.back()=b.back()=UINT64_MAX;
+  hip_direct_device_buffer da,db,dc;
+  REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+  REQUIRE(dc.allocate(0,capacity*m*ldc)==RNS8_SUCCESS);
+  REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+  REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+  std::vector<int8_t> actual(capacity*m*ldc,99),expected=actual;
+  REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+  const cpp_int maximum=cpp_int(UINT64_MAX)*UINT64_MAX;
+  uint32_t required=0;cpp_int product=1;do{product*=rns8_default_modulus(required++);}while(product<=maximum);
+  for(int plane=0;plane<capacity;++plane) {
+    const auto modulus=rns8_default_modulus(plane);
+    auto residue=[&](const cpp_int& value){int v=(value%modulus).convert_to<int>();if(v>=(modulus+1)/2)v-=modulus;return int8_t(v);};
+    const int8_t one=residue(cpp_int(1)),edge=residue(cpp_int(UINT64_MAX)),corner=residue(maximum);
+    for(int r=0;r<m;++r)for(int c=0;c<n;++c)expected[(plane*m+r)*ldc+c]=r==m-1?(c==n-1?corner:edge):(c==n-1?edge:one);
+  }
+  bool written=true;NativeGlobalMinimumReceipt receipt;
+  const auto status=hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,1,n,ldc,true,capacity,4,1<<24,written,receipt);
+  if(status==RNS8_UNSUPPORTED_BACKEND){CHECK_FALSE(written);SKIP("global minimum control needs compiled RDNA3 native WMMA");}
+  REQUIRE(status==RNS8_SUCCESS);CHECK(written);CHECK(receipt.required_prefix==required);
+  const cpp_int observed=cpp_int(receipt.bound.magnitude[0])+(cpp_int(receipt.bound.magnitude[1])<<64)+(cpp_int(receipt.bound.magnitude[2])<<128);
+  CHECK(observed==maximum);
+  REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);CHECK(actual==expected);
 }

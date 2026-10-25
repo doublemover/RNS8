@@ -10,6 +10,7 @@
 #include "core/internal.hpp"
 #include "epilogue_coefficients.hpp"
 #include "native_dataset.hpp"
+#include "backend_hip_direct/native_global_minimum.hpp"
 #include <charconv>
 #include <chrono>
 #include <cstring>
@@ -102,12 +103,12 @@ nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) 
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|complex_3m|complex_4m|"
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|global_minimum|complex_3m|complex_4m|"
         "conversion_cold|conversion_prepared|conversion_pack_gemm|tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
         "split_k: optional workers fragments fused-first|separate-control; fragments1..min(K,4096), default min(K,3).\n"
-        "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
+        "adaptive_grid/global_minimum: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
         "conversion modes: append depth buffers waves replicated|cooperative|encoded_lds reuse_count stable|reverse_k; cold includes one preparation per R-call batch, prepared reports setup separately.\n"
         "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
         "encoded_b_cold/warm: append required reuse_count1..256; wmma accepts the same suffix (default1). Each timed execute is R GEMMs, one final verification. Cold includes allocate/prepare/free; warm reports one setup separately.\n"
@@ -165,8 +166,9 @@ int main(int argc, char** argv) {
     if(explicit_locality && candidate!="queue_prepared" && candidate!="split_k")throw std::invalid_argument("locality controls require prepared native queue or native split-K");
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
+    const bool global_minimum=candidate=="global_minimum",bound_control=adaptive || global_minimum;
     const bool compact = candidate == "adaptive_compact";
-    if(explicit_dataset && !adaptive && candidate!="wmma" && candidate!="pack_gemm")
+    if(explicit_dataset && !bound_control && candidate!="wmma" && candidate!="pack_gemm")
       throw std::invalid_argument("dataset controls apply to adaptive, wmma and pack_gemm paired cases");
     if(explicit_dataset && prefix!=20)throw std::invalid_argument("dataset ablations require identical completed capacity20 output");
     const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
@@ -175,12 +177,12 @@ int main(int argc, char** argv) {
     const bool reuse_batch = encoded || candidate == "wmma" || conversion;
     if (encoded && argc != 12)
       throw std::invalid_argument("encoded_b cases require explicit reuse_count1..256 after run identity");
-    if (adaptive && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
+    if (bound_control && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
                      std::string(argv[compact ? 12 : 11]) != "axis_l1"))
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
     if (tiled && argc != 13)
       throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
-    if (!conversion && !adaptive && !tiled && !(candidate=="split_k" && argc==14) && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
+    if (!conversion && !bound_control && !tiled && !(candidate=="split_k" && argc==14) && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
     const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
     if(explicit_dataset && reuse_count!=1)throw std::invalid_argument("dataset controls require one complete product per call");
@@ -197,7 +199,7 @@ int main(int argc, char** argv) {
     const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
         queued ? (argc >= 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
-    const bool native = conversion || candidate == "wmma" || encoded || queued || prepared || adaptive || tiled;
+    const bool native = conversion || candidate == "wmma" || encoded || queued || prepared || bound_control || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
@@ -223,18 +225,20 @@ int main(int argc, char** argv) {
     std::vector<uint64_t> a(std::size_t{m}*k), b(std::size_t{k}*n);
     rns8::bench::fill_native_dataset(a,b,m,n,k,unsigned_inputs,dataset_profile,dataset_seed,rng);
     const auto dataset_identity=rns8::bench::native_dataset_identity(dataset_profile,dataset_seed);
-    nlohmann::json dataset_model=nullptr;
-    if(adaptive || explicit_dataset) {
+    nlohmann::json dataset_model=nullptr;uint32_t expected_global_prefix=0;
+    if(bound_control || explicit_dataset) {
       // This exact preflight precedes capability probing, allocation and GPU work.
       const auto model=rns8::bench::model_native_dataset(a,b,m,n,k,unsigned_inputs,group,dataset_profile);
+      expected_global_prefix=model.globally_required_prefix;
       dataset_model={{"schema_version",2},{"method","axis_l1_exact_cpp_int_and_production_helper_crosscheck"},
         {"input_hash_fnv1a64",std::to_string(model.input_hash)},{"required_prefix_histogram",model.required_histogram},
         {"adaptive_executed_prefix_histogram",model.executed_histogram},{"zero_tiles",model.zero_tiles},
         {"required_channels",model.required_channels},{"adaptive_executed_channels",model.executed_channels},
         {"adaptive_group_work_items",model.group_work_items},{"fixed_capacity_group_work_items",model.fixed_capacity_group_work_items},
         {"globally_required_prefix",model.globally_required_prefix},{"source_work_not_instruction_or_speedup",true},
-        {"actual_candidate_group_work_items",adaptive?model.group_work_items:model.fixed_capacity_group_work_items},
-        {"global_minimal_completed_output_control_implemented",false}};
+        {"actual_candidate_group_work_items",adaptive?model.group_work_items:global_minimum?uint64_t((m+15)/16)*((n+15)/16)*((std::max(1u,model.globally_required_prefix)+group-1)/group):model.fixed_capacity_group_work_items},
+        {"global_minimal_completed_output_control_implemented",true}};
+      if(global_minimum)dataset_model["global_bound_magnitude_limbs"]=model.global_bound_magnitude;
     }
     check(hip_direct_probe(0, device));
     std::vector<uint64_t> d(epilogue ? std::size_t{m} * n : 0);
@@ -340,6 +344,12 @@ int main(int argc, char** argv) {
       queue_prepare_ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
     }
     if(explicit_locality && prepared)locality_receipt=prepared_queue.locality_info();
+    NativeGlobalMinimumReceipt global_receipt;
+    const auto global_json=[&]() {return nlohmann::json{{"required_prefix",global_receipt.required_prefix},{"compute_prefix",global_receipt.compute_prefix},
+        {"bound_limbs",{global_receipt.bound.magnitude[0],global_receipt.bound.magnitude[1],global_receipt.bound.magnitude[2]}},
+        {"proof_readback_bytes",global_receipt.proof_readback_bytes},{"discovery_ns",global_receipt.discovery_ns},
+        {"conversion_product_ns",global_receipt.conversion_product_ns},{"completion_ns",global_receipt.completion_ns},
+        {"commit_ns",global_receipt.commit_ns},{"cleanup_ns",global_receipt.cleanup_ns}};};
     const auto execute = [&]() {
       if(displacement_bytes){const auto before=std::chrono::steady_clock::now();cache_displacement.mark_pending();
         const auto status=hip_direct_cache_displace(0,cache_displacement.get(),displacement_bytes,1);
@@ -398,6 +408,11 @@ int main(int argc, char** argv) {
       else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
       else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written,separate_canonicalization_control,explicit_locality?&locality:nullptr,explicit_locality?&locality_receipt:nullptr));
+      else if(global_minimum) {
+        check(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+            m,n,k,k,n,n,unsigned_inputs,prefix,group,UINT64_MAX,written,global_receipt));
+        if(!written)throw std::runtime_error("global minimum succeeded without completed output commit");
+      }
       else if (adaptive) {
         check(hip_direct_gemm_adaptive_native_device(0, da.get(), db.get(), static_cast<int8_t*>(dc.get()),
             m, n, k, k, n, n, unsigned_inputs, prefix, group, UINT64_MAX, written,
@@ -422,6 +437,8 @@ int main(int argc, char** argv) {
       }
     };
     const auto verify = [&]() {
+      if(global_minimum && global_receipt.required_prefix!=expected_global_prefix)
+        throw std::runtime_error("device global prefix differs from independent exact axis-L1 oracle");
       if (candidate == "pack_pair" || candidate == "pack_gemm") { compare(ra.get(),expected_a); compare(rb.get(),expected_b); }
       if (candidate != "pack_pair") compare(dc.get(),expected);
     };
@@ -438,6 +455,7 @@ int main(int argc, char** argv) {
       for (const auto& event : hip_direct_timing_snapshot()) events.push_back({{"label",event.label},
           {"elapsed_ns",event.microseconds>0 ? nlohmann::json(event.microseconds*1000) : nlohmann::json(nullptr)}});
       verify();
+      const auto instrumented_global=global_minimum?global_json():nlohmann::json(nullptr);
       hip_direct_timing_set_enabled(false);
       prepare();
       const auto production_start = std::chrono::steady_clock::now();
@@ -449,7 +467,8 @@ int main(int argc, char** argv) {
       samples.push_back({{"host_call_ns",host_ns>0 ? nlohmann::json(host_ns) : nlohmann::json(nullptr)},
                          {"uninstrumented_host_call_ns",production_ns},
                          {"uninstrumented_exact_reference_passed",true},
-                         {"events",events},{"exact_reference_passed",true}});
+                         {"events",events},{"exact_reference_passed",true},
+                         {"global_minimum",instrumented_global},{"uninstrumented_global_minimum",global_minimum?global_json():nlohmann::json(nullptr)}});
     }
     hip_direct_timing_set_enabled(false);
     auto sustained = sustained_calls(prepare, execute, verify);
@@ -510,7 +529,7 @@ int main(int argc, char** argv) {
       {"standalone_canonicalization_logical_bytes",separate_canonicalization_control?uint64_t{2}*splits*prefix*m*n:0},
       {"standalone_canonicalization_launches",separate_canonicalization_control?1:0},
       {"merge_maximum_integer_sum",128*255},{"source_counts_not_measured_HBM",true}});
-    if(adaptive || explicit_dataset)report.update({{"dataset_profile",dataset_profile},{"dataset_seed",dataset_seed},
+    if(bound_control || explicit_dataset)report.update({{"dataset_profile",dataset_profile},{"dataset_seed",dataset_seed},
       {"dataset_identity",dataset_identity},{"dataset_model",dataset_model}});
     if (reuse_batch && !conversion) {
       report.update({{"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
@@ -582,6 +601,15 @@ int main(int argc, char** argv) {
               (unsigned_inputs ? "_unsigned_d" : "_signed_d") + std::to_string(tiled_depth) +
               "_b" + std::to_string(tiled_buffers)},
           {"tiled_control_scope","four_wave_32x32_same_output_residency_reference_and_slab_cap"}});
+    }
+    if(global_minimum) {
+      const auto support=query_native_global_minimum_support(m,n,k,k,n,n,prefix,group,UINT64_MAX);check(support.status);
+      report.update({{"bound_method","axis_l1"},{"global_minimum_control",{{"version",1},
+          {"proof_source","fresh_device_axis_l1_tile_bound_maximum"},{"summary_reuse",false},{"zero_compute_prefix_floor",1},
+          {"proof_readback_bytes_per_call",sizeof(NativeTileBound)+sizeof(uint32_t)},
+          {"requested_scratch_high_water_bytes",support.peak_scratch_bytes},{"scratch_is_observed_allocator_peak",false},
+          {"output_scope","uniform_minimum_prefix_then_exact_suffix_and_staged_full_capacity_commit"}}}});
+      report["timing_scope"]="resident immutable native inputs; fresh device axis-L1 discovery/compaction, device maximum reduction, proof readback, uniform native WMMA conversion/product, exact suffix, staged commit, all allocations/frees and synchronization charged per call; oracle outside timing; no summary reuse";
     }
     if (adaptive) {
       const auto support = query_adaptive_native_support(m,n,k,k,n,n,prefix,group,

@@ -44,7 +44,7 @@ def inputs(m,n,k,unsigned,profile,seed):
     return a,b
 
 @lru_cache(maxsize=128)
-def model(m,n,k,unsigned,group,profile,seed,adaptive):
+def model(m,n,k,unsigned,group,profile,seed,adaptive,global_minimum=False):
     a,b=inputs(m,n,k,unsigned,profile,seed)
     def magnitude(bits):return ((-bits)&MASK) if not unsigned and bits>>63 else bits
     def summaries(rhs):
@@ -56,10 +56,10 @@ def model(m,n,k,unsigned,group,profile,seed,adaptive):
                 maximum=max(maximum,max(row));l1=max(l1,sum(row))
             out.append((maximum,l1))
         return out
-    rows,cols=summaries(False),summaries(True);hist=[0]*21
+    rows,cols=summaries(False),summaries(True);hist=[0]*21;global_bound=0
     for am,al1 in rows:
         for bm,bl1 in cols:
-            bound=min(am*bm*k,am*bl1,bm*al1);threshold=bound*(1 if unsigned else 2);prefix=0;product=1
+            bound=min(am*bm*k,am*bl1,bm*al1);global_bound=max(global_bound,bound);threshold=bound*(1 if unsigned else 2);prefix=0;product=1
             if bound:
                 while prefix==0 or product<=threshold:
                     if prefix==20:raise ValueError('dataset exceeds certified output capacity')
@@ -76,10 +76,15 @@ def model(m,n,k,unsigned,group,profile,seed,adaptive):
         for bits in values:
             for byte in range(8):digest=((digest^((bits>>(byte*8))&255))*1099511628211)&MASK
     channels=sum(p*count for p,count in enumerate(hist))
-    return dict(schema_version=2,method='axis_l1_exact_cpp_int_and_production_helper_crosscheck',
+    global_prefix=max(p for p,x in enumerate(hist) if x)
+    global_groups=len(rows)*len(cols)*((max(1,global_prefix)+group-1)//group)
+    result=dict(schema_version=2,method='axis_l1_exact_cpp_int_and_production_helper_crosscheck',
                 input_hash_fnv1a64=str(digest),required_prefix_histogram=hist,adaptive_executed_prefix_histogram=list(hist),
                 zero_tiles=hist[0],required_channels=channels,adaptive_executed_channels=channels,
                 adaptive_group_work_items=groups,fixed_capacity_group_work_items=fixed,
-                globally_required_prefix=max(p for p,x in enumerate(hist) if x),
-                source_work_not_instruction_or_speedup=True,actual_candidate_group_work_items=groups if adaptive else fixed,
-                global_minimal_completed_output_control_implemented=False)
+                globally_required_prefix=global_prefix,
+                source_work_not_instruction_or_speedup=True,actual_candidate_group_work_items=groups if adaptive else global_groups if global_minimum else fixed,
+                global_minimal_completed_output_control_implemented=True)
+
+    if global_minimum:result['global_bound_magnitude_limbs']=[(global_bound>>(64*i))&MASK for i in range(3)]
+    return result

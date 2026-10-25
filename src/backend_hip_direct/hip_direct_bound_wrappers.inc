@@ -66,3 +66,9 @@ extern "C" int rns8_hip_native_bound_compact(
       dim3(256), 0, nullptr, bounds, cursors, indices, tile_count);
   return static_cast<int>(hipGetLastError());
 }
+
+extern "C" int rns8_hip_native_global_bound(const rns8::detail::NativeTileBound* bounds,
+    uint64_t count,rns8::detail::NativeTileBound* output,uint32_t capacity,bool signed_result) {
+  hipLaunchKernelGGL(rns8_native_global_bound_kernel,dim3(1),dim3(256),0,nullptr,bounds,count,output,capacity,signed_result);
+  return int(hipGetLastError());
+}

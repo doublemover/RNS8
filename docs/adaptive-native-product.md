@@ -122,8 +122,9 @@ conversion; matched conversion and end-to-end timings remain pending.
 ## Versioned distribution and complete-output controls
 
 The native calibrator and collector accept paired `dataset_profile` and
-`dataset_seed` controls for capacity-20 `wmma`, `pack_gemm`, `adaptive_grid` and
-`adaptive_compact` cases, one complete product per call. The original full-width
+`dataset_seed` controls for capacity-20 `wmma`, `pack_gemm`, `adaptive_grid`,
+`adaptive_compact` and `global_minimum` cases, one complete product per call.
+The original full-width
 MT19937-64/forced-extrema stream remains `full-width-v1`. New deterministic
 SplitMix-derived profiles are `uniform-small-v2`, `mixed-tiles-v2` (alternating
 16-row/column small and 48-bit magnitudes), `zero-tiles-v2`, and
@@ -143,7 +144,7 @@ claim of executed channels. Counts model source work, not ISA or speedup.
 The collector independently regenerates inputs and exact histograms, validates
 all fields, includes its model source in provenance, and can emit a `--plan-only`
 preflight without opening the executable. The tracked
-`adaptive-distributions.json` corpus pairs all four complete-output routes on
+80-case `adaptive-distributions.json` corpus pairs all five complete-output routes on
 small, tail and 512-square shapes, retaining full-width no-benefit controls and
 an unsigned heterogeneous cross-check. Every adaptive call still pays discovery,
 compaction, scratch ownership, exact suffix completion, staged commit and sync;
@@ -152,9 +153,33 @@ Boost residue/padding checks and hook-disabled sustained bursts remain intact.
 
 Comparison reports keep input/seed, semantic, shape, group and capacity cohorts
 separate, with one sustained complete-call observation per independent process
-and diagnostic events retained alongside it. A globally minimal-prefix route
-with completed full-basis output is **not implemented by this harness** and is
-explicitly marked absent, rather than comparing an incomplete-output shortcut.
+and diagnostic events retained alongside it. `global_minimum` now provides the
+minimum uniform compute prefix admitted by the same fresh device axis-L1 tile
+certificates. A device reduction takes their maximum magnitude; the host reads
+one 32-byte certificate, rechecks strict prefix selection, and launches the
+existing grouped native WMMA producer at that prefix. The existing exact suffix
+primitive then completes all requested planes before staged publication. Zero
+bounds use an explicit one-plane compute floor. This is a minimum for the
+certificate, not an oracle of the smallest range of the actual result.
+
+Every call charges fresh discovery/compaction, reduction and proof readback,
+native conversion/product, exact suffix completion, padded commit, all scratch
+allocation/release and synchronization. Samples retain these host phase times
+for both diagnostic and hook-disabled calls. The proof readback payload is 36
+bytes including discovery's rejection word; ordinary capability/status traffic
+is additional. The resource query records simultaneous requested scratch
+high-water including worst-case retained suffix scratch; it is not an observed
+allocator peak. The control borrows immutable native allocations for each
+synchronous call and never reuses a certificate after mutation. No persistent
+summary owner/cache is introduced.
+
+The independent Boost oracle checks all completed residue planes and canaries,
+and independently computed axis-L1 maximum limbs/prefixes validate the device
+receipt. Authored CPU query and GPU differential fixtures cover signed/unsigned
+extrema, tails, padding, groups 1/2/4, changed inputs, all-zero values, insufficient
+capacity/budget and alias rejection. Collector regressions reject missing proof,
+incorrect range/prefix, omitted phases and hidden summary reuse. Source and
+fixtures await integrated execution; no new result or gain is established.
 The harness compares axis-L1 only, so it does not advertise a K-panel-skew
 ablation. No new measurements, regression execution or promotion accompanies
 these authored fixtures.

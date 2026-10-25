@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import patch
 
 from collect_native_calibration import (
-    ADAPTIVE, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
+    ADAPTIVE, BOUND_CONTROLS, CANDIDATES, CONVERSION, ENCODED, QUEUED, REUSE, TILED, adaptive_contract, capture_contract, epilogue_contract, main, narrow_contract, tiled_contract,
     reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
@@ -25,7 +25,7 @@ BASE = dict(candidate="wmma", m=17, n=19, k=257, prefix=3, group=2, unsigned_inp
 
 def case_for(candidate, **changes):
     case = {**BASE, "candidate": candidate}
-    if candidate not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED):
+    if candidate not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *BOUND_CONTROLS, *TILED):
         case["group"] = 1
     if candidate.startswith("narrow_"):
         case["prefix"] = 1
@@ -37,7 +37,7 @@ def case_for(candidate, **changes):
         case.update(k_depth=16, lds_buffers=0 if candidate == "tiled_register" else 1)
     if candidate in ENCODED:
         case["reuse_count"] = 1
-    if candidate in ADAPTIVE:
+    if candidate in BOUND_CONTROLS:
         case.update(prefix=20, bound_method="axis_l1")
         if candidate == "adaptive_compact": case["workers"] = 32
     return validate_case({**case, **changes})
@@ -64,6 +64,14 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
     if case["candidate"] in CONVERSION:
         capture["conversion_prepare_ns"]=4000.25 if case["candidate"]=="conversion_prepared" else None
         capture["sustained"].update(gemm_calls=16*case["reuse_count"],mean_gemm_ns=20000000/case["reuse_count"],verified_outputs_per_batch=1)
+    if case['candidate']=='global_minimum':
+        from native_dataset import model
+        exact=model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],case.get('dataset_profile','full-width-v1'),case.get('dataset_seed',3135),False,True)
+        required=exact['globally_required_prefix']
+        receipt=dict(required_prefix=required,compute_prefix=max(1,required),bound_limbs=exact['global_bound_magnitude_limbs'],
+            proof_readback_bytes=36,discovery_ns=100.,conversion_product_ns=100.,completion_ns=20.,commit_ns=20.,cleanup_ns=20.)
+        for sample in capture['samples']:
+            sample.update(global_minimum=copy.deepcopy(receipt),uninstrumented_global_minimum=copy.deepcopy(receipt))
     return capture
 
 
@@ -135,7 +143,7 @@ class CaseTest(unittest.TestCase):
             for unsigned in (False, True):
                 if (candidate == "narrow_scalar" or candidate.startswith("complex_")) and unsigned:
                     continue
-                for group in ((1, 2, 4) if candidate in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED) else (1,)):
+                for group in ((1, 2, 4) if candidate in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *BOUND_CONTROLS, *TILED) else (1,)):
                     with self.subTest(candidate=candidate, unsigned=unsigned, group=group):
                         case = case_for(candidate, group=group, unsigned_inputs=unsigned)
                         self.assertEqual(validate_case(case), case)
@@ -246,10 +254,35 @@ class CaseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_case({**BASE, "m": 1024, "n": 1024, "k": 1025})
 
+    def test_global_minimum_device_proof_phases_and_completed_output_receipt(self):
+        case=case_for('global_minimum',dataset_profile='localized-outlier-v2',dataset_seed=3135)
+        capture=capture_for(case);validate_capture(capture,case,'fixture-run',3,1)
+        self.assertTrue(capture['global_minimum_control']['summary_reuse'] is False)
+        self.assertTrue(capture['dataset_model']['global_minimal_completed_output_control_implemented'])
+        for key,value in [('required_prefix',0),('compute_prefix',20),('proof_readback_bytes',0),
+                          ('bound_limbs',[0,0,0]),('discovery_ns',0),('conversion_product_ns',float('nan')),('completion_ns',-1),('cleanup_ns',10000)]:
+            bad=copy.deepcopy(capture);bad['samples'][0]['uninstrumented_global_minimum'][key]=value
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+        for key in ('global_minimum_control','dataset_model'):
+            bad=copy.deepcopy(capture);del bad[key]
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+        bad=copy.deepcopy(capture);bad['global_minimum_control']['summary_reuse']=True
+        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+        changed=dict(case,dataset_seed=3136)
+        with self.assertRaises(ValueError):validate_capture(capture,changed,'fixture-run',3,1)
+        for change in ({'prefix':19},{'bound_method':'tile_max'},{'workers':1},{'reuse_count':2}):
+            with self.assertRaises(ValueError):validate_case(dict(case,**change))
+
     def test_tracked_case_sets_cover_every_mode_and_adaptive_controls(self):
         root = Path(__file__).resolve().parents[1] / "benchmarks/native-calibration"
         smoke = [validate_case(row) for row in strict_json((root / "all-modes-smoke.json").read_text(encoding="utf-8"))]
         self.assertEqual({row["candidate"] for row in smoke}, set(CANDIDATES))
+        distribution = [validate_case(row) for row in strict_json((root / "adaptive-distributions.json").read_text(encoding="utf-8"))]
+        self.assertLessEqual(len(distribution),80)
+        cohorts={tuple(row[key] for key in ('m','n','k','group','unsigned_inputs','dataset_profile','dataset_seed')) for row in distribution}
+        for cohort in cohorts:
+            routes={row['candidate'] for row in distribution if tuple(row[key] for key in ('m','n','k','group','unsigned_inputs','dataset_profile','dataset_seed'))==cohort}
+            self.assertEqual(routes,{'wmma','pack_gemm',*BOUND_CONTROLS})
         adaptive = [validate_case(row) for row in strict_json((root / "adaptive-native.json").read_text(encoding="utf-8"))]
         self.assertLessEqual(len(adaptive), 64)
         self.assertEqual(len({json.dumps(row, sort_keys=True) for row in adaptive}), len(adaptive))
@@ -294,7 +327,7 @@ class CaseTest(unittest.TestCase):
         for candidate in QUEUED:
             for value in (None, True, False, 0, -1, 1025, 1.0, "32", [], {}):
                 malformed.append({**BASE, "candidate": candidate, "workers": value})
-        for candidate in (c for c in CANDIDATES if c not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *ADAPTIVE, *TILED)):
+        for candidate in (c for c in CANDIDATES if c not in (*REUSE, *CONVERSION, "grid_prepared", *QUEUED, *BOUND_CONTROLS, *TILED)):
             malformed.append({**case_for(candidate), "group": 2})
         for candidate in (c for c in CANDIDATES if c.startswith("narrow_")):
             malformed += [{**case_for(candidate), "prefix": 2}, {**case_for(candidate), "k": 32769}]
@@ -308,7 +341,7 @@ class CaseTest(unittest.TestCase):
         for workers in (None, True, False, 0, -1, 65536, 1.0, "32", [], {}):
             malformed.append({**case_for("adaptive_compact"), "workers": workers})
         malformed.append({**case_for("adaptive_grid"), "workers": 1})
-        for candidate in set(CANDIDATES) - set(ADAPTIVE):
+        for candidate in set(CANDIDATES) - set(BOUND_CONTROLS):
             malformed.append({**case_for(candidate), "bound_method": "axis_l1"})
         for case in malformed:
             with self.subTest(case=case), self.assertRaises(ValueError):
@@ -568,7 +601,7 @@ class CollectorTest(unittest.TestCase):
                                       unsigned_inputs=bool(int(command[7])),
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
                                       **({"fragments":int(command[12]),"merge_policy":command[13]} if command[1]=="split_k" else {}),
-                                      **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
+                                      **({"bound_method": command[-1]} if command[1] in BOUND_CONTROLS else {}),
                                       **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
                                       **({"coefficient_profile": command[11]} if command[1].startswith("epilogue_") else {}),
                                       **({"k_depth":int(command[11]),"lds_buffers":int(command[12]),"waves":int(command[13]),
@@ -759,7 +792,7 @@ class CollectorTest(unittest.TestCase):
         self.assertFalse(self.records()[0]["validated"])
 
     def test_invalid_cases_fail_before_launch_or_output_creation(self):
-        for index, cases in enumerate((None, {}, [], [BASE] * 65, [BASE, BASE],
+        for index, cases in enumerate((None, {}, [], [BASE] * 81, [BASE, BASE],
                                               [{**BASE, "candidate": "queue"}, {**BASE, "candidate": "queue", "workers": 32}],
                                               [{**BASE, "workers": 32}], [{**BASE, "m": True}])):
             self.output = self.root / f"bad-input-{index}"
@@ -783,7 +816,7 @@ class CompiledCliTest(unittest.TestCase):
         self.assertIn("default 32", result.stdout)
 
     def test_malformed_and_irrelevant_workers_fail_before_device_work(self):
-        for candidate in (name for name in CANDIDATES if name not in (*ADAPTIVE, *TILED, *REUSE, *CONVERSION)):
+        for candidate in (name for name in CANDIDATES if name not in (*BOUND_CONTROLS, *TILED, *REUSE, *CONVERSION)):
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
             workers = ("0", "1025", "-1", "1.0", "+1", "", "4294967296", "32x") if candidate in QUEUED else ("32",)
@@ -810,10 +843,10 @@ class CompiledCliTest(unittest.TestCase):
                     self.assertNotEqual(result.returncode,0)
 
     def test_adaptive_invalid_controls_fail_before_device_work(self):
-        for candidate in ADAPTIVE:
+        for candidate in BOUND_CONTROLS:
             case = case_for(candidate)
             base = [candidate, *(str(case[k]) for k in ("m", "n", "k", "prefix", "group")), "0", "1", "1", "cli-reject"]
-            invalid = [[], ["tile_max"], ["32"]] if candidate == "adaptive_grid" else [[], ["32"], ["axis_l1"],
+            invalid = [[], ["tile_max"], ["32"]] if candidate != "adaptive_compact" else [[], ["32"], ["axis_l1"],
                 ["0", "axis_l1"], ["65536", "axis_l1"], ["1.0", "axis_l1"], ["32", "panel_l1"]]
             for suffix in invalid:
                 with self.subTest(candidate=candidate, suffix=suffix):

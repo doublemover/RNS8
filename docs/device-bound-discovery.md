@@ -79,3 +79,18 @@ for identical seeded adaptive-band inputs, thin K and compute-heavy K, several
 tile counts, retained inputs and padded export. Production/hook-disabled and
 diagnostic/GPU-event collection remain separate. No timings or regressions have
 been executed for this change.
+
+
+## Fair uniform-prefix control
+
+The private `global_minimum` native calibration route reduces the existing
+fresh device axis-L1 tile certificates to their maximum magnitude and selects
+the smallest uniform prefix satisfying the same strict signed/unsigned range
+rule. It computes that prefix with the native producer, then completes the
+requested basis with exact suffix growth before publishing output. Its proof
+readback, discovery/compaction, conversion/product, completion, commit and
+allocation cleanup remain inside complete-call timing. The CPU data model only
+checks the receipt outside timing; it never supplies the selected device prefix.
+Zero proofs use an explicit one-plane compute floor. No reusable summary cache
+or public default route is introduced. See the [adaptive control contract](adaptive-native-product.md#versioned-distribution-and-complete-output-controls).
+These sources and regressions are authored pending integrated validation.
