@@ -10,9 +10,35 @@ from unittest.mock import patch
 from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
 from test_capture_identity_support import synthetic_identity, synthetic_static_isa_report
 import gpu_isa_report
+import isa_common
 
 
 class StaticAssociation(unittest.TestCase):
+    def test_extraction_keeps_the_inspected_artifact_immutable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            obj = root / "input.obj"
+            obj.write_bytes(b"original COFF artifact")
+            scratch = root / "scratch"
+            scratch.mkdir()
+            calls = []
+
+            def command(argv):
+                calls.append(argv)
+                if argv[0] == "objcopy":
+                    # Model LLVM's in-place rewrite when no output is given.
+                    Path(argv[-1]).write_bytes(b"rewritten COFF artifact")
+                return "hip-amdgcn-amd-amdhsa--gfx1100\n" if "--list" in argv else ""
+
+            with patch.object(isa_common, "run_command", side_effect=command):
+                isa_common.extract_code_object("objcopy", "bundler", obj, "gfx1100", scratch, "input.fatbin")
+            self.assertEqual(obj.read_bytes(), b"original COFF artifact")
+            self.assertEqual(calls[0][-2], str(obj))
+            self.assertEqual(Path(calls[0][-1]).parent, scratch)
+            alias = scratch / "extracted-host-copy.obj"
+            with self.assertRaisesRegex(ValueError, "aliases"):
+                isa_common.extract_code_object("objcopy", "bundler", alias, "gfx1100", scratch, "input.fatbin")
+
     def fixture(self):
         capture = {"backend_selected": "ck", "selected_kernel": "ck_selected",
                    "device": {"gcn_arch": "gfx1100"}}

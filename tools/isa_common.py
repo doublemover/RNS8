@@ -149,7 +149,12 @@ def extract_code_object(
     fatbin_name: str,
 ) -> Path:
     fatbin = scratch / fatbin_name
-    run_command([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object)])
+    # Without an output operand LLVM objcopy rewrites its input, including COFF
+    # headers. Inspection must never modify an artifact whose hash is evidence.
+    host_copy = scratch / "extracted-host-copy.obj"
+    if host_copy.resolve() == host_object.resolve():
+        raise ValueError("ISA extraction output aliases the inspected object")
+    run_command([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object), str(host_copy)])
     listed = run_command([bundler, "--list", "--type=o", f"--input={fatbin}"])
     targets = [line.strip() for line in listed.splitlines() if line.strip()]
     device_target = bundle_target_for(targets, amdgpu_target)
