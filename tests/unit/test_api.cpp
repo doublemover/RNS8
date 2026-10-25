@@ -162,3 +162,8 @@ TEST_CASE("synchronous failure leases invalidate only written outputs and releas
 #include "test_api_native_integrity_cases.inc"
 
 #include "test_api_prepared_lift_cases.inc"
+
+#include "../support/ragged_recipe_fixture.hpp"
+TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
+  auto* ctx=create_cpu_context();for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

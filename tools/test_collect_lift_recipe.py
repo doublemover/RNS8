@@ -10,7 +10,7 @@ class LiftRecipeContracts(unittest.TestCase):
         return dict(schema='rns8_lift_recipe_microcase_v1',case=c,run_id='fixture',output_boundary='complete_dag_final_three_limb_export',extra_intermediate_observations=False,private_residue_transfer_control=False,
             logical_payload_estimate_bytes=(nodes+3)*cells*p+cells*48*(nodes+1)+cells*16,host_payload_bytes_before_final_export=0,final_export_payload_bytes=cells*24,exact_reference_passed=True,promotion_eligible=False,
             build_manifest={},execution_id='process1',target='gfx1100',device='fixture',artifact_capture=dict(unchanged_during_run=True,executable_sha256='a'*64),
-            recipe_arena_bytes=25600,recipe_retained_lift_bytes=17412,auto_retained_device_bytes=0,replay_hip_allocations=0,replay_hip_frees=0,selected_compute_prefixes=[1,2,3],cost_model=None,
+            ragged_retained_bytes=0,ragged_materialized_input_bytes=0,ragged_binding_peak_bytes=0,recipe_arena_bytes=25600,recipe_retained_lift_bytes=17412,auto_retained_device_bytes=0,replay_hip_allocations=0,replay_hip_frees=0,selected_compute_prefixes=[1,2,3],cost_model=None,
             setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
     def test_chain_diamond_bounds_and_noop_lift(self):
         c=self.case();self.assertEqual(bounds(c),[1,1,32,1024,32768]);self.assertEqual(validate_case(c),c)

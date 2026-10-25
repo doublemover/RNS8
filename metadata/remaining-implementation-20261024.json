@@ -692,12 +692,25 @@
             "src/backend_hip_direct/hip_backend_ragged.inc",
             "tools/collect_ragged.py"
           ]
+        },
+        {
+          "summary": "Ragged product-recipe input adapters materialize caller-owned conversion matrices once, retain/deduplicate original compact owners, revalidate source generation per replay, freeze staging capacity, and provide compatible whole-binding refresh. Aggregate conversion/owner/arena footprint is explicit. Multi-output diamond fixtures and matched ragged/full/minimum harness modes compose differently tiled source owners with consumer-demand prefix growth.",
+          "files": [
+            "src/core/api_product_recipe_ragged.inc",
+            "src/core/api_product_recipe_ragged_helpers.inc",
+            "src/core/ragged_recipe_binding.hpp",
+            "tests/support/ragged_recipe_fixture.hpp",
+            "benchmarks/rns8_lift_recipe_calibrate.cpp"
+          ]
         }
       ],
       "regressions": [
-        "tests/differential/test_hip_direct_ragged_cases.inc"
+        "tests/differential/test_hip_direct_ragged_cases.inc",
+        "tests/support/ragged_recipe_fixture.hpp"
       ],
-      "commits": [],
+      "commits": [
+        "aa24012745304a17e26ab6efbe0e0718cf9890a1"
+      ],
       "remaining": [
         "Executable fragment algebra/MFMA map and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
         "GPU execution and measured layout/performance qualification deferred."
@@ -786,6 +799,16 @@
             "tools/collect_lift_recipe.py",
             "tools/test_collect_lift_recipe.py"
           ]
+        },
+        {
+          "summary": "Ragged product-recipe input adapters materialize caller-owned conversion matrices once, retain/deduplicate original compact owners, revalidate source generation per replay, freeze staging capacity, and provide compatible whole-binding refresh. Aggregate conversion/owner/arena footprint is explicit. Multi-output diamond fixtures and matched ragged/full/minimum harness modes compose differently tiled source owners with consumer-demand prefix growth.",
+          "files": [
+            "src/core/api_product_recipe_ragged.inc",
+            "src/core/api_product_recipe_ragged_helpers.inc",
+            "src/core/ragged_recipe_binding.hpp",
+            "tests/support/ragged_recipe_fixture.hpp",
+            "benchmarks/rns8_lift_recipe_calibrate.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -793,15 +816,16 @@
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
         "tests/support/product_recipe_outputs_fixture.hpp",
         "tests/support/product_recipe_rebind_fixture.hpp",
-        "tools/test_collect_lift_recipe.py"
+        "tools/test_collect_lift_recipe.py",
+        "tests/support/ragged_recipe_fixture.hpp"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
         "11ac95b6482386d74e6804d8a854b4629467208f"
       ],
       "remaining": [
-        "Required ragged-producer to differently tiled/prefixed consumer recipe binding and retained conversion composition remain source work; do not count only the latest scratch-reuse comment as the full issue.",
-        "Hardware compilation, regression execution, independent measured cost calibration and performance outcomes deferred."
+        "Synchronous ragged-to-uniform recipe binding, shared materializations, multi-output retention and matched harness are implemented. Generalized packed-B/materialization alternatives remain composed with #40; asynchronous NativeToRns/BaseExtend/Export graph-node adapters remain composed with #43.",
+        "Hardware compilation, authored test execution, independent calibrated stage costs and measured outcomes remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

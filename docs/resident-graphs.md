@@ -362,3 +362,44 @@ Immutable artifact/build/target/environment cohorts require independent
 processes. Break-even reuse is computed only when a matched measured replay
 saving is positive; otherwise it remains unknown. These are enabling tools,
 not results: no tests, benchmarks or GPU qualification were run.
+
+## Generation-bound ragged recipe inputs
+
+`rns8_create_product_recipe_ragged` connects immutable compact-prefix owners to
+ordinary product DAGs through explicit caller-owned uniform conversion matrices.
+The source tile geometry need not match any consumer GEMM geometry. Binding
+performs exact reconstruction/extension once; all consumers and later replays
+share that materialization. The existing minimum-prefix consumer planner still
+selects/lifts intermediate values independently, including a diamond whose two
+branches demand different prefixes and multiple retained outputs.
+
+Each adapter names an input index, ragged owner and mutable destination equal to
+that descriptor input. The destination is **conversion scratch**, not an
+observable recipe result: setup/refresh may have updated its generation if a
+later setup step fails. Graph outputs remain untouched until ordinary execution.
+Topology, source identity, cross-source/output aliasing and aggregate payload
+admission are checked before conversion. A failing refresh does not republish a
+valid recipe binding; retry a compatible refresh or create a new recipe.
+
+The recipe retains each unique ragged owner once, preventing destruction, and
+validates its original source generation before every replay. Direct source
+mutation rejects replay even though old converted bytes remain in storage.
+`rns8_refresh_product_recipe_ragged` can replace owners/tile geometries while
+keeping topology, adapter indices and destination allocations; ordinary uniform
+inputs are rebound at the same point. Existing per-input bound envelopes still
+apply. Frozen owner references prevent unaccounted staging growth; use another
+owner when another consumer requires greater retained capacity.
+
+Resource reporting separates materialized input capacities, compact owner
+payload/directory/status/staging, CPU conversion peak, and recipe arena/lift
+storage. The adapter's aggregate budget charges these simultaneously; original
+external source matrices, unrelated ordinary inputs, caller output matrices,
+allocator/driver overhead and opaque runtime objects are outside that explicitly
+named envelope. Shared owner handles are deduplicated, not assumed free.
+
+CPU and HIP regression fixtures cover nonuniform source prefixes, 3×5→5×3 owner
+refresh, a shared diamond with different branch-prefix demands, two observed
+outputs, complete padded Boost results, stale-source rejection, busy destruction,
+and unchanged-replay allocation/copy counters. The shared cost harness includes
+ragged full/minimum routes and charges conversion setup/retention separately.
+All new regression and performance execution remains deferred.

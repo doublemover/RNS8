@@ -1,8 +1,10 @@
 #include "core/api_internal.hpp"
 #include "core/hip_resources.hpp"
+#include "core/ragged_recipe_binding.hpp"
 using namespace rns8::detail;
 using namespace rns8::detail::api;
 struct rns8_ragged_materialization {
+  uint64_t recipe_references=0;
   rns8_context* ctx=nullptr;
   const rns8_matrix* source=nullptr;
   RaggedResidueLayout layout;
@@ -147,6 +149,7 @@ rns8_status rns8_get_ragged_resources(const rns8_ragged_materialization* owner,r
 }
 rns8_status rns8_destroy_ragged_materialization(rns8_ragged_materialization* owner) {
   if(owner) {
+    if(owner->recipe_references)return RNS8_BUSY;
     owner->cleanup_started=true;
     if(owner->pending) {
       if(hip_direct_synchronize(owner->ctx->device_id)!=RNS8_SUCCESS) return RNS8_BACKEND_FAILURE;
@@ -202,6 +205,7 @@ rns8_status rns8_materialize_ragged_exact(rns8_context* ctx,const rns8_ragged_ma
       const uint64_t capacity=std::max(target.bytes,execution.staged_capacity);
       if(capacity>UINT64_MAX-metadata || capacity+metadata>budget) return RNS8_WORKSPACE_TOO_SMALL;
       if(execution.staged_capacity<target.bytes) {
+        if(execution.recipe_references)return RNS8_BUSY; // pinned recipe resource envelope
         if(execution.staged_output) {
           status=hip_direct_free(ctx->device_id,execution.staged_output);
           if(status!=RNS8_SUCCESS) return status;
@@ -257,3 +261,26 @@ rns8_status rns8::detail::api::drain_failed_ragged_cleanup(rns8_context& ctx) {
   }
   return RNS8_SUCCESS;
 }
+
+
+rns8_status rns8::detail::ragged_recipe_binding_info(rns8_context* ctx,const rns8_ragged_materialization* owner,
+    const rns8_matrix*& source,uint64_t& retained,uint64_t& capacity) {
+  if(!ctx || !owner || owner->ctx!=ctx || owner->cleanup_started)return RNS8_INVALID_ARGUMENT;
+  if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
+  if(owner->pending || owner->active_output || owner->source->in_flight_writer)return RNS8_BUSY;
+  source=owner->source;
+  if(source->generation_exhausted || source->matrix_instance_id!=owner->layout.value_instance || source->content_generation!=owner->layout.value_generation ||
+      !rns_residue_state_current_for_backend(*source,ctx->backend))return RNS8_INVALID_ARGUMENT;
+  const uint64_t metadata=owner->layout.tiles.capacity()*sizeof(RaggedResidueTile);
+  retained=metadata;const auto add=[&](uint64_t n){if(n>UINT64_MAX-retained)return false;retained+=n;return true;};
+  if(!add(owner->device_payload?owner->layout.bytes:owner->host.capacity()) ||
+      !add(owner->device_directory?owner->layout.tiles.size()*sizeof(RaggedResidueTile):0) ||
+      !add(owner->device_status?sizeof(int):0) || !add(owner->staged_output?owner->staged_capacity:0))return RNS8_RANGE_ERROR;
+  capacity=owner->staged_output?owner->staged_capacity:0;return RNS8_SUCCESS;
+}
+rns8_status rns8::detail::retain_ragged_recipe_binding(rns8_ragged_materialization* owner) {
+  if(!owner || owner->cleanup_started)return RNS8_INVALID_ARGUMENT;
+  if(owner->recipe_references==UINT64_MAX)return RNS8_RANGE_ERROR;
+  ++owner->recipe_references;return RNS8_SUCCESS;
+}
+void rns8::detail::release_ragged_recipe_binding(rns8_ragged_materialization* owner) noexcept {if(owner && owner->recipe_references)--owner->recipe_references;}

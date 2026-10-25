@@ -12,7 +12,7 @@ from collect_native_calibration import strict_json
 from collect_native_integrity import MODULI, positive
 from collect_native_interop import quantile
 
-MODES=('recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-auto','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
+MODES=('recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-auto','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
 
 
 def graph(c):
@@ -53,8 +53,11 @@ def validate_capture(c,entry):
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id') or not c.get('target') or not c.get('device'):raise ValueError('provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact')
-    for key in ('recipe_arena_bytes','recipe_retained_lift_bytes','auto_retained_device_bytes','replay_hip_allocations','replay_hip_frees'):
+    for key in ('ragged_retained_bytes','ragged_materialized_input_bytes','ragged_binding_peak_bytes','recipe_arena_bytes','recipe_retained_lift_bytes','auto_retained_device_bytes','replay_hip_allocations','replay_hip_frees'):
         if type(c.get(key)) is not int or c[key]<0:raise ValueError(key)
+    if mode.startswith('recipe-ragged-'):
+        if c['ragged_retained_bytes']<=0 or c['ragged_materialized_input_bytes']<cells*p:raise ValueError('ragged conversion footprint omitted')
+    elif any(c[k] for k in ('ragged_retained_bytes','ragged_materialized_input_bytes','ragged_binding_peak_bytes')):raise ValueError('unrequested ragged adapter')
     if mode.startswith('recipe-') and (c['replay_hip_allocations'] or c['replay_hip_frees']):raise ValueError('retained recipe unexpectedly allocates on replay')
     selected=c.get('selected_compute_prefixes')
     if type(selected) is not list or len(selected)!=(0 if single else nodes):raise ValueError('selected prefix trace')

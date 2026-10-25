@@ -1846,6 +1846,9 @@ typedef struct rns8_product_recipe_resources {
   uint64_t arena_bytes;
   uint64_t lift_scratch_bytes; /* physically retained HIP status+suffix region, zero on CPU */
   uint64_t unreused_payload_bytes;
+  uint64_t materialized_input_bytes;
+  uint64_t ragged_retained_bytes;
+  uint64_t materialization_peak_bytes;
 } rns8_product_recipe_resources;
 /* Synchronous CPU/direct-HIP exact-wide product DAG with owned intermediate arena.
  * Inputs share semantics/prefix/layout. IDs0..input_count-1 are external inputs;
@@ -1859,6 +1862,32 @@ typedef struct rns8_product_recipe_resources {
 RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
     const rns8_product_recipe_desc* desc,rns8_product_recipe** out);
 RNS8_API rns8_status rns8_execute_product_recipe(rns8_product_recipe* recipe,rns8_matrix* output);
+/* Optional ragged input adapters. Each input_index names the same explicitly
+ * mutable destination supplied in desc.inputs. Destination matrices are caller-
+ * owned conversion scratch: setup/refresh may update them even if a later setup
+ * step fails; observable recipe outputs are never touched by setup/refresh.
+ * Sources are retained and generation-checked on every replay. Conversion occurs
+ * once at binding, not every consumer/replay; all real destination, compact-owner,
+ * staging and arena/lift payload is included in the explicit aggregate budget.
+ * Repeated source owners are counted/retained once. All inputs still share the
+ * ordinary recipe semantic/capacity contract. output_ids/count may be null/zero
+ * for the last node, or explicitly request multiple outputs. */
+typedef struct rns8_ragged_recipe_binding {
+  uint32_t input_index;
+  rns8_ragged_materialization* source;
+  rns8_matrix* destination;
+} rns8_ragged_recipe_binding;
+RNS8_API rns8_status rns8_create_product_recipe_ragged(rns8_context* ctx,
+    const rns8_product_recipe_desc* desc,const rns8_ragged_recipe_binding* bindings,
+    uint32_t binding_count,const uint32_t* output_ids,uint32_t output_count,
+    uint64_t max_total_payload_bytes,rns8_product_recipe** out);
+/* Keep topology, indices and destination allocations; replace ragged owners and
+ * re-materialize/rebind every adapted input. On failure the prior recipe binding
+ * is not republished and any changed scratch generations reject ordinary replay.
+ * Independent non-ragged input generation changes are rebound at the same point. */
+RNS8_API rns8_status rns8_refresh_product_recipe_ragged(rns8_product_recipe* recipe,
+    const rns8_ragged_recipe_binding* bindings,uint32_t binding_count);
+
 /* Compile an explicit ordered set of observable node value IDs. IDs must be
  * distinct produced values (not external inputs). They remain live through final
  * publication, including intermediate values still consumed by later nodes.
