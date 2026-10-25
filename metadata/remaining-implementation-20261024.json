@@ -721,18 +721,28 @@
             "src/core/api_context.cpp",
             "tests/differential/test_hip_direct_exact_lift_cases.inc"
           ]
+        },
+        {
+          "summary": "Shared exact lift/recipe harness covers manual/retained full/minimum/model-cost DAGs, chains/diamonds, wide/shared-digit/graph lifts, explicit CPU-residue-transfer control, wider-producer/no-op controls, allocation counters and boundary-matched independent-process break-even collection.",
+          "files": [
+            "benchmarks/rns8_lift_recipe_calibrate.cpp",
+            "tools/collect_lift_recipe.py",
+            "tools/test_collect_lift_recipe.py"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_prepared_lift_cases.inc",
-        "tests/differential/test_hip_direct_exact_lift_cases.inc"
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tools/test_collect_lift_recipe.py"
       ],
       "commits": [
-        "f30d1817b6208f781c64d9169aedf672f96319a0"
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc"
       ],
       "remaining": [
-        "Matched lift/recipe cost harness and break-even reporting remain source work.",
-        "All HIP compilation, regressions and named-target scientific/performance qualification remain deferred."
+        "Default-basis selector, synchronous/stream/graph lift and matched harness are written. Nondefault-basis conversion composition remains dependent source work under #32; no generic-basis capability is implied.",
+        "HIP compilation, tests, named-target performance and scientific qualification are deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -756,20 +766,29 @@
             "src/core/runtime_product_recipe.cpp",
             "src/backend_common/product_prefix_cost.hpp"
           ]
+        },
+        {
+          "summary": "Shared exact lift/recipe harness covers manual/retained full/minimum/model-cost DAGs, chains/diamonds, wide/shared-digit/graph lifts, explicit CPU-residue-transfer control, wider-producer/no-op controls, allocation counters and boundary-matched independent-process break-even collection.",
+          "files": [
+            "benchmarks/rns8_lift_recipe_calibrate.cpp",
+            "tools/collect_lift_recipe.py",
+            "tools/test_collect_lift_recipe.py"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_exact_lift_workspace.cpp",
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
         "tests/support/product_recipe_outputs_fixture.hpp",
-        "tests/support/product_recipe_rebind_fixture.hpp"
+        "tests/support/product_recipe_rebind_fixture.hpp",
+        "tools/test_collect_lift_recipe.py"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d"
       ],
       "remaining": [
-        "Shared recipe/lift calibration harness to compose with general asynchronous/graph extension work.",
-        "Authored allocation/free and full-output regressions, device compilation, failure qualification and complete-route measurements not executed."
+        "Required ragged-producer to differently tiled/prefixed consumer recipe binding and retained conversion composition remain source work; do not count only the latest scratch-reuse comment as the full issue.",
+        "Hardware compilation, regression execution, independent measured cost calibration and performance outcomes deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -874,7 +893,8 @@
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
         "f30d1817b6208f781c64d9169aedf672f96319a0",
-        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "d403c9711b74e51d4d61ecfed365f9681f4103bc"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -1560,7 +1580,8 @@
       "commits": [
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
-        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "c7f173f1912fb8cdd04d143ecfdbee54f15af070"
       ],
       "remaining": [
         "HIP compilation and execution, ownership/failure-injection regressions, installed-example qualification and named-target performance/profiler evidence are deferred; no measured speedup or qualified graph reuse is claimed.",

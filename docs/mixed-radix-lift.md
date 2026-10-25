@@ -92,3 +92,32 @@ input/output payload is downloaded. This route does not silently select a
 vendor/matrix-engine backend or claim measured performance. Authored shared-input,
 second-input-failure, no-allocation replay, padded export and ownership regressions
 have not been executed.
+
+
+## Shared lift/recipe cost harness (authored, not executed)
+
+`rns8-lift-recipe-calibrate` and `tools/collect_lift_recipe.py` bind identical
+integer/output boundaries across full-prefix manual execution, transactional
+minimum-prefix execution, and retained full/minimum/cost-model recipe arenas.
+Chains and diamonds exercise consumer-demand extension and shared operands.
+The explicit analytical cost model is unqualified; it is recorded in each
+capture and cannot be mistaken for a calibrated or AUTO-promoted profile.
+
+Separate one-product cohorts compare wide-Garner, shared-digit, and captured
+prepared lifts with a private CPU-lift control that transfers source residue
+planes down and only the new suffix up, and with producing the wider basis from
+the start. No-op lifts are included. This private residue-transfer control is
+labeled; it is not a public native-host import API. All routes finish with the
+same padded three-limb export and independent full-integer audit. Extra eager
+intermediate observations live in a different cohort and never establish a
+like-for-like speedup.
+
+Captures retain cold setup, first use, complete phase timings, p50/p95 and three
+sustained bursts, actual HIP allocation/free counters around warm samples,
+selected prefixes, arena/retained-lift/automatic-staging bytes, and explicit
+payload boundaries. The collector rejects recipe replay allocation and
+independently checks every selected prefix against propagated exact bounds.
+Immutable artifact/build/target/environment cohorts require independent
+processes. Break-even reuse is computed only when a matched measured replay
+saving is positive; otherwise it remains unknown. These are enabling tools,
+not results: no tests, benchmarks or GPU qualification were run.

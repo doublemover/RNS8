@@ -3059,7 +3059,8 @@
       "anchors": [
         "direct-hip-automatic-prefix-transaction",
         "mixed-radix-exact-suffix-candidate",
-        "prepared-stream-and-graph-ownership"
+        "prepared-stream-and-graph-ownership",
+        "shared-liftrecipe-cost-harness-authored-not-executed"
       ]
     },
     {
@@ -4206,7 +4207,8 @@
         "failed-stream-cleanup",
         "finite-ring-and-field-products",
         "paired-complex-nodes",
-        "resident-dag-execution"
+        "resident-dag-execution",
+        "shared-liftrecipe-cost-harness-authored-not-executed"
       ]
     },
     {
