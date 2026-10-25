@@ -10,6 +10,31 @@ int default_visible_hip_context_device(int requested_device_id) {
 
 }  // namespace
 
+namespace rns8::detail::api {
+rns8_status begin_synchronous_lease(rns8_context& ctx,const rns8_matrix& a,const rns8_matrix& b,rns8_matrix& c,rns8_workspace& workspace,size_t& token) {
+  if(a.in_flight_writer || b.in_flight_writer || c.in_flight_writer || c.in_flight_readers || workspace.in_flight)return RNS8_BUSY;
+  if(a.in_flight_readers==UINT64_MAX || b.in_flight_readers==UINT64_MAX)return RNS8_RANGE_ERROR;
+  token=ctx.failed_work_leases.size();ctx.failed_work_leases.push_back({&a,&b,&c,&workspace});
+  ++a.in_flight_readers;if(&a!=&b)++b.in_flight_readers;c.in_flight_writer=true;workspace.in_flight=true;return RNS8_SUCCESS;
+}
+bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,bool written) noexcept {
+  if(token>=ctx.failed_work_leases.size() || !ctx.failed_work_leases[token].a)return true;
+  auto& lease=ctx.failed_work_leases[token];
+  if(status!=RNS8_SUCCESS && written){lease.c->in_flight_writer=false;invalidate_output_currentness(*lease.c);lease.c->in_flight_writer=true;}
+  if((status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) && rns8::detail::hip_direct_synchronize(ctx.device_id)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
+  --lease.a->in_flight_readers;if(lease.a!=lease.b)--lease.b->in_flight_readers;lease.c->in_flight_writer=false;lease.workspace->in_flight=false;lease={};
+  while(!ctx.failed_work_leases.empty() && !ctx.failed_work_leases.back().a)ctx.failed_work_leases.pop_back();return true;
+}
+}
+rns8_status rns8_drain_failed_work(rns8_context* ctx) {
+  if(!ctx)return RNS8_INVALID_ARGUMENT;
+  if(ctx->device_id<0)return ctx->failed_work_leases.empty()?RNS8_SUCCESS:RNS8_UNSUPPORTED_BACKEND;
+  const auto status=rns8::detail::hip_direct_synchronize(ctx->device_id);if(status!=RNS8_SUCCESS)return status;
+  for(size_t i=0;i<ctx->failed_work_leases.size();++i)finish_synchronous_lease(*ctx,i,RNS8_SUCCESS,false);
+  // A successful drain releases memory, not the failed context's execution authority.
+  return RNS8_SUCCESS;
+}
+
 rns8_status rns8_create_context(int device_id, const rns8_context_options* options, rns8_context** out) {
   return guard_api([&]() -> rns8_status {
     if (!out) {
@@ -195,6 +220,7 @@ rns8_status rns8_create_context(int device_id, const rns8_context_options* optio
 }
 
 rns8_status rns8_destroy_context(rns8_context* ctx) {
+  if(ctx && !ctx->failed_work_leases.empty()){const auto status=rns8_drain_failed_work(ctx);if(status!=RNS8_SUCCESS)return status;}
   if (ctx && ctx->prepared_references) return RNS8_BUSY;
   if (ctx) {
     const auto status = drain_failed_ragged_cleanup(*ctx);

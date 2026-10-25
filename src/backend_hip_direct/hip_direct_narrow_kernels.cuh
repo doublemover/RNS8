@@ -17,8 +17,9 @@ __global__ void rns8_native_i64_abs_max_kernel(
   if (lane == 0) atomicMax(maximum, partial[0]);
 }
 
+template<bool Residues=false>
 __global__ void rns8_native_i64_narrow_gemm_kernel(
-    const int64_t* a, const int64_t* b, int64_t* c, int m, int n, int k, int lda, int ldb, int ldc) {
+    const int64_t* a, const int64_t* b, int64_t* c, int m, int n, int k, int lda, int ldb, int ldc,int8_t* residues=nullptr,int prefix=0) {
   const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (cell >= static_cast<int64_t>(m) * n) return;
   const int64_t row = cell / n, col = cell % n;
@@ -26,5 +27,6 @@ __global__ void rns8_native_i64_narrow_gemm_kernel(
   // Host admission proves K*max_abs(A)*max_abs(B) <= INT64_MAX from the actual
   // device inputs. Thus products and every intermediate sum are representable.
   for (int q = 0; q < k; ++q) value += a[row * lda + q] * b[static_cast<int64_t>(q) * ldb + col];
-  c[row * ldc + col] = value;
+  if constexpr(Residues){for(int p=0;p<prefix;++p)residues[(int64_t(p)*m+row)*n+col]=rns8_center_i64_device(value,rns8_default_moduli_device[p]);}
+  else c[row * ldc + col] = value;
 }

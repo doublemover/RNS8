@@ -20,7 +20,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t output_domain=query.operation==RNS8_OP_EXPORT?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):(query.operation==RNS8_OP_QUARTER_CRT?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_STRASSEN?2:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
+  const uint32_t max_algorithm=query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?2:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
@@ -73,8 +73,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     case RNS8_OP_NATIVE_LEASE:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","native lease requires direct-HIP exact-wide context");break;
     case RNS8_OP_NARROW_NATIVE:
-      if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || (!query.algorithm && d.semantics!=RNS8_EXACT_WIDE_SIGNED))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","narrow native provider requires direct-HIP signed semantics");
-      if(query.algorithm && !rdna3)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current byte-WMMA narrow provider requires gfx11");
+      if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || (!(query.algorithm&1) && d.semantics!=RNS8_EXACT_WIDE_SIGNED))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","narrow native provider requires direct-HIP signed semantics");
+      if((query.algorithm&1) && !rdna3)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current byte-WMMA narrow provider requires gfx11");
       if(!(query.proof_flags&RNS8_QUERY_NATIVE_RETAINED))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_storage","narrow input requires retained current native storage");
       if(!(query.proof_flags&RNS8_QUERY_NARROW_INPUT_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"input_range","narrow arithmetic requires an actual input partial-sum proof");break;
     case RNS8_OP_QUARTER_CRT:
@@ -118,7 +118,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       // Ordinary export may use an environment-controlled retained pinned pool;
       // its allocation/current capacity is intentionally not queried here.
       if(query.operation==RNS8_OP_EXPORT && hip_device_backend(backend) && out.resource_status!=2)out.resource_status=1;}}
-  if(query.operation==RNS8_OP_NARROW_NATIVE){const auto support=rns8::detail::query_narrow_rns_support(d.m,d.n,d.k,lda,ldb,prefix,query.algorithm!=0,UINT64_MAX);
+  if(query.operation==RNS8_OP_NARROW_NATIVE){const auto support=rns8::detail::query_narrow_rns_support(d.m,d.n,d.k,lda,ldb,prefix,bool(query.algorithm&1),UINT64_MAX,query.algorithm>=2);
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"narrow_resources","shared narrow provider rejected complete shape/address domain");scratch=support.scratch_bytes;}
   if(query.operation==RNS8_OP_STRASSEN){const auto resources=query.algorithm==2?rns8::detail::query_rank23_slp_resources(d.m,d.n,d.k,lda,ldb,ldc,prefix,UINT64_MAX):
       rns8::detail::query_bilinear_resources(d.m,d.n,d.k,lda,ldb,ldc,prefix,query.algorithm?3:2,UINT64_MAX);

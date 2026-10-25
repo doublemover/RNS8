@@ -722,7 +722,8 @@ typedef struct rns8_operation_query {
   rns8_gemm_desc problem;
   int64_t lda,ldb,ldc; /* zero means compact */
   uint32_t output_limbs,device_count;
-  /* Family-specific method: narrow/Gram 0 scalar,1 WMMA; bilinear 0
+  /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
+   * Gram 0 scalar,1 WMMA; bilinear 0
    * Strassen,1 coefficient rank23,2 SLP. Other families require zero. */
   uint32_t algorithm,orientation,source_prefix;
   /* Domain 0 infers the concrete family's default; 1 centered RNS,
@@ -1272,6 +1273,9 @@ RNS8_API rns8_status rns8_create_context(
     rns8_context** out);
 
 RNS8_API rns8_status rns8_destroy_context(rns8_context* ctx);
+/* Drain failed synchronous work without publishing partial outputs. Failed
+ * drains retain all borrowed matrix/workspace leases and remain retryable. */
+RNS8_API rns8_status rns8_drain_failed_work(rns8_context* ctx);
 
 RNS8_API rns8_status rns8_get_device_info(
     rns8_context* ctx,
@@ -1964,7 +1968,9 @@ RNS8_API rns8_status rns8_gemm_block_sparse_exact_with_method(
 
 typedef enum rns8_narrow_product_method RNS8_ENUM_BASE {
   RNS8_NARROW_SCALAR_I64 = 0,
-  RNS8_NARROW_BYTE_WMMA = 1
+  RNS8_NARROW_BYTE_WMMA = 1,
+  RNS8_NARROW_SCALAR_FUSED_RNS = 2,
+  RNS8_NARROW_BYTE_WMMA_FUSED_RNS = 3
 } rns8_narrow_product_method;
 
 /* Experimental synchronous direct-HIP exact-wide product with persistent RNS

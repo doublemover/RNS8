@@ -15,7 +15,11 @@
 
 #include "rns8/rns8.h"
 
+struct rns8_synchronous_lease {
+  const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
+};
 struct rns8_context {
+  std::vector<rns8_synchronous_lease> failed_work_leases;
   // Intrusive ownership requires no allocation while recovering construction failure.
   rns8_matrix* failed_matrix_cleanup = nullptr;
   rns8_ragged_materialization* failed_ragged_cleanup = nullptr;

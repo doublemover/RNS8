@@ -766,6 +766,13 @@
             "benchmarks/public-native-queue",
             "tools/collect_public_queue_calibration.py"
           ]
+        },
+        {
+          "summary": "Context-owned synchronous failure leases retain borrowed narrow/fused A/B/C/workspace until checked drain; drain releases memory but never publishes output or unpoisons execution.",
+          "files": [
+            "src/core/api_context.cpp",
+            "src/core/internal.hpp"
+          ]
         }
       ],
       "regressions": [
@@ -962,7 +969,7 @@
       "issue": 53,
       "title": "[Research P2] Add proof-selected native narrow-integer paths for tiny and skinny GEMM",
       "url": "https://github.com/doublemover/RNS8/issues/53",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Proof-admitted public narrow scalar/byte WMMA and controls exist; current public advertised GEMV versus actual generic launch mismatch, width-8 vector control and optional fused persistent-RNS narrow epilogue remain implementation work.",
       "implementation": [
         {
@@ -972,13 +979,28 @@
             "src/backend_vector_alu/vector_alu_kernels.hip",
             "src/core/api_plan_contract_names.inc"
           ]
+        },
+        {
+          "summary": "Explicit scalar/byte-WMMA fused exact accumulator-to-RNS epilogues remove native product staging while retaining actual-device partial-sum scans and independent CRT proof; context-owned failed-work leases, complete-public route calibrator/collector and focused crossover fixtures.",
+          "files": [
+            "src/backend_hip_direct/hip_backend_narrow.inc",
+            "src/backend_hip_direct/hip_direct_native_byte_kernels.cuh",
+            "src/core/api_context.cpp",
+            "benchmarks/rns8_narrow_public_calibrate.cpp",
+            "tools/collect_narrow_public_calibration.py"
+          ]
         }
       ],
-      "regressions": [],
-      "commits": [],
+      "regressions": [
+        "tests/differential/test_hip_direct_narrow_cases.inc",
+        "tests/differential/test_hip_direct_vector_bridge_cases.inc",
+        "tools/test_collect_narrow_public_calibration.py"
+      ],
+      "commits": [
+        "9e8e28915a38b773d651aac4263976abf75a64d0"
+      ],
       "remaining": [
-        "Fused native-to-RNS narrow epilogue and matched full-public calibration still in progress.",
-        "All tests, device compilation, source-identified ISA/resources and independent complete-route performance qualification deferred."
+        "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

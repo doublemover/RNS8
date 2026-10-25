@@ -89,10 +89,10 @@ extern "C" int rns8_hip_native_byte_wmma(const void* a, const void* b, void* c,
   const dim3 grid((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16);
   if (unsigned_inputs) {
     hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t>), grid, dim3(32), 0, nullptr,
-        static_cast<const uint64_t*>(a), static_cast<const uint64_t*>(b), static_cast<uint64_t*>(c), m, n, k, lda, ldb, ldc);
+        static_cast<const uint64_t*>(a), static_cast<const uint64_t*>(b), static_cast<uint64_t*>(c), m, n, k, lda, ldb, ldc,nullptr,0);
   } else {
     hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t>), grid, dim3(32), 0, nullptr,
-        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), static_cast<int64_t*>(c), m, n, k, lda, ldb, ldc);
+        static_cast<const int64_t*>(a), static_cast<const int64_t*>(b), static_cast<int64_t*>(c), m, n, k, lda, ldb, ldc,nullptr,0);
   }
   return static_cast<int>(hipGetLastError());
 }
@@ -352,11 +352,19 @@ extern "C" int rns8_hip_native_i64_abs_max(const int64_t* source, int rows, int 
   return rns8_hip_native_abs_max(source,rows,cols,ld,maximum,true);
 }
 
+extern "C" int rns8_hip_native_fused_narrow_rns(const void* a,const void* b,int8_t* residues,int m,int n,int k,int lda,int ldb,int prefix,bool byte_wmma,bool unsigned_inputs) {
+  if(byte_wmma){const dim3 grid((uint64_t(n)+15)/16,(uint64_t(m)+15)/16);
+    if(unsigned_inputs)hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<uint64_t,true>),grid,dim3(32),0,nullptr,static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+    else hipLaunchKernelGGL((rns8_native_byte_wmma_kernel<int64_t,true>),grid,dim3(32),0,nullptr,static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+  } else hipLaunchKernelGGL((rns8_native_i64_narrow_gemm_kernel<true>),dim3((uint64_t(m)*n+255)/256),dim3(256),0,nullptr,static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),nullptr,m,n,k,lda,ldb,n,residues,prefix);
+  return int(hipGetLastError());
+}
+
 extern "C" int rns8_hip_native_i64_narrow_gemm(
     const int64_t* a, const int64_t* b, int64_t* c, int m, int n, int k, int lda, int ldb, int ldc) {
   const auto blocks = static_cast<unsigned>((static_cast<int64_t>(m) * n + 255) / 256);
-  hipLaunchKernelGGL(rns8_native_i64_narrow_gemm_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                    a, b, c, m, n, k, lda, ldb, ldc);
+  hipLaunchKernelGGL((rns8_native_i64_narrow_gemm_kernel<false>), dim3(blocks), dim3(256), 0, nullptr,
+                    a, b, c, m, n, k, lda, ldb, ldc,nullptr,0);
   return static_cast<int>(hipGetLastError());
 }
 

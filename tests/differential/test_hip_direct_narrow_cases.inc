@@ -117,7 +117,7 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
     }
   }
   // Admission must use the current packed generation and reject invalid values.
-  av[0]=method==RNS8_NARROW_BYTE_WMMA?T(256):std::numeric_limits<T>::max();
+  av[0]=(uint32_t(method)&1)?T(256):std::numeric_limits<T>::max();
   REQUIRE(pack(a,av)==RNS8_SUCCESS);
   generation=c->content_generation;
   CHECK(run()==RNS8_RANGE_ERROR);
@@ -133,6 +133,9 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
 TEST_CASE("public narrow products preserve exact ownership and reject changed domains") {
   if(!hip_available()) SKIP("no HIP device for public narrow ownership");
   SECTION("signed scalar") { check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_I64); }
+  SECTION("signed scalar fused") { check_public_narrow_owner<int64_t>(RNS8_NARROW_SCALAR_FUSED_RNS); }
+  SECTION("signed byte WMMA fused") { check_public_narrow_owner<int64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS); }
+  SECTION("unsigned byte WMMA fused") { check_public_narrow_owner<uint64_t>(RNS8_NARROW_BYTE_WMMA_FUSED_RNS); }
   SECTION("signed byte WMMA") { check_public_narrow_owner<int64_t>(RNS8_NARROW_BYTE_WMMA); }
   SECTION("unsigned byte WMMA") { check_public_narrow_owner<uint64_t>(RNS8_NARROW_BYTE_WMMA); }
 }

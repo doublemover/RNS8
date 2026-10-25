@@ -33,10 +33,10 @@ rns8_status rns8_gemm_narrow_exact(
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !C || !workspace || A==C || B==C ||
-        (method!=RNS8_NARROW_SCALAR_I64 && method!=RNS8_NARROW_BYTE_WMMA))
+        (uint32_t(method)>3))
       return RNS8_INVALID_ARGUMENT;
     if (plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(plan->desc.semantics) ||
-        (method==RNS8_NARROW_SCALAR_I64 && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
+        (!(uint32_t(method)&1) && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED))
       return RNS8_UNSUPPORTED_BACKEND;
     rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
     query.operation=RNS8_OP_NARROW_NATIVE;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;query.algorithm=method;
@@ -49,7 +49,7 @@ rns8_status rns8_gemm_narrow_exact(
     if (C->generation_exhausted) return RNS8_RANGE_ERROR;
     const bool unsigned_inputs=plan->desc.semantics==RNS8_EXACT_WIDE_UNSIGNED;
     const auto support=query_narrow_rns_support(plan->desc.m,plan->desc.n,plan->desc.k,
-        A->desc.cols,B->desc.cols,plan->prefix,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes);
+        A->desc.cols,B->desc.cols,plan->prefix,bool(uint32_t(method)&1),max_scratch_bytes,method>=RNS8_NARROW_SCALAR_FUSED_RNS);
     if (support.status!=RNS8_SUCCESS) return support.status;
     const auto native=[&](const rns8_matrix& input) -> const void* {
       if (!(input.desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT) || !input.device_native_current ||
@@ -65,20 +65,17 @@ rns8_status rns8_gemm_narrow_exact(
     rns8_exact_matrix_ranges ranges;
     status=exact_gemm_range(*plan,*A,*B,bound,&ranges);
     if (status!=RNS8_SUCCESS) return status;
-    bool commit_started=false;
-    struct CommitGuard {
-      rns8_matrix& output;
-      bool& started;
-      bool published=false;
-      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
-    } write{*C,commit_started};
+    bool commit_started=false;size_t lease_token=0;
+    status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
+    struct LeaseGuard {rns8_context& ctx;size_t token;bool& written;bool active=true;
+      ~LeaseGuard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} lease{*ctx,lease_token,commit_started};
     status=hip_direct_gemm_narrow_rns_device(ctx->device_id,a,b,C->hip_residues,
         plan->desc.m,plan->desc.n,plan->desc.k,A->desc.cols,B->desc.cols,plan->prefix,
-        unsigned_inputs,method==RNS8_NARROW_BYTE_WMMA,max_scratch_bytes,commit_started);
+        unsigned_inputs,bool(uint32_t(method)&1),max_scratch_bytes,commit_started,method>=RNS8_NARROW_SCALAR_FUSED_RNS);
+    finish_synchronous_lease(*ctx,lease_token,status,commit_started);lease.active=false;
     if (status!=RNS8_SUCCESS) return status;
     mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C,*plan,bound,&ranges);
-    write.published=true;
     return RNS8_SUCCESS;
   });
 }

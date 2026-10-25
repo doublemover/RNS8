@@ -62,10 +62,10 @@ def validate_capture(c, entry):
     return c
 
 
-def collection_plan(binary, cases, output, runs, seed, identity):
+def collection_plan(binary, cases, output, runs, seed, identity, case_validator=validate_case):
     if not 2 <= runs <= 100 or not cases:
         raise ValueError('2..100 independent runs and cases required')
-    parsed = [(path, validate_case(strict_json(path.read_text())), hashlib.sha256(path.read_bytes()).hexdigest()) for path in cases]
+    parsed = [(path, case_validator(strict_json(path.read_text())), hashlib.sha256(path.read_bytes()).hexdigest()) for path in cases]
     if len({digest for _, _, digest in parsed}) != len(parsed):
         raise ValueError('duplicate cases')
     plan = []

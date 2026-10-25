@@ -157,7 +157,7 @@ rns8_status hip_direct_convert_residue_layout(
 rns8_status hip_direct_gemm_i64_narrow_checked_device(
     int device_id, const int64_t* a, const int64_t* b, int64_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
-    uint64_t* out_abs_sum_bound);
+    uint64_t* out_abs_sum_bound,uint32_t rns_prefix=0,bool* write_started=nullptr);
 
 // Staged native product followed by complete RNS encoding. Only the encoding
 // launch can touch C; commit_started stays false for scan/domain failures.
@@ -165,7 +165,7 @@ rns8_status hip_direct_gemm_narrow_rns_device(
     int device_id, const void* a, const void* b, void* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
     uint32_t prefix, bool unsigned_inputs, bool byte_wmma,
-    uint64_t budget, bool& commit_started);
+    uint64_t budget, bool& commit_started,bool fused=false);
 
 // Explicit raw-byte WMMA candidate with native i64/u64 storage and output.
 // Scan actual operands for signed [-128,127] or unsigned [0,255] membership,
@@ -174,7 +174,7 @@ rns8_status hip_direct_gemm_narrow_rns_device(
 rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
     int device_id, const void* a, const void* b, void* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
-    bool unsigned_inputs, uint64_t* out_abs_sum_bound);
+    bool unsigned_inputs, uint64_t* out_abs_sum_bound,uint32_t rns_prefix=0,bool* write_started=nullptr);
 
 // Explicit modular expression baseline. Callers must separately prove bounded
 // integer semantics and own publication; D/C must not alias. No default routing.

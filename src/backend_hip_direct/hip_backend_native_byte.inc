@@ -1,4 +1,5 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_native_fused_narrow_rns(const void*,const void*,int8_t*,int,int,int,int,int,int,bool,bool);
 extern "C" int rns8_hip_native_byte_domain(const void *, int, int, int,
                                            uint64_t *, uint64_t *, bool);
 extern "C" int rns8_hip_native_byte_wmma(const void *, const void *, void *,
@@ -7,15 +8,17 @@ extern "C" int rns8_hip_native_byte_wmma(const void *, const void *, void *,
 rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, bool unsigned_inputs,
-    uint64_t *out_abs_sum_bound) {
+    uint64_t *out_abs_sum_bound,uint32_t rns_prefix,bool* write_started) {
+  if(write_started)*write_started=false;
+  if(rns_prefix>20 || (rns_prefix && ldc!=n))return RNS8_INVALID_ARGUMENT;
   if (!a || !b || !c || !out_abs_sum_bound || m <= 0 || n <= 0 || k <= 0 ||
       lda < k || ldb < n || ldc < n)
     return RNS8_INVALID_ARGUMENT;
   if (!qualified_i32_matrix_address(m, k, lda, 1, 8) ||
       !qualified_i32_matrix_address(k, n, ldb, 1, 8) ||
-      !qualified_i32_matrix_address(m, n, ldc, 1, 8))
+      !qualified_i32_matrix_address(m,n,ldc,rns_prefix?rns_prefix:1,rns_prefix?1:8))
     return RNS8_UNSUPPORTED_BACKEND;
-  const uint64_t bytes = static_cast<uint64_t>(m) * ldc * 8;
+  const uint64_t bytes = static_cast<uint64_t>(m)*ldc*(rns_prefix?rns_prefix:8);
   if (!nonoverlapping_byte_ranges(c, bytes, a,
                                   static_cast<uint64_t>(m) * lda * 8) ||
       !nonoverlapping_byte_ranges(c, bytes, b,
@@ -59,8 +62,9 @@ rns8_status hip_direct_gemm_native_byte_wmma_checked_device(
       !native_partial_sum_bound(proof[0], proof[1], static_cast<uint64_t>(k),
                                 INT32_MAX, bound))
     return RNS8_RANGE_ERROR;
-  const auto error = timed_hip_operation("native_byte_wmma_gemm", [&]() {
-    const auto launched = static_cast<hipError_t>(rns8_hip_native_byte_wmma(
+  if(write_started)*write_started=true;
+  const auto error = timed_hip_operation(rns_prefix?"native_byte_wmma_fused_rns":"native_byte_wmma_gemm", [&]() {
+    const auto launched = static_cast<hipError_t>(rns_prefix?rns8_hip_native_fused_narrow_rns(a,b,static_cast<int8_t*>(c),int(m),int(n),int(k),int(lda),int(ldb),int(rns_prefix),true,unsigned_inputs):rns8_hip_native_byte_wmma(
         a, b, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
         static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
         unsigned_inputs));

@@ -611,3 +611,21 @@ TEST_CASE("vector ALU native export range errors leave destination unchanged") {
   rns8_destroy_context(vector);
 }
 
+
+TEST_CASE("full-width vector exact-N control preserves cancellation and unsigned overflow status") {
+  if(!hip_available())SKIP("no HIP device for UInt192 exact-width controls");
+  using namespace rns8::detail;
+  for(int n:{2,3,4,7,8})for(int k:{511,512,513,4096}){
+    constexpr int m=3;std::vector<int64_t> a(m*k,INT64_MIN),b(k*n),c(m*n);
+    for(int q=0;q<k;++q)for(int col=0;col<n;++col)b[q*n+col]=(q&1)?-1:1;
+    hip_direct_device_buffer da,db,dc,ds;REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+    REQUIRE(dc.allocate(0,c.size()*8)==RNS8_SUCCESS);REQUIRE(ds.allocate(0,4)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+    for(bool exact:{false,true}){REQUIRE(hip_direct_zero(0,ds.get(),4)==RNS8_SUCCESS);REQUIRE(vector_alu_gemm_i64_device(0,da.get(),db.get(),dc.get(),ds.get(),m,n,k,exact)==RNS8_SUCCESS);
+      uint32_t status=99;REQUIRE(hip_direct_copy_device_to_host(0,&status,ds.get(),4)==RNS8_SUCCESS);CHECK(status==0);
+      REQUIRE(hip_direct_copy_device_to_host(0,c.data(),dc.get(),c.size()*8)==RNS8_SUCCESS);for(auto value:c)CHECK(value==((k&1)?INT64_MIN:0));}
+    std::vector<uint64_t> ua(m*k,UINT64_MAX),ub(k*n,2);REQUIRE(hip_direct_copy_host_to_device(0,da.get(),ua.data(),ua.size()*8)==RNS8_SUCCESS);REQUIRE(hip_direct_copy_host_to_device(0,db.get(),ub.data(),ub.size()*8)==RNS8_SUCCESS);
+    for(bool exact:{false,true}){REQUIRE(hip_direct_zero(0,ds.get(),4)==RNS8_SUCCESS);REQUIRE(vector_alu_gemm_u64_device(0,da.get(),db.get(),dc.get(),ds.get(),m,n,k,exact)==RNS8_SUCCESS);
+      uint32_t status=0;REQUIRE(hip_direct_copy_device_to_host(0,&status,ds.get(),4)==RNS8_SUCCESS);CHECK(status!=0);}
+  }
+}

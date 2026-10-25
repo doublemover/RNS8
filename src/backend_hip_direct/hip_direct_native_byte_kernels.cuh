@@ -38,10 +38,10 @@ __global__ void rns8_native_byte_domain_kernel(const NativeT *source, int rows,
   }
 }
 
-template <typename NativeT>
+template <typename NativeT,bool Residues=false>
 __global__ __launch_bounds__(32) void rns8_native_byte_wmma_kernel(
     const NativeT *a, const NativeT *b, NativeT *c, int m, int n, int k,
-    int lda, int ldb, int ldc) {
+    int lda, int ldb, int ldc,int8_t* residues=nullptr,int prefix=0) {
 #if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) &&  \
     __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
   using fragment = int __attribute__((ext_vector_type(4)));
@@ -73,8 +73,9 @@ __global__ __launch_bounds__(32) void rns8_native_byte_wmma_kernel(
   }
   for (int reg = 0; reg < 8; ++reg) {
     const int64_t row = tile_row + 2 * reg + (lane >> 4);
-    if (row < m && bc < n)
-      c[row * ldc + bc] = static_cast<NativeT>(acc[reg]);
+    if(row<m && bc<n){if constexpr(Residues){for(int p=0;p<prefix;++p)
+        residues[(int64_t(p)*m+row)*n+bc]=rns8_center_i64_device(int64_t(acc[reg]),rns8_default_moduli_device[p]);}
+      else c[row*ldc+bc]=static_cast<NativeT>(acc[reg]);}
   }
 #else
   (void)a;

@@ -3085,6 +3085,7 @@
         }
       ],
       "anchors": [
+        "explicit-fused-native-accumulator-to-rns-variants",
         "public-narrow-native-products",
         "public-skinny-route-identity-and-width-exact-control"
       ]

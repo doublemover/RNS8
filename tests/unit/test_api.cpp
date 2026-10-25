@@ -138,3 +138,23 @@ TEST_CASE("public uniform plan metadata and dispatch share one qualified route",
   CHECK(vector_small_n_declared_lds(2,true,false)==51200);CHECK(vector_small_n_declared_lds(2,false,false)==49152);
   for(uint32_t n=2;n<=8;++n){CHECK(vector_small_n_width(n,true)==n);CHECK(vector_small_n_width(n,false)==8);}
 }
+
+TEST_CASE("narrow fused resource contracts omit native intermediate but retain proof scan", "[narrow][resources]") {
+  using namespace rns8::detail;
+  for(bool wmma:{false,true})for(uint32_t prefix:{1u,2u,9u,20u}) {
+    const auto staged=query_narrow_rns_support(17,19,31,32,21,prefix,wmma,UINT64_MAX);
+    const auto fused=query_narrow_rns_support(17,19,31,32,21,prefix,wmma,UINT64_MAX,true);
+    CHECK(staged.status==RNS8_SUCCESS);CHECK(fused.status==RNS8_SUCCESS);
+    CHECK(staged.scratch_bytes-fused.scratch_bytes==17*19*8);CHECK(fused.scratch_bytes==(wmma?32:16));
+    CHECK(query_narrow_rns_support(17,19,31,32,21,prefix,wmma,fused.scratch_bytes-1,true).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+}
+TEST_CASE("synchronous failure leases invalidate only written outputs and release clean failures", "[api][lifetime]") {
+  using namespace rns8::detail::api;auto* ctx=create_cpu_context();rns8_matrix a{},b{},c{};rns8_workspace workspace{};
+  c.host_residues_current=true;size_t token=0;REQUIRE(begin_synchronous_lease(*ctx,a,b,c,workspace,token)==RNS8_SUCCESS);
+  CHECK(a.in_flight_readers==1);CHECK(c.in_flight_writer);CHECK(workspace.in_flight);
+  REQUIRE(finish_synchronous_lease(*ctx,token,RNS8_RANGE_ERROR,false));CHECK(c.host_residues_current);CHECK_FALSE(c.in_flight_writer);
+  REQUIRE(begin_synchronous_lease(*ctx,a,a,c,workspace,token)==RNS8_SUCCESS);CHECK(a.in_flight_readers==1);
+  REQUIRE(finish_synchronous_lease(*ctx,token,RNS8_RANGE_ERROR,true));CHECK_FALSE(c.host_residues_current);CHECK(a.in_flight_readers==0);
+  CHECK(ctx->failed_work_leases.empty());REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
