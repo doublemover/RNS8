@@ -4308,6 +4308,7 @@
       "anchors": [
         "consumer-driven-exact-prefix-materialization",
         "multiple-observable-results",
+        "physically-retained-lift-workspace",
         "public-recipe-lifecycle",
         "rebinding-and-failure-ownership",
         "runtime-product-arena"

@@ -134,3 +134,37 @@ claiming global cost optimality. Authored CPU/HIP fixtures compare signed and
 unsigned diamond intermediates and final outputs to Boost, exercise both prefix
 policies, and cover retained live ranges, exact budget rejection, duplicate/null/
 input aliases and all-output precommit preservation. Execution remains pending.
+
+## Physically retained lift workspace
+
+HIP recipes now allocate the aligned product arena **and** their maximum
+status-plus-suffix workspace together during preparation. The arena size remains
+separately queryable; `lift_scratch_bytes` is physically retained capacity, not
+merely a budget reservation. The four-byte status begins at the aligned arena
+end and the byte suffix follows it, so odd cell/suffix sizes cannot misalign the
+status. Linear, diamond and multi-output materializations reuse that one region
+serially; compatible input rebinding does not move it.
+
+The workspace-taking lift still clears status, validates the source residues and
+magnitude, synchronizes/checks the result, and copies only a completely accepted
+suffix. It preserves the existing commit-start and public all-output publication
+transactions. Borrowed scratch is checked for capacity, alignment and overlap
+with all source/destination planes. No lift allocation/free is performed during
+recipe replay. A caller without a persistent owner retains the one-shot helper,
+now using one combined status/suffix allocation rather than two separate buffers.
+Failed drains/cleanup retain the existing whole recipe owner and all reservations.
+
+For the32×32 all-ones three-node minimum-prefix chain, compute prefixes remain
+1/2/3, arena capacity25,600 bytes and retained lift capacity17,412 bytes. Creation
+physically reserves43,012 bytes once. The three lifts no longer allocate/free
+workspace during replay; this is a source allocation count, not a hardware
+measurement. Regression coverage checks positive replay and compatible-rebind
+allocation/free deltas, every prefix pair, status reuse after rejected proofs,
+full output residues and exact budget boundaries. These regressions are unrun.
+
+Internal cost profiles are now version2: HIP lift entries must price the retained
+workspace implementation, including reset/check and staged copy, while CPU
+entries price inline host extension. Version1 profiles are rejected instead of
+silently relabeling old one-shot preparation costs. Unknown estimates remain
+unknown; retaining memory does not make the lift free. Full hardware compilation,
+complete-call/sustained measurements and failure qualification remain deferred.

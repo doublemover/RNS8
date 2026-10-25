@@ -59,7 +59,11 @@ inline void check_product_recipe_outputs(rns8_backend_kind backend) {
       rns8_matrix* outputs[]{matrices[2],matrices[3],matrices[4]};
       CHECK(rns8_execute_product_recipe(recipe,outputs[0])==RNS8_INVALID_ARGUMENT);
       for(int repeat=0;repeat<2;++repeat) {
+        const auto allocations_before=rns8::detail::hip_direct_allocation_counters_snapshot();
         REQUIRE(rns8_execute_product_recipe_outputs(recipe,outputs,3)==RNS8_SUCCESS);
+        const auto allocations_after=rns8::detail::hip_direct_allocation_counters_snapshot();
+        CHECK(allocations_after.allocate_calls==allocations_before.allocate_calls);
+        CHECK(allocations_after.free_calls==allocations_before.free_calls);
         for(int i=0;i<3;++i) {
           std::vector<int8_t> residues(20*n*n);
           if(backend==RNS8_BACKEND_HIP_DIRECT)

@@ -19,7 +19,11 @@ inline void check_product_recipe_rebind(rns8_backend_kind backend) {
   rns8_product_recipe_resources before{};before.struct_size=sizeof(before);before.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_get_product_recipe_resources(recipe,&before)==RNS8_SUCCESS);
   const auto check_value=[&](int64_t expected) {
+    const auto allocations_before=rns8::detail::hip_direct_allocation_counters_snapshot();
     REQUIRE(rns8_execute_product_recipe(recipe,matrices[4])==RNS8_SUCCESS);
+    const auto allocations_after=rns8::detail::hip_direct_allocation_counters_snapshot();
+    CHECK(allocations_after.allocate_calls==allocations_before.allocate_calls);
+    CHECK(allocations_after.free_calls==allocations_before.free_calls);
     std::vector<int8_t> residues(20);
     if(backend==RNS8_BACKEND_HIP_DIRECT)
       REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,residues.data(),matrices[4]->hip_residues,20)==RNS8_SUCCESS);

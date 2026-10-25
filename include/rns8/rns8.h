@@ -1566,7 +1566,7 @@ typedef struct rns8_product_recipe_resources {
   uint32_t abi_version;
   uint32_t node_count;
   uint64_t arena_bytes;
-  uint64_t lift_scratch_bytes;
+  uint64_t lift_scratch_bytes; /* physically retained HIP status+suffix region, zero on CPU */
   uint64_t unreused_payload_bytes;
 } rns8_product_recipe_resources;
 /* Synchronous CPU/direct-HIP exact-wide product DAG with owned intermediate arena.
@@ -1576,7 +1576,7 @@ typedef struct rns8_product_recipe_resources {
  * Sources/context are retained and generation-bound: repacking requires explicit
  * input rebinding within the compiled proof envelope, or a new recipe. Minimum-prefix policy lifts exact suffixes on consumer demand; it is
  * not a measured cost optimizer. Budget includes aligned arena plus peak HIP
- * lift scratch; external matrices and host proof/descriptor overhead are separate.
+ * lift scratch, both physically retained at creation in one allocation; external matrices and host proof/descriptor overhead are separate.
  * Create failure preserves *out. Use/destruction require external host exclusion. */
 RNS8_API rns8_status rns8_create_product_recipe(rns8_context* ctx,
     const rns8_product_recipe_desc* desc,rns8_product_recipe** out);

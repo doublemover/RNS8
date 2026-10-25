@@ -73,3 +73,11 @@ They do not inherit the single-output chain lower-bound proof. Unknown required
 output lifts reject that candidate. Source fixtures exercise retained intermediate
 costs, memory admission, changed observation order and CPU/HIP execution against
 independent full-output references. No measured benefit is asserted.
+
+Profile version2 binds the executable lift strategy: HIP recipes retain their
+maximum status/suffix region at creation; CPU recipes extend private host cells.
+Lift entries still charge each actual demanded extension, status handling and
+staged copy, not zero cost for retained capacity. Version1 is rejected because
+its one-shot allocation boundary is no longer the runtime recipe boundary.
+The maximum scratch remains part of peak/retained budget admission. No measured
+costs or profitable policy are inferred from this ownership change.

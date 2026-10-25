@@ -506,12 +506,30 @@
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Workspace-taking exact lift with status-first aligned alias/capacity admission and unchanged reset/check/staged-copy semantics. Public product recipes physically retain max lift scratch appended to their one owned arena allocation; replay/rebind use it without lift allocation/free. Cost profile v2 binds retained implementation; one-shot combined-allocation helper retained.",
+          "files": [
+            "src/backend_common/exact_lift_workspace.hpp",
+            "src/backend_hip_direct/hip_backend_lift.inc",
+            "src/core/runtime_product_recipe.cpp",
+            "src/backend_common/product_prefix_cost.hpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_exact_lift_workspace.cpp",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc",
+        "tests/support/product_recipe_outputs_fixture.hpp",
+        "tests/support/product_recipe_rebind_fixture.hpp"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Shared recipe/lift calibration harness to compose with general asynchronous/graph extension work.",
+        "Authored allocation/free and full-output regressions, device compilation, failure qualification and complete-route measurements not executed."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -614,7 +632,9 @@
         "tests/differential/test_hip_direct_epilogue_cases.inc",
         "tools/test_collect_epilogue_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "5204e4be0860103530c1b768fc146fe077827d26"
+      ],
       "remaining": [
         "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
       ],

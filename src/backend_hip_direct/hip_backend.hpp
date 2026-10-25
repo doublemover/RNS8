@@ -199,6 +199,13 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
     uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
     uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started);
 
+// Borrowed status+suffix region; no allocations/frees. Caller retains and drains
+// it on errors. The first int is aligned, suffix follows; publication is unchanged.
+rns8_status hip_direct_lift_exact_suffix_workspace(
+    int device_id,void* residues,int64_t cells,uint32_t source_prefix,uint32_t target_prefix,
+    bool signed_value,const uint64_t* bound,void* scratch,uint64_t scratch_bytes,
+    bool& commit_started,bool mixed_radix=false);
+
 rns8_status hip_direct_lift_exact_suffix(
     int device_id, void* residues, int64_t cells, uint32_t source_prefix, uint32_t target_prefix,
     bool signed_value, const uint64_t* bound, bool& commit_started, bool mixed_radix = false);

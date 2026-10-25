@@ -34,6 +34,8 @@ TEST_CASE("direct HIP exact base extension preserves every source prefix and sig
   using boost::multiprecision::cpp_int;
   auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
   constexpr std::size_t cells = 7;
+  rns8::detail::hip_direct_device_buffer retained_lift;
+  REQUIRE(retained_lift.allocate(0,cells*19+sizeof(int))==RNS8_SUCCESS);
   for (const auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     auto desc = matrix_desc(1, cells, semantics, RNS8_BOUND_NONE);
     desc.max_prefix = 20;
@@ -53,13 +55,18 @@ TEST_CASE("direct HIP exact base extension preserves every source prefix and sig
         uint64_t bound_limbs[3]{};
         for (unsigned limb = 0; limb < 3; ++limb)
           bound_limbs[limb] = static_cast<uint64_t>((bound >> (64 * limb)) & UINT64_MAX);
-        for (bool mixed_radix : {false, true}) {
+        for (bool mixed_radix : {false, true}) for(bool retained:{false,true}) {
           auto staged = expected;
           std::fill(staged.begin() + source * cells, staged.end(), int8_t{99});
           REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, matrix->hip_residues, staged.data(), staged.size()) == RNS8_SUCCESS);
           bool committed = false;
-          REQUIRE(rns8::detail::hip_direct_lift_exact_suffix(0, matrix->hip_residues, cells, source, target,
-              signed_value, bound_limbs, committed, mixed_radix) == RNS8_SUCCESS);
+          const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
+          const auto lift=[&](const uint64_t* words){return retained?
+              rns8::detail::hip_direct_lift_exact_suffix_workspace(0,matrix->hip_residues,cells,source,target,signed_value,words,retained_lift.get(),cells*19+sizeof(int),committed,mixed_radix):
+              rns8::detail::hip_direct_lift_exact_suffix(0,matrix->hip_residues,cells,source,target,signed_value,words,committed,mixed_radix);};
+          REQUIRE(lift(bound_limbs)==RNS8_SUCCESS);
+          const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();
+          if(retained){CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);}
           REQUIRE(committed);
           REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, staged.data(), matrix->hip_residues, staged.size()) == RNS8_SUCCESS);
           for (std::size_t i = 0; i < staged.size(); ++i)
@@ -70,12 +77,13 @@ TEST_CASE("direct HIP exact base extension preserves every source prefix and sig
           REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, matrix->hip_residues, rejected.data(), rejected.size()) == RNS8_SUCCESS);
           uint64_t zero_bound[3]{};
           committed = true;
-          REQUIRE(rns8::detail::hip_direct_lift_exact_suffix(0, matrix->hip_residues, cells, source, target,
-              signed_value, zero_bound, committed, mixed_radix) == RNS8_RANGE_ERROR);
+          REQUIRE(lift(zero_bound)==RNS8_RANGE_ERROR);
           REQUIRE_FALSE(committed);
           std::vector<int8_t> unchanged(rejected.size());
           REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, unchanged.data(), matrix->hip_residues, unchanged.size()) == RNS8_SUCCESS);
           REQUIRE(unchanged == rejected);
+          // Retained failure status is reset before the next successful use.
+          REQUIRE(lift(bound_limbs)==RNS8_SUCCESS);REQUIRE(committed);
         }
         auto initial = expected;
         std::fill(initial.begin() + source * cells, initial.end(), int8_t{99});

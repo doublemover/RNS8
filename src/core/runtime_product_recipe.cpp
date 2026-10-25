@@ -149,7 +149,11 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     for(auto* hold:holds) if(*hold==UINT64_MAX) return RNS8_RANGE_ERROR;
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
-      const auto status=hip_direct_allocate(ctx->device_id,static_cast<size_t>(state->allocation.arena_bytes),&state->device);
+      // Arena slots are 256-byte aligned; append one int-aligned maximum lift
+      // region to the same retained allocation. No per-materialization malloc.
+      if(state->lift_scratch>SIZE_MAX-state->allocation.arena_bytes)return RNS8_RANGE_ERROR;
+      const auto status=hip_direct_allocate(ctx->device_id,
+          static_cast<size_t>(state->allocation.arena_bytes+state->lift_scratch),&state->device);
       if(status!=RNS8_SUCCESS) return status;
     } else state->host.resize(static_cast<size_t>(state->allocation.arena_bytes));
     // Allocate the outer owner and reference list before taking any references.
@@ -279,8 +283,9 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
         for(auto& word:words) { word=(magnitude&mask).convert_to<uint64_t>(); magnitude>>=64; }
         if(magnitude!=0) return RNS8_RANGE_ERROR;
         bool touched=false;
-        const auto status=hip_direct_lift_exact_suffix(state.ctx->device_id,residues,cells,current[id],target,
-            state.semantics==RNS8_EXACT_WIDE_SIGNED,words,touched);
+        auto* lift_workspace=static_cast<int8_t*>(state.device)+state.allocation.arena_bytes;
+        const auto status=hip_direct_lift_exact_suffix_workspace(state.ctx->device_id,residues,cells,current[id],target,
+            state.semantics==RNS8_EXACT_WIDE_SIGNED,words,lift_workspace,state.lift_scratch,touched);
         if(status!=RNS8_SUCCESS) return status;
       } else {
         std::vector<int8_t> cell_residues(current[id]);

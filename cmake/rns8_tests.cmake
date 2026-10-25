@@ -869,6 +869,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_residue_dot.cpp
     tests/unit/test_residue_epilogue.cpp
+    tests/unit/test_exact_lift_workspace.cpp
     tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
     tests/unit/test_direct_crt_constants.cpp
