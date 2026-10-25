@@ -100,7 +100,10 @@ inline Checked verify(const Certificate& c) {
       if(n.prior!=UINT32_MAX){const auto* prior=input(n.prior);if(n.operation!=Operation::dot || !prior || prior->modulus!=value.modulus)return fail("accumulator_carry_domain",index);
         value.low+=prior->low;value.high+=prior->high;value.multiple=gcd(value.multiple,prior->multiple);}
     } else {
-      if(!a || n.right!=UINT32_MAX || n.prior!=UINT32_MAX)return fail("unary_arity_or_order",index);value=*a;
+      if(!a || n.right!=UINT32_MAX || n.prior!=UINT32_MAX) {
+        return fail("unary_arity_or_order",index);
+      }
+      value=*a;
       if(n.operation==Operation::canonical_reduce || n.operation==Operation::centered_reduce){
         if(a->wrapped_bits || n.modulus<2 || (a->modulus && a->modulus!=n.modulus) || n.equality!=Equality::modular_value)return fail("named_reduction_domain",index);
         value.low=n.operation==Operation::centered_reduce?-Integer(n.modulus/2):Integer(0);
