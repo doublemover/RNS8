@@ -9,7 +9,8 @@ preserves earlier work without duplicating current status.
 ## Recorded baseline
 
 The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
-passed at `6ce489b`; nine issues have evidence-backed closure and 42 remain open.
+passed at `6ce489b`; subsequent address/metadata qualification brings the total
+to 11 evidence-backed closures and 40 open issues.
 The per-issue ledger separates the completed local checks from unresolved
 implementation, measurement and hardware requirements.
 
@@ -186,8 +187,9 @@ The [new independent collection](focused-closeout-measurements-20261025.md#subse
 passes exact checks but fails all four held-out prediction cohorts. Broader
 representation-choice integration and qualified measured routing remain under
 #42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
-and installed-ABI checks. Reusable bound-summary ownership, matched adaptive
-benefit and qualified measured routing remain open.
+and installed-ABI checks. Explicit generation-bound summary ownership is now
+authored; its next validation/measurement batch, matched adaptive benefit and
+qualified measured routing remain open.
 
 The [physical capacity qualification](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx)
 now completes a real >32 GiB native/minimum-RNS input on the 24 GiB gfx1100 card:

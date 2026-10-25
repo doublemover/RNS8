@@ -23,8 +23,10 @@ its synchronous rejected-count readback. The composed
 its optional compact worker traversal, completes missing planes exactly and
 commits full residue output. Its explicit public retained-native owner binds the
 input materialization to matrix generations; raw discovery records alone remain
-usable only while exact inputs are unchanged. Reusable summary caches and general
-planner-selected consumers are still separate integration work.
+usable only while exact inputs are unchanged. The explicit workspace-owned
+[retained-summary API](adaptive-native-product.md#workspace-owned-summary-reuse)
+binds reusable summaries to live matrix generations. General planner-selected
+consumers remain separate integration work.
 
 Authored Boost checks cover full-width sums/products, carry boundaries through
 UINT32_MAX K, signed minima, unsigned maxima, zeros, mutation, padded tails,

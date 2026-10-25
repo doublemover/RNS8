@@ -10,7 +10,7 @@ from collect_native_calibration import strict_json, DEFAULT_MODULI
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 
-MODES = ('scalar-staged', 'scalar-fused', 'wmma-staged', 'wmma-fused', 'rns-public', 'rns-parallel', 'vector-width8', 'vector-exact-width')
+MODES = ('scalar-staged', 'scalar-fused', 'wmma-staged', 'wmma-fused', 'rns-public', 'rns-parallel', 'vector-width8', 'vector-exact-width', 'adaptive-fresh', 'adaptive-cached')
 
 
 def validate_case(c):
@@ -21,6 +21,8 @@ def validate_case(c):
             raise ValueError(key)
     if type(c['unsigned_inputs']) is not bool or c['mode'] not in MODES or c['residency'] not in ('cold', 'resident', 'repack'):
         raise ValueError('mode/domain')
+    if c['mode'].startswith('adaptive-') and c['residency'] != 'resident':
+        raise ValueError('adaptive summary comparison requires retained resident inputs')
     if (c['mode'].startswith('scalar-') and c['unsigned_inputs']) or (c['mode'] == 'rns-parallel' and c['n'] > 8) or (c['mode'] == 'vector-exact-width' and not (2 <= c['n'] <= 8 and c['k'] >= 512)):
         raise ValueError('concrete recipe')
     if c['m']*c['n']*c['k'] > 134217728:
@@ -78,7 +80,38 @@ def validate_capture(c, entry):
         raise ValueError('public default route identity')
     if mode == 'vector-exact-width' and f'_n{case["n"]}_exact_width_' not in kernel:
         raise ValueError('exact-width vector route identity')
+    if mode.startswith('adaptive-'):
+        validate_adaptive_summary_capture(c, case)
     return c
+
+
+def validate_adaptive_summary_capture(c, case):
+    cached = case['mode'] == 'adaptive-cached'
+    expected = dict(adaptive_summary_policy='generation_bound' if cached else 'fresh_scan',
+                    adaptive_method='axis_l1', adaptive_group=2, adaptive_workers=32, exact_proof_policy='scalar_first')
+    for key, value in expected.items():
+        if type(c.get(key)) is not type(value) or c[key] != value:
+            raise ValueError('adaptive identity '+key)
+    calls = 1 + case['warmups'] + case['repeats'] + sum(b['calls'] for b in c['sustained'])
+    size = ((case['m']+15)//16+(case['n']+15)//16)*24
+    for name, count in [('adaptive_summary_first', 1), ('adaptive_summary_final', calls)]:
+        info = c.get(name)
+        keys = {'retained_bytes', 'a_instance', 'a_generation', 'b_instance', 'b_generation', 'a_scans', 'b_scans', 'a_reuses', 'b_reuses'}
+        if not isinstance(info, dict) or set(info) != keys or any(type(v) is not int or v < 0 for v in info.values()):
+            raise ValueError('adaptive summary receipt')
+        if info['retained_bytes'] != (size if cached else 0):
+            raise ValueError('adaptive retained bytes')
+        for side in ('a', 'b'):
+            if info[side+'_scans'] != int(cached) or info[side+'_reuses'] != (count-1 if cached else 0):
+                raise ValueError('adaptive scans/reuses')
+            if cached and (not info[side+'_instance'] or not info[side+'_generation']):
+                raise ValueError('adaptive generation identity')
+            if not cached and (info[side+'_instance'] or info[side+'_generation']):
+                raise ValueError('fresh route cannot report cached identity')
+    if cached:
+        for key in ('a_instance', 'a_generation', 'b_instance', 'b_generation'):
+            if c['adaptive_summary_first'][key] != c['adaptive_summary_final'][key]:
+                raise ValueError('unchanged generation required')
 
 
 def main():
@@ -98,6 +131,7 @@ def main():
             raise RuntimeError('immutable capture exists or subprocess failed: '+str(path))
         c = validate_capture(strict_json(path.read_text()), entry)
         identity = dict(case={k: v for k, v in entry['case'].items() if k != 'mode'}, target=c.get('target'), device=c.get('device'), runtime=c.get('runtime_version'),
+                        proof_policy=c.get('exact_proof_policy', 'default_eager'),
                         build=c['build_manifest'], artifact={k: c['artifact_capture'].get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')},
                         environment=(c.get('request_identity') or {}).get('environment'))
         cohorts.setdefault(json.dumps(identity, sort_keys=True), []).append(dict(mode=entry['case']['mode'], execution_id=c['execution_id'], independent_run=entry['independent_run'],

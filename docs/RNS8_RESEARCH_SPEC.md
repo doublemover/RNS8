@@ -662,6 +662,19 @@ Rules:
 The default adaptive bound tile is `128 x 128` output elements. The tile size
 is configurable in powers of two from 64 to 512.
 
+The explicit native-input adaptive experiment uses 16 by 16 device proof tiles,
+independently of that caller-bound plan tile policy. Its optional
+`rns8_gemm_adaptive_exact_cached` route retains A/B axis summaries in the workspace,
+bound independently to live internal matrix instances/content generations and
+owned native allocations, explicit semantics, device, shape, role and discovery
+policy. Reuse never follows from a pointer or caller source version alone.
+Changed operands must rescan before rebuilding strict tile-prefix certificates;
+ordinary exact proofs and complete suffix materialization remain required.
+Retained summary bytes are charged together with transient adaptive scratch.
+The [native adaptive contract](adaptive-native-product.md#workspace-owned-summary-reuse)
+owns this experimental lifetime and observation API. No default selection or
+performance qualification follows from summary reuse alone.
+
 For `RNS8_BOUND_PER_TILE_MAX_ABS` and `RNS8_BOUND_PER_TILE_MAX_UNSIGNED`,
 `rns8_gemm_desc.bound` must be zero and `rns8_gemm_desc.tile_bounds` points to
 row-major output-tile bounds with

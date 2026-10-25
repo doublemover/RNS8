@@ -1,4 +1,5 @@
 #include "backend_common/native_tile_bound.hpp"
+#include "backend_common/native_summary_identity.hpp"
 #include "backend_common/adaptive_native_support.hpp"
 #include "backend_hip_direct/native_global_minimum.hpp"
 #include "backend_common/garner_constants.hpp"
@@ -7,6 +8,35 @@
 #include <random>
 #include "backend_common/native_narrow.hpp"
 #include "backend_common/mixed_radix_lift.hpp"
+
+TEST_CASE("native summary reuse requires complete matrix generation and policy identity") {
+  using namespace rns8::detail;
+  const uint64_t payload=0;
+  NativeSummaryIdentity identity;
+  identity.instance=7; identity.generation=9; identity.native=&payload;
+  identity.rows=17; identity.cols=65; identity.ld=68; identity.device=0;
+  identity.method=NativeBoundMethod::panel_l1; identity.panel_k=64; identity.row_tiles=true;
+  CHECK(identity==identity);
+  for (unsigned field=0; field<11; ++field) {
+    auto changed=identity;
+    switch (field) {
+      case 0: ++changed.instance; break;
+      case 1: ++changed.generation; break;
+      case 2: changed.native=nullptr; break;
+      case 3: ++changed.rows; break;
+      case 4: ++changed.cols; break;
+      case 5: ++changed.ld; break;
+      case 6: ++changed.device; break;
+      case 7: changed.method=NativeBoundMethod::axis_l1; break;
+      case 8: ++changed.panel_k; break;
+      case 9: changed.unsigned_inputs=true; break;
+      case 10: changed.row_tiles=false; break;
+    }
+    CHECK_FALSE(identity==changed);
+    CHECK_FALSE(changed==identity);
+  }
+  CHECK_FALSE(NativeSummaryIdentity{}==NativeSummaryIdentity{});
+}
 
 TEST_CASE("mixed radix lift subtracts the complete source product for negatives") {
   using namespace rns8::detail;

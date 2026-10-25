@@ -505,3 +505,21 @@ TEST_CASE("retained native exact inputs require explicit direct HIP storage") {
   }
   rns8_destroy_context(ctx);
 }
+
+TEST_CASE("adaptive summary observation is versioned and excludes in-flight ownership") {
+  rns8_workspace workspace;
+  rns8_adaptive_summary_info info{};
+  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_INVALID_ARGUMENT);
+  info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+  CHECK(rns8_get_adaptive_summary_info(nullptr,&info)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_SUCCESS);
+  CHECK(info.retained_bytes==0);
+  CHECK(info.a_instance==0);
+  CHECK(info.a_scans==0);
+  workspace.in_flight=true;
+  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_BUSY);
+  CHECK(rns8_destroy_workspace(&workspace)==RNS8_BUSY);
+  workspace.in_flight=false;
+  CHECK(rns8_gemm_adaptive_exact_cached(nullptr,nullptr,nullptr,nullptr,nullptr,
+      RNS8_ADAPTIVE_AXIS_L1,256,1,0,0,&workspace)==RNS8_INVALID_ARGUMENT);
+}

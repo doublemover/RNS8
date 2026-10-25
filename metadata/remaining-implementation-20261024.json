@@ -632,20 +632,33 @@
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Explicit workspace-owned native summaries bind each operand independently to internal matrix instance/generation, owned native allocation, device, semantics and discovery policy. Changed operands alone rescan; tile bounds and compact buckets rebuild every call.",
+          "files": [
+            "src/backend_common/native_summary_identity.hpp",
+            "src/core/api_adaptive_summary.inc",
+            "src/core/api_exact_epilogue.cpp",
+            "src/backend_hip_direct/hip_backend_bounds.inc",
+            "src/backend_hip_direct/hip_direct_bound_wrappers.inc"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_plan_validation_cache_cases.inc",
         "tests/unit/test_native_tile_bound.cpp",
         "tests/differential/test_hip_direct_adaptive_native_cases.inc",
-        "tools/test_native_dataset.py"
+        "tools/test_native_dataset.py",
+        "tests/unit/test_api_exact_wide_cases.inc",
+        "tools/test_collect_narrow_public_calibration.py"
       ],
       "commits": [
         "caf5cea743d1395e8f3acc760382b9eefad9001d",
         "7954eb326c5b45080fd60f980140672598a0d3aa"
       ],
       "remaining": [
-        "The fresh device-proved global-minimum completed-output control and its phase-lifetime scratch bound pass local CPU/GPU differentials, CLI smoke and collector tests. Generation-bound reusable bound-summary ownership, matched adaptive benefit and fallback-overhead measurements remain."
+        "Run consolidated CPU-ASan/gfx1100 summary-cache regressions and matched fresh/cached public-route measurements; qualify actual adaptive benefit and bounded full-width fallback overhead.",
+        "Planner-selected proof policy and held-out measured routing remain separate gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [

@@ -4,6 +4,7 @@
 #include "backend_common/address_domain.hpp"
 #include "backend_common/arithmetic_certificate.hpp"
 #include "core/hip_resources.hpp"
+#include "backend_common/native_summary_identity.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -234,6 +235,9 @@ struct rns8_workspace {
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
   rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;
+  rns8::detail::hip_direct_device_buffer adaptive_summary_owner;
+  rns8::detail::NativeSummaryIdentity adaptive_summary_identity[2];
+  uint64_t adaptive_summary_scans[2]{}, adaptive_summary_reuses[2]{};
   rns8::detail::hip_direct_device_buffer int32_scratch_owner;
   rns8::detail::hip_direct_device_buffer matmul_workspace_owner;
   rns8::detail::hip_direct_device_buffer a_prepack_owner;

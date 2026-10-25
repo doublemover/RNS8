@@ -1,3 +1,28 @@
+template <typename NativeT, bool RowTiles>
+int rns8_native_single_axis_launch(const void* source, int rows, int cols, int ld,
+    void* summaries, bool l1, int panel_k, int panels) {
+  const uint32_t tiles = (static_cast<uint64_t>(RowTiles ? rows : cols) + 15) / 16;
+  if (l1) {
+    hipLaunchKernelGGL((rns8_native_axis_l1_kernel<NativeT, RowTiles>), dim3(tiles, panels), dim3(256),
+        0, nullptr, static_cast<const NativeT*>(source), rows, cols, ld,
+        static_cast<rns8::detail::NativeAxisSummary*>(summaries), panel_k, panels);
+  } else {
+    hipLaunchKernelGGL((rns8_native_axis_max_kernel<NativeT, RowTiles>), dim3(tiles), dim3(256),
+        0, nullptr, static_cast<const NativeT*>(source), rows, cols, ld,
+        static_cast<uint64_t*>(summaries), std::is_unsigned_v<NativeT>);
+  }
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_native_single_axis(const void* source, int rows, int cols, int ld,
+    bool unsigned_inputs, bool row_tiles, void* summaries, bool l1, int panel_k, int panels) {
+  if (unsigned_inputs) {
+    return row_tiles ? rns8_native_single_axis_launch<uint64_t,true>(source,rows,cols,ld,summaries,l1,panel_k,panels)
+                     : rns8_native_single_axis_launch<uint64_t,false>(source,rows,cols,ld,summaries,l1,panel_k,panels);
+  }
+  return row_tiles ? rns8_native_single_axis_launch<int64_t,true>(source,rows,cols,ld,summaries,l1,panel_k,panels)
+                   : rns8_native_single_axis_launch<int64_t,false>(source,rows,cols,ld,summaries,l1,panel_k,panels);
+}
+
 template <typename NativeT>
 int rns8_native_axis_l1_launch(const void* a, const void* b, rns8::detail::NativeAxisSummary* summaries,
                                int m, int n, int k, int lda, int ldb, int panel_k, int panels) {

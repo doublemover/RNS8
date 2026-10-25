@@ -80,11 +80,13 @@ rns8_status rns8_gemm_narrow_exact(
   });
 }
 
-rns8_status rns8_gemm_adaptive_exact(
+#include "core/api_adaptive_summary.inc"
+
+static rns8_status gemm_adaptive_exact_impl(
     rns8_context* ctx, const rns8_plan* plan,
     const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
     rns8_adaptive_bound_method method, uint32_t panel_k, uint32_t group,
-    uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace) {
+    uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace, bool cached) {
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || B == C ||
@@ -117,28 +119,63 @@ rns8_status rns8_gemm_adaptive_exact(
     rns8_exact_matrix_ranges ranges;
     status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
     if (status != RNS8_SUCCESS) return status;
-    // Synchronous APIs require external thread exclusion. Existing operand and
-    // workspace validation exclude outstanding async readers/writers. All proof
-    // allocation precedes the staged device operation; failed preflight preserves C.
-    bool commit_started = false;
-    struct CommitGuard {
-      rns8_matrix& output;
-      bool& started;
-      bool published = false;
-      ~CommitGuard() { if (started && !published) invalidate_output_currentness(output); }
-    } write{*C, commit_started};
     const auto discovery = method == RNS8_ADAPTIVE_TILE_MAX ? NativeBoundMethod::tile_max
         : method == RNS8_ADAPTIVE_AXIS_L1 ? NativeBoundMethod::axis_l1 : NativeBoundMethod::panel_l1;
+    const auto support=query_adaptive_native_support(plan->desc.m,plan->desc.n,plan->desc.k,
+        A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,group,discovery,panel_k,compact_workers,max_scratch_bytes);
+    if (support.status!=RNS8_SUCCESS) return support.status;
+    // Retired policy storage is freed before its replacement. Even a smaller
+    // requested budget must cover the already-retained summary allocation.
+    if (workspace->adaptive_summary_owner.bytes()>max_scratch_bytes) return RNS8_WORKSPACE_TOO_SMALL;
+    bool commit_started = false;
+    size_t lease_token=0;
+    status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);
+    if (status!=RNS8_SUCCESS) return status;
+    struct LeaseGuard {
+      rns8_context& ctx; rns8_workspace& workspace; size_t token; bool& written; bool active=true;
+      void finish(rns8_status result) noexcept {
+        if (finish_synchronous_lease(ctx,token,result,written)) workspace.adaptive_summary_owner.mark_completed();
+        active=false;
+      }
+      ~LeaseGuard() { if (active) finish(RNS8_INTERNAL_ERROR); }
+    } lease{*ctx,*workspace,lease_token,commit_started};
+    if (cached) {
+      status=prepare_adaptive_summaries(*ctx,*A,*B,a,b,discovery,panel_k,support,*workspace);
+      if (status!=RNS8_SUCCESS) { lease.finish(status); return status; }
+      workspace->adaptive_summary_owner.mark_pending();
+    }
+    // The fresh control charges any separately retained cache, without using it.
+    const auto operation_budget=cached ? max_scratch_bytes : max_scratch_bytes-workspace->adaptive_summary_owner.bytes();
     status = hip_direct_gemm_adaptive_native_device(ctx->device_id, a, b,
         static_cast<int8_t*>(C->hip_residues), plan->desc.m, plan->desc.n, plan->desc.k,
         A->desc.cols, B->desc.cols, C->desc.cols, unsigned_inputs, plan->prefix, group,
-        max_scratch_bytes, commit_started, discovery, panel_k, compact_workers);
+        operation_budget, commit_started, discovery, panel_k, compact_workers,
+        cached ? workspace->adaptive_summary_owner.get() : nullptr);
+    lease.finish(status);
     if (status != RNS8_SUCCESS) return status;
+    struct PublicationGuard {
+      rns8_matrix& output;
+      bool pending=true;
+      ~PublicationGuard() { if (pending) invalidate_output_currentness(output); }
+    } publication{*C};
     mark_output_device_residues_current(*C, plan);
     commit_exact_range(*C, *plan, bound, &ranges);
-    write.published = true;
+    publication.pending=false;
     return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_gemm_adaptive_exact(
+    rns8_context* ctx,const rns8_plan* plan,const rns8_matrix* a,const rns8_matrix* b,rns8_matrix* c,
+    rns8_adaptive_bound_method method,uint32_t panel_k,uint32_t group,uint32_t workers,
+    uint64_t budget,rns8_workspace* workspace) {
+  return gemm_adaptive_exact_impl(ctx,plan,a,b,c,method,panel_k,group,workers,budget,workspace,false);
+}
+rns8_status rns8_gemm_adaptive_exact_cached(
+    rns8_context* ctx,const rns8_plan* plan,const rns8_matrix* a,const rns8_matrix* b,rns8_matrix* c,
+    rns8_adaptive_bound_method method,uint32_t panel_k,uint32_t group,uint32_t workers,
+    uint64_t budget,rns8_workspace* workspace) {
+  return gemm_adaptive_exact_impl(ctx,plan,a,b,c,method,panel_k,group,workers,budget,workspace,true);
 }
 
 namespace rns8::detail::api {

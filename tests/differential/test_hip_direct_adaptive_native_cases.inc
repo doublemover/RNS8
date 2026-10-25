@@ -99,7 +99,8 @@ TEST_CASE("adaptive native products complete every residue plane before chaining
   check_adaptive_native_product<uint64_t>();
 }
 
-template<class T> void check_public_adaptive_owner() {
+template<class T> void check_public_adaptive_owner(bool cached=false,
+    rns8_adaptive_bound_method method=RNS8_ADAPTIVE_AXIS_L1) {
   using boost::multiprecision::cpp_int;
   constexpr bool is_unsigned = std::is_unsigned_v<T>;
   const auto semantics = is_unsigned ? RNS8_EXACT_WIDE_UNSIGNED : RNS8_EXACT_WIDE_SIGNED;
@@ -138,8 +139,8 @@ template<class T> void check_public_adaptive_owner() {
     return status;
   };
   const auto run = [&](rns8_matrix* lhs, uint64_t budget, uint32_t workers) {
-    return rns8_gemm_adaptive_exact(ctx, plan, lhs, b, c, RNS8_ADAPTIVE_AXIS_L1,
-                                    256, 2, workers, budget, workspace);
+    const auto operation=cached ? rns8_gemm_adaptive_exact_cached : rns8_gemm_adaptive_exact;
+    return operation(ctx,plan,lhs,b,c,method,16,2,workers,budget,workspace);
   };
   REQUIRE(pack(a,av) == RNS8_SUCCESS);
   REQUIRE(pack(b,bv) == RNS8_SUCCESS);
@@ -185,6 +186,25 @@ template<class T> void check_public_adaptive_owner() {
         SKIP("compiled target lacks adaptive native WMMA");
       }
       REQUIRE(status == RNS8_SUCCESS);
+      if (cached) {
+        rns8_adaptive_summary_info info{};
+        info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+        REQUIRE(rns8_get_adaptive_summary_info(workspace,&info)==RNS8_SUCCESS);
+        CHECK(info.a_instance==a->matrix_instance_id);
+        CHECK(info.a_generation==a->content_generation);
+        CHECK(info.b_instance==b->matrix_instance_id);
+        CHECK(info.b_generation==b->content_generation);
+        CHECK(info.a_scans==uint64_t(mutation+1));
+        CHECK(info.b_scans==1);
+        CHECK(info.a_reuses==uint64_t(mutation+(workers ? 1 : 0)));
+        CHECK(info.b_reuses==uint64_t(2*mutation+(workers ? 1 : 0)));
+        const uint64_t bytes=4*(method==RNS8_ADAPTIVE_TILE_MAX ? sizeof(uint64_t) : sizeof(rns8::detail::NativeAxisSummary))*
+            (method==RNS8_ADAPTIVE_PANEL_L1 ? 2 : 1);
+        CHECK(info.retained_bytes==bytes);
+        const auto generation=c->content_generation;
+        CHECK(run(a,bytes-1,3)==RNS8_WORKSPACE_TOO_SMALL);
+        CHECK(c->content_generation==generation);
+      }
       CHECK_FALSE(c->device_native_current);
       std::vector<uint64_t> limbs(17*17*3);
       if constexpr (std::is_unsigned_v<T>)
@@ -202,6 +222,41 @@ template<class T> void check_public_adaptive_owner() {
     }
   }
   // An ordinary resident product replaces A and must retire its native materialization.
+  if (cached) {
+    const auto info = [&]() {
+      rns8_adaptive_summary_info value{};
+      value.struct_size=sizeof(value); value.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_adaptive_summary_info(workspace,&value)==RNS8_SUCCESS);
+      return value;
+    };
+    const auto before=info();
+    bv[0]=T(7);
+    REQUIRE(pack(b,bv)==RNS8_SUCCESS);
+    REQUIRE(run(a,UINT64_MAX,3)==RNS8_SUCCESS);
+    const auto after=info();
+    CHECK(after.a_scans==before.a_scans);
+    CHECK(after.b_scans==before.b_scans+1);
+    CHECK(after.a_reuses==before.a_reuses+1);
+    CHECK(after.b_generation==b->content_generation);
+    // Policy changes invalidate both roles even if the native generations did
+    // not change; their payload has a different arithmetic interpretation.
+    const auto alternate=method==RNS8_ADAPTIVE_TILE_MAX ? RNS8_ADAPTIVE_AXIS_L1 : RNS8_ADAPTIVE_TILE_MAX;
+    REQUIRE(rns8_gemm_adaptive_exact_cached(ctx,plan,a,b,c,alternate,16,2,3,UINT64_MAX,workspace)==RNS8_SUCCESS);
+    const auto switched=info();
+    CHECK(switched.a_scans==after.a_scans+1);
+    CHECK(switched.b_scans==after.b_scans+1);
+    REQUIRE(run(a,UINT64_MAX,3)==RNS8_SUCCESS);
+    rns8_matrix* replacement=nullptr;
+    REQUIRE(rns8_create_matrix(ctx,&md,&replacement)==RNS8_SUCCESS);
+    REQUIRE(pack(replacement,av)==RNS8_SUCCESS);
+    const auto previous=info();
+    REQUIRE(run(replacement,UINT64_MAX,3)==RNS8_SUCCESS);
+    const auto replaced=info();
+    CHECK(replaced.a_instance==replacement->matrix_instance_id);
+    CHECK(replaced.a_scans==previous.a_scans+1);
+    CHECK(replaced.b_scans==previous.b_scans);
+    REQUIRE(rns8_destroy_matrix(replacement)==RNS8_SUCCESS);
+  }
   REQUIRE(rns8_gemm_rns(ctx,plan,b,b,a,workspace) == RNS8_SUCCESS);
   CHECK_FALSE(a->device_native_current);
   const auto generation = c->content_generation;
@@ -259,6 +314,14 @@ TEST_CASE("public adaptive exact products own native inputs and retire stale cop
   if (!hip_available()) SKIP("no HIP device for public adaptive ownership");
   check_public_adaptive_owner<int64_t>();
   check_public_adaptive_owner<uint64_t>();
+}
+
+TEST_CASE("public adaptive summaries reuse each unchanged axis and refresh mutated generations", "[hip][native][bounds][summary]") {
+  if (!hip_available()) SKIP("no HIP device for retained adaptive summaries");
+  for (const auto method : {RNS8_ADAPTIVE_TILE_MAX,RNS8_ADAPTIVE_AXIS_L1,RNS8_ADAPTIVE_PANEL_L1}) {
+    check_public_adaptive_owner<int64_t>(true,method);
+    check_public_adaptive_owner<uint64_t>(true,method);
+  }
 }
 
 TEST_CASE("direct HIP matrices allocate only the requested device payload") {

@@ -2272,6 +2272,33 @@ RNS8_API rns8_status rns8_gemm_adaptive_exact(
     rns8_adaptive_bound_method method, uint32_t panel_k, uint32_t group,
     uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace);
 
+/* Explicit retained-summary variant. The workspace owns at most one A/B summary
+ * pair. Matrix instance/content generations, native allocation, signedness,
+ * shape, device and discovery policy bind each side independently. Unchanged
+ * sides skip native scanning; changed sides refresh before prefix selection.
+ * All tile certificates and buckets are rebuilt each call. max_scratch_bytes
+ * includes retained summary payload plus transient device payload, excluding
+ * pre-existing ordinary matrix/workspace storage and allocator overhead.
+ * Changing policy replaces the pair; destruction releases it with the workspace.
+ * This synchronous experimental API requires external host-thread exclusion. */
+RNS8_API rns8_status rns8_gemm_adaptive_exact_cached(
+    rns8_context* ctx, const rns8_plan* plan,
+    const rns8_matrix* A, const rns8_matrix* B, rns8_matrix* C,
+    rns8_adaptive_bound_method method, uint32_t panel_k, uint32_t group,
+    uint32_t compact_workers, uint64_t max_scratch_bytes, rns8_workspace* workspace);
+
+typedef struct rns8_adaptive_summary_info {
+  uint32_t struct_size, abi_version;
+  uint64_t retained_bytes;
+  uint64_t a_instance, a_generation, b_instance, b_generation;
+  uint64_t a_scans, b_scans, a_reuses, b_reuses;
+} rns8_adaptive_summary_info;
+/* Observes the last successfully scanned identities and lifetime counters.
+ * These recorded stamps do not certify that a subsequently mutated matrix is
+ * still current. Admission always checks the live matrices again. */
+RNS8_API rns8_status rns8_get_adaptive_summary_info(
+    const rns8_workspace*, rns8_adaptive_summary_info*);
+
 /* Experimental synchronous split-complex exact-integer composition:
  * (Cr,Ci) = (Ar*Br - Ai*Bi, Ar*Bi + Ai*Br).
  * Supports EXACT_WIDE_SIGNED plans on CPU-reference and direct HIP only.

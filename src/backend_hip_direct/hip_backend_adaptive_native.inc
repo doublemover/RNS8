@@ -8,7 +8,8 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     bool unsigned_inputs, uint32_t capacity, uint32_t group,
-    uint64_t max_scratch_bytes, bool& commit_started, NativeBoundMethod method, uint32_t panel_k, uint32_t compact_workers) {
+    uint64_t max_scratch_bytes, bool& commit_started, NativeBoundMethod method, uint32_t panel_k, uint32_t compact_workers,
+    const void* retained_summaries) {
   commit_started = false;
   if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
   const auto support = query_adaptive_native_support(m,n,k,lda,ldb,ldc,capacity,group,
@@ -45,7 +46,7 @@ rns8_status hip_direct_gemm_adaptive_native_device(
   if ((status = hip_direct_copy_device_to_host(device_id, &flag, device_status, sizeof(flag))) != RNS8_SUCCESS) return status;
   if (!flag) return RNS8_UNSUPPORTED_BACKEND;
   status = hip_direct_discover_native_tile_bounds(device_id, a, b, m, n, k, lda, ldb,
-      unsigned_inputs, capacity, bounds, indices, offsets, max_scratch_bytes - reserved, method, panel_k);
+      unsigned_inputs, capacity, bounds, indices, offsets, max_scratch_bytes - reserved, method, panel_k, retained_summaries);
   if (status != RNS8_SUCCESS) return status;
   if (hipMemset(output, 0, static_cast<size_t>(stage_bytes)) != hipSuccess ||
       hipMemset(device_status, 0, sizeof(int)) != hipSuccess) return RNS8_BACKEND_FAILURE;

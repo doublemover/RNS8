@@ -31,6 +31,7 @@ class NarrowPublicCollection(unittest.TestCase):
         c = self.case(); self.assertEqual(selected_prefix(c), 2)
         c['prefix'] = 1
         with self.assertRaises(ValueError): validate_case(c)
+
         c = self.case(); c['unsigned_inputs'] = True
         with self.assertRaises(ValueError): validate_case(c)
         c = self.case(); c.update(mode='vector-exact-width', n=3, k=512); self.assertEqual(validate_case(c), c)
@@ -38,6 +39,27 @@ class NarrowPublicCollection(unittest.TestCase):
         with self.assertRaises(ValueError): validate_case(c)
         c = self.case(); c['mode'] = 'rns-parallel'
         with self.assertRaises(ValueError): validate_case(c)
+
+    def test_generation_bound_summary_receipts_charge_each_completed_call(self):
+        for cached in (False, True):
+            c, entry = self.capture()
+            entry['case']['mode'] = 'adaptive-cached' if cached else 'adaptive-fresh'
+            c.update(narrow_producer='not_applicable', known_narrow_scratch_bytes=0,
+                     adaptive_summary_policy='generation_bound' if cached else 'fresh_scan',
+                     adaptive_method='axis_l1', adaptive_group=2, adaptive_workers=32, exact_proof_policy='scalar_first')
+            first = dict(retained_bytes=96 if cached else 0, a_instance=1 if cached else 0,
+                         a_generation=int(cached), b_instance=2 if cached else 0, b_generation=int(cached),
+                         a_scans=int(cached), b_scans=int(cached), a_reuses=0, b_reuses=0)
+            last = dict(first, a_reuses=52 if cached else 0, b_reuses=52 if cached else 0)
+            c.update(adaptive_summary_first=first, adaptive_summary_final=last)
+            self.assertEqual(validate_capture(c, entry), c)
+            for key, value in [('a_scans', 2), ('b_reuses', 0 if cached else 1), ('retained_bytes', 0 if cached else 96), ('a_generation', 3)]:
+                bad=copy.deepcopy(c); bad['adaptive_summary_final'][key]=value
+                with self.subTest(cached=cached, key=key), self.assertRaises(ValueError):
+                    validate_capture(bad,entry)
+            bad=copy.deepcopy(entry['case']); bad['residency']='repack'
+            with self.assertRaises(ValueError): validate_case(bad)
+
 
 
 if __name__ == '__main__':

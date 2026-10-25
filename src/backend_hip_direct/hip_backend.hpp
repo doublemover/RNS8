@@ -110,12 +110,16 @@ rns8_status hip_direct_materialize_ragged_residues(
 // buckets 1..20 hold strict minimal prefixes. Order within a bucket is unspecified.
 // Outputs are usable only on success and while these exact input values remain
 // unchanged; these raw records are not public generation-bound matrix proofs.
+// One operand's axis summaries; same kernels/arithmetic as fresh discovery.
+rns8_status hip_direct_scan_native_summary(int device_id, const void* source,
+    int64_t rows, int64_t cols, int64_t ld, bool unsigned_inputs, bool row_tiles,
+    NativeBoundMethod method, uint32_t panel_k, void* summaries, uint64_t summary_bytes);
 rns8_status hip_direct_discover_native_tile_bounds(
     int device_id, const void* a, const void* b, int64_t m, int64_t n, int64_t k,
     int64_t lda, int64_t ldb, bool unsigned_inputs, uint32_t capacity,
     NativeTileBound* device_bounds, uint32_t* device_indices, uint32_t* device_offsets,
     uint64_t max_scratch_bytes, NativeBoundMethod method = NativeBoundMethod::tile_max,
-    uint32_t panel_k = 256);
+    uint32_t panel_k = 256, const void* retained_summaries = nullptr);
 // Private one-shot native conversion + grouped matrix-engine candidate. The
 // explicit flag selects i64/u64 interpretation; output is default-basis residues,
 // not a proof of bounded/exact-wide integer range. Group is 1, 2 or 4.
@@ -130,7 +134,7 @@ rns8_status hip_direct_gemm_adaptive_native_device(
     bool unsigned_inputs, uint32_t capacity, uint32_t group,
     uint64_t max_scratch_bytes, bool& commit_started,
     NativeBoundMethod method = NativeBoundMethod::tile_max, uint32_t panel_k = 256,
-    uint32_t compact_workers = 0);
+    uint32_t compact_workers = 0, const void* retained_summaries = nullptr);
 // Private four-wave 32x32 raw-native staging experiment. buffers=0/1/2;
 // depth=16/32 (register control requires16). LDS is per block, not global scratch.
 // On failure after commit_started, caller must invalidate potentially written C.

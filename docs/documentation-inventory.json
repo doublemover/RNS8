@@ -741,6 +741,10 @@
           "reference": "docs/adaptive-native-product.md#explicit-matrix-owned-native-inputs"
         },
         {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "adaptive-native-product.md#workspace-owned-summary-reuse"
+        },
+        {
           "source": "docs/backend-notes.md",
           "reference": "adaptive-native-product.md#explicit-matrix-owned-native-inputs"
         },
@@ -751,6 +755,10 @@
         {
           "source": "docs/device-bound-discovery.md",
           "reference": "adaptive-native-product.md"
+        },
+        {
+          "source": "docs/device-bound-discovery.md",
+          "reference": "adaptive-native-product.md#workspace-owned-summary-reuse"
         },
         {
           "source": "docs/device-bound-discovery.md",
@@ -767,7 +775,8 @@
         "explicit-matrix-owned-native-inputs",
         "shared-static-preflight",
         "single-owned-native-upload",
-        "versioned-distribution-and-complete-output-controls"
+        "versioned-distribution-and-complete-output-controls",
+        "workspace-owned-summary-reuse"
       ]
     },
     {

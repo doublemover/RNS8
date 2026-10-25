@@ -81,13 +81,57 @@ A successful adaptive output also retires its own previous native copy.
 Preflight and discovery failures preserve prior output; failed commit invalidates
 it. Calls require the existing external host-thread serialization contract.
 
-This is a synchronous experimental API, with no implicit default selection,
-summary reuse, graph replay or performance claim. Packing still builds complete
+This fresh-scan API is synchronous and experimental, with no implicit default
+selection, summary reuse, graph replay or performance claim. Packing still builds complete
 residue inputs as well as retaining native values; that setup cost belongs in
 cold/end-to-end measurements. New CPU rejection and signed/unsigned Boost GPU
 fixtures cover descriptor admission, padded source packing, native mutation,
 staged rejection, full-width tails, export and retirement/repack after ordinary
 resident GEMM. They await the consolidated validation batch.
+
+## Workspace-owned summary reuse
+
+`rns8_gemm_adaptive_exact_cached` explicitly retains one A/B summary pair in the
+existing workspace. It supports tile maxima, axis L1 and panel L1 using the same
+scan and bound arithmetic as the fresh control. Each side binds the matrix's
+nonrecycled instance, internal content generation, current owned native pointer,
+explicit signedness, device, shape/stride, axis role and normalized discovery
+policy. A source-version assertion or pointer alone never admits reuse. Repacking
+one operand refreshes only that side; changing method or panel depth invalidates
+the affected certificates before overwriting or replacing their storage.
+
+Every call validates live native materializations and ordinary exact proofs,
+then rebuilds tile bounds, strict prefix selection and buckets. An ordinary
+GEMM that retires native currentness rejects cached use until native repacking.
+The workspace retains only summary payload and identity stamps; it never
+dereferences an old matrix or native pointer. A replacement matrix's different
+instance forces a fresh scan. Staging, suffix completion and publication keep
+their existing contract. A synchronous operation lease pins operands/workspace
+and quarantines them if a failed drain cannot establish completion.
+
+`max_scratch_bytes` includes the retained pair and all transient adaptive payload,
+excluding pre-existing ordinary matrix/workspace storage and allocator overhead.
+The retained pair replaces the fresh discovery summary allocation. Policy
+replacement frees old storage before allocating its replacement. The old payload
+must itself fit the requested budget. A fresh control on a workspace containing
+a cache charges both payloads. Workspace destruction uses retryable device owners.
+
+`rns8_get_adaptive_summary_info` reports retained requested bytes, last successfully
+scanned instance/generation stamps, and per-side completed scan/reuse counters.
+Counters saturate at UINT64_MAX. Observation is unavailable while in flight;
+recorded stamps do not certify a matrix mutated after the observed call.
+
+The public narrow-route collector accepts `adaptive-fresh` and `adaptive-cached`
+for a retained-input ablation. Both use scalar-first host admission, axis L1,
+group 2 and 32 compact workers, with complete RNS output and the same padded
+three-limb host adapter. Setup, first call, steady latency and sustained bursts
+stay separate; the oracle stays outside timing. Counters must prove one initial
+scan per side and reuse on every later completed cached call. The affine-small
+fixture isolates summary reuse and does not replace heterogeneous distributions.
+The focused shortlist is `benchmarks/narrow-public/adaptive-summaries.json`.
+
+This slice is authored pending the next CPU-ASan/GPU batch and matched
+measurements. It makes no performance or automatic selection claim.
 
 ## Shared static preflight
 

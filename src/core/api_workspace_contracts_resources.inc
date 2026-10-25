@@ -190,6 +190,12 @@ void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
 }
 
 rns8_status release_workspace_resources(rns8_workspace& workspace) {
+  if (workspace.in_flight) return RNS8_BUSY;
+  if (workspace.adaptive_summary_owner.pending()) {
+    const auto drained=rns8::detail::hip_direct_synchronize(workspace.hip_device_id);
+    if (drained!=RNS8_SUCCESS) return drained;
+    workspace.adaptive_summary_owner.mark_completed();
+  }
   rns8_status status = RNS8_SUCCESS;
   const auto keep_first_error = [&](rns8_status free_status) {
     if (status == RNS8_SUCCESS) {
@@ -215,6 +221,9 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
   reset_workspace_active_schedule_contract(workspace);
   keep_first_error(workspace.bilinear_scratch_owner.reset());
   keep_first_error(workspace.exact_auto_scratch_owner.reset());
+  keep_first_error(workspace.adaptive_summary_owner.reset());
+  workspace.adaptive_summary_identity[0] = {};
+  workspace.adaptive_summary_identity[1] = {};
   keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
   if (!workspace.hip_workspace_arena) clear_workspace_arena_contract(workspace);
   keep_first_error(workspace.int32_scratch_owner.reset_alias(workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
