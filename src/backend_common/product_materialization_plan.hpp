@@ -6,14 +6,17 @@
 
 namespace rns8::detail {
 struct ProductPackedCosts {
-  std::array<uint64_t,21> gemm;
+  static constexpr size_t gemm_index(uint32_t capacity,uint32_t compute){return capacity*21+compute;}
+  static constexpr size_t pack_index(uint32_t capacity,uint32_t old_prefix,uint32_t new_prefix){return (capacity*21+old_prefix)*21+new_prefix;}
+  std::array<uint64_t,441> gemm;
   // Actual conversion of [old_prefix,new_prefix), including launch overhead.
-  std::array<uint64_t,441> pack;
+  std::array<uint64_t,9261> pack;
   ProductPackedCosts(){gemm.fill(UINT64_MAX);pack.fill(UINT64_MAX);}
 };
 struct ProductMaterializationProfile {
   ProductCostProfile uniform;
   std::vector<ProductPackedCosts> packed;
+  uint32_t cost_schema_version=2;
   uint32_t max_frontier=256;
 };
 struct ProductPackedValue {
@@ -51,12 +54,18 @@ inline ProductMaterializationSelection evaluate_product_materializations(
   if(result.arena.status!=RNS8_SUCCESS){result.status=result.arena.status;return result;}
   const auto input_count=static_cast<uint32_t>(inputs.size());
   const size_t count=result.arena.values.size();
-  if(chosen.size()!=nodes.size() || packing.size()!=nodes.size() ||
+  if(profile.cost_schema_version!=2 || chosen.size()!=nodes.size() || packing.size()!=nodes.size() ||
       profile.uniform.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size()) {
     result.status=RNS8_INVALID_ARGUMENT;return result;
   }
   result.packed.resize(count);
-  std::vector<uint32_t> current(count),packed_prefix(count),raw_last(count);
+  std::vector<uint32_t> current(count),packed_prefix(count),packed_capacity(count),raw_last(count);
+  // Tile offsets use the retained allocation's final capacity, including at
+  // earlier consumers that compute fewer planes. Price that physical layout.
+  for(size_t i=0;i<nodes.size();++i) {
+    if(!chosen[i] || chosen[i]>prefix || packing[i]>1){result.status=RNS8_INVALID_ARGUMENT;return result;}
+    if(packing[i])packed_capacity[nodes[i].b]=std::max(packed_capacity[nodes[i].b],chosen[i]);
+  }
   std::fill_n(current.begin(),input_count,prefix);
   for(uint32_t i=0;i<nodes.size();++i)raw_last[input_count+i]=i;
   const auto add=[&](uint64_t ns) {
@@ -80,10 +89,10 @@ inline ProductMaterializationSelection evaluate_product_materializations(
       auto& packed=result.packed[node.b];packed.used=true;
       packed.first=std::min(packed.first,i);packed.last=i;
       if(packed_prefix[node.b]<p) {
-        if(!demand(node.b,p,i) || !add(profile.packed[i].pack[packed_prefix[node.b]*21+p]))return result;
+        if(!demand(node.b,p,i) || !add(profile.packed[i].pack[ProductPackedCosts::pack_index(packed_capacity[node.b],packed_prefix[node.b],p)]))return result;
         packed_prefix[node.b]=p;
       }
-      if(!add(profile.packed[i].gemm[p]))return result;
+      if(!add(profile.packed[i].gemm[ProductPackedCosts::gemm_index(packed_capacity[node.b],p)]))return result;
     } else if(!demand(node.b,p,i) || !add(profile.uniform.nodes[i].gemm[p]))return result;
     current[input_count+i]=p;
   }
@@ -147,20 +156,20 @@ inline ProductMaterializationSelection evaluate_product_materializations(
 }
 
 struct ProductMaterializationChainPaths {
-  struct Path {uint64_t cost=0;std::vector<uint32_t> prefixes,packed_prefix;std::vector<uint8_t> packing;};
+  struct Path {uint64_t cost=0;std::vector<uint32_t> prefixes,packed_prefix,packed_capacity;std::vector<uint8_t> packing;};
   bool applicable=false,truncated=false,unknown_cost=false;
   uint64_t lower_bound=UINT64_MAX;
   std::vector<Path> paths;
 };
 // Cost DP for strict chains, keyed by the previous raw prefix and every shared
-// external packed prefix. Memory is admitted by the real arena evaluator after
+// external packed prefix and retained physical capacity. Memory is admitted by the real arena evaluator after
 // this cost pass; dropping a cost state never proves memory infeasibility.
 inline ProductMaterializationChainPaths product_materialization_chain_paths(size_t input_count,
     const std::vector<ProductNode>& nodes,uint32_t prefix,const std::vector<uint32_t>& minimum,
     const ProductMaterializationProfile& profile) {
   ProductMaterializationChainPaths result;
   if(!input_count || input_count>4096 || nodes.empty() || nodes.size()>64 || !prefix || prefix>20 ||
-      !profile.max_frontier || profile.max_frontier>4096 || minimum.size()!=nodes.size() ||
+      profile.cost_schema_version!=2 || !profile.max_frontier || profile.max_frontier>4096 || minimum.size()!=nodes.size() ||
       profile.uniform.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size())return result;
   for(size_t i=0;i<nodes.size();++i)
     if(!minimum[i] || minimum[i]>prefix || nodes[i].a>=input_count+i || nodes[i].b>=input_count+i)return result;
@@ -174,26 +183,45 @@ inline ProductMaterializationChainPaths product_materialization_chain_paths(size
   for(const auto node:nodes)if(node.b<input_count && external_slot[node.b]==UINT32_MAX)
     external_slot[node.b]=external_count++;
   using Path=ProductMaterializationChainPaths::Path;
-  std::vector<Path> current(1);current[0].packed_prefix.resize(external_count);
+  std::vector<size_t> last_use(external_count);
+  for(size_t i=0;i<nodes.size();++i)if(nodes[i].b<input_count)last_use[external_slot[nodes[i].b]]=i;
+  std::vector<Path> current(1);current[0].packed_prefix.resize(external_count);current[0].packed_capacity.resize(external_count);
   for(size_t i=0;i<nodes.size();++i) {
     std::map<std::vector<uint32_t>,Path> next;
     for(const auto& state:current)for(uint32_t p=minimum[i];p<=prefix;++p)for(uint8_t packing=0;packing<2;++packing) {
+      const auto id=nodes[i].b;
+      const bool external=id<input_count;
+      const auto slot=external?external_slot[id]:0;
+      const uint32_t first_capacity=packing && external && !state.packed_capacity[slot]?p:
+          packing && external?state.packed_capacity[slot]:p;
+      const uint32_t last_capacity=packing && external && !state.packed_capacity[slot]?prefix:first_capacity;
+      for(uint32_t capacity=first_capacity;capacity<=last_capacity;++capacity) {
+      if(packing && capacity<p)continue;
       auto candidate=state;
       if(i && state.prefixes.back()<p)
         candidate.cost=product_cost_add(candidate.cost,profile.uniform.nodes[i-1].lift[state.prefixes.back()*21+p]);
       if(packing) {
-        const auto id=nodes[i].b;const uint32_t slot=id<input_count?external_slot[id]:0;
-        const uint32_t old=id<input_count?state.packed_prefix[slot]:0;
-        if(old<p)candidate.cost=product_cost_add(candidate.cost,profile.packed[i].pack[old*21+p]);
-        if(id<input_count)candidate.packed_prefix[slot]=std::max(old,p);
+        const uint32_t old=external?state.packed_prefix[slot]:0;
+        if(old<p)candidate.cost=product_cost_add(candidate.cost,profile.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,p)]);
+        if(external){candidate.packed_prefix[slot]=std::max(old,p);candidate.packed_capacity[slot]=capacity;}
       }
-      candidate.cost=product_cost_add(candidate.cost,packing?profile.packed[i].gemm[p]:profile.uniform.nodes[i].gemm[p]);
+      // The evaluator retains exactly the largest packed demand. A speculative
+      // larger capacity is legal only if a later consumer actually demands it.
+      bool realizable=true;
+      for(uint32_t s=0;s<external_count;++s)if(last_use[s]<=i && candidate.packed_prefix[s]!=candidate.packed_capacity[s]){realizable=false;break;}
+      if(!realizable)continue;
+      candidate.cost=product_cost_add(candidate.cost,packing?profile.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,p)]:profile.uniform.nodes[i].gemm[p]);
       if(candidate.cost==UINT64_MAX){result.unknown_cost=true;continue;}
       candidate.prefixes.push_back(p);candidate.packing.push_back(packing);
-      auto key=candidate.packed_prefix;key.push_back(p);
+      // Dead external caches cannot affect subsequent cost. Coalesce them so
+      // bounded frontiers retain useful alternatives instead of dead history.
+      for(uint32_t s=0;s<external_count;++s)if(last_use[s]<=i)
+        candidate.packed_prefix[s]=candidate.packed_capacity[s]=0;
+      auto key=candidate.packed_prefix;key.insert(key.end(),candidate.packed_capacity.begin(),candidate.packed_capacity.end());key.push_back(p);
       auto found=next.find(key);
       if(found==next.end() || std::tie(candidate.cost,candidate.prefixes,candidate.packing)<
           std::tie(found->second.cost,found->second.prefixes,found->second.packing))next[key]=std::move(candidate);
+      }
     }
     current.clear();for(auto& entry:next)current.push_back(std::move(entry.second));
     std::sort(current.begin(),current.end(),[](const Path& a,const Path& b) {
@@ -219,7 +247,7 @@ inline ProductMaterializationSelection select_product_materializations(
     const std::vector<uint32_t>& minimum,uint64_t budget,bool gpu,
     const ProductMaterializationProfile& profile,const std::vector<uint32_t>& outputs={}) {
   ProductMaterializationSelection best;const auto& costs=profile.uniform;
-  if(costs.version!=2 || !valid_ordered_basis(costs.basis) || !prefix || prefix>costs.basis.count ||
+  if(profile.cost_schema_version!=2 || costs.version!=2 || !valid_ordered_basis(costs.basis) || !prefix || prefix>costs.basis.count ||
       inputs.empty() || nodes.empty() || nodes.size()>64 || minimum.size()!=nodes.size() ||
       costs.nodes.size()!=nodes.size() || profile.packed.size()!=nodes.size() ||
       costs.target.empty() || costs.provenance.empty() || costs.max_evaluations<4 || costs.max_evaluations>65536 ||
