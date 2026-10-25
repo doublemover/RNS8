@@ -204,7 +204,7 @@ static rns8_status submit_native_group(rns8_prepared_group* group,void* stream,
       invalidate_output_currentness(*e.c);++e.a->in_flight_readers;if(e.a!=e.b)++e.b->in_flight_readers;
       e.c->in_flight_writer=true;e.workspace->in_flight=true;e.running=true;e.pending_stream=stream;
       e.async_failure={};e.cancel_requested=false;e.event_dependencies=false;e.event_dependency_depth=0;
-      ++e.epoch;tokens[i]={e.id,e.epoch};++*out_submitted;
+      ++e.epoch;tokens[i]={e.id,e.epoch};++*out_submitted;begin_prepared_integrity(e,proofs[i].integrity_bound);
     }
     hipError_t error=hipSuccess;bool written=false;
     if(graph) {error=hipGraphLaunch(group->native_executable,static_cast<hipStream_t>(stream));
@@ -212,6 +212,7 @@ static rns8_status submit_native_group(rns8_prepared_group* group,void* stream,
     else status=group->native_queue->enqueue_borrowed_stream(stream,group->native_desc.ordinary_grid_control!=0,written);
     auto stage=RNS8_ASYNC_FAILURE_ENQUEUE;
     if(status==RNS8_SUCCESS)for(auto* e:group->executions) {
+      status=enqueue_prepared_integrity(*e,stream);if(status!=RNS8_SUCCESS)break;
       error=hipEventRecord(e->completion_event.get(),static_cast<hipStream_t>(stream));
       if(error!=hipSuccess) {status=RNS8_BACKEND_FAILURE;stage=RNS8_ASYNC_FAILURE_EVENT_RECORD;break;}
     }

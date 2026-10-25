@@ -280,6 +280,39 @@ RNS8_API rns8_status rns8_get_prepared_completion(
     const rns8_prepared_execution* execution, rns8_completion_token token, rns8_completion_info* out);
 RNS8_API rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* execution);
 
+/* Opt-in independent native-input product sentinel, NOT a correctness proof.
+ * Fixed check moduli 257/263 never contribute to the computational CRT range.
+ * Requires uniform direct-HIP exact-wide GEMM and retained original native A/B.
+ * The check executes after the producer and before any output publication.
+ * mode=0 disables; mode=1 enables. Known scratch is four device + four pinned
+ * host bytes, excluding opaque event/stream allocations. No default change. */
+typedef struct rns8_native_integrity_options {
+  uint64_t struct_size;
+  uint32_t abi_version, mode;
+  uint64_t max_scratch_bytes;
+  uint32_t flags, reserved;
+} rns8_native_integrity_options;
+typedef struct rns8_native_integrity_report {
+  uint64_t struct_size;
+  uint32_t abi_version, enabled;
+  /* 0 not checked, 1 consistent, 2 mismatch, 3 execution/dependency error,
+   * 4 canceled. Consistent does not imply arbitrary integer correctness. */
+  uint32_t outcome, failure_mask;
+  rns8_status operation_status;
+  uint32_t computational_basis_version, computational_prefix, unsigned_inputs;
+  uint32_t check_moduli[2];
+  uint64_t operation_id, epoch;
+  uint64_t a_instance, a_generation, b_instance, b_generation;
+  uint64_t c_instance, c_generation, absolute_bound[3];
+  uint64_t retained_device_bytes, retained_pinned_host_bytes;
+} rns8_native_integrity_report;
+RNS8_API rns8_status rns8_set_prepared_native_integrity(
+    rns8_prepared_execution* execution, const rns8_native_integrity_options* options);
+RNS8_API rns8_status rns8_get_prepared_native_integrity_report(
+    const rns8_prepared_execution* execution, rns8_completion_token token,
+    rns8_native_integrity_report* report);
+
+
 /* Explicit direct-HIP bounded i64/u64 or exact-wide fixed-prefix, strict wrap64 byte-limb, or
  * finite ring/field dense submission.
  * Finite operations retain their explicit modulus and never infer integer semantics. Prepare the
@@ -699,7 +732,7 @@ typedef enum rns8_operation_kind RNS8_ENUM_BASE {
   RNS8_OP_BASE_EXTEND=4,RNS8_OP_PREPARED_GROUP=5,RNS8_OP_NATIVE_GROUP=6,
   RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
   RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
-  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17
+  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18
 } rns8_operation_kind;
 typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
   RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,

@@ -99,14 +99,14 @@ extern "C" int rns8_hip_native_byte_wmma(const void* a, const void* b, void* c,
 }
 
 extern "C" int rns8_hip_integrity_check(const void* a,const void* b,const int8_t* candidate,
-    int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures) {
+    int m,int n,int k,int lda,int ldb,int prefix,bool unsigned_inputs,const uint64_t* bound,uint32_t* failures,void* stream) {
   const dim3 grid((static_cast<uint64_t>(m)*n+255)/256);
   const rns8_u192_device wide_bound{bound[0],bound[1],bound[2]};
   if(unsigned_inputs) {
-    hipLaunchKernelGGL((rns8_integrity_check_kernel<uint64_t>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<uint64_t>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         static_cast<const uint64_t*>(a),static_cast<const uint64_t*>(b),candidate,m,n,k,lda,ldb,prefix,false,wide_bound,failures);
   } else {
-    hipLaunchKernelGGL((rns8_integrity_check_kernel<int64_t>),grid,dim3(256),0,nullptr,
+    hipLaunchKernelGGL((rns8_integrity_check_kernel<int64_t>),grid,dim3(256),0,static_cast<hipStream_t>(stream),
         static_cast<const int64_t*>(a),static_cast<const int64_t*>(b),candidate,m,n,k,lda,ldb,prefix,true,wide_bound,failures);
   }
   return static_cast<int>(hipGetLastError());

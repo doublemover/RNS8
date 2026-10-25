@@ -50,6 +50,13 @@ rns8_status hip_direct_check_native_product_integrity(
     int device_id,const void* a,const void* b,const void* candidate,
     int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,bool unsigned_inputs,const uint64_t bound[3],
     const IntegrityIdentity& expected,const IntegrityIdentity& candidate_identity,uint32_t& failures);
+// Stream-ordered sentinel. Caller retains device and pinned-host flags and
+// all operands until its covering event or a successful drain completes.
+rns8_status hip_direct_enqueue_native_product_integrity(
+    int device_id,const void* a,const void* b,const void* candidate,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,bool unsigned_inputs,const uint64_t bound[3],
+    const IntegrityIdentity& expected,const IntegrityIdentity& candidate_identity,
+    void* device_flag,void* pinned_host_flag,void* stream);
 // Private one-level modular Strassen. Caller owns integer range admission and
 // invalidation after a failed final commit; earlier failures preserve C.
 rns8_status hip_direct_gemm_strassen_device(

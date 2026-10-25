@@ -158,3 +158,5 @@ TEST_CASE("synchronous failure leases invalidate only written outputs and releas
   REQUIRE(finish_synchronous_lease(*ctx,token,RNS8_RANGE_ERROR,true));CHECK_FALSE(c.host_residues_current);CHECK(a.in_flight_readers==0);
   CHECK(ctx->failed_work_leases.empty());REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+#include "test_api_native_integrity_cases.inc"

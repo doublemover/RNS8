@@ -25,6 +25,9 @@ struct rns8_prepared_execution {
   rns8_completion_info completion{};
   rns8_async_failure_info async_failure{};
   bool running = false;
+  bool native_integrity_enabled = false;
+  rns8_native_integrity_report native_integrity_report{};
+  rns8::detail::hip_direct_device_buffer integrity_flag;
   bool cancel_requested = false;
   uint64_t group_references = 0;
   uint64_t dependent_references = 0;
@@ -39,6 +42,8 @@ struct rns8_prepared_execution {
   rns8_exact_matrix_ranges pending_ranges;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   rns8::detail::hip_unique_event completion_event;
+  rns8::detail::hip_pinned_host_buffer integrity_host_flag;
+  hipStream_t integrity_stream = nullptr;
   hipGraph_t graph = nullptr;
   hipGraphExec_t graph_executable = nullptr;
   const void* graph_a = nullptr;
@@ -46,11 +51,12 @@ struct rns8_prepared_execution {
   const void* graph_c = nullptr;
   const void* graph_d = nullptr;
   ~rns8_prepared_execution() {
-    if (!graph_executable && !graph && !completion_event.get()) return;
+    if (!graph_executable && !graph && !completion_event.get() && !integrity_stream) return;
     rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
     if (graph_executable) (void)hipGraphExecDestroy(graph_executable);
     if (graph) (void)hipGraphDestroy(graph);
     completion_event.reset();
+    if(integrity_stream)(void)hipStreamDestroy(integrity_stream);
   }
 #endif
 };
@@ -186,6 +192,7 @@ static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stre
                    e.plan, e.a, e.b, e.d, e.c, e.alpha, e.beta, stream)
              : rns8::detail::hip_direct_enqueue_rns_no_publish(e.plan, e.a, e.b, e.c, stream);
 }
+#include "api_prepared_integrity.inc"
 static void release_prepared_dependency(rns8_prepared_execution& e) {
   for(uint32_t i=0;i<e.producer_count;++i) --e.producers[i].producer->dependent_references;
   e.producers={};e.producer_count=0;
@@ -271,6 +278,18 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
     if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
+    if(e->native_integrity_enabled) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      *out_token={};
+      const auto submitted=rns8_submit_prepared_hip(e,e->integrity_stream,out_token);
+      if(!out_token->epoch)return submitted;
+      rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+      const auto waited=rns8_wait_prepared_hip(e,*out_token,&completion);
+      return waited==RNS8_SUCCESS?completion.operation_status:waited;
+#else
+      return RNS8_UNSUPPORTED_BACKEND;
+#endif
+    }
     e->async_failure = {};
     e->cancel_requested = false;
     e->running = true;
@@ -320,6 +339,8 @@ rns8_status rns8_get_prepared_completion(
 rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   if (!e) return RNS8_SUCCESS;
   if (e->running || e->group_references || e->dependent_references) return RNS8_BUSY;
+  const auto closed=close_prepared_integrity(*e);
+  if(closed!=RNS8_SUCCESS)return closed;
   release_prepared_dependency(*e);
   uint64_t* slots[7]{};
   reference_slots(*e, slots);

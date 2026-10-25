@@ -264,7 +264,8 @@
       ],
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
-        "b1a9d15f20513ee371d52241f408ad03096f7f2d"
+        "b1a9d15f20513ee371d52241f408ad03096f7f2d",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -798,7 +799,8 @@
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
-        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
+        "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -932,7 +934,8 @@
         "tools/test_collect_bilinear_calibration.py"
       ],
       "commits": [
-        "a09a6f4f2aa4a5e10333b0c30553c1b2e5d7b1c7"
+        "a09a6f4f2aa4a5e10333b0c30553c1b2e5d7b1c7",
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
       ],
       "remaining": [
         "Execute authored host/Python/GPU differentials, compiler/ISA checks, matched independent-process benchmarks and reviewed one-level promotion gates later.",
@@ -948,12 +951,26 @@
       "issue": 49,
       "title": "[Research P3] Add opt-in Freivalds and redundant-residue checks with explicit guarantees",
       "url": "https://github.com/doublemover/RNS8/issues/49",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Public finite CPU/HIP Freivalds verifier and replay/exact-exponent contract implemented; independent native sentinel is private and not wired to resident/DAG producer publication. Offline redundant checker explicitly does not authorize runtime publication, so commit-boundary integration remains.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Opt-in public native sentinel is a producer commit condition across synchronous, borrowed-stream, owned-graph and native-group prepared execution. Retained four-byte device/pinned flags, actual epoch/generation/basis/bound report, pre-write admission, downstream failure propagation and retryable cleanup; provider query exposes matching envelope. Matched native check-cost harness remains next.",
+          "files": [
+            "src/core/api_prepared_integrity.inc",
+            "src/core/api_prepared_hip.inc",
+            "src/core/api_prepared_native_group.inc",
+            "src/backend_hip_direct/hip_backend_integrity.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_native_integrity_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Write matched native compute/check-only/compute-check/full-CPU-reference harness and independent-process receipts; all execution and qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,

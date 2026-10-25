@@ -29,6 +29,7 @@ rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
 }
 void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   if (operation == RNS8_SUCCESS && e.cancel_requested) operation = RNS8_CANCELED;
+  operation=finish_prepared_integrity(e,operation);
   --e.a->in_flight_readers;
   if (e.a != e.b)
     --e.b->in_flight_readers;
@@ -49,6 +50,7 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
       } else rns8::detail::commit_exact_range(*e.c, *e.plan, e.pending_bound,&e.pending_ranges);
     }
   }
+  e.native_integrity_report.c_generation=e.c->content_generation;
   e.completion = {};
   e.completion.operation_status = operation;
   e.completion.a_instance = e.a_instance;
@@ -146,6 +148,7 @@ struct PreparedHipProof {
   boost::multiprecision::cpp_int bound;
   rns8_exact_matrix_ranges ranges;
   bool pipeline=false;
+  uint64_t integrity_bound[3]{};
 };
 static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              void *stream, bool graph,
@@ -177,6 +180,11 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
     if(status==RNS8_SUCCESS) status=prepared_range(*e,proof.bound,proof.ranges);
   }
   if(status!=RNS8_SUCCESS) return status;
+  if(e->native_integrity_enabled) {
+    status=admit_prepared_integrity(*e,proof.bound);if(status!=RNS8_SUCCESS)return status;
+    const boost::multiprecision::cpp_int mask=(boost::multiprecision::cpp_int(1)<<64)-1;
+    for(unsigned i=0;i<3;++i)proof.integrity_bound[i]=((proof.bound>>(64*i))&mask).convert_to<uint64_t>();
+  }
   if (!rns8::detail::qualified_i32_gemm_address(
           e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
           e->b->desc.cols, e->c->desc.cols, prepared_storage_planes(*e)))
@@ -234,6 +242,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   e->cancel_requested = false;
   ++e->epoch;
   *token = {e->id, e->epoch};
+  begin_prepared_integrity(*e,proof.integrity_bound);
   e->event_dependencies=proof.pipeline;
   e->event_dependency_depth=0;
   if(proof.pipeline) for(uint32_t i=0;i<e->producer_count;++i)
@@ -255,6 +264,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   } else if(status==RNS8_SUCCESS) {
     status = enqueue_prepared(*e, stream);
   }
+  if(status==RNS8_SUCCESS)status=enqueue_prepared_integrity(*e,stream);
   if (status != RNS8_SUCCESS)
     record_async_failure(e->async_failure, status, RNS8_ASYNC_FAILURE_ENQUEUE,
                          launch_error, e->ctx->device_id, e->epoch);
