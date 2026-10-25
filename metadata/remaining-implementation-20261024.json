@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-25T13:51:37.368407+00:00",
+  "scope_refreshed_utc": "2026-10-25T15:06:16.512526+00:00",
   "issues": [
     {
       "issue": 18,
@@ -382,7 +382,8 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Complete provider/binding parity for unfinished representation, distributed and async owners; measured identity-bound rates and held-out planner qualification remain."
+        "Complete provider/binding parity for unfinished representation, distributed and async owners; measured identity-bound rates and held-out planner qualification remain.",
+        "The 400 focused shared-host observations are descriptive. Analytical layout prices are unqualified and choose slower routes here; no planner-rate export or default promotion is established."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -466,7 +467,8 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "Independent instruction/traffic/clock calibration, profiler evidence and held-out prediction remain; valid receipts do not imply measured rates."
+        "Independent instruction/traffic/clock calibration, profiler evidence and held-out prediction remain; valid receipts do not imply measured rates.",
+        "The 400 focused shared-host observations are descriptive. Analytical layout prices are unqualified and choose slower routes here; no planner-rate export or default promotion is established."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1181,7 +1183,7 @@
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "implemented_validation_deferred",
+      "state": "in_progress",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
       "implementation": [
         {
@@ -1303,7 +1305,7 @@
         "6ce489b"
       ],
       "remaining": [
-        "Joint uniform/packed B selection, public price identities and ragged producer refresh now pass local CPU/HIP/installed validation. Independent measured stage prices, held-out complete-route comparison and peak/amortization qualification remain."
+        "The full-prefix compiled owner has measured complete-route benefits over the public resident sequence. Packed B loses to that best compiled control in all four tested cohort medians. Independent measured stage-price ingestion and held-out selection, a native per-operation import/export control, and physical peak/capacity qualification remain source/evidence work."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2769,7 +2771,7 @@
       "issue": 73,
       "title": "[Bench P2] Add genuine multi-limb result-magnitude controls to the public exact-wide benchmark",
       "url": "https://github.com/doublemover/RNS8/issues/73",
-      "state": "implemented_validation_deferred",
+      "state": "validated_closed",
       "base_gap": "Public persistent and batch exact-wide generators remain hardcoded signed[-16,16]/unsigned[0,16], no genuine multi-limb magnitude profiles in requested benchmark.",
       "implementation": [
         {
@@ -2789,10 +2791,8 @@
       "commits": [
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
-      "remaining": [
-        "All-limb magnitude fixtures and schema checks pass. Focused paired public CPU/HIP independent-process observations are prepared but held for the restarted NuLARRY workload."
-      ],
-      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "remaining": [],
+      "validation": "Completed 280 independent public captures across 28 cases: five processes per diagnostic/production cell, exact 90/134-bit constants and mixed signed/unsigned results, prefix 20 and padded three-limb output, complete Boost all-limb oracle, matching backend/distribution/checksum identity. Shared-host measurement explicitly authorized; see metadata/focused-closeout-observations-20261025.json.",
       "dependencies": [
         31
       ],
@@ -3094,13 +3094,15 @@
     "compiled_source_commit": "6ce489b",
     "additional_closed_issues": [
       19,
-      29
+      29,
+      73
     ],
-    "open_issue_count": 43,
+    "open_issue_count": 42,
     "local_validation": "metadata/materialization-validation-20261025.json",
     "local_correctness_complete": true,
-    "remaining_work": "Issue-specific measurements, unfinished providers and explicitly deferred hardware remain; new performance collection is held for restarted NuLARRY work.",
+    "remaining_work": "Measurements completed with explicit shared-host authorization. Packed candidates/model lose to the best compiled control; measured stage prices, native roundtrip control, unfinished providers and deferred hardware remain.",
     "performance_campaign_resumed": false,
-    "all_research_issues_complete": false
+    "all_research_issues_complete": false,
+    "focused_observations": "metadata/focused-closeout-observations-20261025.json"
   }
 }

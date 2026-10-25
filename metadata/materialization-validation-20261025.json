@@ -15090,17 +15090,20 @@
   "issue_closeout": {
     "additional_closed": [
       19,
-      29
+      29,
+      73
     ],
-    "remaining_open": 43,
+    "remaining_open": 42,
     "all_research_complete": false
   },
   "performance": {
-    "status": "held_for_restarted_NuLARRY_workload",
-    "new_benchmark_processes_executed": 0,
+    "status": "completed_shared_host_authorized",
+    "new_benchmark_processes_executed": 400,
     "old_campaign_resumed": false,
     "planned_public_processes": 280,
-    "planned_materialization_processes": 120
+    "planned_materialization_processes": 120,
+    "user_overrode_quiet_host_gate": true,
+    "observations": "metadata/focused-closeout-observations-20261025.json"
   },
   "post_validation_isa_review": {
     "scope": "Restricted static inventory for the new layout consumer/converter in the previously validated6ce489b objects; no selected-capture or dynamic-work attribution.",
@@ -15638,5 +15641,6 @@
         "sha256": "e7da6c1a23a9ac67c319cbb1ff16294eea056391f1d237e4dc41473e7481c70a"
       }
     ]
-  }
+  },
+  "last_updated_utc": "2026-10-25T15:06:16.507003+00:00"
 }

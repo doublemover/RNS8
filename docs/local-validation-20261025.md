@@ -173,17 +173,18 @@ source mutation/rebind, and differently tiled ragged refresh.
 
 Issues **#19 and #29** are closed after evidence review of compiled provenance/ISA
 association and arithmetic certificates. Together with the preceding six,
-**eight issues are closed and 43 remain open**. Correctness is separate from
+**nine issues are closed and 42 remain open**, including subsequent #73 magnitude-control closure. Correctness is separate from
 issue-specific performance and broader hardware acceptance. The per-issue
 [ledger](../metadata/remaining-implementation-20261024.json) records those gaps.
 
 The existing lift/recipe collector now has full/minimum forced-packed and joint
 layout-model controls, required v2 materialization receipts and independent cost,
 packing-growth, liveness and budget checks. Six new GPU correctness smokes pass.
-The model prices are explicitly unqualified analytical estimates. Focused public
-magnitude and matched materialization comparisons are prepared, but no new
-benchmark process has run: a new NuLARRY workload restarted before collection,
-and the requested quiet-host gate blocked launch. The old campaign remains stopped.
+The model prices are explicitly unqualified analytical estimates. The subsequent
+[focused measurements](focused-closeout-measurements-20261025.md) completed 400
+captures after the user explicitly authorized shared-host collection. #73's
+wide-result fixture scope is complete; #42's calibrated-price/native-roundtrip
+and broader evidence gates remain. The old campaign stays stopped.
 
 
 ### Subsequent static instruction review

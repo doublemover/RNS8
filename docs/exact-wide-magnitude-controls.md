@@ -46,8 +46,22 @@ GEMM uses `B=K*2^126`, and unsigned uses `B=K*(2^64-1)^2`. Noncoprime prefixes
 cannot certify a range. User-requested minimum product bits remain a separate
 search diagnostic. No runtime basis or selector is changed by this report.
 
-## Validation status
+## Validation and measured control
 
-Regression sources and collection fixtures are authored. Only syntax/static
-checks were performed during implementation; no tests, benchmarks, GPU work,
-performance outcome or scientific qualification has been executed or claimed.
+The [focused October 25 collection](focused-closeout-measurements-20261025.md#genuine-wide-value-public-fixtures)
+completed 280 captures at clean compiled source `6ce489b`: 28 case cells, five
+independent processes per diagnostic/production lane, CPU/reference and
+HIP/gfx1100. All outputs/limbs/padding pass the complete integer oracle.
+Seed 7373, prefix 20, 8×7×512, three exported limbs and output padding 3 are fixed.
+Checksum/distribution/magnitude identities match across backends and repeats.
+
+The constants produce 90-bit two-limb and 134-bit three-limb results. Mixed
+signed profiles reach 86 and 130 magnitude bits, with unsigned controls reaching
+90 and 134. These are actual result magnitudes, separately from 192-bit storage.
+The tiny retained-input cases favor CPU latency; no GPU win is inferred from
+larger values. Collection ran on the shared host with explicit user authorization.
+
+This completes #73's missing fixture, admission/schema and paired collection
+scope. Broader sustainable-rate/target promotion gates remain under #31; no
+runtime backend or AUTO policy changed. The [receipt](../metadata/focused-closeout-observations-20261025.json)
+retains process identities, artifacts, phase timings and ranges.

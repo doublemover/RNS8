@@ -4,6 +4,8 @@ Choose the task you want to complete. Public API behavior is defined in the
 [headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
 Dated records identify the builds and devices actually checked.
 
+- [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, compiled graph gains and packed-layout losses
+
 ## Build
 
 - [Windows HIP SDK](platform-windows.md): prerequisites, explicit roots, configure and build

@@ -5117,7 +5117,7 @@
       "anchors": [
         "offline-named-range-profiles",
         "public-exact-wide-magnitude-controls",
-        "validation-status"
+        "validation-and-measured-control"
       ]
     },
     {
@@ -5217,6 +5217,10 @@
           "reference": "local-validation-20261025.md"
         },
         {
+          "source": "docs/focused-closeout-measurements-20261025.md",
+          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
+        },
+        {
           "source": "docs/implementation-handoff-20261025.md",
           "reference": "local-validation-20261025.md"
         },
@@ -5253,6 +5257,49 @@
         "subsequent-materialization-integration",
         "subsequent-static-instruction-review",
         "windows-and-gfx1100-validation--2026-10-25"
+      ]
+    },
+    {
+      "path": "docs/focused-closeout-measurements-20261025.md",
+      "purpose": "Reviewed shared-host wide-magnitude and materialization comparisons with independent-process and setup accounting",
+      "audience": "Compute researchers, developers and evidence reviewers",
+      "disposition": "historical",
+      "canonical": "docs/focused-closeout-measurements-20261025.md",
+      "owner": "metadata/focused-closeout-observations-20261025.json",
+      "reason": "Retain the exact source/configuration and observed results; current release gates remain in docs/roadmap.md.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "focused-closeout-measurements-20261025.md"
+        },
+        {
+          "source": "docs/exact-wide-magnitude-controls.md",
+          "reference": "focused-closeout-measurements-20261025.md#genuine-wide-value-public-fixtures"
+        },
+        {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "focused-closeout-measurements-20261025.md"
+        },
+        {
+          "source": "docs/planning-recipes.md",
+          "reference": "focused-closeout-measurements-20261025.md#packed-storage-and-the-analytical-model"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "focused-closeout-measurements-20261025.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/focused-closeout-measurements-20261025.md"
+        }
+      ],
+      "anchors": [
+        "beneficial-compiled-resident-graphs",
+        "closeout",
+        "focused-closeout-measurements--2026-10-25",
+        "genuine-wide-value-public-fixtures",
+        "method",
+        "packed-storage-and-the-analytical-model"
       ]
     }
   ]

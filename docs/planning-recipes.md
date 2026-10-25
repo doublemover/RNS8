@@ -288,3 +288,11 @@ previous execution receipt is claimed. Regression source covers every capacity,
 default rejection, illegal flag combinations, runtime range failure, unchanged
 old outputs, stale prepared values and whole-expression epilogues. Execution is
 deferred.
+
+
+The [focused matched observations](focused-closeout-measurements-20261025.md#packed-storage-and-the-analytical-model)
+now compare four shapes through 256³ across five processes per mode. Full-prefix
+compiled graphs win against the public resident sequence, while packed B and
+the analytical layout model lose to the best compiled control. The prices remain
+unqualified. A measured profile and held-out selection, native per-operation
+roundtrip control and physical peak/capacity evidence remain open under #42.

@@ -9,7 +9,7 @@ preserves earlier work without duplicating current status.
 ## Recorded baseline
 
 The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
-passed at `6ce489b`; eight issues have evidence-backed closure and 43 remain open.
+passed at `6ce489b`; nine issues have evidence-backed closure and 42 remain open.
 The per-issue ledger separates the completed local checks from unresolved
 implementation, measurement and hardware requirements.
 
@@ -138,7 +138,9 @@ Instinct/CDNA and instruction-family qualification. HIP 7.1 remains the local
 accelerator pin. VS2026 and the isolated non-GPU stack passed the named project
 builds/tests; the selected Git upgrade remains blocked by its installer approval
 review. Official AMD documentation responses remain unresolved under #61.
-Focused performance collection waits for NuLARRY to finish; the original
+The [focused measurements](focused-closeout-measurements-20261025.md) completed
+400 captures on the explicitly authorized shared host. Full-prefix compiled
+graphs benefit; packed/model routes lose to that control. The original
 5,382/16,513-run campaign remains stopped.
 
 ## Stop conditions for hardware work
