@@ -311,3 +311,83 @@ inventoried documents and zero local errors. The earlier 28 AMD HTTP 429 respons
 have cleared. Actual matching-platform command rehearsals remain distinct from
 link reachability. No stopped benchmark campaign was resumed, and this integration
 batch adds no performance measurement or issue closure.
+
+## Address-domain and algorithm-identity integration
+
+Compiled source **668f9ea** passes a new complete applicable batch: **550 CPU
+sanitizer passes / 23 skips / zero failures** and **935 gfx1100 GPU passes / 16
+skips / zero failures**. Both builds complete. The GPU skips comprise the
+opt-in budgeted address fixture plus the existing 15 target-inapplicable cases.
+Five unchanged logical-proof inputs were compared with their prior qualified
+source; the 1020.41-second interpreter result is retained under that identity.
+The earlier arithmetic controls and installed allocation probes retain their
+own dated artifacts rather than inheriting this source label.
+
+Fresh coverage verifies both finite address-width specializations across K
+slab boundaries, original-base/window admission and output canaries. The
+hipBLASLt geometry regression verifies real warm-cache algorithm indices,
+complete work accounting and no repeat index queries across signed, unsigned,
+exact-wide and finite contracts.
+
+After those checks, **five independent physical >2 GiB address runs pass** on
+RX 7900 XTX. Every output/padding byte and the independent exact checksum match;
+all observed allocations retire. Both exact selected kernels have binary-bound
+ISA/resource records and successful module occupancy-capacity queries. The
+[address qualification](wide-index-gemm.md#native-windows-gfx1100-qualification)
+records the matched timing cost and platform limits. Full receipts, hashes,
+commands, test states and source manifests are preserved in
+[the reviewed record](../metadata/address-domain-qualification-20261025.json).
+
+The first fresh metadata-policy collection stopped before execution on a
+long-K prefix-18 planning-range rejection. The smaller magnitude inputs fit
+that basis, but the ordinary benchmark's initial plan admits the full native
+type before values are bound. Commit **c7b1e45** repairs all six affected
+K=65535/65536/65537 cases to prefix 19 and adds a preflight. All **266** declared
+public cases pass that capacity audit; metadata, public-measurement and streaming
+collector contracts pass. The original partial collection is retained. One
+fresh repaired collection uses the original `668f9ea` binaries and separate
+collector/profile identities; the completed review follows below.
+
+## Matched hipBLASLt metadata-policy observations
+
+The single repaired fresh collection completes **300/300 captures**: 15 matched
+workloads × two metadata policies × two timing modes × five independent
+processes. All captures validate, and every policy comparison has matching
+library/build/device/geometry algorithm indices, input seeds, output witnesses
+and submitted matmul work. Both one-geometry and full/tail two-geometry cases
+are covered. The 28 complete records from the stopped first attempt remain
+excluded from these comparisons. The earlier stopped large campaign remains
+stopped.
+
+Production calls disable timing hooks and retain the same caller-visible
+boundary. Each process has three warmups, nine latency samples and three
+sustained bursts, each reaching at least 16 completed calls and 250 ms. Values
+below are medians of five independent process means, weighted by actual burst
+duration/call counts. Required proof, conversion, status and synchronization
+remain inside; independent integer audits remain outside timing.
+
+| Contract | Per-block metadata | Per-call geometry reuse | Observed median ratio |
+|---|---:|---:|---:|
+| 1024³ bounded unsigned, P9 | 3.810 ms (3.721–7.485) | 3.658 ms (3.646–4.029) | 1.041× |
+| 512³ exact-wide signed, P20 | 516.811 ms (470.629–565.119) | 531.052 ms (507.458–545.155) | 0.973× |
+| 2×3×65535 bounded signed, P9 | 7.489 ms (7.470–15.447) | 7.400 ms (7.348–7.460) | 1.012× |
+
+These small effects do **not** add a qualified elapsed-time gain: process ranges
+overlap, or the process-spread gate fails. The 1024³ candidate completes
+**0.587 useful integer TOPS**, versus 0.564 for its baseline, with overlapping
+ranges. The gains-only PR table is unchanged. No tolerance is widened and no
+route is promoted.
+
+The source-work reduction is directly observed: per-call metadata constructs
+one set per distinct full/tail geometry instead of one per modulus/block,
+reducing descriptor constructions by **9–20×** in the multi-plane controls.
+For the P9 long-K example, 12 warmup/measured calls construct 540 versus 60
+individual descriptors, with the same 108 matmul blocks and algorithm index
+1194. These are API attempts, rather than allocator-byte or elapsed-time gains.
+All 15 workload comparisons, process ranges, counters, scoped indices, 300
+capture hashes and the retained failed attempt are in the reviewed
+[observation record](../metadata/hipblaslt-metadata-observations-20261025.json).
+
+GitHub's two CPU/OpenMP workflow runs at **c7b1e45** complete **18/18 checks
+successfully**. This qualifies that revision's Linux CPU matrix; native Linux
+GPU execution and later source additions retain their separate gates.

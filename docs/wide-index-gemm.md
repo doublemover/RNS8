@@ -16,8 +16,9 @@ Authored CPU fixtures prove spans above 32-bit index capacity and reject overflo
 GPU fixtures use all prefixes, padded tails, K-slab boundaries and a valid unused
 64-bit pitch. They compare Boost products and preserve output padding/suffix planes.
 The unused-pitch case does not exercise actual device memory beyond 2GiB. Large
-physical allocations, target performance and public integration remain separate
-qualification work. The [October 25 integration](local-validation-20261025.md#allocation-and-global-control-integration-retry)
+physical allocations were a separate gate, now covered by the budgeted fixture
+below on gfx1100. Public large-shape integration remains separate from this
+private control. The [October 25 integration](local-validation-20261025.md#allocation-and-global-control-integration-retry)
 passes those existing CPU/GPU fixtures; it does not establish physical large-address
 traffic or qualify the new controls below.
 
@@ -80,8 +81,8 @@ same-body i32/u64 samples at the same near-boundary logical shape/window, with
 two warmups, nine AB/BA-ordered hook-disabled completed calls and separate
 HIP-event diagnostics. Full qualification passes with different row counts are
 not a matched timing comparison. Timing failures remain explicit; no speedup or
-routing promotion follows from one fixture execution. Hardware runs and selected
-ISA/resource inspection for these additions remain pending.
+routing promotion follows from one fixture execution. The completed qualification
+below records five independent processes and selected ISA/resource inspection.
 
 For independent process captures, the collector pins the executable hash and
 requires a clean source-bound compiled manifest. Its output directory must be
@@ -91,3 +92,39 @@ Catch skip without a physical receipt returns 77 rather than qualifying the gate
 ```powershell
 python tools/qualify_large_addresses.py --binary build/rns8_tests.exe --output temp/large-address-qualification --device-budget-bytes 3221225472 --runs 5
 ```
+
+### Native Windows gfx1100 qualification
+
+At compiled source `668f9ea`, all five independent processes pass on Radeon RX
+7900 XTX with HIP SDK 7.1. Each process reads the real 2,147,549,184-byte A
+allocation, verifies every finite output and padding byte, and obtains the
+independent weighted checksum **2,853,906**. Observed peak requested payload is
+**2,147,713,027 bytes**; all three owned allocations retire to their prior live
+baseline. Both ordinary/scalar narrow rejections preserve the poisoned output.
+The existing RNS u64 primitive also passes its separate actual high-address
+modulus-256 call.
+
+Matched hook-disabled near-boundary completed-call means, aggregated by the
+median of five processes, are **4.991 ms signed32** versus **5.150 ms unsigned64**
+(process ranges 4.955–5.040 and 5.108–5.173 ms). Wide addressing costs about
+**3.2%** in this scalar control; it is a correctness/capacity addition. Separate
+event diagnostics succeed for both variants in every process. Full-row passes
+with unequal row counts are excluded from that timing comparison.
+
+The exact inspected code object is verified inside the measured executable.
+Signed32 uses 17 VGPRs/36 SGPRs and unsigned64 uses 20 VGPRs/41 SGPRs; both have
+zero LDS, scratch and spills. A HIP module occupancy query on those exact code
+bytes reports eight maximum active 256-thread blocks per multiprocessor for
+each, with zero dynamic shared bytes. This is a resource-capacity query;
+achieved dynamic occupancy is unmeasured. A separate compiler diagnostic object
+did not match the captured code-object bytes and is not used for this binary
+association.
+
+The accompanying full batch passes **550 CPU sanitizer tests** with 23 skips and
+**935 GPU tests** with 16 skips, including the small finite controls and the
+previous sparse/native/limb address regressions. The default suite explicitly
+skips the budgeted case; its five opt-in executions are recorded separately.
+The unchanged logical interpreter proof retains its earlier source identity.
+See the reviewed [qualification receipt](../metadata/address-domain-qualification-20261025.json).
+Unavailable gfx942 execution remains deferred; no default dispatch or public
+large-shape support is inferred from this private control.

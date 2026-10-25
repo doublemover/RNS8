@@ -133,7 +133,7 @@
       "issue": 24,
       "title": "[P1] Qualify full matrix address ranges before selecting 32-bit HIP indexing",
       "url": "https://github.com/doublemover/RNS8/issues/24",
-      "state": "implemented_validation_deferred",
+      "state": "validated_ready_to_close",
       "base_gap": "Device address domains hardened, but direct CPU limb export/internal wide import still rely on element-count predicates rather than full byte/object host address proof; latest comment scope remains.",
       "implementation": [
         {
@@ -164,18 +164,16 @@
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a"
       ],
-      "remaining": [
-        "Build and execute the new small differential/support fixtures before the opt-in physical large-address fixture; capture five independent runs and inspect the compiled i32/u64 instructions/resources. No new hardware qualification or default promotion is claimed."
-      ],
+      "remaining": [],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
       "historical_frontload_remaining": [
         "Regression execution and large-device-address hardware qualification deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/allocation-global-control-validation-20261025.json",
-        "compiled_source_commit": "2fcb91c",
-        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+        "receipt": "metadata/address-domain-qualification-20261025.json",
+        "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+        "scope": "Full local sanitizer/GPU suite plus five real >2 GiB finite-address runs, exact high-address RNS control, selected ISA and exact-code module occupancy capacity. No default routing/promotion; unavailable gfx942 is deferred."
       }
     },
     {
@@ -2746,7 +2744,7 @@
         "02d7166eb377d715fddb8e36233b1911af025d3b"
       ],
       "remaining": [
-        "The metadata and operand-retention controls pass the preceding local regressions. The new physical algorithm-identity observation increment passes minimal syntax and actual compiler/link feature checks; its focused runtime validation and independent same-algorithm metadata-policy measurements remain pending. No speedup or route promotion is established by API-count reduction."
+        "Fresh first-invocation plan/workspace, matrix-allocation and completed-call accounting remains. The 300-capture sustained cohort is complete, with no added qualified elapsed gain; cross-call raw descriptor retention remains intentionally unnecessary/optional after the negligible timing result."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2758,9 +2756,16 @@
         "Cross-call raw descriptor retention is issue70 slice3 conditional on worthwhile measured benefit, not claimed or selected before that evidence."
       ],
       "local_validation": {
-        "receipt": "metadata/allocation-global-control-validation-20261025.json",
-        "compiled_source_commit": "2fcb91c",
-        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+        "receipt": "metadata/address-domain-qualification-20261025.json",
+        "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+        "scope": "Full local sanitizer/GPU checks include selected-index query/cache reuse; all 300 repaired steady metadata captures validate with matching physical algorithm/work identities."
+      },
+      "measurements": {
+        "receipt": "metadata/hipblaslt-metadata-observations-20261025.json",
+        "complete_captures": 300,
+        "comparisons": 15,
+        "elapsed_gain_admitted": false,
+        "descriptor_construction_reduction": "9-20x for multi-plane controls; API work only, not allocator bytes or an elapsed gain."
       }
     },
     {
@@ -3198,5 +3203,14 @@
     "remaining_open": 42,
     "gcc_warning_fix": "709ff6f",
     "all_work_complete": false
+  },
+  "address_algorithm_review": {
+    "validation": "metadata/address-domain-qualification-20261025.json",
+    "measurements": "metadata/hipblaslt-metadata-observations-20261025.json",
+    "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+    "cpu_ci_source_commit": "c7b1e45dbbfd955d57183ca7c61e4df6a8b42117",
+    "cpu_ci_successful_checks": 18,
+    "physical_large_address_processes": 5,
+    "new_qualified_elapsed_gains": 0
   }
 }
