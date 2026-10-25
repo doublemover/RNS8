@@ -86,3 +86,82 @@ matched prepared-path performance qualification remain open under issue #38.
 The [worker sweep and resource inspection](native-queue-performance-2026-10-23.md)
 record the completed scheduling experiment without claiming a win over the
 best ordinary launch.
+
+## Procedural schedules and measured completion contract
+
+The new private prepared queue has a versioned, immutable schedule header and
+three explicit identities. The original expanded round-robin list remains the
+default and still uses its original singleton-claim kernel. `task_major` retains
+one exclusive work range per task and binary-searches the range containing a
+claimed ordinal. `compact_round_robin` additionally stores distinct work-count
+breakpoints. A breakpoint records the cumulative work before its first round,
+that round's active-task count and its ending round. The decoder locates the
+round by binary search and selects its active task by a bounded original-order
+scan. This exactly preserves the reference round-robin assignment sequence,
+not a claim about asynchronous completion order. Task-major deliberately does
+**not** claim that fairness equivalence.
+
+For T tasks and W assignments, explicit metadata is O(T+W); both procedural
+modes retain O(T) records. Task-major lookup is O(log T); compressed fair lookup
+is O(log T+T), capped at 4096 tasks. Construction sorts spans and breakpoints,
+O(T log T), with no enumeration of W assignments. The CPU admission decoder
+checks canonical ranges, phases, work counts, ABI, reserved fields and budget
+before publication. Kernel directory data is private immutable prepared state,
+not an untrusted device-produced schedule. Irregular/adaptive coverage retains
+its separate explicit representation. The whole K reduction and existing
+plane/tile tail masks are unchanged.
+
+A one-task 8192-square, prefix-20/group-one schedule has 5,242,880 assignments.
+The explicit assignment payload alone is 80 MiB. The fair procedural payload is
+`sizeof(NativeWmmaTask) + 16 + 16 + 4` bytes; its 32-byte header is a kernel
+argument rather than another device allocation. This is a capacity calculation,
+not a speedup or advice to run a large regular GEMM through a persistent queue.
+Actual vector capacities, builder payload high-water marks, retained host
+metadata, descriptor upload payload and transactional old-plus-new device
+payload peaks are exposed separately. Allocator bookkeeping/object headers,
+RSS and driver residency are not represented as measured heap/device usage.
+
+Claims support chunks 1–32 and switch to singleton claims near the observed
+worker tail. Admission reserves `workers * maximum_chunk` counter headroom.
+A stale tail observation may retain a larger claim; out-of-range ordinals are
+masked, and no worker waits for another workgroup. The new claim loop has a
+counter-read atomic as well as the claim atomic. Lookup/atomic overhead and
+long-K fairness can therefore outweigh metadata savings. No automatic selector
+or public cache promotion is implied. Failed replacement retains the old
+schedule; all execute variants retain BUSY, drain and poison behavior. Warm
+production calls allocate/upload no immutable descriptors.
+
+`rns8-queue-calibrate` and `tools/collect_queue_calibration.py` provide matched
+explicit/task-major/fair/ordinary controls with identical native tile arithmetic,
+representation, reuse and synchronized resident-output boundaries. The cases in
+`benchmarks/native-queue/` cover many tiny jobs, strongly skewed K/counts, short
+batches, larger jobs, tails, encoded B and explicit B mutation/re-encoding.
+CPU construction, prepared setup, first use, hook-disabled warm batches,
+rebuild costs, upload/retained/peak payloads and useful tile/channel throughput
+are separate fields. Every observation audits every residue and padding/extra
+plane against Boost outside its production timer; warm execution allocation and
+host-transfer counters must remain zero. Independent process order is rotated
+and reversed, captures retain executable/case hashes and raw observations, and
+cohorts never choose the luckiest process as their representative.
+
+Per-task completion is a **separate diagnostic submission**. A preceding kernel
+establishes one device wall-clock epoch; each completed tile/channel assignment
+publishes its stores before incrementing the task's completion counter. The last
+assignment records its task's elapsed ticks. There are no inter-workgroup spin
+barriers. Readback verifies exact required counts and reports p50/p95/max task
+completion with raw ticks and the queried wall-clock rate. This diagnostic uses
+the general dispatch kernel and adds atomics, fences and a launch; its fairness
+measurements must not be mislabeled production latency. A separate GPU-event
+companion likewise supplies diagnostic, not production, timing.
+[HIP's timer documentation](https://rocm.docs.amd.com/projects/HIP/en/docs-6.4.1/how-to/hip_cpp_language_extensions.html#timer-functions)
+specifies the fixed-frequency wall clock/rate query and warns against using
+`clock64()` for RDNA3. Ordinary grids have no synthetic per-task queue telemetry,
+and this private synchronous owner has no supported graph-replay control.
+
+The new CPU property/mutation/budget/4096-task/counter-bound fixtures and GPU
+full-reference/telemetry/replacement fixtures are **authored, not executed**.
+Host-only syntax checking does not compile the HIP kernels. Compilation on the
+supported target, differential execution, independent latency/fairness collection
+and ISA/resource qualification remain deferred. Public generation/read-write
+reservation integration remains distinct work: the private harness explicitly
+owns every borrowed buffer and synchronously rebuilds changed encoded B.

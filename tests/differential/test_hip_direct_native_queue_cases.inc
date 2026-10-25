@@ -117,6 +117,29 @@ TEST_CASE("persistent native WMMA queue mixes shapes signedness groups and K sla
           }
         }
         REQUIRE(prepared.prepare(0, tasks, workers, descriptor_bytes * 2) == RNS8_SUCCESS);
+        for(auto mode:{NativeWmmaScheduleMode::explicit_round_robin,NativeWmmaScheduleMode::task_major,NativeWmmaScheduleMode::compact_round_robin})
+          for(uint32_t chunk:{1u,4u,32u}) {
+            NativeWmmaPreparedQueue compact;
+            REQUIRE(compact.prepare(0,tasks,workers,UINT64_MAX,{1,mode,chunk})==RNS8_SUCCESS);
+            CHECK(compact.prepare(0,tasks,workers,compact.device_metadata_bytes()*2-1,{1,mode,chunk})==RNS8_WORKSPACE_TOO_SMALL);
+            for(unsigned repeat=0;repeat<2;++repeat) {
+              REQUIRE(compact.execute(touched)==RNS8_SUCCESS);REQUIRE(touched);
+              for(uint32_t id=0;id<tasks.size();++id) {
+                REQUIRE(hip_direct_copy_device_to_host(0,actual[id].data(),tasks[id].c,actual[id].size())==RNS8_SUCCESS);
+                REQUIRE(actual[id]==expected[id]);
+              }
+            }
+            NativeWmmaCompletionTelemetry receipt;
+            REQUIRE(compact.execute_completion(receipt,touched)==RNS8_SUCCESS);
+            REQUIRE(receipt.wall_clock_rate_khz>0);
+            for(uint32_t id=0;id<tasks.size();++id) {
+              const auto& task=tasks[id];
+              CHECK(receipt.completed_work[id]==uint64_t((task.m+15)/16)*((task.n+15)/16)*((task.prefix+task.group-1)/task.group));
+              CHECK(receipt.completion_ticks[id]>0);
+              REQUIRE(hip_direct_copy_device_to_host(0,actual[id].data(),tasks[id].c,actual[id].size())==RNS8_SUCCESS);
+              REQUIRE(actual[id]==expected[id]);
+            }
+          }
         if (workers == 128) {
           // Contents are reread, not cached under the pointer. Mutate each A
           // after prior executions; unchanged layout needs no descriptor upload.

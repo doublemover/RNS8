@@ -30,6 +30,25 @@ extern "C" int rns8_hip_native_wmma_queue(
       ? rns8_select_native_wmma_queue<uint64_t>(tasks, work, count, cursor, workers, uniform_group)
       : rns8_select_native_wmma_queue<int64_t>(tasks, work, count, cursor, workers, uniform_group);
 }
+template<class T,int Group>
+int rns8_launch_native_wmma_schedule(const rns8::detail::NativeWmmaTask* tasks,
+    const rns8::detail::NativeWmmaWork* work,const rns8::detail::NativeWmmaTaskRange* ranges,
+    const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
+    uint32_t* cursor,uint32_t workers) {
+  hipLaunchKernelGGL((rns8_native_wmma_schedule_kernel<T,Group>),dim3(workers),dim3(32),0,nullptr,
+      tasks,work,ranges,phases,header,cursor,static_cast<uint32_t*>(nullptr),static_cast<uint64_t*>(nullptr),static_cast<const uint64_t*>(nullptr));
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_native_wmma_queue_schedule(const rns8::detail::NativeWmmaTask* tasks,
+    const rns8::detail::NativeWmmaWork* work,const rns8::detail::NativeWmmaTaskRange* ranges,
+    const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
+    uint32_t* cursor,uint32_t workers,uint32_t group,bool unsigned_inputs) {
+  if(header.abi_version!=1 || header.mode>2 || !header.claim_chunk || header.claim_chunk>32 || !workers)
+    return static_cast<int>(hipErrorInvalidValue);
+#define RNS8_QUEUE_SCHEDULE(G) return unsigned_inputs ? rns8_launch_native_wmma_schedule<uint64_t,G>(tasks,work,ranges,phases,header,cursor,workers) : rns8_launch_native_wmma_schedule<int64_t,G>(tasks,work,ranges,phases,header,cursor,workers)
+  switch(group) {case 0:RNS8_QUEUE_SCHEDULE(0);case 1:RNS8_QUEUE_SCHEDULE(1);case 2:RNS8_QUEUE_SCHEDULE(2);case 4:RNS8_QUEUE_SCHEDULE(4);default:return static_cast<int>(hipErrorInvalidValue);}
+#undef RNS8_QUEUE_SCHEDULE
+}
 template <typename NativeT, int Group>
 int rns8_launch_native_wmma_group(
     const void* a, const void* b, int8_t* c, int m, int n, int k,
@@ -94,4 +113,21 @@ extern "C" int rns8_hip_native_encoded_b_wmma(const void* a,const void* b,void* 
     int m,int n,int k,int lda,int ldc,int prefix,uint64_t k_words,int group,bool unsigned_inputs) {
   return unsigned_inputs?rns8_select_encoded_b_wmma<uint64_t>(a,b,c,m,n,k,lda,ldc,prefix,k_words,group)
       :rns8_select_encoded_b_wmma<int64_t>(a,b,c,m,n,k,lda,ldc,prefix,k_words,group);
+}
+
+extern "C" int rns8_hip_native_wmma_queue_completion(const rns8::detail::NativeWmmaTask* tasks,
+    const rns8::detail::NativeWmmaWork* work,const rns8::detail::NativeWmmaTaskRange* ranges,
+    const rns8::detail::NativeWmmaRoundPhase* phases,rns8::detail::NativeWmmaScheduleHeader header,
+    uint32_t* cursor,uint32_t workers,uint32_t* completed,uint64_t* ticks,uint64_t* start) {
+  if(!tasks || !cursor || !workers || workers>1024 || !completed || !ticks || !start ||
+      header.abi_version!=1 || header.mode>2 || !header.task_count || header.task_count>4096 ||
+      !header.claim_chunk || header.claim_chunk>32 || (header.mode==0?!work:!ranges))return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_native_queue_completion_begin,dim3((header.task_count+255)/256),dim3(256),0,nullptr,
+      header.task_count,completed,ticks,start);
+  auto status=hipGetLastError();if(status!=hipSuccess)return int(status);
+  // General dispatch deliberately isolates diagnostic completion from the
+  // production uniform-specialization measurements.
+  hipLaunchKernelGGL((rns8_native_wmma_schedule_kernel<int64_t,0,true>),dim3(workers),dim3(32),0,nullptr,
+      tasks,work,ranges,phases,header,cursor,completed,ticks,start);
+  return int(hipGetLastError());
 }

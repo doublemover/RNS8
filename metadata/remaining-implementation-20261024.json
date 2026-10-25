@@ -245,7 +245,8 @@
         "tools/test_calibration_manifest.py"
       ],
       "commits": [
-        "833ae93c551bed50a5f65abcef2eac201ea7fcac"
+        "833ae93c551bed50a5f65abcef2eac201ea7fcac",
+        "981e7b109428870ed930eae50370e037be95fce7"
       ],
       "remaining": [
         "Streaming overlap warm-both-slots and true batch observation contract remain to implement.",
@@ -401,16 +402,33 @@
             "benchmarks/rns8_bench_exact_wide_batch_lanes.inc",
             "tools/measurement_contract.py"
           ]
+        },
+        {
+          "summary": "Versioned task-major and exact-sequence compact round-robin O(tasks) directories; bounded chunk/tail claims share existing WMMA arithmetic and transactional prepared ownership. Canonical directory validation, exact metadata payload high-water accounting, diagnostic completion counts/wall-clock timestamps and independently collected matched heterogeneous/encoded/reuse/mutation controls.",
+          "files": [
+            "src/backend_common/native_wmma_schedule.hpp",
+            "src/backend_common/native_wmma_queue_plan.hpp",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+            "benchmarks/rns8_queue_calibrate.cpp",
+            "tools/collect_queue_calibration.py"
+          ]
         }
       ],
       "regressions": [
         "tools/test_public_measurement_contracts.py",
-        "benchmarks/public-calibration/grouped-output.json"
+        "benchmarks/public-calibration/grouped-output.json",
+        "tests/unit/test_native_wmma_queue.cpp",
+        "tests/differential/test_hip_direct_native_queue_cases.inc",
+        "tools/test_collect_queue_calibration.py",
+        "benchmarks/native-queue/"
       ],
-      "commits": [],
+      "commits": [
+        "981e7b109428870ed930eae50370e037be95fce7"
+      ],
       "remaining": [
-        "Procedural O(tasks) queue directory, checked decoder/chunk claims and matched hardware controls remain to implement.",
-        "Execution and performance qualification deferred."
+        "Public prepared execution generation/read-write reservation integration of the private heterogeneous native route remains dependency work; no second raw-pointer value cache introduced.",
+        "HIP compilation, GPU/Boost execution, completion fairness and complete-route performance qualification deferred; no promotion or measured speedup claimed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
