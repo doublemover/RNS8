@@ -654,10 +654,12 @@
       ],
       "commits": [
         "caf5cea743d1395e8f3acc760382b9eefad9001d",
-        "7954eb326c5b45080fd60f980140672598a0d3aa"
+        "7954eb326c5b45080fd60f980140672598a0d3aa",
+        "4e21e9c4a5bdc5f1a4bf4d5925e6503719ecb5be",
+        "4f04ea3"
       ],
       "remaining": [
-        "Run consolidated CPU-ASan/gfx1100 summary-cache regressions and matched fresh/cached public-route measurements; qualify actual adaptive benefit and bounded full-width fallback overhead.",
+        "Summary reuse passes local CPU-ASan/gfx1100 and installed static/shared checks. Forty matched host-output captures have 1.5-8.7% better medians, but none meets both fixed independent-process spread/range-separation gates. Qualify benefit against the best same-contract fixed/global controls and bounded full-width fallback overhead.",
         "Planner-selected proof policy and held-out measured routing remain separate gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
@@ -670,9 +672,9 @@
         "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
       ],
       "local_validation": {
-        "receipt": "metadata/allocation-global-control-validation-20261025.json",
-        "compiled_source_commit": "2fcb91c",
-        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+        "receipt": "metadata/adaptive-summary-qualification-20261025.json",
+        "compiled_source_commit": "4e21e9c4a5bdc5f1a4bf4d5925e6503719ecb5be",
+        "scope": "556 CPU-ASan passes/23 expected skips; 942 gfx1100 passes/16 expected skips; no failures. 12 installed consumers and two C17 static/shared probes pass. All 40 independent-process summary captures pass; no qualified elapsed gain or routing promotion."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",

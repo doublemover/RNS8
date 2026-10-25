@@ -765,14 +765,27 @@
           "reference": "adaptive-native-product.md#versioned-distribution-and-complete-output-controls"
         },
         {
+          "source": "docs/device-bound-discovery.md",
+          "reference": "adaptive-native-product.md#matched-summary-reuse-observations"
+        },
+        {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "adaptive-native-product.md#matched-summary-reuse-observations"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../adaptive-native-product.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "adaptive-native-product.md#matched-summary-reuse-observations"
         }
       ],
       "anchors": [
         "adaptive-native-product-with-complete-residue-output",
         "compact-bounded-workers",
         "explicit-matrix-owned-native-inputs",
+        "matched-summary-reuse-observations",
         "shared-static-preflight",
         "single-owned-native-upload",
         "versioned-distribution-and-complete-output-controls",
@@ -5252,6 +5265,10 @@
           "reference": "local-validation-20261025.md"
         },
         {
+          "source": "docs/device-bound-discovery.md",
+          "reference": "local-validation-20261025.md#address-domain-and-algorithm-identity-integration"
+        },
+        {
           "source": "docs/focused-closeout-measurements-20261025.md",
           "reference": "local-validation-20261025.md#subsequent-materialization-integration"
         },
@@ -5301,6 +5318,7 @@
         "allocation-and-global-control-integration-retry",
         "failures-repaired",
         "first-invocation-hipblaslt-metadata-setup",
+        "generation-bound-adaptive-summaries",
         "issue-closeout-and-remaining-gates",
         "matched-hipblaslt-metadata-policy-observations",
         "physical-beyond-vram-streaming-capacity",

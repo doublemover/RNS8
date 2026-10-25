@@ -449,3 +449,35 @@ descriptor ownership. The reviewed
 [first-call record](../metadata/hipblaslt-first-call-observations-20261025.json)
 contains all samples, counters, scoped algorithms, capture hashes and collector
 identity. Together the two metadata cohorts contain **360 complete captures**.
+
+## Generation-bound adaptive summaries
+
+Compiled source **4e21e9c** passes the complete consolidated lanes: **556 CPU
+AddressSanitizer passes / 23 expected skips**, **942 gfx1100 passes / 16 expected
+skips**, and zero failures. Both full builds succeed. All **12 installed
+static/shared consumer tests** and **two new C17 ABI probes** pass. The probes
+verify the 80-byte summary observation struct, new symbols, CPU unsupported
+status and preservation of an old output. The unchanged five-input logical
+checker retains its source-bound 1020.41-second passing run.
+
+The explicit cached API retains one workspace-owned summary pair, checks each
+operand's live internal identity/generation and native currentness, and refreshes
+changed sides independently. Tile bounds/buckets rebuild each call. The GPU
+fixture passes every bound method and signedness, mutation, replacement instances,
+policy changes, hard-budget rejection, complete exports and native retirement.
+Synchronous leases retain failed-work ownership; in-flight workspace destruction
+now rejects.
+
+The first review found a profile packaging error before physical collection: the
+shared collector accepts individual objects rather than an eight-case array.
+Commit **4f04ea3** splits the cases and adds a regression through the actual
+validator. This repair changes no C++ production implementation. Both build
+manifests and benchmark hashes retain their clean **4e21e9c** identity.
+
+All **40/40 matched captures** pass in a fresh collection, with five processes
+per route/workload, complete host-output boundaries, separate first-call/setup
+and sustained means, and exact reference checks outside timing. Cached summaries
+are actually reused, but no comparison passes both predeclared variance and
+range-separation gates. The negative qualification is retained without retiming
+or widening thresholds. See the [observations](adaptive-native-product.md#matched-summary-reuse-observations)
+and [source/artifact-bound receipt](../metadata/adaptive-summary-qualification-20261025.json).

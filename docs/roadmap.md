@@ -187,9 +187,10 @@ The [new independent collection](focused-closeout-measurements-20261025.md#subse
 passes exact checks but fails all four held-out prediction cohorts. Broader
 representation-choice integration and qualified measured routing remain under
 #42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
-and installed-ABI checks. Explicit generation-bound summary ownership is now
-authored; its next validation/measurement batch, matched adaptive benefit and
-qualified measured routing remain open.
+and installed-ABI checks. Explicit generation-bound summary ownership passes
+the [full local batch and 40 matched captures](adaptive-native-product.md#matched-summary-reuse-observations).
+Its median elapsed effects fail the fixed qualification gates; matched adaptive
+benefit and qualified measured routing remain open.
 
 The [physical capacity qualification](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx)
 now completes a real >32 GiB native/minimum-RNS input on the 24 GiB gfx1100 card:

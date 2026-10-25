@@ -130,8 +130,44 @@ scan per side and reuse on every later completed cached call. The affine-small
 fixture isolates summary reuse and does not replace heterogeneous distributions.
 The focused shortlist is `benchmarks/narrow-public/adaptive-summaries/`.
 
-This slice is authored pending the next CPU-ASan/GPU batch and matched
-measurements. It makes no performance or automatic selection claim.
+The slice passes the complete local batch at compiled source **4e21e9c**:
+**556 sanitizer passes / 23 expected skips**, **942 GPU passes / 16 expected
+skips**, zero failures, **12 installed-consumer checks** and two new installed
+C17 static/shared ABI probes. New GPU differentials cover every method and
+signedness, selective A/B mutation, policy changes, replacement matrix instances,
+budget rejection, complete exports and native retirement/repack.
+
+### Matched summary reuse observations
+
+All **40 independent-process captures** pass with the same clean `4e21e9c`
+executable; collector/profile packaging is `4f04ea3`. Five processes per policy
+and workload use three warmups, nine latency samples and three bursts reaching
+at least 16 calls and 250 ms. Sustained process means weight completed duration
+by calls; the table reports their medians and observed process ranges. Both
+routes include the complete public product and padded three-limb host export,
+with required proof/status/synchronization inside and independent oracles outside.
+
+| Shape / signedness, P20 | Fresh scan, ms | Cached summaries, ms | Qualification |
+|---|---:|---:|---|
+| 17×19×31 signed | 2.318 (2.242–2.505) | 2.132 (2.079–2.181) | Baseline process spread 11.32% exceeds fixed 10% gate |
+| 512³ signed | 9.179 (8.616–9.325) | 9.043 (8.522–9.404) | Ranges overlap |
+| 17×19×65537 signed | 23.727 (22.709–24.269) | 21.935 (21.347–23.328) | Ranges overlap |
+| 128×3×65537 unsigned | 26.040 (22.284–29.600) | 24.053 (20.058–28.123) | Ranges overlap; spread gate fails |
+
+Median improvements are 1.5–8.7%, but **none passes both predeclared range
+separation and process-spread gates**. No gain or automatic route is promoted.
+The 512³ useful integer rates are 0.02924 versus 0.02968 TOPS for this complete
+exact-wide host-output boundary. First-call fresh/cached medians are respectively
+3.677/3.285, 12.679/16.420, 28.187/29.688 and 26.559/26.710 ms in table order;
+they remain separate from steady observations and setup.
+
+Every cached process records exactly one scan per operand, with reuse on every
+later call: 61–375 completed calls per process. Retained summary payload is
+96 bytes for both 17-row cases, 1536 bytes at 512³ and 216 bytes for the skinny
+unsigned case. These observations establish actual scan elimination, independently
+of the inconclusive elapsed benefit. The
+[qualification receipt](../metadata/adaptive-summary-qualification-20261025.json)
+preserves all samples, counters, identities, capture hashes and full validation.
 
 ## Shared static preflight
 

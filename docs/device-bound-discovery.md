@@ -95,4 +95,7 @@ allocation cleanup remain inside complete-call timing. The CPU data model only
 checks the receipt outside timing; it never supplies the selected device prefix.
 Zero proofs use an explicit one-plane compute floor. No reusable summary cache
 or public default route is introduced. See the [adaptive control contract](adaptive-native-product.md#versioned-distribution-and-complete-output-controls).
-These sources and regressions are authored pending integrated validation.
+Its native gfx1100 qualification is recorded in the
+[October 25 validation](local-validation-20261025.md#address-domain-and-algorithm-identity-integration).
+The separate workspace-owned summary reuse path and its completed measurements
+are documented in the [adaptive contract](adaptive-native-product.md#matched-summary-reuse-observations).
