@@ -178,6 +178,7 @@ class GramBatchReports(unittest.TestCase):
             for original in prepared:
                 method="wmma" if original["name"].endswith("_wmma") else "scalar"
                 for kind in ("native","transpose","reconstruct_once","separate_mirror"):
+                    if kind=="native" and not (hip and report["semantics"]=="exact_wide_signed"):continue
                     row=copy.deepcopy(original);row["name"]=f"rns8_prepared_single_source_gram_{kind}_{method}";report["variants"].append(row)
             n,k=report["n"],report["k"];prefix=3;limbs=report["output_limbs_per_cell"]
             for row in report["variants"]:

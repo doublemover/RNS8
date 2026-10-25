@@ -97,6 +97,10 @@ TEST_CASE("ordinary HIP tiled GEMM consumes the immutable launch seal", "[api][s
   auto ad=bounded_matrix_desc(128,1,RNS8_BOUNDED_U64);
   auto bd=bounded_matrix_desc(1,128,RNS8_BOUNDED_U64);
   auto cd=bounded_matrix_desc(128,128,RNS8_BOUNDED_U64);
+  for(auto* matrix_desc:{&ad,&bd,&cd}) {
+    matrix_desc->bound_kind=desc.bound_kind;
+    matrix_desc->tile_m=desc.tile_m;matrix_desc->tile_n=desc.tile_n;
+  }
   REQUIRE(rns8_create_matrix(ctx,&ad,&a)==RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx,&bd,&b)==RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(ctx,&cd,&c)==RNS8_SUCCESS);
@@ -106,7 +110,7 @@ TEST_CASE("ordinary HIP tiled GEMM consumes the immutable launch seal", "[api][s
   plan_validation_work={};
   for(int iteration=0;iteration<8;++iteration) {
     auto* selected=iteration%2?plan:equivalent;
-    REQUIRE(rns8_gemm(ctx,selected,a,b,c,workspace)==RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx,selected,a,b,c,workspace)==RNS8_SUCCESS);
     REQUIRE(rns8_export_u64(ctx,selected,c,actual.data(),130)==RNS8_SUCCESS);
     for(int row=0;row<128;++row) {
       for(int col=0;col<128;++col) REQUIRE(actual[row*130+col]==1);
@@ -128,7 +132,7 @@ TEST_CASE("ordinary HIP tiled GEMM consumes the immutable launch seal", "[api][s
     REQUIRE(rns8_get_workspace_locality_info(workspace,&info)==RNS8_SUCCESS);
     CHECK(info.requested_order==order);CHECK_FALSE(info.physical_affinity_established);
     CHECK(info.k_phases==1);CHECK(info.unique_source_bytes<=info.requested_source_bytes);
-    REQUIRE(rns8_gemm(ctx,equivalent,a,b,c,workspace)==RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(ctx,equivalent,a,b,c,workspace)==RNS8_SUCCESS);
     REQUIRE(rns8_export_u64(ctx,equivalent,c,actual.data(),130)==RNS8_SUCCESS);
     for(int row=0;row<128;++row)for(int col=0;col<130;++col)CHECK(actual[row*130+col]==(col<128?1:UINT64_MAX));
     REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);workspace=nullptr;

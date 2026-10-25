@@ -104,7 +104,13 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
     return RNS8_RANGE_ERROR;
   if (e.d) {
     if (e.d->generation_exhausted) return RNS8_RANGE_ERROR;
-    return validate_exact_axpby_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.d, *e.c, e.alpha, e.beta);
+    status = validate_exact_axpby_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.d, *e.c, e.alpha, e.beta);
+    if (status != RNS8_SUCCESS) return status;
+    if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
+      boost::multiprecision::cpp_int bound;
+      return rns8::detail::exact_axpby_range(*e.plan, *e.a, *e.b, *e.d, e.alpha, e.beta, bound);
+    }
+    return RNS8_SUCCESS;
   }
   switch (e.plan->desc.semantics) {
     case RNS8_FINITE_RING_U8:
@@ -113,7 +119,13 @@ rns8_status validate_prepared(const rns8_prepared_execution& e) {
     case RNS8_WRAP_U64_MOD_2_64:
       return validate_wrap_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
     default:
-      return validate_rns_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
+      status = validate_rns_gemm_operands(*e.ctx, *e.plan, *e.a, *e.b, *e.c);
+      if (status != RNS8_SUCCESS) return status;
+      if (e.plan->desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) {
+        boost::multiprecision::cpp_int bound;
+        return rns8::detail::exact_gemm_range(*e.plan, *e.a, *e.b, bound);
+      }
+      return RNS8_SUCCESS;
   }
 }
 void bind_inputs(rns8_prepared_execution& e) {

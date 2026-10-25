@@ -42,6 +42,7 @@ rns8_status prepare_gram_impl(rns8_context* ctx,const rns8_matrix* x,rns8_matrix
   auto owner=std::make_unique<rns8_prepared_gram>();
   const auto status=validate_gram_contract(ctx,x,c,orientation,method,owner->problem,owner->bound);if(status!=RNS8_SUCCESS)return status;
   const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT,finite=uses_finite_storage(x->desc.semantics);
+  if(policy==RNS8_GRAM_RETAINED_NATIVE_I64 && !hip)return RNS8_UNSUPPORTED_BACKEND;
   if(policy==RNS8_GRAM_RETAINED_NATIVE_I64 && !gram_native_current(*x))return RNS8_INVALID_ARGUMENT;
   if(policy==RNS8_GRAM_RETAINED_NATIVE_I64 && hip && !qualified_i32_matrix_address(x->desc.rows,x->desc.cols,x->desc.cols,1,8))return RNS8_UNSUPPORTED_BACKEND;
   if(limbs && finite)return RNS8_UNSUPPORTED_BACKEND;

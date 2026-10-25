@@ -427,7 +427,8 @@ TEST_CASE("direct HIP finite u8 fixed-modulus kernels preserve K-split semantics
     rns8::detail::hip_direct_timing_set_enabled(false);
     CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
     CHECK(has_timing_label(hip_events, "finite_native_gemm_kernel"));
-    CHECK(has_timing_label(hip_events, "finite_export_kernel"));
+    CHECK(has_timing_label(hip_events, "finite_export_kernel") == (item.modulus != 256));
+    CHECK(has_timing_label(hip_events, "finite_export_d2h"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_pack_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
     for (int64_t row = 0; row < m; ++row) {

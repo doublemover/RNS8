@@ -248,7 +248,9 @@ def validate_gram_batch(report: dict, variants: list[dict], requested=None,datas
         magnitudes=dataset["gram_max_magnitudes"]
         expanded=int(magnitudes["changed"])>int(magnitudes["original"])
     ablation_methods=["scalar"]+(["wmma"] if "rns8_single_source_gram_wmma" in names else [])
-    ablation_names={f"rns8_prepared_single_source_gram_{kind}_{method}" for method in ablation_methods for kind in ("native","transpose","reconstruct_once","separate_mirror")}
+    native_supported=report.get("backend_requested")=="hip-direct" and report.get("semantics")=="exact_wide_signed"
+    ablation_kinds=("native","transpose","reconstruct_once","separate_mirror") if native_supported else ("transpose","reconstruct_once","separate_mirror")
+    ablation_names={f"rns8_prepared_single_source_gram_{kind}_{method}" for method in ablation_methods for kind in ablation_kinds}
     if ablation_cohort:demand(ablation_names<=names,"Gram native/transpose/reconstruct-once controls must all be present")
     for row in passed:
         name=row["name"];rns=name.startswith("rns8_")

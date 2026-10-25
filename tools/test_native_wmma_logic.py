@@ -26,7 +26,11 @@ def main():
             body = render(ir)
             for name, mutated in mutations(ir).items():
                 assert render(mutated) != body, name  # mutations affect actual emitted source
-                results = [check(mutated, c) for c in CONFIGURATIONS]
+                results = []
+                for config in CONFIGURATIONS:
+                    results.append(check(mutated, config))
+                    if results[-1]["logical_equivalence"] == "refuted":
+                        break
                 assert any(r["logical_equivalence"] == "refuted" for r in results), (name, results)
     ir = recipe(1, False)
     unsupported = copy.deepcopy(ir); unsupported["instruction"] = "unknown_mfma"

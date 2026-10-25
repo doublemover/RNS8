@@ -4,16 +4,12 @@
 from __future__ import annotations
 
 import copy
-import json
 import tempfile
 from pathlib import Path
 
 import finite_distribution_report
 from test_capture_identity_support import write_independent_fixture_pair, independent_fixture_paths
-from benchmark_schema import load_capture
-
-
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
+from test_benchmark_sweep_support import finite_capture
 
 
 def build_report(paths):
@@ -26,7 +22,7 @@ def _write(path: Path, capture: dict) -> Path:
 
 
 def main() -> int:
-    base = load_capture(FIXTURE_DIR / "v4_finite_ring_u8_ck.json")
+    base = finite_capture("ck", 170)
     full_uniform = copy.deepcopy(base)
     full_uniform["input_distribution"] = "u8_uniform_0_modulus_minus_1"
     binary = copy.deepcopy(base)

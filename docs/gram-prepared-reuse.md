@@ -132,8 +132,8 @@ both export policies; their authored presence is not execution evidence.
 
 ## Native/orientation/mirror/reconstruction ablations
 
-Reports with `gram_ablation_cohort=1` add four independently named prepared
-variants per admitted scalar/WMMA family: `_native_`, `_transpose_`,
+Reports with `gram_ablation_cohort=1` add independently named prepared
+variants for each admitted scalar/WMMA family: `_native_` where supported, `_transpose_`,
 `_separate_mirror_` and `_reconstruct_once_`. They change one mechanism relative
 to the resident prepared control. Native loads use retained original signed64
 panels; transpose retains a generation-bound residue adapter; separate mirror
@@ -149,7 +149,13 @@ owner allocation; actual capacities must fit it. Old job-only envelope metadata
 is retained as a separate conservative component, not mislabeled as the new
 total. Adapter creation is first-execute work and rebuild is charged after source
 refresh. The benchmark's complete Boost validation remains outside timed calls.
-The collector requires every scalar ablation and every matching WMMA ablation,
+The collector requires every applicable scalar ablation and matching WMMA ablation,
 recomputes payload/alignment lower bounds, rejects incomplete cohorts and keeps
 the cohort version in comparison identity. These receipts establish declared
 source paths and owned allocations, not measured peak memory or physical ISA.
+
+Retained native i64 input follows `RNS8_MATRIX_RETAIN_NATIVE_INPUT`: it is
+available for direct-HIP exact-wide signed matrices. CPU and bounded-i64
+workloads record this variant as unsupported while exercising the resident,
+transpose, mirror and reconstruction controls. The collector requires the
+applicable controls for the selected backend and semantic contract.

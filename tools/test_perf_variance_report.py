@@ -204,7 +204,13 @@ def main() -> int:
 
         clear_review = write_review_report(tmp / "clear-review.json", stable_a, 1.10)
         clear_ledger = promotion_ledger.build_ledger([stable_a], cache_path, [clear_review], [variance_path])
-        assert clear_ledger["entries"][0]["promotion_blockers"] == []
+        # A clear variance margin does not authorize diagnostic-only timings.
+        assert set(clear_ledger["entries"][0]["promotion_blockers"]) == {
+            "diagnostic_instrumented_host_time_not_production_evidence",
+            "matched_diagnostic_companion_missing",
+            "baseline:diagnostic_instrumented_host_time_not_production_evidence",
+            "baseline:matched_diagnostic_companion_missing",
+        }
 
         # Admission does not depend on a variance report honestly carrying its
         # blocker. It independently checks the candidate and bound baseline.

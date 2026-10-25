@@ -103,7 +103,7 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
   for(int n:{1,15,16,17,31,32,33})for(int k:(n==1?std::vector<int>{1,65535,65536,65537}:std::vector<int>{17})) {
     const int rows=orientation==RNS8_GRAM_TRANSPOSE_TIMES_SELF?k:n,cols=orientation==RNS8_GRAM_TRANSPOSE_TIMES_SELF?n:k,ld=cols+2;
     rns8_matrix_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.rows=rows;d.cols=cols;d.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
-    d.semantics=RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.max_prefix=20;d.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    d.semantics=RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.max_prefix=20;d.flags=backend==RNS8_BACKEND_HIP_DIRECT?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
     rns8_matrix *x=nullptr,*c=nullptr;REQUIRE(rns8_create_matrix(ctx,&d,&x)==RNS8_SUCCESS);
     d.rows=d.cols=n;d.flags=0;REQUIRE(rns8_create_matrix(ctx,&d,&c)==RNS8_SUCCESS);
     std::vector<int64_t> values(rows*ld,INT64_MAX);
@@ -114,6 +114,10 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
     for(auto method:{RNS8_GRAM_SCALAR,RNS8_GRAM_WMMA,RNS8_GRAM_SCALAR_SEPARATE_MIRROR,RNS8_GRAM_WMMA_SEPARATE_MIRROR}) {
       if(backend==RNS8_BACKEND_CPU_REFERENCE && (uint32_t(method)&1))continue;
       rns8_prepared_gram* owner=nullptr;
+      if(backend==RNS8_BACKEND_CPU_REFERENCE && policy==RNS8_GRAM_RETAINED_NATIVE_I64){
+        REQUIRE(rns8_prepare_gram_ex(ctx,x,c,orientation,method,policy,3,UINT64_MAX,&owner)==RNS8_UNSUPPORTED_BACKEND);
+        REQUIRE(owner==nullptr);continue;
+      }
       CHECK(rns8_prepare_gram_ex(ctx,x,c,orientation,method,policy,1,UINT64_MAX,&owner)==RNS8_RANGE_ERROR);
       REQUIRE(owner==nullptr);
       REQUIRE(rns8_prepare_gram_ex(ctx,x,c,orientation,method,policy,3,UINT64_MAX,&owner)==RNS8_SUCCESS);
@@ -158,11 +162,12 @@ inline void check_gram_prepared_ablations(rns8_backend_kind backend) {
   // signed Gram; the extrema/long-K fixtures above require the full basis.
   for(uint32_t prefix=1;prefix<=20;++prefix){
     rns8_matrix_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.rows=1;d.cols=17;d.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
-    d.semantics=RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.max_prefix=prefix;d.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    d.semantics=RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.max_prefix=prefix;d.flags=backend==RNS8_BACKEND_HIP_DIRECT?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;
     rns8_matrix *x=nullptr,*c=nullptr;REQUIRE(rns8_create_matrix(ctx,&d,&x)==RNS8_SUCCESS);d.rows=17;d.flags=0;REQUIRE(rns8_create_matrix(ctx,&d,&c)==RNS8_SUCCESS);
     std::vector<int64_t> values(17);for(int i=0;i<17;++i)values[i]=i%3-1;
     REQUIRE(rns8_pack_i64(ctx,x,values.data(),17,1)==RNS8_SUCCESS);
     for(auto policy:{RNS8_GRAM_RESIDENT_RESIDUES,RNS8_GRAM_RETAINED_NATIVE_I64,RNS8_GRAM_RETAINED_TRANSPOSE}){
+      if(backend==RNS8_BACKEND_CPU_REFERENCE && policy==RNS8_GRAM_RETAINED_NATIVE_I64)continue;
       rns8_prepared_gram* owner=nullptr;REQUIRE(rns8_prepare_gram_ex(ctx,x,c,RNS8_GRAM_TRANSPOSE_TIMES_SELF,RNS8_GRAM_SCALAR_SEPARATE_MIRROR,policy,1,UINT64_MAX,&owner)==RNS8_SUCCESS);
       REQUIRE(rns8_execute_prepared_gram(owner)==RNS8_SUCCESS);std::vector<uint64_t> actual(17*17);
       REQUIRE(rns8_export_prepared_gram_limbs(owner,actual.data(),17)==RNS8_SUCCESS);

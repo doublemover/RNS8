@@ -21,6 +21,9 @@ def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
 def synthetic_host_measurements(capture: dict) -> None:
     """Declare authored samples explicitly; never use this on collected evidence."""
     metadata = capture.setdefault("timing_metadata", {})
+    # Authored report controls use the same diagnostic host policy for CPU and
+    # GPU. CPU controls have no GPU events, but still need an explicit policy.
+    metadata.setdefault("host_instrumentation_state", "diagnostic_gpu_events")
     metadata.update(host_timing_contract_version=2, host_result_kind="single_operation",
                     clock_period_numerator=1, clock_period_denominator=1000000000,
                     timer_overhead_samples=1001, timer_pair_median_us=0.02,
@@ -79,6 +82,9 @@ def synthetic_independent_runs(captures: list[dict], count: int = 2) -> list[dic
             summary.update(avg=value, median=value, p95=value)
             base[f"avg_{phase}_us"] = value
         synthetic_host_measurements(base)
+        if "avg_per_modulus_gemm_estimate_us" in base:
+            prefix = base.get("selected_prefix") or base.get("prefix") or 1
+            base["avg_per_modulus_gemm_estimate_us"] = base["avg_rns_gemm_us"] / prefix
         for ordinal in range(count):
             capture = deepcopy(base)
             capture["execution_id"] = str(uuid.uuid4())

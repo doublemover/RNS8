@@ -70,7 +70,9 @@ int main(int argc, char** argv) {
       variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR));
       if(options.gram_reuse) {
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true));
-            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            if(options.backend==RNS8_BACKEND_HIP_DIRECT && options.wide)
+              variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            else skipped.push_back({{"name","rns8_prepared_single_source_gram_native_scalar"},{"status","unsupported"},{"reason","native retention requires direct HIP exact-wide matrices"}});
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RETAINED_TRANSPOSE));
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR,true,RNS8_GRAM_RESIDENT_RESIDUES,true));
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_SCALAR_SEPARATE_MIRROR,true));
@@ -82,7 +84,9 @@ int main(int argc, char** argv) {
           variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA));
           if(options.gram_reuse) {
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true));
-            variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            if(options.wide)
+              variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RETAINED_NATIVE_I64));
+            else skipped.push_back({{"name","rns8_prepared_single_source_gram_native_wmma"},{"status","unsupported"},{"reason","native retention requires exact-wide matrices"}});
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RETAINED_TRANSPOSE));
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA,true,RNS8_GRAM_RESIDENT_RESIDUES,true));
             variants.push_back(gram_variant(data,options,bound,RNS8_GRAM_WMMA_SEPARATE_MIRROR,true));

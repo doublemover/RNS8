@@ -50,14 +50,8 @@ extern "C" int rns8_hipblaslt_reduce_i32_to_centered_strided_device(
 #endif
 
 namespace rns8::detail {
-namespace {
-thread_local HipblasLtMetadataPolicy metadata_policy=HipblasLtMetadataPolicy::per_call;
-thread_local HipblasLtMetadataCounters metadata_counters;
-}
-void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy){metadata_policy=policy;}
-HipblasLtMetadataPolicy hipblaslt_metadata_policy(){return metadata_policy;}
-void hipblaslt_metadata_counters_reset(){metadata_counters={};}
-HipblasLtMetadataCounters hipblaslt_metadata_counters_snapshot(){return metadata_counters;}
+using hipblaslt_metadata_state::metadata_policy;
+using hipblaslt_metadata_state::metadata_counters;
 
 #include "hipblaslt_timing_matmul_cache.inc"
 #include "hipblaslt_prepack_cache.inc"

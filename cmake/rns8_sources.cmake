@@ -9,6 +9,7 @@ set(RNS8_PUBLIC_HEADERS
 )
 
 set(RNS8_SOURCES
+  src/backend_hipblaslt/hipblaslt_metadata.cpp
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
   src/core/api_backend_info.cpp

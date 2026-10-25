@@ -1,4 +1,3 @@
-#include "backend_common/split_k_partial.hpp"
 // Each (fragment, plane, cell) has one producer. Fragment length <= 65536
 // bounds every signed-byte dot by 65536*128*128 = 2^30, without a carry.
 __global__ void rns8_split_k_produce_kernel(

@@ -11,6 +11,7 @@
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"
 #include "../backend_common/residue_epilogue.hpp"
+#include "../backend_common/split_k_partial.hpp"
 #include "../backend_common/complex_residue_algebra.hpp"
 #include "../backend_common/residue_layout.hpp"
 #include "../backend_common/direct_crt_constants.hpp"

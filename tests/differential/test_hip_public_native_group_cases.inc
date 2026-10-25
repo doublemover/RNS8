@@ -8,7 +8,7 @@ template<class T> void check_public_native_group() {
   rns8_matrix *a[2]{},*c[2]{},*b=nullptr;
   std::vector<T> av[2],bv(k*n);for(size_t i=0;i<bv.size();++i)bv[i]=T(i%7);
   const auto pack=[&](rns8_matrix* matrix,const std::vector<T>& values,int ld) {
-    if constexpr(u)return rns8_pack_u64(ctx,matrix,values.data(),ld,0);
+    if constexpr(std::is_unsigned_v<T>)return rns8_pack_u64(ctx,matrix,values.data(),ld,0);
     else return rns8_pack_i64(ctx,matrix,values.data(),ld,0);
   };
   auto bdesc=matrix_desc(k,n,semantics,RNS8_BOUND_NONE);bdesc.max_prefix=prefix;bdesc.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
@@ -45,7 +45,7 @@ template<class T> void check_public_native_group() {
       if(col>=n){for(int l=0;l<3;++l)CHECK(limbs[index+l]==sentinel);continue;}
       cpp_int expected=0;for(int q=0;q<k;++q)expected+=cpp_int(av[i][row*k+q])*bv[q*n+col];
       cpp_int actual=cpp_int(limbs[index])+(cpp_int(limbs[index+1])<<64)+(cpp_int(limbs[index+2])<<128);
-      if constexpr(!u)if(limbs[index+2]>>63)actual-=cpp_int(1)<<192;
+      if constexpr(!std::is_unsigned_v<T>)if(limbs[index+2]>>63)actual-=cpp_int(1)<<192;
       CHECK(actual==expected);
     }
   };

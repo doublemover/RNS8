@@ -110,7 +110,7 @@ TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
 #include "test_hip_public_native_group_cases.inc"
 
 #include "../support/ragged_recipe_fixture.hpp"
-TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
+TEST_CASE("direct HIP ragged producer binds retained multi-output recipe consumers") {
   if(!hip_available())SKIP("no HIP device for ragged recipe binding");
   auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

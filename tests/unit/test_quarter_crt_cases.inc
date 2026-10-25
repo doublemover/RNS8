@@ -35,7 +35,8 @@ TEST_CASE("quarter CRT full weights quotient and delayed borrows agree with exac
 TEST_CASE("public quarter export owns source identity and publishes complete padded results","[api][crt]") {
   auto* ctx=create_cpu_context();
   for(uint32_t prefix=1;prefix<=20;++prefix) {
-    auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,3,1);desc.max_prefix=prefix;rns8_plan* plan=nullptr;
+    auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,3,1);desc.max_prefix=prefix;
+    desc.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;rns8_plan* plan=nullptr;
     REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     auto md=exact_matrix_desc(1,3,RNS8_EXACT_WIDE_SIGNED);md.max_prefix=prefix;rns8_matrix* matrix=nullptr;
     REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
@@ -63,6 +64,7 @@ TEST_CASE("quarter CRT HIP signed canonical and tail exports use the public owne
   rns8_context* ctx=nullptr;if(rns8_create_context(0,&options,&ctx)!=RNS8_SUCCESS)SKIP("HIP device unavailable");
   for(uint32_t prefix=1;prefix<=20;++prefix)for(uint32_t mode:{0u,2u}) {
     auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,2,17,1);desc.max_prefix=prefix;desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    desc.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
     rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     auto md=exact_matrix_desc(2,17,RNS8_EXACT_WIDE_SIGNED);md.max_prefix=prefix;rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
     std::vector<int64_t> input(34);for(size_t i=0;i<input.size();++i)input[i]=i%3==0?-63:i%3==1?0:63;

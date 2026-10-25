@@ -1811,7 +1811,8 @@ RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rn
     rns8_gram_orientation orientation,rns8_gram_method method,uint64_t max_job_bytes,
     rns8_prepared_gram** out);
 /* Independent Gram input ablations. A transpose adapter is generation-bound;
- * native input requires retained current signed i64, never a finite-u8 cast. */
+ * native input requires retained current signed i64 on direct HIP exact-wide
+ * matrices, never a finite-u8 cast. CPU native retention is unsupported. */
 typedef enum rns8_gram_input_policy {
   RNS8_GRAM_RESIDENT_RESIDUES=0,
   RNS8_GRAM_RETAINED_NATIVE_I64=1,

@@ -196,7 +196,7 @@ TEST_CASE("direct HIP exact selector stages both inputs and output before one pr
       for(auto pair:{std::pair<rns8_matrix*,const std::vector<int8_t>*>{a,&old_a},{b,&old_b},{c,&old_c}}){std::vector<int8_t> actual(old_a.size());REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),pair.first->hip_residues,actual.size())==RNS8_SUCCESS);CHECK(actual==*pair.second);}
       old_b[0]=100;REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,b->hip_residues,old_b.data(),old_b.size())==RNS8_SUCCESS);}
     REQUIRE(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_SUCCESS);
-    CHECK(selected==2);CHECK(a->exact_range_prefix==2);CHECK(b->exact_range_prefix==2);CHECK(a->content_generation==a_generation);CHECK(b->content_generation==b_generation);CHECK(c->content_generation==c_generation+1);
+    CHECK(selected==plan->prefix);CHECK(a->exact_range_prefix==selected);CHECK(b->exact_range_prefix==selected);CHECK(a->content_generation==a_generation);CHECK(b->content_generation==b_generation);CHECK(c->content_generation==c_generation+1);
     const auto counters=rns8::detail::hip_direct_allocation_counters_snapshot();
     REQUIRE(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_SUCCESS);
     const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();CHECK(after.allocate_calls==counters.allocate_calls);CHECK(after.free_calls==counters.free_calls);

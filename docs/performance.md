@@ -166,7 +166,12 @@ before selecting an implementation. Copied captures do not add weight; reused
 execution IDs with conflicting records block qualification. Reports retain all
 submitted hashes/paths, distinct-run counts and process spread. Raw capture
 arrays are not rewritten. Legacy observations remain descriptive, with no
-qualified winner or promotion implication.
+performance qualification or promotion implication.
+
+FHE workload reports keep the backend-specific export selector in each
+implementation receipt. It is excluded from the cross-backend work key: CPU and
+GPU selectors can implement the same public output. Semantic, signedness, layout,
+completion, shape, proof-policy, source and timing identities remain checked.
 
 The default admission requires two independent processes, three warmups, nine
 within-process observations, measured uncensored end-to-end samples, at most
@@ -210,7 +215,7 @@ scalar versus packed signed-byte arithmetic **inside the same production
 scheduler**, then independent versus grouped/scheduled execution **with the same
 arithmetic build**. Region cases explicitly recompute a nonzero `(1,1)` rectangle
 and check the cache's recomputation receipt; their full-output export cost is
-reported, but their reduced compute domain is never called a batching speedup.
+reported; the reduced compute domain is excluded from measured batching gains.
 
 Build the same revision/dependencies/compiler twice. One build enables
 `RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL`; the other enables
@@ -237,7 +242,7 @@ remain hook-disabled. `gpu_isa_report.py` accepts these captures, binds explicit
 selected symbols to the captured target code object and reports static dot4,
 scalar multiply/add, byte-extract/permute, LDS load/store, VGPR/SGPR, LDS and spill
 metadata. Static instruction inventory does not prove dynamic execution, sign
-interpretation or speedup. Actual launch counts remain unknown without a dynamic
+interpretation or measured acceleration. Actual launch counts remain unknown without a dynamic
 profiler receipt. The existing arithmetic slab certificate is unchanged:
 `65536*128*128+128 < INT32_MAX`; numerical-zero tails never read inactive bytes.
 

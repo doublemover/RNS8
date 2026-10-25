@@ -15,6 +15,10 @@ struct rns8_workspace;
 namespace rns8::detail {
 
 // Private benchmark control; thread-local and never an AUTO/cache policy.
+namespace hipblaslt_metadata_state {
+extern thread_local HipblasLtMetadataPolicy metadata_policy;
+extern thread_local HipblasLtMetadataCounters metadata_counters;
+}
 void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
 HipblasLtMetadataPolicy hipblaslt_metadata_policy();
 void hipblaslt_metadata_counters_reset();

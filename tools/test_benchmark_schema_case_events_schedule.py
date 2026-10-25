@@ -377,6 +377,7 @@ def _larger_sparse_family(value):
 for smaller in (amdgpu_sparse_finite,amdgpu_sparse_rns,amdgpu_sparse_exact):
     larger=_larger_sparse_family(copy.deepcopy(smaller))
     larger.update(m=128,n=128,k=128)
+    larger['k_block_size']=128
     larger['backend_metadata']['accumulator_safety']['k_block_size']=128
     validate_capture(larger)
     mismatched=copy.deepcopy(larger)

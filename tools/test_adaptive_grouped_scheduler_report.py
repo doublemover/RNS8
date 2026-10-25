@@ -183,6 +183,6 @@ with tempfile.TemporaryDirectory() as tmp_name:
     assert forward == reverse
     assert forward["rows"][0]["decision"] == "keep experimental"
     assert forward["rows"][0]["speedup_vs_direct_hip"] is None
-    direct_cohorts = forward["rows"][0]["baseline_observation_cohorts"]["hip-direct"]
+    direct_cohorts = forward["rows"][0]["baseline_observation_cohorts"]["direct_hip"]
     assert direct_cohorts[0]["independent_runs"] == 4
     assert "process_spread_exceeds_ten_percent" in direct_cohorts[0]["blockers"]

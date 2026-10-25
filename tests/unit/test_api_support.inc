@@ -1,3 +1,10 @@
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+bool hip_available() {
+  rns8_device_info info{};
+  return rns8::detail::hip_direct_probe(0, info) == RNS8_SUCCESS;
+}
+#endif
+
 
 rns8_context* create_cpu_context() {
   rns8_context_options options{};

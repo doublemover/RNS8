@@ -63,7 +63,8 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
     rns8::detail::hip_direct_timing_set_enabled(false);
     CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
     CHECK(has_timing_label(hip_events, "finite_native_gemm_kernel"));
-    CHECK(has_timing_label(hip_events, "finite_export_kernel"));
+    CHECK(has_timing_label(hip_events, "finite_export_kernel") == (item.modulus != 256));
+    CHECK(has_timing_label(hip_events, "finite_export_d2h"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_pack_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_ring_gemm_kernel"));

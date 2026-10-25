@@ -2,7 +2,7 @@ TEST_CASE("prepared native integrity is explicit and unavailable on the scalar p
   auto* ctx=create_cpu_context();auto d=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
   rns8_plan* p=nullptr;rns8_workspace* w=nullptr;rns8_matrix *a=nullptr,*c=nullptr;
   REQUIRE(rns8_create_plan(ctx,&d,&p)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,p,&w)==RNS8_SUCCESS);
-  auto md=exact_matrix_desc(1,1,d.semantics);md.flags|=RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+  auto md=exact_matrix_desc(1,1,d.semantics);
   REQUIRE(rns8_create_matrix(ctx,&md,&a)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(ctx,&md,&c)==RNS8_SUCCESS);
   const int64_t value=2;REQUIRE(rns8_pack_i64(ctx,a,&value,1,0)==RNS8_SUCCESS);
   rns8_prepared_execution* e=nullptr;REQUIRE(rns8_prepare_gemm(ctx,p,a,a,c,w,&e)==RNS8_SUCCESS);

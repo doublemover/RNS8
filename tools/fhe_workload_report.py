@@ -114,7 +114,10 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
     operation = _operation(capture)
     row = {
         "path": _path(capture),
-        **row_identity(capture),
+        # CPU and GPU export selectors name different implementations of the
+        # same public output contract. Keep semantic/layout/completion fields
+        # in the work key; implementation cohorts retain their selector keys.
+        **row_identity(capture, exclude=("export_variant.selector_key",)),
         "proxy_operation": operation,
         "family": family,
         "tower_basis": extra.get("tower_basis") or extra.get("tower_role") or proxy.get("tower_role") or "unspecified",

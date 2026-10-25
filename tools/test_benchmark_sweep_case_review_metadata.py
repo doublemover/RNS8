@@ -31,7 +31,9 @@ assert report["summary"]["loss_phase_by_backend"] == {}
 assert report["summary"]["loss_phase_by_semantics"] == {}
 assert report["summary"]["loss_phase_by_shape_family"] == {}
 assert report["summary"]["loss_phase_by_scenario_family"] == {}
-assert report["summary"]["next_work"] == []
+assert {item["work"] for item in report["summary"]["next_work"]} == {
+    "attach_pack_a_b_phase_split_timing_before_pack_kernel_work", "address_compute_bound",
+}
 group = report["groups"][0]
 ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
 assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"

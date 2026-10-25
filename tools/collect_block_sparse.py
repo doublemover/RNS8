@@ -271,7 +271,7 @@ def collect(args):
     schedule_document=dict(schema='rns8_block_sparse_schedule_v1',order_seed=seed,cases_sha256=cases_hash,schedule=schedule)
     schedule_text=json.dumps(schedule_document,sort_keys=True,separators=(',',':'))+'\n'
     schedule_hash=hashlib.sha256(schedule_text.encode()).hexdigest();schedule_path=output/(campaign+'.schedule.json')
-    with schedule_path.open('x',encoding='utf-8') as stream:stream.write(schedule_text)
+    with schedule_path.open('x',encoding='utf-8',newline='\n') as stream:stream.write(schedule_text)
     for job in schedule:
             case_index=job['case_index'];independent=job['independent_run'];case=cases[case_index]
             a,b=dataset(case);dataset_hash=hashlib.sha256(a+b).hexdigest()
