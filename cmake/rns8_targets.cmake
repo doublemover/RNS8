@@ -180,6 +180,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
   add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
   add_executable(rns8-queue-calibrate benchmarks/rns8_queue_calibrate.cpp)
+  add_executable(rns8-public-queue-calibrate benchmarks/rns8_public_queue_calibrate.cpp)
   add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   foreach(_calibrator IN ITEMS
@@ -193,6 +194,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-instruction-roof-calibrate
       rns8-split-k-calibrate
       rns8-queue-calibrate
+      rns8-public-queue-calibrate
       rns8-ragged-calibrate
       rns8-stream-panel-calibrate)
     rns8_bind_manifest(${_calibrator})

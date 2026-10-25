@@ -38,6 +38,15 @@ rns8_status rns8_destroy_encoded_b(rns8_encoded_b* cache) {
   --cache->source->prepared_references; --cache->ctx->prepared_references;
   delete cache; return status;
 }
+rns8_status rns8_get_encoded_b_info(const rns8_encoded_b* cache,rns8_encoded_b_info* info) {
+  if(!cache || !info || !rns8::detail::valid_abi(info->struct_size,info->abi_version,sizeof(*info)))return RNS8_INVALID_ARGUMENT;
+  *info={};info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;info->layout_version=1;
+  info->source_instance=cache->instance;info->source_generation=cache->generation;info->retained_device_bytes=cache->storage.bytes();
+  info->prefix=cache->source->prefix;info->device_id=cache->ctx->device_id;
+  info->source_is_current=cache->source->matrix_instance_id==cache->instance &&
+      cache->source->content_generation==cache->generation && !cache->source->generation_exhausted && cache->source->device_native_current;
+  return RNS8_SUCCESS;
+}
 namespace {
 struct EncodedProductAdmission {
   rns8::detail::NativeWmmaTask task;

@@ -3388,6 +3388,7 @@
         }
       ],
       "anchors": [
+        "complete-public-controls-authored-not-run",
         "persistent-native-wmma-queue",
         "procedural-schedules-and-measured-completion-contract",
         "public-generation-owned-queue-and-graph-opt-in"

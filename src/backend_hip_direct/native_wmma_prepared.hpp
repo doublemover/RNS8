@@ -6,7 +6,8 @@
 #include <mutex>
 
 namespace rns8::detail {
-// Private synchronous descriptor owner, not a value/materialization cache.
+// Private descriptor owner, not a value/materialization cache. Synchronous and
+// borrowed-stream operations share the same immutable admitted descriptors.
 // All referenced allocations must stay alive at their original addresses and
 // layouts. Raw operand contents may change between completed calls and are reread.
 // Optional encoded-B payloads are caller-owned immutable materializations; their

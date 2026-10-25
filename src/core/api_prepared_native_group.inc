@@ -93,7 +93,7 @@ rns8_status rns8_prepare_native_group(rns8_prepared_group* group,const rns8_nati
     if(!group || !desc || !bindings || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
         count!=group->executions.size() || count>4096 || desc->schedule_mode>2 ||
         !desc->claim_chunk || desc->claim_chunk>32 || !desc->workers || desc->workers>1024 ||
-        desc->ordinary_grid_control>1 || !desc->max_metadata_bytes)return RNS8_INVALID_ARGUMENT;
+        desc->ordinary_grid_control>1)return RNS8_INVALID_ARGUMENT;
     if(native_group_busy(*group))return RNS8_BUSY;
     // Copy before replacement: callers may pass this owner's current bindings.
     const auto config=*desc;
@@ -113,7 +113,7 @@ rns8_status rns8_prepare_native_group(rns8_prepared_group* group,const rns8_nati
     for(const auto& [cache,references]:cache_refs)
       if(cache->prepared_references>UINT64_MAX-references)return RNS8_RANGE_ERROR;
     const auto old_bytes=group->native_queue?group->native_queue->device_metadata_bytes():0;
-    if(config.max_metadata_bytes<=old_bytes)return RNS8_RANGE_ERROR;
+    if(config.max_metadata_bytes<=old_bytes)return RNS8_WORKSPACE_TOO_SMALL;
     auto queue=std::make_unique<NativeWmmaPreparedQueue>();
     auto status=queue->prepare(ctx->device_id,tasks,config.workers,config.max_metadata_bytes-old_bytes,
         {1,static_cast<NativeWmmaScheduleMode>(config.schedule_mode),config.claim_chunk});

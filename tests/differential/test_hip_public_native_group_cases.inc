@@ -59,11 +59,14 @@ template<class T> void check_public_native_group() {
     for(uint32_t mode=0;mode<3;++mode)for(bool ordinary:{false,true}) {
       desc.schedule_mode=mode;desc.ordinary_grid_control=ordinary;
       REQUIRE(rns8_prepare_native_group(group,&desc,bindings,2)==RNS8_SUCCESS);
-      if(encoded)CHECK(rns8_destroy_encoded_b(cache)==RNS8_BUSY);
+      if(encoded){CHECK(rns8_destroy_encoded_b(cache)==RNS8_BUSY);
+        rns8_encoded_b_info cached{sizeof(cached),RNS8_ABI_VERSION};REQUIRE(rns8_get_encoded_b_info(cache,&cached)==RNS8_SUCCESS);
+        CHECK(cached.source_is_current==1);CHECK(cached.layout_version==1);CHECK(cached.prefix==prefix);
+        CHECK(cached.source_generation==b->content_generation);CHECK(cached.retained_device_bytes>0);}
       rns8_native_group_info info{sizeof(info),RNS8_ABI_VERSION};REQUIRE(rns8_get_native_group_info(group,&info)==RNS8_SUCCESS);
       CHECK(info.task_count==2);CHECK(info.schedule_mode==mode);CHECK(info.ordinary_grid_control==ordinary);
       auto small=desc;small.max_metadata_bytes=info.retained_device_metadata_bytes;
-      CHECK(rns8_prepare_native_group(group,&small,bindings,2)==RNS8_RANGE_ERROR);
+      CHECK(rns8_prepare_native_group(group,&small,bindings,2)==RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE(rns8_capture_native_group_hip_graph(group)==RNS8_SUCCESS);
       for(bool graph:{false,true})for(int repeat=0;repeat<3;++repeat) {
         const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
@@ -94,6 +97,8 @@ template<class T> void check_public_native_group() {
   rns8_completion_token tokens[2]{};uint32_t submitted=99;
   CHECK(rns8_submit_native_group_hip(group,stream.get(),tokens,2,&submitted)==RNS8_INVALID_ARGUMENT);
   CHECK(submitted==0);CHECK(c[0]->content_generation==generation);
+  rns8_encoded_b_info stale{sizeof(stale),RNS8_ABI_VERSION};REQUIRE(rns8_get_encoded_b_info(cache,&stale)==RNS8_SUCCESS);
+  CHECK(stale.source_is_current==0);
   CHECK(rns8_refresh_prepared_group_inputs(group)==RNS8_INVALID_ARGUMENT); // stale materialization cannot be blessed
   rns8_encoded_b* replacement=nullptr;REQUIRE(rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&replacement)==RNS8_SUCCESS);
   for(auto& binding:bindings)binding.encoded_b=replacement;

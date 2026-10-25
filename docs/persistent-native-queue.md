@@ -220,3 +220,36 @@ padded three-limb exact outputs. **These regressions have not been executed.**
 HIP compilation, fault injection, public complete-route measurements, task fairness,
 and target-specific qualification remain unverified; source ownership and launch
 counts are not measured speedups.
+
+### Complete public controls (authored, not run)
+
+`rns8-public-queue-calibrate` and `tools/collect_public_queue_calibration.py`
+now measure the actual public owner rather than treating private raw-pointer queue
+latency as public-call latency. Cases in `benchmarks/public-native-queue/` pair
+persistent, identical-representation ordinary native grids, native graph replay
+and the ordinary resident-RNS control. The latter does not consume or charge a
+fictional encoded cache. Heterogeneous signed/unsigned tasks include shared B,
+skewed rows, prefix/group tails and K=65537; explicit/task-major/compact schedules
+are separate identities. Reuse 1/4 executes real complete groups, never divides a
+single operation's time by a nominal batch count.
+
+Each timed group includes host proof/currentness/reservation, actual execution and
+completion, and every padded three-limb public export. Mutated-B cases also include
+packing, new generation-bound encoded payloads, descriptor replacement and graph
+recapture inside each operation. Initial setup is separately retained; replacement
+cache peaks count old plus new unique B payloads, not duplicates per shared reader.
+`rns8_get_encoded_b_info` exposes layout ABI, source instance/generation/currentness,
+prefix/device and actual retained allocation bytes without making a cache current.
+The native metadata query reports descriptor bytes, not undocumented HIP graph,
+event or driver allocations. The collector independently checks schedule bytes,
+logical useful work, cache payloads, output bytes and real mutation/rebuild counts.
+
+Independent child processes are counterbalanced and artifact-bound. Reports retain
+raw observations and per-process medians/ranges, including setup plus an actually
+observed reuse batch. Three sustained intervals count actual completed groups and
+mutation generations. Full Boost/padding comparisons occur after each observation
+and interval, not inside production timing; intermediate overwritten outputs in a
+sustained interval are not claimed independently audited. Device per-task fairness
+is **not** inferred from post-batch host events: the separate private completion
+telemetry is still a diagnostic companion, not public latency evidence. No report
+promotes a route automatically, supplies measured HBM traffic, or claims a speedup.

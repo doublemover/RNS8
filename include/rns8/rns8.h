@@ -1667,6 +1667,15 @@ typedef struct rns8_encoded_b rns8_encoded_b;
 RNS8_API rns8_status rns8_prepare_encoded_b(rns8_context* ctx,const rns8_matrix* b,
     uint64_t max_bytes,rns8_encoded_b** out);
 RNS8_API rns8_status rns8_destroy_encoded_b(rns8_encoded_b* cache);
+typedef struct rns8_encoded_b_info {
+  uint64_t struct_size;
+  uint32_t abi_version, layout_version;
+  uint64_t source_instance, source_generation, retained_device_bytes;
+  uint32_t prefix, source_is_current;
+  int32_t device_id;
+} rns8_encoded_b_info;
+RNS8_API rns8_status rns8_get_encoded_b_info(const rns8_encoded_b* cache,rns8_encoded_b_info* info);
+
 /* Explicit WMMA group 1/2/4; no per-call device scratch or B re-encoding.
  * A requires a current retained native copy. Common exact-wide plan/output
  * proof, alias/reservation and generation checks apply. No AUTO selection. */
@@ -1701,16 +1710,19 @@ RNS8_API rns8_status rns8_gemm_encoded_b_grouped(rns8_context* ctx,
  * max_metadata_bytes charges old + replacement device descriptors at preparation.
  */
 typedef struct rns8_native_group_desc {
-  uint32_t struct_size, abi_version;
+  uint64_t struct_size;
+  uint32_t abi_version;
   uint32_t schedule_mode, claim_chunk, workers, ordinary_grid_control;
   uint64_t max_metadata_bytes;
 } rns8_native_group_desc;
 typedef struct rns8_native_group_binding {
-  uint32_t struct_size, abi_version, modulus_group;
+  uint64_t struct_size;
+  uint32_t abi_version, modulus_group;
   const rns8_encoded_b* encoded_b; /* optional, held until replacement/destruction */
 } rns8_native_group_binding;
 typedef struct rns8_native_group_info {
-  uint32_t struct_size, abi_version;
+  uint64_t struct_size;
+  uint32_t abi_version;
   uint32_t task_count, work_count, schedule_mode, claim_chunk, workers;
   uint32_t ordinary_grid_control, graph_ready;
   uint64_t retained_device_metadata_bytes, retained_host_metadata_bytes;

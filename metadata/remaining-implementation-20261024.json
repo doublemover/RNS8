@@ -506,6 +506,14 @@
             "src/backend_hip_direct/hip_backend_native_queue.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
         }
       ],
       "regressions": [
@@ -515,16 +523,18 @@
         "tests/differential/test_hip_direct_native_queue_cases.inc",
         "tools/test_collect_queue_calibration.py",
         "benchmarks/native-queue/",
-        "tests/differential/test_hip_public_native_group_cases.inc"
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py"
       ],
       "commits": [
         "981e7b109428870ed930eae50370e037be95fce7",
-        "8aa7e9769f77f18c6b42b444d7f21689f7bcb3e4"
+        "8aa7e9769f77f18c6b42b444d7f21689f7bcb3e4",
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
       ],
       "remaining": [
         "Public prepared execution generation/read-write reservation integration of the private heterogeneous native route remains dependency work; no second raw-pointer value cache introduced.",
         "HIP compilation, GPU/Boost execution, completion fairness and complete-route performance qualification deferred; no promotion or measured speedup claimed.",
-        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
+        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -650,19 +660,29 @@
             "src/backend_hip_direct/hip_backend_native_queue.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_matrix_cleanup_cases.inc",
-        "tests/differential/test_hip_public_native_group_cases.inc"
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py"
       ],
       "commits": [
-        "ca51b9f75c93302771fbaf50d0792145bc178d2a"
+        "ca51b9f75c93302771fbaf50d0792145bc178d2a",
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
         "All execution and hardware qualification deferred.",
-        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
+        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1162,14 +1182,25 @@
             "src/backend_hip_direct/hip_backend_native_queue.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Complete-public native-group calibration with retained/raw/encoded controls, real reuse and mutated-B rebind costs, owned graph replay, resident-RNS reference control, padded full-Boost outputs, actual descriptor/cache peak accounting, counterbalanced independent-process collection and strict receipts.",
+          "files": [
+            "benchmarks/rns8_public_queue_calibrate.cpp",
+            "benchmarks/public-native-queue",
+            "tools/collect_public_queue_calibration.py"
+          ]
         }
       ],
       "regressions": [
-        "tests/differential/test_hip_public_native_group_cases.inc"
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_collect_public_queue_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
+      ],
       "remaining": [
-        "Public native complete-route calibration harness and remaining cross-feature composition still being written; no device compilation/execution or qualification performed."
+        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
