@@ -1,13 +1,13 @@
-rns8_status rns8_create_product_recipe_ragged(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+static rns8_status create_product_recipe_ragged(rns8_context* ctx,const rns8_product_recipe_desc* desc,
     const rns8_ragged_recipe_binding* bindings,uint32_t count,const uint32_t* output_ids,uint32_t output_count,
-    uint64_t budget,rns8_product_recipe** out) {
+    uint64_t budget,rns8_product_recipe** out,const rns8::detail::ProductMaterializationProfile* profile=nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if(!ctx || !desc || !out || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) || !desc->inputs || !desc->nodes ||
         !desc->input_count || desc->input_count>4096 || !desc->node_count || desc->node_count>4096 ||
         !bindings || !count || count>desc->input_count || output_count>4096 || (output_count && !output_ids) || (!output_count && output_ids) ||
         (desc->prefix_policy!=RNS8_PRODUCT_FULL_PREFIX && desc->prefix_policy!=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))return RNS8_INVALID_ARGUMENT;
-    *out=nullptr;std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count);
+    std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count);
     std::vector<rns8_ragged_recipe_binding> adapted(bindings,bindings+count);RaggedRecipeResources resources;
     auto status=ragged_recipe_preflight(ctx,inputs,adapted,budget,resources);if(status!=RNS8_SUCCESS)return status;
     std::vector<ProductShape> shapes;for(auto* input:inputs){if(!input)return RNS8_INVALID_ARGUMENT;shapes.push_back({input->desc.rows,input->desc.cols});}
@@ -18,12 +18,17 @@ rns8_status rns8_create_product_recipe_ragged(rns8_context* ctx,const rns8_produ
     // recipe's observable outputs. All source/budget/topology checks precede it.
     for(const auto& binding:adapted){status=rns8_materialize_ragged_exact(ctx,binding.source,binding.destination,budget);if(status!=RNS8_SUCCESS)return status;}
     auto adjusted=*desc;adjusted.max_arena_and_lift_bytes=std::min(adjusted.max_arena_and_lift_bytes,budget-resources.total);
-    rns8_product_recipe* raw=nullptr;status=create_product_recipe(ctx,&adjusted,outputs,&raw);if(status!=RNS8_SUCCESS)return status;
+    rns8_product_recipe* raw=nullptr;status=create_product_recipe(ctx,&adjusted,outputs,&raw,profile);if(status!=RNS8_SUCCESS)return status;
     std::unique_ptr<rns8_product_recipe> result(raw);result->ragged=std::move(adapted);
     status=retain_ragged_owners(resources.unique,result->ragged_holds);if(status!=RNS8_SUCCESS)return status;
     result->total_budget=budget;result->materialized_input_bytes=resources.inputs;result->ragged_bytes=resources.owners;result->materialization_peak=resources.conversion_peak;
     *out=result.release();return RNS8_SUCCESS;
   });
+}
+rns8_status rns8_create_product_recipe_ragged(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings,uint32_t count,const uint32_t* output_ids,uint32_t output_count,
+    uint64_t budget,rns8_product_recipe** out) {
+  return create_product_recipe_ragged(ctx,desc,bindings,count,output_ids,output_count,budget,out);
 }
 rns8_status rns8_refresh_product_recipe_ragged(rns8_product_recipe* recipe,const rns8_ragged_recipe_binding* bindings,uint32_t count) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {

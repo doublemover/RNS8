@@ -1,4 +1,10 @@
 #include "core/runtime_product_recipe.hpp"
+#include "../support/product_materialization_fixture.hpp"
+TEST_CASE("public HIP materialized product recipes preserve values reuse rebind and observed branches") {
+  if(!hip_available())SKIP("no HIP device for materialized product recipes");
+  check_product_materializations(RNS8_BACKEND_HIP_DIRECT,false);
+  check_product_materializations(RNS8_BACKEND_HIP_DIRECT,true);
+}
 TEST_CASE("runtime product arena executes a HIP diamond with exact final publication") {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;

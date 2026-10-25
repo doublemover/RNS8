@@ -128,3 +128,8 @@ TEST_CASE("experimental direct-HIP ordered bases match Boost products and conver
   experimental_basis_fixture::slab_edges(ctx);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("HIP materialized recipes consume and refresh differently tiled ragged producers") {
+  if(!hip_available())SKIP("no HIP device for packed ragged product recipe");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u,true);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

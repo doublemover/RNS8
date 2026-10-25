@@ -18,8 +18,84 @@ implied. It does not change ordinary GEMM routing.
 Boost differential fixtures cover every default prefix, ordered-basis changes,
 signed native extrema, partial packing, shape/pitch tails, padding poison,
 K=65535/65536/65537 and rejected aliases. Host and gfx1100 host/device syntax
-checks passed during frontloading. Their execution and recipe materialization
-selection are part of the remaining #42 integration pass.
+checks passed during frontloading. Their execution is part of the new #42
+integration batch; the earlier [local validation](local-validation-20261025.md)
+qualifies its named preceding artifacts.
+
+## Cost-planned product materializations
+
+The opt-in [experimental product API](../include/rns8/experimental_product.h)
+adds a synchronous CPU/direct-HIP owner that chooses both compute prefixes and
+uniform versus packed tiled B operands. It composes with the existing exact
+ordered-basis and multiple-output product recipe contracts. Ordinary recipe
+creation and default GEMM routing remain unchanged.
+
+First query `rns8_query_product_materialization_identity` with the actual inputs,
+graph and requested output IDs. Its successful query reports `admission_status`
+separately: a range-exhausted graph names its first `blocking_node` and stops
+bound propagation there. All admitted nodes expose their independent minimum
+prefix. A price cannot waive that proof. The identity binds full ordered basis,
+semantics, shapes, proof envelopes, topology, observations, prefix policy,
+target and compiled build using SHA-256. A missing build manifest is unsupported.
+
+Supply `rns8_product_materialization_profile` with caller-estimated integer
+nanoseconds for uniform and packed GEMM, exact prefix lifting, and actual
+incremental packing. Fill unpriced entries with `UINT64_MAX`; zero is a known
+zero estimate. Tables and labels are copied during creation. These prices are
+model inputs and do not establish hardware qualification or update AUTO caches.
+`FULL_PREFIX` preserves full compute prefixes; `MINIMUM_COMPUTE_PREFIX` allows
+the planner to choose any independently admitted prefix.
+
+One packed view belongs to each logical B value within a replay. Its physical
+capacity covers all selected consumers. Conversion copies only newly demanded
+planes, and all readers share the retained prefix. Each replay starts with no
+packed planes and charges its conversions; cross-execution cache reuse is not
+assumed. Raw B lifetime ends after its last actual read or pack growth, while
+packed lifetime continues through its last packed reader. A reader and writer
+in the same stage cannot alias scratch. Requested intermediate outputs remain
+live through final publication.
+
+Uniform and packed regions share one aligned arena. Admission includes its
+physical high-water size and the retained lift/status/packet region; padding,
+fragmentation and conversion storage count against the descriptor's hard
+budget. External matrices and host proof/descriptor memory are separate. The
+executor reserves the whole arena before execution and performs no new HIP
+allocations/frees for packing or lifting during replay.
+
+Small choice sets are enumerated exhaustively. Strict chains additionally use
+cost dynamic programming keyed by the preceding prefix and shared external B
+prefixes. The frontier is explicitly bounded; truncation or unknown prices
+remove its global lower-bound claim. Larger DAGs use deterministic feasible
+seeds and bounded coordinate improvement. Resource admission always evaluates
+the actual liveness arena. A bounded unsuccessful search reports unsupported,
+not proof that every possible schedule exceeds memory.
+
+`rns8_get_product_materialization_choices` reports each selected layout/prefix,
+capacity, lifetime and arena region. `rns8_get_product_materialization_info`
+reports estimated cost, search scope, retained bytes and completed pack calls.
+Unknown prices never become free work or a claim of global optimality. Existing
+execute, multi-output, rebind and destroy APIs retain their generation/range,
+transactional publication and failed-cleanup rules. This owner adds no async or
+capture support.
+
+The `_ragged` query projects current ragged-source proofs into the conversion
+destinations without changing their contents or generations. Its matching
+creation API validates prices before gathering. A 3x5 ragged producer can feed
+the 16x16 packed B consumer, and refresh can replace it with a 5x3 producer.
+The shared ragged budget also charges retained source owners, conversion
+destinations and peak gather scratch. Source mutation invalidates replay until
+an explicit successful refresh; the recipe retains every borrowed owner.
+
+Authored fixtures cover chain and diamond selection versus exhaustive tiny
+domains, hard budgets, growth/reuse, arena interference, unknown/overflowing
+costs, stale build identity, range-blocking squaring, multiple observed outputs,
+default/experimental bases, both signedness contracts, mutation/rebind,
+differently tiled ragged producer refresh, and HIP
+allocation counters. The installed
+[materialized product example](../examples/downstream-cmake/materialized_product_recipe.cpp)
+checks the exported header/functions with static and shared linkage. Functional
+execution and measured qualification of this new slice remain pending its
+consolidated validation batch.
 
 Explicit ordered experimental bases are supported by the CPU/direct-HIP product
 recipe executor, including minimum-prefix lifting and multiple outputs. Every

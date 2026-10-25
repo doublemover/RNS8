@@ -1,0 +1,209 @@
+namespace {
+bool materialization_text(const char* text,size_t size){return std::memchr(text,0,size)!=nullptr;}
+std::string product_materialization_build() {
+  std::string value="rns8-product-materialization-v1;";
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  value+=RNS8_BUILD_MANIFEST_JSON;
+#else
+  return {};
+#endif
+  return rns8::detail::sha256(value);
+}
+rns8_status product_materialization_identity(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const std::vector<uint32_t>& outputs,rns8_product_materialization_identity& identity,
+    const std::vector<const rns8_matrix*>* projected=nullptr) {
+  using namespace rns8::detail;using namespace rns8::detail::api;
+  if(!ctx || !desc || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
+      !desc->inputs || !desc->nodes || !desc->input_count || desc->input_count>4096 ||
+      !desc->node_count || desc->node_count>64 ||
+      (desc->prefix_policy!=RNS8_PRODUCT_FULL_PREFIX && desc->prefix_policy!=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX))
+    return RNS8_INVALID_ARGUMENT;
+  if(projected && projected->size()!=desc->input_count)return RNS8_INVALID_ARGUMENT;
+  if(ctx->hip_failure_poisoned)return RNS8_BACKEND_FAILURE;
+  if(ctx->backend!=RNS8_BACKEND_CPU_REFERENCE && ctx->backend!=RNS8_BACKEND_HIP_DIRECT)return RNS8_UNSUPPORTED_BACKEND;
+  if(!desc->inputs[0])return RNS8_INVALID_ARGUMENT;
+  const auto* first=desc->inputs[0];const auto basis=recipe_basis(*first);
+  const auto ordered=ordered_basis_identity(basis->packet);const auto prefix=first->prefix;
+  std::string key="rns8-product-graph-v1;";
+  const auto add=[&](const std::string& text){key+=std::to_string(text.size())+":"+text;};
+  add(std::to_string(ctx->backend));add(std::to_string(first->desc.semantics));add(std::to_string(prefix));
+  add(std::to_string(desc->prefix_policy));add(std::to_string(ordered.representation));add(std::to_string(ordered.count));
+  for(auto modulus:ordered.moduli)add(std::to_string(modulus));
+  std::vector<ProductShape> shapes;std::vector<ProductNode> nodes;std::vector<cpp_int> bounds;
+  add(std::to_string(desc->input_count));add(std::to_string(desc->node_count));
+  for(uint32_t i=0;i<desc->input_count;++i) {
+    const auto* input=desc->inputs[i];if(!input)return RNS8_INVALID_ARGUMENT;
+    const auto* source=projected && (*projected)[i]?(*projected)[i]:input;
+    if(input->in_flight_writer)return RNS8_BUSY;
+    if(input->backend!=ctx->backend || input->desc.semantics!=first->desc.semantics || input->prefix!=prefix ||
+        !exact_wide_semantics(input->desc.semantics) || input->generation_exhausted ||
+        !rns_residue_state_current_for_backend(*source,ctx->backend) ||
+        !recipe_storage_matches(*input,ctx->backend,input->desc.rows,input->desc.cols,prefix,ordered) ||
+        (ctx->backend==RNS8_BACKEND_HIP_DIRECT && input->hip_device_id!=ctx->device_id))return RNS8_INVALID_ARGUMENT;
+    if(source->exact_range_prefix<source->prefix || source->exact_max_magnitude<0 ||
+        !exact_range_fits(source->desc.semantics,source->exact_max_magnitude,recipe_basis(*source)->products[source->prefix]) ||
+        !exact_range_fits(input->desc.semantics,source->exact_max_magnitude,basis->products[prefix]))return RNS8_RANGE_ERROR;
+    shapes.push_back({input->desc.rows,input->desc.cols});
+    bounds.push_back(source->exact_max_magnitude);
+    add(std::to_string(input->desc.rows));add(std::to_string(input->desc.cols));add(source->exact_max_magnitude.str());
+  }
+  for(uint32_t i=0;i<desc->node_count;++i){nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});add(std::to_string(nodes.back().a));add(std::to_string(nodes.back().b));}
+  const auto arena=plan_product_arena(shapes,nodes,prefix,UINT64_MAX,{},outputs);
+  if(arena.status!=RNS8_SUCCESS)return arena.status;
+  const auto observed=outputs.empty()?std::vector<uint32_t>{desc->input_count+desc->node_count-1}:outputs;
+  add(std::to_string(observed.size()));for(auto id:observed)add(std::to_string(id));
+  const std::string target=ctx->backend==RNS8_BACKEND_HIP_DIRECT?ctx->device_info.gcn_arch:"cpu";
+  const auto build=product_materialization_build();
+  if(target.empty() || target.size()>=sizeof(identity.target) || build.empty())return RNS8_UNSUPPORTED_BACKEND;
+  add(target);
+  identity={};identity.struct_size=sizeof(identity);identity.abi_version=RNS8_ABI_VERSION;identity.node_count=desc->node_count;
+  identity.admission_status=RNS8_SUCCESS;identity.blocking_node=UINT32_MAX;
+  for(uint32_t i=0;i<desc->node_count;++i) {
+    const auto node=nodes[i];const auto shape=arena.values[node.a].shape;
+    cpp_int bound=cpp_int(shape.cols)*bounds[node.a]*bounds[node.b];
+    if(!exact_range_fits(first->desc.semantics,bound,basis->products[prefix])) {
+      identity.admission_status=RNS8_RANGE_ERROR;identity.blocking_node=i;break;
+    }
+    uint32_t needed=1;
+    while(needed<prefix && !exact_range_fits(first->desc.semantics,bound,basis->products[needed]))++needed;
+    identity.minimum_prefixes[i]=needed;bounds.push_back(std::move(bound));
+  }
+  set_text(identity.graph_sha256,sizeof(identity.graph_sha256),sha256(key));
+  set_text(identity.build_sha256,sizeof(identity.build_sha256),build);
+  set_text(identity.target,sizeof(identity.target),target);return RNS8_SUCCESS;
+}
+}
+rns8_status rns8_query_product_materialization_identity(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const uint32_t* ids,uint32_t count,rns8_product_materialization_identity* out) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)) ||
+        count>64 || (count && !ids))return RNS8_INVALID_ARGUMENT;
+    rns8_product_materialization_identity identity{};
+    const auto status=product_materialization_identity(ctx,desc,count?std::vector<uint32_t>(ids,ids+count):std::vector<uint32_t>{},identity);
+    if(status==RNS8_SUCCESS)*out=identity;return status;
+  });
+}
+namespace {
+rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const std::vector<uint32_t>& outputs,const rns8_product_materialization_profile* prices,
+    const rns8_product_materialization_identity& identity,rns8::detail::ProductMaterializationProfile& profile) {
+  using namespace rns8::detail;
+    if(!prices || !valid_abi(prices->struct_size,prices->abi_version,sizeof(*prices)) ||
+        !prices->nodes || !prices->node_count || prices->node_count>64 ||
+        prices->max_evaluations<4 || prices->max_evaluations>65536 ||
+        !prices->max_chain_frontier || prices->max_chain_frontier>4096 ||
+        !valid_abi(prices->identity.struct_size,prices->identity.abi_version,sizeof(prices->identity)) ||
+        !materialization_text(prices->identity.graph_sha256,sizeof(prices->identity.graph_sha256)) ||
+        !materialization_text(prices->identity.build_sha256,sizeof(prices->identity.build_sha256)) ||
+        !materialization_text(prices->identity.target,sizeof(prices->identity.target)) ||
+        !materialization_text(prices->calibration_identity,sizeof(prices->calibration_identity)) || !prices->calibration_identity[0])return RNS8_INVALID_ARGUMENT;
+    if(identity.admission_status!=RNS8_SUCCESS)return identity.admission_status;
+    if(prices->node_count!=identity.node_count || prices->identity.node_count!=identity.node_count ||
+        std::strcmp(prices->identity.graph_sha256,identity.graph_sha256) ||
+        std::strcmp(prices->identity.build_sha256,identity.build_sha256) ||
+        std::strcmp(prices->identity.target,identity.target) ||
+        prices->identity.admission_status!=identity.admission_status || prices->identity.blocking_node!=identity.blocking_node ||
+        !std::equal(std::begin(prices->identity.minimum_prefixes),std::end(prices->identity.minimum_prefixes),
+            std::begin(identity.minimum_prefixes)))return RNS8_INVALID_ARGUMENT;
+    profile.max_frontier=prices->max_chain_frontier;
+    auto& uniform=profile.uniform;uniform.max_evaluations=prices->max_evaluations;uniform.backend=ctx->backend;
+    uniform.semantics=desc->inputs[0]->desc.semantics;uniform.target=identity.target;uniform.provenance=prices->calibration_identity;
+    uniform.basis=ordered_basis_identity(recipe_basis(*desc->inputs[0])->packet);
+    std::vector<ProductShape> shapes;std::vector<ProductNode> nodes;
+    for(uint32_t i=0;i<desc->input_count;++i){shapes.push_back({desc->inputs[i]->desc.rows,desc->inputs[i]->desc.cols});uniform.experimental_basis=uniform.experimental_basis || bool(desc->inputs[i]->experimental_basis);}
+    for(uint32_t i=0;i<desc->node_count;++i)nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});
+    uniform.graph_key=product_graph_key(shapes,nodes,desc->inputs[0]->prefix,outputs);
+    uniform.nodes.resize(prices->node_count);profile.packed.resize(prices->node_count);
+    for(uint32_t i=0;i<prices->node_count;++i) {
+      std::copy_n(prices->nodes[i].uniform_gemm_ns,21,uniform.nodes[i].gemm.begin());
+      std::copy_n(prices->nodes[i].lift_ns,441,uniform.nodes[i].lift.begin());
+      std::copy_n(prices->nodes[i].packed_gemm_ns,21,profile.packed[i].gemm.begin());
+      std::copy_n(prices->nodes[i].pack_ns,441,profile.packed[i].pack.begin());
+    }
+  return RNS8_SUCCESS;
+}
+rns8_status ragged_materialization_identity(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings,uint32_t count,const std::vector<uint32_t>& outputs,
+    uint64_t budget,rns8_product_materialization_identity& identity) {
+  using namespace rns8::detail;
+  if(!ctx || !desc || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
+      !desc->inputs || !desc->input_count || desc->input_count>4096 || !bindings || !count || count>desc->input_count)
+    return RNS8_INVALID_ARGUMENT;
+  std::vector<const rns8_matrix*> inputs(desc->inputs,desc->inputs+desc->input_count),projected(desc->input_count,nullptr);
+  std::vector<rns8_ragged_recipe_binding> adapted(bindings,bindings+count);RaggedRecipeResources resources;
+  auto status=ragged_recipe_preflight(ctx,inputs,adapted,budget,resources);if(status!=RNS8_SUCCESS)return status;
+  for(const auto& binding:adapted) {
+    uint64_t retained=0,capacity=0;
+    status=ragged_recipe_binding_info(ctx,binding.source,projected[binding.input_index],retained,capacity);
+    if(status!=RNS8_SUCCESS)return status;
+  }
+  return product_materialization_identity(ctx,desc,outputs,identity,&projected);
+}
+}
+rns8_status rns8_create_materialized_product_recipe(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const uint32_t* ids,uint32_t count,const rns8_product_materialization_profile* prices,rns8_product_recipe** out) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!out || count>64 || (count && !ids))return RNS8_INVALID_ARGUMENT;
+    const auto outputs=count?std::vector<uint32_t>(ids,ids+count):std::vector<uint32_t>{};
+    rns8_product_materialization_identity identity{};
+    auto status=product_materialization_identity(ctx,desc,outputs,identity);if(status!=RNS8_SUCCESS)return status;
+    rns8::detail::ProductMaterializationProfile profile;
+    status=materialization_profile(ctx,desc,outputs,prices,identity,profile);if(status!=RNS8_SUCCESS)return status;
+    return create_product_recipe(ctx,desc,outputs,out,&profile);
+  });
+}
+rns8_status rns8_query_product_materialization_identity_ragged(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings,uint32_t binding_count,const uint32_t* ids,uint32_t count,
+    uint64_t budget,rns8_product_materialization_identity* out) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)) ||
+        count>64 || (count && !ids))return RNS8_INVALID_ARGUMENT;
+    const auto outputs=count?std::vector<uint32_t>(ids,ids+count):std::vector<uint32_t>{};
+    rns8_product_materialization_identity identity{};
+    const auto status=ragged_materialization_identity(ctx,desc,bindings,binding_count,outputs,budget,identity);
+    if(status==RNS8_SUCCESS)*out=identity;return status;
+  });
+}
+rns8_status rns8_create_materialized_product_recipe_ragged(rns8_context* ctx,const rns8_product_recipe_desc* desc,
+    const rns8_ragged_recipe_binding* bindings,uint32_t binding_count,const uint32_t* ids,uint32_t count,
+    uint64_t budget,const rns8_product_materialization_profile* prices,rns8_product_recipe** out) {
+  return rns8::detail::api::guard_api([&]() -> rns8_status {
+    if(!out || count>64 || (count && !ids))return RNS8_INVALID_ARGUMENT;
+    const auto outputs=count?std::vector<uint32_t>(ids,ids+count):std::vector<uint32_t>{};
+    rns8_product_materialization_identity identity{};
+    auto status=ragged_materialization_identity(ctx,desc,bindings,binding_count,outputs,budget,identity);
+    if(status!=RNS8_SUCCESS)return status;
+    rns8::detail::ProductMaterializationProfile profile;
+    status=materialization_profile(ctx,desc,outputs,prices,identity,profile);if(status!=RNS8_SUCCESS)return status;
+    return create_product_recipe_ragged(ctx,desc,bindings,binding_count,ids,count,budget,out,&profile);
+  });
+}
+rns8_status rns8_get_product_materialization_info(const rns8_product_recipe* recipe,rns8_product_materialization_info* out) {
+  if(!recipe || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+  const auto& plan=recipe->owner->materialization_selection();if(plan.status!=RNS8_SUCCESS)return RNS8_UNSUPPORTED_BACKEND;
+  rns8_product_materialization_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  info.node_count=static_cast<uint32_t>(plan.prefixes.size());info.evaluated=plan.evaluated;info.exhaustive=plan.exhaustive;
+  info.chain_dynamic_programming=plan.chain_dynamic_programming;info.cost_optimal=plan.cost_optimal;info.estimated_ns=plan.estimated_ns;
+  info.retained_arena_and_lift_bytes=plan.arena.arena_bytes+plan.lift_scratch_bytes;info.packed_payload_bytes=plan.packed_payload_bytes;
+  info.completed_packing_calls=recipe->owner->completed_packing_calls();
+  rns8::detail::api::set_text(info.calibration_identity,sizeof(info.calibration_identity),recipe->materialization_calibration);
+  *out=info;return RNS8_SUCCESS;
+}
+rns8_status rns8_get_product_materialization_choices(const rns8_product_recipe* recipe,
+    rns8_product_materialization_choice* choices,uint32_t capacity) {
+  if(!recipe || !choices)return RNS8_INVALID_ARGUMENT;
+  const auto& plan=recipe->owner->materialization_selection();if(plan.status!=RNS8_SUCCESS)return RNS8_UNSUPPORTED_BACKEND;
+  if(capacity<plan.prefixes.size())return RNS8_WORKSPACE_TOO_SMALL;
+  for(size_t i=0;i<plan.prefixes.size();++i) {
+    rns8_product_materialization_choice result{};result.compute_prefix=plan.prefixes[i];result.packed_b=plan.packed_b[i];
+    // The arena plan's raw values do not encode topology; retain the B value's
+    // selected view through the runtime accessor below.
+    if(result.packed_b) {
+      const auto& packed=plan.packed[recipe->owner->materialization_b_value(static_cast<uint32_t>(i))];
+      result.packed_capacity_prefix=packed.layout.prefix;result.first_packed_reader=packed.first;result.last_packed_reader=packed.last;
+      result.packed_bytes=packed.layout.bytes;result.arena_offset=packed.offset;
+    }
+    choices[i]=result;
+  }
+  return RNS8_SUCCESS;
+}

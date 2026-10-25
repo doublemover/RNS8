@@ -1,6 +1,7 @@
 #pragma once
 #include "backend_common/product_arena_plan.hpp"
 #include "backend_common/product_prefix_cost.hpp"
+#include "backend_common/product_materialization_plan.hpp"
 #include "rns8/rns8.h"
 #include <memory>
 #include <vector>
@@ -18,7 +19,8 @@ class RuntimeProductRecipe {
       const std::vector<ProductNode>&,uint64_t max_arena_bytes,
       std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix = false,
       const ProductCostProfile* costs = nullptr,
-      const std::vector<uint32_t>& outputs = {});
+      const std::vector<uint32_t>& outputs = {},
+      const ProductMaterializationProfile* materializations = nullptr);
   rns8_status execute(rns8_matrix* output);
   rns8_status execute(const std::vector<rns8_matrix*>& outputs);
   rns8_status close();
@@ -26,6 +28,9 @@ class RuntimeProductRecipe {
   const ProductArenaPlan& allocation() const;
   uint64_t lift_scratch_bytes() const;
   const ProductPrefixSelection& cost_selection() const;
+  const ProductMaterializationSelection& materialization_selection() const;
+  uint64_t completed_packing_calls() const;
+  uint32_t materialization_b_value(uint32_t node) const;
   const std::vector<uint32_t>& compute_prefixes() const;
   const BasisPacket& basis_packet() const;
   uint32_t output_prefix() const;

@@ -7,11 +7,12 @@ set(RNS8_EXAMPLE_TARGETS
   sparse-finite-ring
   sparse-bounded-i64
   stream-bounded-i64
+  materialized-product-recipe
 )
 
 foreach(example_name IN LISTS RNS8_EXAMPLE_TARGETS)
   string(REPLACE "-" "_" source_stem "${example_name}")
-  if(example_name STREQUAL "exact-wide-cpu-continuation" OR example_name MATCHES "^(sparse|stream)-")
+  if(example_name STREQUAL "exact-wide-cpu-continuation" OR example_name STREQUAL "materialized-product-recipe" OR example_name MATCHES "^(sparse|stream)-")
     set(example_source "downstream-cmake/${source_stem}.cpp")
   else()
     set(example_source "${source_stem}.cpp")

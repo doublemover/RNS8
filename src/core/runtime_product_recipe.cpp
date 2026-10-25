@@ -4,6 +4,7 @@
 #include "core/ragged_recipe_binding.hpp"
 #include "core/experimental_basis.hpp"
 #include "rns8/experimental_basis.h"
+#include "rns8/experimental_product.h"
 #include <mutex>
 #include <unordered_set>
 #include <unordered_map>
@@ -45,6 +46,8 @@ struct RuntimeProductRecipe::Impl {
   uint64_t packet_offset=0;
   int lift_status=0;
   ProductPrefixSelection selection;
+  ProductMaterializationSelection materializations;
+  uint64_t packing_calls=0;
   uint32_t prefix=0;
   rns8_semantics semantics=RNS8_EXACT_WIDE_SIGNED;
   std::vector<int8_t> host;
@@ -95,6 +98,9 @@ rns8_status RuntimeProductRecipe::close() {
   });
 }
 const ProductPrefixSelection& RuntimeProductRecipe::cost_selection() const { return impl_->selection; }
+const ProductMaterializationSelection& RuntimeProductRecipe::materialization_selection() const {return impl_->materializations;}
+uint64_t RuntimeProductRecipe::completed_packing_calls() const {return impl_->packing_calls;}
+uint32_t RuntimeProductRecipe::materialization_b_value(uint32_t node) const {return impl_->nodes[node].b;}
 const ProductArenaPlan& RuntimeProductRecipe::allocation() const { return impl_->allocation; }
 uint64_t RuntimeProductRecipe::lift_scratch_bytes() const { return impl_->lift_scratch; }
 const std::vector<uint32_t>& RuntimeProductRecipe::compute_prefixes() const { return impl_->compute_prefixes; }
@@ -102,11 +108,14 @@ const BasisPacket& RuntimeProductRecipe::basis_packet() const {return impl_->bas
 uint32_t RuntimeProductRecipe::output_prefix() const {return impl_->prefix;}
 rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
     const std::vector<const rns8_matrix*>& inputs,const std::vector<ProductNode>& nodes,
-    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix,const ProductCostProfile* costs,const std::vector<uint32_t>& outputs) {
+    uint64_t budget,std::unique_ptr<RuntimeProductRecipe>& out,bool minimize_compute_prefix,const ProductCostProfile* costs,
+    const std::vector<uint32_t>& outputs,const ProductMaterializationProfile* materializations) {
   return guard_api([&]() -> rns8_status {
     if(!ctx || inputs.empty() || inputs.size()>4096 || nodes.empty() || nodes.size()>4096 || out)
       return RNS8_INVALID_ARGUMENT;
     if(ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+    if(costs && materializations)return RNS8_INVALID_ARGUMENT;
+    if(materializations)costs=&materializations->uniform;
     if(ctx->backend!=RNS8_BACKEND_CPU_REFERENCE && ctx->backend!=RNS8_BACKEND_HIP_DIRECT)
       return RNS8_UNSUPPORTED_BACKEND;
     auto state=std::make_unique<Impl>(); state->ctx=ctx;
@@ -151,7 +160,7 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       cpp_int bound=cpp_int(a.cols)*state->bounds[node.a]*state->bounds[node.b];
       if(!exact_range_fits(state->semantics,bound,state->basis->products[state->prefix])) return RNS8_RANGE_ERROR;
       uint32_t selected=state->prefix;
-      if(minimize_compute_prefix || costs) {
+      if(minimize_compute_prefix || (costs && !materializations)) {
         selected=1;
         while(selected<state->prefix && !exact_range_fits(state->semantics,bound,state->basis->products[selected])) ++selected;
       }
@@ -163,10 +172,17 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       if(costs->backend!=ctx->backend || costs->semantics!=state->semantics || costs->target!=target ||
           !(costs->basis==state->basis_identity) || costs->experimental_basis!=state->experimental)
         return RNS8_INVALID_ARGUMENT;
-      state->selection=select_product_prefixes(shapes,nodes,state->prefix,state->compute_prefixes,budget,
-          ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs,state->outputs);
-      if(state->selection.status!=RNS8_SUCCESS) return state->selection.status;
-      state->compute_prefixes=state->selection.prefixes;
+      if(materializations) {
+        state->materializations=select_product_materializations(shapes,nodes,state->prefix,state->compute_prefixes,budget,
+            ctx->backend==RNS8_BACKEND_HIP_DIRECT,*materializations,state->outputs);
+        if(state->materializations.status!=RNS8_SUCCESS)return state->materializations.status;
+        state->compute_prefixes=state->materializations.prefixes;
+      } else {
+        state->selection=select_product_prefixes(shapes,nodes,state->prefix,state->compute_prefixes,budget,
+            ctx->backend==RNS8_BACKEND_HIP_DIRECT,*costs,state->outputs);
+        if(state->selection.status!=RNS8_SUCCESS) return state->selection.status;
+        state->compute_prefixes=state->selection.prefixes;
+      }
     }
     state->capacities=state->compute_prefixes;
     for(size_t i=0;i<nodes.size();++i) for(auto id:{nodes[i].a,nodes[i].b})
@@ -190,7 +206,11 @@ rns8_status RuntimeProductRecipe::create(rns8_context* ctx,
       }
     }
     if(state->lift_scratch>budget) return RNS8_WORKSPACE_TOO_SMALL;
-    state->allocation=plan_product_arena(shapes,nodes,state->prefix,budget-state->lift_scratch,state->capacities,state->outputs);
+    if(materializations) {
+      if(state->capacities!=state->materializations.capacities || state->lift_scratch!=state->materializations.lift_scratch_bytes)
+        return RNS8_INTERNAL_ERROR;
+      state->allocation=state->materializations.arena;
+    } else state->allocation=plan_product_arena(shapes,nodes,state->prefix,budget-state->lift_scratch,state->capacities,state->outputs);
     if(state->allocation.status!=RNS8_SUCCESS) return state->allocation.status;
     for(auto* hold:holds) if(*hold==UINT64_MAX) return RNS8_RANGE_ERROR;
     if(ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
@@ -288,6 +308,10 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
       return arena+state.allocation.values[id].offset;
     };
     std::vector<uint32_t> current(state.allocation.values.size(),0);
+    const bool has_packed=std::any_of(state.materializations.packed_b.begin(),state.materializations.packed_b.end(),
+        [](uint8_t value){return value!=0;});
+    std::vector<uint32_t> packed_current(has_packed?state.allocation.values.size():0,0);
+    state.packing_calls=0;
     std::fill_n(current.begin(),state.inputs.size(),state.prefix);
     // Allocate and validate the complete reservation list before taking any
     // counters. Duplicate external input handles get one reader reservation.
@@ -378,13 +402,42 @@ rns8_status RuntimeProductRecipe::execute(const std::vector<rns8_matrix*>& outpu
     for(size_t i=0;i<state.nodes.size();++i) {
       const auto node=state.nodes[i];
       const auto prefix=state.compute_prefixes[i];
+      const bool packed=state.materializations.status==RNS8_SUCCESS && state.materializations.packed_b[i];
       for(auto id:{node.a,node.b}) {
+        if(id==node.b && id!=node.a && packed && packed_current[id]>=prefix)continue;
         const auto status=materialize(id,prefix);
         if(status!=RNS8_SUCCESS) return status;
       }
       const auto a=state.allocation.values[node.a].shape,b=state.allocation.values[node.b].shape;
       auto* c=arena+state.allocation.values[state.inputs.size()+i].offset;
       const auto* av=pointer(node.a); const auto* bv=pointer(node.b);
+      const auto layout=[&](uint32_t id,ResidueLayout& value) {
+        const auto shape=state.allocation.values[id].shape;
+        const uint32_t capacity=id<state.inputs.size()?state.prefix:state.capacities[id-state.inputs.size()];
+        return make_residue_layout(ResidueLayoutKind::modulus_major,shape.rows,shape.cols,shape.cols,
+            capacity,0,0,value,state.basis_identity);
+      };
+      if(packed) {
+        const auto& view=state.materializations.packed[node.b];auto* packed_b=arena+view.offset;
+        ResidueLayout source,al,cl;
+        if(!layout(node.b,source) || !layout(node.a,al) || !layout(static_cast<uint32_t>(state.inputs.size()+i),cl))
+          return RNS8_INTERNAL_ERROR;
+        if(packed_current[node.b]<prefix) {
+          if(hip) {
+            const auto status=hip_direct_convert_residue_planes(state.ctx->device_id,bv,source,packed_b,view.layout,
+                packed_current[node.b],prefix);
+            if(status!=RNS8_SUCCESS)return status;
+          } else if(!convert_residue_planes_host(bv,source,packed_b,view.layout,packed_current[node.b],prefix))
+            return RNS8_INTERNAL_ERROR;
+          packed_current[node.b]=prefix;++state.packing_calls;
+        }
+        if(hip) {
+          const auto status=hip_direct_gemm_residue_layout(state.ctx->device_id,av,al,packed_b,view.layout,c,cl,prefix);
+          if(status!=RNS8_SUCCESS)return status;
+        } else if(!residue_layout_gemm_host(av,al,packed_b,view.layout,c,cl,prefix))return RNS8_INTERNAL_ERROR;
+        current[state.inputs.size()+i]=prefix;
+        continue;
+      }
       if(hip) {
         const auto status=state.experimental
             ? hip_direct_basis_gemm(state.ctx->device_id,av,bv,c,a.rows,b.cols,a.cols,state.basis->packet.moduli,prefix)
@@ -444,13 +497,15 @@ struct rns8_product_recipe {
   std::vector<rns8_ragged_recipe_binding> ragged;
   std::vector<rns8_ragged_materialization*> ragged_holds;
   uint64_t total_budget=UINT64_MAX,materialized_input_bytes=0,ragged_bytes=0,materialization_peak=0;
+  std::string materialization_calibration;
   bool binding_valid=true,closing=false;
   ~rns8_product_recipe(){owner.reset();for(auto* source:ragged_holds)rns8::detail::release_ragged_recipe_binding(source);}
 };
 #include "api_product_recipe_ragged_helpers.inc"
 
 static rns8_status create_product_recipe(rns8_context* ctx,const rns8_product_recipe_desc* desc,
-    const std::vector<uint32_t>& outputs,rns8_product_recipe** out) {
+    const std::vector<uint32_t>& outputs,rns8_product_recipe** out,
+    const rns8::detail::ProductMaterializationProfile* materializations=nullptr) {
   return rns8::detail::api::guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if(!ctx || !desc || !out || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
@@ -463,8 +518,9 @@ static rns8_status create_product_recipe(rns8_context* ctx,const rns8_product_re
     for(uint32_t i=0;i<desc->node_count;++i) nodes.push_back({desc->nodes[i].a,desc->nodes[i].b});
     auto result=std::make_unique<rns8_product_recipe>();result->ctx=ctx;result->inputs=inputs;
     const auto status=RuntimeProductRecipe::create(ctx,inputs,nodes,desc->max_arena_and_lift_bytes,result->owner,
-        desc->prefix_policy==RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX,nullptr,outputs);
+        desc->prefix_policy==RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX,nullptr,outputs,materializations);
     if(status!=RNS8_SUCCESS) return status;
+    if(materializations)result->materialization_calibration=materializations->uniform.provenance;
     *out=result.release(); return RNS8_SUCCESS;
   });
 }
@@ -532,3 +588,4 @@ rns8_status rns8_rebind_product_recipe_inputs(rns8_product_recipe* recipe,
 }
 
 #include "api_product_recipe_ragged.inc"
+#include "api_product_recipe_materializations.inc"

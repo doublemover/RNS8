@@ -3465,8 +3465,10 @@
         }
       ],
       "anchors": [
+        "cost-planned-product-materializations",
         "dependency-proven-arena-reuse",
         "explicit-current-value-fixed-basis-plans",
+        "layout-aware-materialization-primitives",
         "offline-typed-recipe-admission",
         "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]
@@ -4587,6 +4589,7 @@
       "anchors": [
         "consume-the-rns8-package",
         "cpu-continuation-workflow",
+        "experimental-materialized-product-consumer",
         "explicit-cpu-sparse-a-workflows",
         "hard-budget-streaming-consumer"
       ]
@@ -5221,6 +5224,10 @@
         },
         {
           "source": "docs/implementation-handoff-20261025.md",
+          "reference": "local-validation-20261025.md"
+        },
+        {
+          "source": "docs/planning-recipes.md",
           "reference": "local-validation-20261025.md"
         },
         {

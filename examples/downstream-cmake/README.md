@@ -144,3 +144,13 @@ oracle, and check context retention and rejected-bound output preservation.
 No fallback is performed. Configure `RNS8_DOWNSTREAM_GPU_TESTS=ON` to register
 this execution in the installed consumer CTest suite. Reported capacities are
 requested payload bytes, not observed allocator/driver peaks or speedups.
+
+## Experimental materialized product consumer
+
+`rns8-downstream-materialized-product-recipe` uses the installed
+`rns8/experimental_product.h` header. It queries a graph/build identity, supplies
+explicit illustrative cost tables, executes `2*3*3*3`, and verifies the exact
+result 54 with one shared B pack. It prints the retained arena footprint and
+checks every cleanup status. Its CPU estimates exercise selection and are not
+measured performance data. The same standalone CMake consumer tests static and
+shared linkage; the new example's execution awaits the next validation batch.
