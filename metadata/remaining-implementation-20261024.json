@@ -306,7 +306,7 @@
       "issue": 34,
       "title": "[Research P1] Build cost-aware device bound discovery and compact adaptive-prefix schedules",
       "url": "https://github.com/doublemover/RNS8/issues/34",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Device bound scan/adaptive compact producer and sealed core schedule implemented. Remaining direct-HIP ordinary tiled consumer rebuilds checked immutable schedule/active counts each call; current native campaign lacks heterogeneous controls.",
       "implementation": [
         {
@@ -316,15 +316,30 @@
             "src/backend_hip_direct/hip_backend_gemm_finite_tiled.inc",
             "benchmarks/public-calibration/immutable-schedule.json"
           ]
+        },
+        {
+          "summary": "Versioned deterministic native input distributions, independent exact pre-GPU axis-L1/prefix/work histogram models in C++ and Python, degeneration rejection, complete-capacity paired native/pack/adaptive-grid/compact fixtures and independent-process comparison reporting. Original full-width control preserved.",
+          "files": [
+            "benchmarks/native_dataset.hpp",
+            "benchmarks/rns8_native_calibrate.cpp",
+            "tools/native_dataset.py",
+            "tools/collect_native_calibration.py",
+            "benchmarks/native-calibration/adaptive-distributions.json"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_api_plan_validation_cache_cases.inc"
+        "tests/unit/test_api_plan_validation_cache_cases.inc",
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_adaptive_native_cases.inc",
+        "tools/test_native_dataset.py"
       ],
-      "commits": [],
+      "commits": [
+        "caf5cea743d1395e8f3acc760382b9eefad9001d"
+      ],
       "remaining": [
-        "Native adaptive deterministic heterogeneous datasets and prefix/work histogram preflight remain to implement.",
-        "Regression execution and hardware performance/qualification deferred."
+        "Regression execution, device compilation and measured net benefit/fallback overhead remain deferred.",
+        "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

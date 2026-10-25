@@ -8,6 +8,7 @@
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "epilogue_coefficients.hpp"
+#include "native_dataset.hpp"
 #include <charconv>
 #include <chrono>
 #include <cstring>
@@ -113,8 +114,16 @@ int main(int argc, char** argv) {
         "group=1 outside wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
         "epilogue cases: optional extreme|zero|copy|unit|general|channel-zero coefficient profile (default extreme).\n"
+        "paired adaptive/wmma/pack_gemm: optional final --dataset full-width-v1|uniform-small-v2|mixed-tiles-v2|zero-tiles-v2|localized-outlier-v2 --seed uint32; requires capacity20.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
+    std::string dataset_profile="full-width-v1";
+    uint32_t dataset_seed=3135;
+    bool explicit_dataset=false;
+    if(argc>=15 && std::string(argv[argc-4])=="--dataset" && std::string(argv[argc-2])=="--seed") {
+      dataset_profile=argv[argc-3];dataset_seed=number(argv[argc-1],0,UINT32_MAX);explicit_dataset=true;argc-=4;
+      if(!rns8::bench::native_dataset_profile(dataset_profile))throw std::invalid_argument("unknown versioned dataset");
+    }
     if (argc < 11 || argc > 17) throw std::invalid_argument(usage);
     // Preserve the original ten arguments; optional workers follows run identity.
     const std::string candidate = argv[1], run_id = argv[10];
@@ -143,6 +152,9 @@ int main(int argc, char** argv) {
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
     const bool compact = candidate == "adaptive_compact";
+    if(explicit_dataset && !adaptive && candidate!="wmma" && candidate!="pack_gemm")
+      throw std::invalid_argument("dataset controls apply to adaptive, wmma and pack_gemm paired cases");
+    if(explicit_dataset && prefix!=20)throw std::invalid_argument("dataset ablations require identical completed capacity20 output");
     const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
     const bool encoded = candidate == "encoded_b_cold" || candidate == "encoded_b_warm";
     const bool encoded_warm = candidate == "encoded_b_warm";
@@ -157,6 +169,7 @@ int main(int argc, char** argv) {
     if (!conversion && !adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
     const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
+    if(explicit_dataset && reuse_count!=1)throw std::invalid_argument("dataset controls require one complete product per call");
     const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
     const uint32_t tiled_buffers = tiled ? number(argv[12],0,2) : 0;
     const uint64_t tiled_lds_budget = 65536;
@@ -189,12 +202,24 @@ int main(int argc, char** argv) {
     const std::string queue_kernel_selection = queued ? "homogeneous_group_" + std::to_string(group) +
         (unsigned_inputs ? "_unsigned" : "_signed") : "not_applicable";
     rns8_device_info device{};
-    check(hip_direct_probe(0, device));
-    std::mt19937_64 rng(3135);
+    std::mt19937_64 rng(dataset_seed);
     std::vector<uint64_t> a(std::size_t{m}*k), b(std::size_t{k}*n);
-    for (auto& x : a) x = rng();
-    for (auto& x : b) x = rng();
-    a.front() = uint64_t{1} << 63; b.front() = UINT64_MAX;
+    rns8::bench::fill_native_dataset(a,b,m,n,k,unsigned_inputs,dataset_profile,dataset_seed,rng);
+    const auto dataset_identity=rns8::bench::native_dataset_identity(dataset_profile,dataset_seed);
+    nlohmann::json dataset_model=nullptr;
+    if(adaptive || explicit_dataset) {
+      // This exact preflight precedes capability probing, allocation and GPU work.
+      const auto model=rns8::bench::model_native_dataset(a,b,m,n,k,unsigned_inputs,group,dataset_profile);
+      dataset_model={{"schema_version",2},{"method","axis_l1_exact_cpp_int_and_production_helper_crosscheck"},
+        {"input_hash_fnv1a64",std::to_string(model.input_hash)},{"required_prefix_histogram",model.required_histogram},
+        {"adaptive_executed_prefix_histogram",model.executed_histogram},{"zero_tiles",model.zero_tiles},
+        {"required_channels",model.required_channels},{"adaptive_executed_channels",model.executed_channels},
+        {"adaptive_group_work_items",model.group_work_items},{"fixed_capacity_group_work_items",model.fixed_capacity_group_work_items},
+        {"globally_required_prefix",model.globally_required_prefix},{"source_work_not_instruction_or_speedup",true},
+        {"actual_candidate_group_work_items",adaptive?model.group_work_items:model.fixed_capacity_group_work_items},
+        {"global_minimal_completed_output_control_implemented",false}};
+    }
+    check(hip_direct_probe(0, device));
     std::vector<uint64_t> d(epilogue ? std::size_t{m} * n : 0);
     for (auto& x : d) x = rng();
     std::vector<int8_t> expected_d(d.size() * prefix);
@@ -414,7 +439,7 @@ int main(int argc, char** argv) {
         {"queue_descriptor_storage_bytes",queued ? std::size_t(splits)*sizeof(NativeWmmaTask)+std::size_t(queue_descriptors)*sizeof(NativeWmmaWork)+sizeof(uint32_t) : prepared ? sizeof(NativeWmmaTask) + std::size_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)*sizeof(NativeWmmaWork)+sizeof(uint32_t) : 0},
         {"m",m},{"n",n},{"k",k},{"prefix",prefix},{"group",group},{"unsigned_inputs",bool(unsigned_inputs)},
         {"splits",splits},{"requested_workers",requested_workers},{"effective_workers",effective_workers},
-        {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
+        {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",dataset_seed},{"repeats",repeats},{"warmups",warmups},
         {"input_domain",(candidate=="packed_gemm" || epilogue) ? "resident_centered_residues" : "resident_native_64"},
         {"output_contract",candidate=="pack_pair" ? "operand_residue_planes" : epilogue ? "integer_alpha_ab_plus_beta_d_residues_no_integer_export" : "product_residues_default_basis_no_integer_export"},
         {"coefficient_profile",epilogue ? nlohmann::json(coefficient_profile) : nlohmann::json(nullptr)},
@@ -433,11 +458,13 @@ int main(int argc, char** argv) {
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if(adaptive || explicit_dataset)report.update({{"dataset_profile",dataset_profile},{"dataset_seed",dataset_seed},
+      {"dataset_identity",dataset_identity},{"dataset_model",dataset_model}});
     if (reuse_batch && !conversion) {
       report.update({{"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
           {"reuse_batch_boundary","R_synchronous_calls_same_native_A_B_one_final_verified_output"},
           {"reuse_comparison_boundary","private_raw_residue_no_public_matrix_proof_or_generation"},
-          {"reuse_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"reuse_dataset",dataset_identity},
           {"encoded_b_layout",encoded ? "modulus_n_k_packed_word32_v1" : "none"},
           {"encoded_b_k_words",encoded ? encoded_layout.k_words : 0},
           {"encoded_b_cache_logical_bytes",encoded ? encoded_layout.total_bytes : 0},
@@ -508,14 +535,14 @@ int main(int argc, char** argv) {
           {"adaptive_static_support_version", support.version},
           {"adaptive_static_support_is_device_qualification", false}});
       report.update({{"bound_method", "axis_l1"}, {"adaptive_launch", compact ? "compact_workers" : "dense_grid"},
-          {"adaptive_dataset", "full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"adaptive_dataset", dataset_identity},
           {"adaptive_dense_group_upper_bound", uint64_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)},
           {"adaptive_actual_compact_groups", nullptr}, {"adaptive_compact_count_source", "device_offsets_not_read_back"},
           {"adaptive_worker_policy", compact ? "exact_requested_worker_launch_no_count_clamp" : "dense_grid_control"},
           {"adaptive_kernel_selection", std::string(compact ? "compact_group_" : "grid_group_") + std::to_string(group) +
               (unsigned_inputs ? "_unsigned_axis_l1" : "_signed_axis_l1")},
           {"adaptive_output_scope", "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}});
-      report["timing_scope"] = "resident full-width native inputs; per-call capability, allocation, axis_l1 discovery/compaction, grouped WMMA, exact suffix, staged commit and synchronization; no compact-count readback; upload, poison and complete Boost verification excluded";
+      report["timing_scope"] = "resident versioned native inputs; per-call capability, allocation, axis_l1 discovery/compaction, grouped WMMA, exact suffix, staged commit and synchronization; no compact-count readback; upload, poison and complete Boost verification excluded";
     }
     std::cout << report.dump(2) << '\n';
     return 0;

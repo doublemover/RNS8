@@ -762,7 +762,8 @@
         "compact-bounded-workers",
         "explicit-matrix-owned-native-inputs",
         "shared-static-preflight",
-        "single-owned-native-upload"
+        "single-owned-native-upload",
+        "versioned-distribution-and-complete-output-controls"
       ]
     },
     {

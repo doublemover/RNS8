@@ -441,3 +441,29 @@ TEST_CASE("encode-once fragment ownership is exact and rejects mapping mutations
   CHECK(rns8::detail::query_native_tiled_resources(16,2,65536,rns8::detail::NativeConversion::encoded_lds,1).status==RNS8_INVALID_ARGUMENT);
   CHECK(rns8::detail::query_native_tiled_resources(16,1,65536,rns8::detail::NativeConversion::cooperative,1).status==RNS8_INVALID_ARGUMENT);
 }
+
+#include "../../benchmarks/native_dataset.hpp"
+TEST_CASE("versioned native datasets certify heterogeneous buckets before GPU work", "[native][bounds][fixture]") {
+  using namespace rns8::bench;
+  for(bool u:{false,true})for(const std::string profile:{"full-width-v1","uniform-small-v2","mixed-tiles-v2","zero-tiles-v2","localized-outlier-v2"})
+    for(uint32_t k:{1u,17u,257u}) {
+      constexpr uint32_t m=17,n=19;
+      std::vector<uint64_t> a(m*k),b(k*n);std::mt19937_64 rng(3135);
+      fill_native_dataset(a,b,m,n,k,u,profile,3135,rng);
+      for(uint32_t group:{1u,2u,4u}) {
+        const auto model=model_native_dataset(a,b,m,n,k,u,group,profile);
+        uint64_t tiles=0,channels=0,groups=0;
+        for(uint32_t p=0;p<=20;++p) {tiles+=model.required_histogram[p];channels+=p*model.required_histogram[p];groups+=((p+group-1)/group)*model.required_histogram[p];}
+        CHECK(tiles==4);CHECK(channels==model.required_channels);CHECK(groups==model.group_work_items);
+        CHECK(model.required_histogram==model.executed_histogram);
+        if(profile=="zero-tiles-v2")CHECK(model.zero_tiles==3);
+        if(profile!="full-width-v1")CHECK(model.group_work_items<model.fixed_capacity_group_work_items);
+      }
+      const auto first=model_native_dataset(a,b,m,n,k,u,1,profile);a[0]^=1;
+      // Input mutation is visible even when a conservative bound bucket stays unchanged.
+      CHECK(model_native_dataset(a,b,m,n,k,u,1,profile).input_hash!=first.input_hash);
+    }
+  std::vector<uint64_t> a(16*17),b(17*16);std::mt19937_64 rng(0);
+  fill_native_dataset(a,b,16,16,17,false,"mixed-tiles-v2",0,rng);
+  CHECK_THROWS_AS(model_native_dataset(a,b,16,16,17,false,1,"mixed-tiles-v2"),std::invalid_argument);
+}

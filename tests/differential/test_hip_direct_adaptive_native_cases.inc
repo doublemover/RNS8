@@ -296,3 +296,43 @@ TEST_CASE("direct HIP matrices allocate only the requested device payload") {
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+#include "../../benchmarks/native_dataset.hpp"
+TEST_CASE("adaptive grid and compact complete versioned heterogeneous datasets", "[hip][native][bounds]") {
+  if(!hip_available())SKIP("no HIP device for versioned adaptive datasets");
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  constexpr uint32_t m=17,n=19,k=17,ldc=21;
+  for(bool u:{false,true})for(const std::string profile:{"full-width-v1","uniform-small-v2","mixed-tiles-v2","zero-tiles-v2","localized-outlier-v2"}) {
+    std::vector<uint64_t> a(m*k),b(k*n);std::mt19937_64 rng(3135);
+    rns8::bench::fill_native_dataset(a,b,m,n,k,u,profile,3135,rng);
+    const auto model=rns8::bench::model_native_dataset(a,b,m,n,k,u,1,profile);
+    CHECK(model.fixed_capacity_group_work_items==80);
+    auto native=[&](uint64_t bits)->cpp_int {return !u && (bits>>63)?cpp_int(bits)-(cpp_int(1)<<64):cpp_int(bits);};
+    std::vector<int8_t> expected(20*m*ldc,99),actual(expected.size());
+    for(uint32_t row=0;row<m;++row)for(uint32_t col=0;col<n;++col) {
+      cpp_int value=0;for(uint32_t q=0;q<k;++q)value+=native(a[row*k+q])*native(b[q*n+col]);
+      for(uint32_t p=0;p<20;++p) {
+        const auto modulus=garner::kConstants.moduli[p];int residue=(value%modulus).convert_to<int>();
+        if(residue<0)residue+=modulus;if(residue>=int((modulus+1)/2))residue-=modulus;
+        expected[(p*m+row)*ldc+col]=static_cast<int8_t>(residue);
+      }
+    }
+    hip_direct_device_buffer da,db,dc;
+    REQUIRE(da.allocate(0,a.size()*8)==RNS8_SUCCESS);REQUIRE(db.allocate(0,b.size()*8)==RNS8_SUCCESS);
+    REQUIRE(dc.allocate(0,expected.size())==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8)==RNS8_SUCCESS);
+    for(uint32_t group:{1u,4u})for(uint32_t workers:{0u,3u}) {
+      std::fill(actual.begin(),actual.end(),99);
+      REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      bool committed=false;
+      const auto status=hip_direct_gemm_adaptive_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+        m,n,k,k,n,ldc,u,20,group,1<<20,committed,NativeBoundMethod::axis_l1,256,workers);
+      if(status==RNS8_UNSUPPORTED_BACKEND)SKIP("compiled target lacks native WMMA");
+      REQUIRE(status==RNS8_SUCCESS);REQUIRE(committed);
+      REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);
+      REQUIRE(actual==expected);
+    }
+  }
+}

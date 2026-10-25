@@ -11,6 +11,7 @@ import time
 import uuid
 from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
+from native_dataset import PROFILES as DATASET_PROFILES, identity as dataset_identity, model as dataset_model
 
 
 CONVERSION = ("conversion_cold", "conversion_prepared", "conversion_pack_gemm")
@@ -45,7 +46,7 @@ def strict_json(text):
 def validate_case(case):
     """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile"}:
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile", "dataset_profile", "dataset_seed"}:
         raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
@@ -88,6 +89,14 @@ def validate_case(case):
     elif case["candidate"] not in CONVERSION and ("k_depth" in case or "lds_buffers" in case):
         raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
+    if 'dataset_profile' in case or 'dataset_seed' in case:
+        if (case['candidate'] not in (*ADAPTIVE,'wmma','pack_gemm') or case['prefix']!=20
+                or case.get('dataset_profile') not in DATASET_PROFILES
+                or type(case.get('dataset_seed')) is not int or not 0<=case['dataset_seed']<=0xffffffff):
+            raise ValueError('dataset controls require paired adaptive/wmma/pack_gemm capacity20, versioned profile and uint32 seed')
+        # Reject tiny shapes that cannot contain the advertised spatial bands.
+        if case['dataset_profile'] in ('mixed-tiles-v2','zero-tiles-v2','localized-outlier-v2') and min(case['m'],case['n'])<=16:
+            raise ValueError('heterogeneous datasets require at least two row and column tiles')
     if case["candidate"].startswith("epilogue_"):
         profile=case.get("coefficient_profile","extreme")
         if profile not in ("extreme","zero","copy","unit","general","channel-zero"):raise ValueError("unknown coefficient profile")
@@ -111,6 +120,8 @@ def validate_case(case):
         normalized["workers"] = workers
     elif "workers" in case:
         raise ValueError("workers applies only to queue/queue_prepared/split_k/adaptive_compact candidates")
+    if 'dataset_profile' in normalized and normalized.get('reuse_count',1)!=1:
+        raise ValueError('dataset comparisons require one complete product per call')
     return normalized
 
 
@@ -133,7 +144,7 @@ def adaptive_contract(case):
         return {}
     compact = case["candidate"] == "adaptive_compact"
     return {"bound_method": "axis_l1", "adaptive_launch": "compact_workers" if compact else "dense_grid",
-            "adaptive_dataset": "full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+            "adaptive_dataset": dataset_identity(case.get("dataset_profile","full-width-v1"),case.get("dataset_seed",3135)),
             "reference_method": "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
             "adaptive_dense_group_upper_bound": ((case["m"] + 15) // 16) * ((case["n"] + 15) // 16)
                 * ((case["prefix"] + case["group"] - 1) // case["group"]),
@@ -217,7 +228,7 @@ def reuse_contract(case):
     return {"reuse_count":case["reuse_count"], "batch_gemm_calls":case["reuse_count"],
             "reuse_batch_boundary":"R_synchronous_calls_same_native_A_B_one_final_verified_output",
             "reuse_comparison_boundary":"private_raw_residue_no_public_matrix_proof_or_generation",
-            "reuse_dataset":"full_width_native64_mt19937_64_seed3135_forced_extrema_v1",
+            "reuse_dataset":dataset_identity(case.get("dataset_profile","full-width-v1"),case.get("dataset_seed",3135)),
             "reference_method":"boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue",
             "encoded_b_layout":"modulus_n_k_packed_word32_v1" if encoded else "none",
             "encoded_b_k_words":words,"encoded_b_cache_logical_bytes":size,
@@ -273,8 +284,12 @@ def narrow_contract(case):
 def capture_contract(case, run_id, repeats, warmups):
     expected = {key: value for key, value in case.items() if key != "workers"}
     expected.update(schema="rns8_native_microcase_v2", run_id=run_id, repeats=repeats,
-                    warmups=warmups, seed=3135, promotion_eligible=False, isa_verified=False,
+                    warmups=warmups, seed=case.get("dataset_seed",3135), promotion_eligible=False, isa_verified=False,
                     actual_hbm_bytes=None, timing_resolution_ns=None)
+    if 'dataset_profile' in case:
+        expected['dataset_identity']=dataset_identity(case['dataset_profile'],case['dataset_seed'])
+        expected['dataset_model']=dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
+            case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE)
     expected.update(scheduling_contract(case))
     expected.update(adaptive_contract(case))
     expected.update(tiled_contract(case))
@@ -503,6 +518,7 @@ def main():
     parser.add_argument("--warmups", type=int, default=3)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--order-seed", type=int, default=3135)
+    parser.add_argument("--plan-only",action="store_true",help="emit exact dataset work preflight without opening or launching the executable")
     args = parser.parse_args()
     try:
         cases = strict_json(args.cases.read_text(encoding="utf-8"))
@@ -514,12 +530,21 @@ def main():
             raise ValueError("duplicate normalized cases; use --runs for independent processes")
     except (ValueError, OSError) as error:
         parser.error(str(error))
+    preflight=[]
+    for case in cases:
+        if 'dataset_profile' in case:
+            preflight.append({'case':case,'dataset_identity':dataset_identity(case['dataset_profile'],case['dataset_seed']),
+                'model':dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
+                    case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE)})
+    if args.plan_only:
+        print(json.dumps({'schema':'rns8_native_dataset_preflight_v2','cases':preflight,'gpu_work_executed':False},indent=2));return 0
     exe = args.exe.resolve(strict=True)
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
     collector_sources = [Path(__file__).resolve(), Path(__file__).with_name("build_manifest.py").resolve(),
-                         Path(__file__).with_name("modulus_set_search.py").resolve()]
+                         Path(__file__).with_name("modulus_set_search.py").resolve(), Path(__file__).with_name("native_dataset.py").resolve()]
     collector_identity = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources}
+    distribution_observations=[]
     campaign = str(uuid.uuid4())
     jobs = [(c, independent) for independent in range(args.runs) for c in cases]
     random.Random(args.order_seed).shuffle(jobs)
@@ -543,6 +568,7 @@ def main():
         if case["candidate"] in REUSE:
             command.append(str(case["reuse_count"]))
         if case["candidate"].startswith("epilogue_"):command.append(case["coefficient_profile"])
+        if 'dataset_profile' in case:command.extend(['--dataset',case['dataset_profile'],'--seed',str(case['dataset_seed'])])
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],
@@ -570,12 +596,18 @@ def main():
                                              **reuse_contract(case),
                                              "input_domain": capture["input_domain"],
                                              "output_contract": capture["output_contract"],
+                                             "dataset_identity":capture.get("dataset_identity"), "dataset_model":capture.get("dataset_model"),
                                              "seed": capture["seed"], "repeats": args.repeats,
                                              "warmups": args.warmups, "timing_scope": capture["timing_scope"],
                                              "cache_state": capture["cache_state"]}
             record["provenance_complete"] = manifest_provenance_complete(
                 capture["build_manifest"], "rocwmma" if case["candidate"] == "epilogue_rocwmma" else None)
             record["validated"] = True
+            if 'dataset_profile' in case:
+                distribution_observations.append({'case':case,'run_id':run_id,'sustained_mean_call_ns':capture['sustained']['mean_call_ns'],
+                    'model':capture['dataset_model'],'samples':capture['samples'],
+                    'scratch_bytes':capture.get('adaptive_peak_scratch_bytes'),
+                    'comparison_identity':record['comparison_identity']})
             if case["candidate"] in CONVERSION:
                 conversion_observations.append({"case":case,"run_id":run_id,"independent_repeat":independent,
                     "sampled_batch_ns":statistics.median(sample["uninstrumented_host_call_ns"] for sample in capture["samples"]),
@@ -618,6 +650,26 @@ def main():
             "groups":summarize_conversion(conversion_observations)}
         with (args.output/("conversion-comparison-"+campaign+".json")).open("x",encoding="utf-8") as stream:
             json.dump(comparison,stream,indent=2)
+    if distribution_observations:
+        groups={}
+        for row in distribution_observations:
+            case=row['case'];key=tuple(case[k] for k in ('m','n','k','prefix','group','unsigned_inputs','dataset_profile','dataset_seed'))
+            groups.setdefault(key,{}).setdefault(case['candidate'],[]).append(row)
+        summary=[]
+        for key,candidates in groups.items():
+            item={'work_contract':dict(zip(('m','n','k','prefix','group','unsigned_inputs','dataset_profile','dataset_seed'),key)),
+                  'candidates':{},'missing_controls':sorted({'wmma','pack_gemm','adaptive_grid','adaptive_compact'}-set(candidates))}
+            for candidate,observations in candidates.items():
+                times=[row['sustained_mean_call_ns'] for row in observations]
+                item['candidates'][candidate]={'independent_processes':len(times),'complete_call_ns_process_median':statistics.median(times),
+                    'complete_call_ns_process_min':min(times),'complete_call_ns_process_max':max(times),
+                    'source_work_model':observations[0]['model'],'observations':observations}
+            summary.append(item)
+        with (args.output/('adaptive-distribution-comparison-'+campaign+'.json')).open('x',encoding='utf-8') as stream:
+            json.dump({'schema':'rns8_adaptive_distribution_comparison_v2','groups':summary,'promotion_eligible':False,
+                'global_minimal_completed_output_control_implemented':False,
+                'estimator':'one complete sustained mean per independent process; no pooling different input distributions',
+                'warning':'modeled channel/group savings are not measured speedups; all complete discovery/compaction/suffix/commit costs remain charged'},stream,indent=2)
     print(f"Collected {len(jobs)} independent native microcase records; qualification remains pending")
     return 0
 
