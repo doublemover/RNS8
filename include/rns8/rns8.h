@@ -1071,6 +1071,9 @@ typedef struct rns8_stream_gemm_desc {
   uint32_t panel_m,panel_n,panel_k,prefix;
   uint64_t max_abs_a,max_abs_b;
   uint64_t device_budget_bytes,host_budget_bytes;
+  /* Optional maximum retained B residue payload, within device_budget_bytes.
+   * Zero disables caching. Metadata also consumes host_budget_bytes. */
+  uint64_t retained_b_budget_bytes;
 } rns8_stream_gemm_desc;
 typedef struct rns8_stream_gemm_resources {
   uint64_t struct_size;
@@ -1079,6 +1082,10 @@ typedef struct rns8_stream_gemm_resources {
   uint64_t device_bytes,host_bytes,minimum_device_bytes,minimum_host_bytes;
   uint64_t source_a_span_bytes,source_b_span_bytes,destination_span_bytes;
   uint64_t output_tiles,k_panels_per_tile;
+  uint64_t retained_b_entries,retained_b_device_bytes;
+  /* Upload/conversion counts for a cold call and a repeated identical B binding.
+   * These model the selected direct-mapped cache, including conflict reloads. */
+  uint64_t cold_b_panel_loads,warm_b_panel_loads;
 } rns8_stream_gemm_resources;
 typedef struct rns8_stream_gemm_result {
   uint64_t struct_size;
@@ -1086,10 +1093,13 @@ typedef struct rns8_stream_gemm_result {
   rns8_status status;
   uint64_t epoch,completed_tiles,completed_panels;
   uint32_t output_started,output_valid,quarantined,reserved;
+  uint64_t b_panel_cache_hits,b_panel_loads;
 } rns8_stream_gemm_result;
 /* Explicit experimental serial host-to-host bounded i64/u64 GEMM. Bounds are
  * verified against all native inputs before writes. No implicit in-core fallback.
- * Input/output addresses use the native signedness declared by semantics. */
+ * Input/output addresses use the native signedness declared by semantics.
+ * Retained B panels require an immutable pointer/instance/generation binding.
+ * Advance the generation whenever logical B values change between calls. */
 RNS8_API rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,
     rns8_stream_gemm_resources* resources);
 RNS8_API rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_desc* desc,

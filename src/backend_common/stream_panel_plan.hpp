@@ -10,13 +10,26 @@ struct StreamPanelProblem {
   int64_t m=0,n=0,k=0,lda=0,ldb=0,ldc=0;
   uint32_t panel_m=0,panel_n=0,panel_k=0,prefix=0;
   uint64_t device_budget=0,host_budget=0;
+  uint64_t retained_b_budget=0;
 };
+// Direct mapping keeps lookup and eviction O(1), with a fixed metadata payload.
+// The complete source binding is retained: a generation alone is not an identity.
+struct StreamPanelCacheEntry {
+  const void* source=nullptr;
+  uint64_t instance=0,generation=0,panel=0;
+  bool matches(const void* p,uint64_t i,uint64_t g,uint64_t key) const noexcept {
+    return source==p && instance==i && generation==g && panel==key;
+  }
+};
+static_assert(sizeof(StreamPanelCacheEntry)==32,"stream cache receipt requires a 64-bit host ABI");
 enum StreamPanelSlot : size_t { stream_a,stream_b,stream_c0,stream_c1,
                               stream_native_a,stream_native_b,stream_export,stream_status,stream_slot_count };
 struct StreamPanelResources {
   rns8_status status=RNS8_INVALID_ARGUMENT;
   uint64_t device_bytes=0,host_bytes=0,minimum_device_bytes=0,minimum_host_bytes=0;
   uint64_t a_span=0,b_span=0,c_span=0,tile_count=0,panels_per_tile=0,total_steps=0;
+  uint64_t b_cache_offset=0,b_cache_stride=0,b_cache_entries=0,b_cache_bytes=0;
+  uint64_t b_panels=0,b_cold_loads=0,b_warm_loads=0;
   std::array<uint64_t,stream_slot_count> offsets{},bytes{};
 };
 inline bool stream_panel_storage(uint64_t m,uint64_t n,uint64_t k,uint32_t p,StreamPanelResources& out) {
@@ -68,8 +81,31 @@ inline StreamPanelResources plan_stream_panels(const StreamPanelProblem& p) {
   out.panels_per_tile=(uint64_t(p.k)-1)/k+1;
   if(mt>UINT64_MAX/nt || mt*nt>UINT64_MAX/out.panels_per_tile) {out.status=RNS8_RANGE_ERROR;return out;}
   out.tile_count=mt*nt;out.total_steps=out.tile_count*out.panels_per_tile;
+  out.b_panels=nt*out.panels_per_tile;
+  out.b_cold_loads=out.b_warm_loads=out.total_steps;
+  out.b_cache_offset=out.device_bytes;
+  out.b_cache_stride=(out.bytes[stream_b]+255)&~UINT64_C(255);
   if(out.device_bytes>p.device_budget || out.host_bytes>p.host_budget) {
     out.status=RNS8_WORKSPACE_TOO_SMALL;return out;
+  }
+  const auto device_limit=std::min<uint64_t>(p.device_budget,uint64_t(PTRDIFF_MAX));
+  const auto host_limit=std::min<uint64_t>(p.host_budget,uint64_t(PTRDIFF_MAX));
+  out.b_cache_entries=std::min({out.b_panels,p.retained_b_budget/out.b_cache_stride,
+      (device_limit-out.device_bytes)/out.b_cache_stride,
+      (host_limit-out.host_bytes)/sizeof(StreamPanelCacheEntry)});
+  // Do not reserve payload for a cache whose every slot conflicts on each scan.
+  if(out.b_cache_entries<=out.b_panels/2) out.b_cache_entries=0;
+  out.b_cache_bytes=out.b_cache_entries*out.b_cache_stride;
+  out.device_bytes+=out.b_cache_bytes;
+  out.host_bytes+=out.b_cache_entries*sizeof(StreamPanelCacheEntry);
+  if(out.b_cache_entries) {
+    // One pass visits B panels in ordinal order. Slots with two or more keys
+    // miss on every pass; singleton slots hit after the first row tile.
+    const auto q=out.b_panels,s=out.b_cache_entries;
+    const auto singleton=q-s<s?s-(q-s):0;
+    const auto collisions=q-singleton;
+    out.b_cold_loads=q+(mt-1)*collisions;
+    out.b_warm_loads=mt*collisions;
   }
   out.status=RNS8_SUCCESS;return out;
 }

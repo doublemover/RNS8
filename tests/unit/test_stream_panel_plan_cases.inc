@@ -52,6 +52,57 @@ TEST_CASE("out-of-core panels do not hide overflowing global spans") {
   CHECK(plan_stream_panels(p).status==RNS8_UNSUPPORTED_BACKEND);
 }
 
+TEST_CASE("streaming B cache reload model follows bounded physical slots") {
+  using namespace rns8::detail;
+  for(uint32_t n:{1,5,9}) for(uint32_t k:{1,7,19}) for(uint64_t slots=0;slots<=16;++slots) {
+    StreamPanelProblem p;
+    p.m=7;p.n=n;p.k=k;p.lda=k;p.ldb=n;p.ldc=n;
+    p.panel_m=3;p.panel_n=4;p.panel_k=5;p.prefix=9;
+    p.device_budget=p.host_budget=UINT64_MAX;
+    const auto baseline=plan_stream_panels(p);REQUIRE(baseline.status==RNS8_SUCCESS);
+    p.retained_b_budget=slots*baseline.b_cache_stride;
+    const auto r=plan_stream_panels(p);REQUIRE(r.status==RNS8_SUCCESS);
+    const auto available=std::min(slots,r.b_panels);
+    CHECK(r.b_cache_entries==(available>r.b_panels/2?available:0));
+    CHECK(r.device_bytes==baseline.device_bytes+r.b_cache_bytes);
+    CHECK(r.host_bytes==baseline.host_bytes+r.b_cache_entries*sizeof(StreamPanelCacheEntry));
+    std::vector<StreamPanelCacheEntry> tags(r.b_cache_entries);
+    const int source=0;
+    unsigned pass=0;
+    for(uint64_t generation:{1,1,2}) {
+      uint64_t loads=0,hits=0;
+      StreamPanelCoverage coverage(p,r,1,11,1,12,generation);StreamPanelStep step;
+      while(coverage.next(step)) {
+        const auto key=step.index%r.b_panels;
+        auto* tag=tags.empty()?nullptr:&tags[key%tags.size()];
+        if(tag && tag->matches(&source,12,generation,key)) ++hits;
+        else {++loads;if(tag) *tag={&source,12,generation,key};}
+        REQUIRE(coverage.acknowledge(step.index,1,11,1,12,generation));
+      }
+      CHECK(loads+hits==r.total_steps);
+      CHECK(loads==(pass==1?r.b_warm_loads:r.b_cold_loads));
+      ++pass;
+    }
+    p.device_budget=baseline.device_bytes;p.host_budget=baseline.host_bytes;
+    const auto no_space=plan_stream_panels(p);REQUIRE(no_space.status==RNS8_SUCCESS);
+    CHECK(no_space.b_cache_entries==0);CHECK(no_space.b_cold_loads==no_space.total_steps);
+    if(r.b_cache_entries) {
+      const auto useful=r.b_panels/2+1;
+      p.device_budget=baseline.device_bytes+useful*r.b_cache_stride;
+      p.host_budget=baseline.host_bytes+useful*sizeof(StreamPanelCacheEntry)-1;
+      CHECK(plan_stream_panels(p).b_cache_entries==0);
+      ++p.host_budget;CHECK(plan_stream_panels(p).b_cache_entries==useful);
+    }
+  }
+  int first=0,second=0;
+  const StreamPanelCacheEntry tag{&first,12,4,7};
+  CHECK(tag.matches(&first,12,4,7));
+  CHECK_FALSE(tag.matches(&second,12,4,7));
+  CHECK_FALSE(tag.matches(&first,13,4,7));
+  CHECK_FALSE(tag.matches(&first,12,5,7));
+  CHECK_FALSE(tag.matches(&first,12,4,8));
+}
+
 TEST_CASE("public streaming resource query proves native output envelope") {
   rns8_stream_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
   d.semantics=RNS8_BOUNDED_I64;d.m=17;d.n=19;d.k=33;d.lda=35;d.ldb=21;d.ldc=23;

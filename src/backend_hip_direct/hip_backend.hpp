@@ -1115,7 +1115,8 @@ rns8_status hip_direct_export_i64_device(
     uint32_t prefix,
     uint64_t bound,
     int64_t* dst,
-    int64_t ld);
+    int64_t ld,
+    bool allow_pinned_staging = true);
 rns8_status hip_direct_export_i64_grouped_matrices_to_device(
     rns8_matrix* const* matrices,
     uint32_t task_count,
@@ -1155,7 +1156,8 @@ rns8_status hip_direct_export_u64_device(
     uint32_t prefix,
     uint64_t bound,
     uint64_t* dst,
-    int64_t ld);
+    int64_t ld,
+    bool allow_pinned_staging = true);
 rns8_status hip_direct_export_u64_grouped_matrices_to_device(
     rns8_matrix* const* matrices,
     uint32_t task_count,

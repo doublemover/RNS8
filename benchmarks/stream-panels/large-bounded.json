@@ -1,5 +1,5 @@
 {
-  "schema": "rns8_stream_panel_cases_v1",
+  "schema": "rns8_stream_panel_cases_v2",
   "cases": [
     {
       "device": 0,
@@ -15,7 +15,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -31,7 +32,8 @@
       "panel_n": 40,
       "panel_k": 37,
       "device_budget_bytes": 79360,
-      "host_budget_bytes": 31552
+      "host_budget_bytes": 31552,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -47,7 +49,8 @@
       "panel_n": 64,
       "panel_k": 64,
       "device_budget_bytes": 246016,
-      "host_budget_bytes": 98304
+      "host_budget_bytes": 98304,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -63,7 +66,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -79,7 +83,8 @@
       "panel_n": 40,
       "panel_k": 37,
       "device_budget_bytes": 79360,
-      "host_budget_bytes": 31552
+      "host_budget_bytes": 31552,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -95,7 +100,8 @@
       "panel_n": 64,
       "panel_k": 64,
       "device_budget_bytes": 246016,
-      "host_budget_bytes": 98304
+      "host_budget_bytes": 98304,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -111,7 +117,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -127,7 +134,8 @@
       "panel_n": 80,
       "panel_k": 127,
       "device_budget_bytes": 444672,
-      "host_budget_bytes": 187264
+      "host_budget_bytes": 187264,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -143,7 +151,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -159,7 +168,8 @@
       "panel_n": 80,
       "panel_k": 127,
       "device_budget_bytes": 444672,
-      "host_budget_bytes": 187264
+      "host_budget_bytes": 187264,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -175,7 +185,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -191,7 +202,8 @@
       "panel_n": 96,
       "panel_k": 129,
       "device_budget_bytes": 511232,
-      "host_budget_bytes": 214272
+      "host_budget_bytes": 214272,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -207,7 +219,8 @@
       "panel_n": 0,
       "panel_k": 0,
       "device_budget_bytes": 0,
-      "host_budget_bytes": 0
+      "host_budget_bytes": 0,
+      "retained_b_budget_bytes": 0
     },
     {
       "device": 0,
@@ -223,7 +236,8 @@
       "panel_n": 96,
       "panel_k": 129,
       "device_budget_bytes": 511232,
-      "host_budget_bytes": 214272
+      "host_budget_bytes": 214272,
+      "retained_b_budget_bytes": 0
     }
   ]
 }

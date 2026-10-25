@@ -22,7 +22,7 @@ from build_manifest import manifest_provenance_complete
 from collect_finite_verify import demand,integer,positive,same,strict_json,checksum,validate_provenance
 
 MODES=("incore","stream")
-KEYS={"device","mode","m","n","k","domain","bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","reuse"}
+KEYS={"device","mode","m","n","k","domain","bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","retained_b_budget_bytes","reuse"}
 MATCH=("device","m","n","k","domain","bits","prefix","reuse")
 MASK=(1<<64)-1
 BUDGET=512*1024*1024
@@ -35,11 +35,22 @@ def resources(case):
     m,n,k=(min(case[axis],case["panel_"+axis]) for axis in ("m","n","k"));p=case["prefix"]
     align=lambda size:(size+255)//256*256
     slots=(m*k*p,k*n*p,m*n*p,m*n*p,8*m*k,8*k*n,8*m*n,4)
-    return dict(device_bytes=sum(map(align,slots)),host_bytes=8*(m*k+k*n+m*n),minimum_device_bytes=2048,minimum_host_bytes=24,
+    result=dict(device_bytes=sum(map(align,slots)),host_bytes=8*(m*k+k*n+m*n),minimum_device_bytes=2048,minimum_host_bytes=24,
         source_a_span_bytes=8*((case["m"]-1)*(case["k"]+3)+case["k"]),
         source_b_span_bytes=8*((case["k"]-1)*(case["n"]+3)+case["n"]),
         destination_span_bytes=8*((case["m"]-1)*(case["n"]+3)+case["n"]),
         output_tiles=((case["m"]+m-1)//m)*((case["n"]+n-1)//n),k_panels_per_tile=(case["k"]+k-1)//k)
+    stride=align(k*n*p);panels=((case["n"]+n-1)//n)*result["k_panels_per_tile"]
+    entries=max(0,min(panels,case["retained_b_budget_bytes"]//stride,
+        (case["device_budget_bytes"]-result["device_bytes"])//stride,
+        (case["host_budget_bytes"]-result["host_bytes"])//32))
+    if entries<=panels//2:entries=0
+    singleton=max(0,2*entries-panels) if entries else 0
+    row_tiles=(case["m"]+m-1)//m
+    result.update(retained_b_entries=entries,retained_b_device_bytes=entries*stride,
+        cold_b_panel_loads=panels+(row_tiles-1)*(panels-singleton),warm_b_panel_loads=row_tiles*(panels-singleton))
+    result["device_bytes"]+=entries*stride;result["host_bytes"]+=entries*32
+    return result
 
 
 def memory(case,workspace=0):
@@ -58,8 +69,8 @@ def validate_case(case):
     demand(bound<=(1<<(63 if case["domain"]=="signed" else 64))-1,"full-expression bound exceeds native output")
     product=math.prod(MODULI[:case["prefix"]])
     demand((2*bound if case["domain"]=="signed" else bound)<product,"CRT prefix does not admit bound")
-    demand(all(integer(case[key],0,65537) for key in ("panel_m","panel_n","panel_k")) and all(integer(case[key],0,BUDGET) for key in ("device_budget_bytes","host_budget_bytes")),"invalid panel/budget types")
-    if case["mode"]=="incore":demand(all(case[key]==0 for key in ("panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes")),"irrelevant panel controls for in-core")
+    demand(all(integer(case[key],0,65537) for key in ("panel_m","panel_n","panel_k")) and all(integer(case[key],0,BUDGET) for key in ("device_budget_bytes","host_budget_bytes","retained_b_budget_bytes")),"invalid panel/budget types")
+    if case["mode"]=="incore":demand(all(case[key]==0 for key in ("panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","retained_b_budget_bytes")),"irrelevant panel controls for in-core")
     else:
         demand(all(case[key]>0 for key in ("panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes")),"stream requires positive panels/budgets")
         r=resources(case);demand(r["device_bytes"]<=case["device_budget_bytes"] and r["host_bytes"]<=case["host_budget_bytes"],"explicit panel budgets too small")
@@ -69,7 +80,7 @@ def validate_case(case):
 
 def load_cases(path):
     doc=strict_json(Path(path).read_text(encoding="utf-8-sig"))
-    demand(type(doc) is dict and set(doc)=={"schema","cases"} and doc["schema"]=="rns8_stream_panel_cases_v1","invalid manifest schema")
+    demand(type(doc) is dict and set(doc)=={"schema","cases"} and doc["schema"]=="rns8_stream_panel_cases_v2","invalid manifest schema")
     demand(type(doc["cases"]) is list and 1<=len(doc["cases"])<=2048,"invalid manifest case count")
     cases=[validate_case(case) for case in doc["cases"]];ids=[json.dumps(case,sort_keys=True) for case in cases]
     demand(len(ids)==len(set(ids)),"duplicate cases do not establish independent evidence")
@@ -78,7 +89,7 @@ def load_cases(path):
 
 def contract(case,run_id,repeats,warmups):
     panel=case["mode"]=="stream";m,n,k=(case[key] for key in ("m","n","k"));maximum=(1<<case["bits"])-1
-    return dict(schema="rns8_stream_panel_microcase_v1",promotion_eligible=False,run_id=run_id,**case,device_actual=case["device"],
+    return dict(schema="rns8_stream_panel_microcase_v2",promotion_eligible=False,run_id=run_id,**case,device_actual=case["device"],
         backend_requested="hip-direct",backend_actual="hip-direct",repeats=repeats,warmups=warmups,semantics="bounded_i64" if case["domain"]=="signed" else "bounded_u64",
         max_abs_a=maximum,max_abs_b=maximum,full_expression_bound=k*maximum*maximum,lda=k+3,ldb=n+3,ldc=n+3,
         dataset_recipe="splitmix64_seed6811_bounded_native_A0_B0_max_then_A0_zero_v1",dataset_seed=6811,source_instance_labels=[101,202],
@@ -87,7 +98,7 @@ def contract(case,run_id,repeats,warmups):
         output_contract="native64_word_per_cell_twos_complement_for_signed",exact_full_output_and_padding_checked=True,
         timer="std_chrono_steady_clock_nanoseconds",timed_scope="reuse_native_host_inputs_to_checked_native_host_output_no_independent_oracle",
         setup_scope="query_then_context_and_owner_or_plan_workspace_matrices_no_input_conversion",kernel_events=None,production_timing_hooks_enabled=False,observed_overlap=None,
-        panel_resources=resources(case),budget_preflight_receipts=dict(device_minus_one="RNS8_WORKSPACE_TOO_SMALL",host_minus_one="RNS8_WORKSPACE_TOO_SMALL",queried_resources_preserved=True) if panel else None,
+        panel_resources=resources(case),budget_preflight_receipts=dict(cache_disabled_for_preflight=True,baseline_device_minus_one="RNS8_WORKSPACE_TOO_SMALL",baseline_host_minus_one="RNS8_WORKSPACE_TOO_SMALL",queried_resources_preserved=True) if panel else None,
         caller_native_allocation_bytes=memory(case)[0],reference_output_bytes=8*m*n,memory_budget_bytes=BUDGET,full_incore_residue_payload_bytes=(m*k+k*n+m*n)*case["prefix"],
         capacity_scope="public_query_required_payload_and_staging_not_measured_peak_or_bus_traffic",
         memory_exclusions="allocator_bookkeeping_spare_capacity_context_runtime_fixed_metadata_not_process_RSS_or_measured_peak")
@@ -120,7 +131,9 @@ def reference(m,n,k,domain,bits,generation):
 def coverage(record,case,epoch):
     if case["mode"]=="incore":demand(record is None,"in-core cannot claim panel coverage");return
     r=resources(case);expected=dict(epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
-    demand(type(record) is dict and same(record,expected),"incomplete observed panel coverage/epoch")
+    loads=r["cold_b_panel_loads"] if epoch==1 else r["warm_b_panel_loads"]
+    expected.update(b_panel_loads=loads,b_panel_cache_hits=expected["completed_panels"]-loads)
+    demand(type(record) is dict and same(record,expected),"incomplete observed panel coverage/epoch/cache")
 
 
 def allocations(values,case,envelope,workspace):
@@ -202,8 +215,8 @@ def collect(args):
     tasks=[(case,repeat) for repeat in range(args.runs) for case in cases];random.Random(args.order_seed).shuffle(tasks);cohort=None;observations=[]
     def unchanged():demand(digest(exe)==artifact and digest(args.cases)==case_hash and digest(sys.executable)==python_hash and all(digest(path)==tools[path.name] for path in sources),"artifact/tools/interpreter/cases changed during collection")
     for ordinal,(case,repeat) in enumerate(tasks):
-        unchanged();run_id=str(uuid.uuid4());command=[str(exe),str(case["device"]),case["mode"],*(str(case[key]) for key in ("m","n","k")),case["domain"],*(str(case[key]) for key in ("bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","reuse")),str(args.repeats),str(args.warmups),run_id]
-        record=dict(schema="rns8_stream_panel_collection_v1",campaign_id=campaign,run_id=run_id,ordinal=ordinal,case=case,independent_repeat=repeat,order_seed=args.order_seed,command=command,started_unix_ns=time.time_ns(),artifact_sha256=artifact,cases_sha256=case_hash,
+        unchanged();run_id=str(uuid.uuid4());command=[str(exe),str(case["device"]),case["mode"],*(str(case[key]) for key in ("m","n","k")),case["domain"],*(str(case[key]) for key in ("bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","reuse")),str(args.repeats),str(args.warmups),run_id,str(case["retained_b_budget_bytes"])]
+        record=dict(schema="rns8_stream_panel_collection_v2",campaign_id=campaign,run_id=run_id,ordinal=ordinal,case=case,independent_repeat=repeat,order_seed=args.order_seed,command=command,started_unix_ns=time.time_ns(),artifact_sha256=artifact,cases_sha256=case_hash,
             collector_sha256=tools[Path(__file__).name],tool_dependencies_sha256=tools,python_executable=sys.executable,python_version=platform.python_version(),python_sha256=python_hash,validated=False,promotion_eligible=False,provenance_complete=False,exit_code=None,stdout="",stderr="")
         path=output/f"{run_id}.json"
         try:
@@ -222,7 +235,7 @@ def collect(args):
             with path.open("x",encoding="utf-8") as stream:json.dump(record,stream,indent=2,allow_nan=False)
             raise
         with path.open("x",encoding="utf-8") as stream:json.dump(record,stream,indent=2,allow_nan=False)
-    summary=dict(schema="rns8_stream_panel_campaign_v1",campaign_id=campaign,artifact_sha256=artifact,cases_sha256=case_hash,tool_dependencies_sha256=tools,cohort=cohort,independent_processes=len(observations),promotion_eligible=False,provenance_complete=manifest_provenance_complete(cohort["build_manifest"]),matched_cohorts=summarize(observations))
+    summary=dict(schema="rns8_stream_panel_campaign_v2",campaign_id=campaign,artifact_sha256=artifact,cases_sha256=case_hash,tool_dependencies_sha256=tools,cohort=cohort,independent_processes=len(observations),promotion_eligible=False,provenance_complete=manifest_provenance_complete(cohort["build_manifest"]),matched_cohorts=summarize(observations))
     with (output/f"{campaign}.summary.json").open("x",encoding="utf-8") as stream:json.dump(summary,stream,indent=2,allow_nan=False)
     return summary
 

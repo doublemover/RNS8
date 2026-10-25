@@ -10,6 +10,7 @@ struct rns8_stream_gemm_plan {
   StreamPanelProblem problem;
   StreamPanelResources resources;
   std::vector<uint64_t> host_a,host_b,host_c;
+  std::unique_ptr<StreamPanelCacheEntry[]> b_cache;
   void* arena=nullptr;
   uint64_t bound=0,epoch=0;
   bool quarantined=false;
@@ -20,7 +21,7 @@ rns8_status stream_description(const rns8_stream_gemm_desc* d,StreamPanelProblem
                                StreamPanelResources& r,uint64_t& bound) {
   if(!d || !valid_abi(d->struct_size,d->abi_version,sizeof(*d))) return RNS8_INVALID_ARGUMENT;
   p={1,d->semantics,d->m,d->n,d->k,d->lda,d->ldb,d->ldc,d->panel_m,d->panel_n,d->panel_k,
-     d->prefix,d->device_budget_bytes,d->host_budget_bytes};
+     d->prefix,d->device_budget_bytes,d->host_budget_bytes,d->retained_b_budget_bytes};
   r=plan_stream_panels(p);
   if(r.status!=RNS8_SUCCESS && r.status!=RNS8_WORKSPACE_TOO_SMALL) return r.status;
   if(d->semantics==RNS8_BOUNDED_I64 && (d->max_abs_a>(UINT64_C(1)<<63) || d->max_abs_b>(UINT64_C(1)<<63)))
@@ -54,7 +55,10 @@ rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,rns8_stream
     info.device_bytes=r.device_bytes;info.host_bytes=r.host_bytes;
     info.minimum_device_bytes=r.minimum_device_bytes;info.minimum_host_bytes=r.minimum_host_bytes;
     info.source_a_span_bytes=r.a_span;info.source_b_span_bytes=r.b_span;info.destination_span_bytes=r.c_span;
-    info.output_tiles=r.tile_count;info.k_panels_per_tile=r.panels_per_tile;*out=info;return status;
+    info.output_tiles=r.tile_count;info.k_panels_per_tile=r.panels_per_tile;
+    info.retained_b_entries=r.b_cache_entries;info.retained_b_device_bytes=r.b_cache_bytes;
+    info.cold_b_panel_loads=r.b_cold_loads;info.warm_b_panel_loads=r.b_warm_loads;
+    *out=info;return status;
   });
 }
 rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_desc* desc,rns8_stream_gemm_plan** out) {
@@ -71,7 +75,10 @@ rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_des
     plan->host_b.resize(plan->resources.bytes[stream_native_b]/8);
     plan->host_c.resize(plan->resources.bytes[stream_export]/8);
     const auto capacity=uint64_t(plan->host_a.capacity())+plan->host_b.capacity()+plan->host_c.capacity();
-    if(capacity>desc->host_budget_bytes/8) return RNS8_WORKSPACE_TOO_SMALL;
+    const auto metadata=plan->resources.b_cache_entries*sizeof(StreamPanelCacheEntry);
+    if(capacity>(desc->host_budget_bytes-metadata)/8) return RNS8_WORKSPACE_TOO_SMALL;
+    if(plan->resources.b_cache_entries)
+      plan->b_cache=std::make_unique<StreamPanelCacheEntry[]>(plan->resources.b_cache_entries);
     status=hip_direct_allocate(ctx->device_id,plan->resources.device_bytes,&plan->arena);
     if(status!=RNS8_SUCCESS) return status;
     ++ctx->prepared_references;*out=plan.release();return RNS8_SUCCESS;
@@ -98,6 +105,9 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
     void* current=pointer(stream_c0);void* next=pointer(stream_c1);
     StreamPanelCoverage coverage(plan->problem,r,result.epoch,ai,ag,bi,bg);StreamPanelStep step;
     const auto fail=[&](rns8_status status) {
+      // A failed conversion must never leave a cache tag for partially written
+      // residues. Drop all tags before draining, including earlier valid panels.
+      for(uint64_t i=0;i<r.b_cache_entries;++i) plan->b_cache[i]={};
       // A failed operation return alone is not proof that DMA/kernels stopped.
       if(hip_direct_synchronize(plan->ctx->device_id)!=RNS8_SUCCESS) {
         plan->quarantined=true;plan->ctx->hip_failure_poisoned=true;result.quarantined=1;
@@ -111,23 +121,34 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
           std::memcpy(destination.data()+r*cols,static_cast<const uint8_t*>(source)+((row+r)*ld+col)*8,cols*8);
       };
       copy_panel(plan->host_a,a,step.row,step.k_begin,step.rows,step.depth,d.lda);
-      copy_panel(plan->host_b,b,step.k_begin,step.col,step.depth,step.cols,d.ldb);
+      const auto b_key=step.index%r.b_panels;
+      StreamPanelCacheEntry* entry=r.b_cache_entries?&plan->b_cache[b_key%r.b_cache_entries]:nullptr;
+      void* b_residues=entry?static_cast<uint8_t*>(plan->arena)+r.b_cache_offset+
+          (b_key%r.b_cache_entries)*r.b_cache_stride:pointer(stream_b);
+      const bool b_hit=entry && entry->matches(b,bi,bg,b_key);
       auto status=hip_direct_copy_host_to_device(plan->ctx->device_id,pointer(stream_native_a),
                                                 plan->host_a.data(),step.rows*step.depth*8);
-      if(status!=RNS8_SUCCESS) return fail(status);
-      status=hip_direct_copy_host_to_device(plan->ctx->device_id,pointer(stream_native_b),
-                                           plan->host_b.data(),step.depth*step.cols*8);
       if(status!=RNS8_SUCCESS) return fail(status);
       const auto convert=signed_values?hip_direct_native_i64_to_rns_device:hip_direct_native_u64_to_rns_device;
       status=convert(plan->ctx->device_id,pointer(stream_native_a),pointer(stream_a),step.rows,step.depth,d.prefix);
       if(status!=RNS8_SUCCESS) return fail(status);
-      status=convert(plan->ctx->device_id,pointer(stream_native_b),pointer(stream_b),step.depth,step.cols,d.prefix);
-      if(status!=RNS8_SUCCESS) return fail(status);
+      if(b_hit) ++result.b_panel_cache_hits;
+      else {
+        if(entry) *entry={};
+        copy_panel(plan->host_b,b,step.k_begin,step.col,step.depth,step.cols,d.ldb);
+        status=hip_direct_copy_host_to_device(plan->ctx->device_id,pointer(stream_native_b),
+                                             plan->host_b.data(),step.depth*step.cols*8);
+        if(status!=RNS8_SUCCESS) return fail(status);
+        status=convert(plan->ctx->device_id,pointer(stream_native_b),b_residues,step.depth,step.cols,d.prefix);
+        if(status!=RNS8_SUCCESS) return fail(status);
+        if(entry) *entry={b,bi,bg,b_key};
+        ++result.b_panel_loads;
+      }
       if(step.first) {
         status=hip_direct_zero(plan->ctx->device_id,current,r.bytes[stream_c0]);
         if(status!=RNS8_SUCCESS) return fail(status);
       }
-      status=hip_direct_gemm_rns_axpby_device(plan->ctx->device_id,pointer(stream_a),pointer(stream_b),current,next,
+      status=hip_direct_gemm_rns_axpby_device(plan->ctx->device_id,pointer(stream_a),b_residues,current,next,
           step.rows,step.cols,step.depth,step.depth,step.cols,step.cols,step.cols,d.prefix,1,1);
       if(status!=RNS8_SUCCESS) return fail(status);
       std::swap(current,next);
@@ -139,10 +160,10 @@ rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,const void* a,c
         if(signed_values)
           status=hip_direct_export_i64_device(plan->ctx->device_id,current,&export_buffer,&export_bytes,
               &status_buffer,&status_bytes,step.rows,step.cols,d.prefix,plan->bound,
-              reinterpret_cast<int64_t*>(plan->host_c.data()),step.cols);
+              reinterpret_cast<int64_t*>(plan->host_c.data()),step.cols,false);
         else status=hip_direct_export_u64_device(plan->ctx->device_id,current,&export_buffer,&export_bytes,
               &status_buffer,&status_bytes,step.rows,step.cols,d.prefix,plan->bound,
-              plan->host_c.data(),step.cols);
+              plan->host_c.data(),step.cols,false);
         if(status!=RNS8_SUCCESS) return fail(status);
         result.output_started=1;
         for(uint64_t row=0;row<step.rows;++row)

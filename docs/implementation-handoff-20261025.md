@@ -1,5 +1,11 @@
 # Parked implementation handoff — 2026-10-25
 
+Subsequent development resumed with validation deferred. The #68 serial owner now
+has a bounded retained-B cache, conflict-aware reload accounting, and authored
+regressions/calibration controls. Serial export now disables unbudgeted nested pinned staging. Overlap and general
+cost selection remain unfinished. Counts below describe the original parked
+snapshot; the per-issue ledger records this later partial implementation.
+
 Development was parked at the user's request, **not because the backlog is
 finished**. This branch starts at `5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70` on
 `codex/runtime-cache-transactions-20261011`. It changes no main/source-branch
@@ -62,7 +68,7 @@ schedule sealing share one flag mask, including the existing research controls.
 | #50 | Real multi-device HIP owners/executor, full gather and whole-output transactional commit. |
 | #52 | Verified compiler/ISA-specific CDNA5 TDM/cluster-barrier litmus, two-stage transfer and multicast kernels; do not invent target interfaces. |
 | #56 | Complete the unfinished child implementation scopes; roadmap text is not implementation. |
-| #68 | Overlapped streaming, retained-B reuse, cost selection and nested pinned-memory budget accounting. |
+| #68 | Overlapped streaming and calibrated panel selection; bounded retained-B reuse and serial export budget repair are authored, execution deferred. |
 
 Resume dependency-first: #32→#41 and #40/#43→#42, then remaining independent
 accelerator/distributed/streaming slices. Preserve a source-completion ledger

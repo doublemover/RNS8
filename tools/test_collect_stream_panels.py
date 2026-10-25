@@ -13,16 +13,17 @@ from collect_stream_panels import (MODES,KEYS,BUDGET,MASK,MODULI,collect,contrac
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(device=0,mode="stream",m=2,n=3,k=17,domain="signed",bits=3,prefix=9,
-    panel_m=2,panel_n=2,panel_k=5,device_budget_bytes=8192,host_budget_bytes=8192,reuse=2)
+    panel_m=2,panel_n=2,panel_k=5,device_budget_bytes=8192,host_budget_bytes=8192,retained_b_budget_bytes=0,reuse=2)
 
 
-def incore(case):return dict(case,mode="incore",panel_m=0,panel_n=0,panel_k=0,device_budget_bytes=0,host_budget_bytes=0)
+def incore(case):return dict(case,mode="incore",panel_m=0,panel_n=0,panel_k=0,device_budget_bytes=0,host_budget_bytes=0,retained_b_budget_bytes=0)
 
 
 def observed(case,epoch):
     if case["mode"]=="incore":return None
     r=resources(case)
-    return dict(epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
+    loads=r["cold_b_panel_loads"] if epoch==1 else r["warm_b_panel_loads"]
+    return dict(b_panel_loads=loads,b_panel_cache_hits=r["output_tiles"]*r["k_panels_per_tile"]-loads,epoch=epoch,completed_tiles=r["output_tiles"],completed_panels=r["output_tiles"]*r["k_panels_per_tile"],output_started=True,output_valid=True,quarantined=False)
 
 
 def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
@@ -57,17 +58,34 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
 
 def arguments(root,cases=None):
     root=Path(root);exe=root/"fake.exe";exe.write_bytes(b"mock artifact");manifest=root/"cases.json"
-    manifest.write_text(json.dumps(dict(schema="rns8_stream_panel_cases_v1",cases=cases or [BASE])))
+    manifest.write_text(json.dumps(dict(schema="rns8_stream_panel_cases_v2",cases=cases or [BASE])))
     return argparse.Namespace(exe=exe,cases=manifest,output=root/"captures",runs=1,repeats=2,warmups=1,timeout=10,order_seed=6811)
 
 
 def successful(command,**kwargs):
     case=dict(device=int(command[1]),mode=command[2],m=int(command[3]),n=int(command[4]),k=int(command[5]),domain=command[6],
         **{key:int(command[index]) for index,key in enumerate(("bits","prefix","panel_m","panel_n","panel_k","device_budget_bytes","host_budget_bytes","reuse"),7)})
+    case["retained_b_budget_bytes"]=int(command[18])
     return subprocess.CompletedProcess(command,0,json.dumps(fixture(case,command[17],int(command[15]),int(command[16]))),"")
 
 
 class Captures(unittest.TestCase):
+    def test_retained_b_capacity_conflicts_counters_and_budget_fallback(self):
+        base=dict(BASE,m=17,n=19,k=33,panel_m=3,panel_n=4,panel_k=5)
+        baseline=resources(base)
+        for slots,expected_entries,cold,warm in ((0,0,210,210),(1,0,210,210),(18,18,205,204),(35,35,35,0)):
+            case=dict(base,device_budget_bytes=11008,host_budget_bytes=1496,retained_b_budget_bytes=slots*256)
+            r=resources(case)
+            self.assertEqual((r["retained_b_entries"],r["cold_b_panel_loads"],r["warm_b_panel_loads"]),(expected_entries,cold,warm))
+            validate_case(case);capture=fixture(case);validate_capture(capture,case,"fixture-run",2,1)
+            for key in ("b_panel_loads","b_panel_cache_hits"):
+                corrupted=deepcopy(capture);corrupted["phases"][0]["first_coverage"][key]+=1
+                with self.assertRaises(ValueError):validate_capture(corrupted,case,"fixture-run",2,1)
+        limited=dict(base,device_budget_bytes=baseline["device_bytes"],host_budget_bytes=baseline["host_bytes"],retained_b_budget_bytes=35*256)
+        validate_case(limited);self.assertEqual(resources(limited)["retained_b_entries"],0)
+        for value in (-1,True,BUDGET+1):
+            with self.assertRaises(ValueError):validate_case(dict(base,retained_b_budget_bytes=value))
+
     def test_all_modes_domains_full_output_changed_inputs_even_median(self):
         for domain in ("signed","unsigned"):
             for case in (dict(BASE,domain=domain),incore(dict(BASE,domain=domain))):
@@ -111,7 +129,7 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_case(case)
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"cases.json"
-            for text in ('[]','{"schema":"rns8_stream_panel_cases_v1","cases":[]}',json.dumps(dict(schema="rns8_stream_panel_cases_v1",cases=[BASE,BASE])),
+            for text in ('[]','{"schema":"rns8_stream_panel_cases_v2","cases":[]}',json.dumps(dict(schema="rns8_stream_panel_cases_v2",cases=[BASE,BASE])),
                 '{"schema":1,"schema":2,"cases":[]}','{"schema":NaN}'):
                 path.write_text(text)
                 with self.assertRaises(ValueError):load_cases(path)
@@ -153,7 +171,7 @@ class Captures(unittest.TestCase):
 
     def test_manifests_cover_bounded_large_shapes_clipped_and_k_tails(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks/stream-panels"
-        for name in ("smoke","tails","large-bounded"):
+        for name in ("smoke","tails","large-bounded","retained-b"):
             cases=load_cases(root/(name+".json"));self.assertEqual({c["mode"] for c in cases},set(MODES));self.assertEqual({c["domain"] for c in cases},{"signed","unsigned"})
         cases=load_cases(root/"tails.json");self.assertTrue({65535,65536,65537}<={c["k"] for c in cases})
         self.assertTrue(any(c["panel_m"]>c["m"] for c in cases));self.assertTrue(any(c["n"]%max(c["panel_n"],1) for c in cases if c["mode"]=="stream"))
@@ -220,8 +238,8 @@ class CompiledCli(unittest.TestCase):
         exe=os.environ["RNS8_STREAM_PANEL_EXE"]
         def invoke(args):return subprocess.run([exe,*args],text=True,capture_output=True,timeout=10)
         result=invoke(["--help"]);self.assertEqual(result.returncode,0);self.assertIn("coverage",result.stdout)
-        base=["0","stream","2","3","17","signed","3","9","2","2","5","8192","8192","2","2","1","fixture"]
-        for index,value in ((0,"64"),(1,"auto"),(1,"incore"),(2,"0"),(3,"513"),(4,"65538"),(5,"i64"),(6,"32"),(6,"31"),(7,"0"),(8,"0"),(9,"65538"),(10,"-1"),(11,"2047"),(12,"191"),(13,"0"),(14,"0"),(15,"0"),(16,"bad run"),(4,"17.0")):
+        base=["0","stream","2","3","17","signed","3","9","2","2","5","8192","8192","2","2","1","fixture","0"]
+        for index,value in ((0,"64"),(1,"auto"),(1,"incore"),(2,"0"),(3,"513"),(4,"65538"),(5,"i64"),(6,"32"),(6,"31"),(7,"0"),(8,"0"),(9,"65538"),(10,"-1"),(11,"2047"),(12,"191"),(13,"0"),(14,"0"),(15,"0"),(16,"bad run"),(17,"-1"),(4,"17.0")):
             bad=base.copy();bad[index]=value
             with self.subTest(index=index,value=value):self.assertEqual(invoke(bad).returncode,1)
         self.assertEqual(invoke(base+["extra"]).returncode,1);self.assertEqual(invoke(base[:-1]).returncode,1)

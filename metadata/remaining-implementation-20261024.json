@@ -1899,14 +1899,40 @@
       "issue": 68,
       "title": "[Research P2] Execute exact GEMM beyond device memory with budgeted single-GPU panel streaming",
       "url": "https://github.com/doublemover/RNS8/issues/68",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Serial public bounded panel-streaming owner implemented; overlap/retained-B/cost selection phases incomplete and latest nested pinned export staging remains outside declared host budget unless explicitly excluded/charged.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Add opt-in hard-budgeted retained B residue panels to the serial public owner. Constant-time direct mapping includes complete pointer/instance/generation bindings and conflict-aware cold/warm reload counts; nonbeneficial cache allowances allocate nothing. Device payload and fixed host tags are charged to existing hard budgets. Real hit/load receipts, schema-v2 collector controls and authored CPU/HIP regressions accompany the implementation.",
+          "files": [
+            "src/backend_common/stream_panel_plan.hpp",
+            "src/core/api_stream_gemm.cpp",
+            "include/rns8/rns8.h",
+            "benchmarks/rns8_stream_panel_calibrate.cpp",
+            "tools/collect_stream_panels.py",
+            "benchmarks/stream-panels/retained-b.json"
+          ]
+        },
+        {
+          "summary": "Make bounded export explicitly disable nested pinned staging for the serial streaming owner, overriding the environment request without changing other export paths. The existing owned compact tile remains the only library host export payload, closing the unbudgeted thread-local staging gap.",
+          "files": [
+            "src/backend_hip_direct/hip_backend.hpp",
+            "src/backend_hip_direct/hip_backend_export_bounded.inc",
+            "src/backend_hip_direct/hip_backend_runtime_launch_helpers.inc",
+            "src/core/api_stream_gemm.cpp",
+            "tests/differential/test_hip_direct_stream_panels_cases.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_stream_panel_plan_cases.inc",
+        "tests/differential/test_hip_direct_stream_panels_cases.inc",
+        "tools/test_collect_stream_panels.py"
+      ],
       "commits": [],
       "remaining": [
-        "Streaming overlap, retained B reuse, cost selection and nested pinned-memory budget accounting remain source work.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Overlapped upload/compute/download scheduling and calibrated panel selection remain source work. Any future overlap must charge all pinned staging and events to its declared resource plan.",
+        "All new cache builds, tests, benchmarks and qualification are deferred by the latest user instruction."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2275,6 +2301,11 @@
       "kind": "syntax_only",
       "scope": "Final explicit value-bound plan core, test_api translation unit and six modified public calibration programs; pinned-host adapter and C public header",
       "result": "Host syntax passed; tests, benchmarks, HIP compilation/execution and hardware/scientific qualification not performed."
+    },
+    {
+      "kind": "deferred_by_user",
+      "scope": "2026-10-25 resumed frontloaded development: retained B streaming implementation and receipt fixtures",
+      "result": "No builds, syntax checks, test execution, benchmarks or qualification performed."
     }
   ],
   "parking_snapshot": {

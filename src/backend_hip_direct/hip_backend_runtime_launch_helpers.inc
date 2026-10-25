@@ -213,14 +213,15 @@ hipError_t copy_compact_matrix_device_to_host(
     int64_t rows,
     int64_t cols,
     std::size_t cell_bytes,
-    bool default_padded_staging = true) {
+    bool default_padded_staging = true,
+    bool allow_pinned_staging = true) {
   if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
       !checked_output_bytes(rows, dst_ld, cell_bytes)) {
     return hipErrorInvalidValue;
   }
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   const std::size_t compact_bytes = static_cast<std::size_t>(rows) * compact_row_bytes;
-  if (pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
+  if (allow_pinned_staging && pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
     if (pinned) {
       hipError_t err = timed_hip_operation(label, [&]() {

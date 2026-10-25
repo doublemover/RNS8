@@ -130,10 +130,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
           endif()
           add_test(NAME stream_panel_${_stream_domain}_${_stream_mode}_smoke
             COMMAND rns8-stream-panel-calibrate 0 ${_stream_mode} 2 3 17 ${_stream_domain}
-              3 9 ${_stream_panel_arguments} 2 2 1 ctest-panels-${_stream_domain}-${_stream_mode})
+              3 9 ${_stream_panel_arguments} 2 2 1 ctest-panels-${_stream_domain}-${_stream_mode} 0)
           set_tests_properties(stream_panel_${_stream_domain}_${_stream_mode}_smoke PROPERTIES
             LABELS "hip;stream-panels;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
         endforeach()
+        add_test(NAME stream_panel_${_stream_domain}_retained_b_smoke
+          COMMAND rns8-stream-panel-calibrate 0 stream 2 3 17 ${_stream_domain}
+            3 9 2 2 5 4096 448 2 2 1 ctest-panels-${_stream_domain}-retained-b 2048)
+        set_tests_properties(stream_panel_${_stream_domain}_retained_b_smoke PROPERTIES
+          LABELS "hip;stream-panels;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
       endforeach()
     endif()
   endif()
