@@ -4938,6 +4938,10 @@
           "reference": "out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx"
         },
         {
+          "source": "docs/roadmap.md",
+          "reference": "out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/out-of-core-panels.md"
         }

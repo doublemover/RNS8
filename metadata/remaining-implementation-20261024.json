@@ -2740,7 +2740,7 @@
       "issue": 70,
       "title": "[Perf P2] Reuse hipBLASLt matmul metadata across residue planes and warm calls",
       "url": "https://github.com/doublemover/RNS8/issues/70",
-      "state": "validated_ready_to_close",
+      "state": "validated_closed",
       "base_gap": "run_matmul_block still constructs matmul_descriptors and creates all six objects before checking algorithm cache, with stack destruction per block. No within-call geometry reuse or preference-on-cache-hit elision.",
       "implementation": [
         {
@@ -2801,7 +2801,8 @@
         "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
         "same_artifact_as_steady": true
       },
-      "accepted_result": "Within-call O(distinct geometries) descriptors and preference-only-on-miss pass exact/algorithm parity. Cold and steady timings are negligible/negative amid variation; no elapsed promotion or optional cross-call raw descriptor retention."
+      "accepted_result": "Within-call O(distinct geometries) descriptors and preference-only-on-miss pass exact/algorithm parity. Cold and steady timings are negligible/negative amid variation; no elapsed promotion or optional cross-call raw descriptor retention.",
+      "github_closed_at": "2026-10-25T21:58:03Z"
     },
     {
       "issue": 71,
@@ -3253,5 +3254,9 @@
     "source_commit": "6a52665",
     "capacity_gate_passed": true,
     "performance_promotion": false
-  }
+  },
+  "verified_issue_closures_20261025": [
+    24,
+    70
+  ]
 }

@@ -187,7 +187,16 @@ passes exact checks but fails all four held-out prediction cohorts. Broader
 representation-choice integration and qualified measured routing remain under
 #42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
 and installed-ABI checks. Reusable bound-summary ownership, matched adaptive
-benefit and physical-capacity qualification remain open.
+benefit and qualified measured routing remain open.
+
+The [physical capacity qualification](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx)
+now completes a real >32 GiB native/minimum-RNS input on the 24 GiB gfx1100 card:
+four independent processes, 12 exact products, observed bounded device/pinned
+payload peaks and complete retirement. Independent steady crossover,
+achieved-overlap traces and held-out panel calibration remain under #68.
+Address-domain issue #24 and the completed cold/steady hipBLASLt metadata
+study #70 are closed; the latter accepts its negligible/negative elapsed result
+without raw cross-call descriptors or routing promotion.
 
 Broader provider parity, encoded-B async composition and target-specific
 execution remain explicit issue gates. True multi-device ownership, unavailable
