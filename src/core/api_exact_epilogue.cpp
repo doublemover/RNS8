@@ -1,4 +1,5 @@
 #include "backend_common/address_domain.hpp"
+#include "backend_common/residue_epilogue.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/api_internal.hpp"
 #include "backend_common/complex_residue_plan.hpp"
@@ -215,25 +216,18 @@ rns8_status rns8_gemm_exact_axpby(rns8_context *ctx, const rns8_plan *plan,
       const auto m = plan->desc.m, n = plan->desc.n, k = plan->desc.k;
       for (uint32_t p = 0; p < plan->prefix; ++p) {
         const int64_t modulus = kDefaultModuli[p];
-        const int64_t am = alpha % modulus, bm = beta % modulus;
+        const auto coefficients=lower_residue_axpby(alpha,beta,uint32_t(modulus));
         for (int64_t row = 0; row < m; ++row)
           for (int64_t col = 0; col < n; ++col) {
             int64_t sum = 0;
-            for (int64_t q = 0; q < k; ++q)
+            if(coefficients.alpha!=0)for (int64_t q = 0; q < k; ++q)
               sum =
                   (sum + int64_t{A->residues[(int64_t{p} * m + row) * k + q]} *
                              B->residues[(int64_t{p} * k + q) * n + col]) %
                   modulus;
-            int64_t result =
-                (am * sum +
-                 bm * D->residues[(int64_t{p} * m + row) * n + col]) %
-                modulus;
-            if (result < 0)
-              result += modulus;
-            if (result >= (modulus + 1) / 2)
-              result -= modulus;
-            C->residues[(int64_t{p} * m + row) * n + col] =
-                static_cast<int8_t>(result);
+            const int8_t product=finite_u8::reduce_to_centered_i32(int32_t(sum),uint32_t(modulus),coefficients.reciprocal);
+            const int8_t addend=coefficients.beta?D->residues[(int64_t{p}*m+row)*n+col]:int8_t{0};
+            C->residues[(int64_t{p}*m+row)*n+col]=centered_residue_axpby_reduced(product,addend,coefficients);
           }
       }
       mark_output_host_residues_current(*C, plan);

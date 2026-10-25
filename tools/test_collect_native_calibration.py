@@ -540,6 +540,7 @@ class CollectorTest(unittest.TestCase):
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
                                       **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
                                       **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
+                                      **({"coefficient_profile": command[11]} if command[1].startswith("epilogue_") else {}),
                                       **({"k_depth":int(command[11]),"lds_buffers":int(command[12]),"waves":int(command[13]),
                                           "conversion":command[14],"reuse_count":int(command[15]),"input_change":command[16]} if command[1] in CONVERSION else {}),
                                       **({"k_depth": int(command[11]), "lds_buffers": int(command[12])} if command[1] in TILED else {})))

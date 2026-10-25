@@ -2267,7 +2267,8 @@
       ],
       "anchors": [
         "exact-wide-linear-gemm-epilogue",
-        "explicit-rocwmma-candidate"
+        "explicit-rocwmma-candidate",
+        "zero-channel-lowering-and-production-call-controls"
       ]
     },
     {

@@ -85,3 +85,55 @@ entries. The subsequent full gfx1100 rocWMMA suite passed 430 tests, including
 the unchanged no-divide ISA gate and a new Boost packing differential over all
 28 planes, full-width inputs and padded tails. No timing gain is inferred from
 the ISA repair alone.
+
+## Zero-channel lowering and production-call controls
+
+The CPU, direct-HIP synchronous/enqueue-only (prepared/graph) and explicit
+rocWMMA candidate now share a canonical coefficient lowering. Original signed
+64-bit integers are reduced once per modulus into a320-byte by-value table of
+modulus, reciprocal and two nonnegative coefficients. There is no separate
+coefficient cache/allocation/upload kernel. Runtime output cells consume that
+lowering rather than performing full-width coefficient remainder operations.
+Any emitted instruction savings still require ISA inspection.
+
+A channel with `alpha mod p == 0` skips its complete dot product; a channel with
+`beta mod p == 0` skips its D load. The branch is uniform across each plane's
+wave/block, including rocWMMA's barriers. Both-zero channels fill zero. The
+CPU path follows the same algebra. The reduced expression fits INT32 because
+its magnitude is at most `2*255*128=65280`, even for arbitrary signed-byte
+input residues. Existing generic/unfused controls remain available. No default
+backend selection or probabilistic status policy changes.
+
+Only **original integer alpha==0** skips the expensive AB range-refinement
+traversal. A nonzero coefficient divisible by one modulus still contributes
+its original magnitude to the final CRT bound. All original operands must
+remain valid/current, have sufficient range certificates and obey ownership,
+alias and completion contracts, even when their arithmetic contribution is
+zero. Prepared and graph publication continue through their existing owners.
+
+Native calibration accepts named `extreme`, `zero`, `copy`, `unit`, `general`
+and `channel-zero` coefficients. The extreme full-width-input control is
+preserved, and all three direct/rocWMMA/unfused routes retain the same original
+integer expression identity. `benchmarks/native-calibration/epilogue-coefficients.json`
+supplies tail, medium and large controls; some large full-width expressions
+have only a residue contract, not a claim that prefix20 uniquely reconstructs
+the unreduced integer result.
+
+`rns8-epilogue-calibrate` separately measures the **actual public exact API plus
+padded signed-limb export**, on bounded small signed inputs permitting every
+named expression within prefix20. Its resident/repack fixtures live in
+`benchmarks/public-epilogue/`. It records context/plan/allocation/initial pack
+setup, first call, disjoint pack/expression/export host phases and three bounded
+sustained intervals. The expression phase includes the real proof and public
+ownership work. A separate duplicate range-check diagnostic is never subtracted
+from it. Device timing hooks are disabled. Full Boost integer output, every
+residue channel and padding are checked outside production intervals; JSON
+assembly and reference checks are also outside sustained intervals.
+
+`tools/collect_epilogue_calibration.py` rotates/reverses case order between
+independent processes, binds raw receipts to executable/build/device identity,
+and reports process medians/ranges without pooling distinct coefficient or
+residency workloads. Native resident-only and complete-public-output timings
+have different boundaries and cannot be substituted for one another. Tests,
+GPU compilation, campaigns, emitted ISA and profitability are all unverified
+for this change; source term counts are not measured device instructions.

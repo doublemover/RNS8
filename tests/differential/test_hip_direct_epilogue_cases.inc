@@ -17,8 +17,8 @@ TEST_CASE("direct HIP fused modular expression matches exact integer reference")
     REQUIRE(hip_direct_copy_host_to_device(0, da, a.data(), a.size()) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, db, b.data(), b.size()) == RNS8_SUCCESS);
     REQUIRE(hip_direct_copy_host_to_device(0, dd, d.data(), d.size()) == RNS8_SUCCESS);
-    for (bool fused : {false, true}) for (const int64_t alpha : {INT64_MIN, int64_t{-1}, int64_t{0}, INT64_MAX}) {
-      const int64_t beta = alpha == INT64_MIN ? INT64_MAX : INT64_MIN;
+    for (bool fused : {false, true}) for (const auto& coefficients : std::vector<std::pair<int64_t,int64_t>>{{INT64_MIN,INT64_MAX},{-1,INT64_MIN},{0,INT64_MIN},{INT64_MAX,INT64_MIN},{0,0},{0,1},{1,0},{255,256},{256,255}}) {
+      const int64_t alpha=coefficients.first,beta=coefficients.second;
       std::fill(output.begin(), output.end(), int8_t{99});
       REQUIRE(hip_direct_copy_host_to_device(0, dc, output.data(), output.size()) == RNS8_SUCCESS);
       CHECK(hip_direct_gemm_rns_axpby_device(0, da, db, dd, dd, m, n, k, lda, ldb, ldd, ldc,

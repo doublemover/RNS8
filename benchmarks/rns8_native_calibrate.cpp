@@ -7,6 +7,7 @@
 #include "backend_vector_alu/vector_alu_backend.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
+#include "epilogue_coefficients.hpp"
 #include <charconv>
 #include <chrono>
 #include <cstring>
@@ -111,6 +112,7 @@ int main(int argc, char** argv) {
         "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
         "group=1 outside wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
         "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
+        "epilogue cases: optional extreme|zero|copy|unit|general|channel-zero coefficient profile (default extreme).\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
     if (argc < 11 || argc > 17) throw std::invalid_argument(usage);
@@ -119,6 +121,7 @@ int main(int argc, char** argv) {
     const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
                prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
                repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
+    const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";
     const bool conversion = candidate == "conversion_cold" || candidate == "conversion_prepared" || candidate == "conversion_pack_gemm";
     const bool conversion_prepared = candidate == "conversion_prepared";
     const bool conversion_pack = candidate == "conversion_pack_gemm";
@@ -151,7 +154,7 @@ int main(int argc, char** argv) {
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
     if (tiled && argc != 13)
       throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
-    if (!conversion && !adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch)))
+    if (!conversion && !adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
     const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
     const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
@@ -172,8 +175,10 @@ int main(int argc, char** argv) {
       return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
     if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
       return calibrate_narrow(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
-    const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";
-    const int64_t alpha = unsigned_inputs ? INT64_MAX : INT64_MIN, beta = INT64_MAX;
+
+    const std::string coefficient_profile=epilogue && argc==12?argv[11]:"extreme";
+    int64_t alpha=0,beta=0;
+    if(!rns8::bench::epilogue_coefficients(coefficient_profile,unsigned_inputs,alpha,beta))throw std::invalid_argument("unknown epilogue coefficient profile");
     if ((!native && !epilogue && candidate != "pack_pair" && candidate != "packed_gemm" && candidate != "pack_gemm") ||
         run_id.empty() || (group != 1 && group != 2 && group != 4) || (!native && group != 1) ||
         uint64_t{m} * n * k > 1073741824) throw std::invalid_argument("invalid candidate/group or reference-work limit");
@@ -412,6 +417,7 @@ int main(int argc, char** argv) {
         {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",3135},{"repeats",repeats},{"warmups",warmups},
         {"input_domain",(candidate=="packed_gemm" || epilogue) ? "resident_centered_residues" : "resident_native_64"},
         {"output_contract",candidate=="pack_pair" ? "operand_residue_planes" : epilogue ? "integer_alpha_ab_plus_beta_d_residues_no_integer_export" : "product_residues_default_basis_no_integer_export"},
+        {"coefficient_profile",epilogue ? nlohmann::json(coefficient_profile) : nlohmann::json(nullptr)},
         {"expression",epilogue ? nlohmann::json{{"alpha",alpha},{"beta",beta},{"coefficients","original_integers"},{"d_dataset","seed_3135_after_a_b"}}
                                 : nlohmann::json(nullptr)},
         {"reserved_intermediate_bytes",epilogue ? std::size_t{m}*n*prefix : 0},

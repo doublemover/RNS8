@@ -45,7 +45,7 @@ def strict_json(text):
 def validate_case(case):
     """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change"}:
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile"}:
         raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
@@ -88,6 +88,11 @@ def validate_case(case):
     elif case["candidate"] not in CONVERSION and ("k_depth" in case or "lds_buffers" in case):
         raise ValueError("k_depth/lds_buffers apply only to tiled cases")
     normalized = dict(case)
+    if case["candidate"].startswith("epilogue_"):
+        profile=case.get("coefficient_profile","extreme")
+        if profile not in ("extreme","zero","copy","unit","general","channel-zero"):raise ValueError("unknown coefficient profile")
+        normalized["coefficient_profile"]=profile
+    elif "coefficient_profile" in case:raise ValueError("coefficient profiles apply only to epilogues")
     if case["candidate"] in REUSE:
         reuse = case.get("reuse_count", 1 if case["candidate"] == "wmma" else None)
         if type(reuse) is not int or not 1 <= reuse <= 256:
@@ -190,10 +195,14 @@ def epilogue_contract(case):
     if not case["candidate"].startswith("epilogue_"):
         return {}
     size = case["m"] * case["n"] * case["prefix"]
-    return {"input_domain": "resident_centered_residues",
+    profile=case.get("coefficient_profile","extreme")
+    alpha,beta={"extreme":((1<<63)-1 if case["unsigned_inputs"] else -(1<<63),(1<<63)-1),
+        "zero":(0,0),"copy":(0,1),"unit":(1,1),"general":(3 if case["unsigned_inputs"] else -3,5),
+        "channel-zero":(255,256)}[profile]
+    return {"coefficient_profile":profile,"input_domain": "resident_centered_residues",
             "output_contract": "integer_alpha_ab_plus_beta_d_residues_no_integer_export",
-            "expression": {"alpha": (1 << 63) - 1 if case["unsigned_inputs"] else -(1 << 63),
-                           "beta": (1 << 63) - 1, "coefficients": "original_integers",
+            "expression": {"alpha": alpha,
+                           "beta": beta, "coefficients": "original_integers",
                            "d_dataset": "seed_3135_after_a_b"},
             "reserved_intermediate_bytes": size,
             "materialized_intermediate_bytes": size if case["candidate"] == "epilogue_unfused" else 0}
@@ -533,6 +542,7 @@ def main():
             command.extend(str(case[key]) for key in ("k_depth","lds_buffers","waves","conversion","reuse_count","input_change"))
         if case["candidate"] in REUSE:
             command.append(str(case["reuse_count"]))
+        if case["candidate"].startswith("epilogue_"):command.append(case["coefficient_profile"])
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],

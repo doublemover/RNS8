@@ -592,12 +592,32 @@
       "issue": 47,
       "title": "[Research P2] Add exact algebraic epilogue composition without intermediate residue round trips",
       "url": "https://github.com/doublemover/RNS8/issues/47",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Exact axpby public CPU/direct HIP, rocWMMA fused epilogue and DAG integration implemented; latest zero coefficient/channel specialization and direct-HIP host-hoisted coefficient lowering still absent (helper uses full-width % per output).",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Shared by-value host coefficient lowering across CPU/direct HIP synchronous/prepared/graph and rocWMMA. Skip per-channel dead dots and D loads; original alpha-zero skips exact AB proof traversal without weakening input/range/ownership admission. Named native coefficient controls and complete public-expression/padded-export collector with independent process identity and every-channel/full-integer oracle.",
+          "files": [
+            "src/backend_common/residue_epilogue.hpp",
+            "src/core/exact_range.hpp",
+            "src/core/api_exact_epilogue.cpp",
+            "src/backend_hip_direct/hip_direct_epilogue_kernels.cuh",
+            "src/backend_rocwmma/rocwmma_backend_epilogue_kernel.inc",
+            "benchmarks/rns8_epilogue_calibrate.cpp",
+            "tools/collect_epilogue_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_residue_epilogue.cpp",
+        "tests/unit/test_api_exact_epilogue_cases.inc",
+        "tests/differential/test_hip_direct_epilogue_cases.inc",
+        "tools/test_collect_epilogue_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -855,7 +875,9 @@
         "tests/unit/test_api_complex_residue_cases.inc",
         "tools/test_collect_native_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "8b6c1125d84789ad86324030a4fb5aeda2d8e601"
+      ],
       "remaining": [
         "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
       ],

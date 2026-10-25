@@ -41,7 +41,7 @@ TEST_CASE(
       REQUIRE(pack(b, bv) == RNS8_SUCCESS);
       REQUIRE(pack(d, dv) == RNS8_SUCCESS);
       std::vector<std::pair<int64_t, int64_t>> coefficients{
-          {0, 0}, {1, 0}, {0, 1}, {2, 3}, {INT64_MAX, INT64_MAX}};
+          {0, 0}, {1, 0}, {0, 1}, {2, 3}, {255, 256}, {256, 255}, {INT64_MAX, INT64_MAX}};
       if (signed_values) {
         coefficients.emplace_back(INT64_MIN, INT64_MAX);
         coefficients.emplace_back(-3, -7);
@@ -94,6 +94,10 @@ TEST_CASE(
           }
       }
       const auto generation = c->content_generation;
+      // Algebraic zeros do not waive admission of any original operand.
+      const auto a_prefix=a->exact_range_prefix;a->exact_range_prefix=0;
+      REQUIRE(rns8_gemm_exact_axpby(ctx,plan,a,b,d,c,0,0,workspace)==RNS8_RANGE_ERROR);
+      a->exact_range_prefix=a_prefix;CHECK(c->content_generation==generation);
       d->in_flight_writer = true;
       REQUIRE(rns8_gemm_exact_axpby(ctx, plan, a, b, d, c, 1, 1, workspace) == RNS8_BUSY);
       d->in_flight_writer = false;
