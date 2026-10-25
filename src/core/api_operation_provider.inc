@@ -33,6 +33,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t max_algorithm=query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
+  if((query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT) && query.output_limbs)
+    return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"output_limbs","native and pinned-host imports require scalar native64; integer limb views are export-only");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
   const bool amx=backend==RNS8_BACKEND_CPU_AMX;
   if(amx && query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_PREPARED_GROUP && query.operation!=RNS8_OP_PACK && query.operation!=RNS8_OP_EXPORT)
