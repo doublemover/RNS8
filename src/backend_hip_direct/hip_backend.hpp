@@ -627,6 +627,11 @@ rns8_status hip_direct_ring_gemm_i8_device(
 // invalidation after execution failure; no public/default dispatch promotion.
 rns8_status hip_direct_gemm_rns_wide_device(int device_id,const void* a,const void* b,void* c,
     int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix);
+// Matched scalar finite-ring controls. Original bases/pitches are retained;
+// first_row is evaluated inside the kernel, never hidden by host rebasing.
+rns8_status hip_direct_gemm_finite_indexed_window_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint16_t modulus,
+    int64_t first_row,int64_t rows,FiniteGemmAddressWidth width);
 rns8_status hip_direct_gemm_rns_device(
     int device_id,
     const void* device_a_residues,

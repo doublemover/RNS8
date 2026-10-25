@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <charconv>
+#include <chrono>
+#include <iostream>
+#include <nlohmann/json.hpp>
 #include <cstdint>
 #include <iterator>
 #include <limits>
@@ -74,6 +78,7 @@ namespace {
 #include "test_hip_direct_integrity_cases.inc"
 
 #include "test_hip_direct_wide_gemm_cases.inc"
+#include "test_hip_direct_large_address_cases.inc"
 
 #include "test_hip_runtime_product_recipe_cases.inc"
 

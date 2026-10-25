@@ -143,16 +143,29 @@
             "src/core/api_pack.cpp",
             "src/core/api_export.cpp"
           ]
+        },
+        {
+          "summary": "Add same-body finite i32/u64 original-base row-window controls and an opt-in real 2,147,549,184-byte GPU input fixture with independent Boost periodic/checksum oracle, observed allocation retirement, matched completed-call timing and source-bound independent-process collector. Source syntax checks pass; runtime and ISA qualification are pending.",
+          "files": [
+            "src/backend_common/wide_gemm_support.hpp",
+            "src/backend_hip_direct/hip_backend_wide_gemm.inc",
+            "src/backend_hip_direct/hip_direct_wide_gemm_kernels.cuh",
+            "tests/differential/test_hip_direct_large_address_cases.inc",
+            "tools/qualify_large_addresses.py"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_api_host_address_cases.inc"
+        "tests/unit/test_api_host_address_cases.inc",
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_wide_gemm_cases.inc",
+        "tools/test_qualify_large_addresses.py"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a"
       ],
       "remaining": [
-        "Budgeted real-device large-address qualification remains; checked host-domain and negative fixtures pass."
+        "Build and execute the new small differential/support fixtures before the opt-in physical large-address fixture; capture five independent runs and inspect the compiled i32/u64 instructions/resources. No new hardware qualification or default promotion is claimed."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
@@ -1089,7 +1102,7 @@
       "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
       "implementation": [
         {
-          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM→lift→GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
           "files": [
             "src/core/prepared_transfer.hpp",
             "src/core/api_prepared_lift.inc",
@@ -1420,7 +1433,7 @@
           ]
         },
         {
-          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM→lift→GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
           "files": [
             "src/core/prepared_transfer.hpp",
             "src/core/api_prepared_lift.inc",

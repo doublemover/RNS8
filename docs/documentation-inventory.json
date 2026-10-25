@@ -4444,7 +4444,9 @@
         }
       ],
       "anchors": [
-        "generic-64-bit-index-residue-control"
+        "budgeted-physical-fixture",
+        "generic-64-bit-index-residue-control",
+        "matched-finite-address-width-controls"
       ]
     },
     {
@@ -5247,6 +5249,10 @@
         },
         {
           "source": "docs/roadmap.md",
+          "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
+        },
+        {
+          "source": "docs/wide-index-gemm.md",
           "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },
         {

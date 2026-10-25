@@ -292,6 +292,29 @@ TEST_CASE("wide residue support proves full spans without narrowed shape product
   CHECK(query_wide_gemm_support(1,1,1,1,1,1,0).status==RNS8_INVALID_ARGUMENT);
 }
 
+TEST_CASE("finite indexed windows prove original row bases at signed address boundaries") {
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  for(int64_t m:{32767,32768,32769}) {
+    const auto wide=query_finite_indexed_window_support(m,1,65536,65536,1,3,253,m-1,1,FiniteGemmAddressWidth::unsigned64);
+    REQUIRE(wide.status==RNS8_SUCCESS);
+    const cpp_int last=cpp_int(m-1)*65536+65535;
+    CHECK(cpp_int(wide.a.last_element)==last);CHECK(cpp_int(wide.a.byte_extent)==last+1);
+    CHECK(wide.logical_outputs==1);CHECK(wide.c.byte_extent==uint64_t(m-1)*3+1);
+    const auto narrow=query_finite_indexed_window_support(m,1,65536,65536,1,3,253,m-1,1,FiniteGemmAddressWidth::signed32);
+    CHECK(narrow.status==(m==32767?RNS8_SUCCESS:RNS8_UNSUPPORTED_BACKEND));
+  }
+  const int64_t big=(int64_t{1}<<31)+1;
+  CHECK(query_finite_indexed_window_support(2,1,1,big,1,1,253,1,1,FiniteGemmAddressWidth::unsigned64).a.last_element==uint64_t(big));
+  CHECK(query_finite_indexed_window_support(1,1,2,2,big,1,253,0,1,FiniteGemmAddressWidth::unsigned64).b.last_element==uint64_t(big));
+  CHECK(query_finite_indexed_window_support(2,1,1,1,1,big,253,1,1,FiniteGemmAddressWidth::unsigned64).c.last_element==uint64_t(big));
+  for(auto first:{-1,2})CHECK(query_finite_indexed_window_support(2,1,1,1,1,1,253,first,1,FiniteGemmAddressWidth::unsigned64).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_finite_indexed_window_support(2,1,1,1,1,1,253,1,2,FiniteGemmAddressWidth::unsigned64).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_finite_indexed_window_support(2,1,1,1,1,1,1,0,1,FiniteGemmAddressWidth::unsigned64).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_finite_indexed_window_support(2,1,1,1,1,1,253,0,1,static_cast<FiniteGemmAddressWidth>(2)).status==RNS8_INVALID_ARGUMENT);
+  CHECK(query_finite_indexed_window_support(INT64_MAX,2,1,1,2,2,253,0,1,FiniteGemmAddressWidth::unsigned64).status==RNS8_RANGE_ERROR);
+}
+
 TEST_CASE("narrow persistent provider charges simultaneous staging and scan storage") {
   using namespace rns8::detail;
   for (bool wmma : {false,true}) for (uint32_t prefix=1;prefix<=20;++prefix) {

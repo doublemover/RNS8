@@ -1,5 +1,6 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME large_address_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_qualify_large_addresses.py")
   add_test(NAME residue_dot_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_residue_dot.py")
   if(TARGET rns8-residue-dot-calibrate AND RNS8_ENABLE_HIP AND (RNS8_EXPERIMENTAL_RESIDUE_DOT4 OR RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL))
     foreach(_residue_case IN ITEMS independent-p20-sparse grouped-p20-sparse scheduled-p20-sparse region-p20-sparse grouped-fullwidth-k65 grouped-finite247)
@@ -1023,6 +1024,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
     VERBATIM)
   add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  rns8_bind_manifest(rns8_tests)
   target_include_directories(
     rns8_tests
     PRIVATE

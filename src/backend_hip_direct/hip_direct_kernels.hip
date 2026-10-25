@@ -420,6 +420,17 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
   return static_cast<int>(hipGetLastError());
 }
 
+extern "C" int rns8_hip_finite_indexed_window(const int8_t* a,const int8_t* b,int8_t* c,
+    uint64_t n,uint64_t k,uint64_t lda,uint64_t ldb,uint64_t ldc,uint64_t first_row,uint64_t count,int modulus,int width) {
+  if(!n || !k || !count || modulus<2 || modulus>256 || (width!=0 && width!=1))return int(hipErrorInvalidValue);
+  const unsigned blocks=static_cast<unsigned>(count<262144?(count+255)/256:1024);
+  if(width==0)
+    hipLaunchKernelGGL(rns8_finite_indexed_window_kernel<int32_t>,dim3(blocks),dim3(256),0,nullptr,a,b,c,n,k,lda,ldb,ldc,first_row,count,modulus);
+  else
+    hipLaunchKernelGGL(rns8_finite_indexed_window_kernel<uint64_t>,dim3(blocks),dim3(256),0,nullptr,a,b,c,n,k,lda,ldb,ldc,first_row,count,modulus);
+  return static_cast<int>(hipGetLastError());
+}
+
 #include "hip_direct_finite_verify.cuh"
 
 #include "hip_direct_wrap_radix.cuh"
