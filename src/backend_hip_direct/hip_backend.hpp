@@ -225,7 +225,7 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
     uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started,
-    bool separate_canonicalization_control = false);
+    bool separate_canonicalization_control = false,const rns8_locality_desc* locality=nullptr,rns8_locality_info* locality_info=nullptr);
 
 rns8_status hip_direct_enqueue_exact_lift(int device_id,void* residues,int64_t cells,
     uint32_t source_prefix,uint32_t target_prefix,bool signed_value,const uint64_t* bound,
@@ -378,6 +378,9 @@ void hip_direct_timing_record_pending_event_with_alias(
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
 void hip_direct_allocation_counters_reset();
 hip_direct_allocation_counters hip_direct_allocation_counters_snapshot();
+// Diagnostic cache-displacement attempt over disjoint caller-owned storage.
+// Touches each 64-byte line with a volatile read/write; never certifies cold L2.
+rns8_status hip_direct_cache_displace(int device_id,void* storage,uint64_t bytes,uint32_t passes);
 rns8_status hip_direct_probe(int device_id, rns8_device_info& out);
 rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out);
 rns8_status hip_direct_free(int device_id, void* ptr);

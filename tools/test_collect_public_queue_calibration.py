@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from collect_public_queue_calibration import collection_plan, counts, validate_case, validate_capture
+from native_locality_contract import public_contract as locality_contract
 from test_capture_identity_support import synthetic_identity
 
 
@@ -31,6 +32,20 @@ class PublicQueueCollection(unittest.TestCase):
                             last_input_generation=1, rebuilds=0, exact_reference_passed=True) for _ in range(3)])
         synthetic_identity(capture)
         return capture, dict(case=case, run_id='synthetic')
+
+    def test_public_locality_preserves_shared_encoded_source_accounting(self):
+        for order in ('ordinary','output-neighbor','modulus','same-output'):
+            capture,entry=self.fixture();case=entry['case'];case.update(schedule=0,locality_order=order);capture['target']='gfx1100'
+            work,metadata,encoded,output=counts(case);capture['metadata'].update(device_bytes=metadata,preparation_peak_device_bytes=metadata)
+            capture['locality']=locality_contract(case,'gfx1100');validate_case(case);validate_capture(capture,entry)
+            # Native A remains raw; one shared encoded B has no extra capability
+            # word in consumed-byte traffic (it is retained allocation metadata).
+            expected=(17+2)*257*8+3*19*272
+            self.assertEqual(capture['locality']['unique_source_bytes'],expected)
+            bad=copy.deepcopy(capture);bad['locality']['physical_affinity_established']=True
+            with self.assertRaises(ValueError):validate_capture(bad,entry)
+            case['schedule']=2
+            with self.assertRaises(ValueError):validate_case(case)
 
     def test_generation_and_reuse_receipts_cannot_be_normalized_into_existence(self):
         capture, entry = self.fixture(); self.assertEqual(validate_capture(capture, entry), capture)

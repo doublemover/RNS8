@@ -8,7 +8,7 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
-    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started, bool separate_canonicalization_control) try {
+    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started, bool separate_canonicalization_control,const rns8_locality_desc* locality,rns8_locality_info* locality_info) try {
   commit_started = false;
   if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       !prefix || prefix > 20 || (group != 1 && group != 2 && group != 4) ||
@@ -28,7 +28,7 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
-  hip_direct_device_buffer scratch;
+  hip_probe_buffer scratch;
   status = scratch.allocate(device_id, static_cast<std::size_t>(bytes));
   if (status != RNS8_SUCCESS) return status;
   auto* first = static_cast<uint8_t*>(scratch.get());
@@ -42,12 +42,18 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
                      lda, ldb, n, prefix, group, static_cast<uint32_t>(unsigned_inputs)});
   }
   bool scratch_may_be_written = false;
-  status = hip_direct_gemm_native_wmma_queue(device_id, tasks, workers, max_scratch_bytes - bytes, scratch_may_be_written);
-  if (status != RNS8_SUCCESS) return status;
-  auto run = [](const char* label, auto operation) {
+  scratch.mark_pending();
+  if(locality){NativeWmmaPreparedQueue queue;status=queue.prepare(device_id,tasks,workers,max_scratch_bytes-bytes,{},locality);
+    if(status==RNS8_SUCCESS){if(locality_info)*locality_info=queue.locality_info();status=queue.execute(scratch_may_be_written);}
+    const auto closed=queue.close();if(status==RNS8_SUCCESS)status=closed;
+  }else status = hip_direct_gemm_native_wmma_queue(device_id, tasks, workers, max_scratch_bytes - bytes, scratch_may_be_written);
+  if(status!=RNS8_SUCCESS){if(hipDeviceSynchronize()==hipSuccess)scratch.mark_completed();return status;}
+  scratch.mark_completed();
+  auto run = [&](const char* label, auto operation) {
     return timed_hip_operation(label, [&]() {
-      const auto error = static_cast<hipError_t>(operation());
-      return error == hipSuccess ? hipDeviceSynchronize() : error;
+      scratch.mark_pending();const auto error = static_cast<hipError_t>(operation());
+      const auto drained=hipDeviceSynchronize();if(drained==hipSuccess)scratch.mark_completed();
+      return error==hipSuccess?drained:error;
     });
   };
   if (separate_canonicalization_control && run("native_split_k_canonicalize", [&]() {

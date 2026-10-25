@@ -118,6 +118,16 @@ int main(int argc, char** argv) {
         "paired adaptive/wmma/pack_gemm: optional final --dataset full-width-v1|uniform-small-v2|mixed-tiles-v2|zero-tiles-v2|localized-outlier-v2 --seed uint32; requires capacity20.\n"
         "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
     if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
+    bool explicit_locality=false;std::string locality_order="ordinary";uint32_t cache_displace_mib=0,cache_model_mib=0;
+    rns8_locality_desc locality{};locality.struct_size=sizeof(locality);locality.abi_version=RNS8_ABI_VERSION;
+    locality.topology_version=1;locality.cache_domains=1;locality.concurrent_groups_per_domain=1;
+    if(argc>=17 && std::string(argv[argc-6])=="--locality" && std::string(argv[argc-4])=="--cache-displace-mib" && std::string(argv[argc-2])=="--cache-model-mib"){
+      explicit_locality=true;locality_order=argv[argc-5];cache_displace_mib=number(argv[argc-3],0,1024);cache_model_mib=number(argv[argc-1],0,512);argc-=6;
+      if(locality_order!="ordinary" && locality_order!="output-neighbor" && locality_order!="modulus" && locality_order!="same-output")throw std::invalid_argument("unknown native locality order");
+      if((cache_displace_mib && (!cache_model_mib || cache_displace_mib<2*cache_model_mib)) || (!cache_displace_mib && cache_model_mib))throw std::invalid_argument("displacement must be at least twice the explicit aggregate hypothetical cache model");
+      locality.order=locality_order=="ordinary"?RNS8_LOCALITY_ORDINARY:locality_order=="output-neighbor"?RNS8_LOCALITY_OUTPUT_NEIGHBOR:locality_order=="modulus"?RNS8_LOCALITY_MODULUS:RNS8_LOCALITY_SAME_OUTPUT;
+      locality.cache_bytes_per_domain=uint64_t(cache_model_mib)*1024*1024;
+    }
     std::string dataset_profile="full-width-v1";
     uint32_t dataset_seed=3135;
     bool explicit_dataset=false;
@@ -150,6 +160,7 @@ int main(int argc, char** argv) {
           (conversion_pack && (conversion_name!="replicated" || conversion_config.depth!=16 || conversion_config.buffers || conversion_config.waves!=4)))
         throw std::invalid_argument("unsupported conversion geometry/storage/input control");
     }
+    if(explicit_locality && candidate!="queue_prepared" && candidate!="split_k")throw std::invalid_argument("locality controls require prepared native queue or native split-K");
     const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
     const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
     const bool compact = candidate == "adaptive_compact";
@@ -285,7 +296,11 @@ int main(int argc, char** argv) {
     };
     if(reserve_residue_inputs){compare(ra.get(),expected_a);compare(rb.get(),expected_b);}
     std::vector<NativeWmmaTask> tasks{{da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs}};
-    NativeWmmaPreparedQueue prepared_queue;
+    NativeWmmaPreparedQueue prepared_queue;rns8_locality_info locality_receipt{};
+    hip_direct_device_buffer cache_displacement;uint64_t displacement_calls=0;double displacement_total_ns=0;
+    const uint64_t displacement_bytes=uint64_t(cache_displace_mib)*1024*1024;
+    if(displacement_bytes){check(cache_displacement.allocate(0,displacement_bytes));check(hip_direct_zero(0,cache_displacement.get(),displacement_bytes));}
+
     NativeTiledPrepared conversion_owner;
     double conversion_prepare_ns=0;
     if(conversion_prepared) {
@@ -319,10 +334,16 @@ int main(int argc, char** argv) {
     if (prepared) {
       hip_direct_timing_set_enabled(false);
       const auto start = std::chrono::steady_clock::now();
-      check(prepared_queue.prepare(0, tasks, requested_workers ? requested_workers : 32, UINT64_MAX));
+      check(prepared_queue.prepare(0, tasks, requested_workers ? requested_workers : 32, UINT64_MAX,{},explicit_locality?&locality:nullptr));
       queue_prepare_ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
     }
+    if(explicit_locality && prepared)locality_receipt=prepared_queue.locality_info();
     const auto execute = [&]() {
+      if(displacement_bytes){const auto before=std::chrono::steady_clock::now();cache_displacement.mark_pending();
+        const auto status=hip_direct_cache_displace(0,cache_displacement.get(),displacement_bytes,1);
+        if(status!=RNS8_SUCCESS){if(hip_direct_synchronize(0)==RNS8_SUCCESS)cache_displacement.mark_completed();check(status);}
+        cache_displacement.mark_completed();++displacement_calls;
+        displacement_total_ns+=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-before).count();}
       if(conversion) {
         bool written=false;
         NativeTiledPrepared cold;
@@ -374,7 +395,7 @@ int main(int argc, char** argv) {
       else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
       else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
-      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written,separate_canonicalization_control));
+      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written,separate_canonicalization_control,explicit_locality?&locality:nullptr,explicit_locality?&locality_receipt:nullptr));
       else if (adaptive) {
         check(hip_direct_gemm_adaptive_native_device(0, da.get(), db.get(), static_cast<int8_t*>(dc.get()),
             m, n, k, k, n, n, unsigned_inputs, prefix, group, UINT64_MAX, written,
@@ -462,6 +483,25 @@ int main(int argc, char** argv) {
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if(explicit_locality){
+      report.update({{"locality_order",locality_order},{"cache_displace_mib",cache_displace_mib},{"cache_model_mib",cache_model_mib}});
+      uint32_t first=0,last=0;if(displacement_bytes){check(hip_direct_copy_device_to_host(0,&first,cache_displacement.get(),4));
+        check(hip_direct_copy_device_to_host(0,&last,static_cast<uint8_t*>(cache_displacement.get())+displacement_bytes-64,4));
+        const uint32_t expected=uint32_t(displacement_calls*UINT64_C(0x9e3779b9));if(first!=expected || last!=expected)throw std::runtime_error("cache displacement witness mismatch");}
+      report["locality"]={{"version",1},{"requested_order",locality_order},{"applied_order",locality_receipt.applied_order},
+        {"applied",bool(locality_receipt.applied)},{"target_id",locality_receipt.target_id},{"topology_version",1},
+        {"physical_affinity_established",false},{"representation","raw_native64"},{"modulus_group",group},{"fragments",splits},
+        {"active_entries",locality_receipt.active_entries},{"directory_bytes",locality_receipt.directory_bytes},
+        {"requested_source_bytes",locality_receipt.requested_source_bytes},{"unique_source_bytes",locality_receipt.unique_source_bytes},
+        {"partial_output_bytes",locality_receipt.output_read_write_bytes},{"permutation_fingerprint",locality_receipt.permutation_fingerprint}};
+      report["cache_displacement"]={{"version",1},{"allocation_bytes",displacement_bytes},{"modeled_cache_bytes",locality.cache_bytes_per_domain},
+        {"line_stride_bytes",64},{"passes_per_call",displacement_bytes?1:0},{"submissions",displacement_calls},
+        {"host_ns",displacement_total_ns},{"first_word",first},{"last_word",last},{"witness_verified",true},
+        {"inside_timed_call",true},{"before_every_sustained_call",true},{"cold_cache_verified",false}};
+      report["timing_scope"]="resident native compute including explicit displacement when requested; queue setup excluded only for prepared queue; native split setup and merge charged per call; complete oracle outside interval";
+      report["cache_state"]=displacement_bytes?"explicit unrelated line-walk before every call; eviction/cold state unverified":"retained inputs without explicit displacement; hot state unverified";
+      report["sustained"]["scope"]="checked native calls including optional explicit cache displacement before every call; final output and displacement witnesses verified";
+    }
     if(candidate=="split_k")report.update({{"fragments",splits},{"merge_policy",native_merge_policy},
       {"native_partial_format","centered_int8"},{"merge_output_format","canonical_uint8"},
       {"native_split_scratch_bytes",uint64_t{m}*n*prefix*(splits+(splits+127)/128)},

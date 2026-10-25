@@ -133,10 +133,11 @@ bool check_native_wmma_groups(bool unsigned_inputs, int m, int n, int k, uint32_
           0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
           unsigned_inputs, splits, 32, 0, commit) == RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(commit);
-      for(bool separate_control:{false,true}) {
+      for(bool separate_control:{false,true})for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}) {
+        rns8_locality_desc locality{sizeof(locality),RNS8_ABI_VERSION,order,0,1,1,32,1024};rns8_locality_info receipt{};
         status = hip_direct_gemm_native_wmma_split_k_device(
             0, da, db, static_cast<int8_t*>(dc), m, n, k, lda, ldb, ldc, prefix, group,
-            unsigned_inputs, splits, 32, UINT64_MAX, commit,separate_control);
+            unsigned_inputs, splits, 32, UINT64_MAX, commit,separate_control,&locality,&receipt);
         REQUIRE(commit == (status == RNS8_SUCCESS));
         if(status==RNS8_SUCCESS) {
           REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc,actual.size())==RNS8_SUCCESS);

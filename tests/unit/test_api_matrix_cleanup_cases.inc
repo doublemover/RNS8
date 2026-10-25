@@ -146,3 +146,13 @@ TEST_CASE("context destruction drains unpublished failed matrix owners", "[api][
   context->prepared_references = 0;
   REQUIRE(rns8_destroy_context(context) == RNS8_SUCCESS);
 }
+
+TEST_CASE("pending device buffers defer instead of freeing unobserved GPU work", "[api][lifetime]") {
+  using Buffer=rns8::detail::basic_hip_device_buffer<MockDeviceBufferOperations>;using Ops=MockDeviceBufferOperations;
+  Ops::fail_pointer=nullptr;Ops::fail_all=false;Ops::deferred_count=0;
+  {Buffer buffer;REQUIRE(buffer.allocate(0,64)==RNS8_SUCCESS);buffer.mark_pending();
+    CHECK(buffer.reset()==RNS8_BUSY);Buffer moved=std::move(buffer);CHECK(moved.pending());CHECK_FALSE(buffer.pending());}
+  REQUIRE(Ops::deferred_count==1);auto* node=Ops::deferred[0];REQUIRE(Ops::release(node->device_id,node->pointer)==RNS8_SUCCESS);delete node;Ops::deferred[0]=nullptr;Ops::deferred_count=0;
+  {Buffer buffer;REQUIRE(buffer.allocate(0,64)==RNS8_SUCCESS);buffer.mark_pending();buffer.mark_completed();CHECK(buffer.reset()==RNS8_SUCCESS);}
+  CHECK(Ops::deferred_count==0);
+}

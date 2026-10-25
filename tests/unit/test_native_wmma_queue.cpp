@@ -1,3 +1,4 @@
+#include "core/internal.hpp"
 #include "backend_common/native_wmma_queue_plan.hpp"
 #include <catch2/catch_test_macros.hpp>
 #include <set>
@@ -197,4 +198,37 @@ TEST_CASE("procedural queue bounds 4096 tasks and maximum claim overshoot") {
   ++tasks.back().m;
   CHECK(build_native_wmma_schedule(tasks,1024,UINT64_MAX,{1,NativeWmmaScheduleMode::task_major,32},plan)==RNS8_RANGE_ERROR);
   CHECK(plan.header.work_count==target);
+}
+
+#include "backend_common/native_locality.hpp"
+#include <random>
+TEST_CASE("native locality is a bijection over disjoint fragments and partial modulus groups") {
+  constexpr int m=17,n=19,k=23,prefix=7;
+  std::vector<int64_t> a(m*k),b(k*n);for(size_t i=0;i<a.size();++i)a[i]=int(i%11)-5;for(size_t i=0;i<b.size();++i)b[i]=int(i%13)-6;
+  for(uint32_t group:{1u,2u,4u})for(uint32_t fragments:{1u,2u,3u,7u}) {
+    std::vector<int8_t> output(uint64_t(fragments)*prefix*m*n);
+    std::vector<NativeWmmaTask> tasks;
+    for(uint32_t f=0;f<fragments;++f){const int begin=k*f/fragments,end=k*(f+1)/fragments;
+      tasks.push_back({a.data()+begin,b.data()+begin*n,output.data()+uint64_t(f)*prefix*m*n,m,n,end-begin,k,n,n,prefix,group,0});}
+    std::vector<NativeWmmaWork> original;uint64_t bytes=0;
+    REQUIRE(build_native_wmma_queue(tasks,8,UINT64_MAX,original,bytes)==RNS8_SUCCESS);
+    const auto identities=[](const auto& list){std::set<std::tuple<uint32_t,uint32_t,uint32_t,uint32_t>> result;
+      for(const auto& w:list)REQUIRE(result.emplace(w.task,w.tile_row,w.tile_col,w.first_plane).second);return result;};
+    for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}) {
+      rns8_locality_desc d{sizeof(d),RNS8_ABI_VERSION,order,0,1,1,8,1024};rns8_locality_info info{};uint64_t transient=0;auto work=original;
+      REQUIRE(lower_native_locality(tasks,work,d,"gfx1100",info,transient)==RNS8_SUCCESS);
+      CHECK(identities(work)==identities(original));CHECK(info.unique_source_bytes==(m+n)*k*8);CHECK(info.physical_affinity_established==0);
+      CHECK(info.output_read_write_bytes==uint64_t(fragments)*prefix*m*n);CHECK(info.directory_bytes==work.size()*sizeof(NativeWmmaWork));
+      std::shuffle(work.begin(),work.end(),std::mt19937(3637));std::fill(output.begin(),output.end(),99);
+      for(auto w:work){const auto& t=tasks[w.task];for(int r=w.tile_row*16;r<std::min<int64_t>(t.m,w.tile_row*16+16);++r)
+        for(int c=w.tile_col*16;c<std::min<int64_t>(t.n,w.tile_col*16+16);++c)for(uint32_t p=w.first_plane;p<std::min(t.prefix,w.first_plane+t.group);++p){
+          int64_t sum=0;for(int q=0;q<t.k;++q)sum+=static_cast<const int64_t*>(t.a)[r*t.lda+q]*static_cast<const int64_t*>(t.b)[q*t.ldb+c];
+          int value=int(sum%kDefaultModuli[p]);if(value<0)value+=kDefaultModuli[p];t.c[(p*m+r)*n+c]=int8_t(value>=int((kDefaultModuli[p]+1)/2)?value-kDefaultModuli[p]:value);}}
+      for(int r=0;r<m;++r)for(int c=0;c<n;++c)for(uint32_t p=0;p<prefix;++p){int64_t expected=0,merged=0;
+        for(int q=0;q<k;++q)expected+=a[r*k+q]*b[q*n+c];for(uint32_t f=0;f<fragments;++f)merged+=output[((f*prefix+p)*m+r)*n+c];
+        CHECK((merged-expected)%kDefaultModuli[p]==0);}
+      auto fallback=original;REQUIRE(lower_native_locality(tasks,fallback,d,"unknown",info,transient)==RNS8_SUCCESS);CHECK(info.applied==0);
+      for(size_t i=0;i<original.size();++i)CHECK(std::tie(fallback[i].task,fallback[i].tile_row,fallback[i].tile_col,fallback[i].first_plane)==std::tie(original[i].task,original[i].tile_row,original[i].tile_col,original[i].first_plane));
+    }
+  }
 }

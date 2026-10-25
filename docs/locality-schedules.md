@@ -83,8 +83,73 @@ latency, sustained reuse and separate event diagnostics are inherited from the
 public harness. Reports never pool different permutations, and both review and
 promotion-ledger paths block automatic routing from these explicit experiments.
 
-Authored host permutation/inverse/overflow-target tests and public HIP repeated
-GEMM/export tests await execution. Raw-native multi-modulus/split-fragment locality
-composition is a separate next integration; this consumer's group size is exactly
-one plane. GPU compilation, target counters, cache-cold control and measured
-end-to-end benefit are unverified.
+## Native groups, encoded B and split fragments
+
+`rns8_prepare_native_group_locality` applies the same explicit descriptor to the
+existing native prepared queue, including borrowed-stream and owned-graph
+execution. It requires the materialized explicit-work schedule (mode 0); compact
+schedule decoding and ordinary per-task grid launches are not silently relabeled
+as locality permutations. Refresh retains the requested descriptor and includes
+it in the ordered arithmetic/schedule certificate identity. Preparation is
+transactional, preserves old bindings on rejection and charges old plus new
+device metadata. Per-submit sorting and allocation are absent.
+
+Every work identity retains `(task/fragment, row tile, column tile, first plane)`.
+Cost buckets distinguish raw versus encoded B, signedness, modulus-group width,
+active final-group width, both output tails and actual fragment K. Sorting then
+changes only the locality axes. Native groups 1/2/4 and partial final groups use
+the real existing IU8-WMMA producer. Split-K fragments keep their disjoint
+partial-output addresses; the original centered-to-canonical bounded merge tree
+runs only after the complete producer queue. No fragment permutation authorizes
+concurrent writes to the same final cell. The private split route charges its
+per-call queue preparation and merge; prepared public groups retain setup.
+
+`rns8_get_native_group_locality_info` reports a deterministic permutation identity
+and logical traffic. Raw A/B bytes are reused across modulus groups, whereas
+encoded B is counted per consumed plane. Unique source bytes are an exact union
+of the consumed row intervals, excluding stride padding and encoded capability
+words; shared B and adjacent/overlapping fragment views are deduplicated. These
+are source-domain byte counts, not issued loads or measured HBM traffic. The
+extra interval model's transient host capacity is included in preparation peak
+accounting. The native queue's current arithmetic target remains gfx11; it does
+not turn into CDNA WMMA by changing a topology label. Existing direct-HIP residue
+locality remains the gfx942/gfx950 experiment. Unknown targets retain ordinary
+order, and physical affinity always remains unestablished.
+
+The offline simulator additionally models multiple independent split fragments,
+uneven fragment K, adaptive prefixes and per-fragment phase dependencies. It
+reports disjoint partial outputs and explicitly says the later merge is outside
+its cache trace. Shuffled execution fixtures independently merge the fragments
+and compare every modular output against the full unsplit expression.
+
+## Explicit cache displacement, not invented cold-cache evidence
+
+The native calibration collector accepts matched `locality_order`,
+`cache_displace_mib` and `cache_model_mib` controls for prepared queues and native
+split-K. A nonzero displacement allocation must be at least twice the explicit
+hypothetical aggregate cache model. It is separate from all operand/output
+allocations. Before **every** measured and sustained call, an actual kernel does
+a volatile read-modify-write on one word of each 64-byte line and synchronizes.
+The complete host interval includes this cost; retained preparation is reported
+separately. First/last line witnesses are checked after measurement against the
+exact submission count. The full-buffer line walk regression checks every word.
+
+No API or collector calls this a verified cold cache: replacement policy,
+cache-line allocation, XCD placement and actual cache state require target
+counters. `cold_cache_verified=false` and `physical_affinity_established=false`
+are mandatory. The collector independently rebuilds the work permutation,
+fragment/group accounting, source bytes, expected witnesses and per-call versus
+sustained displacement counts; missing or forged controls reject.
+
+The authored native corpus spans all orders, groups 1/2/4, fragments 1/3/7,
+awkward/sustained/long-K shapes, retained-input and explicit-displacement cases.
+The public shared-B corpus adds raw/encoded B, persistent/graph execution and
+unchanged/mutated generations with complete padded Boost exports. Existing
+resident-residue locality controls remain unchanged. GPU compilation, all tests,
+benchmarks, physical counters and end-to-end qualification are deferred; no
+speedup, cache hit-rate improvement or placement is claimed from these sources.
+
+Pending cursor, descriptor, telemetry and fragment buffers now carry explicit
+unobserved-work ownership. Checked completion clears it; destruction otherwise
+transfers the existing allocation record to deferred drain cleanup instead of
+freeing memory still accessible to a failed launch.

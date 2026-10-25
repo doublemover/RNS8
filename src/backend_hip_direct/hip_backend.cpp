@@ -1,3 +1,4 @@
+#include "backend_common/native_locality.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "backend_common/direct_rns_route.hpp"
 #include "backend_common/instruction_roof_plan.hpp"
@@ -686,6 +687,7 @@ rns8_status hip_direct_collect_deferred_buffers(int device_id) {
 #include "hip_backend_wide_gemm.inc"
 #include "hip_backend_native_byte.inc"
 #include "hip_backend_native_queue.inc"
+#include "hip_backend_cache_displace.inc"
 #include "hip_backend_native_split_k.inc"
 #include "hip_backend_bounds.inc"
 #include "hip_backend_ragged.inc"

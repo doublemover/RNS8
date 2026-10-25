@@ -70,10 +70,14 @@ class basic_hip_device_buffer {
   }
   rns8_status reset() noexcept {
     if(!cleanup_) return RNS8_SUCCESS;
+    if(pending_)return RNS8_BUSY;
     const auto status=Operations::release(cleanup_->device_id,cleanup_->pointer);
     if(status!=RNS8_SUCCESS) return status;
     delete cleanup_;cleanup_=nullptr;bytes_=0;return RNS8_SUCCESS;
   }
+  void mark_pending() noexcept {pending_=true;}
+  void mark_completed() noexcept {pending_=false;}
+  bool pending() const noexcept {return pending_;}
   void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}
   std::size_t bytes() const noexcept {return bytes_;}
   explicit operator bool() const noexcept {return get()!=nullptr;}
@@ -99,11 +103,12 @@ class basic_hip_device_buffer {
     }
   }
   void move_from(basic_hip_device_buffer& other) noexcept {
-    cleanup_=other.cleanup_;bytes_=other.bytes_;
-    other.cleanup_=nullptr;other.bytes_=0;
+    cleanup_=other.cleanup_;bytes_=other.bytes_;pending_=other.pending_;
+    other.cleanup_=nullptr;other.bytes_=0;other.pending_=false;
   }
   hip_deferred_buffer_cleanup* cleanup_=nullptr;
   std::size_t bytes_=0;
+  bool pending_=false;
 };
 using hip_direct_device_buffer = basic_hip_device_buffer<>;
 

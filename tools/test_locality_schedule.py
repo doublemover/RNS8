@@ -13,6 +13,30 @@ def descriptor(**changes):
 
 
 class LocalityTests(unittest.TestCase):
+    def test_split_fragments_and_modulus_groups_preserve_shuffled_full_products(self):
+        for fragments in (1,2,3,7):
+            for group in (1,2,4):
+                for order in ("output-neighbor","modulus","same-output"):
+                    d=descriptor(k=9,slab_k=4,fragments=fragments,group_size=group,order=order)
+                    schedule=Schedule(d);seen=set();partials={}
+                    for phase in schedule.phases:
+                        shuffled=list(phase);random.Random(3637).shuffle(shuffled)
+                        for work in shuffled:
+                            self.assertNotIn(work,seen);seen.add(work)
+                            begin=d.k*work.fragment//fragments+work.slab*d.slab_k
+                            extent=schedule.extents(work)
+                            for r in range(work.row*d.tile_m,work.row*d.tile_m+extent[0]):
+                                for c in range(work.col*d.tile_n,work.col*d.tile_n+extent[1]):
+                                    for p in range(work.first_plane,work.first_plane+work.planes):
+                                        key=(work.fragment,p,r,c)
+                                        partials[key]=(partials.get(key,0)+sum((r-q)*(q+c) for q in range(begin,begin+extent[2])))%(p+2)
+                    for r in range(d.m):
+                        for c in range(d.n):
+                            for p in range(d.prefixes[(r//d.tile_m)*schedule.cols+c//d.tile_n]):
+                                self.assertEqual(sum(partials.get((f,p,r,c),0) for f in range(fragments))%(p+2),sum((r-q)*(q+c) for q in range(d.k))%(p+2))
+                    report=simulate(schedule)
+                    self.assertFalse(report['physical_affinity_verified']);self.assertEqual(report['fragments'],fragments)
+
     def test_bijection(self):
         for m in range(1, 5):
             for n in range(1, 6):

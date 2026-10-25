@@ -28,7 +28,7 @@ class NativeWmmaPreparedQueue {
   // Budget includes old plus replacement descriptors during transactional upload.
   rns8_status prepare(int device_id, const std::vector<NativeWmmaTask>& tasks,
                       uint32_t workers, uint64_t max_scratch_bytes,
-                      NativeWmmaScheduleConfig config = {});
+                      NativeWmmaScheduleConfig config = {},const rns8_locality_desc* locality=nullptr);
   // Concurrent prepare/execute returns BUSY. A failed launch poisons the queue;
   // successful preparation is required before another execution. Destruction
   // requires external exclusion, like destruction of the referenced buffers.
@@ -48,11 +48,12 @@ class NativeWmmaPreparedQueue {
   // Immutable accounting after successful preparation; caller externally
   // excludes replacement while inspecting, as with borrowed descriptor views.
   uint64_t device_metadata_bytes() const {return storage_.bytes();}
-  uint64_t retained_host_metadata_bytes() const {return host_tasks_.capacity()*sizeof(NativeWmmaTask)+sizeof(header_);}
+  uint64_t retained_host_metadata_bytes() const {return host_tasks_.capacity()*sizeof(NativeWmmaTask)+sizeof(header_)+(locality_.struct_size?sizeof(locality_):0);}
   uint64_t preparation_materialized_host_payload_bytes() const {return materialized_host_bytes_;}
   uint64_t preparation_peak_host_payload_bytes() const {return peak_host_payload_bytes_;}
   uint64_t preparation_peak_device_metadata_bytes() const {return peak_device_bytes_;}
   NativeWmmaScheduleHeader schedule_header() const {return header_;}
+  rns8_locality_info locality_info() const {return locality_;}
 
  private:
   std::mutex mutex_;
@@ -64,6 +65,7 @@ class NativeWmmaPreparedQueue {
   NativeWmmaTaskRange* ranges_ = nullptr;
   NativeWmmaRoundPhase* phases_ = nullptr;
   NativeWmmaScheduleHeader header_{};
+  rns8_locality_info locality_{};
   uint64_t materialized_host_bytes_=0,peak_device_bytes_=0,peak_host_payload_bytes_=0;
   uint32_t* cursor_ = nullptr;
   uint32_t count_ = 0, workers_ = 0, uniform_group_ = 0;

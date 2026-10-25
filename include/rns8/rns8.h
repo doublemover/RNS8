@@ -2022,6 +2022,13 @@ typedef struct rns8_native_group_info {
 } rns8_native_group_info;
 RNS8_API rns8_status rns8_prepare_native_group(rns8_prepared_group* group,
     const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count);
+/* Explicit-work locality permutation; requires schedule_mode=0 and a persistent
+ * or owned-graph launch, not the ordinary-grid control. Hypothetical topology
+ * follows rns8_locality_desc; unknown targets retain ordinary queue order. */
+RNS8_API rns8_status rns8_prepare_native_group_locality(rns8_prepared_group* group,
+    const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count,
+    const rns8_locality_desc* locality);
+RNS8_API rns8_status rns8_get_native_group_locality_info(const rns8_prepared_group* group,rns8_locality_info* info);
 RNS8_API rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,rns8_native_group_info* info);
 /** One borrowed nondefault same-device stream for the whole queue. Tokens use
  * the existing query/wait/cancel/dependency API. No publication until real event

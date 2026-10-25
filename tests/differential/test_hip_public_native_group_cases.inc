@@ -56,6 +56,17 @@ template<class T> void check_public_native_group() {
   REQUIRE(prepared==RNS8_SUCCESS);
   for(bool encoded:{false,true}) {
     if(encoded){REQUIRE(rns8_prepare_encoded_b(ctx,b,UINT64_MAX,&cache)==RNS8_SUCCESS);for(auto& binding:bindings)binding.encoded_b=cache;}
+    for(auto order:{RNS8_LOCALITY_ORDINARY,RNS8_LOCALITY_OUTPUT_NEIGHBOR,RNS8_LOCALITY_MODULUS,RNS8_LOCALITY_SAME_OUTPUT}){
+      auto local=desc;local.schedule_mode=0;local.ordinary_grid_control=0;rns8_locality_desc layout{sizeof(layout),RNS8_ABI_VERSION,order,0,1,1,3,1024};
+      REQUIRE(rns8_prepare_native_group_locality(group,&local,bindings,2,&layout)==RNS8_SUCCESS);
+      rns8_locality_info info{sizeof(info),RNS8_ABI_VERSION};REQUIRE(rns8_get_native_group_locality_info(group,&info)==RNS8_SUCCESS);CHECK(info.physical_affinity_established==0);
+      REQUIRE(rns8_capture_native_group_hip_graph(group)==RNS8_SUCCESS);rns8_completion_token tokens[2]{};uint32_t submitted=0;
+      REQUIRE(rns8_submit_native_group_hip_graph(group,stream.get(),tokens,2,&submitted)==RNS8_SUCCESS);REQUIRE(submitted==2);
+      for(int i=0;i<2;++i){rns8_completion_info completion{sizeof(completion),RNS8_ABI_VERSION};REQUIRE(rns8_wait_prepared_hip(execution[i],tokens[i],&completion)==RNS8_SUCCESS);REQUIRE(completion.operation_status==RNS8_SUCCESS);audit(i);}
+      const auto fingerprint=info.permutation_fingerprint;REQUIRE(rns8_refresh_prepared_group_inputs(group)==RNS8_SUCCESS);
+      REQUIRE(rns8_get_native_group_locality_info(group,&info)==RNS8_SUCCESS);CHECK(info.requested_order==order);CHECK(info.permutation_fingerprint==fingerprint);
+      local.schedule_mode=2;CHECK(rns8_prepare_native_group_locality(group,&local,bindings,2,&layout)==RNS8_INVALID_ARGUMENT);
+    }
     for(uint32_t mode=0;mode<3;++mode)for(bool ordinary:{false,true}) {
       desc.schedule_mode=mode;desc.ordinary_grid_control=ordinary;
       REQUIRE(rns8_prepare_native_group(group,&desc,bindings,2)==RNS8_SUCCESS);

@@ -9,9 +9,11 @@ extern "C" int rns8_hip_native_wmma_queue_completion(const NativeWmmaTask*,const
 #endif
 rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
     const std::vector<NativeWmmaTask>& tasks, uint32_t workers, uint64_t max_scratch_bytes,
-    NativeWmmaScheduleConfig config) {
+    NativeWmmaScheduleConfig config,const rns8_locality_desc* locality) {
   std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
   if (!lock.owns_lock()) return RNS8_BUSY;
+  if(storage_.pending()){if(hip_direct_synchronize(device_id_)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;storage_.mark_completed();}
+  if(locality && (!locality_descriptor_valid(*locality) || config.mode!=NativeWmmaScheduleMode::explicit_round_robin))return RNS8_INVALID_ARGUMENT;
   NativeWmmaSchedulePlan schedule;
   // Transactional replacement keeps the old allocation until upload succeeds.
   // Charge both allocations against the preparation budget at that peak.
@@ -21,6 +23,10 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   const auto bytes=schedule.device_bytes;
   if (status != RNS8_SUCCESS) return status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8_locality_info locality_info{};uint64_t locality_transient=0;
+  if(locality){rns8_device_info device{};status=hip_direct_probe(device_id,device);if(status!=RNS8_SUCCESS)return status;
+    status=lower_native_locality(tasks,schedule.explicit_work,*locality,device.gcn_arch,locality_info,locality_transient);if(status!=RNS8_SUCCESS)return status;
+    schedule.peak_host_payload_bytes=std::max(schedule.peak_host_payload_bytes,schedule.transient_host_capacity_bytes()+locality_transient);}
   // Allocate the ordinary-launch control descriptors before replacing any state.
   // These are metadata only; operand contents are never retained on the host.
   std::vector<NativeWmmaTask> host_tasks;
@@ -37,15 +43,18 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
   auto* phases=device_work?nullptr:reinterpret_cast<NativeWmmaRoundPhase*>(ranges+schedule.ranges.size());
   auto* cursor=device_work?reinterpret_cast<uint32_t*>(device_work+schedule.explicit_work.size()):
       reinterpret_cast<uint32_t*>(phases+schedule.phases.size());
+  storage.mark_pending();
   auto error = timed_hip_operation("native_queue_prepare_capability", [&]() {
     const auto launch = static_cast<hipError_t>(rns8_hip_native_wmma_capability(reinterpret_cast<int*>(cursor)));
     return launch == hipSuccess ? hipDeviceSynchronize() : launch;
   });
-  if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
+  if (error != hipSuccess){if(hipDeviceSynchronize()==hipSuccess)storage.mark_completed();return RNS8_BACKEND_FAILURE;}
+  storage.mark_completed();
   uint32_t supported = 0;
   status = hip_direct_copy_device_to_host(device_id, &supported, cursor, sizeof(supported));
   if (status != RNS8_SUCCESS) return status;
   if (!supported) return RNS8_UNSUPPORTED_BACKEND;
+  storage.mark_pending();
   error = timed_hip_operation("native_queue_prepare_upload", [&]() {
     auto upload = tracked_sync_copy(device_tasks, tasks.data(), tasks.size() * sizeof(NativeWmmaTask), hipMemcpyHostToDevice);
     if (upload == hipSuccess && device_work)
@@ -56,16 +65,17 @@ rns8_status NativeWmmaPreparedQueue::prepare(int device_id,
       upload=tracked_sync_copy(phases,schedule.phases.data(),schedule.phases.size()*sizeof(NativeWmmaRoundPhase),hipMemcpyHostToDevice);
     return upload == hipSuccess ? hipDeviceSynchronize() : upload;
   });
-  if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
-  materialized_host_bytes_=schedule.transient_host_capacity_bytes()+sizeof(schedule.header)+
+  if (error != hipSuccess){if(hipDeviceSynchronize()==hipSuccess)storage.mark_completed();return RNS8_BACKEND_FAILURE;}
+  storage.mark_completed();
+  materialized_host_bytes_=schedule.transient_host_capacity_bytes()+sizeof(schedule.header)+(locality?sizeof(locality_info):0)+
       (host_tasks.capacity()+host_tasks_.capacity())*sizeof(NativeWmmaTask);
-  peak_host_payload_bytes_=std::max(materialized_host_bytes_,schedule.peak_host_payload_bytes+sizeof(schedule.header)+host_tasks_.capacity()*sizeof(NativeWmmaTask));
+  peak_host_payload_bytes_=std::max(materialized_host_bytes_,schedule.peak_host_payload_bytes+sizeof(schedule.header)+(locality?sizeof(locality_info):0)+host_tasks_.capacity()*sizeof(NativeWmmaTask));
   peak_device_bytes_=retained+bytes;
   storage_ = std::move(storage);
   host_tasks_.swap(host_tasks);
   device_id_ = device_id;
   tasks_ = device_tasks; work_ = device_work; cursor_ = cursor;
-  ranges_=ranges;phases_=phases;header_=schedule.header;
+  ranges_=ranges;phases_=phases;header_=schedule.header;locality_=locality_info;
   count_ = header_.work_count;
   workers_ = std::min(workers, count_);
   uniform_group_ = native_wmma_uniform_group(tasks);
@@ -87,6 +97,7 @@ rns8_status NativeWmmaPreparedQueue::execute(bool& outputs_may_be_written) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id_);
   if (status != RNS8_SUCCESS) return status;
+  storage_.mark_pending();
   const auto error = timed_hip_operation("native_queue_prepared_execute", [&]() {
     auto launch = hipMemsetAsync(cursor_, 0, sizeof(uint32_t), nullptr);
     if (launch == hipSuccess) {
@@ -102,6 +113,7 @@ rns8_status NativeWmmaPreparedQueue::execute(bool& outputs_may_be_written) {
     return launch;
   });
   if (error != hipSuccess) { poisoned_ = true; return RNS8_BACKEND_FAILURE; }
+  storage_.mark_completed();
   return RNS8_SUCCESS;
 #else
   return RNS8_UNSUPPORTED_BACKEND;
@@ -117,6 +129,7 @@ rns8_status NativeWmmaPreparedQueue::execute_ordinary(bool& outputs_may_be_writt
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id_);
   if (status != RNS8_SUCCESS) return status;
+  storage_.mark_pending();
   const auto error = timed_hip_operation("native_queue_prepared_ordinary_grids", [&]() {
     auto launch = hipSuccess;
     for (const auto& task : host_tasks_) {
@@ -134,6 +147,7 @@ rns8_status NativeWmmaPreparedQueue::execute_ordinary(bool& outputs_may_be_writt
     return launch == hipSuccess ? completion : launch;
   });
   if (error != hipSuccess) { poisoned_ = true; return RNS8_BACKEND_FAILURE; }
+  storage_.mark_completed();
   return RNS8_SUCCESS;
 #else
   return RNS8_UNSUPPORTED_BACKEND;
@@ -159,6 +173,7 @@ rns8_status NativeWmmaPreparedQueue::execute_completion(NativeWmmaCompletionTele
   status=telemetry.allocate(device_id_,receipt.diagnostic_device_bytes);if(status!=RNS8_SUCCESS)return status;
   auto* start=static_cast<uint64_t*>(telemetry.get());
   auto* ticks=start+1;auto* completed=reinterpret_cast<uint32_t*>(ticks+header_.task_count);
+  storage_.mark_pending();telemetry.mark_pending();
   auto launch=hipMemsetAsync(cursor_,0,sizeof(uint32_t),nullptr);
   if(launch==hipSuccess) {
     outputs_may_be_written=true;
@@ -166,6 +181,7 @@ rns8_status NativeWmmaPreparedQueue::execute_completion(NativeWmmaCompletionTele
         cursor_,workers_,completed,ticks,start));
   }
   const auto completion=hipDeviceSynchronize();
+  if(completion==hipSuccess){storage_.mark_completed();telemetry.mark_completed();}
   if(launch!=hipSuccess || completion!=hipSuccess){poisoned_=true;return RNS8_BACKEND_FAILURE;}
   status=hip_direct_copy_device_to_host(device_id_,receipt.completed_work.data(),completed,header_.task_count*sizeof(uint32_t));
   if(status==RNS8_SUCCESS)status=hip_direct_copy_device_to_host(device_id_,receipt.completion_ticks.data(),ticks,header_.task_count*sizeof(uint64_t));
@@ -242,6 +258,7 @@ rns8_status NativeWmmaPreparedQueue::enqueue_borrowed_stream(void* stream,bool o
   if(poisoned_)return RNS8_BACKEND_FAILURE;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status=set_hip_device(device_id_);if(status!=RNS8_SUCCESS)return status;
+  storage_.mark_pending();
   hipError_t launch=hipSuccess;
   if(ordinary) {
     for(const auto& task:host_tasks_) {
@@ -270,7 +287,7 @@ rns8_status NativeWmmaPreparedQueue::enqueue_borrowed_stream(void* stream,bool o
 rns8_status NativeWmmaPreparedQueue::close() {
   std::unique_lock<std::mutex> lock(mutex_,std::try_to_lock);
   if(!lock.owns_lock())return RNS8_BUSY;
-  if(poisoned_ && storage_ && hip_direct_synchronize(device_id_)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  if((poisoned_ || storage_.pending()) && storage_){if(hip_direct_synchronize(device_id_)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;storage_.mark_completed();}
   const auto status=storage_.reset();if(status!=RNS8_SUCCESS)return status;
   host_tasks_.clear();tasks_=nullptr;work_=nullptr;ranges_=nullptr;phases_=nullptr;cursor_=nullptr;
   count_=workers_=uniform_group_=0;device_id_=-1;header_={};poisoned_=false;

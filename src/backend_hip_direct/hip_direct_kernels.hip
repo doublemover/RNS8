@@ -455,3 +455,5 @@ extern "C" int rns8_hip_native_bound_status(const void* maximum,uint64_t limit,i
       static_cast<const uint64_t*>(maximum),limit,status);
   return int(hipGetLastError());
 }
+
+#include "hip_direct_cache_displace.cuh"

@@ -1,3 +1,4 @@
+#include "backend_common/locality_schedule.hpp"
 #include "core/api_internal.hpp"
 #include <atomic>
 #include <array>
@@ -76,6 +77,7 @@ struct rns8_prepared_group {
   std::vector<NativeBinding> native_values;
   std::vector<rns8_native_group_binding> native_bindings;
   rns8_native_group_desc native_desc{};
+  rns8_locality_desc native_locality{};
   uint64_t native_peak_device_bytes=0;
   std::string native_certificate_sha256;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -421,8 +423,9 @@ rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
   return guard_api([&]() -> rns8_status {
     if (!group) return RNS8_INVALID_ARGUMENT;
     if (group->running) return RNS8_BUSY;
-    if(group->native_queue) return rns8_prepare_native_group(group,&group->native_desc,
-        group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()));
+    if(group->native_queue) return group->native_locality.struct_size?rns8_prepare_native_group_locality(group,&group->native_desc,
+        group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()),&group->native_locality):
+        rns8_prepare_native_group(group,&group->native_desc,group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()));
     for (auto* e : group->executions) {
       if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
       if(e->closing)return RNS8_INVALID_ARGUMENT;

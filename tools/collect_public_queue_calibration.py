@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 import statistics
 import uuid
+from native_locality_contract import public_contract as locality_contract, ORDERS as LOCALITY_ORDERS
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 from collect_native_calibration import strict_json, DEFAULT_MODULI
@@ -17,7 +18,7 @@ def integer(value, low, high):
 
 def validate_case(c):
     fields = {'schema', 'mode', 'input_policy', 'encoded_b', 'schedule', 'chunk', 'workers', 'reuse', 'warmups', 'repeats', 'seed', 'padding', 'tasks'}
-    if not isinstance(c, dict) or set(c) != fields or c['schema'] != 'public_native_group_case_v1':
+    if not isinstance(c, dict) or set(c)-{'locality_order'} != fields or c['schema'] != 'public_native_group_case_v1':
         raise ValueError('case ABI')
     if c['mode'] not in ('persistent', 'ordinary', 'graph', 'resident') or c['input_policy'] not in ('resident', 'mutated-b') or type(c['encoded_b']) is not bool:
         raise ValueError('execution/input contract')
@@ -26,6 +27,8 @@ def validate_case(c):
     for key, low, high in [('schedule', 0, 2), ('chunk', 1, 32), ('workers', 1, 1024), ('reuse', 1, 64), ('warmups', 1, 1000), ('repeats', 3, 1000), ('seed', 0, 2**32-1), ('padding', 0, 64)]:
         if not integer(c[key], low, high):
             raise ValueError(key)
+    if 'locality_order' in c and (c['locality_order'] not in LOCALITY_ORDERS or c['schedule'] or c['mode'] not in ('persistent','graph')):
+        raise ValueError('locality requires explicit-work persistent or graph execution')
     if not isinstance(c['tasks'], list) or not 1 <= len(c['tasks']) <= 64:
         raise ValueError('task count')
     bs, work = {}, 0
@@ -76,6 +79,11 @@ def validate_capture(c, entry):
     for key, value in fixed.items():
         if type(c.get(key)) is not type(value) or c[key] != value:
             raise ValueError('capture ' + key)
+    if 'locality_order' in case:
+        expected_locality=locality_contract(case,c.get('target',''))
+        if type(c.get('locality')) is not dict or c['locality']!=expected_locality or any(type(c['locality'].get(k)) is not type(v) for k,v in expected_locality.items()):
+            raise ValueError('public native locality receipt')
+    elif 'locality' in c:raise ValueError('unrequested public locality')
     if not manifest_provenance_complete(c.get('build_manifest')):
         raise ValueError('compiled provenance')
     artifact = c.get('artifact_capture') or {}

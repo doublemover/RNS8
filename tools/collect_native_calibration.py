@@ -11,6 +11,7 @@ import time
 import uuid
 from build_manifest import manifest_provenance_complete
 from modulus_set_search import DEFAULT_MODULI
+from native_locality_contract import private_contract as native_locality_contract, ORDERS as LOCALITY_ORDERS
 from native_dataset import PROFILES as DATASET_PROFILES, identity as dataset_identity, model as dataset_model
 
 
@@ -46,7 +47,7 @@ def strict_json(text):
 def validate_case(case):
     """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile", "dataset_profile", "dataset_seed", "fragments", "merge_policy"}:
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile", "dataset_profile", "dataset_seed", "fragments", "merge_policy", "locality_order", "cache_displace_mib", "cache_model_mib"}:
         raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
@@ -128,6 +129,13 @@ def validate_case(case):
     elif 'fragments' in case or 'merge_policy' in case:raise ValueError('fragment controls apply only to native split_k')
     if 'dataset_profile' in normalized and normalized.get('reuse_count',1)!=1:
         raise ValueError('dataset comparisons require one complete product per call')
+    if any(key in case for key in ("locality_order","cache_displace_mib","cache_model_mib")):
+        if (case['candidate'] not in ('queue_prepared','split_k') or case.get('locality_order') not in LOCALITY_ORDERS
+                or type(case.get('cache_displace_mib')) is not int or not 0<=case['cache_displace_mib']<=1024
+                or type(case.get('cache_model_mib')) is not int or not 0<=case['cache_model_mib']<=512
+                or (case['cache_displace_mib'] and (not case['cache_model_mib'] or case['cache_displace_mib']<2*case['cache_model_mib']))
+                or (not case['cache_displace_mib'] and case['cache_model_mib'])):
+            raise ValueError('explicit native locality/displacement contract')
     return normalized
 
 
@@ -363,6 +371,20 @@ def validate_capture(capture, case, run_id, repeats, warmups):
             raise ValueError(f"metadata mismatch: {key}")
     if not valid_sustained(capture.get("sustained")):
         raise ValueError("invalid sustained verification/timing")
+    if 'locality_order' in case:
+        if not same_value(capture.get('locality'),native_locality_contract(case,capture.get('target',''))):
+            raise ValueError('native locality permutation/source/fragment identity')
+        allocation=case['cache_displace_mib']*1024*1024
+        submissions=(warmups+2*repeats+capture['sustained']['calls']) if allocation else 0
+        witness=(submissions*0x9e3779b9)&0xffffffff if allocation else 0
+        actual=capture.get('cache_displacement',{})
+        expected=dict(version=1,allocation_bytes=allocation,modeled_cache_bytes=case['cache_model_mib']*1024*1024,
+            line_stride_bytes=64,passes_per_call=1 if allocation else 0,submissions=submissions,
+            host_ns=actual.get('host_ns'),first_word=witness,last_word=witness,witness_verified=True,
+            inside_timed_call=True,before_every_sustained_call=True,cold_cache_verified=False)
+        if not same_value(actual,expected) or (not positive_number(actual['host_ns']) if allocation else actual['host_ns']!=0):
+            raise ValueError('native cache-displacement attempt/verification accounting')
+    elif 'locality' in capture or 'cache_displacement' in capture:raise ValueError('unrequested locality/cache controls')
     if case["candidate"] in CONVERSION:
         setup=capture.get("conversion_prepare_ns")
         if "conversion_prepare_ns" not in capture or (not positive_number(setup) if case["candidate"]=="conversion_prepared" else setup is not None):
@@ -555,7 +577,7 @@ def main():
     artifact = hashlib.sha256(exe.read_bytes()).hexdigest()
     args.output.mkdir(parents=True, exist_ok=True)
     collector_sources = [Path(__file__).resolve(), Path(__file__).with_name("build_manifest.py").resolve(),
-                         Path(__file__).with_name("modulus_set_search.py").resolve(), Path(__file__).with_name("native_dataset.py").resolve()]
+                         Path(__file__).with_name("modulus_set_search.py").resolve(), Path(__file__).with_name("native_dataset.py").resolve(), Path(__file__).with_name("native_locality_contract.py").resolve()]
     collector_identity = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in collector_sources}
     distribution_observations=[]
     campaign = str(uuid.uuid4())
@@ -583,6 +605,7 @@ def main():
             command.append(str(case["reuse_count"]))
         if case["candidate"].startswith("epilogue_"):command.append(case["coefficient_profile"])
         if 'dataset_profile' in case:command.extend(['--dataset',case['dataset_profile'],'--seed',str(case['dataset_seed'])])
+        if 'locality_order' in case:command.extend(['--locality',case['locality_order'],'--cache-displace-mib',str(case['cache_displace_mib']),'--cache-model-mib',str(case['cache_model_mib'])])
         record = {"schema": "rns8_native_collection_v2", "campaign_id": campaign, "run_id": run_id,
                   "artifact_sha256": artifact, "command": command, "case": case,
                   "collector_sha256": collector_identity["collect_native_calibration.py"],

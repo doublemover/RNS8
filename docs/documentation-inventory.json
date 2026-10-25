@@ -3032,8 +3032,10 @@
         }
       ],
       "anchors": [
+        "explicit-cache-displacement-not-invented-cold-cache-evidence",
         "explicit-direct-hip-runtime-consumer",
-        "logical-locality-schedules"
+        "logical-locality-schedules",
+        "native-groups-encoded-b-and-split-fragments"
       ]
     },
     {

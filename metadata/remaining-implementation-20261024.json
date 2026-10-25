@@ -495,7 +495,7 @@
       "issue": 36,
       "title": "[Research P2] Schedule residue and output tiles for measured XCD/cache locality",
       "url": "https://github.com/doublemover/RNS8/issues/36",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Offline typed locality schedule bijection/cache simulator implemented; no actual target-specific launch remapping consumer or associated kernel integration in source. Hardware execution alone is not the missing item.",
       "implementation": [
         {
@@ -506,19 +506,38 @@
             "include/rns8/rns8.h",
             "benchmarks/public-calibration/locality.json"
           ]
+        },
+        {
+          "summary": "Native explicit-work locality now composes with groups1/2/4, encoded/repeated B, public stream/graph queues, retained refresh and disjoint split-K fragments. Exact consumed-byte interval union and independent permutation receipts pair with actual every-call cache-displacement kernels, submission witnesses, offline split-fragment simulator and matched existing harness corpora. Pending metadata/partial buffers retain ownership on failed drain.",
+          "files": [
+            "src/backend_common/native_locality.hpp",
+            "src/core/api_prepared_native_group.inc",
+            "src/backend_hip_direct/hip_backend_native_queue.inc",
+            "src/backend_hip_direct/hip_backend_native_split_k.inc",
+            "src/backend_hip_direct/hip_direct_cache_displace.cuh",
+            "tools/native_locality_contract.py",
+            "tools/locality_schedule.py",
+            "benchmarks/rns8_native_calibrate.cpp",
+            "benchmarks/rns8_public_queue_calibrate.cpp"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_plan_validation_cache_cases.inc",
-        "tools/test_locality_schedule.py"
+        "tools/test_locality_schedule.py",
+        "tests/unit/test_native_wmma_queue.cpp",
+        "tests/unit/test_api_matrix_cleanup_cases.inc",
+        "tests/differential/test_hip_direct_native_queue_cases.inc",
+        "tests/differential/test_hip_public_native_group_cases.inc",
+        "tools/test_locality_schedule.py",
+        "tools/test_collect_native_calibration.py",
+        "tools/test_collect_public_queue_calibration.py"
       ],
       "commits": [
         "05a114ac9600958e742f5ce58e4f34a17c126c15"
       ],
       "remaining": [
-        "Raw-native grouped/split-fragment locality composition remains to integrate with #35/#37/#38.",
-        "An explicit cache-displacement harness control remains to implement; repacking alone is not a cache-cold claim.",
-        "GPU compilation, execution, physical counter/placement evidence, measured cache-cold control and promotion remain deferred."
+        "GPU compilation/execution, target counters, physical placement/cache state, measured end-to-end profitability and dispatch promotion are unverified and deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1508,7 +1527,9 @@
         "tests/unit/test_api_gram_cases.inc",
         "tools/test_workload_examples.py"
       ],
-      "commits": [],
+      "commits": [
+        "c92d84434604156db85342e737f4a086d217ea67"
+      ],
       "remaining": [
         "HIP device compilation, CPU/HIP regression execution, physical fragment/ISA qualification and matched measured profitability deferred.",
         "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."

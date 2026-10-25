@@ -53,7 +53,7 @@ constexpr uint64_t sentinel=0x5ac37e195ac37e19ull;
 int main(int argc,char** argv){try{
   need(argc==3,"usage: rns8-public-queue-calibrate CASE.json unique-run-id");
   std::ifstream file(argv[1]);json config;file>>config;
-  need(config.is_object() && config.size()==13 && config.at("schema")=="public_native_group_case_v1","case ABI");
+  need(config.is_object() && config.size()==13+(config.contains("locality_order")?1:0) && config.at("schema")=="public_native_group_case_v1","case ABI");
   const auto mode=config.at("mode").get<std::string>(),policy=config.at("input_policy").get<std::string>();
   need(mode=="persistent" || mode=="ordinary" || mode=="graph" || mode=="resident","mode");
   need(policy=="resident" || policy=="mutated-b","input policy");
@@ -61,6 +61,11 @@ int main(int argc,char** argv){try{
   need(mode!="resident" || !encoded,"resident RNS control does not consume encoded B");
   const uint32_t schedule=number(config,"schedule",0,2),chunk=number(config,"chunk",1,32),workers=number(config,"workers",1,1024),
       reuse=number(config,"reuse",1,64),warmups=number(config,"warmups",1,1000),repeats=number(config,"repeats",3,1000),seed=number(config,"seed",0,UINT32_MAX),padding=number(config,"padding",0,64);
+  const bool locality_enabled=config.contains("locality_order");const std::string locality_order=config.value("locality_order",std::string("ordinary"));
+  need(!locality_enabled || (!schedule && (mode=="persistent" || mode=="graph") &&
+      (locality_order=="ordinary" || locality_order=="output-neighbor" || locality_order=="modulus" || locality_order=="same-output")),"locality requires explicit persistent/graph work directory");
+  rns8_locality_desc locality{sizeof(locality),RNS8_ABI_VERSION,RNS8_LOCALITY_ORDINARY,0,1,1,1,0};
+  locality.order=locality_order=="output-neighbor"?RNS8_LOCALITY_OUTPUT_NEIGHBOR:locality_order=="modulus"?RNS8_LOCALITY_MODULUS:locality_order=="same-output"?RNS8_LOCALITY_SAME_OUTPUT:RNS8_LOCALITY_ORDINARY;
   need(config.at("tasks").is_array() && !config["tasks"].empty() && config["tasks"].size()<=64,"task count");
   Owner owner;owner.tasks.resize(config["tasks"].size());uint64_t oracle_work=0,useful_work=0;
   for(size_t i=0;i<owner.tasks.size();++i){const auto& t=config["tasks"][i];auto& task=owner.tasks[i];
@@ -114,7 +119,7 @@ int main(int argc,char** argv){try{
       if(encoded)for(auto& [slot,b]:owner.bs){rns8_encoded_b* cache=nullptr;check(rns8_prepare_encoded_b(owner.ctx,b.matrix,UINT64_MAX,&cache));replacement.emplace(slot,cache);
         rns8_encoded_b_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_encoded_b_info(cache,&info));need(info.source_is_current==1,"new cache stale");new_bytes+=info.retained_device_bytes;}
       for(size_t i=0;i<bindings.size();++i)bindings[i].encoded_b=encoded?replacement.at(owner.tasks[i].b_slot):nullptr;
-      check(rns8_prepare_native_group(owner.group,&desc,bindings.data(),uint32_t(bindings.size())));
+      check(locality_enabled?rns8_prepare_native_group_locality(owner.group,&desc,bindings.data(),uint32_t(bindings.size()),&locality):rns8_prepare_native_group(owner.group,&desc,bindings.data(),uint32_t(bindings.size())));
       peak_encoded_bytes=std::max(peak_encoded_bytes,encoded_bytes+new_bytes);encoded_bytes=new_bytes;
       for(auto& [slot,b]:owner.bs){if(b.cache)check(rns8_destroy_encoded_b(b.cache));b.cache=encoded?replacement.at(slot):nullptr;replacement.erase(slot);}
       if(mode=="graph")check(rns8_capture_native_group_hip_graph(owner.group));++rebuilds;
@@ -180,6 +185,11 @@ int main(int argc,char** argv){try{
     {"encoded_b_retained_device_bytes",encoded_bytes},{"encoded_b_peak_replacement_device_bytes",peak_encoded_bytes},{"useful_tile_channel_groups_per_call",useful_work},
     {"exact_reference_passed",true},{"oracle_inside_production_interval",false},
     {"oracle_scope","complete_final_output_after_each_observation_and_sustained_interval"},{"per_task_device_completion_latency_measured",false},{"promotion_eligible",false}};
+  if(locality_enabled){rns8_locality_info info{sizeof(info),RNS8_ABI_VERSION};check(rns8_get_native_group_locality_info(owner.group,&info));
+    result["locality"]={{"version",1},{"requested_order",locality_order},{"applied_order",info.applied_order},{"applied",bool(info.applied)},
+      {"target_id",info.target_id},{"topology_version",1},{"physical_affinity_established",false},{"active_entries",info.active_entries},
+      {"directory_bytes",info.directory_bytes},{"requested_source_bytes",info.requested_source_bytes},{"unique_source_bytes",info.unique_source_bytes},
+      {"partial_output_bytes",info.output_read_write_bytes},{"permutation_fingerprint",info.permutation_fingerprint}};}
   uint64_t output_bytes=0;for(const auto& task:owner.tasks)output_bytes+=uint64_t(task.m)*task.n*24;result["output_payload_bytes_per_call"]=output_bytes;
   std::cout<<result.dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

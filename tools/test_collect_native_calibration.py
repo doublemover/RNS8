@@ -16,6 +16,7 @@ from collect_native_calibration import (
     reuse_contract, summarize_encoded_reuse, conversion_contract, summarize_conversion,
     scheduling_contract, strict_json, valid_sustained, validate_capture, validate_case,
 )
+from native_locality_contract import private_contract as locality_contract
 from test_capture_identity_support import synthetic_identity
 
 
@@ -67,6 +68,26 @@ def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
 
 
 class CaseTest(unittest.TestCase):
+    def test_native_locality_and_real_displacement_receipts(self):
+        for candidate in ('queue_prepared','split_k'):
+            for order in ('ordinary','output-neighbor','modulus','same-output'):
+                for mib in (0,256):
+                    case=case_for(candidate,locality_order=order,cache_displace_mib=mib,cache_model_mib=64 if mib else 0)
+                    capture=capture_for(case);capture['locality']=locality_contract(case,'gfx1100')
+                    calls=23 if mib else 0;witness=(calls*0x9e3779b9)&0xffffffff
+                    capture['cache_displacement']=dict(version=1,allocation_bytes=mib*1024*1024,modeled_cache_bytes=(64 if mib else 0)*1024*1024,
+                        line_stride_bytes=64,passes_per_call=1 if mib else 0,submissions=calls,host_ns=100 if mib else 0,
+                        first_word=witness,last_word=witness,witness_verified=True,inside_timed_call=True,before_every_sustained_call=True,cold_cache_verified=False)
+                    validate_capture(capture,case,'fixture-run',3,1)
+                    for field in ('active_entries','unique_source_bytes','permutation_fingerprint','partial_output_bytes'):
+                        bad=copy.deepcopy(capture);bad['locality'][field]+=1
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+                    for field,value in (('cold_cache_verified',True),('before_every_sustained_call',False),('submissions',calls+1)):
+                        bad=copy.deepcopy(capture);bad['cache_displacement'][field]=value
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+        with self.assertRaises(ValueError):case_for('wmma',locality_order='same-output',cache_displace_mib=256,cache_model_mib=64)
+        with self.assertRaises(ValueError):case_for('queue_prepared',locality_order='same-output',cache_displace_mib=32,cache_model_mib=64)
+
     def test_encoded_reuse_controls_storage_and_irrelevant_arguments(self):
         self.assertEqual(validate_case(BASE)["reuse_count"],1)
         self.assertNotIn("reuse_count",BASE)
