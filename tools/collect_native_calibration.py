@@ -176,7 +176,8 @@ def global_minimum_contract(case):
     m,n,k,cap=(case[key] for key in ('m','n','k','prefix'))
     rows,cols=(m+15)//16,(n+15)//16;tiles=rows*cols
     suffix=m*n*(cap-1)+4 if cap>1 else 0
-    peak=m*n*cap+tiles*32+(tiles+23)*4+(rows+cols)*24+43*4+32+suffix
+    stage=m*n*cap
+    peak=max(stage+tiles*32+(tiles+23)*4+(rows+cols)*24+43*4+32,stage+max(suffix,4))
     return {'global_minimum_control':dict(version=1,proof_source='fresh_device_axis_l1_tile_bound_maximum',summary_reuse=False,
         zero_compute_prefix_floor=1,proof_readback_bytes_per_call=36,requested_scratch_high_water_bytes=peak,
         scratch_is_observed_allocator_peak=False,output_scope='uniform_minimum_prefix_then_exact_suffix_and_staged_full_capacity_commit')}

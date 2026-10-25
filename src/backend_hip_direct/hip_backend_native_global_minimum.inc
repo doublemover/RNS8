@@ -18,7 +18,6 @@ rns8_status hip_direct_gemm_global_minimum_native_device(int device_id,const voi
   for(const auto& allocation:{std::pair<hip_direct_device_buffer*,uint64_t>{&stage,support.discovery.stage_bytes},
       {&records,support.discovery.bound_bytes},{&metadata,support.discovery.metadata_bytes},{&global,sizeof(NativeTileBound)}})
     if((status=allocation.first->allocate(device_id,size_t(allocation.second)))!=RNS8_SUCCESS)return status;
-  if(support.suffix_bytes && (status=suffix.allocate(device_id,size_t(support.suffix_bytes)))!=RNS8_SUCCESS)return status;
   auto* bounds=static_cast<NativeTileBound*>(records.get());auto* indices=static_cast<uint32_t*>(metadata.get());
   records.mark_pending();metadata.mark_pending();
   status=hip_direct_discover_native_tile_bounds(device_id,a,b,m,n,k,lda,ldb,unsigned_inputs,capacity,bounds,indices,
@@ -41,6 +40,9 @@ rns8_status hip_direct_gemm_global_minimum_native_device(int device_id,const voi
   auto checked=receipt.bound;select_native_bound_prefix(checked,!unsigned_inputs,capacity,garner::kConstants.products);
   if(checked.required_prefix!=receipt.bound.required_prefix || checked.required_prefix>capacity)return RNS8_RANGE_ERROR;
   receipt.required_prefix=checked.required_prefix;receipt.compute_prefix=std::max(1u,checked.required_prefix);
+  // Only the small host certificate survives discovery. Retiring its device
+  // buffers before production avoids charging two disjoint scratch lifetimes.
+  for(auto* allocation:{&records,&metadata,&global})if((status=allocation->reset())!=RNS8_SUCCESS)return status;
   receipt.proof_readback_bytes=sizeof(NativeTileBound)+sizeof(uint32_t);receipt.discovery_ns=elapsed(begin);
   const auto product_start=Timer::now();stage.mark_pending();
   status=hip_direct_gemm_native_wmma_grouped_device(device_id,a,b,static_cast<int8_t*>(stage.get()),m,n,k,lda,ldb,n,
@@ -48,9 +50,12 @@ rns8_status hip_direct_gemm_global_minimum_native_device(int device_id,const voi
   if(status!=RNS8_SUCCESS){if(status==RNS8_UNSUPPORTED_BACKEND)stage.mark_completed();return status;}stage.mark_completed();receipt.conversion_product_ns=elapsed(product_start);
   const auto completion_start=Timer::now();
   if(receipt.compute_prefix<capacity) {
+    const auto lift=query_exact_lift_support(m*n,receipt.compute_prefix,capacity,UINT64_MAX);
+    if(lift.status!=RNS8_SUCCESS)return lift.status;
+    if((status=suffix.allocate(device_id,size_t(lift.scratch_bytes)))!=RNS8_SUCCESS)return status;
     bool suffix_started=false;stage.mark_pending();suffix.mark_pending();
     status=hip_direct_lift_exact_suffix_workspace(device_id,stage.get(),m*n,receipt.compute_prefix,capacity,!unsigned_inputs,
-        receipt.bound.magnitude,suffix.get(),support.suffix_bytes,suffix_started);
+        receipt.bound.magnitude,suffix.get(),suffix.bytes(),suffix_started);
     if(status!=RNS8_SUCCESS)return status;stage.mark_completed();suffix.mark_completed();
   }
   receipt.completion_ns=elapsed(completion_start);

@@ -168,7 +168,10 @@ allocation/release and synchronization. Samples retain these host phase times
 for both diagnostic and hook-disabled calls. The proof readback payload is 36
 bytes including discovery's rejection word; ordinary capability/status traffic
 is additional. The resource query records simultaneous requested scratch
-high-water including worst-case retained suffix scratch; it is not an observed
+high-water as the maximum discovery/production phase. Discovery records retire
+before production; suffix scratch is allocated only when required, at the
+selected prefix, after the native producer's capability word retires. The query
+reserves a conservative worst-case suffix ceiling; it is not an observed
 allocator peak. The control borrows immutable native allocations for each
 synchronous call and never reuses a certificate after mutation. No persistent
 summary owner/cache is introduced.

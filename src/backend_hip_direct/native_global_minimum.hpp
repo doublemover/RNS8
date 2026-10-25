@@ -20,12 +20,13 @@ inline NativeGlobalMinimumSupport query_native_global_minimum_support(
     const auto lift=query_exact_lift_support(m*n,1,capacity,UINT64_MAX);
     out.status=lift.status;if(out.status!=RNS8_SUCCESS)return out;out.suffix_bytes=lift.scratch_bytes;
   }
-  // Retain the largest suffix scratch throughout discovery. Its temporary
-  // scratch exceeds the native WMMA capability word, so this is the known
-  // simultaneous requested payload high-water, excluding allocator overhead.
-  const auto extra=out.suffix_bytes+sizeof(NativeTileBound);
-  if(out.discovery.peak_scratch_bytes>SIZE_MAX-extra){out.status=RNS8_RANGE_ERROR;return out;}
-  out.peak_scratch_bytes=out.discovery.peak_scratch_bytes+extra;
+  // Discovery records retire before production. Suffix storage is allocated
+  // only after the selected prefix is known, and after the capability probe.
+  // Bound the maximum phase, rather than summing disjoint scratch lifetimes.
+  const auto production_extra=std::max<uint64_t>(out.suffix_bytes,sizeof(int));
+  if(out.discovery.peak_scratch_bytes>SIZE_MAX-sizeof(NativeTileBound) ||
+      out.discovery.stage_bytes>SIZE_MAX-production_extra){out.status=RNS8_RANGE_ERROR;return out;}
+  out.peak_scratch_bytes=std::max(out.discovery.peak_scratch_bytes+sizeof(NativeTileBound),out.discovery.stage_bytes+production_extra);
   out.status=out.peak_scratch_bytes>budget?RNS8_WORKSPACE_TOO_SMALL:RNS8_SUCCESS;return out;
 }
 struct NativeGlobalMinimumReceipt {

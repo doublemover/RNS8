@@ -369,14 +369,19 @@ template<class T> void check_global_minimum_completed_native() {
     }
     for(uint32_t group:{1u,2u,4u}) {
       std::vector<int8_t> actual(expected.size(),99);REQUIRE(hip_direct_copy_host_to_device(0,dc.get(),actual.data(),actual.size())==RNS8_SUCCESS);
+      const auto support=query_native_global_minimum_support(m,n,k,lda,ldb,ldc,capacity,group,UINT64_MAX);
+      auto* ledger=hip_direct_allocation_ledger(0);REQUIRE(ledger!=nullptr);
+      const auto baseline=ledger->snapshot();REQUIRE(baseline.complete);uint64_t observation_epoch=0;REQUIRE(ledger->reset_peaks(observation_epoch));
       bool written=true;NativeGlobalMinimumReceipt receipt;
       const auto status=hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,capacity,group,1<<20,written,receipt);
       if(status==RNS8_UNSUPPORTED_BACKEND){CHECK_FALSE(written);SKIP("global minimum control needs compiled RDNA3 native WMMA");}
       REQUIRE(status==RNS8_SUCCESS);CHECK(written);CHECK(receipt.required_prefix==required);CHECK(receipt.compute_prefix==std::max(1u,required));CHECK(receipt.proof_readback_bytes==36);
+      const auto observed=ledger->snapshot();REQUIRE(observed.complete);
+      CHECK(observed.domains[0].live_bytes==baseline.domains[0].live_bytes);
+      CHECK(observed.domains[0].peak_bytes-baseline.domains[0].live_bytes<=support.peak_scratch_bytes);
       const cpp_int observed_bound=cpp_int(receipt.bound.magnitude[0])+(cpp_int(receipt.bound.magnitude[1])<<64)+(cpp_int(receipt.bound.magnitude[2])<<128);
       CHECK(observed_bound==bound);
       REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);REQUIRE(actual==expected);
-      const auto support=query_native_global_minimum_support(m,n,k,lda,ldb,ldc,capacity,group,UINT64_MAX);
       written=true;CHECK(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,capacity,group,support.peak_scratch_bytes-1,written,receipt)==RNS8_WORKSPACE_TOO_SMALL);CHECK_FALSE(written);
       if(required>1){written=true;CHECK(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,lda,ldb,ldc,uns,1,group,1<<20,written,receipt)==RNS8_RANGE_ERROR);CHECK_FALSE(written);}
       REQUIRE(hip_direct_copy_device_to_host(0,actual.data(),dc.get(),actual.size())==RNS8_SUCCESS);CHECK(actual==expected);

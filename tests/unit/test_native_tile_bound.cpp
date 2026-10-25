@@ -508,7 +508,7 @@ TEST_CASE("global minimum control admits complete simultaneous scratch before an
   for(uint32_t capacity:{1u,2u,20u})for(uint32_t group:{1u,2u,4u}) {
     const auto support=query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,UINT64_MAX);
     REQUIRE(support.status==RNS8_SUCCESS);
-    CHECK(support.peak_scratch_bytes==support.discovery.peak_scratch_bytes+sizeof(NativeTileBound)+support.suffix_bytes);
+    CHECK(support.peak_scratch_bytes==std::max(support.discovery.peak_scratch_bytes+sizeof(NativeTileBound),support.discovery.stage_bytes+std::max<uint64_t>(support.suffix_bytes,sizeof(int))));
     CHECK(support.suffix_bytes==(capacity==1?0:17*19*(capacity-1)+sizeof(int)));
     CHECK(query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,support.peak_scratch_bytes-1).status==RNS8_WORKSPACE_TOO_SMALL);
     CHECK(query_native_global_minimum_support(17,19,257,260,22,23,capacity,group,support.peak_scratch_bytes).status==RNS8_SUCCESS);
