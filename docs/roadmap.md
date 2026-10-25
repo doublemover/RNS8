@@ -120,14 +120,14 @@ measurements remain in the final validation batch. Documentation consolidation
 
 ### Current validation and remaining work
 
-The [October 25 measured-price retry](local-validation-20261025.md#subsequent-measured-price-integration)
-records clean `31aa691` artifacts: 541 CPU ASan passes, 921 full-feature gfx1100
-passes, 664 scalar-source cases and 12 installed static/shared consumer passes.
-The packed-dot/Garner-table lane has 663 passes and one missing timing-label
-failure; all numerical assertions pass. Its subsequent source repair reports
-event failures explicitly and still needs fresh execution. The unchanged shared
-logical proof is reused with its source identity. Earlier dated receipts retain
-their actual tooling, fuzz, native-device consumer and artifact checks.
+The [October 25 allocation/global-control retry](local-validation-20261025.md#allocation-and-global-control-integration-retry)
+records clean `2fcb91c` artifacts: 547 CPU AddressSanitizer passes and 931 full-feature
+gfx1100 passes, with no failures. Both arithmetic controls passed 673 cases at
+`168a160`; 12 installed consumers and two strict C17 ABI probes also pass. The
+seven first-pass capture-contract failures were repaired together before the
+complete CPU/GPU retry. Unsupported target skips and the unchanged shared logical
+proof remain explicitly accounted for. A separate brace-only GCC warning repair
+passes actual Debug/Release compilation in WSL2; Linux CI completion is separate.
 
 Generation-bound native/pinned-host transfers, event-dependent joins, exact
 lift/export, paired-complex and block-sparse owners, custom bases and product
@@ -139,7 +139,8 @@ The user explicitly deferred ROCm 10.1 and unavailable Linux multi-GPU,
 Instinct/CDNA and instruction-family qualification. HIP 7.1 remains the local
 accelerator pin. VS2026 and the isolated non-GPU stack passed the named project
 builds/tests; the selected Git upgrade remains blocked by its installer approval
-review. Official AMD documentation responses remain unresolved under #61.
+review. All 44 official dependency/documentation URLs now respond successfully under #61;
+actual matching-platform command rehearsals remain separate.
 The [focused measurements](focused-closeout-measurements-20261025.md) completed
 560 captures on the explicitly authorized shared host, including 20 independent
 stage-training and 140 new complete-route captures. Explicit scalar-first public
@@ -184,8 +185,9 @@ Capacity-aware schema-2 prices and frozen measured-stage ingestion are implement
 The [new independent collection](focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment)
 passes exact checks but fails all four held-out prediction cohorts. Broader
 representation-choice integration and qualified measured routing remain under
-#42/#30/#31. Fresh global-minimum and live/peak allocation controls are authored;
-their syntax checks do not qualify runtime behavior.
+#42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
+and installed-ABI checks. Reusable bound-summary ownership, matched adaptive
+benefit and physical-capacity qualification remain open.
 
 Broader provider parity, encoded-B async composition and target-specific
 execution remain explicit issue gates. True multi-device ownership, unavailable

@@ -5246,7 +5246,7 @@
         },
         {
           "source": "docs/roadmap.md",
-          "reference": "local-validation-20261025.md#subsequent-measured-price-integration"
+          "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },
         {
           "source": "examples/device-native/README.md",
@@ -5258,6 +5258,7 @@
         }
       ],
       "anchors": [
+        "allocation-and-global-control-integration-retry",
         "failures-repaired",
         "issue-closeout-and-remaining-gates",
         "reproduction",

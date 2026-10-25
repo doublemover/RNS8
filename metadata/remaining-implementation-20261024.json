@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-25T17:57:29.990779+00:00",
+  "scope_refreshed_utc": "2026-10-25T18:41:48.994378+00:00",
   "issues": [
     {
       "issue": 18,
@@ -35,9 +35,9 @@
         "Regression execution and real device-failure qualification deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -115,9 +115,9 @@
         "Authored regression execution deferred; no measured proof-policy speedup or default change."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -160,9 +160,9 @@
         "Regression execution and large-device-address hardware qualification deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -403,9 +403,9 @@
         "Authored regressions and any execution/benchmark/GPU/scientific qualification not run."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -495,9 +495,9 @@
         "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -631,7 +631,7 @@
         "7954eb326c5b45080fd60f980140672598a0d3aa"
       ],
       "remaining": [
-        "The fresh device-proved global minimum completed-output control is authored in c7f84eb, with phase-lifetime scratch reuse in fe77491; runtime qualification is pending. Generation-bound reusable bound-summary ownership, matched adaptive benefit and fallback overhead remain."
+        "The fresh device-proved global-minimum completed-output control and its phase-lifetime scratch bound pass local CPU/GPU differentials, CLI smoke and collector tests. Generation-bound reusable bound-summary ownership, matched adaptive benefit and fallback-overhead measurements remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -643,9 +643,9 @@
         "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -711,9 +711,9 @@
         "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -960,9 +960,9 @@
       ],
       "historical_frontload_remaining": [],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1076,9 +1076,9 @@
         "General GF(2) algebra, paired-column consumer, rocWMMA direct-A/panel reuse and hipBLASLt operand retention source are authored. Full builds, execution, independent measurements, ISA/compiler resource inspection and qualification remain deferred; no default policy promotion."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1208,9 +1208,9 @@
         "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1353,9 +1353,9 @@
         "Independent calibrated stage prices, held-out complete-route measurements, amortization and peak-memory qualification remain open."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -1552,9 +1552,9 @@
         "Matched pinned-host sync/stream/graph calibration and the concrete direct-HIP async/graph adapters are authored. Consolidated build/test validation is now requested. Provider-specific async/capture support outside those concrete owners remains explicitly unsupported; no blanket graph-safety or measured overlap claim."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1620,9 +1620,9 @@
         "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1666,9 +1666,9 @@
         "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1732,9 +1732,9 @@
         "The conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not required before the division-free scheduler proves worthwhile; default modulus256 cannot use it."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1794,9 +1794,9 @@
         "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1868,9 +1868,9 @@
         "Execute authored regressions and independent sparse campaigns; qualify actual target ISA/runtime, controls, sustained crossover and the structured-sparse >=1.5x end-to-end gate. No measured win or promoted route claimed."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -1959,9 +1959,9 @@
         "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2052,9 +2052,9 @@
         "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2222,9 +2222,9 @@
         "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2246,9 +2246,9 @@
       ],
       "historical_frontload_remaining": [],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2272,7 +2272,7 @@
         "319a7f5"
       ],
       "remaining": [
-        "Local documentation checks pass. Official AMD HTTP429 responses and actual platform command rehearsals remain unresolved."
+        "Local inventory/path/anchor checks pass for 134 documents, and all 44 official external URLs are reachable in the fresh check. Matching-platform command rehearsals, including native Linux GPU steps, remain unrun; link reachability does not establish them."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
@@ -2280,9 +2280,9 @@
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2325,9 +2325,9 @@
         "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2371,9 +2371,9 @@
         "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2398,7 +2398,7 @@
         "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
       ],
       "remaining": [
-        "Live/peak requested device and pinned-host allocation observations are authored in 3ca72d8, including failed/deferred-free retention and per-device allocation transactions; fresh runtime qualification is pending. Matched storage/latency before/after, large physical-capacity fixtures and broader-platform qualification remain."
+        "Live/peak requested device and pinned-host observations pass CPU/GPU and installed strict C17 ABI checks, including pending-free retention, resets and owner moves. Matched storage/latency before/after, physical-capacity fixtures and broader-platform qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2409,9 +2409,9 @@
         "GPU differential/counter execution and performance evidence deferred."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       },
       "subsequent_evidence": {
         "receipt": "metadata/product-stage-observations-20261025.json",
@@ -2476,9 +2476,9 @@
         "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2563,9 +2563,9 @@
         "Optional DLPack adapter is explicitly a follow-on after core qualification, not a required implementation gap."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2639,9 +2639,9 @@
         "Serial/retained-B/overlapped execution and calibrated panel shortlisting are authored. Full builds, authored correctness/resource/receipt/model fixture execution, allocation/trace reconciliation, real capacity demonstrations, held-out prediction calibration and measured crossover remain deferred. Exact-wide/finite/wrap streaming extensions remain explicitly unsupported future semantic families."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2692,9 +2692,9 @@
         "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2735,9 +2735,9 @@
         "Cross-call raw descriptor retention is issue70 slice3 conditional on worthwhile measured benefit, not claimed or selected before that evidence."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -2789,9 +2789,9 @@
         "No identified implementation gap in #71. HIP compiler/ISA signedness, differential execution, dynamic profiler launch counts and measured target-specific wins/losses remain deferred outcomes; no promotion or issue closure."
       ],
       "local_validation": {
-        "receipt": "metadata/materialization-validation-20261025.json",
-        "compiled_source_commit": "6ce489b",
-        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+        "receipt": "metadata/allocation-global-control-validation-20261025.json",
+        "compiled_source_commit": "2fcb91c",
+        "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
       }
     },
     {
@@ -3165,6 +3165,15 @@
     "closed_issues_added": [],
     "open_issues": 42,
     "campaign_resumed": false,
+    "all_work_complete": false
+  },
+  "allocation_global_control_review": {
+    "receipt": "metadata/allocation-global-control-validation-20261025.json",
+    "first_pass_gpu_capture_failures": 7,
+    "consolidated_cpu_gpu_retry_failed": 0,
+    "additional_issue_closures": [],
+    "remaining_open": 42,
+    "gcc_warning_fix": "709ff6f",
     "all_work_complete": false
   }
 }

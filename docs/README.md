@@ -4,7 +4,7 @@ Choose the task you want to complete. Public API behavior is defined in the
 [headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
 Dated records identify the builds and devices actually checked.
 
-- [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, compiled graph gains and packed-layout losses
+- [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, scalar-first proof controls and failed held-out models
 
 ## Build
 
@@ -41,21 +41,21 @@ issue links.
 - [Performance methodology](performance.md), [timing admission](timing-admission.md)
 - [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
-- [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; authored, validation pending
-- [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; authored, validation pending
-- [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4 and admitted scalar binary64 digit/slab controls; authored, validation pending
-- [INT8 instruction-chain probes](instruction-chain-calibration.md): dependent/independent WMMA chains, kernel-event versus probe-inclusive host scopes; authored, validation pending
-- [Public split-K calibration](split-k-calibration.md): unsplit/full/window owners, scratch and changed-generation recreation; authored, validation pending
-- [Public ragged calibration](ragged-calibration.md): uniform/ragged host boundaries, reconstruction-only reuse and retained capacities; authored, validation pending
-- [Retained Gram cohorts](gram-prepared-reuse.md): prepared dense, ordinary/prepared single-source controls and each/once reconstruction; authored, validation pending
-- [Exact import and CRT calibration](conversion-calibration.md): scalar/dot4, every-prefix and resident/cold controls; authored, validation pending
-- [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; authored, validation pending
+- [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4 and admitted scalar binary64 digit/slab controls; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [INT8 instruction-chain probes](instruction-chain-calibration.md): dependent/independent WMMA chains, kernel-event versus probe-inclusive host scopes; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Public split-K calibration](split-k-calibration.md): unsplit/full/window owners, scratch and changed-generation recreation; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Public ragged calibration](ragged-calibration.md): uniform/ragged host boundaries, reconstruction-only reuse and retained capacities; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Retained Gram cohorts](gram-prepared-reuse.md): prepared dense, ordinary/prepared single-source controls and each/once reconstruction; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Exact import and CRT calibration](conversion-calibration.md): scalar/dot4, every-prefix and resident/cold controls; commands and receipt contracts, with measured qualification recorded in the dated reports
+- [Canonical wrap64 calibration](wrap64-calibration.md): signed radix/native U8, direct-HIP v4 and corrected rocWMMA controls; commands and receipt contracts, with measured qualification recorded in the dated reports
 - [RX 7900 XTX 512³/1024³ results](7900xtx-large-throughput-2026-10-23.md)
 - [Native WMMA/queue measurements and `436d235` validation](native-queue-performance-2026-10-23.md)
 - [October 25 consolidated local correctness and issue closeout](local-validation-20261025.md)
 - [October 23 local correctness record](local-all-features-20261023.md)
 
-- [Genuine exact-wide magnitude controls](exact-wide-magnitude-controls.md): public two/three-limb profiles and exact admission; validation deferred
+- [Genuine exact-wide magnitude controls](exact-wide-magnitude-controls.md): public two/three-limb profiles, exact admission and the completed #73 fixture checks
 
 ## Contribute
 

@@ -246,3 +246,68 @@ Later commits add the global-minimum completed-output control, live/peak owned
 allocation observations and phase-lifetime scratch reuse. Their syntax checks
 do not extend this runtime checkpoint. Their fresh integration checks are
 recorded separately when complete.
+
+
+## Allocation and global-control integration retry
+
+The consolidated retry passes. The
+[reviewed receipt](../metadata/allocation-global-control-validation-20261025.json)
+retains both complete passes, per-test names/states, clean compiled manifests,
+commands, artifact hashes and the first pass's censored-capture diagnostics.
+
+| Lane | Compiled source | Passed | Skipped | Failed |
+| --- | --- | ---: | ---: | ---: |
+| CPU, Clang AddressSanitizer | `2fcb91c` | 547 | 23 | 0 |
+| Full-feature gfx1100 | `2fcb91c` | 931 | 15 | 0 |
+| Packed-dot/Garner-table control, Catch cases | `168a160` | 673 | 5 | 0 |
+| Scalar-source control, Catch cases | `168a160` | 673 | 5 | 0 |
+| Installed static/shared consumers | `168a160` | 12 | 0 | 0 |
+| Additional installed strict C17 ABI probes | `168a160` | 2 | 0 | 0 |
+
+The first pass passed all numerical differentials and both arithmetic controls.
+Seven full-feature benchmark/schema checks failed because they required complete
+GPU-event timing even when the reporter explicitly censored failed event capture.
+The consolidated repair publishes bounded unique label/phase/status diagnostics,
+records observer overflow, and reconciles null GPU timing fields with the failure
+reasons. Schema/AUTO/prepacking correctness checks accept this explicit loss;
+event-timing and promotion admission still reject it. Silent loss, malformed
+records and fabricated timing success fail the negative fixtures. The complete
+CPU/GPU retry ran after this repair; already passing arithmetic controls are
+preserved with their actual source, because their numerical implementation did
+not change.
+
+The CPU inventory contains 571 entries and the GPU inventory 947. Each fresh run
+omits only the unchanged source-bound logical checker, whose earlier 1,020.41 s
+pass is reused. The five proof inputs still match its checkpoint after line-ending
+normalization. CPU skips comprise unsupported HIP/target paths, including the new
+physical allocation probe. GPU skips remain three sparse-A and twelve CDNA/MFMA
+cases unsupported on gfx1100.
+
+Fresh GPU tests verify device/pinned live and peak accounting, failed/pending-free
+retention, peak resets and owner moves. They also verify the global-minimum
+completed-output path against independent integer references for signed/unsigned
+extrema, zeros, mutation, padded output, admission/alias failures and a unique
+maximum beyond the first 256 certificates. The measured device peak stays within
+the admitted phase maximum and all owned scratch retires to its baseline.
+The command-line global-minimum smoke and collector/schema tests pass. This
+qualifies the local control, not generation-bound summary caching or a speedup.
+
+The new installed C API passes `/std:c17 /W4 /WX`, static/shared linking and actual
+CPU/HIP query/reset execution. Unsupported CPU queries preserve the output canary;
+successful HIP resets reconcile epoch and live/peak values. These are requested
+RNS8 allocation bytes; driver/library internals and process RSS remain outside
+that observation scope.
+
+A separate Linux CI failure at `2fcb91c` rejected a compressed unary guard under
+`-Werror=misleading-indentation`. Commit `709ff6f` adds braces and line breaks,
+with unchanged expressions/control flow. Actual GCC 13.3 Debug and optimized
+Release/OpenMP compilation of the failing translation unit passes in Ubuntu 24.04
+on WSL2. This is a CPU compilation check; GitHub CI completion and native Linux
+GPU qualification are separate. Windows runtime artifacts remain identified as
+`2fcb91c` rather than being relabeled with the formatting commit.
+
+The fresh official-domain documentation check passes **44/44 URLs**, with 134
+inventoried documents and zero local errors. The earlier 28 AMD HTTP 429 responses
+have cleared. Actual matching-platform command rehearsals remain distinct from
+link reachability. No stopped benchmark campaign was resumed, and this integration
+batch adds no performance measurement or issue closure.
