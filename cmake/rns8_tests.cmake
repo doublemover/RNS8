@@ -884,6 +884,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(benchmark_result_compare_self_test PROPERTIES LABELS "benchmark;schema;compare")
 
+  if(TARGET rns8-verify)
+    add_test(NAME cpu_reference_verifier_smoke COMMAND rns8-verify)
+    set_tests_properties(cpu_reference_verifier_smoke PROPERTIES LABELS "tools;cpu;verification" TIMEOUT 120)
+    if(RNS8_ENABLE_HIP)
+      add_test(NAME hip_reference_verifier_smoke COMMAND rns8-verify --hip-smoke)
+      set_tests_properties(hip_reference_verifier_smoke PROPERTIES LABELS "tools;hip;verification" TIMEOUT 120)
+    endif()
+  endif()
+
   if(TARGET rns8-inspect)
     add_test(
       NAME inspect_cli_hard_cut_diagnostics
