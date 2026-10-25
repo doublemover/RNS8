@@ -6,14 +6,17 @@ extern "C" int rns8_hip_rank23_oct55_combine(const int8_t*,int8_t*,int,int,int,i
 #endif
 static rns8_status hip_direct_gemm_rank23_dag_device(
     int device_id,const void *a,const void *b,void *c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool &commit_started,bool october,bool recompute,void* retained_scratch,uint64_t retained_bytes) {
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool &commit_started,bool october,bool recompute,void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   commit_started = false;
   if (!a || !b || !c) return RNS8_INVALID_ARGUMENT;
   const auto resources = query_rank23_slp_resources(m,n,k,lda,ldb,ldc,prefix,budget,recompute);
   if (resources.status != RNS8_SUCCESS) return resources.status;
+  if(matrix_subproducts && (resources.block_k>RNS8_SAFE_INT32_K_BLOCK || !amdgpu_builtins_compiled()))return RNS8_UNSUPPORTED_BACKEND;
   if (!nonoverlapping_byte_ranges(c,resources.destination.byte_extent,a,resources.source_a.byte_extent) ||
       !nonoverlapping_byte_ranges(c,resources.destination.byte_extent,b,resources.source_b.byte_extent))
     return RNS8_INVALID_ARGUMENT;
+  const auto arena_status=validate_bilinear_arena(resources,retained_scratch,retained_bytes,a,b,c);
+  if(arena_status!=RNS8_SUCCESS)return arena_status;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   auto status = set_hip_device(device_id);
   if (status != RNS8_SUCCESS) return status;
@@ -43,11 +46,17 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
   auto error=hipSuccess;
   if(!recompute)error=transform(-1);
   if (error != hipSuccess) return RNS8_BACKEND_FAILURE;
-  for (int term = 0; term < 23; ++term) {
+  if(matrix_subproducts && !recompute) {
+    status=amdgpu_builtins_gemm_rns_batch_device(device_id,left,right,products,hm,hn,hk,hk,hn,hn,prefix,23);
+    if(status!=RNS8_SUCCESS)return status;
+  }
+  for (int term = 0; term < (matrix_subproducts && !recompute?0:23); ++term) {
     if(recompute && transform(term)!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    status = hip_direct_gemm_rns_device(device_id,
-        left+uint64_t(recompute?0:term)*resources.a_bytes,right+uint64_t(recompute?0:term)*resources.b_bytes,
-        products+uint64_t(term)*resources.product_bytes,hm,hn,hk,hk,hn,hn,prefix);
+    const auto* ta=left+uint64_t(recompute?0:term)*resources.a_bytes;
+    const auto* tb=right+uint64_t(recompute?0:term)*resources.b_bytes;
+    auto* output=products+uint64_t(term)*resources.product_bytes;
+    status=matrix_subproducts?amdgpu_builtins_gemm_rns_device(device_id,ta,tb,output,hm,hn,hk,hk,hn,hn,prefix):
+        hip_direct_gemm_rns_device(device_id,ta,tb,output,hm,hn,hk,hk,hn,hn,prefix);
     if (status != RNS8_SUCCESS) return status;
   }
   error = timed_hip_operation(october?"rank23_oct55_recombine":"rank23_slp_recombine_output_basis",[&]() {
@@ -72,21 +81,21 @@ static rns8_status hip_direct_gemm_rank23_dag_device(
 rns8_status hip_direct_gemm_rank23_slp_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch,uint64_t retained_bytes) {
+    void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   return hip_direct_gemm_rank23_dag_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,
-      false,false,retained_scratch,retained_bytes);
+      false,false,retained_scratch,retained_bytes,matrix_subproducts);
 }
 rns8_status hip_direct_gemm_rank23_oct55_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch,uint64_t retained_bytes) {
+    void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   return hip_direct_gemm_rank23_dag_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,
-      true,false,retained_scratch,retained_bytes);
+      true,false,retained_scratch,retained_bytes,matrix_subproducts);
 }
 rns8_status hip_direct_gemm_rank23_oct55_recompute_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch,uint64_t retained_bytes) {
+    void* retained_scratch,uint64_t retained_bytes,bool matrix_subproducts) {
   return hip_direct_gemm_rank23_dag_device(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,budget,commit_started,
-      true,true,retained_scratch,retained_bytes);
+      true,true,retained_scratch,retained_bytes,matrix_subproducts);
 }

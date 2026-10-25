@@ -67,4 +67,15 @@ query_bilinear_resources(int64_t m, int64_t n, int64_t k, int64_t lda,
   result.status = total > budget ? RNS8_WORKSPACE_TOO_SMALL : RNS8_SUCCESS;
   return result;
 }
+// Borrowed arena admission covers the full arena, not just each disjoint
+// subrange. Lifetime/draining is owned by the public workspace lease.
+inline rns8_status validate_bilinear_arena(const BilinearResources& r,const void* scratch,
+    uint64_t bytes,const void* a,const void* b,const void* c) {
+  if(!scratch)return bytes?RNS8_INVALID_ARGUMENT:RNS8_SUCCESS;
+  if(bytes<r.total_bytes)return RNS8_WORKSPACE_TOO_SMALL;
+  if(!nonoverlapping_byte_ranges(scratch,bytes,a,r.source_a.byte_extent) ||
+     !nonoverlapping_byte_ranges(scratch,bytes,b,r.source_b.byte_extent) ||
+     !nonoverlapping_byte_ranges(scratch,bytes,c,r.destination.byte_extent))return RNS8_INVALID_ARGUMENT;
+  return RNS8_SUCCESS;
+}
 } // namespace rns8::detail

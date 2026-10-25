@@ -173,3 +173,47 @@ Regressions for all byte rings, signs, altered coefficients, recomputation budge
 and public signed/unsigned routes are authored but unexecuted. HIP compilation,
 real-device failure paths and matched performance campaigns remain deferred. The
 one-level N≥16384 / ≥1.15× / ≤2.2× total-memory promotion gates are unchanged.
+
+### Matched matrix-engine and public measurement controls
+
+Methods 5–9 repeat the same five algorithms with explicitly requested AMDGPU
+builtin matrix-engine subproducts. They require a compiled supported target and
+block K≤65536; there is no scalar fallback. Ordinary methods 0–4 keep the direct
+RNS subproduct baseline. Both bounded signed/unsigned and exact-wide contracts
+now use the same original plan/range admission, with per-tile/adaptive plans
+rejected before writes. Explicit finite/wrap reinterpretation is not admitted.
+
+Retained September/October matrix variants launch their 23 independent products
+as one `[product][plane][tile]` grid. The existing RDNA3/RDNA4 WMMA and CDNA3 MFMA
+kernels have a distinct batched instantiation; batch=1 keeps the original
+nonbatched specialization. Full per-product and aggregate byte domains are
+checked before dispatch, every output belongs to one product/plane/tile, and one
+completion replaces 23 serial discovery/launch/completion boundaries. Recompute
+mode remains serial because its single A/B pair is overwritten between products.
+This changes source-level scheduling; no measured benefit is asserted.
+
+`rns8-bilinear-calibrate` and its independent-process collector compare classical,
+Strassen, coefficient rank23, September SLP, October retained and October
+recomputed routes through public packing, preparation, product and padded
+three-limb export. Cases bind the subproduct backend, explicit/automatic matrix
+family, prefix, signedness, residency, budgets and instrumentation. Separate
+16×16/32×32/automatic CDNA-family controls enable tuning the classical comparator
+without silently moving a candidate into another family cohort. All transforms,
+reductions, commits, synchronization and cold cleanup stay in the measured route.
+
+An independent period-15 exact integer oracle checks every output in O(15MN),
+including N=16384 cases; it does not infer large correctness from tiny samples.
+A post-timing all-plane audit checks residues and every output/padding limb.
+Fixtures include odd rectangles, prefix tails, full-byte-ring source regressions,
+transformed K=65535/65536/65537 boundaries, negative smaller controls, cold calls,
+resident repeats and repacking. Matrix-cap/address/budget failures stay rejected,
+not extrapolated into supported large cohorts.
+
+Production processes disable timing hooks; separately labeled diagnostic
+processes retain transform/subproduct/recombine/commit events. The collector
+binds actual executable/build/process/target/runtime/environment identities,
+never mixes diagnostic latency into production medians, and reports paired
+complete-route costs and known live payload ratios. It reports allocator/driver
+and opaque runtime overhead as excluded—not a proven total-memory measurement.
+The ≥1.15×/≤2.2×/N≥16384 gates still require real reviewed evidence and cannot be
+satisfied by this source implementation or a logical scratch ratio alone.

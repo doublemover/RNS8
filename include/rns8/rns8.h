@@ -723,8 +723,9 @@ typedef struct rns8_operation_query {
   int64_t lda,ldb,ldc; /* zero means compact */
   uint32_t output_limbs,device_count;
   /* Family-specific method: narrow 0/1 staged scalar/WMMA,2/3 fused;
-   * Gram 0 scalar,1 WMMA; bilinear 0
-   * Strassen,1 coefficient rank23,2 SLP. Other families require zero. */
+   * Gram 0 scalar,1 WMMA; bilinear 0 Strassen,1 coefficient rank23,
+   * 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
+   * explicit matrix-engine subproducts. Other families require zero. */
   uint32_t algorithm,orientation,source_prefix;
   /* Domain 0 infers the concrete family's default; 1 centered RNS,
    * 2 finite byte,3 wrap byte limbs,4 native64,5 integer limbs. */
@@ -2405,11 +2406,18 @@ typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_RANK23_COEFFICIENTS = 1,
   RNS8_BILINEAR_RANK23_SLP = 2,
   RNS8_BILINEAR_RANK23_OCTOBER55 = 3,
-  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE = 4
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE = 4,
+  RNS8_BILINEAR_STRASSEN_MATRIX = 5,
+  RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX = 6,
+  RNS8_BILINEAR_RANK23_SLP_MATRIX = 7,
+  RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX = 8,
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX = 9
 } rns8_bilinear_method;
-/* Opt-in direct-HIP exact-wide signed/unsigned product. One bilinear level,
+/* Opt-in direct-HIP bounded/exact-wide signed/unsigned product. One bilinear level,
  * complete prefix, staged publication, explicit scratch budget and original
- * input range proof. SLP=2 executes September 51+5 basis additions; October55=3
+ * input range proof. Methods 5..9 use the same algorithms with explicit AMDGPU
+ * builtin matrix-engine subproducts; unsupported target/build or block K>65536
+ * is rejected without fallback. SLP=2 executes September 51+5 basis additions; October55=3
  * executes the division-free 13+14+28 DAG. Both retain 23 operand/product buffers.
  * October55 recompute=4 reuses one A/B pair, retaining 23 products and executing
  * the input DAG again per product. Ratio is required scratch/(resident A+B+C bytes), written
@@ -2426,7 +2434,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(rns8_context* ctx,const rns8_plan*
     const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_bilinear_method method,
     uint64_t max_scratch_bytes,rns8_workspace* workspace,double* out_memory_overhead_ratio);
 
-/* Experimental synchronous one-level Strassen for direct-HIP exact-wide signed
+/* Experimental synchronous one-level Strassen for direct-HIP bounded/exact-wide signed
  * or unsigned plans. Requires current resident RNS inputs and ordinary GEMM
  * ownership/range admission. Other levels/backends/semantics are unsupported.
  * Scratch is retained by workspace; optional eager preparation excludes setup

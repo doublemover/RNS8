@@ -3756,9 +3756,14 @@
         {
           "source": "docs/strassen-device.md",
           "reference": "rank23-device.md"
+        },
+        {
+          "source": "docs/strassen-device.md",
+          "reference": "rank23-device.md"
         }
       ],
       "anchors": [
+        "matched-matrix-engine-and-public-measurement-controls",
         "october-division-free-55-addition-dag",
         "one-level-rank-23-modular-prototype",
         "pinned-alternative-basis-slp",

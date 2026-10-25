@@ -54,24 +54,24 @@ rns8_status hip_direct_check_native_product_integrity(
 // invalidation after a failed final commit; earlier failures preserve C.
 rns8_status hip_direct_gemm_strassen_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
 rns8_status hip_direct_gemm_rank23_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
 // Exact pinned alternative-basis SLP, separate from the coefficient control.
 // Full 23-operand/product materialization is included in the scratch budget.
 rns8_status hip_direct_gemm_rank23_slp_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
-    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0);
+    int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t max_scratch_bytes,bool& commit_started,void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
 // October 23-product/55-addition DAG, retained inputs or explicitly recomputed inputs.
 rns8_status hip_direct_gemm_rank23_oct55_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch=nullptr,uint64_t retained_bytes=0);
+    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
 rns8_status hip_direct_gemm_rank23_oct55_recompute_device(
     int device_id,const void* a,const void* b,void* c,int64_t m,int64_t n,int64_t k,
     int64_t lda,int64_t ldb,int64_t ldc,uint32_t prefix,uint64_t budget,bool& commit_started,
-    void* retained_scratch=nullptr,uint64_t retained_bytes=0);
+    void* retained_scratch=nullptr,uint64_t retained_bytes=0,bool matrix_subproducts=false);
 // Private modular block-sparse producer; its public materialization owner or
 // another caller supplies bounded/exact admission and output transaction ownership.
 rns8_status hip_direct_gemm_block_sparse_device(

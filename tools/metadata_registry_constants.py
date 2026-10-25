@@ -333,6 +333,10 @@ TIMING_PHASES = {
     'scheduling',
 }
 DIRECT_HIP_CORE_EVENTS = {
+    'amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel_batched',
+    'amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel_batched',
+    'amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel_batched',
+    'amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel_batched',
     'crt_export',
     'crt_export_d2h',
     'crt_export_kernel',

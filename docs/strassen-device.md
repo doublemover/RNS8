@@ -53,3 +53,10 @@ the legacy public signature has no explicit scratch-budget parameter.
 Public full-width signed/unsigned export, mutation, unsupported-level and busy
 preservation fixtures are authored for the consolidated campaign. These changes
 do not establish the large-N performance gate, recursion or matrix-engine products.
+
+The public one-level owner now supports uniform bounded and exact-wide signed/
+unsigned plans, retained workspace scratch and explicit eager preparation.
+`RNS8_BILINEAR_STRASSEN_MATRIX` selects real builtin matrix-engine subproducts;
+its block-K/target/build admission is independent of the direct-RNS control.
+The [rank23 experiment documentation](rank23-device.md) describes the shared
+failure leases, matched public calibration and unchanged promotion gates.

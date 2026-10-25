@@ -1,3 +1,4 @@
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "backend_common/direct_rns_route.hpp"
 #include "backend_common/instruction_roof_plan.hpp"
 #include "backend_common/split_k_plan.hpp"
