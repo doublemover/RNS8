@@ -156,6 +156,14 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
     fail_status("rns8_get_plan_backend_info", status);
   }
   result.backend_info_available = true;
+  result.auto_trace.struct_size=sizeof(result.auto_trace);result.auto_trace.abi_version=RNS8_ABI_VERSION;
+  uint32_t required=0;
+  auto trace_status=rns8_get_plan_auto_decisions(plan,&result.auto_trace,nullptr,0,&required);
+  if(trace_status!=RNS8_SUCCESS)fail_status("rns8_get_plan_auto_decisions",trace_status);
+  result.auto_decisions.resize(required);
+  trace_status=rns8_get_plan_auto_decisions(plan,&result.auto_trace,result.auto_decisions.data(),required,&required);
+  if(trace_status!=RNS8_SUCCESS)fail_status("rns8_get_plan_auto_decisions",trace_status);
+  result.auto_trace_available=true;
   update_result_target_id_from_key(result);
 }
 

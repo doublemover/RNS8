@@ -99,3 +99,30 @@ rewrite oracle separately models a complete multi-block outer sequence.
 These are offline, explicitly declared binary models, not a hardware instruction
 qualification or default floating route. Authored codebook, stale-artifact,
 scale/precision/FTZ, overflow, destination and outer-carry fixtures remain unrun.
+
+## Actual AUTO decisions and one-shot plan ownership
+
+`rns8_get_plan_auto_decisions` returns the bounded trace captured during the
+actual reviewed-cache selection pass. Each considered provider records a typed
+reason, disposition, key digest, workspace requirement and an admitted median
+only when one exists. Semantic/modulus/tile exclusions, absent compilation,
+probe failure, absent/unvalidated/runtime-mismatched entries and workspace
+mismatch are distinct. Losing eligible hits report slower or tied—not an
+invented absence. The builtin backend is included in the actual candidate set.
+A CPU baseline context records that accelerator candidates were not evaluated.
+Explicit-backend plans say AUTO was not evaluated. Querying never probes or
+rereads a later cache snapshot.
+
+Benchmark metadata captures that immutable trace from its queried plan and
+projects rejected candidates from those records. Missing traces say unknown;
+they do not manufacture a backend list. The schema checks reason/disposition,
+observed-hit consistency, candidate-set completeness and measured ordering.
+This is an explanation of existing reviewed-cache authority, not an analytical
+shortlist granting itself promotion.
+
+The bounded signed/unsigned one-shot shortcut now hands its already admitted
+plan back to the resident owner when prefix nine is inapplicable. A selected
+minimal prefix stays minimal; the fallback no longer destroys/seals the same
+plan twice. Success/error paths retain ordinary single ownership. Authored CPU
+ownership and HIP low-prefix/fixed-nine controls check sealing counts and exact
+outputs. Their execution and one-shot latency measurement remain deferred.

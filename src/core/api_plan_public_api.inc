@@ -572,3 +572,15 @@ rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan, rns8_ari
     return RNS8_SUCCESS;
   });
 }
+
+rns8_status rns8_get_plan_auto_decisions(const rns8_plan* plan,rns8_auto_trace_info* info,
+    rns8_auto_decision* entries,uint32_t capacity,uint32_t* required) {
+  return guard_api([&]() -> rns8_status {
+  if(!plan || !info || !required || (capacity && !entries) ||
+      !rns8::detail::valid_abi(info->struct_size,info->abi_version,sizeof(*info)) || !plan_schedule_contract_matches(*plan))return RNS8_INVALID_ARGUMENT;
+  *required=static_cast<uint32_t>(plan->auto_decisions.size());*info=plan->auto_trace;
+  info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;
+  if(plan->desc.requested_backend!=RNS8_BACKEND_AUTO)set_text(info->decision,sizeof(info->decision),"explicit backend; AUTO not evaluated");
+  if(capacity && *required)std::copy_n(plan->auto_decisions.begin(),std::min(capacity,*required),entries);return RNS8_SUCCESS;
+  });
+}

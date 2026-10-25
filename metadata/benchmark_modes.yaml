@@ -225,7 +225,10 @@
     "unvalidated entry",
     "identity/runtime mismatch",
     "workspace mismatch",
-    "slower than selected"
+    "slower than selected",
+    "unsupported modulus",
+    "tied with selected",
+    "arithmetic proof rejected"
   ],
   "prepack_reuse_strategies": [
     "none",

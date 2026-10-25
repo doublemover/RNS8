@@ -3423,6 +3423,7 @@
         }
       ],
       "anchors": [
+        "actual-auto-decisions-and-one-shot-plan-ownership",
         "immutable-plan-validation",
         "typed-arithmetic-guard-implementation-execution-deferred"
       ]

@@ -11,7 +11,7 @@ struct PublicCrtOwner {
     check(rns8_create_context(0,&options,&ctx));rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
     d.semantics=sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;d.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     d.m=1;d.n=native.size();d.k=1;d.max_prefix=prefix;check(rns8_create_plan(ctx,&d,&plan));
-    rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;
+    rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.logical_ld=native.size();
     md.rows=1;md.cols=native.size();md.max_prefix=prefix;check(rns8_create_matrix(ctx,&md,&matrix));
     if(sign)check(rns8_pack_i64(ctx,matrix,reinterpret_cast<const int64_t*>(native.data()),native.size(),1));
     else check(rns8_pack_u64(ctx,matrix,native.data(),native.size(),1));

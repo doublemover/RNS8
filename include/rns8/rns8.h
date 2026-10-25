@@ -688,6 +688,32 @@ typedef enum rns8_proof_verdict RNS8_ENUM_BASE {
   RNS8_PROOF_UNKNOWN=0, RNS8_PROOF_PROVEN=1, RNS8_PROOF_REFUTED=2,
   RNS8_PROOF_UNSUPPORTED=3, RNS8_PROOF_NOT_RUN=4
 } rns8_proof_verdict;
+typedef enum rns8_auto_reason RNS8_ENUM_BASE {
+  RNS8_AUTO_BASELINE_POLICY=0, RNS8_AUTO_UNSUPPORTED_SEMANTICS=1, RNS8_AUTO_UNSUPPORTED_MODULUS=2,
+  RNS8_AUTO_PER_TILE_UNSUPPORTED=3, RNS8_AUTO_NOT_COMPILED=4, RNS8_AUTO_PROBE_FAILED=5,
+  RNS8_AUTO_NO_EXACT_ENTRY=6, RNS8_AUTO_UNVALIDATED_ENTRY=7, RNS8_AUTO_IDENTITY_MISMATCH=8,
+  RNS8_AUTO_WORKSPACE_MISMATCH=9, RNS8_AUTO_SLOWER=10, RNS8_AUTO_SELECTED=11, RNS8_AUTO_ARITHMETIC_REJECTED=12, RNS8_AUTO_TIED=13
+} rns8_auto_reason;
+typedef struct rns8_auto_decision {
+  uint64_t struct_size;
+  uint32_t abi_version,backend,disposition,reason_code; /* rejected0,selected1,baseline2 */
+  uint32_t exact_entry_present,validated_entry_present;
+  uint64_t required_workspace_bytes;
+  double reviewed_median_us; /* zero means no admitted measurement, not free */
+  char key_sha256[65],reason[64];
+} rns8_auto_decision;
+typedef struct rns8_auto_trace_info {
+  uint64_t struct_size;
+  uint32_t abi_version,selection_performed,cache_exists,cache_loaded;
+  uint64_t cache_entry_count;
+  uint32_t selected_exact_entry,selected_validated_entry;
+  char cache_path[512],decision[96];
+} rns8_auto_trace_info;
+/* Captured by the actual selection pass, not a later cache lookup. No probes.
+ * Count-only and truncated copies succeed; required_count always names full size. */
+RNS8_API rns8_status rns8_get_plan_auto_decisions(const rns8_plan*,rns8_auto_trace_info*,
+    rns8_auto_decision* entries,uint32_t capacity,uint32_t* required_count);
+
 typedef struct rns8_arithmetic_certificate_info {
   uint64_t struct_size;
   uint32_t abi_version,certificate_version,representation;

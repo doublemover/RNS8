@@ -49,6 +49,8 @@ struct rns8_validated_plan_contract {
 };
 
 struct rns8_plan {
+  rns8_auto_trace_info auto_trace{};
+  std::vector<rns8_auto_decision> auto_decisions;
   std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
   std::shared_ptr<const rns8_validated_plan_contract> validated_contract;
   mutable uint64_t prepared_references = 0;

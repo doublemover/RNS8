@@ -165,6 +165,9 @@ enum class PrepackReuseStrategy {
 };
 
 struct BenchmarkResult {
+  rns8_auto_trace_info auto_trace{};
+  std::vector<rns8_auto_decision> auto_decisions;
+  bool auto_trace_available=false;
   ExactWideMagnitudeStats exact_wide_magnitude{};
   std::vector<SustainedObservation> sustained_observations;
   double plan_us = 0;

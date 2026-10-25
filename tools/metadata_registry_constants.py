@@ -94,12 +94,15 @@ WORKLOAD_PROXY_FAMILIES = {
     'not_requested',
 }
 SELECTOR_REJECTION_REASONS = {
+    'arithmetic proof rejected',
     'backend not compiled',
     'identity/runtime mismatch',
     'no exact entry',
     'per-tile unsupported',
     'probe failed',
     'slower than selected',
+    'tied with selected',
+    'unsupported modulus',
     'unsupported semantics',
     'unvalidated entry',
     'workspace mismatch',

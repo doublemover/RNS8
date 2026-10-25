@@ -227,10 +227,23 @@
       "issue": 30,
       "title": "[Research P1] Add a conversion-aware analytical planner before measured kernel promotion",
       "url": "https://github.com/doublemover/RNS8/issues/30",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Offline typed planning/resource prototype exists, but shared operation/provider parity query/runtime integration and current actual AUTO rejection decision trace absent; emitter still hardcodes no exact entry.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Retained typed immutable decisions from actual AUTO cache/probe pass, including real losing hits/ties and builtins; public count/truncation query and benchmark/schema consume original trace without later cache reads. Bounded oneshot native-shortcut decline transfers the admitted plan into resident fallback instead of building/sealing twice. Shared operation provider and integrated analytical shortlist remain next.",
+          "files": [
+            "src/core/api_plan_auto_backend.inc",
+            "src/core/api_plan_public_api.inc",
+            "src/core/api_oneshot.cpp",
+            "benchmarks/rns8_bench_json_sections.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_auto_selector_cases.inc",
+        "tools/test_auto_decision_trace.py"
+      ],
       "commits": [],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -617,7 +630,8 @@
         "tools/test_collect_crt_calibration.py"
       ],
       "commits": [
-        "89df5c64a1074cca30de8300f4b0daa12dfdb9fe"
+        "89df5c64a1074cca30de8300f4b0daa12dfdb9fe",
+        "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
