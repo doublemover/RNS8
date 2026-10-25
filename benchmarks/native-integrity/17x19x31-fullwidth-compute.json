@@ -1,0 +1,15 @@
+{
+  "schema": "native_integrity_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 31,
+  "prefix": 20,
+  "unsigned_inputs": false,
+  "mode": "compute",
+  "residency": "resident",
+  "repeats": 5,
+  "warmups": 2,
+  "seed": 49,
+  "max_payload_bytes": 1073741824,
+  "dataset": "fullwidth"
+}

@@ -577,7 +577,7 @@ rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_oper
     rns8_operation_support* results,uint32_t capacity,uint32_t* required) {
   return guard_api([&]() -> rns8_status {
     if(!ctx || !query || !required || (capacity && !results) || !rns8::detail::valid_abi(query->struct_size,query->abi_version,sizeof(*query)))return RNS8_INVALID_ARGUMENT;
-    if(query->operation>RNS8_OP_FP8 || !query->execution_modes || (query->execution_modes&~127u) ||
+    if(query->operation>RNS8_OP_NATIVE_INTEGRITY || !query->execution_modes || (query->execution_modes&~127u) ||
        (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
       return RNS8_INVALID_ARGUMENT;
     constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,

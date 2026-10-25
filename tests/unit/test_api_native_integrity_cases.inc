@@ -59,6 +59,27 @@ TEST_CASE("native sentinel gates ordinary, graph and native-group publication", 
       previous=token;
     }
     std::vector<int8_t> good(p->prefix,2);REQUIRE(hip_direct_copy_host_to_device(0,a->hip_residues,good.data(),good.size())==RNS8_SUCCESS);
+    // A dependent event may run, but it cannot publish after failed integrity.
+    rns8_completion_token initial{};REQUIRE(rns8_execute_prepared(e,&initial)==RNS8_SUCCESS);
+    rns8_matrix* downstream=nullptr;rns8_workspace* w2=nullptr;rns8_prepared_execution* consumer=nullptr;
+    REQUIRE(rns8_create_matrix(ctx,&md,&downstream)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,p,&w2)==RNS8_SUCCESS);
+    REQUIRE(rns8_prepare_gemm(ctx,p,c,a,downstream,w2,&consumer)==RNS8_SUCCESS);
+    REQUIRE(rns8_prepare_hip_submission(consumer)==RNS8_SUCCESS);
+    std::vector<int8_t> bad(p->prefix,1);REQUIRE(hip_direct_copy_host_to_device(0,a->hip_residues,bad.data(),bad.size())==RNS8_SUCCESS);
+    rns8_completion_token parent{},child{};REQUIRE(rns8_submit_prepared_hip(e,stream.get(),&parent)==RNS8_SUCCESS);
+    REQUIRE(rns8_bind_prepared_dependency(consumer,e,parent)==RNS8_SUCCESS);
+    REQUIRE(rns8_submit_prepared_hip_pipeline(consumer,stream.get(),&child)==RNS8_SUCCESS);
+    rns8_completion_info failed{};failed.struct_size=sizeof(failed);failed.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_wait_prepared_hip(consumer,child,&failed)==RNS8_SUCCESS);
+    REQUIRE(failed.operation_status==RNS8_VERIFICATION_FAILED);REQUIRE(!failed.output_is_current);
+    REQUIRE(!downstream->device_residues_current);REQUIRE(!c->device_residues_current);
+    REQUIRE(rns8_destroy_prepared_execution(consumer)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(downstream)==RNS8_SUCCESS);REQUIRE(rns8_destroy_workspace(w2)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,a->hip_residues,good.data(),good.size())==RNS8_SUCCESS);
+    rns8_completion_token canceled{};REQUIRE(rns8_submit_prepared_hip(e,stream.get(),&canceled)==RNS8_SUCCESS);
+    REQUIRE(rns8_cancel_prepared_hip(e,canceled)==RNS8_SUCCESS);
+    REQUIRE(rns8_wait_prepared_hip(e,canceled,&failed)==RNS8_SUCCESS);REQUIRE(failed.operation_status==RNS8_CANCELED);
+    rns8_native_integrity_report cancel_report{};cancel_report.struct_size=sizeof(cancel_report);cancel_report.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_prepared_native_integrity_report(e,canceled,&cancel_report)==RNS8_SUCCESS);REQUIRE(cancel_report.outcome==4);
     rns8_prepared_group* group=nullptr;REQUIRE(rns8_create_prepared_group(&e,1,&group)==RNS8_SUCCESS);
     rns8_native_group_binding binding{};binding.struct_size=sizeof(binding);binding.abi_version=RNS8_ABI_VERSION;binding.modulus_group=2;
     rns8_native_group_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.max_metadata_bytes=1<<20;gd.workers=1;gd.claim_chunk=1;

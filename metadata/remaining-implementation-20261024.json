@@ -265,7 +265,8 @@
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
         "b1a9d15f20513ee371d52241f408ad03096f7f2d",
-        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -800,7 +801,8 @@
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
         "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca",
-        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
+        "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -951,7 +953,7 @@
       "issue": 49,
       "title": "[Research P3] Add opt-in Freivalds and redundant-residue checks with explicit guarantees",
       "url": "https://github.com/doublemover/RNS8/issues/49",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Public finite CPU/HIP Freivalds verifier and replay/exact-exponent contract implemented; independent native sentinel is private and not wired to resident/DAG producer publication. Offline redundant checker explicitly does not authorize runtime publication, so commit-boundary integration remains.",
       "implementation": [
         {
@@ -962,14 +964,26 @@
             "src/core/api_prepared_native_group.inc",
             "src/backend_hip_direct/hip_backend_integrity.inc"
           ]
+        },
+        {
+          "summary": "Matched native-integrity cost harness and independent-process collector cover public compute, transaction-attached sentinel, full multiprecision CPU comparison and separately labeled standalone GPU check, with complete padded exports, cold/repack/resident cohorts, full-width/skinny/large fixtures, actual epoch reports, immutable provenance and nonprobabilistic guarantee admission. Added downstream DAG mismatch and cancellation regressions.",
+          "files": [
+            "benchmarks/rns8_native_integrity_calibrate.cpp",
+            "tools/collect_native_integrity.py",
+            "benchmarks/native-integrity/",
+            "tests/unit/test_api_native_integrity_cases.inc"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_api_native_integrity_cases.inc"
+        "tests/unit/test_api_native_integrity_cases.inc",
+        "tools/test_collect_native_integrity.py"
       ],
-      "commits": [],
+      "commits": [
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
+      ],
       "remaining": [
-        "Write matched native compute/check-only/compute-check/full-CPU-reference harness and independent-process receipts; all execution and qualification deferred."
+        "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

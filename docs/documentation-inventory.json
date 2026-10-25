@@ -2138,7 +2138,8 @@
         }
       ],
       "anchors": [
-        "independent-native-product-integrity-sentinel"
+        "independent-native-product-integrity-sentinel",
+        "matched-cost-experiments-not-executed"
       ]
     },
     {

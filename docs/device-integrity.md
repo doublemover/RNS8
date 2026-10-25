@@ -61,3 +61,28 @@ injection. Public transaction fixtures additionally author mismatching native/re
 representations, sync/stream/graph publication failures, stale epochs and native
 prepared-group composition. Host syntax is checked; HIP compilation, execution,
 fault-model qualification and cost measurement remain deferred under #49.
+
+
+## Matched cost experiments (not executed)
+
+`rns8-native-integrity-calibrate` and `collect_native_integrity.py` provide
+counterbalanced independent-process experiments for unverified exact compute,
+producer-attached compute+sentinel, compute+full multiprecision CPU comparison,
+and a separately labeled standalone scalar check control. Every route includes
+padded three-limb output export; cold and repack cohorts are separate from resident
+replay. The standalone control starts with a resident candidate and includes its
+private per-call flag allocation/device synchronization; it is not mislabeled as
+the retained public transaction's cost. Full CPU comparison uses original host
+inputs, not a hidden input D2H transfer. Complete-output oracle work is outside
+production intervals except in the explicit CPU-comparison route.
+
+Fixtures cover square, odd rectangular, skinny, K=65537 and signed/unsigned
+full-width inputs. Captures bind artifact/build/environment, basis, target,
+actual producer epoch and generations, report compute/export-reference/setup/
+cleanup costs, known logical payload and sustained durations. The collector
+rejects unsupported probability claims, check channels counted as computational
+range, stale/missing report identity, incomplete timing intervals and repeated
+process identities. Only matched compute+check routes form cost ratios; standalone
+checks retain their different boundary. The existing finite verifier experiment
+separately measures Freivalds projections with its own ring/randomness theorem.
+No captures, cost advantage or target qualification have been produced here.
