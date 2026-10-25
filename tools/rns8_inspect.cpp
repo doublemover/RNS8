@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 
   if(operations) {
     nlohmann::json rows=nlohmann::json::array();
-    for(uint32_t operation=0;operation<=RNS8_OP_NATIVE_INTEGRITY;++operation) {
+    for(uint32_t operation=0;operation<RNS8_OP_COUNT;++operation) {
       rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.operation=operation;q.execution_modes=RNS8_EXEC_SYNC;
       q.scratch_budget=UINT64_MAX;q.device_count=1;q.problem.struct_size=sizeof(q.problem);q.problem.abi_version=RNS8_ABI_VERSION;
       q.problem.requested_backend=RNS8_BACKEND_AUTO;q.problem.semantics=RNS8_EXACT_WIDE_SIGNED;q.problem.bound_kind=RNS8_BOUND_NONE;

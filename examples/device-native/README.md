@@ -43,3 +43,22 @@ is not a prepared asynchronous/graph integration demonstration.
 
 The installed static and shared variants are checked with the public HIP
 producer/consumer test, including the full host oracle and padding canaries.
+
+
+## Prepared graph pipeline (new, unqualified)
+
+Pass `--prepared` to run an additional replay after the explicitly synchronous
+setup. The example retains two verified-bound import owners, GEMM and native
+export, captures all four bodies and uses five nondefault streams. A custom
+external producer ends three generation-2 mutation windows with real readiness
+events. Import graphs wait on those current events outside capture; GEMM waits
+on both import tokens; export waits on GEMM and its external destination's
+readiness. One final host observation checks the complete dependency chain before
+the external consumer runs. Three four-byte status words are read back in this
+replay; setup retains its separately reported twenty summary bytes. No host
+payload transfer enters either application path. The independent final output
+readback remains validation-only.
+
+This newly authored mode and its static/shared installation variants have not
+been compiled with HIP or executed here; the earlier original-mode receipts do
+not qualify it. It is a lifecycle/ordering example, not a performance benchmark.

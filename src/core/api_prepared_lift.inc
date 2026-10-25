@@ -66,6 +66,10 @@ class PreparedExactLift final:public PreparedTransfer {
     return operation;
   }
   bool output_current() const noexcept override{return matrix->device_residues_current && matrix->exact_range_prefix>=target;}
+  void describe(rns8_prepared_transfer_info& info) const noexcept override {
+    info.operation=RNS8_OP_BASE_EXTEND;info.source_prefix=source;info.target_prefix=target;
+    info.retained_device_bytes=scratch.bytes();info.retained_pinned_host_bytes=4;
+  }
   rns8_status close() override {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     if(owned_stream){rns8::detail::hip_scoped_device selected(ctx->device_id);

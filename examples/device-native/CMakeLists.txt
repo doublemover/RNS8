@@ -42,3 +42,6 @@ endif()
 enable_testing()
 add_test(NAME native-device-producer-consumer COMMAND rns8-native-device-consumer)
 set_tests_properties(native-device-producer-consumer PROPERTIES TIMEOUT 120 LABELS "package;hip;interop")
+
+add_test(NAME native-device-prepared-graph-pipeline COMMAND rns8-native-device-consumer --prepared)
+set_tests_properties(native-device-prepared-graph-pipeline PROPERTIES TIMEOUT 120 LABELS "package;hip;interop;async;graph")

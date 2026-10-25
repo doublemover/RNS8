@@ -4889,7 +4889,8 @@
       "anchors": [
         "copy-owned-read-leases",
         "explicit-multiword-device-output",
-        "synchronous-native-hip-buffer-leases"
+        "native-hip-buffer-leases-and-prepared-transfers",
+        "prepared-importexport-and-producer-readiness"
       ]
     },
     {
@@ -5036,7 +5037,8 @@
         }
       ],
       "anchors": [
-        "installed-native-hip-producerconsumer"
+        "installed-native-hip-producerconsumer",
+        "prepared-graph-pipeline-new-unqualified"
       ]
     },
     {

@@ -271,6 +271,7 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
       if(launch_error!=hipSuccess) {status=RNS8_BACKEND_FAILURE;break;}
     }
   }
+  if(status==RNS8_SUCCESS && e->transfer)status=e->transfer->before_enqueue(stream);
   if (status==RNS8_SUCCESS && graph) {
     launch_error = hipGraphLaunch(e->graph_executable, static_cast<hipStream_t>(stream));
     status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
@@ -329,6 +330,9 @@ rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution *e,
 }
 rns8_status rns8_submit_prepared_hip_pipeline(rns8_prepared_execution* e,void* stream,rns8_completion_token* token) {
   return submit_prepared_hip_impl(e,stream,token,false,true);
+}
+rns8_status rns8_submit_prepared_hip_graph_pipeline(rns8_prepared_execution* e,void* stream,rns8_completion_token* token) {
+  return submit_prepared_hip_impl(e,stream,token,true,true);
 }
 rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
   return guard_api([&]() -> rns8_status {

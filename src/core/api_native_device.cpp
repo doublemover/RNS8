@@ -1,10 +1,20 @@
 #include "core/api_internal.hpp"
+#include "core/prepared_transfer.hpp"
 #include "backend_common/native_device_contract.hpp"
 #include <mutex>
 #include <utility>
 using namespace rns8::detail;
 using namespace rns8::detail::api;
 struct rns8_native_device_lease {
+  uint64_t prepared_references=0;
+  bool active=false,write_window=false,readiness_pending=false;
+  void* producer_stream=nullptr;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hipEvent_t readiness_event=nullptr;
+#endif
+  rns8_native_device_lease* active_next=nullptr;
+  rns8_native_device_lease* registered_next=nullptr;
+  bool registered=false;
   rns8_context* ctx=nullptr;
   rns8_native_device_desc desc{};
   rns8_native_device_resources resources{};
@@ -35,8 +45,36 @@ rns8_status native_failure(rns8_native_device_lease& lease,rns8_status original)
   } else release_native_matrix(lease);
   return original;
 }
+void unlink_native_active(rns8_native_device_lease& lease) noexcept {
+  auto** cursor=&lease.ctx->active_native_operations;while(*cursor && *cursor!=&lease)cursor=&(*cursor)->active_next;
+  if(*cursor==&lease)*cursor=lease.active_next;lease.active_next=nullptr;
+}
+rns8_status native_active_alias_contract(const rns8_native_device_lease& lease) {
+  const auto bytes=lease.snapshot?lease.resources.compact_native_bytes:lease.resources.view_span_bytes;
+  for(auto* other=lease.ctx->active_native_operations;other;other=other->active_next) {
+    if(other==&lease){if(lease.readiness_pending && !lease.active && !lease.write_window)continue;return RNS8_BUSY;}
+    if((lease.desc.access==RNS8_NATIVE_DEVICE_WRITE || other->desc.access==RNS8_NATIVE_DEVICE_WRITE || other->write_window || other->readiness_pending) &&
+        !nonoverlapping_byte_ranges(lease.view,bytes,other->view,other->snapshot?other->resources.compact_native_bytes:other->resources.view_span_bytes))return RNS8_BUSY;
+  }
+  return RNS8_SUCCESS;
+}
+rns8_status resolve_native_readiness(rns8_native_device_lease& lease,bool wait) {
+  if(!lease.readiness_pending)return RNS8_SUCCESS;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  hip_scoped_device selected(lease.ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  const auto code=wait?hipEventSynchronize(lease.readiness_event):hipEventQuery(lease.readiness_event);
+  if(code==hipErrorNotReady)return RNS8_BUSY;
+  if(code!=hipSuccess){lease.quarantined=true;lease.ctx->hip_failure_poisoned=true;return RNS8_BACKEND_FAILURE;}
+  if(!lease.active)unlink_native_active(lease);
+  lease.readiness_pending=false;lease.producer_stream=nullptr;return RNS8_SUCCESS;
+#else
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 rns8_status native_matrix_contract(const rns8_context* ctx,const rns8_matrix* matrix,const rns8_native_device_lease* lease,bool writing) {
   if(!ctx || !matrix || !lease || lease->ctx!=ctx) return RNS8_INVALID_ARGUMENT;
+  if(lease->active || lease->write_window)return RNS8_BUSY;
+  const auto external=native_active_alias_contract(*lease);if(external!=RNS8_SUCCESS)return external;
   if(ctx->hip_failure_poisoned || lease->quarantined) return RNS8_BACKEND_FAILURE;
   if(ctx->backend!=RNS8_BACKEND_HIP_DIRECT || matrix->backend!=ctx->backend || matrix->hip_device_id!=ctx->device_id ||
      matrix->desc.rows!=lease->desc.rows || matrix->desc.cols!=lease->desc.cols || matrix->generation_exhausted ||
@@ -111,6 +149,15 @@ rns8_status rns8_create_native_device_lease(rns8_context* ctx,const rns8_native_
     lease->ctx=ctx;lease->desc=*desc;lease->view_ld=desc->ld;
     ++ctx->prepared_references;lease->context_reference=true;
     lease->view=static_cast<uint8_t*>(desc->allocation_base)+desc->byte_offset;
+    // Multiple immutable read views may coexist. A borrowed writer excludes
+    // overlapping leases for its entire owner lifetime, not just one kernel.
+    for(auto* other=ctx->native_leases;other;other=other->registered_next) {
+      if(nonoverlapping_byte_ranges(lease->view,lease->resources.view_span_bytes,other->view,
+          other->snapshot?other->resources.compact_native_bytes:other->resources.view_span_bytes))continue;
+      if(desc->access==RNS8_NATIVE_DEVICE_WRITE || other->desc.access==RNS8_NATIVE_DEVICE_WRITE)return RNS8_INVALID_ARGUMENT;
+      if(other->write_window || other->readiness_pending)return RNS8_BUSY;
+    }
+
     status=desc->acquire(desc->owner);if(status!=RNS8_SUCCESS) return status;
     lease->owner_acquired=true;
     status=hip_direct_validate_native_allocation(ctx->device_id,desc->allocation_base,desc->allocation_bytes);
@@ -126,6 +173,7 @@ rns8_status rns8_create_native_device_lease(rns8_context* ctx,const rns8_native_
       lease->quarantined=false;lease->view=lease->snapshot;lease->view_ld=desc->cols;
       desc->release(desc->owner);lease->owner_acquired=false;
     }
+    lease->registered_next=ctx->native_leases;ctx->native_leases=lease.get();lease->registered=true;
     *out=lease.release();return RNS8_SUCCESS;
   });
 }
@@ -133,10 +181,15 @@ rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease* lease) {
   return guard_api([&]() -> rns8_status {
     if(!lease) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
+    if(lease->prepared_references || lease->active || lease->write_window)return RNS8_BUSY;
+    const auto ready=resolve_native_readiness(*lease,true);if(ready!=RNS8_SUCCESS && !lease->quarantined)return ready;
     if(lease->quarantined || lease->pinned) {
       if(hip_direct_synchronize(lease->ctx->device_id)!=RNS8_SUCCESS) return RNS8_BACKEND_FAILURE;
-      lease->quarantined=false;release_native_matrix(*lease);
+      unlink_native_active(*lease);lease->quarantined=false;lease->readiness_pending=false;lease->producer_stream=nullptr;release_native_matrix(*lease);
     }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(lease->readiness_event){hip_scoped_device selected(lease->ctx->device_id);if(selected.status()!=hipSuccess || hipEventDestroy(lease->readiness_event)!=hipSuccess)return RNS8_BACKEND_FAILURE;lease->readiness_event=nullptr;}
+#endif
     if(lease->scratch) {
       const auto status=hip_direct_free(lease->ctx->device_id,lease->scratch);
       if(status!=RNS8_SUCCESS) return status;lease->scratch=nullptr;
@@ -145,6 +198,8 @@ rns8_status rns8_destroy_native_device_lease(rns8_native_device_lease* lease) {
       const auto status=hip_direct_free(lease->ctx->device_id,lease->snapshot);
       if(status!=RNS8_SUCCESS) return status;lease->snapshot=nullptr;
     }
+    if(lease->registered){auto** cursor=&lease->ctx->native_leases;while(*cursor && *cursor!=lease)cursor=&(*cursor)->registered_next;
+      if(*cursor==lease)*cursor=lease->registered_next;lease->registered_next=nullptr;lease->registered=false;}
     if(lease->owner_acquired) {lease->desc.release(lease->desc.owner);lease->owner_acquired=false;}
     if(lease->context_reference) --lease->ctx->prepared_references;
     lock.unlock();delete lease;return RNS8_SUCCESS;
@@ -154,7 +209,8 @@ static rns8_status import_native_device_impl(rns8_context* ctx,rns8_matrix* matr
   return guard_api([&]() -> rns8_status {
     if(!lease) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
-    auto status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS) return status;
+    auto status=resolve_native_readiness(*lease,true);if(status!=RNS8_SUCCESS)return status;
+    status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_READ) return RNS8_INVALID_ARGUMENT;
     const bool retain=(matrix->desc.flags & RNS8_MATRIX_RETAIN_NATIVE_INPUT)!=0;
     const bool signed_values=native_device_signed_type(lease->desc.element_type);
@@ -206,7 +262,8 @@ rns8_status rns8_export_native_device(rns8_context* ctx,const rns8_matrix* matri
   return guard_api([&]() -> rns8_status {
     if(!lease) return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(lease->mutex,std::try_to_lock);if(!lock.owns_lock()) return RNS8_BUSY;
-    auto status=native_matrix_contract(ctx,matrix,lease,false);if(status!=RNS8_SUCCESS) return status;
+    auto status=resolve_native_readiness(*lease,true);if(status!=RNS8_SUCCESS)return status;
+    status=native_matrix_contract(ctx,matrix,lease,false);if(status!=RNS8_SUCCESS) return status;
     if(lease->desc.access!=RNS8_NATIVE_DEVICE_WRITE || !matrix->device_residues_current) return RNS8_INVALID_ARGUMENT;
     if(!materialized_rns_prefix_covers(*matrix,matrix->prefix)) return RNS8_RANGE_ERROR;
     const bool signed_values=native_device_signed_type(lease->desc.element_type);
@@ -249,3 +306,5 @@ rns8_status rns8::detail::api::drain_failed_native_cleanup(rns8_context& ctx) {
   }
   return RNS8_SUCCESS;
 }
+
+#include "api_prepared_native_transfer.inc"

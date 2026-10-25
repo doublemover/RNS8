@@ -125,6 +125,23 @@ bool inputs_match(const rns8_prepared_execution& e) {
          e.b_instance == e.b->matrix_instance_id && e.b_generation == e.b->content_generation &&
          (!e.d || (e.d_instance == e.d->matrix_instance_id && e.d_generation == e.d->content_generation));
 }
+rns8_status validate_group_external_spans(const std::vector<rns8_prepared_execution*>& executions) {
+  for(size_t i=0;i<executions.size();++i){const auto* e=executions[i];if(!e->transfer)continue;
+    const auto external=e->transfer->external_access();if(!external.pointer)continue;
+    for(size_t j=0;j<executions.size();++j){if(i==j)continue;const auto* other=executions[j];
+      if(other->transfer){const auto span=other->transfer->external_access();
+        if(external.reservation_owner && external.reservation_owner==span.reservation_owner)return RNS8_INVALID_ARGUMENT;
+        if(span.pointer && (external.writer || span.writer) && !rns8::detail::nonoverlapping_byte_ranges(external.pointer,external.bytes,span.pointer,span.bytes))return RNS8_INVALID_ARGUMENT;}
+      const auto check=[&](const rns8_matrix* matrix,bool writer){if(!matrix || (!external.writer && !writer))return true;
+        for(const auto& allocation:{std::pair<const void*,uint64_t>{matrix->hip_residues,matrix->hip_residue_bytes},
+            {matrix->hip_byte_limbs,matrix->hip_byte_limb_bytes},{matrix->hip_native_i64,matrix->hip_native_i64_bytes},{matrix->hip_native_u64,matrix->hip_native_u64_bytes}})
+          if(allocation.first && !rns8::detail::nonoverlapping_byte_ranges(external.pointer,external.bytes,allocation.first,allocation.second))return false;
+        return true;};
+      if(!check(other->a,false) || !check(other->b,false) || !check(other->d,false) || !check(other->c,!other->transfer || other->transfer->writes_matrix()))return RNS8_INVALID_ARGUMENT;
+    }
+  }
+  return RNS8_SUCCESS;
+}
 // A==B is legal; hold that resource once. No allocation follows retention.
 void reference_slots(const rns8_prepared_execution& e, uint64_t* (&slots)[7]) {
   slots[0] = &e.ctx->prepared_references; slots[1] = e.plan ? &e.plan->prepared_references : nullptr;
@@ -270,8 +287,10 @@ rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* e) {
   return guard_api([&]() -> rns8_status {
     if (!e) return RNS8_INVALID_ARGUMENT;
     if (e->running || e->producer_count) return RNS8_BUSY;
-    const auto status = validate_prepared(*e);
+    if(e->closing)return RNS8_INVALID_ARGUMENT;
+    const auto status = e->transfer?e->transfer->refresh():validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
+    if(e->transfer)e->transfer->commit_refresh();
     bind_inputs(*e);
     return RNS8_SUCCESS;
   });
@@ -391,6 +410,7 @@ rns8_status rns8_create_prepared_group(
       if(!e->transfer || e->transfer->writes_matrix())if(!writers.emplace(e->c,e).second)return RNS8_INVALID_ARGUMENT;
       if(!e->transfer || e->transfer->reads_matrix()){readers.emplace_back(e->a,e);readers.emplace_back(e->b,e);if(e->d)readers.emplace_back(e->d,e);}
     }
+    const auto external=validate_group_external_spans(group->executions);if(external!=RNS8_SUCCESS)return external;
     for(const auto& read:readers){const auto writer=writers.find(read.first);if(writer!=writers.end() && writer->second!=read.second)return RNS8_INVALID_ARGUMENT;}
     for (auto* e : group->executions) ++e->group_references;
     *out = group.release();
@@ -405,10 +425,11 @@ rns8_status rns8_refresh_prepared_group_inputs(rns8_prepared_group* group) {
         group->native_bindings.data(),static_cast<uint32_t>(group->native_bindings.size()));
     for (auto* e : group->executions) {
       if (e->running || e->producer_count || e->dependent_references) return RNS8_BUSY;
-      auto status = validate_prepared(*e);
+      if(e->closing)return RNS8_INVALID_ARGUMENT;
+      auto status = e->transfer?e->transfer->refresh():validate_prepared(*e);
       if (status != RNS8_SUCCESS) return status;
     }
-    for (auto* e : group->executions) bind_inputs(*e);
+    for (auto* e : group->executions){if(e->transfer)e->transfer->commit_refresh();bind_inputs(*e);}
     return RNS8_SUCCESS;
   });
 }
@@ -466,4 +487,11 @@ rns8_status rns8::detail::api::create_transfer_prepared(std::unique_ptr<Prepared
     for(auto* slot:slots)if(slot)++*slot;
     *out=e.release();return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_get_prepared_transfer_info(const rns8_prepared_execution* e,rns8_prepared_transfer_info* info) {
+  if(!e || !e->transfer || !info || !rns8::detail::valid_abi(info->struct_size,info->abi_version,sizeof(*info)))return RNS8_INVALID_ARGUMENT;
+  if(e->running)return RNS8_BUSY;
+  *info={};info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;info->prepared_id=e->id;info->epoch=e->epoch;
+  e->transfer->describe(*info);return RNS8_SUCCESS;
 }

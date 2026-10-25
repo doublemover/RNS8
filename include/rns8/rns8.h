@@ -354,6 +354,8 @@ RNS8_API rns8_status rns8_wait_resident_graph_hip_for(rns8_resident_graph* graph
  * Shape/layout/basis or address changes require new preparation/capture. */
 RNS8_API rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution* execution);
 RNS8_API rns8_status rns8_submit_prepared_hip_graph(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
+/* Owned graph replay with the same token-qualified pending-input proof/waits. */
+RNS8_API rns8_status rns8_submit_prepared_hip_graph_pipeline(rns8_prepared_execution* execution,void* stream,rns8_completion_token* out_token);
 
 /* Immutable heterogeneous group of 1..65536 prepared executions. Retains its
  * execution handles; their destruction returns BUSY until the group is destroyed.
@@ -732,7 +734,8 @@ typedef enum rns8_operation_kind RNS8_ENUM_BASE {
   RNS8_OP_BASE_EXTEND=4,RNS8_OP_PREPARED_GROUP=5,RNS8_OP_NATIVE_GROUP=6,
   RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
   RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
-  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18
+  RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18,
+  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_COUNT=21
 } rns8_operation_kind;
 typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
   RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,
@@ -2630,6 +2633,39 @@ RNS8_API rns8_status rns8_import_native_device_verified(rns8_context*,rns8_matri
 /* Requires a current unique scalar range proof fitting the native type.
  * Staged reconstruction/status precedes external writes. */
 RNS8_API rns8_status rns8_export_native_device(rns8_context*,const rns8_matrix*,rns8_native_device_lease*,uint64_t scratch_budget);
+
+/* These imports/exports return the same prepared execution used by GEMM/lift.
+ * import_values=1 imports scalar i64/u64; 0 exports scalar or explicit limbs.
+ * verify_input_bound=1 proves every input magnitude <= max_input_magnitude on
+ * device before committing. Otherwise the full type envelope is used and the
+ * max_input_magnitude field must be zero. Export requires both fields zero.
+ * Total budget includes staged payload, compact status/scan, pinned status and
+ * any retained native matrix copy; opaque runtime objects are additional. */
+typedef struct rns8_native_transfer_options {
+  uint64_t struct_size;
+  uint32_t abi_version,import_values,verify_input_bound,flags;
+  uint64_t max_input_magnitude,max_total_scratch_bytes;
+} rns8_native_transfer_options;
+RNS8_API rns8_status rns8_prepare_native_transfer_hip(rns8_context*,rns8_matrix*,rns8_native_device_lease*,
+    const rns8_native_transfer_options*,rns8_prepared_execution**);
+/* Explicit external mutation window, only while this lease has no device user.
+ * BORROW only. End requires a strictly newer generation and completed producer;
+ * no event/stream ownership is inferred. Refresh prepared inputs afterwards. */
+RNS8_API rns8_status rns8_begin_native_device_write(rns8_native_device_lease*);
+RNS8_API rns8_status rns8_end_native_device_write(rns8_native_device_lease*,uint64_t generation);
+/* Nonblocking readiness handoff: record an owned event after an external
+ * producer on a borrowed same-device nondefault noncapturing stream. Subsequent
+ * prepared transfers enqueue the wait outside their captured body, so replay
+ * consumes the current generation's readiness event rather than an old capture. */
+RNS8_API rns8_status rns8_end_native_device_write_hip(rns8_native_device_lease*,uint64_t generation,void* producer_stream);
+typedef struct rns8_prepared_transfer_info {
+  uint64_t struct_size;
+  uint32_t abi_version,operation,source_prefix,target_prefix;
+  uint64_t prepared_id,epoch,external_owner_identity,external_generation;
+  uint64_t retained_device_bytes,retained_pinned_host_bytes,retained_native_matrix_bytes;
+  uint32_t verified_input_bound,limb_count,external_result_current,reserved;
+} rns8_prepared_transfer_info;
+RNS8_API rns8_status rns8_get_prepared_transfer_info(const rns8_prepared_execution*,rns8_prepared_transfer_info*);
 
 #ifdef __cplusplus
 }

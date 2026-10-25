@@ -358,11 +358,14 @@ extern "C" int rns8_hip_gemm_rns_axpby(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_native_abs_max(const void* source, int rows, int cols, int ld, void* maximum, bool signed_values) {
+extern "C" int rns8_hip_native_abs_max_on_stream(const void* source, int rows, int cols, int ld, void* maximum, bool signed_values,void* stream) {
   const auto blocks=(uint64_t(rows)*cols+255)/256;
-  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel,dim3(blocks),dim3(256),0,nullptr,
+  hipLaunchKernelGGL(rns8_native_i64_abs_max_kernel,dim3(blocks),dim3(256),0,static_cast<hipStream_t>(stream),
       static_cast<const uint64_t*>(source),rows,cols,ld,static_cast<unsigned long long*>(maximum),signed_values);
   return int(hipGetLastError());
+}
+extern "C" int rns8_hip_native_abs_max(const void* source,int rows,int cols,int ld,void* maximum,bool signed_values) {
+  return rns8_hip_native_abs_max_on_stream(source,rows,cols,ld,maximum,signed_values,nullptr);
 }
 extern "C" int rns8_hip_native_i64_abs_max(const int64_t* source, int rows, int cols, int ld, void* maximum) {
   return rns8_hip_native_abs_max(source,rows,cols,ld,maximum,true);
@@ -439,5 +442,14 @@ extern "C" int rns8_hip_guarded_copy_bytes(const void* source,void* destination,
       rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/source_pitch || rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/destination_pitch)return int(hipErrorInvalidValue);
   hipLaunchKernelGGL(rns8_guarded_copy_bytes_kernel,dim3((rows*row_bytes+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),
       static_cast<const uint8_t*>(source),static_cast<uint8_t*>(destination),rows,row_bytes,source_pitch,destination_pitch,status);
+  return int(hipGetLastError());
+}
+
+__global__ void rns8_native_bound_status_kernel(const uint64_t* maximum,uint64_t limit,int* status) {
+  if(*maximum>limit)*status=static_cast<int>(RNS8_RANGE_ERROR);
+}
+extern "C" int rns8_hip_native_bound_status(const void* maximum,uint64_t limit,int* status,void* stream) {
+  hipLaunchKernelGGL(rns8_native_bound_status_kernel,dim3(1),dim3(1),0,static_cast<hipStream_t>(stream),
+      static_cast<const uint64_t*>(maximum),limit,status);
   return int(hipGetLastError());
 }

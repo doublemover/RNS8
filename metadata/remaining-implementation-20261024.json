@@ -255,6 +255,16 @@
             "src/core/api_operation_provider.inc",
             "src/core/api_gemm.cpp"
           ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -266,7 +276,8 @@
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
         "b1a9d15f20513ee371d52241f408ad03096f7f2d",
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
-        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "f30d1817b6208f781c64d9169aedf672f96319a0"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -704,7 +715,9 @@
         "tests/unit/test_api_prepared_lift_cases.inc",
         "tests/differential/test_hip_direct_exact_lift_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "f30d1817b6208f781c64d9169aedf672f96319a0"
+      ],
       "remaining": [
         "GPU exact selector with whole-input/output transaction, prepared/native transfer composition and matched lift/recipe cost harness remain implementation work; all execution/qualification deferred."
       ],
@@ -813,6 +826,16 @@
             "src/core/api_prepared_pipeline.inc",
             "src/backend_hip_direct/hip_backend_lift.inc"
           ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -828,7 +851,8 @@
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
         "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca",
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
-        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "f30d1817b6208f781c64d9169aedf672f96319a0"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -1461,6 +1485,16 @@
             "benchmarks/public-native-queue",
             "tools/collect_public_queue_calibration.py"
           ]
+        },
+        {
+          "summary": "Native-device import/export are retained prepared-transfer variants with generation-pinned external leases, explicit producer write windows and same-device readiness events; stream and owned-graph pipelines share existing completion/failure/cancellation. Both imports and exports stage before guarded copy, all prefix/limb stream variants use actual existing CRT kernels, and overlapping live writer leases are excluded. Installed public producer/consumer graph example and differential regressions authored.",
+          "files": [
+            "src/core/api_prepared_native_transfer.inc",
+            "src/core/api_native_device.cpp",
+            "src/core/prepared_transfer.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "examples/device-native/main.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -1472,7 +1506,8 @@
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
       ],
       "remaining": [
-        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
+        "Matched external-device vs explicit host-roundtrip vs internal-resident cost harness and capture validation still to write.",
+        "Device compilation, regression execution, named-target ownership/failure qualification and performance outcomes deferred. Optional DLPack is explicitly follow-on, not required."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
