@@ -120,6 +120,24 @@ def identity_hash(identity: Identity) -> str:
     return hashlib.sha256(json.dumps(asdict(identity), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def independent_run_interval(samples, resolution_ns):
+    """Statistical interval only; this does not admit a calibration or an ISA.
+
+    Runs are the statistical unit. Resolution must be supplied explicitly; a
+    nominal clock tick is only a nominal bound and must be labelled by callers.
+    """
+    if len(samples) < 5 or not _positive(resolution_ns) or any(
+            not run or any(not _positive(v) for v in run) for run in samples):
+        raise ValueError("five independent uncensored runs and resolution required")
+    means = [mean(run) for run in samples]
+    center = mean(means)
+    half = 2.776445106 * stdev(means) / math.sqrt(len(means)) + resolution_ns
+    return {"lower_ns": center-half, "mean_ns": center, "upper_ns": center+half,
+            "independent_run_stddev_ns": stdev(means), "nominal_confidence": 0.95,
+            "method": "conservative_student_t_run_means_plus_resolution",
+            "assumption": "independent_approximately_normal_stationary_run_means"}
+
+
 def summarize(calibration: Calibration) -> dict:
     validate(calibration)
     failures = []
@@ -141,18 +159,14 @@ def summarize(calibration: Calibration) -> dict:
         failures.append("mismatched_work_count")
     interval = None
     if not failures:
-        means = [mean(run.elapsed_ns) for run in calibration.runs]
-        center = mean(means)
         # t(0.975,4)=2.77645; using it for higher df is conservative.
         # Add the largest quantization interval instead of assuming it averages away.
-        half = 2.776445106 * stdev(means) / math.sqrt(len(means)) + max(run.resolution_ns for run in calibration.runs)
-        if center <= half:
+        candidate = independent_run_interval([run.elapsed_ns for run in calibration.runs],
+                                             max(run.resolution_ns for run in calibration.runs))
+        if candidate["lower_ns"] <= 0:
             failures.append("uncertainty_reaches_zero")
         else:
-            interval = {"lower_ns": center-half, "mean_ns": center, "upper_ns": center+half,
-                        "independent_run_stddev_ns": stdev(means), "nominal_confidence": 0.95,
-                        "method": "conservative_student_t_run_means_plus_resolution",
-                        "assumption": "independent_approximately_normal_stationary_run_means"}
+            interval = candidate
     return {"schema": "rns8_calibration_v1", "identity_sha256": identity_hash(calibration.identity),
             "raw": asdict(calibration), "interval": interval, "admission_failures": failures,
             "rate_export_eligible": not failures, "promotion_eligible": False}

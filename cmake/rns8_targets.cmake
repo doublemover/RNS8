@@ -191,6 +191,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-host-transfer-calibrate benchmarks/rns8_host_transfer_calibrate.cpp)
   add_executable(rns8-residue-dot-calibrate benchmarks/rns8_residue_dot_calibrate.cpp)
   add_executable(rns8-lift-recipe-calibrate benchmarks/rns8_lift_recipe_calibrate.cpp)
+  add_executable(rns8-product-stage-calibrate benchmarks/rns8_product_stage_calibrate.cpp)
   if(RNS8_ENABLE_HIP)
     rns8_compile_hip_source(RNS8_INTEROP_APPLICATION_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_native_interop_application.hip")
     target_sources(rns8-native-interop-calibrate PRIVATE "${RNS8_INTEROP_APPLICATION_OBJECT}")
@@ -218,6 +219,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-host-transfer-calibrate
       rns8-residue-dot-calibrate
       rns8-lift-recipe-calibrate
+      rns8-product-stage-calibrate
       rns8-narrow-public-calibrate
       rns8-stream-panel-calibrate)
     rns8_bind_manifest(${_calibrator})

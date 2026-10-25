@@ -274,6 +274,14 @@ full padded spans, execution modes and checked scratch are explicit. Ordinary
 plan creation, prepared admission and narrow/bilinear owners consume the same
 provider; their existing actual-value, generation, pointer, alias and target
 binding remains mandatory. Opaque runtime/graph setup is unknown, not zero.
+Native-device and pinned-host import queries require `output_limbs=0` for
+scalar native64 storage; limb views are export-only. Both import families reject
+a nonzero width before compiled inventory and resource pricing, matching their
+concrete transfer descriptors. Authored provider regressions also compare static
+rejections with CPU synchronous/prepared epilogue and narrow/bilinear admission,
+including preservation of a previously published output. Those additions await
+integrated execution; they do not qualify unsupported devices or complete the
+remaining representation, distributed and asynchronous provider gates.
 
 `rns8-inspect --operations [--json]` renders the same records for a documented
 sample problem; it is **not** a universal support matrix or an on-device receipt.
@@ -338,5 +346,53 @@ The [focused matched observations](focused-closeout-measurements-20261025.md#pac
 now compare four shapes through 256³ across five processes per mode. Full-prefix
 compiled graphs win against the public resident sequence, while packed B and
 the analytical layout model lose to the best compiled control. The prices remain
-unqualified. A measured profile and held-out selection, native per-operation
-roundtrip control and physical peak/capacity evidence remain open under #42.
+unqualified. The new stage measurements/importer and native per-operation
+roundtrip source below require their own validation and measurements. Physical
+peak/capacity evidence and broader held-out selection remain open under #42.
+
+## Measured resident stage prices
+
+`rns8-product-stage-calibrate` measures completed production backend calls for
+uniform GEMM, packed-layout GEMM, exact suffix lift, partial-plane packing and
+final publication. The case explicitly lists candidate compute prefixes and
+physical packed capacities. Packing includes every listed old/new pair; an
+unmeasured cell stays unknown. The all-one DAG has an independent Boost integer
+reference for every logical output, and each stage checks the complete physical
+buffer, including untouched suffix planes and tile padding, outside timing.
+This fixture qualifies no other dataset or shape.
+
+Samples use `steady_clock` around synchronous wrappers with diagnostic hooks
+disabled. Their boundary includes launch/status/synchronization and staged
+suffix publication, but excludes fixture upload and oracle readback. Reported
+transfer counters count wrapper copies; actual HBM/cache traffic remains
+unavailable. The nominal clock tick is recorded separately from empirically
+qualified timer resolution. Calibration wall time charges context setup,
+warmups, samples, fixture transfers and audits; it excludes process startup and
+JSON output serialization. Training is a cost when evaluating setup amortization.
+
+For example, after a clean build:
+
+```powershell
+python tools/collect_product_stages.py --binary build/rns8-product-stage-calibrate.exe --case benchmarks/lift-recipe/17-stage-training.json --runs 5 --output temp/product-training
+python tools/collect_lift_recipe.py --binary build/rns8-lift-recipe-calibrate.exe --cases benchmarks/lift-recipe/17-chain-3-i-recipe-measured.json --stage-prices temp/product-training/prices.json --runs 5 --output temp/product-held-out
+python tools/collect_product_stages.py --review-held-out-plan temp/product-held-out/plan.json --prices temp/product-training/prices.json --relative-tolerance 0.25 --output temp/product-held-out/discrepancy.json
+```
+
+The tolerance must be chosen before collection. Five independent training
+processes produce integer nanosecond estimates and conservative Student-t
+intervals over process means, with explicit independence/stationarity assumptions.
+An interval reaching zero leaves that cell unknown. The importer binds the
+graph, independently computed minimum prefixes, build, target, device name,
+runtime, schema/axes, unique process IDs and capture/artifact digests. Parsing
+is transactional. Malformed, stale or partial files cannot leave partially
+applied prices, lower the exact minimum or install an AUTO route.
+
+`recipe-measured` uses only these supplied cells and reports their immutable
+content digest. Collection independently replays its selected stage cost trace.
+Held-out processes must be disjoint from training and share one graph, build,
+dataset and selected plan. The discrepancy report compares the entire measured
+process interval against the expanded prediction, including final publication;
+final CRT/export remains a separate common boundary. A failed prediction is
+retained as a failed report. These profiles remain **unqualified estimates**:
+no ISA/counter qualification, controlled clocks, new-shape generalization,
+selection-regret success or performance promotion is inferred from collection.

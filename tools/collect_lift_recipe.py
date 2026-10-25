@@ -11,8 +11,9 @@ from collect_int4_calibration import collection_plan
 from collect_native_calibration import strict_json
 from collect_native_integrity import MODULI, positive
 from collect_native_interop import quantile
+from product_stage_contract import price_cells,price_identity
 
-MATERIALIZED_MODES=('recipe-packed-full','recipe-packed-minimum','recipe-layout-model')
+MATERIALIZED_MODES=('recipe-packed-full','recipe-packed-minimum','recipe-layout-model','recipe-measured')
 MODES=(*MATERIALIZED_MODES,'recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-scalar-first','manual-auto','native-roundtrip','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
 
 
@@ -68,7 +69,7 @@ def validate_capture(c,entry):
         fixed_plan_exact_proof_policy='scalar_first' if mode=='manual-scalar-first' else 'eager_axis',logical_payload_estimate_bytes=payload_bytes(case),
         host_payload_bytes_before_final_export=cells*p if mode=='lift-cpu-roundtrip' else native_h2d+native_d2h,
         native_roundtrip_h2d_payload_bytes_per_replay=native_h2d,native_roundtrip_d2h_payload_bytes_per_replay=native_d2h,native_roundtrip_retained_host_bytes=native_host,
-        replay_hip_counter_samples=case['repeats'],final_export_payload_bytes=cells*24,exact_reference_passed=True,promotion_eligible=False)
+        replay_hip_counter_samples=case['repeats'],final_export_payload_bytes=cells*24,timing_source='host_monotonic_completed_public_call',exact_reference_passed=True,promotion_eligible=False)
     for key,value in fixed.items():
         if type(c.get(key)) is not type(value) or c.get(key)!=value:raise ValueError('capture '+key)
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id') or not c.get('target') or not c.get('device'):raise ValueError('provenance')
@@ -93,10 +94,17 @@ def validate_capture(c,entry):
         if type(selected_prefix) is not int or not 1<=selected_prefix<=p or math.prod(MODULI[:selected_prefix])<=bounds(case)[i+2]*factor:raise ValueError('independent selected range')
     model=c.get('cost_model')
     expected_model=dict(kind='explicit-unqualified-analytical-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',qualified=False) if mode=='recipe-cost-model' else None
-    if mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
-    validate_materializations(c,case,selected)
+    prices=None
+    if mode=='recipe-measured':
+        document=entry.get('stage_price_document');prices=price_cells(document);identity=price_identity(document)
+        if c.get('stage_price_identity')!=identity:raise ValueError('frozen stage price identity')
+        expected_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=2,price_sha256=identity,qualified=False)
+        if document['identity']['target']!=c['target'] or document['identity']['node_count']!=nodes or document['device']!=c['device'] or document['runtime_version']!=c['runtime_version']:raise ValueError('measured graph/target/device/runtime')
+    elif mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
+    if mode!='recipe-measured' and c.get('stage_price_identity',False) is not None:raise ValueError('unrequested stage prices')
+    validate_materializations(c,case,selected,prices)
     if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
-    if not positive(c.get('setup_us')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup')
+    if not positive(c.get('setup_us')) or not positive(c.get('nominal_clock_tick_ns')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup/clock')
     for s in [c.get('first_call',{}),*c['samples']]:
         phases=[s.get(k) for k in ('producer_us','execute_lift_us','final_export_us')]
         if not all(positive(x,True) for x in phases) or not positive(s.get('total_us')) or not math.isclose(sum(phases),s['total_us'],rel_tol=1e-7,abs_tol=1e-6):raise ValueError('complete phases')
@@ -107,7 +115,7 @@ def validate_capture(c,entry):
     return c
 
 
-def validate_materializations(c,case,selected):
+def validate_materializations(c,case,selected,prices=None):
     if 'materialization_plan' not in c:raise ValueError('materialization receipt missing')
     plan=c['materialization_plan']
     if case['mode'] not in MATERIALIZED_MODES:
@@ -116,7 +124,7 @@ def validate_materializations(c,case,selected):
     if type(plan) is not dict or set(plan)!={'packed_b','packed_values','evaluated','exhaustive','chain_dynamic_programming','cost_optimal','estimated_ns','completed_packing_calls'}:raise ValueError('materialization ABI')
     nodes=graph(case);flags=plan['packed_b'];views=plan['packed_values']
     if type(flags) is not list or len(flags)!=len(nodes) or any(type(x) is not int or x not in (0,1) for x in flags):raise ValueError('packed choice')
-    if case['mode']!='recipe-layout-model' and flags!=[1]*len(nodes):raise ValueError('forced packed control')
+    if case['mode'] not in ('recipe-layout-model','recipe-measured') and flags!=[1]*len(nodes):raise ValueError('forced packed control')
     if case['mode']=='recipe-packed-full' and selected!=[case['prefix']]*len(nodes):raise ValueError('full packed prefix')
     for key in ('exhaustive','chain_dynamic_programming','cost_optimal'):
         if type(plan[key]) is not bool:raise ValueError('search scope')
@@ -124,16 +132,24 @@ def validate_materializations(c,case,selected):
     if type(views) is not list:raise ValueError('packed views')
     expected={};current={};calls=0;raw=[case['prefix'],case['prefix']]+[0]*len(nodes);cost=0
     cells=case['side']**2;launch=case['model_launch_ns']
+    capacities={}
+    for (_,b),p,flag in zip(nodes,selected,flags):
+        if flag:capacities[b]=max(capacities.get(b,0),p)
+    def stage(node,kind,cap,old,p,analytical):
+        if prices is None:return analytical
+        key=(node,kind,cap,old,p)
+        if key not in prices:raise ValueError('unmeasured selected stage')
+        return prices[key]['cost_ns']
     def demand(value,p):
         nonlocal cost
-        if value>=2 and raw[value]<p:cost+=3*launch+cells*raw[value]*p;raw[value]=p
+        if value>=2 and raw[value]<p:cost+=stage(value-2,'lift',0,raw[value],p,3*launch+cells*raw[value]*p);raw[value]=p
     for i,((_,b),p,flag) in enumerate(zip(nodes,selected,flags)):
         demand(nodes[i][0],p)
         if not flag:
-            demand(b,p);cost+=launch+cells*case['side']*p;raw[i+2]=p;continue
+            demand(b,p);cost+=stage(i,'uniform_gemm',0,0,p,launch+cells*case['side']*p);raw[i+2]=p;continue
         if current.get(b,0)<p:
-            demand(b,p);cost+=launch+2*cells*(p-current.get(b,0))
-        cost+=launch+cells*((case['side']+3)//4)*p;raw[i+2]=p
+            demand(b,p);cost+=stage(i,'pack',capacities[b],current.get(b,0),p,launch+2*cells*(p-current.get(b,0)))
+        cost+=stage(i,'packed_gemm',capacities[b],0,p,launch+cells*((case['side']+3)//4)*p);raw[i+2]=p
         if b not in expected:expected[b]=dict(value_id=b,capacity_prefix=p,first_reader=i,last_reader=i)
         expected[b]['capacity_prefix']=max(expected[b]['capacity_prefix'],p);expected[b]['last_reader']=i
         if current.get(b,0)<p:current[b]=p;calls+=1
@@ -183,8 +199,12 @@ def summarize(observations):
 
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--binary',type=Path,required=True);p.add_argument('--cases',type=Path,nargs='+',required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--runs',type=int,default=2);p.add_argument('--seed',type=int,default=4142);p.add_argument('--timeout-seconds',type=float,default=1200);p.add_argument('--plan-only',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--binary',type=Path,required=True);p.add_argument('--cases',type=Path,nargs='+',required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--runs',type=int,default=2);p.add_argument('--seed',type=int,default=4142);p.add_argument('--timeout-seconds',type=float,default=1200);p.add_argument('--stage-prices',type=Path);p.add_argument('--plan-only',action='store_true');a=p.parse_args()
     plan=collection_plan(a.binary,a.cases,a.output,a.runs,a.seed,str(uuid.uuid4()),case_validator=validate_case);a.output.mkdir(parents=True,exist_ok=True)
+    for entry in plan:
+        if entry['case']['mode']=='recipe-measured':
+            if a.stage_prices is None:raise ValueError('measured recipe needs frozen stage prices')
+            document=strict_json(a.stage_prices.read_text());price_cells(document);entry['stage_price_document']=document;entry['command'].append(str(a.stage_prices))
     with (a.output/'plan.json').open('x') as f:json.dump(dict(schema='lift_recipe_collection_v1',observations=plan,promotion_eligible=False),f,indent=2)
     if a.plan_only:return 0
     captures=[]

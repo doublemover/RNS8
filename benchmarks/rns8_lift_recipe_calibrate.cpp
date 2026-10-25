@@ -1,6 +1,7 @@
 // Exact output boundaries are identical except explicitly labeled eager-observe.
 #include "core/api_internal.hpp"
 #include "core/runtime_product_recipe.hpp"
+#include "product_stage_prices.hpp"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -14,14 +15,16 @@ uint64_t number(const json& c,const char* key,uint64_t lo,uint64_t hi){if(!c.at(
 }
 int main(int argc,char** argv){try {
   using namespace rns8::detail;using namespace rns8::detail::api;
-  if(argc!=3)throw std::invalid_argument("usage: rns8-lift-recipe-calibrate CASE.json unique-run-id");json c;std::ifstream(argv[1])>>c;
+  if(argc!=3 && argc!=4)throw std::invalid_argument("usage: rns8-lift-recipe-calibrate CASE.json unique-run-id [prices.json]");json c;std::ifstream(argv[1])>>c;
   if(c.size()!=12 || c.at("schema")!="lift_recipe_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
   const unsigned side=number(c,"side",1,256),depth=number(c,"depth",1,12),prefix=number(c,"prefix",1,20),source=number(c,"source_prefix",1,prefix),
       repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),model_launch=number(c,"model_launch_ns",0,1000000000);
   const uint64_t budget=number(c,"max_payload_bytes",64,UINT64_C(1)<<40);const bool u=c.at("unsigned_inputs");const std::string mode=c.at("mode"),shape=c.at("topology");
   const bool lift=mode.rfind("lift-",0)==0,recipe=mode.rfind("recipe-",0)==0,ragged=mode=="recipe-ragged-full" || mode=="recipe-ragged-minimum",eager=mode=="eager-observe",cpu_lift=mode=="lift-cpu-roundtrip";
   const bool native_roundtrip=mode=="native-roundtrip",scalar_first=mode=="manual-scalar-first";
-  const bool materialized=mode=="recipe-packed-full" || mode=="recipe-packed-minimum" || mode=="recipe-layout-model";
+  const bool measured=mode=="recipe-measured";
+  if((argc==4)!=measured)throw std::invalid_argument("measured recipe requires exactly one frozen price file");
+  const bool materialized=mode=="recipe-packed-full" || mode=="recipe-packed-minimum" || mode=="recipe-layout-model" || measured;
   if((shape!="chain" && shape!="diamond") || (mode!="recipe-ragged-full" && mode!="recipe-ragged-minimum" && mode!="recipe-full" && mode!="recipe-minimum" && mode!="recipe-cost-model" && mode!="manual-full" && mode!="manual-auto" && !native_roundtrip && !scalar_first && !eager && !materialized &&
       mode!="lift-wide" && mode!="lift-mixed" && mode!="lift-graph" && !cpu_lift && mode!="wider-producer") || (lift && shape!="chain"))throw std::invalid_argument("route/topology");
   const uint64_t cells=uint64_t(side)*side;const auto semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
@@ -59,7 +62,7 @@ int main(int argc,char** argv){try {
     std::fill(native_values[0].begin(),native_values[0].end(),1);
     std::fill(native_values[1].begin(),native_values[1].end(),1);
   }
-  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0;json cost_model=nullptr,materialization_plan=nullptr;
+  std::vector<const rns8_matrix*> inputs{matrices[0],matrices[1]};json selected=json::array();uint64_t arena_bytes=0,lift_bytes=0;json cost_model=nullptr,materialization_plan=nullptr,stage_price_identity=nullptr;
   if(ragged){matrix(ctx,&ragged_converted);check(rns8_prepare_ragged_materialization(ctx,matrices[0],3,5,budget-known_payload,&ragged_source));inputs[0]=ragged_converted;
     std::vector<rns8_product_node> public_nodes;for(auto node:nodes)public_nodes.push_back({node.a,node.b});rns8_product_recipe_desc descriptor{};descriptor.struct_size=sizeof(descriptor);descriptor.abi_version=RNS8_ABI_VERSION;
     descriptor.inputs=inputs.data();descriptor.input_count=inputs.size();descriptor.nodes=public_nodes.data();descriptor.node_count=public_nodes.size();descriptor.prefix_policy=mode=="recipe-ragged-full"?RNS8_PRODUCT_FULL_PREFIX:RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;descriptor.max_arena_and_lift_bytes=budget-known_payload;
@@ -80,12 +83,23 @@ int main(int argc,char** argv){try {
           for(unsigned old=0;old<p;++old)
             layouts.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,p)]=model_launch+2*cells*(p-old);
         }
-        if(mode!="recipe-layout-model")layouts.uniform.nodes[i].gemm[p]=UINT64_MAX;
+        if(mode!="recipe-layout-model" && !measured)layouts.uniform.nodes[i].gemm[p]=UINT64_MAX;
       }
       chosen=nullptr;layout_prices=&layouts;
       cost_model={{"kind",layouts.uniform.provenance},{"launch_ns",model_launch},{"gemm_units","one_ns_per_scalar_modular_multiply"},
           {"packed_gemm_units","one_ns_per_four_term_group"},{"pack_units","one_ns_per_logical_byte_read_or_write"},
           {"cost_schema_version",layouts.cost_schema_version},{"packed_cost_capacity","physical_shared_b_prefix"},{"qualified",false}};
+      if(measured) {
+        std::vector<rns8_product_node> public_nodes;for(auto node:nodes)public_nodes.push_back({node.a,node.b});
+        rns8_product_recipe_desc descriptor{};descriptor.struct_size=sizeof(descriptor);descriptor.abi_version=RNS8_ABI_VERSION;
+        descriptor.inputs=inputs.data();descriptor.input_count=inputs.size();descriptor.nodes=public_nodes.data();descriptor.node_count=public_nodes.size();
+        descriptor.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;descriptor.max_arena_and_lift_bytes=budget-known_payload;
+        rns8_product_materialization_identity identity{};identity.struct_size=sizeof(identity);identity.abi_version=RNS8_ABI_VERSION;
+        check(rns8_query_product_materialization_identity(ctx,&descriptor,nullptr,0,&identity));
+        const auto document=rns8::bench::read_product_stage_prices(argv[3]);rns8::bench::apply_product_stage_prices(document,identity,prefix,ctx->device_info.name,ctx->device_info.hip_runtime_version,layouts);
+        stage_price_identity=sha256(document.dump());
+        cost_model={{"kind","measured-stage-prices-unqualified"},{"cost_schema_version",2},{"price_sha256",stage_price_identity},{"qualified",false}};
+      }
     }
     check(RuntimeProductRecipe::create(ctx,inputs,nodes,budget-known_payload,owner,
         mode!="recipe-full" && mode!="recipe-packed-full",chosen,{},layout_prices));arena_bytes=owner->allocation().arena_bytes;lift_bytes=owner->lift_scratch_bytes();selected=owner->compute_prefixes();}
@@ -161,9 +175,10 @@ int main(int argc,char** argv){try {
   if(owner)check(owner->close());owner.reset();if(ragged_recipe)check(rns8_destroy_product_recipe(ragged_recipe));if(ragged_source)check(rns8_destroy_ragged_materialization(ragged_source));if(ragged_converted)check(rns8_destroy_matrix(ragged_converted));if(prepared_lift)check(rns8_destroy_prepared_execution(prepared_lift));if(host_matrix)check(rns8_destroy_matrix(host_matrix));if(cpu)check(rns8_destroy_context(cpu));for(auto* m:matrices)check(rns8_destroy_matrix(m));
   for(auto* w:{fixed_work,auto_work,producer_work})check(rns8_destroy_workspace(w));for(auto* p:{fixed,adaptive,producer})check(rns8_destroy_plan(p));check(rns8_destroy_context(ctx));
   std::cout<<json({{"schema","rns8_lift_recipe_microcase_v3"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",target},{"device",device},{"runtime_version",runtime},
+    {"timing_source","host_monotonic_completed_public_call"},{"nominal_clock_tick_ns",1e9*double(Clock::period::num)/double(Clock::period::den)},
     {"output_boundary",lift || mode=="wider-producer"?"one_product_full_prefix_final_three_limb_export":"complete_dag_final_three_limb_export"},{"extra_intermediate_observations",eager},{"private_residue_transfer_control",cpu_lift},{"native_roundtrip_control",native_roundtrip},
     {"fixed_plan_exact_proof_policy",scalar_first?"scalar_first":"eager_axis"},{"logical_payload_estimate_bytes",known_payload},
-    {"ragged_retained_bytes",ragged_retained},{"ragged_materialized_input_bytes",ragged_input_bytes},{"ragged_binding_peak_bytes",ragged_peak},{"recipe_arena_bytes",arena_bytes},{"recipe_retained_lift_bytes",lift_bytes},{"auto_retained_device_bytes",retained_auto},{"selected_compute_prefixes",selected},{"cost_model",cost_model},{"materialization_plan",materialization_plan},
+    {"ragged_retained_bytes",ragged_retained},{"ragged_materialized_input_bytes",ragged_input_bytes},{"ragged_binding_peak_bytes",ragged_peak},{"recipe_arena_bytes",arena_bytes},{"recipe_retained_lift_bytes",lift_bytes},{"auto_retained_device_bytes",retained_auto},{"selected_compute_prefixes",selected},{"cost_model",cost_model},{"materialization_plan",materialization_plan},{"stage_price_identity",stage_price_identity},
     {"host_payload_bytes_before_final_export",cpu_lift?cells*prefix:native_h2d+native_d2h},{"final_export_payload_bytes",cells*24},
     {"native_roundtrip_h2d_payload_bytes_per_replay",native_h2d},{"native_roundtrip_d2h_payload_bytes_per_replay",native_d2h},{"native_roundtrip_retained_host_bytes",native_host_bytes},
     {"replay_hip_counter_samples",repeats},{"replay_hip_h2d_bytes",after.h2d_bytes-before.h2d_bytes},{"replay_hip_d2h_bytes",after.d2h_bytes-before.d2h_bytes},
