@@ -7,6 +7,27 @@
 #include "backend_rocwmma/rocwmma_packing_policy.hpp"
 #include "backend_common/native_tiled_resources.hpp"
 #include <array>
+#include "../support/layout_gemm_fixture.hpp"
+
+TEST_CASE("layout-aware residue products preserve exact planes tails and full native boundaries") {
+  using namespace rns8::detail;
+  for(const auto [k,prefix]:rns8::test::layout_gemm_cases()) {
+    rns8::test::LayoutGemmFixture f(k,prefix,k%2!=0,k<32);
+    std::vector<int8_t> packed(f.packed.bytes,99),actual(f.c.bytes,77);
+    REQUIRE(convert_residue_planes_host(f.bv.data(),f.b,packed.data(),f.packed,0,prefix));
+    REQUIRE(packed==f.packed_expected);
+    REQUIRE(residue_layout_gemm_host(f.av.data(),f.a,packed.data(),f.packed,actual.data(),f.c,prefix));
+    REQUIRE(actual==f.expected);
+    const auto before=actual;
+    auto wrong=f.packed;std::swap(wrong.basis.moduli[0],wrong.basis.moduli[1]);
+    wrong.basis.fingerprint=ordered_basis_fingerprint(wrong.basis.moduli.data(),wrong.basis.count);
+    CHECK_FALSE(residue_layout_gemm_host(f.av.data(),f.a,packed.data(),wrong,actual.data(),f.c,prefix));
+    CHECK_FALSE(convert_residue_planes_host(f.bv.data(),f.b,packed.data(),f.packed,prefix,prefix));
+    CHECK_FALSE(convert_residue_planes_host(f.bv.data(),f.b,packed.data(),f.packed,0,21));
+    CHECK_FALSE(residue_layout_gemm_host(f.av.data(),f.a,packed.data(),f.packed,const_cast<int8_t*>(f.av.data()),f.c,prefix));
+    CHECK(actual==before);
+  }
+}
 
 TEST_CASE("binary fragment algebra preserves image replicas inverse and composition") {
   namespace binary=rns8::detail::binary_layout;namespace fragment=rns8::detail::fragment_layout;

@@ -15,6 +15,7 @@
 #include "../backend_common/split_k_partial.hpp"
 #include "../backend_common/complex_residue_algebra.hpp"
 #include "../backend_common/residue_layout.hpp"
+#include "../backend_common/residue_layout_gemm.hpp"
 #include "../backend_common/direct_crt_constants.hpp"
 #include "../backend_common/quarter_crt.hpp"
 #include "../backend_common/balanced_crt.hpp"
@@ -389,11 +390,20 @@ extern "C" int rns8_hip_native_i64_narrow_gemm(
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_convert_residue_layout(
-    const int8_t* src, rns8::detail::ResidueLayout source, int8_t* dst, rns8::detail::ResidueLayout destination) {
-  const auto blocks = static_cast<unsigned>((source.rows * source.cols * source.prefix + 255) / 256);
+extern "C" int rns8_hip_convert_residue_planes(
+    const int8_t* src,rns8::detail::ResidueLayout source,int8_t* dst,rns8::detail::ResidueLayout destination,
+    uint32_t first,uint32_t end) {
+  const auto blocks = static_cast<unsigned>((source.rows * source.cols * (end-first) + 255) / 256);
   hipLaunchKernelGGL(rns8_convert_residue_layout_kernel, dim3(blocks), dim3(256), 0, nullptr,
-                    src, source, dst, destination);
+                    src,source,dst,destination,first,end);
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_gemm_residue_layout(
+    const int8_t* a,rns8::detail::ResidueLayout al,const int8_t* b,rns8::detail::ResidueLayout bl,
+    int8_t* c,rns8::detail::ResidueLayout cl,uint32_t prefix,rns8::detail::ResidueLayoutModuli moduli) {
+  hipLaunchKernelGGL(rns8_gemm_residue_layout_kernel,
+      dim3((bl.cols+15)/16,(al.rows+15)/16,prefix),dim3(16,16),0,nullptr,a,al,b,bl,c,cl,prefix,moduli);
   return static_cast<int>(hipGetLastError());
 }
 

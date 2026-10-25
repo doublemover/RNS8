@@ -11,6 +11,7 @@
 
 #include "rns8/rns8.h"
 #include "backend_common/residue_layout.hpp"
+#include "backend_common/residue_layout_gemm.hpp"
 #include "backend_common/native_tile_bound.hpp"
 #include "backend_common/native_tiled_resources.hpp"
 #include "backend_common/operation_support.hpp"
@@ -171,6 +172,10 @@ rns8_status hip_direct_export_canonical_balanced_crt_layout_device(
 
 rns8_status hip_direct_convert_residue_layout(
     int device_id, const void* src, const ResidueLayout& source, void* dst, const ResidueLayout& destination);
+rns8_status hip_direct_convert_residue_planes(int device_id,const void* src,
+    const ResidueLayout& source,void* dst,const ResidueLayout& destination,uint32_t first,uint32_t end);
+rns8_status hip_direct_gemm_residue_layout(int device_id,const void* a,const ResidueLayout& al,
+    const void* b,const ResidueLayout& bl,void* c,const ResidueLayout& cl,uint32_t prefix);
 
 // Native signed-i64 scalar candidate admitted by an actual device input scan.
 // The returned bound covers every partial absolute product sum. No automatic

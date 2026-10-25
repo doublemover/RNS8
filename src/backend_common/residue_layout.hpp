@@ -74,6 +74,25 @@ inline bool compatible_residue_layouts(const ResidueLayout& a, const ResidueLayo
   return valid_residue_layout(a) && valid_residue_layout(b) && a.basis==b.basis && a.rows == b.rows && a.cols == b.cols && a.prefix == b.prefix;
 }
 
+// A prefix materialization may have a different physical plane capacity. Only
+// the declared current planes are read; the caller owns their value proof.
+inline bool compatible_residue_planes(const ResidueLayout& a, const ResidueLayout& b,
+                                     uint32_t first, uint32_t end) {
+  return valid_residue_layout(a) && valid_residue_layout(b) && a.basis==b.basis &&
+      a.rows==b.rows && a.cols==b.cols && first<end && end<=a.prefix && end<=b.prefix;
+}
+
+inline bool convert_residue_planes_host(const int8_t* src,const ResidueLayout& source,
+    int8_t* dst,const ResidueLayout& destination,uint32_t first,uint32_t end) {
+  if(!compatible_residue_planes(source,destination,first,end) ||
+      !nonoverlapping_byte_ranges(src,source.bytes,dst,destination.bytes))return false;
+  for(uint32_t p=first;p<end;++p)
+    for(uint64_t row=0;row<source.rows;++row)
+      for(uint64_t col=0;col<source.cols;++col)
+        dst[destination.offset(p,row,col)]=src[source.offset(p,row,col)];
+  return true;
+}
+
 inline bool convert_residue_layout_host(const int8_t* src, const ResidueLayout& source,
                                         int8_t* dst, const ResidueLayout& destination) {
   if (!compatible_residue_layouts(source, destination) ||

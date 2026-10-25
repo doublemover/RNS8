@@ -1,5 +1,26 @@
 # Offline typed recipe admission
 
+## Layout-aware materialization primitives
+
+The private CPU/direct-HIP residue consumer accepts explicit uniform or tiled
+A/B/output descriptors with a complete ordered basis and declared current
+prefix. `convert_residue_planes_host` and the corresponding HIP operation copy
+only `[first_plane, end_plane)`, allowing a retained packed view to grow without
+reading unmaterialized higher planes or changing its physical capacity.
+Basis/shape/range/alias validation completes before any write.
+
+The HIP consumer stages 16x32 and 32x16 byte tiles and reduces its INT32 carry
+every 32 K terms. Its explicit packed-dot path uses the shared signed-byte dot
+implementation; the scalar-control build retains scalar updates. This is a
+vector/LDS consumer, with no matrix-instruction or performance qualification
+implied. It does not change ordinary GEMM routing.
+
+Boost differential fixtures cover every default prefix, ordered-basis changes,
+signed native extrema, partial packing, shape/pitch tails, padding poison,
+K=65535/65536/65537 and rejected aliases. Host and gfx1100 host/device syntax
+checks passed during frontloading. Their execution and recipe materialization
+selection are part of the remaining #42 integration pass.
+
 Explicit ordered experimental bases are supported by the CPU/direct-HIP product
 recipe executor, including minimum-prefix lifting and multiple outputs. Every
 input, output and rebind must carry the same complete ordered basis. The basis
