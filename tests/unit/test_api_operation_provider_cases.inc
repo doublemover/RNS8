@@ -11,8 +11,8 @@ TEST_CASE("operation discovery shares CPU plan admission and rejects representat
     REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
   }
   q.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,16,16,16);q.problem.requested_backend=RNS8_BACKEND_AUTO;
-  uint32_t required=0;REQUIRE(rns8_query_operation_support(ctx,&q,nullptr,0,&required)==RNS8_SUCCESS);CHECK(required==8);
-  rns8_operation_support first[2]{};REQUIRE(rns8_query_operation_support(ctx,&q,first,2,&required)==RNS8_SUCCESS);CHECK(required==8);
+  uint32_t required=0;REQUIRE(rns8_query_operation_support(ctx,&q,nullptr,0,&required)==RNS8_SUCCESS);CHECK(required==9);
+  rns8_operation_support first[2]{};REQUIRE(rns8_query_operation_support(ctx,&q,first,2,&required)==RNS8_SUCCESS);CHECK(required==9);
   q.problem.requested_backend=RNS8_BACKEND_CPU_REFERENCE;
   q.execution_modes=RNS8_EXEC_CALLER_CAPTURE;REQUIRE(rns8_query_operation_support(ctx,&q,first,1,&required)==RNS8_SUCCESS);
   CHECK(first[0].reason_code==RNS8_SUPPORT_EXECUTION_MODE);

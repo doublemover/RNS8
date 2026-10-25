@@ -102,3 +102,42 @@ end-to-end timing, affinity/NUMA sensitivity, and hardware adoption remain open.
 - [Intel AMX capability discovery](https://github.com/intel/Intel-AMX-Detection/blob/main/amx_detection.c)
 
 These define the platform contract; they are not RNS8 qualification receipts.
+
+## Matched calibration implementation (not executed)
+
+`rns8-cpu-amx-calibrate` uses the public context/plan/matrix/workspace APIs for
+both the independent CPU reference and AMX. The 560 checked-in input cases in
+`benchmarks/cpu-amx/` cover tiny, 16-cell tails, long-K skinny, and square
+products; bounded and exact-wide signed/unsigned and finite mod255/mod256;
+prefixes 5/9/20 as legal for those contracts; one/four requested threads; cold,
+resident, A-only/B-only/both repacking. Cold calls own construction, pack, GEMM,
+CRT export and destruction; steady calls retain exactly the declared inputs.
+Packing unchanged values still advances host generation, so the B-cache tests
+measure the real generation contract rather than assuming source-version reuse.
+
+The harness emits setup, native packing/setup, public GEMM (including internal
+AMX B packing when needed), CRT/export, and cleanup phases. Sample totals sum
+operation and cleanup intervals, **excluding the intervening independent full
+output/residue oracle**; they are not falsely labeled one continuous wall
+interval. Sustained bursts include complete calls and harness clock/JSON
+bookkeeping, with no oracle inside. Full Boost comparison, every residue plane,
+and padded output checks run on separate audited invocations. Three final audit
+calls and all warmups/repeats/burst calls are included in the exact cache and
+packing-count receipt.
+
+`tools/collect_cpu_amx.py` records a deterministic counterbalanced independent
+process plan before launching anything, binds the executable/build manifest,
+requires both scalar and AMX modes in each matched cohort, validates OS/ISA
+admission, actual owned payload and all generation/cache counts, and preserves
+AMX-slower outcomes. It never marks a capture promotion-eligible. Environment
+records CPU model, visible physical cores/hardware threads, OS/compiler,
+requested/max/observed team sizes, inherited CPU affinity and allowed NUMA nodes,
+queried memory policy or its explicit error, and selected OpenMP placement
+variables. Allowed nodes are **not** asserted to be actual page placement.
+Optional readable package-0 RAPL counters are captured as shared-system modular
+energy deltas; process attribution and unknown multiple wraps are not invented.
+
+Collector rejection fixtures cover missing OS permission, forged ISA/currentness,
+incomplete pairs, reused process receipts, incorrect packing/cache counts,
+underreported storage, altered safe K, false NUMA observation, and energy scope.
+All corpus and regression execution remains deferred by request.

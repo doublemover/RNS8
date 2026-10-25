@@ -171,6 +171,7 @@ if(RNS8_BUILD_BENCHMARKS)
     list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
+  add_executable(rns8-cpu-amx-calibrate benchmarks/rns8_cpu_amx_calibrate.cpp)
   add_executable(rns8-crt-calibrate benchmarks/rns8_crt_calibrate.cpp)
   add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
   add_executable(rns8-epilogue-calibrate benchmarks/rns8_epilogue_calibrate.cpp)
@@ -196,6 +197,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   foreach(_calibrator IN ITEMS
+      rns8-cpu-amx-calibrate
       rns8-crt-calibrate
       rns8-native-calibrate
       rns8-epilogue-calibrate

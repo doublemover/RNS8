@@ -1277,7 +1277,7 @@
       "issue": 54,
       "title": "[Research P3] Add optional CPU matrix-instruction backends while preserving the independent scalar oracle",
       "url": "https://github.com/doublemover/RNS8/issues/54",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "CPU scalar/OpenMP oracle present; no separately named optimized AMX/Arm matrix-instruction backend, runtime OS/thread admission or matrix microkernel implementation.",
       "implementation": [
         {
@@ -1289,15 +1289,28 @@
             "src/core/api_operation_provider.inc",
             "docs/cpu-amx.md"
           ]
+        },
+        {
+          "summary": "Matched public scalar/AMX full-product harness with cold/resident/A-only/B-only/both repack modes, every-residue/Boost/padding audit outside timing, exact generation/cache/call receipts, CPU model/core/OS/affinity/NUMA and optional scoped RAPL observations, strict independent-process collector and 560 input cases. Backend inspection/discovery now derives inventory size rather than truncating at eight.",
+          "files": [
+            "benchmarks/rns8_cpu_amx_calibrate.cpp",
+            "benchmarks/cpu-amx",
+            "tools/collect_cpu_amx.py",
+            "tools/rns8_inspect.cpp"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_cpu_amx.cpp"
+        "tests/unit/test_cpu_amx.cpp",
+        "tools/test_collect_cpu_amx.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
       ],
-      "commits": [],
+      "commits": [
+        "3c202bd885aaa83e731a5e30604758269974fd11"
+      ],
       "remaining": [
-        "Matched scalar/AMX end-to-end calibration harness, provenance/affinity/NUMA capture and negative receipt fixtures.",
-        "Execution, benchmarks, scientific/hardware qualification and evidence-gated second architecture remain deferred."
+        "No remaining first-platform source implementation identified. Runtime OS/thread admission, exhaustive differential execution, performance/energy and cohort adoption remain unverified.",
+        "A second architecture is explicitly gated on real hardware evidence by the issue; no Arm implementation or cross-platform qualification is claimed."
       ],
       "validation": "Host syntax checks with AMX enabled/OpenMP and disabled branches; GCC 14 AMX object compilation emitted tile-load/config/TDPBSSD/store/release instructions. No execution, tests, benchmarks, CPU/GPU campaigns or scientific qualification.",
       "dependencies": [

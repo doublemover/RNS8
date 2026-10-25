@@ -5135,6 +5135,7 @@
         "arithmetic-and-storage",
         "deferred-validation",
         "instruction-and-os-references",
+        "matched-calibration-implementation-not-executed",
         "optional-cpu-amx-int8-provider"
       ]
     }

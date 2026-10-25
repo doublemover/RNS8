@@ -592,9 +592,9 @@ rns8_status rns8_query_operation_support(const rns8_context* ctx,const rns8_oper
     if(query->operation>=RNS8_OP_COUNT || !query->execution_modes || (query->execution_modes&~127u) ||
        (query->proof_flags&~15u) || query->device_count>64 || query->output_limbs>32 || query->input_domain>5 || query->output_domain>5)
       return RNS8_INVALID_ARGUMENT;
-    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_CPU_AMX,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
-      RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS};
-    const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?8:1;
+    constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
+      RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_CPU_AMX};
+    const bool all=query->problem.requested_backend==RNS8_BACKEND_AUTO;*required=all?static_cast<uint32_t>(std::size(backends)):1;
     if(!all && std::find(std::begin(backends),std::end(backends),query->problem.requested_backend)==std::end(backends))return RNS8_INVALID_ARGUMENT;
     for(uint32_t index=0;index<std::min(capacity,*required);++index)results[index]=operation_support(*ctx,*query,all?backends[index]:query->problem.requested_backend);
     return RNS8_SUCCESS;

@@ -94,9 +94,11 @@ int main(int argc, char** argv) {
       rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.operation=operation;q.execution_modes=RNS8_EXEC_SYNC;
       q.scratch_budget=UINT64_MAX;q.device_count=1;q.problem.struct_size=sizeof(q.problem);q.problem.abi_version=RNS8_ABI_VERSION;
       q.problem.requested_backend=RNS8_BACKEND_AUTO;q.problem.semantics=RNS8_EXACT_WIDE_SIGNED;q.problem.bound_kind=RNS8_BOUND_NONE;
-      q.problem.m=q.problem.n=q.problem.k=16;q.problem.max_prefix=9;q.proof_flags=15;
-      rns8_operation_support records[8]{};uint32_t count=0;
-      status=rns8_query_operation_support(ctx,&q,records,8,&count);if(status!=RNS8_SUCCESS){rns8_destroy_context(ctx);return 1;}
+      q.problem.m=q.problem.n=q.problem.k=16;q.problem.max_prefix=20;q.proof_flags=15;
+      uint32_t count=0;status=rns8_query_operation_support(ctx,&q,nullptr,0,&count);
+      if(status!=RNS8_SUCCESS){rns8_destroy_context(ctx);return 1;}
+      std::vector<rns8_operation_support> records(count);
+      status=rns8_query_operation_support(ctx,&q,records.data(),count,&count);if(status!=RNS8_SUCCESS){rns8_destroy_context(ctx);return 1;}
       for(uint32_t i=0;i<count;++i) {const auto& r=records[i];rows.push_back({{"operation",operation},{"backend",backend_name(static_cast<rns8_backend_kind>(r.backend))},
         {"status",rns8_status_string(r.status)},{"reason",r.reason_code},{"source",r.source_implemented},{"compiled",r.compiled_inventory},
         {"runtime_observed",r.runtime_observed},{"correctness_qualified",r.correctness_qualified},{"performance_qualified",r.performance_qualified},
