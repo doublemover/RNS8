@@ -43,6 +43,7 @@ int main() {
     desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes;desc.node_count=3;desc.prefix_policy=RNS8_PRODUCT_MINIMUM_COMPUTE_PREFIX;
     desc.max_arena_and_lift_bytes=1u<<20;
     rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
+    prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
     prices.node_count=3;prices.max_evaluations=4096;prices.max_chain_frontier=256;
     prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
     check(rns8_query_product_materialization_identity(owner.ctx,&desc,nullptr,0,&prices.identity));
@@ -51,11 +52,15 @@ int main() {
     {constexpr char label[]="installed-CPU-example-synthetic-estimates";std::copy_n(label,sizeof(label),prices.calibration_identity);}
     std::vector<rns8_product_materialization_node_costs> costs(3);
     for(auto& cost:costs) {
-      std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,21,UINT64_MAX);
-      std::fill_n(cost.lift_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,441,UINT64_MAX);
+      std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,441,UINT64_MAX);
+      std::fill_n(cost.lift_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,9261,UINT64_MAX);
       for(uint32_t p=1;p<=20;++p) {
-        cost.uniform_gemm_ns[p]=1000*p;cost.packed_gemm_ns[p]=10*p;
-        for(uint32_t old=0;old<p;++old){cost.pack_ns[old*21+p]=1;if(old)cost.lift_ns[old*21+p]=1;}
+        cost.uniform_gemm_ns[p]=1000*p;
+        for(uint32_t old=1;old<p;++old)cost.lift_ns[old*21+p]=1;
+        for(uint32_t capacity=p;capacity<=20;++capacity) {
+          cost.packed_gemm_ns[capacity*21+p]=10*p;
+          for(uint32_t old=0;old<p;++old)cost.pack_ns[(capacity*21+old)*21+p]=1;
+        }
       }
     }
     prices.nodes=costs.data();check(rns8_create_materialized_product_recipe(owner.ctx,&desc,nullptr,0,&prices,&owner.recipe));

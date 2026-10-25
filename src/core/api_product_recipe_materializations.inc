@@ -2,7 +2,7 @@ namespace {
 struct ProductInputProjection {const rns8_matrix* source=nullptr;boost::multiprecision::cpp_int bound=0;};
 bool materialization_text(const char* text,size_t size){return std::memchr(text,0,size)!=nullptr;}
 std::string product_materialization_build() {
-  std::string value="rns8-product-materialization-v1;";
+  std::string value="rns8-product-materialization-v2;";
 #ifdef RNS8_BUILD_MANIFEST_JSON
   value+=RNS8_BUILD_MANIFEST_JSON;
 #else
@@ -25,7 +25,7 @@ rns8_status product_materialization_identity(rns8_context* ctx,const rns8_produc
   if(!desc->inputs[0])return RNS8_INVALID_ARGUMENT;
   const auto* first=desc->inputs[0];const auto basis=recipe_basis(*first);
   const auto ordered=ordered_basis_identity(basis->packet);const auto prefix=first->prefix;
-  std::string key="rns8-product-graph-v1;";
+  std::string key="rns8-product-graph-v2;";
   const auto add=[&](const std::string& text){key+=std::to_string(text.size())+":"+text;};
   add(std::to_string(ctx->backend));add(std::to_string(first->desc.semantics));add(std::to_string(prefix));
   add(std::to_string(desc->prefix_policy));add(std::to_string(ordered.representation));add(std::to_string(ordered.count));
@@ -92,6 +92,8 @@ rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_
     const rns8_product_materialization_identity& identity,rns8::detail::ProductMaterializationProfile& profile) {
   using namespace rns8::detail;
     if(!prices || !valid_abi(prices->struct_size,prices->abi_version,sizeof(*prices)) ||
+        prices->cost_schema_version!=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION ||
+        prices->node_costs_size!=sizeof(rns8_product_materialization_node_costs) ||
         !prices->nodes || !prices->node_count || prices->node_count>64 ||
         prices->max_evaluations<4 || prices->max_evaluations>65536 ||
         !prices->max_chain_frontier || prices->max_chain_frontier>4096 ||
@@ -108,6 +110,7 @@ rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_
         prices->identity.admission_status!=identity.admission_status || prices->identity.blocking_node!=identity.blocking_node ||
         !std::equal(std::begin(prices->identity.minimum_prefixes),std::end(prices->identity.minimum_prefixes),
             std::begin(identity.minimum_prefixes)))return RNS8_INVALID_ARGUMENT;
+    profile.cost_schema_version=prices->cost_schema_version;
     profile.max_frontier=prices->max_chain_frontier;
     auto& uniform=profile.uniform;uniform.max_evaluations=prices->max_evaluations;uniform.backend=ctx->backend;
     uniform.semantics=desc->inputs[0]->desc.semantics;uniform.target=identity.target;uniform.provenance=prices->calibration_identity;
@@ -118,10 +121,10 @@ rns8_status materialization_profile(rns8_context* ctx,const rns8_product_recipe_
     uniform.graph_key=product_graph_key(shapes,nodes,desc->inputs[0]->prefix,outputs);
     uniform.nodes.resize(prices->node_count);profile.packed.resize(prices->node_count);
     for(uint32_t i=0;i<prices->node_count;++i) {
-      std::copy_n(prices->nodes[i].uniform_gemm_ns,21,uniform.nodes[i].gemm.begin());
-      std::copy_n(prices->nodes[i].lift_ns,441,uniform.nodes[i].lift.begin());
-      std::copy_n(prices->nodes[i].packed_gemm_ns,21,profile.packed[i].gemm.begin());
-      std::copy_n(prices->nodes[i].pack_ns,441,profile.packed[i].pack.begin());
+      std::copy_n(prices->nodes[i].uniform_gemm_ns,RNS8_PRODUCT_MATERIALIZATION_UNIFORM_GEMM_COST_COUNT,uniform.nodes[i].gemm.begin());
+      std::copy_n(prices->nodes[i].lift_ns,RNS8_PRODUCT_MATERIALIZATION_LIFT_COST_COUNT,uniform.nodes[i].lift.begin());
+      std::copy_n(prices->nodes[i].packed_gemm_ns,RNS8_PRODUCT_MATERIALIZATION_PACKED_GEMM_COST_COUNT,profile.packed[i].gemm.begin());
+      std::copy_n(prices->nodes[i].pack_ns,RNS8_PRODUCT_MATERIALIZATION_PACK_COST_COUNT,profile.packed[i].pack.begin());
     }
   return RNS8_SUCCESS;
 }

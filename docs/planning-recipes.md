@@ -42,9 +42,26 @@ target and compiled build using SHA-256. A missing build manifest is unsupported
 
 Supply `rns8_product_materialization_profile` with caller-estimated integer
 nanoseconds for uniform and packed GEMM, exact prefix lifting, and actual
-incremental packing. Fill unpriced entries with `UINT64_MAX`; zero is a known
-zero estimate. Tables and labels are copied during creation. These prices are
-model inputs and do not establish hardware qualification or update AUTO caches.
+incremental packing. Set `cost_schema_version` to
+`RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION` (2) and `node_costs_size` to
+`sizeof(rns8_product_materialization_node_costs)`. Creation rejects an older
+outer profile size, any other schema, or any other node stride before reading
+node tables. This is a hard cutover; schema 1 tables are unsupported.
+
+Each node has `uniform_gemm_ns[21]` indexed by compute prefix and `lift_ns[441]`
+indexed by `old_prefix*21+new_prefix`. The capacity-aware tables are
+`packed_gemm_ns[441]`, indexed by `capacity*21+compute_prefix`, and
+`pack_ns[9261]`, indexed by `(capacity*21+old_prefix)*21+new_prefix`. Valid packed
+GEMM cells satisfy `1 <= compute_prefix <= capacity <= 20`; valid packing cells
+satisfy `0 <= old_prefix < new_prefix <= capacity <= 20`. Capacity means the
+physical packed B allocation used by all selected readers, including readers
+that compute at a smaller prefix or run before higher planes are packed. It is
+not the current materialized prefix. Fill all cells with `UINT64_MAX` first,
+then populate the valid cells actually priced; zero is a known zero estimate.
+Unpriced and unused cells remain unknown. A node table is 81,312 bytes, so
+multiple-node callers should allocate their tables on the heap. Tables and
+labels are copied during creation. These prices are model inputs and do not
+establish hardware qualification or update AUTO caches.
 `FULL_PREFIX` preserves full compute prefixes; `MINIMUM_COMPUTE_PREFIX` allows
 the planner to choose any independently admitted prefix.
 
@@ -65,9 +82,9 @@ executor reserves the whole arena before execution and performs no new HIP
 allocations/frees for packing or lifting during replay.
 
 Small choice sets are enumerated exhaustively. Strict chains additionally use
-cost dynamic programming keyed by the preceding prefix and shared external B
-prefixes. The frontier is explicitly bounded; truncation or unknown prices
-remove its global lower-bound claim. Larger DAGs use deterministic feasible
+cost dynamic programming keyed by the preceding prefix, shared external B
+materialized prefixes and their final physical capacities. The frontier is
+explicitly bounded; truncation or unknown prices remove its global lower-bound claim. Larger DAGs use deterministic feasible
 seeds and bounded coordinate improvement. Resource admission always evaluates
 the actual liveness arena. A bounded unsuccessful search reports unsupported,
 not proof that every possible schedule exceeds memory.
@@ -94,14 +111,17 @@ not fit the original envelope.
 
 Authored fixtures cover chain and diamond selection versus exhaustive tiny
 domains, hard budgets, growth/reuse, arena interference, unknown/overflowing
-costs, stale build identity, range-blocking squaring, multiple observed outputs,
+costs, rejected schema/stride/outer-size headers, capacity-sensitive shared B
+prices, stale build identity, range-blocking squaring, multiple observed outputs,
 default/experimental bases, both signedness contracts, mutation/rebind,
 differently tiled ragged producer refresh, and HIP
 allocation counters. The installed
 [materialized product example](../examples/downstream-cmake/materialized_product_recipe.cpp)
 checks the exported header/functions with static and shared linkage. Functional
-execution passed in the consolidated `6ce489b` batch. Independent measured
-qualification remains pending; passing correctness does not establish a gain.
+execution of the earlier cost contract passed in the consolidated `6ce489b`
+batch; that evidence does not validate the schema 2 cutover. Schema 2 source
+and fixtures require integrated validation. Independent measured qualification
+remains pending; passing correctness does not establish a gain.
 
 ### Matched materialization controls
 

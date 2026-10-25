@@ -149,8 +149,14 @@ requested payload bytes, not observed allocator/driver peaks or speedups.
 
 `rns8-downstream-materialized-product-recipe` uses the installed
 `rns8/experimental_product.h` header. It queries a graph/build identity, supplies
-explicit illustrative cost tables, executes `2*3*3*3`, and verifies the exact
-result 54 with one shared B pack. It prints the retained arena footprint and
-checks every cleanup status. Its CPU estimates exercise selection and are not
-measured performance data. The same standalone CMake consumer tests static and
-shared linkage; the new example's execution awaits the next validation batch.
+explicit schema 2 illustrative cost tables, executes `2*3*3*3`, and verifies the
+exact result 54 with one shared B pack. It prints the retained arena footprint and
+checks every cleanup status. It sets `cost_schema_version=2` and
+`node_costs_size=sizeof(rns8_product_materialization_node_costs)`, stores the
+81,312-byte node tables on the heap, and prices every valid physical capacity.
+Packed GEMM uses `capacity*21+compute_prefix`; packing uses
+`(capacity*21+old_prefix)*21+new_prefix`. The physical capacity is shared across
+B readers even while only a smaller prefix has been packed. Unpriced cells
+remain `UINT64_MAX`. Its CPU estimates exercise selection and are not measured
+performance data. The same standalone CMake consumer tests static and
+shared linkage; the schema 2 consumer awaits integrated validation.

@@ -31,15 +31,30 @@ inline void check(rns8_context* ctx,bool u,bool materialized=false) {
     REQUIRE(rns8_query_product_materialization_identity_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&identity)==RNS8_SUCCESS);
     CHECK(identity.admission_status==RNS8_SUCCESS);CHECK(converted->content_generation==original_generation);
     CHECK(rns8::detail::hip_direct_allocation_counters_snapshot().allocate_calls==before.allocate_calls);
-    std::array<rns8_product_materialization_node_costs,4> costs{};
+    std::vector<rns8_product_materialization_node_costs> costs(4);
     for(auto& cost:costs) {
-      std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,21,UINT64_MAX);
-      std::fill_n(cost.lift_ns,441,1);std::fill_n(cost.pack_ns,441,1);
-      for(uint32_t prefix=1;prefix<=20;++prefix)cost.packed_gemm_ns[prefix]=10*prefix;
+      std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,441,UINT64_MAX);
+      std::fill_n(cost.lift_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,9261,UINT64_MAX);
+      for(uint32_t prefix=1;prefix<=20;++prefix) {
+        for(uint32_t old=1;old<prefix;++old)cost.lift_ns[old*21+prefix]=1;
+        for(uint32_t capacity=prefix;capacity<=20;++capacity) {
+          cost.packed_gemm_ns[capacity*21+prefix]=10*prefix;
+          for(uint32_t old=0;old<prefix;++old)cost.pack_ns[(capacity*21+old)*21+prefix]=1;
+        }
+      }
     }
     rns8_product_materialization_profile profile{};profile.struct_size=sizeof(profile);profile.abi_version=RNS8_ABI_VERSION;
+    profile.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;profile.node_costs_size=sizeof(rns8_product_materialization_node_costs);
     profile.max_evaluations=64;profile.max_chain_frontier=64;profile.node_count=4;profile.identity=identity;profile.nodes=costs.data();
     {constexpr char label[]="synthetic-ragged-materialization-fixture";std::copy_n(label,sizeof(label),profile.calibration_identity);}
+    for(bool bad_schema:{false,true}) {
+      auto malformed=profile;
+      if(bad_schema)malformed.cost_schema_version=1;
+      else malformed.node_costs_size=(21+441+21+441)*sizeof(uint64_t);
+      malformed.nodes=reinterpret_cast<const rns8_product_materialization_node_costs*>(uintptr_t(1));
+      CHECK(rns8_create_materialized_product_recipe_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&malformed,&recipe)==RNS8_INVALID_ARGUMENT);
+      CHECK(recipe==nullptr);CHECK(converted->content_generation==original_generation);
+    }
     profile.identity.build_sha256[0]=profile.identity.build_sha256[0]=='0'?'1':'0';
     CHECK(rns8_create_materialized_product_recipe_ragged(ctx,&desc,&binding,1,outputs,2,UINT64_MAX,&profile,&recipe)==RNS8_INVALID_ARGUMENT);
     CHECK(recipe==nullptr);CHECK(converted->content_generation==original_generation);

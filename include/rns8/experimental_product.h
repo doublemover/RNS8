@@ -8,7 +8,12 @@ extern "C" {
 /* Explicit synchronous CPU/direct-HIP exact-wide materialization planning.
  * These integer-nanosecond tables are caller estimates, not qualification or
  * AUTO promotion evidence. UINT64_MAX is unknown and never becomes zero.
- * Entries use prefix indices 1..20, with growth indexed old_prefix*21+new_prefix.
+ * Prefix indices are 1..20. Uniform GEMM uses compute_prefix; lift uses
+ * old_prefix*21+new_prefix. Packed GEMM uses capacity*21+compute_prefix;
+ * packing uses (capacity*21+old_prefix)*21+new_prefix. Capacity is the
+ * physical packed B prefix shared by all readers, not its current prefix.
+ * Valid packed entries have 1<=compute_prefix<=capacity<=20 and
+ * 0<=old_prefix<new_prefix<=capacity. Unused cells must remain unknown.
  * Packing is shared by logical B value within a replay, including incremental
  * plane growth. Each replay repacks; no hidden cross-execution cache is assumed. */
 typedef struct rns8_product_materialization_identity {
@@ -22,11 +27,20 @@ typedef struct rns8_product_materialization_identity {
   char build_sha256[65];
   char target[128];
 } rns8_product_materialization_identity;
+enum {
+  RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION = 2,
+  RNS8_PRODUCT_MATERIALIZATION_PREFIX_COUNT = 21,
+  RNS8_PRODUCT_MATERIALIZATION_UNIFORM_GEMM_COST_COUNT = 21,
+  RNS8_PRODUCT_MATERIALIZATION_LIFT_COST_COUNT = 441,
+  RNS8_PRODUCT_MATERIALIZATION_PACKED_GEMM_COST_COUNT = 441,
+  RNS8_PRODUCT_MATERIALIZATION_PACK_COST_COUNT = 9261
+};
+
 typedef struct rns8_product_materialization_node_costs {
   uint64_t uniform_gemm_ns[21];
   uint64_t lift_ns[441];
-  uint64_t packed_gemm_ns[21];
-  uint64_t pack_ns[441];
+  uint64_t packed_gemm_ns[441];
+  uint64_t pack_ns[9261];
 } rns8_product_materialization_node_costs;
 typedef struct rns8_product_materialization_profile {
   uint64_t struct_size;
@@ -34,6 +48,8 @@ typedef struct rns8_product_materialization_profile {
   uint32_t max_evaluations; /* 4..65536 complete schedule evaluations */
   uint32_t max_chain_frontier; /* 1..4096 cost states; truncation is explicit */
   uint32_t node_count;
+  uint32_t cost_schema_version; /* RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION */
+  uint32_t node_costs_size; /* sizeof(rns8_product_materialization_node_costs) */
   rns8_product_materialization_identity identity;
   char calibration_identity[128];
   const rns8_product_materialization_node_costs* nodes;

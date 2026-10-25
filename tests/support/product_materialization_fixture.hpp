@@ -38,6 +38,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       rns8_product_recipe_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;desc.prefix_policy=policy;
       desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes.data();desc.node_count=static_cast<uint32_t>(nodes.size());desc.max_arena_and_lift_bytes=UINT64_MAX;
       rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
+      prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
       prices.node_count=desc.node_count;prices.max_evaluations=4096;prices.max_chain_frontier=256;
       {constexpr char label[]="synthetic-correctness-only-profile";std::copy_n(label,sizeof(label),prices.calibration_identity);}
       prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
@@ -45,14 +46,35 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       REQUIRE(prices.identity.admission_status==RNS8_SUCCESS);CHECK(prices.identity.blocking_node==UINT32_MAX);
       std::vector<rns8_product_materialization_node_costs> costs(nodes.size());
       for(auto& cost:costs) {
-        std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,21,UINT64_MAX);
-        std::fill_n(cost.lift_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,441,UINT64_MAX);
+        std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.packed_gemm_ns,441,UINT64_MAX);
+        std::fill_n(cost.lift_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,9261,UINT64_MAX);
         for(uint32_t p=1;p<=20;++p) {
-          cost.uniform_gemm_ns[p]=1000*p;cost.packed_gemm_ns[p]=10*p;
-          for(uint32_t old=0;old<p;++old){cost.pack_ns[old*21+p]=1;if(old)cost.lift_ns[old*21+p]=1;}
+          cost.uniform_gemm_ns[p]=1000*p;
+          for(uint32_t old=1;old<p;++old)cost.lift_ns[old*21+p]=1;
+          for(uint32_t capacity=p;capacity<=20;++capacity) {
+            cost.packed_gemm_ns[capacity*21+p]=10*p;
+            for(uint32_t old=0;old<p;++old)cost.pack_ns[(capacity*21+old)*21+p]=1;
+          }
         }
       }
       prices.nodes=costs.data();rns8_product_recipe* recipe=nullptr;
+      // These malformed headers carry an unreadable node pointer so a widened
+      // table read before schema/stride/outer-size validation is observable.
+      for(uint32_t schema:{0u,1u,3u}) {
+        auto malformed=prices;malformed.cost_schema_version=schema;
+        malformed.nodes=reinterpret_cast<const rns8_product_materialization_node_costs*>(uintptr_t(1));
+        CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&malformed,&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
+      }
+      for(uint32_t stride:{uint32_t(0),uint32_t((21+441+21+441)*sizeof(uint64_t)),uint32_t(sizeof(rns8_product_materialization_node_costs)-8),
+          uint32_t(sizeof(rns8_product_materialization_node_costs)+8)}) {
+        auto malformed=prices;malformed.node_costs_size=stride;
+        malformed.nodes=reinterpret_cast<const rns8_product_materialization_node_costs*>(uintptr_t(1));
+        CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&malformed,&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
+      }
+      struct ShortProfileHeader {uint64_t struct_size;uint32_t abi_version;};
+      const ShortProfileHeader short_profile{sizeof(prices)-8,RNS8_ABI_VERSION};
+      CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,
+          reinterpret_cast<const rns8_product_materialization_profile*>(&short_profile),&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
       auto stale=prices;stale.identity.build_sha256[0]=stale.identity.build_sha256[0]=='a'?'b':'a';
       CHECK(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&stale,&recipe)==RNS8_INVALID_ARGUMENT);CHECK_FALSE(recipe);
       REQUIRE(rns8_create_materialized_product_recipe(ctx,&desc,outputs.data(),2,&prices,&recipe)==RNS8_SUCCESS);
@@ -61,7 +83,7 @@ inline void check_product_materializations(rns8_backend_kind backend,bool experi
       std::vector<rns8_product_materialization_choice> choices(nodes.size());
       REQUIRE(rns8_get_product_materialization_choices(recipe,choices.data(),static_cast<uint32_t>(choices.size()))==RNS8_SUCCESS);
       for(const auto& choice:choices) {
-        CHECK(choice.packed_b==1);CHECK(choice.arena_offset+choice.packed_bytes<=info.retained_arena_and_lift_bytes);
+        CHECK(choice.packed_b==1);CHECK(choice.packed_capacity_prefix>=choice.compute_prefix);CHECK(choice.arena_offset+choice.packed_bytes<=info.retained_arena_and_lift_bytes);
         if(policy==RNS8_PRODUCT_FULL_PREFIX)CHECK(choice.compute_prefix==20);
       }
       const std::array<rns8_matrix*,2> destinations{matrices[2],matrices[3]};

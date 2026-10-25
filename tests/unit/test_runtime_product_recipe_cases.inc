@@ -13,10 +13,12 @@ rns8::detail::ProductMaterializationProfile materialization_prices(
   ProductMaterializationProfile p;p.uniform.target="cpu";p.uniform.provenance="synthetic-materialization-fixture";
   p.uniform.graph_key=product_graph_key(inputs,nodes,prefix,outputs);p.uniform.nodes.resize(nodes.size());p.packed.resize(nodes.size());
   for(size_t i=0;i<nodes.size();++i)for(uint32_t q=1;q<=prefix;++q) {
-    p.uniform.nodes[i].gemm[q]=100*q;p.packed[i].gemm[q]=10*q;
-    for(uint32_t old=0;old<q;++old) {
-      p.packed[i].pack[old*21+q]=20*(q-old);
-      if(old)p.uniform.nodes[i].lift[old*21+q]=5*(q-old);
+    p.uniform.nodes[i].gemm[q]=100*q;
+    for(uint32_t old=1;old<q;++old)p.uniform.nodes[i].lift[old*21+q]=5*(q-old);
+    for(uint32_t capacity=q;capacity<=prefix;++capacity) {
+      p.packed[i].gemm[ProductPackedCosts::gemm_index(capacity,q)]=10*q;
+      for(uint32_t old=0;old<q;++old)
+        p.packed[i].pack[ProductPackedCosts::pack_index(capacity,old,q)]=20*(q-old);
     }
   }
   return p;
@@ -79,6 +81,53 @@ TEST_CASE("bounded chain materialization DP agrees with exhaustive tiny-domain c
   prices.uniform.graph_key^=1;
   CHECK(select_product_materializations(inputs,nodes,3,minimum,UINT64_MAX,false,prices).status==RNS8_INVALID_ARGUMENT);
 }
+TEST_CASE("capacity-sensitive shared B prices agree between evaluator exhaustive search and chain DP") {
+  using namespace rns8::detail;
+  const std::vector<ProductShape> inputs{{2,2},{2,2}};
+  const std::vector<ProductNode> nodes{{0,1},{2,1},{3,1}};
+  const std::vector<uint32_t> minimum{1,1,1},chosen{1,2,1};
+  auto prices=materialization_prices(inputs,nodes,3);
+  for(auto& row:prices.uniform.nodes) {
+    for(uint32_t p=1;p<=3;++p)row.gemm[p]=10000;
+    for(uint32_t old=1;old<3;++old)for(uint32_t next=old+1;next<=3;++next)row.lift[old*21+next]=0;
+  }
+  for(auto& row:prices.packed) {
+    for(uint32_t capacity=1;capacity<=3;++capacity)for(uint32_t p=1;p<=capacity;++p) {
+      row.gemm[ProductPackedCosts::gemm_index(capacity,p)]=1000;
+      for(uint32_t old=0;old<p;++old)row.pack[ProductPackedCosts::pack_index(capacity,old,p)]=1000;
+    }
+  }
+  prices.packed[0].gemm[ProductPackedCosts::gemm_index(2,1)]=7;
+  prices.packed[0].pack[ProductPackedCosts::pack_index(2,0,1)]=11;
+  prices.packed[1].gemm[ProductPackedCosts::gemm_index(2,2)]=13;
+  prices.packed[1].pack[ProductPackedCosts::pack_index(2,1,2)]=17;
+  prices.packed[2].gemm[ProductPackedCosts::gemm_index(2,1)]=19;
+  const auto forced=evaluate_product_materializations(inputs,nodes,3,chosen,{1,1,1},UINT64_MAX,false,prices);
+  REQUIRE(forced.status==RNS8_SUCCESS);CHECK(forced.estimated_ns==67);
+  CHECK(forced.packed[1].layout.prefix==2);CHECK(forced.packed[1].first==0);CHECK(forced.packed[1].last==2);
+  // A cheap price at the current prefix cannot stand in for the physical capacity.
+  prices.packed[0].gemm[ProductPackedCosts::gemm_index(1,1)]=0;
+  prices.packed[0].pack[ProductPackedCosts::pack_index(1,0,1)]=0;
+  const auto still_capacity_two=evaluate_product_materializations(inputs,nodes,3,chosen,{1,1,1},UINT64_MAX,false,prices);
+  REQUIRE(still_capacity_two.status==RNS8_SUCCESS);CHECK(still_capacity_two.estimated_ns==67);
+  prices.packed[0].gemm[ProductPackedCosts::gemm_index(2,1)]=UINT64_MAX;
+  const auto unknown=evaluate_product_materializations(inputs,nodes,3,chosen,{1,1,1},UINT64_MAX,false,prices);
+  CHECK(unknown.status==RNS8_UNSUPPORTED_BACKEND);CHECK(unknown.estimated_ns==UINT64_MAX);
+  prices.packed[0].gemm[ProductPackedCosts::gemm_index(2,1)]=7;
+  prices.packed[0].pack[ProductPackedCosts::pack_index(2,0,1)]=UINT64_MAX;
+  CHECK(evaluate_product_materializations(inputs,nodes,3,chosen,{1,1,1},UINT64_MAX,false,prices).status==RNS8_UNSUPPORTED_BACKEND);
+  prices.packed[0].pack[ProductPackedCosts::pack_index(2,0,1)]=11;
+  const auto exact=select_product_materializations(inputs,nodes,3,minimum,UINT64_MAX,false,prices);
+  REQUIRE(exact.status==RNS8_SUCCESS);CHECK(exact.exhaustive);CHECK(exact.cost_optimal);
+  CHECK(exact.prefixes==chosen);CHECK(exact.estimated_ns==67);
+  prices.uniform.max_evaluations=8;
+  const auto dp=select_product_materializations(inputs,nodes,3,minimum,UINT64_MAX,false,prices);
+  REQUIRE(dp.status==RNS8_SUCCESS);CHECK(dp.chain_dynamic_programming);CHECK(dp.cost_optimal);
+  CHECK(dp.estimated_ns==exact.estimated_ns);CHECK(dp.chain_cost_lower_bound==exact.estimated_ns);
+  CHECK(dp.prefixes==chosen);CHECK(dp.packed_b==std::vector<uint8_t>(nodes.size(),1));CHECK(dp.packed[1].layout.prefix==2);
+  prices.cost_schema_version=1;
+  CHECK(select_product_materializations(inputs,nodes,3,minimum,UINT64_MAX,false,prices).status==RNS8_INVALID_ARGUMENT);
+}
 TEST_CASE("materialization identity reports the first blocking edge before unbounded squaring") {
   auto* ctx=create_cpu_context();auto md=exact_matrix_desc(1,1,RNS8_EXACT_WIDE_SIGNED);md.max_prefix=2;
   rns8_matrix* matrix=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
@@ -88,6 +137,7 @@ TEST_CASE("materialization identity reports the first blocking edge before unbou
   rns8_product_recipe_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
   desc.inputs=inputs;desc.input_count=1;desc.nodes=nodes.data();desc.node_count=64;desc.max_arena_and_lift_bytes=UINT64_MAX;
   rns8_product_materialization_profile prices{};prices.struct_size=sizeof(prices);prices.abi_version=RNS8_ABI_VERSION;
+  prices.cost_schema_version=RNS8_PRODUCT_MATERIALIZATION_COST_SCHEMA_VERSION;prices.node_costs_size=sizeof(rns8_product_materialization_node_costs);
   prices.node_count=64;prices.max_evaluations=4;prices.max_chain_frontier=1;
   prices.identity.struct_size=sizeof(prices.identity);prices.identity.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_query_product_materialization_identity(ctx,&desc,nullptr,0,&prices.identity)==RNS8_SUCCESS);
@@ -95,6 +145,10 @@ TEST_CASE("materialization identity reports the first blocking edge before unbou
   CHECK(prices.identity.minimum_prefixes[0]==1);CHECK(prices.identity.minimum_prefixes[1]==1);CHECK(prices.identity.minimum_prefixes[2]==2);
   for(unsigned i=3;i<64;++i)CHECK(prices.identity.minimum_prefixes[i]==0);
   std::vector<rns8_product_materialization_node_costs> costs(64);prices.nodes=costs.data();
+  for(auto& cost:costs) {
+    std::fill_n(cost.uniform_gemm_ns,21,UINT64_MAX);std::fill_n(cost.lift_ns,441,UINT64_MAX);
+    std::fill_n(cost.packed_gemm_ns,441,UINT64_MAX);std::fill_n(cost.pack_ns,9261,UINT64_MAX);
+  }
   std::strcpy(prices.calibration_identity,"prices-cannot-waive-range-proof");prices.identity.admission_status=RNS8_SUCCESS;
   rns8_product_recipe* recipe=nullptr;
   CHECK(rns8_create_materialized_product_recipe(ctx,&desc,nullptr,0,&prices,&recipe)==RNS8_RANGE_ERROR);CHECK_FALSE(recipe);
