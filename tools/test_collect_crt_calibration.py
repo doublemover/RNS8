@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_crt_calibration import (CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
@@ -23,6 +23,22 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
             exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,elapsed_ns=320000000,mean_call_ns=20000000.,final_exact_reference_passed=True,
             scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else "resident_same_buffers_no_intermediate_poison_or_reference"))
+    if case["candidate"] in QUARTER_CANDIDATES:
+        import math
+        from modulus_set_search import DEFAULT_MODULI
+        narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
+        bound=math.prod(DEFAULT_MODULI[:case["prefix"]])//4
+        if narrow:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
+        if case["candidate"].startswith("public_"):
+            actual=0 if case["cells"]==1 else bound;capture["certified_magnitude_bound"]=str(actual)
+            if case["scope"]=="resident":
+                capture["retained_public_device_payload_bytes"]=case["cells"]*(case["prefix"]+8)+4
+                if case["candidate"].startswith("public_quarter_"):
+                    capture.update(quarter_owner_payload_bytes=case["cells"]*16,quarter_certificate_sha256="a"*64,
+                        delayed_digits=max(1,(actual.bit_length()+1+15)//16))
+        else:capture["quarter_certificate"]=dict(sha256="a"*64,magnitude_bound=str(bound),digits=max(1,(bound.bit_length()+1+15)//16) if narrow else 12,
+            output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
+            target_execution="not_run",source_scope="private_fixture_immutable_for_process")
     return capture
 
 
@@ -43,7 +59,7 @@ class Captures(unittest.TestCase):
         for name,count in (("smoke",40),("every-prefix",800),("large",160)):
             cases=load_cases(root/(name+".json"))
             self.assertEqual(len(cases),count)
-            self.assertEqual({case["candidate"] for case in cases},set(CANDIDATES))
+            self.assertEqual({case["candidate"] for case in cases},set(BASE_CANDIDATES))
             self.assertEqual({case["scope"] for case in cases},set(SCOPES))
         self.assertEqual({case["prefix"] for case in load_cases(root/"every-prefix.json")},set(range(1,21)))
 

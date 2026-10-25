@@ -128,3 +128,64 @@ def width_certificate(plan: CrtPlan) -> dict:
             "direct_final_reduction_output_max": plan.product - 1,
             "product_bits": plan.product.bit_length(), "merges": merges,
             "hardware_qualified": False, "quotient_hint_qualified": False}
+
+
+def quarter_certificate(plan: CrtPlan, bound: int, destination_bits: int, signed: bool = True) -> dict:
+    """Exact independent coefficient/error certificate for ordered binary32 FMA.
+
+    This is the centered quarter-range algorithm, not the reduced-coefficient
+    direct algorithm above. Full W_i=M_i*y_i and all limb bounds are distinct.
+    """
+    from fractions import Fraction
+    from floating_rewrite_oracle import round_binary32, rational
+    if (type(bound) is not int or bound < 0 or type(destination_bits) is not int
+            or not 1 <= destination_bits <= 2048 or type(signed) is not bool
+            or len(plan.moduli)>20 or any(m>256 for m in plan.moduli)):
+        raise ValueError("quarter certificate domain")
+    if 4*bound>plan.product:
+        raise ValueError("quarter admission requires 4B<=M, not only 2B<M")
+    if bound >= 1 << (destination_bits-int(signed)):
+        raise ValueError("quarter destination width")
+    bits=tuple(round_binary32(Fraction(y,m)) for y,m in zip(plan.inverses,plan.moduli))
+    coefficient_error=sum((m-1)*abs(rational(code)-Fraction(y,m)) for m,y,code in zip(plan.moduli,plan.inverses,bits))
+    fma_error=Fraction(len(plan.moduli),4096)
+    if coefficient_error+fma_error>=Fraction(1,64):
+        raise ValueError("quotient error does not satisfy 1/64")
+    digits=max(1,(bound.bit_length()+1+15)//16)
+    # Conservative bound covers positive sum, q*M subtraction and carry even
+    # without exploiting their cancellation. Every physical intermediate fits.
+    limb_bound=20*255*65535+5121*65535+8192
+    if limb_bound>=(1 << 31):
+        raise ValueError("delayed signed32 bound")
+    error=coefficient_error+fma_error
+    return {"schema":"rns8_quarter_crt_model_v1","basis":list(plan.moduli),"bound":bound,
+            "destination_bits":destination_bits,"signed":signed,"digits":digits,
+            "full_weights":[w*y for w,y in zip(plan.weights,plan.inverses)],"fraction_bits":list(bits),
+            "error_bound":[error.numerator,error.denominator],"limb_intermediate_absolute_bound":limb_bound,
+            "fp_sequence":"prefix_order_binary32_RNE_FMA_then_RNE_integer",
+            "target_execution":"not_run","runtime_dispatch_eligible":False}
+
+
+def quarter_reconstruct(plan: CrtPlan, residues: tuple[int, ...], certificate: dict) -> int:
+    from fractions import Fraction
+    from floating_rewrite_oracle import round_binary32, rational
+    _canonical_residues(plan,residues)
+    expected=quarter_certificate(plan,certificate["bound"],certificate["destination_bits"],certificate["signed"])
+    if certificate!=expected:raise ValueError("stale quarter certificate")
+    z=0
+    for r,bits in zip(residues,certificate["fraction_bits"]):
+        z=round_binary32(Fraction(r)*rational(bits)+rational(z))
+    value=rational(z);q,rem=divmod(value.numerator,value.denominator)
+    q+=2*rem>value.denominator or (2*rem==value.denominator and q&1)
+    carry=0;words=[]
+    for digit in range(certificate["digits"]):
+        column=sum(r*((weight>>(digit*16))&65535) for r,weight in zip(residues,certificate["full_weights"]))
+        column-=q*((plan.product>>(digit*16))&65535);column+=carry
+        carry,word=divmod(column,65536);words.append(word)
+    result=sum(word<<(16*d) for d,word in enumerate(words))
+    if words[-1]&32768:result-=1<<(16*len(words))
+    if abs(result)>certificate["bound"] or (not certificate["signed"] and result<0):
+        raise ValueError("source did not satisfy quarter range")
+    if any(result%m!=r for r,m in zip(residues,plan.moduli)):
+        raise ValueError("quotient/model certificate contradicted residues")
+    return result

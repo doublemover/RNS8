@@ -587,7 +587,7 @@
       "issue": 39,
       "title": "[Research P1] Compare overflow-proven direct CRT and balanced merge trees against current Garner",
       "url": "https://github.com/doublemover/RNS8/issues/39",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Host/device direct CRT, balanced tree and calibrator implemented; latest quarter-range certified correction-free quotient/delayed-carry narrow-limb public export integration absent.",
       "implementation": [
         {
@@ -598,12 +598,27 @@
             "src/core/api_export_quarter_crt.inc",
             "src/backend_hip_direct/hip_direct_direct_crt_kernels.cuh"
           ]
+        },
+        {
+          "summary": "Extended maintained CRT calibrator/schema/collector with matched quarter-wide canonical controls, signed/unsigned narrow controls and actual public retained-owner exports, cold/full setup and source/output checksums. Independent rational quotient/delayed-carry prototype and all-prefix/tail cohort fixtures authored. Stronger-prefix cost-choice composition remains tracked under planner #30, not automatic promotion.",
+          "files": [
+            "benchmarks/rns8_crt_calibrate.cpp",
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "tools/crt_research.py",
+            "benchmarks/conversion-calibration/quarter-every-prefix.json",
+            "benchmarks/conversion-calibration/quarter-tails.json"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_quarter_crt_cases.inc"
+        "tests/unit/test_quarter_crt_cases.inc",
+        "tools/test_quarter_crt.py",
+        "tools/test_collect_crt_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "89df5c64a1074cca30de8300f4b0daa12dfdb9fe"
+      ],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

@@ -115,3 +115,25 @@ with Boost, corrupted constants, carries/borrows, narrowing, stale generations,
 public ownership, tail padding and authored HIP differentials. They remain
 **unexecuted**; only host syntax was checked. No default selection or speedup is
 claimed, and target execution qualification remains not-run.
+
+The existing `rns8-crt-calibrate` and v3 collector now include matched quarter
+cohorts, rather than comparing them with out-of-contract random canonical tuples.
+Wide signed/unsigned cohorts compare the new canonical adapter with maintained
+Garner, direct and balanced controls. Native-width cohorts compare delayed-carry
+signed/unsigned exports with matching one-limb Garner. Four public-owner controls
+exercise real packing proofs, retained export preparation, complete staging,
+readback and caller publication; cold cases also charge context/plan/pack/prepare
+and checked destruction. Resident setup and private certificate setup are
+reported separately, not silently amortized into a claimed kernel win.
+
+The independent Python replay reproduces all dataset/output bytes and checks
+quarter bounds, widths, signedness and canaries. Pairing keys include dataset and
+output contract, so canonical, signed, unsigned and public/private boundaries
+cannot accidentally share an output identity. The exact-rational CRT prototype
+independently derives coefficient errors, rounds every FMA, performs Euclidean
+16-bit carry and checks recovered residues. Tracked cohorts cover all twenty
+prefixes, single cells and tail sizes, with both resident and fresh-allocation
+scopes. These are **harness/fixture implementations, not collected results**.
+VGPR/spill/ISA inspection, hardware counters and target-specific profitability
+remain unverified. Public logical-payload budgets exclude runtime/plan metadata;
+reported retained payload is not asserted to equal physical process memory.
