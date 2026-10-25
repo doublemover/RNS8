@@ -270,6 +270,42 @@ def verify_wrap64_recode(data: dict) -> dict:
             "unsigned_pair_k_cap": 33025, "matrix_products_per_k_tile": 36}
 
 
+def verify_wrap64_mfma_recode(data: dict) -> dict:
+    """Bind the ring proof to a declared CDNA generation's distinct wave64 map.
+
+    This is an arithmetic/layout model certificate, not physical ISA evidence.
+    The input map is bijective, but no symbolic map proves a compiler or device.
+    """
+    if not isinstance(data, dict):
+        return {"algebraically_verified": False, "runtime_dispatch_eligible": False,
+                "proof_failures": ["invalid_certificate_structure"]}
+    profiles = {"gfx90a": (16, "mfma_i32_16x16x16i8"),
+                "gfx942": (32, "mfma_i32_16x16x32_i8"),
+                "gfx950": (64, "mfma_i32_16x16x64_i8")}
+    width, opcode = profiles.get(data.get("target"), (0, "unsupported"))
+    extra = {"schema": "rns8_wrap64_signed_mfma_v1", "target": data.get("target"),
+             "opcode": opcode, "wave_size": 64, "input_bytes_per_lane": width//4,
+             "accumulators_per_lane": 4, "instruction_padded_k": width,
+             "a_map": "row=lane%16;k=(lane//16)*(K//4)+byte",
+             "b_map": "k=(lane//16)*(K//4)+byte;col=lane%16",
+             "c_map": "row=(lane//16)*4+reg;col=lane%16",
+             "layout": "cdna_wave64_16x16_signed_radix_register_v1"}
+    failures = [] if width else ["unsupported_target"]
+    for key, value in extra.items():
+        if type(data.get(key)) is not type(value) or data.get(key) != value:
+            failures.append(key)
+    base = {key: value for key, value in data.items() if key not in extra}
+    base.update(schema="rns8_wrap64_signed_radix_v1",
+                layout="tile16_canonical_bytes_recode_v1", instruction_padded_k=width)
+    result = verify_wrap64_recode(base)
+    failures += result["proof_failures"]
+    result.update(algebraically_verified=not failures, proof_failures=failures,
+                  sha256=hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
+                  physical_layout_correctness="not_run", target_execution="not_run",
+                  instruction_measured=False, verdict_scope="declared-ring-and-wave64-coordinate-model")
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("certificate", type=Path)
@@ -281,6 +317,8 @@ def main() -> int:
         data = json.loads(args.certificate.read_text(encoding="utf-8"), parse_constant=reject_constant)
         if data.get("schema") == "rns8_wrap64_signed_radix_v1":
             result = verify_wrap64_recode(data)
+        elif data.get("schema") == "rns8_wrap64_signed_mfma_v1":
+            result = verify_wrap64_mfma_recode(data)
         elif data.get("schema") == "rns8_arithmetic_composition_v1":
             from arithmetic_composition import Node, verify_composition
             result = verify_composition(tuple(Node(**node) for node in data["nodes"]))

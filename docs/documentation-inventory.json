@@ -5025,7 +5025,8 @@
         }
       ],
       "anchors": [
-        "carry-recoded-wrap64-matrix-candidate"
+        "carry-recoded-wrap64-matrix-candidate",
+        "separate-cdna-signed-int8-mfma-implementation"
       ]
     },
     {

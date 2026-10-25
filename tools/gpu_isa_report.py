@@ -42,7 +42,7 @@ CMAKE_OPTION_BACKENDS = {
     "RNS8_ENABLE_AMDGPU_BUILTINS": ["amdgpu-builtins"],
 }
 BACKEND_SYMBOL_MARKERS = {
-    "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide"],
+    "direct-hip": ["rns8_ring_gemm_i8_i32", "rns8_export", "finite", "exact_wide", "rns8_wrap_signed_radix", "rns8_wrap_native"],
     "hipblaslt": ["rns8_hipblaslt", "pack_transpose", "reduce_i32_to_centered"],
     "ck": ["kernel_gemm_wmma", "ck_"],
     "rocwmma": ["rocwmma_i8_residue_gemm", "rocwmma_wrap64_byte_gemm36_candidate"],
@@ -89,6 +89,14 @@ def capture_metadata(path: Path, label: str | None) -> dict[str, Any]:
         validate_residue_capture(capture,dict(case=capture.get('case'),run_id=capture.get('run_id'),arithmetic=capture.get('arithmetic')),capture.get('hooks_enabled') is True)
         return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='residue-dot',benchmark_execution_mode=capture['case']['mode'],backend_selected='direct-hip',selected_kernel=capture['selected_kernel'],artifact_capture=capture['artifact_capture'],
             build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['case']['domain'],shape={k:capture['case'][k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout='centered_modulus_major',fusion_mode='same_scheduler_residue_inner_loop',generated_reducer_identity=None)
+    if capture.get("schema")=="rns8_wrap64_microcase_v1":
+        from collect_wrap64 import validate_capture as validate_wrap_capture
+        case={key:capture.get(key) for key in ('candidate','scope','m','n','k','pattern','reuse_count')}
+        case['device']=capture.get('device_requested')
+        validate_wrap_capture(capture,case,capture.get('run_id'),capture.get('repeats'),capture.get('warmups'))
+        backend='rocwmma' if case['candidate']=='rocwmma_corrected' else 'wrap64' if case['candidate']=='direct_v4' else 'direct-hip'
+        return dict(path=str(path),label=label,schema_version=capture['schema'],benchmark='wrap64',benchmark_execution_mode=case['scope'],backend_selected=backend,selected_kernel=capture['kernel_selection'],artifact_capture=capture.get('artifact_capture'),
+            build_manifest_sha256=hashlib.sha256(json.dumps(capture['build_manifest'],sort_keys=True,separators=(",", ":")).encode()).hexdigest(),semantics=capture['semantics'],shape={k:case[k] for k in ('m','n','k')},target_id=capture['target'],target_namespace='amdgcn',review_group_key=None,pack_layout=capture['compute_layout'],fusion_mode='per_pair_unsigned_ring_fold',generated_reducer_identity=capture['arithmetic_certificate_sha256'])
     validate_capture(capture, path)
     target = capture.get("target_variant")
     if not isinstance(target, dict):

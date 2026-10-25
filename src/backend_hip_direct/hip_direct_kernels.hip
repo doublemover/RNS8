@@ -411,6 +411,7 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
 #include "hip_direct_finite_verify.cuh"
 
 #include "hip_direct_wrap_radix.cuh"
+#include "hip_direct_wrap_mfma.cuh"
 
 #include "hip_direct_gram.cuh"
 

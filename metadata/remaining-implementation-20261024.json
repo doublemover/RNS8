@@ -702,6 +702,13 @@
             "tests/support/ragged_recipe_fixture.hpp",
             "benchmarks/rns8_lift_recipe_calibrate.cpp"
           ]
+        },
+        {
+          "summary": "Executable constexpr wave64 signed-INT8 MFMA coordinate maps for K16/32/64 used by real CDNA wrap kernels and compile-time bijection checks.",
+          "files": [
+            "src/backend_common/mfma_i8_layout.hpp",
+            "src/backend_hip_direct/hip_direct_wrap_mfma.cuh"
+          ]
         }
       ],
       "regressions": [
@@ -712,7 +719,7 @@
         "aa24012745304a17e26ab6efbe0e0718cf9890a1"
       ],
       "remaining": [
-        "Executable fragment algebra/MFMA map and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
+        "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
         "GPU execution and measured layout/performance qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -1483,14 +1490,31 @@
       "issue": 64,
       "title": "[Research P2] Recode wrap64 into signed radix-256 digits for correction-free matrix-engine convolution",
       "url": "https://github.com/doublemover/RNS8/issues/64",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Host carry-recode/certificate and real signed/U8 gfx11 WMMA controls implemented. Linux/Instinct signed MFMA target implementation from phased scope absent; current wrap-radix builtin kernel is gfx1100/1101/1102 only.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Distinct gfx90a/gfx942/gfx950 signed INT8 MFMA builtins with target-specific K16/32/64 wave64 typed maps, register-retained recode, exact per-pair U64 folds and safe capability-probe retirement; native-U64 vector control; repeated-B boundaries and counterbalanced independent-process CDNA/RDNA cohorts; target/layout/certificate identities and selected-symbol ISA adapter.",
+          "files": [
+            "src/backend_common/mfma_i8_layout.hpp",
+            "src/backend_hip_direct/hip_direct_wrap_mfma.cuh",
+            "src/backend_hip_direct/hip_backend_wrap_radix.inc",
+            "benchmarks/rns8_wrap64_calibrate.cpp",
+            "tools/collect_wrap64.py",
+            "tools/arithmetic_certificate.py",
+            "tools/gpu_isa_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_wrap64.cpp",
+        "tests/differential/test_hip_direct_wrap64_private_cases.inc",
+        "tools/test_collect_wrap64.py",
+        "tools/test_arithmetic_certificate.py"
+      ],
       "commits": [],
       "remaining": [
-        "Linux Instinct signed-MFMA wraparound radix backend remains; gfx11 and host signed recoding do not complete the CDNA route.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [

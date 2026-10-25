@@ -15,8 +15,10 @@ import sys
 import uuid
 from build_manifest import manifest_provenance_complete
 from collect_finite_verify import (BUDGET, MASK, checksum, demand, file_digest, integer, positive, same, strict_json, validate_provenance)
-CANDIDATES = ("signed_radix", "native_u8", "direct_v4", "rocwmma_corrected")
-SCOPES = ("resident", "roundtrip", "cold")
+RDNA_CANDIDATES = ("signed_radix", "native_u8", "direct_v4", "rocwmma_corrected")
+CDNA_CANDIDATES = ("signed_radix_mfma", "direct_v4", "native_u64")
+CANDIDATES = (*RDNA_CANDIDATES, "signed_radix_mfma", "native_u64")
+SCOPES = ("resident", "repeated_b", "roundtrip", "cold")
 KEYS = {"device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"}
 EDGES = (0, 1, MASK, 0x8080808080808080, 0x7f807f807f807f80, 0xfefdfcfbfaf9f8f7, 0x0101010101010101, 1 << 63)
 RECIPE = "splitmix64_u64_extrema_seed3135_v1"
@@ -60,10 +62,12 @@ def dataset(case):
     return result
 
 
-def contract(case, run_id, repeats, warmups):
-    candidate = case["candidate"]; radix = candidate in ("signed_radix", "native_u8")
+def contract(case, run_id, repeats, warmups, target=None):
+    candidate = case["candidate"]; radix = candidate in ("signed_radix", "signed_radix_mfma", "native_u8")
+    mfma_k = {"gfx90a":16,"gfx942":32,"gfx950":64}.get((target or "").split(":")[0]) if candidate=="signed_radix_mfma" else None
+    if candidate=="signed_radix_mfma":demand(mfma_k is not None,"MFMA target must name compiled generation")
     selection = ("direct_hip_wrap64_byte_gemm36_" + ("u32acc" if case["k"] <= 4096 else "u64acc") + "_tiled_2d_v4") if candidate == "direct_v4" else {
-        "signed_radix": "wrap64_signed_radix_wmma", "native_u8": "wrap64_native_u8_wmma", "rocwmma_corrected": "rocwmma_wrap64_byte_gemm36_candidate_kernel"}[candidate]
+        "native_u64":"wrap64_native_u64_vector", "signed_radix": "wrap64_signed_radix_wmma", "signed_radix_mfma":"wrap64_signed_radix_mfma", "native_u8": "wrap64_native_u8_wmma", "rocwmma_corrected": "rocwmma_wrap64_byte_gemm36_candidate_kernel"}[candidate]
     return {"schema": "rns8_wrap64_microcase_v1", "promotion_eligible": False, "public_ownership_measured": False, "run_id": run_id,
             **{key: case[key] for key in ("candidate", "scope", "m", "n", "k", "pattern", "reuse_count")},
             "device_requested": case["device"], "device_actual": case["device"], "context_backend": "hip-direct",
@@ -75,9 +79,10 @@ def contract(case, run_id, repeats, warmups):
             "reference_buffers_released_before_setup": True,
             "setup_scope": "device_probe_common_output_and_audit_buffers_optional_resident_input_alloc_pack",
             "cold_boundary": "context_and_output_retained_input_and_transport_alloc_pack_export_free_per_batch",
-            "kernel_selection": selection, "colpair_experiment_enabled": False, "mma_terms_per_fold": 16 if radix else None,
-            "mathematical_pair_i32_cap": (131071 if candidate == "signed_radix" else 33025) if radix else None,
-            "static_lds_bytes": 4096 if radix else None, "explicit_call_scratch_bytes": 4 if radix else 0, "rocwmma_max_k": 32768,
+            "kernel_selection": selection, "arithmetic_certificate_sha256": (file_digest(Path(__file__).parent/"data"/("wrap64_signed_mfma_"+target.split(":")[0]+".json" if mfma_k else "wrap64_signed_radix_certificate.json")) if candidate in ("signed_radix","signed_radix_mfma") else None),
+            "compute_layout": "cdna_wave64_16x16_signed_radix_register_v1" if mfma_k else "tile16_canonical_bytes_recode_v1" if candidate=="signed_radix" else "canonical_bytes_control", "colpair_experiment_enabled": False, "mma_terms_per_fold": (mfma_k or 16) if radix else None,
+            "mathematical_pair_i32_cap": (131071 if candidate != "native_u8" else 33025) if radix else None,
+            "static_lds_bytes": (0 if mfma_k else 4096) if radix else None, "explicit_call_scratch_bytes": 4 if radix else 0, "rocwmma_max_k": 32768,
             "timer": "std_chrono_steady_clock_nanoseconds", "production_timing_hooks_enabled": False, "phase_clocks_inside_production_call": False,
             "memory_budget_bytes": BUDGET,
             "memory_exclusions": "allocator bookkeeping, driver/HIP events, context and fixed metadata; logical payload only, not RSS",
@@ -87,7 +92,7 @@ def contract(case, run_id, repeats, warmups):
 
 def validate_capture(capture, case, run_id, repeats, warmups):
     demand(type(capture) is dict, "capture must be object")
-    for key, value in contract(case, run_id, repeats, warmups).items():
+    for key, value in contract(case, run_id, repeats, warmups, capture.get("target")).items():
         demand(key in capture and same(capture[key], value), f"metadata mismatch: {key}")
     demand(type(capture.get("device_name")) is str and capture["device_name"].strip(), "missing device identity")
     demand(type(capture.get("target")) is str and re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?", capture["target"]), "invalid actual target")
@@ -95,7 +100,7 @@ def validate_capture(capture, case, run_id, repeats, warmups):
         demand(capture["target"].split(":")[0] in ("gfx1100", "gfx1101", "gfx1102"), "target disagrees with current native WMMA admission")
     for key in ("hip_runtime_version", "hip_driver_version", "setup_ns", "reference_and_dataset_ns", "clock_period_numerator", "clock_period_denominator"):
         demand(integer(capture.get(key), 1, (1 << 63)-1), f"invalid identity/timing: {key}")
-    if case["scope"] == "resident":
+    if case["scope"] in ("resident","repeated_b"):
         demand(positive(capture.get("resident_input_prepare_ns")) and capture["resident_input_prepare_ns"] <= capture["setup_ns"], "invalid resident preparation")
     else:
         demand("resident_input_prepare_ns" in capture and capture["resident_input_prepare_ns"] is None, "irrelevant resident preparation")
@@ -152,12 +157,15 @@ def summarize(observations):
         groups.setdefault(key, []).append(row)
     result = []
     for key, rows in sorted(groups.items()):
-        expected = CANDIDATES if key[3] <= 32768 else CANDIDATES[:-1]
+        mfma=any(row["case"]["candidate"]=="signed_radix_mfma" for row in rows)
+        expected = CDNA_CANDIDATES if mfma else RDNA_CANDIDATES if key[3] <= 32768 else RDNA_CANDIDATES[:-1]
+        native_control=any(row["case"]["candidate"]=="native_u64" for row in rows)
+        if native_control and not mfma:expected=(*expected,"native_u64")
         cohorts = {name: [row for row in rows if row["case"]["candidate"] == name] for name in expected}
         indices = [{row["independent_run"] for row in cohort} for cohort in cohorts.values()]
-        complete = all(indices) and all(index == indices[0] for index in indices) and all(len(cohort) == len(index) for cohort, index in zip(cohorts.values(), indices))
+        complete = all(len(index)>=2 for index in indices) and not any(row["case"]["candidate"] not in expected for row in rows) and all(index == indices[0] for index in indices) and all(len(cohort) == len(index) for cohort, index in zip(cohorts.values(), indices))
         record = dict(zip(names, key), complete_matched_cohort=complete,
-                      comparison_scope="four_way" if key[3] <= 32768 else "rocwmma_unavailable_k_cap_three_way", promotion_eligible=False)
+                      comparison_scope="cdna_signed_mfma_direct_v4_native_u64" if mfma else "rdna_native_u64_inclusive" if native_control else "four_way" if key[3] <= 32768 else "rocwmma_unavailable_k_cap_three_way", promotion_eligible=False)
         if complete:
             stats = {name: dict(processes=len(cohort), median_batch_ns=statistics.median(row["mean_batch_ns"] for row in cohort),
                                 minimum_batch_ns=min(row["mean_batch_ns"] for row in cohort), maximum_batch_ns=max(row["mean_batch_ns"] for row in cohort)) for name, cohort in cohorts.items()}
@@ -176,9 +184,11 @@ def collect(args):
     campaign = uuid.uuid4().hex; cases_hash = file_digest(args.cases); here = Path(__file__).resolve()
     hashes = {name: file_digest(here.with_name(name)) for name in (here.name, "collect_finite_verify.py", "build_manifest.py")}
     build = None; devices = {}; outputs = {}; observations = []
-    for case_index, case in enumerate(cases):
-        a, b = dataset(case); data_hash = hashlib.sha256(a+b).hexdigest()
-        for independent in range(args.runs):
+    for independent in range(args.runs):
+        order=list(enumerate(cases));shift=independent%len(order);order=order[shift:]+order[:shift]
+        if independent%2:order.reverse()
+        for case_index, case in order:
+            a, b = dataset(case); data_hash = hashlib.sha256(a+b).hexdigest()
             run_id = f"{campaign}-{case_index}-{independent}"
             command = [str(executable), str(case["device"]), case["candidate"], case["scope"], *(str(case[key]) for key in ("m", "n", "k", "pattern", "reuse_count")), str(args.repeats), str(args.warmups), run_id]
             prefix = output/run_id
@@ -197,6 +207,9 @@ def collect(args):
                 demand(file_digest(executable) == artifact and file_digest(args.cases) == cases_hash, "artifact/cases changed during run")
                 demand(child.returncode == 0, f"child returned {child.returncode}; unsupported is diagnostic, never a pass")
                 capture = strict_json(child.stdout); identity = validate_capture(capture, case, run_id, args.repeats, args.warmups)
+                capture["artifact_capture"] = dict(executable_sha256=artifact,executable_path=str(executable),unchanged_during_run=True,rns8_linkage="static" if identity["build_manifest"].get("linkage")=="static-rns8" else "unresolved-shared")
+                capture["execution_id"]=run_id
+                prefix.with_suffix(".capture.json").write_text(json.dumps(capture,indent=2)+"\n",encoding="utf-8")
                 if build is None:
                     build = identity["build_manifest"]
                 demand(identity["build_manifest"] == build, "build provenance changed within campaign")

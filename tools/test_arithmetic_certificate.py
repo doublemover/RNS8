@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify, verify_wrap64_recode
+from arithmetic_certificate import centered_int8, certificate_hash, from_json, verify, verify_wrap64_recode, verify_wrap64_mfma_recode
 
 
 def main() -> int:
@@ -81,6 +81,15 @@ def main() -> int:
                         ("instruction_padded_k",131072),("instruction_padded_k",True)):
         assert not verify_wrap64_recode(dict(recode,**{field:value}))["algebraically_verified"]
     assert verify_wrap64_recode(dict(recode,instruction_padded_k=131071))["algebraically_verified"]
+    for target in ("gfx90a", "gfx942", "gfx950"):
+        mfma=json.loads((Path(__file__).parent / ("data/wrap64_signed_mfma_"+target+".json")).read_text())
+        result=verify_wrap64_mfma_recode(mfma)
+        assert result["algebraically_verified"] and not result["runtime_dispatch_eligible"]
+        assert result["target_execution"] == "not_run"
+        for field,value in (("target","gfx1100"),("opcode","wmma_i32_16x16x16_iu8"),
+                            ("wave_size",32),("input_bytes_per_lane",1),("c_map","row=lane%16"),
+                            ("instruction_padded_k",131071),("carry_before_xor",False),("extra",1)):
+            assert not verify_wrap64_mfma_recode(dict(mfma,**{field:value}))["algebraically_verified"]
     print("arithmetic certificate self-test: PASS")
     return 0
 

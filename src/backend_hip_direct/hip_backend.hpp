@@ -1318,6 +1318,13 @@ rns8_status hip_direct_synchronize(int device_id);
 
 // Private strict wrap64 research candidates: signed carry-recode or native U8.
 // Compact canonical byte inputs/output; no public dispatch or AUTO promotion.
+// Private explicit CDNA2/3/4 signed-radix candidate, not a default route.
+// Successful query reports the compiled instruction's K16/32/64 width.
+rns8_status hip_direct_wrap_native_u64_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,bool& commit_started);
+rns8_status hip_direct_wrap_radix_mfma_query(int device_id,uint32_t& instruction_k);
+rns8_status hip_direct_wrap_radix_mfma_device(int device_id,const void* a,const void* b,void* c,
+    int64_t m,int64_t n,int64_t k,uint64_t max_scratch_bytes,bool& commit_started);
 rns8_status hip_direct_wrap_radix_wmma_device(int device_id,const void* a,const void* b,void* c,
     int64_t m,int64_t n,int64_t k,bool signed_digits,uint64_t max_scratch_bytes,bool& commit_started);
 

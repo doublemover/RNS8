@@ -51,3 +51,48 @@ resident, roundtrip and cold-input controls with common canonical byte limbs,
 hook-disabled production timing and complete outside references. Its long-K
 cases explicitly omit rocWMMA above that existing control's K32768 cap.
 The new driver, collector, case sets and fixtures have not run.
+
+## Separate CDNA signed-INT8 MFMA implementation
+
+`hip_direct_wrap_radix_mfma_device` is a distinct, opt-in private synchronous
+candidate, not an RDNA fragment reinterpretation. It selects only an actual
+compiled builtin on gfx90a, gfx942 or gfx950. Their instruction K widths are
+16, 32 and 64 respectively; the signatures consume one I32, one I64 or four I32
+packed operand registers per lane. The wave has 64 lanes and produces four I32
+accumulators per lane. All instruction accumulators start at zero; each is
+bounded by `K*16384 <= 1048576`, then folded separately into the U64 ring.
+The zero-scratch native-U64 vector-ALU control uses one output per lane and
+ordinary unsigned multiplication, without either byte convolution or an MMA.
+
+`MfmaI8Layout<K>` specifies and compile-time checks bijective coordinates:
+A `(lane%16, (lane/16)*(K/4)+byte)`, B with these axes exchanged, and C
+`((lane/16)*4+reg, lane%16)`. Each full canonical cell is loaded and recoded once
+per K instruction tile and retained in lane registers across all 36 pairs.
+There is no explicit LDS or barrier in this kernel. This is a source contract,
+not a measured register, spill, issued-instruction or occupancy result.
+
+The distinct builtin signatures come from [Clang's AMDGPU builtin reference](https://clang.llvm.org/docs/AMDGPUBuiltinReference.html)
+and AMD's [CDNA2](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/docs-1.0.0/compiler-builtins/cdna/cdna2-dense-mfma-builtins.html),
+[CDNA3](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/develop/compiler-builtins/cdna/cdna3-dense-mfma-builtins.html)
+and [CDNA4](https://rocm-handbook.amd.com/projects/amd-rocm-optimization-guide/en/docs-1.0.0/compiler-builtins/cdna/cdna4-dense-mfma-builtins.html)
+references. CDNA2/3 coordinates were independently derived from the equations in
+AMD's [matrix instruction calculator at 2ef9189](https://github.com/ROCm/amd_matrix_instruction_calculator/tree/2ef91896bcdc4d26624f952e5c905c787cd9bc9e).
+The CDNA4 extension uses its documented 16x16, single-block, wave64 shape and
+16 input bytes per lane; its physical mapping still requires the authored
+one-hot/coordinate and exact-output hardware qualification. No calculator code
+was copied or executed.
+
+Three `tools/data/wrap64_signed_mfma_gfx*.json` certificates bind the ring
+construction, exact instruction width, target/opcode and wave-coordinate model.
+The checker keeps physical layout and execution `not_run`. Captures bind the
+certificate's file SHA256 and layout version; changing either invalidates the
+collector contract. Shared capability probes retain storage after an uncertain
+drain instead of freeing memory potentially still in use.
+
+The harness now includes native-U64 on both architecture families and CDNA
+three-way controls against direct-v4. `repeated_b` retains canonical B, packs A
+and exports C in every batch; it is **not** a persistent recoded-B cache. No
+source-generation cache keys are invented for a cache that does not exist.
+Device compilation, differential execution, emitted-ISA signedness/layout,
+resource receipts, whole-call performance and any public promotion remain
+unverified. The source implementation is not a profitable-cohort result.

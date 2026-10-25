@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_wrap64 import (CANDIDATES, SCOPES, EDGES, MASK, checksum, collect, contract,
+from collect_wrap64 import (CANDIDATES, RDNA_CANDIDATES, CDNA_CANDIDATES, SCOPES, EDGES, MASK, checksum, collect, contract,
                             dataset, load_cases, summarize, validate_capture, validate_case)
 from test_capture_identity_support import synthetic_identity
 BASE = dict(device=0, candidate="signed_radix", scope="resident", m=2, n=3, k=17, pattern="carry", reuse_count=1)
@@ -19,7 +19,7 @@ def case_for(candidate="signed_radix", scope="resident", **changes):
 
 
 def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
-    case = case or case_for(); capture = contract(case, run_id, repeats, warmups); synthetic_identity(capture)
+    case = case or case_for(); capture = contract(case, run_id, repeats, warmups,"gfx942" if case["candidate"]=="signed_radix_mfma" else "gfx1100"); synthetic_identity(capture)
     a, b = dataset(case); av = [int.from_bytes(a[i:i+8], "little") for i in range(0, len(a), 8)]; bv = [int.from_bytes(b[i:i+8], "little") for i in range(0, len(b), 8)]
     expected = b"".join((sum(av[r*case["k"]+t]*bv[t*case["n"]+col] for t in range(case["k"])) & MASK).to_bytes(8, "little") for r in range(case["m"]) for col in range(case["n"]))
     ab, mn = len(av)+len(bv), case["m"]*case["n"]
@@ -29,8 +29,8 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
                   input_pack_and_upload=20 if case["scope"] != "resident" else 0, gemm_calls=30,
                   output_export=20 if case["scope"] != "resident" else 0,
                   input_and_transport_release=10 if case["scope"] == "cold" else 0)
-    capture.update(device_name="synthetic mocked GPU only", target="gfx1100", hip_runtime_version=70100000, hip_driver_version=70100000,
-        setup_ns=1000, reference_and_dataset_ns=2000, resident_input_prepare_ns=100 if case["scope"] == "resident" else None,
+    capture.update(device_name="synthetic mocked GPU only", target="gfx942" if case["candidate"]=="signed_radix_mfma" else "gfx1100", hip_runtime_version=70100000, hip_driver_version=70100000,
+        setup_ns=1000, reference_and_dataset_ns=2000, resident_input_prepare_ns=100 if case["scope"] in ("resident","repeated_b") else None,
         a_checksum=checksum(a), b_checksum=checksum(b), output_checksum=checksum(expected),
         reference_operand_storage_bytes=48*ab, reference_fixed_operand_object_bytes=48,
         logical_live_payload_envelope_bytes=max(oracle, execution), clock_period_numerator=1, clock_period_denominator=1000000000,
@@ -44,6 +44,23 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
 
 
 class Captures(unittest.TestCase):
+    def test_certificate_file_hashes_match_compiled_identity(self):
+        from generate_wrap64_certificate_identity import rendered
+        root=Path(__file__).resolve().parents[1]
+        self.assertEqual((root/'src/backend_common/wrap64_certificate_identity.hpp').read_text(),rendered(root))
+
+    def test_wrap_capture_isa_adapter_preserves_target_symbol_and_certificate(self):
+        from gpu_isa_report import capture_metadata
+        with tempfile.TemporaryDirectory() as directory:
+            for candidate in CANDIDATES:
+                capture=fixture(case_for(candidate));path=Path(directory)/'synthetic.json'
+                path.write_text(json.dumps(capture))
+                metadata=capture_metadata(path,'synthetic only')
+                self.assertEqual(metadata['target_id'],capture['target'])
+                self.assertEqual(metadata['selected_kernel'],capture['kernel_selection'])
+                self.assertEqual(metadata['generated_reducer_identity'],capture['arithmetic_certificate_sha256'])
+                self.assertEqual(metadata['artifact_capture'],capture['artifact_capture'])
+
     def test_all_candidates_scopes_patterns_reuse_and_boundaries(self):
         for candidate in CANDIDATES:
             for scope in SCOPES:
@@ -54,7 +71,7 @@ class Captures(unittest.TestCase):
             case = case_for("direct_v4", m=1, n=1, k=k)
             validate_case(case)
             self.assertIn("_u32acc_" if k <= 4096 else "_u64acc_", contract(case, "fixture-run", 2, 1)["kernel_selection"])
-        for candidate in CANDIDATES[:-1]:
+        for candidate in (*RDNA_CANDIDATES[:-1], "signed_radix_mfma"):
             validate_case(case_for(candidate, k=131071, m=1, n=1))
 
     def test_fixed_recipe_words_and_ring_output(self):
@@ -124,15 +141,29 @@ class Captures(unittest.TestCase):
         for name, count in (("smoke.json", 12), ("tail-reuse.json", 36), ("512-reuse.json", 48), ("long-k.json", 45), ("matched-boundaries.json", 12)):
             cases = load_cases(root/name); self.assertEqual(len(cases), count)
             for k in {case["k"] for case in cases}:
-                expected = set(CANDIDATES) if k <= 32768 else set(CANDIDATES[:-1])
+                expected = set(RDNA_CANDIDATES) if k <= 32768 else set(RDNA_CANDIDATES[:-1])
                 self.assertEqual({case["candidate"] for case in cases if case["k"] == k}, expected)
+
+    def test_cdna_generation_maps_and_repeated_b_scope(self):
+        case=case_for("signed_radix_mfma", "repeated_b")
+        for target,width in (("gfx90a",16),("gfx942",32),("gfx950",64)):
+            capture=fixture(case);capture.update(contract(case,"fixture-run",2,1,target),target=target)
+            validate_capture(capture,case,"fixture-run",2,1)
+            for key,value in (("mma_terms_per_fold",128),("static_lds_bytes",4096),("target","gfx1100"),
+                              ("resident_input_prepare_ns",None)):
+                broken=deepcopy(capture);broken[key]=value
+                with self.assertRaises(ValueError):validate_capture(broken,case,"fixture-run",2,1)
+        for name,count in (("cdna-small.json",27),("cdna-carry-slabs.json",33),("cdna-boundaries.json",24),("cdna-sustained.json",24)):
+            cases=load_cases(Path(__file__).resolve().parents[1]/"benchmarks"/"wrap64"/name)
+            self.assertEqual(len(cases),count)
+            self.assertEqual({x['candidate'] for x in cases},set(CDNA_CANDIDATES))
 
 
 class Comparison(unittest.TestCase):
     def test_only_complete_independent_cohorts_and_no_roc_extrapolation(self):
         for k in (17, 65537):
             observations = [dict(case=case_for(candidate, k=k), independent_run=index, mean_batch_ns=100+10*CANDIDATES.index(candidate)+index)
-                            for candidate in (CANDIDATES if k <= 32768 else CANDIDATES[:-1]) for index in range(5)]
+                            for candidate in (RDNA_CANDIDATES if k <= 32768 else RDNA_CANDIDATES[:-1]) for index in range(5)]
             record = summarize(observations)[0]
             self.assertTrue(record["complete_matched_cohort"]); self.assertFalse(record["promotion_eligible"])
             self.assertEqual(record["comparison_scope"], "four_way" if k <= 32768 else "rocwmma_unavailable_k_cap_three_way")
@@ -142,6 +173,15 @@ class Comparison(unittest.TestCase):
                 self.assertIn("rocwmma_corrected", record["observed_process_statistics"])
             self.assertFalse(summarize(observations[:-1])[0]["complete_matched_cohort"])
             self.assertFalse(summarize([*observations, observations[0]])[0]["complete_matched_cohort"])
+
+    def test_cdna_requires_independent_complete_non_rdna_cohort(self):
+        observations=[dict(case=case_for(candidate),independent_run=run,mean_batch_ns=100+run)
+                      for candidate in CDNA_CANDIDATES for run in range(2)]
+        result=summarize(observations)[0]
+        self.assertTrue(result['complete_matched_cohort'])
+        self.assertEqual(result['comparison_scope'],'cdna_signed_mfma_direct_v4_native_u64')
+        self.assertFalse(summarize([x for x in observations if x['independent_run']==0])[0]['complete_matched_cohort'])
+        self.assertFalse(summarize(observations+[dict(case=case_for('native_u8'),independent_run=0,mean_batch_ns=1)])[0]['complete_matched_cohort'])
 
 
 class Collection(unittest.TestCase):
