@@ -30,12 +30,17 @@ int main(int argc,char** argv){try{
   if(c.size()!=11 || c.at("schema")!="narrow_public_case_v1" || !c.at("unsigned_inputs").is_boolean())throw std::invalid_argument("case ABI");
   const uint32_t m=number(c,"m",1,512),n=number(c,"n",1,512),k=number(c,"k",1,131073),ceiling=number(c,"prefix",0,20),repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),seed=number(c,"seed",0,UINT32_MAX);
   const bool u=c.at("unsigned_inputs");const std::string mode=c.at("mode"),residency=c.at("residency");
-  const bool adaptive=mode=="adaptive-fresh" || mode=="adaptive-cached",cached=mode=="adaptive-cached";
+  const bool resident_output=mode=="adaptive-resident-fresh" || mode=="adaptive-resident-cached" ||
+      mode=="wmma-resident-fused" || mode=="scalar-resident-fused" || mode=="rns-resident-public";
+  const bool adaptive=mode=="adaptive-fresh" || mode=="adaptive-cached" ||
+      mode=="adaptive-resident-fresh" || mode=="adaptive-resident-cached";
+  const bool cached=mode=="adaptive-cached" || mode=="adaptive-resident-cached";
   const bool vector=mode=="vector-width8" || mode=="vector-exact-width",parallel=mode=="rns-parallel",narrow=mode.rfind("scalar-",0)==0 || mode.rfind("wmma-",0)==0;
-  const bool wmma=mode=="wmma-staged" || mode=="wmma-fused",fused=mode=="scalar-fused" || mode=="wmma-fused";
-  if((!vector && !parallel && !narrow && !adaptive && mode!="rns-public") || (narrow && mode!="scalar-staged" && mode!="scalar-fused" && !wmma) ||
+  const bool wmma=mode=="wmma-staged" || mode=="wmma-fused" || mode=="wmma-resident-fused";
+  const bool fused=mode=="scalar-fused" || mode=="wmma-fused" || mode=="scalar-resident-fused" || mode=="wmma-resident-fused";
+  if((!vector && !parallel && !narrow && !adaptive && mode!="rns-public" && mode!="rns-resident-public") || (narrow && mode!="scalar-staged" && mode!="scalar-fused" && mode!="scalar-resident-fused" && !wmma) ||
      (u && narrow && !wmma) || (parallel && n>8) || (mode=="vector-exact-width" && (n<2 || n>8 || k<512)) ||
-     (residency!="cold" && residency!="resident" && residency!="repack") || (adaptive && residency!="resident") || uint64_t(m)*n*k>134217728)throw std::invalid_argument("concrete route/domain");
+     (residency!="cold" && residency!="resident" && residency!="repack") || ((adaptive || resident_output) && residency!="resident") || uint64_t(m)*n*k>134217728)throw std::invalid_argument("concrete route/domain");
   std::vector<uint64_t> av(size_t(m)*(k+1)),bv(size_t(k)*(n+2)),output(size_t(m)*(n+3)*3,UINT64_C(0x5a5a5a5a5a5a5a5a)),native(size_t(m)*(n+3));
   for(uint32_t r=0;r<m;++r)for(uint32_t q=0;q<k;++q){const int64_t v=int64_t((uint64_t(r)*71+uint64_t(q)*19+seed)%(u?8:15))-(u?0:7);av[size_t(r)*(k+1)+q]=uint64_t(v);}
   for(uint32_t q=0;q<k;++q)for(uint32_t col=0;col<n;++col){const int64_t v=int64_t((uint64_t(q)*37+uint64_t(col)*11+seed)%(u?8:15))-(u?0:7);bv[size_t(q)*(n+2)+col]=uint64_t(v);}
@@ -48,7 +53,7 @@ int main(int argc,char** argv){try{
   auto create=[&](){auto o=std::make_unique<Owner>();rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=vector?RNS8_BACKEND_HIP_VECTOR_ALU_INT64:RNS8_BACKEND_HIP_DIRECT;check(rns8_create_context(0,&options,&o->ctx));
     rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=vector?(u?RNS8_BOUNDED_U64:RNS8_BOUNDED_I64):(u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED);
     d.bound_kind=vector?(u?RNS8_BOUND_GLOBAL_MAX_UNSIGNED:RNS8_BOUND_GLOBAL_MAX_ABS):RNS8_BOUND_NONE;d.bound=vector?bound:0;d.requested_backend=options.requested_backend;d.m=m;d.n=n;d.k=k;d.max_prefix=prefix;
-    d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|(!vector?RNS8_PLAN_EXACT_VALUE_BOUND:0)|(parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0)|(mode=="vector-exact-width"?RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH:0)|(adaptive?RNS8_PLAN_EXACT_SCALAR_FIRST:0);
+    d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|(!vector?RNS8_PLAN_EXACT_VALUE_BOUND:0)|(parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0)|(mode=="vector-exact-width"?RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH:0)|((adaptive || resident_output)?RNS8_PLAN_EXACT_SCALAR_FIRST:0);
     check(rns8_create_plan(o->ctx,&d,&o->plan));check(rns8_create_workspace(o->ctx,o->plan,&o->work));
     auto matrix=[&](uint32_t rows,uint32_t cols,bool input,rns8_matrix** out){rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.bound_kind=d.bound_kind;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.rows=rows;md.cols=cols;md.logical_ld=cols;md.max_prefix=prefix;md.flags=input && !vector?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;check(rns8_create_matrix(o->ctx,&md,out));};
     matrix(m,k,true,&o->a);matrix(k,n,true,&o->b);matrix(m,n,false,&o->c);pack(*o);
@@ -60,14 +65,20 @@ int main(int argc,char** argv){try{
       check(operation(o.ctx,o.plan,o.a,o.b,o.c,RNS8_ADAPTIVE_AXIS_L1,256,2,32,UINT64_MAX,o.work));
     } else if(narrow)check(rns8_gemm_narrow_exact(o.ctx,o.plan,o.a,o.b,o.c,static_cast<rns8_narrow_product_method>((wmma?1:0)+(fused?2:0)),UINT64_MAX,o.work));
     else check(rns8_gemm_rns(o.ctx,o.plan,o.a,o.b,o.c,o.work));};
+  auto export_wide=[&](){
+    if(u)check(rns8_export_exact_wide_unsigned_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
+    else check(rns8_export_exact_wide_signed_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
+  };
   auto call=[&](){const auto start=Clock::now();if(residency=="cold")owner=create();else if(residency=="repack")pack(*owner);const auto prepared=Clock::now();
     product(*owner);const auto computed=Clock::now();
     if(vector){if(u)check(rns8_export_u64(owner->ctx,owner->plan,owner->c,native.data(),n+3));else check(rns8_export_i64(owner->ctx,owner->plan,owner->c,reinterpret_cast<int64_t*>(native.data()),n+3));
       for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n;++col){const uint64_t value=native[size_t(r)*(n+3)+col];const size_t cell=(size_t(r)*(n+3)+col)*3;output[cell]=value;output[cell+1]=output[cell+2]=!u && (value>>63)?UINT64_MAX:0;}}
-    else if(u)check(rns8_export_exact_wide_unsigned_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));
-    else check(rns8_export_exact_wide_signed_limbs(owner->ctx,owner->plan,owner->c,output.data(),n+3,3));const auto exported=Clock::now();
+    else if(!resident_output) { export_wide(); }
+    const auto exported=resident_output?computed:Clock::now();
     if(residency=="cold"){check(owner->close());owner.reset();}const auto end=Clock::now();return json{{"prepare_us",us(start,prepared)},{"execute_us",us(prepared,computed)},{"export_us",us(computed,exported)},{"cleanup_us",us(exported,end)},{"total_us",us(start,end)}};};
-  auto verify=[&](){for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n+3;++col){cpp_int value=col<n?expected[size_t(r)*n+col]:0;if(value<0)value+=cpp_int(1)<<192;
+  auto verify=[&](){
+    if(resident_output)export_wide();
+    for(uint32_t r=0;r<m;++r)for(uint32_t col=0;col<n+3;++col){cpp_int value=col<n?expected[size_t(r)*n+col]:0;if(value<0)value+=cpp_int(1)<<192;
     for(unsigned limb=0;limb<3;++limb){const auto expected_limb=col<n?uint64_t((value>>(64*limb))&UINT64_MAX):UINT64_C(0x5a5a5a5a5a5a5a5a);
       if(output[(size_t(r)*(n+3)+col)*3+limb]!=expected_limb)throw std::runtime_error("complete integer/padding oracle mismatch");}}};
   auto first=call();verify();const json first_summary=adaptive?summary_info(*owner):json(nullptr);
@@ -81,11 +92,13 @@ int main(int argc,char** argv){try{
   if(owner)check(owner->close());const uint64_t scratch=narrow?(wmma?32:16)+(fused?0:uint64_t(m)*n*8):0;
   std::cout<<json({{"schema","rns8_public_narrow_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"dataset","affine_native_small_v1"},{"selected_prefix",prefix},{"ordinary_plan_kernel",kernel},{"narrow_producer",narrow?mode:"not_applicable"},{"known_narrow_scratch_bytes",scratch},
-    {"output_boundary","complete_public_product_and_padded_three_limb_integer_adapter"},{"vector_export_adapter",vector?"public_native64_export_then_host_sign_or_zero_extension":"not_applicable"},
+    {"output_boundary",resident_output?"complete_public_product_resident_rns":"complete_public_product_and_padded_three_limb_integer_adapter"},
+    {"timed_host_export",!resident_output},{"oracle_export_outside_production_interval",resident_output},
+    {"vector_export_adapter",vector?"public_native64_export_then_host_sign_or_zero_extension":"not_applicable"},
     {"host_instrumentation_state","hooks_disabled"},{"adaptive_summary_policy",adaptive?(cached?"generation_bound":"fresh_scan"):"not_applicable"},
     {"adaptive_summary_first",first_summary},{"adaptive_summary_final",final_summary},
     {"adaptive_method",adaptive?"axis_l1":"not_applicable"},{"adaptive_group",adaptive?2:0},{"adaptive_workers",adaptive?32:0},
-    {"exact_proof_policy",adaptive?"scalar_first":"default_eager"},
+    {"exact_proof_policy",(adaptive || resident_output)?"scalar_first":"default_eager"},
     {"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},{"native_useful_products",uint64_t(m)*n*k},
     {"exact_reference_passed",true},{"all_residue_planes_audited",!vector},{"residue_audit_scope",vector?"not_applicable_native_control":"post_timing_public_product"},{"oracle_inside_production_interval",false},{"promotion_eligible",false}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

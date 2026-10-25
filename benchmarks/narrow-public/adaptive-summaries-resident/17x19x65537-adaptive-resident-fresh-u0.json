@@ -1,0 +1,13 @@
+{
+  "schema": "narrow_public_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 65537,
+  "prefix": 20,
+  "unsigned_inputs": false,
+  "mode": "adaptive-resident-fresh",
+  "residency": "resident",
+  "repeats": 9,
+  "warmups": 3,
+  "seed": 5353
+}

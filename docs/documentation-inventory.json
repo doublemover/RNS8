@@ -786,6 +786,7 @@
         "compact-bounded-workers",
         "explicit-matrix-owned-native-inputs",
         "matched-summary-reuse-observations",
+        "separate-resident-output-boundary",
         "shared-static-preflight",
         "single-owned-native-upload",
         "versioned-distribution-and-complete-output-controls",

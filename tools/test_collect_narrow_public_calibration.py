@@ -21,6 +21,20 @@ class NarrowPublicCollection(unittest.TestCase):
     def case(self):
         return dict(schema='narrow_public_case_v1', m=17, n=19, k=31, prefix=0, unsigned_inputs=False, mode='scalar-fused', residency='resident', repeats=3, warmups=1, seed=5353)
 
+    def test_resident_shortlist_has_best_same_output_controls(self):
+        folder=Path(__file__).resolve().parents[1]/'benchmarks/narrow-public/adaptive-summaries-resident'
+        cases=[validate_case(json.loads(path.read_text())) for path in sorted(folder.glob('*.json'))]
+        self.assertEqual(len(cases),19)
+        groups={}
+        for case in cases:
+            key=(case['m'],case['n'],case['k'],case['unsigned_inputs'])
+            groups.setdefault(key,set()).add(case['mode'])
+        self.assertEqual(len(groups),4)
+        for key,modes in groups.items():
+            expected={'adaptive-resident-fresh','adaptive-resident-cached','wmma-resident-fused','rns-resident-public'}
+            if not key[3]:expected.add('scalar-resident-fused')
+            self.assertEqual(modes,expected)
+
     def capture(self):
         case = self.case(); entry = dict(case=case, run_id='synthetic-not-hardware-evidence'); sample = dict(prepare_us=1, execute_us=2, export_us=3, cleanup_us=0, total_us=6)
         c = dict(schema='rns8_public_narrow_microcase_v1', case=case, run_id=entry['run_id'], dataset='affine_native_small_v1', selected_prefix=2,
@@ -53,10 +67,28 @@ class NarrowPublicCollection(unittest.TestCase):
         c = self.case(); c['mode'] = 'rns-parallel'
         with self.assertRaises(ValueError): validate_case(c)
 
+    def test_resident_output_is_separate_from_host_adapter_boundary(self):
+        for mode in ['rns-resident-public','scalar-resident-fused','wmma-resident-fused']:
+            c,entry=self.capture();entry['case']['mode']=mode
+            c.update(narrow_producer=mode if mode!='rns-resident-public' else 'not_applicable',
+                     known_narrow_scratch_bytes=32 if mode.startswith('wmma-') else 16 if mode.startswith('scalar-') else 0,
+                     output_boundary='complete_public_product_resident_rns',timed_host_export=False,
+                     oracle_export_outside_production_interval=True,exact_proof_policy='scalar_first')
+            for sample in [c['first_call'],*c['samples']]:sample.update(export_us=0,total_us=3)
+            self.assertEqual(validate_capture(c,entry),c)
+            for key,value in [('timed_host_export',True),('oracle_export_outside_production_interval',False),
+                              ('output_boundary','complete_public_product_and_padded_three_limb_integer_adapter'),('exact_proof_policy','default_eager')]:
+                bad=copy.deepcopy(c);bad[key]=value
+                with self.subTest(mode=mode,key=key),self.assertRaises(ValueError):validate_capture(bad,entry)
+            bad=copy.deepcopy(c);bad['first_call'].update(export_us=1,total_us=4)
+            with self.assertRaises(ValueError):validate_capture(bad,entry)
+
+
     def test_generation_bound_summary_receipts_charge_each_completed_call(self):
-        for cached in (False, True):
+        for mode in ('adaptive-fresh','adaptive-cached','adaptive-resident-fresh','adaptive-resident-cached'):
+            cached=mode.endswith('-cached'); resident='-resident-' in mode
             c, entry = self.capture()
-            entry['case']['mode'] = 'adaptive-cached' if cached else 'adaptive-fresh'
+            entry['case']['mode'] = mode
             c.update(narrow_producer='not_applicable', known_narrow_scratch_bytes=0,
                      adaptive_summary_policy='generation_bound' if cached else 'fresh_scan',
                      adaptive_method='axis_l1', adaptive_group=2, adaptive_workers=32, exact_proof_policy='scalar_first')
@@ -65,6 +97,10 @@ class NarrowPublicCollection(unittest.TestCase):
                          a_scans=int(cached), b_scans=int(cached), a_reuses=0, b_reuses=0)
             last = dict(first, a_reuses=52 if cached else 0, b_reuses=52 if cached else 0)
             c.update(adaptive_summary_first=first, adaptive_summary_final=last)
+            if resident:
+                c.update(output_boundary='complete_public_product_resident_rns',timed_host_export=False,
+                         oracle_export_outside_production_interval=True)
+                for sample in [c['first_call'],*c['samples']]:sample.update(export_us=0,total_us=3)
             self.assertEqual(validate_capture(c, entry), c)
             for key, value in [('a_scans', 2), ('b_reuses', 0 if cached else 1), ('retained_bytes', 0 if cached else 96), ('a_generation', 3)]:
                 bad=copy.deepcopy(c); bad['adaptive_summary_final'][key]=value

@@ -169,6 +169,26 @@ of the inconclusive elapsed benefit. The
 [qualification receipt](../metadata/adaptive-summary-qualification-20261025.json)
 preserves all samples, counters, identities, capture hashes and full validation.
 
+### Separate resident-output boundary
+
+The authored resident shortlist in
+`benchmarks/narrow-public/adaptive-summaries-resident/` measures completed public
+products with full P20 RNS output retained on device. `adaptive-resident-fresh`
+and `adaptive-resident-cached` share the same native/RNS input owners and scalar-first
+proof policy. `rns-resident-public`, `wmma-resident-fused` and the signed
+`scalar-resident-fused` control provide alternative public producers at the same
+complete-output boundary. The 19 cases cover the same four workloads; unsigned
+scalar-native lowering remains unsupported and is not fabricated as a control.
+
+Required input proof, status, suffix completion, commit and synchronization stay
+inside every measured call. Per-call host export is absent from this boundary;
+the benchmark performs independent padded limb export/oracle checks after the
+timed interval and checks all resident residue planes. Timed export must be
+exactly zero in the receipt, and explicit boundary/proof-policy fields prevent
+pooling these samples with the completed host-output study. Setup/first-call and
+steady/burst observations stay separate. This new boundary is authored pending
+its focused compilation, contracts and fresh independent-process collection.
+
 ## Shared static preflight
 
 `query_adaptive_native_support` is the internal version-1 owner of argument,

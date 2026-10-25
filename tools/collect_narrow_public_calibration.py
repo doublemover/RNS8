@@ -10,7 +10,9 @@ from collect_native_calibration import strict_json, DEFAULT_MODULI
 from benchmark_sweep_lib.execution import run_command
 from build_manifest import manifest_provenance_complete
 
-MODES = ('scalar-staged', 'scalar-fused', 'wmma-staged', 'wmma-fused', 'rns-public', 'rns-parallel', 'vector-width8', 'vector-exact-width', 'adaptive-fresh', 'adaptive-cached')
+MODES = ('scalar-staged', 'scalar-fused', 'wmma-staged', 'wmma-fused', 'rns-public', 'rns-parallel', 'vector-width8', 'vector-exact-width', 'adaptive-fresh', 'adaptive-cached',
+         'adaptive-resident-fresh', 'adaptive-resident-cached', 'wmma-resident-fused', 'scalar-resident-fused', 'rns-resident-public')
+RESIDENT_OUTPUT_MODES = {'adaptive-resident-fresh', 'adaptive-resident-cached', 'wmma-resident-fused', 'scalar-resident-fused', 'rns-resident-public'}
 
 
 def validate_case(c):
@@ -21,7 +23,7 @@ def validate_case(c):
             raise ValueError(key)
     if type(c['unsigned_inputs']) is not bool or c['mode'] not in MODES or c['residency'] not in ('cold', 'resident', 'repack'):
         raise ValueError('mode/domain')
-    if c['mode'].startswith('adaptive-') and c['residency'] != 'resident':
+    if (c['mode'].startswith('adaptive-') or c['mode'] in RESIDENT_OUTPUT_MODES) and c['residency'] != 'resident':
         raise ValueError('adaptive summary comparison requires retained resident inputs')
     if (c['mode'].startswith('scalar-') and c['unsigned_inputs']) or (c['mode'] == 'rns-parallel' and c['n'] > 8) or (c['mode'] == 'vector-exact-width' and not (2 <= c['n'] <= 8 and c['k'] >= 512)):
         raise ValueError('concrete recipe')
@@ -45,10 +47,11 @@ def selected_prefix(c):
 
 def validate_capture(c, entry):
     case = validate_case(entry['case']); mode = case['mode']; narrow = mode.startswith(('scalar-', 'wmma-')); vector = mode.startswith('vector-')
+    resident_output = mode in RESIDENT_OUTPUT_MODES
     scratch = ((32 if mode.startswith('wmma-') else 16)+(0 if mode.endswith('-fused') else case['m']*case['n']*8)) if narrow else 0
     fixed = dict(schema='rns8_public_narrow_microcase_v1', case=case, run_id=entry['run_id'], dataset='affine_native_small_v1',
                  selected_prefix=selected_prefix(case), narrow_producer=mode if narrow else 'not_applicable', known_narrow_scratch_bytes=scratch,
-                 output_boundary='complete_public_product_and_padded_three_limb_integer_adapter',
+                 output_boundary='complete_public_product_resident_rns' if resident_output else 'complete_public_product_and_padded_three_limb_integer_adapter',
                  vector_export_adapter='public_native64_export_then_host_sign_or_zero_extension' if vector else 'not_applicable',
                  host_instrumentation_state='hooks_disabled', exact_reference_passed=True, oracle_inside_production_interval=False,
                  all_residue_planes_audited=not vector, residue_audit_scope='not_applicable_native_control' if vector else 'post_timing_public_product',
@@ -67,6 +70,8 @@ def validate_capture(c, entry):
         phases = [sample.get(k) for k in ('prepare_us', 'execute_us', 'export_us', 'cleanup_us')]
         if not all(positive(v, True) for v in phases) or not positive(sample.get('total_us')) or not math.isclose(sum(phases), sample['total_us'], rel_tol=1e-7, abs_tol=1e-6):
             raise ValueError('complete route')
+        if resident_output and sample['export_us'] != 0:
+            raise ValueError('resident route must not hide a timed host export')
     if len(c.get('sustained', [])) != 3:
         raise ValueError('sustained observations')
     for burst in c['sustained']:
@@ -76,17 +81,21 @@ def validate_capture(c, entry):
     kernel = c.get('ordinary_plan_kernel', '')
     if mode == 'rns-parallel' and kernel != ('direct_hip_selected_prefix_rns_gemv_n1_v1' if case['n'] == 1 else 'direct_hip_selected_prefix_rns_gemv_small_n_v1'):
         raise ValueError('public parallel route identity')
-    if mode == 'rns-public' and kernel != ('direct_hip_persistent_small_rns_gemm_v1' if case['m']*case['n'] <= 64 else 'direct_hip_selected_prefix_grouped_rns_gemm_v1'):
+    if mode in ('rns-public', 'rns-resident-public') and kernel != ('direct_hip_persistent_small_rns_gemm_v1' if case['m']*case['n'] <= 64 else 'direct_hip_selected_prefix_grouped_rns_gemm_v1'):
         raise ValueError('public default route identity')
     if mode == 'vector-exact-width' and f'_n{case["n"]}_exact_width_' not in kernel:
         raise ValueError('exact-width vector route identity')
     if mode.startswith('adaptive-'):
         validate_adaptive_summary_capture(c, case)
+    if resident_output:
+        for key, value in dict(timed_host_export=False, oracle_export_outside_production_interval=True, exact_proof_policy='scalar_first').items():
+            if type(c.get(key)) is not type(value) or c[key] != value:
+                raise ValueError('resident output identity '+key)
     return c
 
 
 def validate_adaptive_summary_capture(c, case):
-    cached = case['mode'] == 'adaptive-cached'
+    cached = case['mode'].endswith('-cached')
     expected = dict(adaptive_summary_policy='generation_bound' if cached else 'fresh_scan',
                     adaptive_method='axis_l1', adaptive_group=2, adaptive_workers=32, exact_proof_policy='scalar_first')
     for key, value in expected.items():
@@ -132,6 +141,7 @@ def main():
         c = validate_capture(strict_json(path.read_text()), entry)
         identity = dict(case={k: v for k, v in entry['case'].items() if k != 'mode'}, target=c.get('target'), device=c.get('device'), runtime=c.get('runtime_version'),
                         proof_policy=c.get('exact_proof_policy', 'default_eager'),
+                        output_boundary=c['output_boundary'],
                         build=c['build_manifest'], artifact={k: c['artifact_capture'].get(k) for k in ('executable_sha256', 'rns8_linkage', 'shared_library_sha256')},
                         environment=(c.get('request_identity') or {}).get('environment'))
         cohorts.setdefault(json.dumps(identity, sort_keys=True), []).append(dict(mode=entry['case']['mode'], execution_id=c['execution_id'], independent_run=entry['independent_run'],
