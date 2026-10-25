@@ -3,14 +3,31 @@ import json
 import math
 import unittest
 from benchmark_schema.hipblaslt_metadata import FIELDS,PREPACK_FIELDS,validate_hipblaslt_metadata,validate_hipblaslt_prepack,validate_hipblaslt_algorithms,hipblaslt_algorithm_signature
-from collect_public_calibration import commands,validate_initial_plan_capacity
+from collect_public_calibration import commands,first_call_setup,validate_initial_plan_capacity
 from pathlib import Path
 from benchmark_schema.wide_magnitude import MODULI
 
 class MetadataContracts(unittest.TestCase):
+    def test_fresh_first_call_is_separate_from_steady_and_instrumented_programs(self):
+        cases=[dict(name=n,arguments=['--backend','hipblaslt','--hipblaslt-metadata-policy',n]) for n in ('per-call','per-block')]
+        plan=commands(Path('binary'),cases,2,1,Path('out'),first_call=True)
+        self.assertEqual(len(plan),4)
+        self.assertEqual([entry['case'] for entry in plan],['per-call','per-block','per-block','per-call'])
+        for entry in plan:
+            args=entry['command'];self.assertEqual(entry['mode'],'production')
+            self.assertEqual(args[args.index('--warmups')+1],'0');self.assertEqual(args[args.index('--repeats')+1],'1')
+            self.assertFalse(any(a.startswith('--sustained-') for a in args))
+        capture=dict(warmups=0,repeats=1,timing_metadata=dict(host_instrumentation_state='hooks_disabled'),
+            raw_timings_us=dict(planning=[10],matrix_alloc=[20],end_to_end=[30]))
+        self.assertEqual(first_call_setup(capture)['setup_plus_first_completed_call_us'],60)
+        for mutate in (lambda d:d.update(warmups=1),lambda d:d.update(repeats=9),
+                lambda d:d['timing_metadata'].clear(),lambda d:d['raw_timings_us'].pop('matrix_alloc'),
+                lambda d:d['raw_timings_us'].update(end_to_end=[float('nan')])):
+            bad=copy.deepcopy(capture);mutate(bad)
+            with self.assertRaises(ValueError):first_call_setup(bad)
     def test_all_declared_profiles_admit_the_initial_native_type_plan(self):
         root=Path(__file__).resolve().parents[1]
-        for profile in ('hipblaslt-metadata.json','hipblaslt-prepack.json'):
+        for profile in ('hipblaslt-metadata.json','hipblaslt-prepack.json','hipblaslt-first-call.json'):
             cases=json.loads((root/'benchmarks/public-calibration'/profile).read_text())['cases']
             self.assertTrue(commands(Path('binary'),cases,2,1,Path('out')))
         for k in (65535,65536,65537):

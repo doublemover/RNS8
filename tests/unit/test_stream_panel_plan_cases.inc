@@ -1,5 +1,43 @@
 #include "backend_common/stream_panel_plan.hpp"
 #include "backend_common/stream_panel_cost.hpp"
+#include "../../benchmarks/stream_capacity_case.hpp"
+#include "rns8/moduli.h"
+
+TEST_CASE("physical streaming capacity fixture admits bounded panels without full materialization") {
+  using namespace rns8::bench::capacity;
+  using boost::multiprecision::cpp_int;
+  CHECK(cpp_int(a_bytes)==cpp_int(m)*lda*8);
+  CHECK(cpp_int(whole_a_residue_bytes)==cpp_int(m)*k*prefix);
+  CHECK(a_bytes>(uint64_t{32}<<30));CHECK(whole_a_residue_bytes>(uint64_t{36}<<30));
+  CHECK(caller_bytes<(uint64_t{40}<<30));
+  cpp_int p7=1;for(uint32_t p=0;p<7;++p)p7*=rns8_default_modulus(p);
+  CHECK(p7<=cpp_int(bound)*2);CHECK(p7*rns8_default_modulus(7)>cpp_int(bound)*2);
+  CHECK(cpp_int(m)*k*8>(cpp_int(32)<<30));
+  for(auto schedule:{RNS8_STREAM_GEMM_SERIAL,RNS8_STREAM_GEMM_OVERLAPPED}) {
+    auto d=problem(schedule,uint64_t{64}<<20,uint64_t{64}<<20);
+    rns8_stream_gemm_resources r{};r.struct_size=sizeof(r);r.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_stream_gemm(&d,&r)==RNS8_SUCCESS);
+    CHECK(cpp_int(r.source_a_span_bytes)==(cpp_int(m-1)*lda+k)*8);
+    CHECK(r.output_tiles==257);CHECK(r.k_panels_per_tile==17);
+    CHECK(r.device_bytes<=d.device_budget_bytes);CHECK(r.host_bytes<=d.host_budget_bytes);
+    CHECK(r.pinned_host_bytes+r.ordinary_host_bytes==r.host_bytes);
+    CHECK(r.control_reservation_bytes<=r.ordinary_host_bytes);
+    CHECK(r.retained_b_entries==0);
+  }
+}
+
+TEST_CASE("capacity period oracle matches complete independent dots at long K boundaries") {
+  using boost::multiprecision::cpp_int;
+  for(int64_t inner:{65535,65536,65537})for(int64_t row:{0,1,65536})for(int64_t col:{0,1,2}) {
+    cpp_int exact=0;
+    for(int64_t q=0;q<inner;++q)exact+=cpp_int(rns8::bench::capacity::native_base+(3*row+7*q)%15-7)*
+        (col%2?1:-1)*(rns8::bench::capacity::native_base+(11*q+5*col+3)%15-7);
+    CHECK(cpp_int(rns8::bench::capacity::reference(row,col,inner))==exact);
+    CHECK(boost::multiprecision::abs(exact)<=cpp_int(inner)*rns8::bench::capacity::maximum*rns8::bench::capacity::maximum);
+    cpp_int p7=1;for(uint32_t p=0;p<7;++p)p7*=rns8_default_modulus(p);
+    CHECK(boost::multiprecision::abs(exact)*2>p7);
+  }
+}
 TEST_CASE("stream panel shortlist uses runtime admission and identity-bound complete costs") {
   rns8_context ctx{};ctx.backend=RNS8_BACKEND_HIP_DIRECT;std::strcpy(ctx.device_info.gcn_arch,"gfx1100");
   rns8_stream_gemm_desc base{};base.struct_size=sizeof(base);base.abi_version=RNS8_ABI_VERSION;

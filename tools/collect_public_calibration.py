@@ -42,7 +42,7 @@ def validate_initial_plan_capacity(arguments, name):
         raise ValueError(f"{name}: prefix {prefix} cannot admit the initial full-native-type exact-wide plan at K={k}")
 
 
-def commands(binary, cases, runs, seed, output):
+def commands(binary, cases, runs, seed, output, *, first_call=False):
     if not 2 <= runs <= 100: raise ValueError("need 2..100 independent processes per case/mode")
     result=[]
     names=set()
@@ -58,10 +58,10 @@ def commands(binary, cases, runs, seed, output):
             raise ValueError("collector owns timing/sampling controls and never writes a cache")
         first=int(hashlib.sha256(f"{seed}:{name}".encode()).hexdigest(),16)&1
         for run in range(runs):
-            modes=("instrumented","production") if (first+run)%2==0 else ("production","instrumented")
+            modes=("production",) if first_call else (("instrumented","production") if (first+run)%2==0 else ("production","instrumented"))
             for position,mode in enumerate(modes):
-                command=[str(binary),*arguments,"--warmups","3","--repeats","9","--host-timing",mode]
-                if mode=="production" and "--streaming-overlap" not in arguments:command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
+                command=[str(binary),*arguments,"--warmups","0" if first_call else "3","--repeats","1" if first_call else "9","--host-timing",mode]
+                if not first_call and mode=="production" and "--streaming-overlap" not in arguments:command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
                 result.append(dict(case=name,run=run,position=position,mode=mode,command=command,
                                    output=str(output/f"{name}-run{run:03d}-{mode}.json")))
     # Interleave physical variants by independent run; reverse case order every
@@ -72,15 +72,39 @@ def commands(binary, cases, runs, seed, output):
     return result
 
 
+def first_call_setup(capture):
+    """Sum only disjoint measured setup and one completed call after context creation."""
+    if (type(capture.get('warmups')) is not int or capture['warmups']!=0 or
+            type(capture.get('repeats')) is not int or capture['repeats']!=1 or
+            (capture.get('timing_metadata') or {}).get('host_instrumentation_state')!='hooks_disabled'):
+        raise ValueError('first-call evidence requires explicit hooks-disabled zero-warmup one-call capture')
+    values={}
+    for phase in ('planning','matrix_alloc','end_to_end'):
+        samples=(capture.get('raw_timings_us') or {}).get(phase)
+        if (not isinstance(samples,list) or len(samples)!=1 or type(samples[0]) not in (int,float) or
+                not math.isfinite(samples[0]) or samples[0]<0 or (phase=='end_to_end' and samples[0]==0)):
+            raise ValueError('first-call setup requires one measured planning/allocation/completed-call sample')
+        values[phase+'_us']=samples[0]
+    return dict(**values,setup_plus_first_completed_call_us=sum(values.values()),
+        scope='after_context_creation_planning_includes_workspace_then_matrix_allocation_then_completed_call',
+        context_creation_and_input_generation_included=False,independent_oracle_included=False)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary",type=Path,required=True);parser.add_argument("--cases",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True);parser.add_argument("--runs",type=int,default=2)
     parser.add_argument("--order-seed",type=int,default=1);parser.add_argument("--timeout-seconds",type=float,default=600)
-    parser.add_argument("--plan-only",action="store_true");args=parser.parse_args()
-    plan=commands(args.binary,json.loads(args.cases.read_text())["cases"],args.runs,args.order_seed,args.output)
+    parser.add_argument("--plan-only",action="store_true")
+    parser.add_argument("--first-call",action="store_true",help="fresh-process hook-disabled first invocation; zero warmups/one sample, no sustained bursts")
+    args=parser.parse_args()
+    case_bytes=args.cases.read_bytes()
+    collector_identity=dict(source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        case_manifest_sha256=hashlib.sha256(case_bytes).hexdigest())
+    plan=commands(args.binary,json.loads(case_bytes)["cases"],args.runs,args.order_seed,args.output,first_call=args.first_call)
     args.output.mkdir(parents=True,exist_ok=True)
-    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy="seeded_AB_BA_instrumentation_and_reversed_case_order_by_independent_run",commands=plan,promotion_eligible=False),indent=2)+"\n")
+    order="reversed_case_order_by_independent_run_production_first_invocation_only" if args.first_call else "seeded_AB_BA_instrumentation_and_reversed_case_order_by_independent_run"
+    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy=order,sampling="first_call" if args.first_call else "steady",collector_identity=collector_identity,commands=plan,promotion_eligible=False),indent=2)+"\n")
     if args.plan_only:return 0
     captures=[]
     for entry in plan:
@@ -90,9 +114,13 @@ def main():
         captures.extend(validate_paths([output]))
     # Preserve all observations and ranges; no fixed-order overhead subtraction.
     views=aggregate_captures(captures)
-    report=dict(schema="public_calibration_observations_v1",observation_views=views,
-                overhead_inference="counterbalanced_pair_order_recorded_no_causal_overhead_or_speedup_claim",
+    report=dict(schema="public_calibration_observations_v1",observation_views=views,collector_identity=collector_identity,
+                overhead_inference="fresh_process_first_call_not_steady_state" if args.first_call else "counterbalanced_pair_order_recorded_no_causal_overhead_or_speedup_claim",
                 promotion_eligible=False)
+    if args.first_call:
+        report['sampling']='first_call_after_context_creation_not_steady_state'
+        report['first_call_observations']=[dict(case=entry['case'],run=entry['run'],execution_id=capture['execution_id'],
+            capture_path=entry['output'],measurements=first_call_setup(capture)) for entry,capture in zip(plan,captures)]
     (args.output/"public-calibration-report.json").write_text(json.dumps(report,indent=2)+"\n")
     return 0
 

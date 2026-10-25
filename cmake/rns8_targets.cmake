@@ -199,6 +199,7 @@ if(RNS8_BUILD_BENCHMARKS)
   endif()
   add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
+  add_executable(rns8-stream-capacity-qualify benchmarks/rns8_stream_capacity_qualify.cpp)
   foreach(_calibrator IN ITEMS
       rns8-cpu-amx-calibrate
       rns8-crt-calibrate
@@ -222,7 +223,8 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-lift-recipe-calibrate
       rns8-product-stage-calibrate
       rns8-narrow-public-calibrate
-      rns8-stream-panel-calibrate)
+      rns8-stream-panel-calibrate
+      rns8-stream-capacity-qualify)
     rns8_bind_manifest(${_calibrator})
     target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
     target_link_libraries(${_calibrator} PRIVATE rns8_static nlohmann_json::nlohmann_json)

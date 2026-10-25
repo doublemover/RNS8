@@ -228,5 +228,51 @@ each child process, validates existing build provenance, and keeps dirty,
 unknown-dependency or diagnostic CRT builds ineligible for promotion. Summaries
 compare observed phase-matched independent processes, with panel sizes and
 budgets still visible; they do not extrapolate crossover or capacity claims.
-The suite and its fixtures are authored only; execution and measurements await
-the consolidated validation batch.
+The [October 25 integration](local-validation-20261025.md#allocation-and-global-control-integration-retry)
+passes the applicable local small correctness, policy and receipt fixtures.
+Actual beyond-device-capacity, independent crossover and trace qualification
+remain separate gates.
+
+## Explicit physical capacity fixture
+
+The authored `rns8-stream-capacity-qualify` gate addresses the small harness's
+512 MiB ceiling separately. It uses signed M=65537, N=3, K=65537 with prefix 9,
+256×4×4096 panels, padded native inputs/output and no retained B cache. The
+complete native A exceeds 32 GiB; its complete nine-plane RNS representation
+exceeds 36 GiB. The gate requires both to exceed the queried actual device
+memory, before calling the case a beyond-device-capacity demonstration.
+Inputs are affine periodic values near 2^20 with negative B columns; the
+complete signed bound requires at least eight default planes. Even that minimum
+A representation exceeds 32 GiB and must exceed actual VRAM. The capacity
+claim therefore does not depend on charging unnecessary prefix-9 planes.
+
+It requires explicit caller, device and library-host budgets and available
+host RAM for all caller payload, the library-host budget and an additional
+8 GiB reserve. No full-sized reference/RNS shadow is allocated on the host.
+A small period table fills the real complete native allocation; an independent
+Boost period-sum oracle checks every output plus input/output padding. Cold,
+unchanged-generation warm and changed-A-generation calls reuse one stream owner.
+Public observations check device/pinned requested peaks against the budgets and
+verify retirement to the prior live baseline. Ordinary host capacities and
+allocator/driver exclusions remain explicit; process RSS is not measured.
+
+```powershell
+.\build\rns8-stream-capacity-qualify.exe --describe
+.\build\rns8-stream-capacity-qualify.exe 0 serial 42949672960 67108864 67108864 capacity-serial-001
+.\build\rns8-stream-capacity-qualify.exe 0 overlap 42949672960 67108864 67108864 capacity-overlap-001
+python tools/collect_stream_capacity.py --binary build/rns8-stream-capacity-qualify.exe --output temp/physical-stream-capacity --caller-budget-bytes 42949672960 --device-budget-bytes 67108864 --host-budget-bytes 67108864 --runs 2
+```
+
+`--describe` performs only resource queries. The regular suite tests that mode
+and rejects an insufficient caller budget without querying a GPU or allocating
+the dataset. Physical execution is always explicit; unavailable RAM/device
+capacity returns 77. This three-call gate establishes capacity/correctness when
+executed, and does not substitute for independent crossover or overlap traces.
+The fixture, CPU oracle regressions and CLI contracts are authored; their build,
+runtime and actual capacity qualification remain pending.
+
+The collector pins the executable, assigns separate process/run identities,
+counterbalances schedule order and retains timeouts/skips/failures without a
+retry or resume. It independently checks the exact generation-dependent weighted
+checksums, complete tail-panel coverage and submitted payload/transfer totals,
+as well as queried/observed memory bounds. Its output directory must be new.

@@ -2625,6 +2625,17 @@
             "include/rns8/rns8.h",
             "tests/unit/test_stream_panel_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Author an explicit physical >32 GiB native-A capacity fixture whose minimum proved eight-plane A is also >32 GiB, with 64 MiB bounded library working sets, available-RAM admission, complete independent periodic Boost output/padding checks, generation mutation, observed requested allocation peaks and retirement. Add a pinned independent-process collector with exact checksum/DMA/coverage replay. Source syntax checks pass; build/CPU/physical qualification is pending.",
+          "files": [
+            "benchmarks/stream_capacity_case.hpp",
+            "benchmarks/rns8_stream_capacity_qualify.cpp",
+            "tools/collect_stream_capacity.py",
+            "tests/unit/test_stream_panel_plan_cases.inc",
+            "tools/test_collect_stream_capacity.py",
+            "tools/test_stream_capacity_fixture.py"
+          ]
         }
       ],
       "regressions": [
@@ -2637,7 +2648,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Resource/receipt/model correctness passes locally. Real beyond-device-capacity demonstration, trace/allocation reconciliation, independent crossover and held-out panel calibration remain."
+        "Build and qualify the new >32 GiB host/minimum-RNS capacity fixture on the 24 GiB gfx1100 device, after its CPU/CLI/collector checks. Existing owner correctness passes; achieved overlap traces, independent crossover and held-out panel calibration remain separate."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [

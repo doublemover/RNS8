@@ -86,7 +86,18 @@ bridge and links it with the host compiler/library.
 
 The observation increment passes the local full CPU sanitizer and gfx1100 GPU
 suite at `668f9ea`, including warm-cache physical indices and query reuse.
-Same-algorithm metadata-policy measurements remain separate.
+The repaired same-algorithm collection completes 300/300 captures across 15
+workloads, both policies/timing modes and five independent processes. All
+physical algorithm/work identities match. Descriptor constructions fall by
+9–20× in multi-plane controls, while small elapsed-time differences do not
+qualify amid process variation. No additional throughput gain or routing
+promotion follows. See the [reviewed observations](../../metadata/hipblaslt-metadata-observations-20261025.json).
+Fresh first-invocation setup accounting is a separate remaining gate. The
+collector's `--first-call` mode owns zero warmups/one completed production call,
+then reports disjoint plan/workspace, matrix allocation and completed-call costs
+after context creation. It excludes input generation and the independent oracle;
+these observations never enter steady-state promotion. The representative
+`hipblaslt-first-call.json` corpus is authored for that gate.
 
 The ordinary benchmark creates an exact-wide plan before binding input values.
 Its initial envelope is therefore the full native-type range even for a small

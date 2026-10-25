@@ -4439,6 +4439,10 @@
           "reference": "wide-index-gemm.md"
         },
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "wide-index-gemm.md#native-windows-gfx1100-qualification"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../wide-index-gemm.md"
         }
@@ -4446,7 +4450,8 @@
       "anchors": [
         "budgeted-physical-fixture",
         "generic-64-bit-index-residue-control",
-        "matched-finite-address-width-controls"
+        "matched-finite-address-width-controls",
+        "native-windows-gfx1100-qualification"
       ]
     },
     {
@@ -4935,6 +4940,7 @@
       ],
       "anchors": [
         "bounded-out-of-core-panel-planning",
+        "explicit-physical-capacity-fixture",
         "public-serial-panel-calibration"
       ]
     },
@@ -5236,6 +5242,10 @@
           "reference": "local-validation-20261025.md"
         },
         {
+          "source": "docs/out-of-core-panels.md",
+          "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
+        },
+        {
           "source": "docs/planning-recipes.md",
           "reference": "local-validation-20261025.md#subsequent-materialization-integration"
         },
@@ -5269,9 +5279,11 @@
         }
       ],
       "anchors": [
+        "address-domain-and-algorithm-identity-integration",
         "allocation-and-global-control-integration-retry",
         "failures-repaired",
         "issue-closeout-and-remaining-gates",
+        "matched-hipblaslt-metadata-policy-observations",
         "reproduction",
         "results-and-coverage",
         "subsequent-materialization-integration",
