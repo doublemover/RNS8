@@ -97,6 +97,21 @@ inline constexpr std::array<std::string_view, 9> pack_layouts{{
     "wrap64_byte_limb_planes"
 }};
 
+struct BuiltinEventFamily {std::string_view family, integer_event, finite_event;};
+inline constexpr std::array<BuiltinEventFamily, 7> builtin_event_families{{
+    {"cdna3_mfma_i32_32x32x16_i8", "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel", "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"},
+    {"cdna3_mfma_i32_16x16x32_i8", "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel", "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"},
+    {"rdna3_wmma_i32_16x16x16_iu8", "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel", "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel"},
+    {"rdna4_wmma_i32_16x16x16_iu8", "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel", "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel"},
+    {"cdna3_smfmac_i32_32x32x32_i8", "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_kernel", "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel"},
+    {"cdna3_smfmac_i32_16x16x64_i8", "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel", "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"},
+    {"rdna4_swmmac_i32_16x16x32_iu8", "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel", "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"},
+}};
+inline constexpr const char* builtin_event_label(std::string_view kernel,bool finite) {
+  for(const auto& row:builtin_event_families) if(kernel.find(row.family)!=std::string_view::npos)
+    return (finite || kernel.find("_finite")!=std::string_view::npos ? row.finite_event : row.integer_event).data();
+  return "amdgpu_builtin_rns_matrix_core_kernel";
+}
 inline constexpr std::array<std::string_view, 14> gpu_event_source_scopes{{
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
     "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",

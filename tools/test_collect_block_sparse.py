@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from collect_block_sparse import (BUDGET, MODES, active, checksum, collect, contract, dataset,
-                                 load_cases, structure, summarize, validate_capture, validate_case)
+                                 load_cases, structure, summarize, validate_capture, validate_case, collection_schedule)
 from test_capture_identity_support import synthetic_identity
 BASE = dict(device=0, mode="sparse_scalar", m=2, n=3, k=65, pattern="mixed", reuse_count=1, hybrid_threshold=0)
 
@@ -146,6 +146,29 @@ class Captures(unittest.TestCase):
                 self.assertEqual({case["mode"] for case in cases if (case["pattern"], case["reuse_count"]) == shape}, set(MODES))
 
 
+class CounterbalancedSchedule(unittest.TestCase):
+    def test_every_case_repeat_once_in_bounded_rotating_matched_blocks(self):
+        cases=[case_for(mode,reuse_count=reuse) for reuse in (1,8,32) for mode in MODES]
+        schedule=collection_schedule(cases,5,5151)
+        self.assertEqual(schedule,collection_schedule(cases,5,5151))
+        self.assertNotEqual(schedule,collection_schedule(cases,5,77))
+        self.assertEqual({(j['case_index'],j['independent_run']) for j in schedule},
+                         {(i,r) for i in range(len(cases)) for r in range(5)})
+        self.assertEqual(len(schedule),len(cases)*5)
+        self.assertEqual([j['ordinal'] for j in schedule],list(range(len(schedule))))
+        positions={}
+        for start in range(0,len(schedule),len(MODES)):
+            block=schedule[start:start+len(MODES)]
+            self.assertEqual({j['position_in_block'] for j in block},set(range(len(MODES))))
+            self.assertEqual(len({j['matched_block'] for j in block}),1)
+            self.assertEqual(len({j['independent_run'] for j in block}),1)
+            self.assertEqual(len({cases[j['case_index']]['reuse_count'] for j in block}),1)
+            self.assertEqual({cases[j['case_index']]['mode'] for j in block},set(MODES))
+            for job in block:positions.setdefault(job['case_index'],set()).add(job['position_in_block'])
+        self.assertTrue(all(len(p)==5 for p in positions.values()))
+
+
+
 class ObservedReuse(unittest.TestCase):
     def observations(self):
         result = []
@@ -199,6 +222,9 @@ class Collection(unittest.TestCase):
             self.assertEqual(records[-1]["validated"], not bool(mutation or status))
             for record in records:
                 self.assertFalse(record["promotion_eligible"])
+                self.assertEqual(len(record["schedule_sha256"]),64)
+                self.assertGreater(record["started_unix_ns"],0)
+                self.assertEqual(record["order_seed"],5151)
                 self.assertEqual(set(record["tool_sha256"]), {"collect_block_sparse.py", "collect_finite_verify.py", "build_manifest.py"})
             self.assertEqual(len(list((root/"output").glob("comparison-*.json"))), 0 if mutation or status else 1)
             return records

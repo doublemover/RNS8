@@ -1,3 +1,4 @@
+#include "rns8/generated/metadata_registry.hpp"
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>

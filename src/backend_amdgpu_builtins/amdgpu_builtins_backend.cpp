@@ -1,3 +1,4 @@
+#include "rns8/generated/metadata_registry.hpp"
 #include "backend_common/address_domain.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 
@@ -172,20 +173,16 @@ const char* amdgpu_builtins_dense_event_label(int device_id, bool finite, int64_
   info.abi_version = RNS8_ABI_VERSION;
   if (hip_direct_probe(device_id, info) == RNS8_SUCCESS) {
     if (amdgpu_target_is_rdna3(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel"
-                    : "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna3_wmma_i32_16x16x16_iu8",finite);
     }
     if (amdgpu_target_is_rdna4(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel"
-                    : "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna4_wmma_i32_16x16x16_iu8",finite);
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
       if (use_cdna3_mfma_32x32x16_for_override(m, n, k)) {
-        return finite ? "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"
-                      : "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel";
+        return rns8::generated_metadata::builtin_event_label("cdna3_mfma_i32_32x32x16_i8",finite);
       }
-      return finite ? "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"
-                    : "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel";
+      return rns8::generated_metadata::builtin_event_label("cdna3_mfma_i32_16x16x32_i8",finite);
     }
   }
 #else
@@ -206,16 +203,13 @@ const char* amdgpu_builtins_sparse_event_label(int device_id, bool finite, int64
   info.abi_version = RNS8_ABI_VERSION;
   if (hip_direct_probe(device_id, info) == RNS8_SUCCESS) {
     if (amdgpu_target_is_rdna4(info.gcn_arch)) {
-      return finite ? "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"
-                    : "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel";
+      return rns8::generated_metadata::builtin_event_label("rdna4_swmmac_i32_16x16x32_iu8",finite);
     }
     if (amdgpu_target_is_cdna3(info.gcn_arch)) {
       if (use_cdna3_smfmac_32x32x32(m, n, k)) {
-        return finite ? "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel"
-                      : "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_kernel";
+        return rns8::generated_metadata::builtin_event_label("cdna3_smfmac_i32_32x32x32_i8",finite);
       }
-      return finite ? "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"
-                    : "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel";
+      return rns8::generated_metadata::builtin_event_label("cdna3_smfmac_i32_16x16x64_i8",finite);
     }
   }
 #else

@@ -28,6 +28,7 @@
 #include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
+#include "rns8/generated/metadata_registry.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"

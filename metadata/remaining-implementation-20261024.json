@@ -1157,14 +1157,32 @@
       "issue": 51,
       "title": "[Research P3] Qualify explicit Sparse-A and proof-preserving hybrid block-sparse execution",
       "url": "https://github.com/doublemover/RNS8/issues/51",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Public block sparse/hybrid and structured paths implemented; current comment's collector counterbalancing and CDNA3 larger-family producer/schema event mapping remain incomplete.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Counterbalanced bounded block-sparse collection schedule with exact case/repeat coverage, rotating method positions, shuffled cohort order, immutable schedule SHA/seed/ordinal/block/start-time receipts. Central generated builtin-family event mapping shared by actual backend hooks, C++ JSON producer and Python schema, including both CDNA3 sparse shapes and finite/RNS semantics.",
+          "files": [
+            "tools/collect_block_sparse.py",
+            "metadata/event_phases.yaml",
+            "tools/metadata_registry.py",
+            "include/rns8/generated/metadata_registry.hpp",
+            "tools/metadata_registry_constants.py",
+            "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+            "benchmarks/rns8_bench_event_phase_helpers.inc",
+            "tools/benchmark_schema/gpu_events.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_collect_block_sparse.py",
+        "tools/test_metadata_registry.py",
+        "tools/test_benchmark_schema_case_events_schedule.py",
+        "tests/unit/test_api_operation_provider_cases.inc"
+      ],
       "commits": [],
       "remaining": [
-        "Structured sparse counterbalanced collector, CDNA3 larger family and event/provenance schema composition remain.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Execute authored regressions and independent sparse campaigns; qualify actual target ISA/runtime, controls, sustained crossover and the structured-sparse >=1.5x end-to-end gate. No measured win or promoted route claimed."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -1594,7 +1612,8 @@
         "tools/test_collect_word_mod_calibration.py"
       ],
       "commits": [
-        "b65f8bce5880118bb4dd222a92c551c5fbcc510b"
+        "b65f8bce5880118bb4dd222a92c551c5fbcc510b",
+        "10fe3f844eadaf52932cde964055a3e2768c4d88"
       ],
       "remaining": [
         "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."

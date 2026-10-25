@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import platform
 import re
+import random
+import time
 import statistics
 import subprocess
 import sys
@@ -237,6 +239,25 @@ def summarize(observations):
     return results
 
 
+def collection_schedule(cases,runs,seed):
+    """Bounded matched blocks with one process per method, rotated per repeat."""
+    demand(integer(runs,1,100) and type(seed) is int,"invalid schedule controls")
+    groups={}
+    for index,case in enumerate(cases):
+        key=tuple(case[name] for name in ('device','m','n','k','pattern','reuse_count'))
+        groups.setdefault(key,[]).append(index)
+    blocks=list(groups.values());rng=random.Random(seed)
+    for block in blocks:rng.shuffle(block)
+    result=[]
+    for run in range(runs):
+        order=list(range(len(blocks)));rng.shuffle(order)
+        for group in order:
+            block=blocks[group];shift=run%len(block);indices=block[shift:]+block[:shift]
+            for position,index in enumerate(indices):
+                result.append(dict(case_index=index,independent_run=run,matched_block=group,position_in_block=position,ordinal=len(result)))
+    return result
+
+
 def collect(args):
     cases = load_cases(args.cases)
     demand(integer(args.runs, 1, 100) and integer(args.repeats, 1, 1000) and integer(args.warmups, 1, 1000) and integer(args.timeout, 1, 3600), "invalid collection bounds")
@@ -246,20 +267,26 @@ def collect(args):
     here = Path(__file__).resolve()
     hashes = {name: file_digest(here.with_name(name)) for name in (here.name, "collect_finite_verify.py", "build_manifest.py")}
     cohort = {}; outputs = {}; build = None; observations = []
-    for case_index, case in enumerate(cases):
-        a, b = dataset(case); dataset_hash = hashlib.sha256(a+b).hexdigest()
-        for independent in range(args.runs):
+    seed=getattr(args,'order_seed',5151);schedule=collection_schedule(cases,args.runs,seed)
+    schedule_document=dict(schema='rns8_block_sparse_schedule_v1',order_seed=seed,cases_sha256=cases_hash,schedule=schedule)
+    schedule_text=json.dumps(schedule_document,sort_keys=True,separators=(',',':'))+'\n'
+    schedule_hash=hashlib.sha256(schedule_text.encode()).hexdigest();schedule_path=output/(campaign+'.schedule.json')
+    with schedule_path.open('x',encoding='utf-8') as stream:stream.write(schedule_text)
+    for job in schedule:
+            case_index=job['case_index'];independent=job['independent_run'];case=cases[case_index]
+            a,b=dataset(case);dataset_hash=hashlib.sha256(a+b).hexdigest()
             run_id = f"{campaign}-{case_index}-{independent}"
             command = [str(executable), str(case["device"]), case["mode"], *(str(case[key]) for key in ("m", "n", "k", "pattern", "reuse_count", "hybrid_threshold")), str(args.repeats), str(args.warmups), run_id]
             prefix = output/run_id
             record = dict(schema="rns8_block_sparse_collection_v1", campaign_id=campaign, run_id=run_id, case=case,
-                          independent_run=independent, command=command, artifact_sha256=artifact, cases_sha256=cases_hash,
+                          independent_run=independent, command=command, order_seed=seed, schedule_sha256=schedule_hash, ordinal=job["ordinal"], matched_block=job["matched_block"], position_in_block=job["position_in_block"], started_unix_ns=time.time_ns(), artifact_sha256=artifact, cases_sha256=cases_hash,
                           dataset_sha256=dataset_hash, tool_sha256=hashes, promotion_eligible=False, validated=False,
                           host=dict(platform=platform.platform(), python=sys.version, python_executable=sys.executable, python_executable_sha256=file_digest(sys.executable)),
                           environment={key: os.environ[key] for key in ("HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES") if key in os.environ})
             def save():
                 prefix.with_suffix(".record.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")
             try:
+                demand(file_digest(schedule_path)==schedule_hash,"schedule changed before launch")
                 demand(file_digest(executable) == artifact, "executable changed before launch")
                 demand(file_digest(args.cases) == cases_hash, "case manifest changed before launch")
                 child = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=args.timeout, check=False)
@@ -287,7 +314,7 @@ def collect(args):
                 record["error"] = str(error); save(); raise
             save()
     summary = dict(schema="rns8_block_sparse_reuse_comparison_v1", campaign_id=campaign, artifact_sha256=artifact,
-                   build_manifest=build, promotion_eligible=False, comparison=summarize(observations))
+                   build_manifest=build, order_seed=seed, schedule_sha256=schedule_hash, promotion_eligible=False, comparison=summarize(observations))
     (output/f"comparison-{campaign}.json").write_text(json.dumps(summary, indent=2)+"\n", encoding="utf-8")
     return campaign
 
@@ -298,6 +325,7 @@ def main(argv=None):
         parser.add_argument("--"+flag, required=True)
     for flag, default in (("runs", 5), ("repeats", 9), ("warmups", 3), ("timeout", 600)):
         parser.add_argument("--"+flag, type=int, default=default)
+    parser.add_argument("--order-seed",type=int,default=5151)
     args = parser.parse_args(argv)
     try:
         print(collect(args)); return 0

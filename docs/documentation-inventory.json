@@ -1680,6 +1680,7 @@
         }
       ],
       "anchors": [
+        "campaign-order-control",
         "commands-and-observed-comparisons",
         "exact-reference-and-dataset",
         "matched-boundaries",

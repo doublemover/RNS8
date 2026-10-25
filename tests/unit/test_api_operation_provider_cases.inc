@@ -51,3 +51,13 @@ TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum an
   q.reuse_count=0;CHECK(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+TEST_CASE("generated builtin event map keeps producer and semantic family identities aligned") {
+  using namespace rns8::generated_metadata;
+  for(const auto& row:builtin_event_families){
+    REQUIRE(std::string_view(builtin_event_label(row.family,false))==row.integer_event);
+    REQUIRE(std::string_view(builtin_event_label(row.family,true))==row.finite_event);
+    REQUIRE(std::string_view(builtin_event_label(std::string(row.family)+"_finite_u8_epilogue_v1",false))==row.finite_event);
+  }
+  REQUIRE(std::string_view(builtin_event_label("amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_v1",true))=="amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel");
+}
