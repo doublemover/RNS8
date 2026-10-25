@@ -1,10 +1,23 @@
 import copy
+import json
+from pathlib import Path
 import unittest
 from collect_narrow_public_calibration import validate_case, validate_capture, selected_prefix
 from test_capture_identity_support import synthetic_identity
 
 
 class NarrowPublicCollection(unittest.TestCase):
+    def test_checked_in_adaptive_cases_are_individual_matched_collector_inputs(self):
+        folder=Path(__file__).resolve().parents[1]/'benchmarks/narrow-public/adaptive-summaries'
+        cases=[validate_case(json.loads(path.read_text())) for path in sorted(folder.glob('*.json'))]
+        self.assertEqual(len(cases),8)
+        groups={}
+        for case in cases:
+            key=json.dumps({k:v for k,v in case.items() if k!='mode'},sort_keys=True)
+            groups.setdefault(key,set()).add(case['mode'])
+        self.assertEqual(len(groups),4)
+        self.assertTrue(all(modes=={'adaptive-fresh','adaptive-cached'} for modes in groups.values()))
+
     def case(self):
         return dict(schema='narrow_public_case_v1', m=17, n=19, k=31, prefix=0, unsigned_inputs=False, mode='scalar-fused', residency='resident', repeats=3, warmups=1, seed=5353)
 

@@ -128,7 +128,7 @@ three-limb host adapter. Setup, first call, steady latency and sustained bursts
 stay separate; the oracle stays outside timing. Counters must prove one initial
 scan per side and reuse on every later completed cached call. The affine-small
 fixture isolates summary reuse and does not replace heterogeneous distributions.
-The focused shortlist is `benchmarks/narrow-public/adaptive-summaries.json`.
+The focused shortlist is `benchmarks/narrow-public/adaptive-summaries/`.
 
 This slice is authored pending the next CPU-ASan/GPU batch and matched
 measurements. It makes no performance or automatic selection claim.
