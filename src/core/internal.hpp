@@ -262,9 +262,11 @@ struct rns8_workspace {
   void* hip_tile_schedule = nullptr;
   std::size_t hip_tile_schedule_bytes = 0;
   uint64_t hip_tile_schedule_count = 0;
+  rns8_locality_info locality_info{};
   void* hip_tile_schedule_active_entries = nullptr;
   std::size_t hip_tile_schedule_active_entries_bytes = 0;
   uint64_t hip_tile_schedule_active_entries_count = 0;
+  // Prefix-sum count certificate; locality directories may permute physical entries.
   uint64_t hip_tile_schedule_active_offsets[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint64_t hip_tile_schedule_active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
   uint32_t hip_tile_schedule_active_prefix_count = 0;

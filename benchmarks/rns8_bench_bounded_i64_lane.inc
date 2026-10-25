@@ -62,7 +62,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
   }
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
-  status = rns8_create_workspace(ctx, plan, &workspace);
+  status = create_benchmark_workspace(ctx, plan, args, result, &workspace);
   if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
   capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();

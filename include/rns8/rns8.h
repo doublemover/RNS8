@@ -1153,6 +1153,52 @@ RNS8_API rns8_status rns8_get_grouped_dispatch_contract_info(
     uint32_t task_count,
     rns8_grouped_dispatch_contract_info* out);
 
+/* Explicit experimental ordering of existing direct-HIP residue schedule work.
+ * No XCD affinity, cache topology or performance qualification is implied.
+ * target_id: 0=actual supported target, 942/950=Instinct experiment, 1100=control.
+ * Unknown/mismatched targets retain ordinary order and report applied=0.
+ * cache_domains/concurrent_groups/cache_bytes are hypothetical model inputs. */
+typedef enum rns8_locality_order {
+  RNS8_LOCALITY_ORDINARY=0,
+  RNS8_LOCALITY_OUTPUT_NEIGHBOR=1,
+  RNS8_LOCALITY_MODULUS=2,
+  RNS8_LOCALITY_SAME_OUTPUT=3
+} rns8_locality_order;
+typedef struct rns8_locality_desc {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_locality_order order;
+  uint32_t target_id;
+  uint32_t topology_version;
+  uint32_t cache_domains;
+  uint32_t concurrent_groups_per_domain;
+  uint64_t cache_bytes_per_domain;
+} rns8_locality_desc;
+typedef struct rns8_locality_info {
+  uint64_t struct_size;
+  uint32_t abi_version;
+  rns8_locality_order requested_order;
+  rns8_locality_order applied_order;
+  uint32_t target_id;
+  uint32_t topology_version;
+  uint32_t applied;
+  uint32_t physical_affinity_established;
+  uint32_t cache_domains;
+  uint32_t concurrent_groups_per_domain;
+  uint64_t cache_bytes_per_domain;
+  uint64_t active_entries;
+  uint64_t directory_bytes;
+  uint64_t k_phases;
+  uint64_t requested_source_bytes;
+  uint64_t unique_source_bytes;
+  uint64_t output_read_write_bytes;
+  uint64_t permutation_fingerprint;
+} rns8_locality_info;
+RNS8_API rns8_status rns8_create_locality_workspace(
+    rns8_context* ctx,const rns8_plan* plan,const rns8_locality_desc* desc,rns8_workspace** out);
+RNS8_API rns8_status rns8_get_workspace_locality_info(
+    const rns8_workspace* workspace,rns8_locality_info* out);
+
 RNS8_API rns8_status rns8_create_workspace(
     rns8_context* ctx,
     const rns8_plan* plan,

@@ -403,12 +403,29 @@
       "issue": 36,
       "title": "[Research P2] Schedule residue and output tiles for measured XCD/cache locality",
       "url": "https://github.com/doublemover/RNS8/issues/36",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Offline typed locality schedule bijection/cache simulator implemented; no actual target-specific launch remapping consumer or associated kernel integration in source. Hardware execution alone is not the missing item.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Add explicit public locality workspace lowering into the real direct-HIP grouped-active directory, target-bound gfx942/gfx950 and gfx1100 control with ordinary unknown-target fallback; tail cost buckets, immutable permutation identity, source-traffic accounting, public calibration fixtures and non-promotion/cohort integration.",
+          "files": [
+            "src/backend_common/locality_schedule.hpp",
+            "src/core/api_workspace_public_api.inc",
+            "include/rns8/rns8.h",
+            "benchmarks/public-calibration/locality.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_plan_validation_cache_cases.inc",
+        "tools/test_locality_schedule.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Raw-native grouped/split-fragment locality composition remains to integrate with #35/#37/#38.",
+        "An explicit cache-displacement harness control remains to implement; repacking alone is not a cache-cold claim.",
+        "GPU compilation, execution, physical counter/placement evidence, measured cache-cold control and promotion remain deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         30,
@@ -437,7 +454,9 @@
         "tests/differential/test_hip_direct_native_wmma_cases.inc",
         "tools/test_collect_native_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "dff4bd1821797f488f05076c2b3668a52a707ce9"
+      ],
       "remaining": [
         "Device compilation, regression execution and measured same-contract net benefit remain deferred.",
         "Public native async/prepared and planner selection integration compose with #38/#43/#67; no new automatic selection."

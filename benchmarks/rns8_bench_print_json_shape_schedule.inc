@@ -514,3 +514,19 @@
                  "synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, "
                  "and GPU bounded export when using HIP\",\n";
   }
+
+  std::cout << "  \"locality_schedule\": ";
+  if(result.locality_info.struct_size) {
+    const auto& v=result.locality_info;
+    std::cout << "{\"version\":1,\"representation\":\"resident_residue8\",\"modulus_group_size\":1,"
+      << "\"requested_order\":" << v.requested_order << ",\"applied_order\":" << v.applied_order
+      << ",\"target_id\":" << v.target_id << ",\"topology_version\":" << v.topology_version
+      << ",\"applied\":" << (v.applied?"true":"false") << ",\"physical_affinity_established\":false"
+      << ",\"cache_domains_model\":" << v.cache_domains << ",\"concurrent_groups_per_domain_model\":" << v.concurrent_groups_per_domain
+      << ",\"cache_bytes_per_domain_model\":" << v.cache_bytes_per_domain << ",\"active_entries\":" << v.active_entries
+      << ",\"directory_bytes\":" << v.directory_bytes << ",\"k_phases\":" << v.k_phases
+      << ",\"requested_source_bytes\":" << v.requested_source_bytes << ",\"unique_source_bytes\":" << v.unique_source_bytes
+      << ",\"output_read_write_bytes\":" << v.output_read_write_bytes << ",\"permutation_fingerprint\":" << v.permutation_fingerprint
+      << ",\"traffic_scope\":\"active_arithmetic_only_excludes_pack_zero_fill_export\",\"actual_hbm_bytes\":null,\"measured_cache_hit_rate\":null,\"promotion_eligible\":false}";
+  } else std::cout << "null";
+  std::cout << ",\n";

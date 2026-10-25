@@ -549,3 +549,19 @@ const char* bounded_native_b_reuse_a_large_colpair_pack_h2d_label() {
   return "bounded_native_b_h2d";
 }
 
+
+
+rns8_status create_benchmark_workspace(rns8_context* ctx,const rns8_plan* plan,const Args& args,
+    BenchmarkResult& result,rns8_workspace** workspace) {
+  if(args.locality_order.empty())return rns8_create_workspace(ctx,plan,workspace);
+  rns8_locality_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
+  desc.order=args.locality_order=="output-neighbor"?RNS8_LOCALITY_OUTPUT_NEIGHBOR:
+      args.locality_order=="modulus"?RNS8_LOCALITY_MODULUS:
+      args.locality_order=="same-output"?RNS8_LOCALITY_SAME_OUTPUT:RNS8_LOCALITY_ORDINARY;
+  desc.topology_version=1;desc.cache_domains=args.locality_model_domains;
+  desc.concurrent_groups_per_domain=args.locality_model_concurrency;desc.cache_bytes_per_domain=args.locality_model_cache_bytes;
+  auto status=rns8_create_locality_workspace(ctx,plan,&desc,workspace);
+  if(status!=RNS8_SUCCESS)return status;
+  result.locality_info.struct_size=sizeof(result.locality_info);result.locality_info.abi_version=RNS8_ABI_VERSION;
+  return rns8_get_workspace_locality_info(*workspace,&result.locality_info);
+}

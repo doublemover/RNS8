@@ -290,6 +290,14 @@ class Workspace final {
     check(rns8_create_workspace(context.get(), plan.get(), &handle_));
   }
 
+  Workspace(Context& context,const Plan& plan,const rns8_locality_desc& locality) {
+    check(rns8_create_locality_workspace(context.get(),plan.get(),&locality,&handle_));
+  }
+  rns8_locality_info locality_info() const {
+    rns8_locality_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    check(rns8_get_workspace_locality_info(handle_,&info));return info;
+  }
+
   Workspace(const Workspace&) = delete;
   Workspace& operator=(const Workspace&) = delete;
 

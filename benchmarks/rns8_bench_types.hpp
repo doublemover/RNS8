@@ -126,6 +126,9 @@ struct Args {
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
   bool hipblaslt_metadata_per_block_control = false;
+  std::string locality_order;
+  uint32_t locality_model_domains=1,locality_model_concurrency=1;
+  uint64_t locality_model_cache_bytes=0;
   bool streaming_overlap = false;
   bool streaming_serial_control = false;
   uint32_t streaming_batches = 9;
@@ -244,6 +247,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
   rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
   rns8::detail::api::plan_validation_counters schedule_after_warmups{}, schedule_after_repeats{};
+  rns8_locality_info locality_info{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
   bool allocation_after_repeats_available = false;

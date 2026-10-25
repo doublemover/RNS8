@@ -3021,6 +3021,7 @@
         }
       ],
       "anchors": [
+        "explicit-direct-hip-runtime-consumer",
         "logical-locality-schedules"
       ]
     },

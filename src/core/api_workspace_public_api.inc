@@ -1,9 +1,12 @@
-rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8_workspace** out) {
+static rns8_status create_workspace_impl(rns8_context* ctx, const rns8_plan* plan, rns8_workspace** out,
+    const rns8_locality_desc* locality) {
   return guard_api([&]() -> rns8_status {
     if (!ctx || !plan || !out) {
       return RNS8_INVALID_ARGUMENT;
     }
     *out = nullptr;
+    if(locality && !rns8::detail::locality_descriptor_valid(*locality))return RNS8_INVALID_ARGUMENT;
+    if(locality && (plan->backend!=RNS8_BACKEND_HIP_DIRECT || plan->tile_schedule.empty()))return RNS8_UNSUPPORTED_BACKEND;
     if (ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
     if (!plan_schedule_contract_matches(*plan)) {
       return RNS8_INVALID_ARGUMENT;
@@ -38,6 +41,11 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
             std::numeric_limits<std::size_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
           return RNS8_RANGE_ERROR;
         }
+      }
+      if(locality) {
+        const auto status=rns8::detail::lower_locality_schedule(active_entries,static_cast<uint64_t>(plan->desc.k),
+            *locality,ctx->device_info.gcn_arch,workspace->locality_info);
+        if(status!=RNS8_SUCCESS)return status;
       }
       const bool zero_masks_requested = (plan->desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
       const bool upload_device_tile_schedule =
@@ -193,6 +201,20 @@ rns8_status rns8_create_workspace(rns8_context* ctx, const rns8_plan* plan, rns8
     *out = owner.release();
     return RNS8_SUCCESS;
   });
+}
+
+rns8_status rns8_create_workspace(rns8_context* ctx,const rns8_plan* plan,rns8_workspace** out) {
+  return create_workspace_impl(ctx,plan,out,nullptr);
+}
+rns8_status rns8_create_locality_workspace(rns8_context* ctx,const rns8_plan* plan,
+    const rns8_locality_desc* desc,rns8_workspace** out) {
+  if(!desc){if(out)*out=nullptr;return RNS8_INVALID_ARGUMENT;}
+  return create_workspace_impl(ctx,plan,out,desc);
+}
+rns8_status rns8_get_workspace_locality_info(const rns8_workspace* workspace,rns8_locality_info* out) {
+  if(!workspace || !out || out->struct_size!=sizeof(*out) || out->abi_version!=RNS8_ABI_VERSION)return RNS8_INVALID_ARGUMENT;
+  if(workspace->locality_info.struct_size!=sizeof(*out))return RNS8_UNSUPPORTED_BACKEND;
+  *out=workspace->locality_info;return RNS8_SUCCESS;
 }
 
 rns8_status rns8_destroy_workspace(rns8_workspace* workspace) {

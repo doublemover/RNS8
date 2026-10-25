@@ -237,6 +237,8 @@ def capture_entry(
     )
     shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
     blockers: list[str] = phase_blockers(capture)
+    if capture.get("locality_schedule") is not None:
+        blockers.append("experimental_locality_workspace_not_runtime_auto_route")
     if host_instrumentation(capture) != "hooks_disabled":
         blockers.append("diagnostic_instrumented_host_time_not_production_evidence")
     comparison = (reviewed_entry or {}).get("timing_comparison") or baseline.get("timing_comparison")

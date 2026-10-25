@@ -106,5 +106,27 @@ class LocalityTests(unittest.TestCase):
             schedule.encode(Work(0, 0, 0, 0, 1))
 
 
+
+class RuntimeLocalityMetadataTests(unittest.TestCase):
+    def capture(self):
+        return {'k':65537,'locality_schedule':dict(version=1,requested_order=3,applied_order=3,target_id=942,topology_version=1,
+            modulus_group_size=1,representation='resident_residue8',applied=True,physical_affinity_established=False,
+            cache_domains_model=1,concurrent_groups_per_domain_model=4,cache_bytes_per_domain_model=0,
+            active_entries=9,directory_bytes=720,k_phases=2,requested_source_bytes=900,unique_source_bytes=600,
+            output_read_write_bytes=300,permutation_fingerprint=123,traffic_scope='active_arithmetic_only_excludes_pack_zero_fill_export',actual_hbm_bytes=None,measured_cache_hit_rate=None,promotion_eligible=False)}
+    def test_schema_and_nonpromotion(self):
+        import copy
+        from benchmark_schema.locality import validate_locality
+        from benchmark_sweep_lib.review import scenario_promotion_blockers
+        capture=self.capture();self.assertEqual(validate_locality(capture),[])
+        self.assertEqual(scenario_promotion_blockers(capture),['experimental_locality_workspace_not_runtime_auto_route'])
+        for key,value in [('physical_affinity_established',True),('actual_hbm_bytes',900),('measured_cache_hit_rate',0.9),
+                          ('promotion_eligible',True),('unique_source_bytes',901),('target_id',9999),('k_phases',1),('applied_order',0),
+                          ('active_entries',True),('representation','native64')]:
+            bad=copy.deepcopy(capture);bad['locality_schedule'][key]=value
+            with self.subTest(key=key):self.assertTrue(validate_locality(bad))
+        capture['locality_schedule'].update(applied=False,applied_order=0,target_id=0)
+        self.assertEqual(validate_locality(capture),[])
+
 if __name__ == "__main__":
     unittest.main()

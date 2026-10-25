@@ -147,6 +147,8 @@ def _prepack_cache_key_fields(cache_key: str) -> dict[str, str] | None:
 
 
 def validate_contract_metadata(self: Any) -> None:
+    from .locality import validate_locality
+    for error in validate_locality(self.data): self._error(error)
     from .immutable_schedule import validate_immutable_schedule
     for error in validate_immutable_schedule(self.data): self._error(error)
     from .hipblaslt_metadata import validate_hipblaslt_metadata

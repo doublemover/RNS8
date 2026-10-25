@@ -80,6 +80,7 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
     identity["host_instrumentation_state"] = host_instrumentation(capture)
     identity["host_observation_contract"] = host_observation_contract(capture)
     identity["streaming_schedule"] = (capture.get("streaming_overlap") or {}).get("schedule") if streaming_executed(capture) else None
+    identity["locality_schedule"] = capture.get("locality_schedule")
     identity["hipblaslt_metadata_policy"] = (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block") if backend_id(capture)=="hipblaslt" else None
     identity["exact_proof_policy"] = exact_proof_policy(capture)
     identity["host_batch_contract"] = host_batch_contract(capture)

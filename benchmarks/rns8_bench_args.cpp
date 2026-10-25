@@ -350,6 +350,15 @@ Args parse_args(int argc, char** argv) {
       const std::string mode=argv[++i];
       if(mode!="overlapped" && mode!="serial")usage_error("streaming schedule must be overlapped or serial");
       args.streaming_serial_control=mode=="serial";
+    } else if (arg == "--locality-order" && i+1<argc) {
+      args.locality_order=argv[++i];
+      if(args.locality_order!="ordinary" && args.locality_order!="output-neighbor" && args.locality_order!="modulus" && args.locality_order!="same-output")usage_error("unknown locality order");
+    } else if (arg == "--locality-model-domains" && i+1<argc) {
+      args.locality_model_domains=parse_u32(argv[++i],"--locality-model-domains");
+    } else if (arg == "--locality-model-concurrency" && i+1<argc) {
+      args.locality_model_concurrency=parse_u32(argv[++i],"--locality-model-concurrency");
+    } else if (arg == "--locality-model-cache-bytes" && i+1<argc) {
+      args.locality_model_cache_bytes=parse_u64(argv[++i],"--locality-model-cache-bytes");
     } else if (arg == "--hipblaslt-metadata-policy" && i + 1 < argc) {
       const std::string policy=argv[++i];
       if(policy!="per-call" && policy!="per-block")usage_error("hipBLASLt metadata policy must be per-call or per-block");
@@ -413,6 +422,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
+          << "                  [--locality-order ordinary|output-neighbor|modulus|same-output] [--locality-model-domains N] [--locality-model-concurrency N] [--locality-model-cache-bytes N]\n"
           << "                  [--input-profile uniform-small|adaptive-bands|finite-binary|finite-sparse|\n"
           << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
           << "                  [--bound-source static-profile|input-scan]\n"
@@ -943,6 +953,13 @@ Args parse_args(int argc, char** argv) {
             ? 0
             : -1;
   }
+  if(!args.locality_order.empty() && (args.backend!=RNS8_BACKEND_HIP_DIRECT || args.bound_mode!=BoundMode::PerTile ||
+      args.oneshot || args.host_api_batch_size!=1 || args.grouped_dispatch_tasks!=1 || args.adaptive_grouped_scheduler || args.hip_graph_replay || args.native_to_rns_bridge || args.vector_to_rns_chain || args.sparse_a_4_to_2 || args.transient_uniform_small_inputs || args.streaming_overlap || args.residue_chain_length!=1))
+    usage_error("locality ordering requires explicit direct-HIP per-tile ordinary bounded calls");
+  if(args.locality_model_domains<1 || args.locality_model_domains>128 || args.locality_model_concurrency<1 || args.locality_model_concurrency>65536)
+    usage_error("invalid hypothetical locality model dimensions");
+  if(args.locality_order.empty() && (args.locality_model_domains!=1 || args.locality_model_concurrency!=1 || args.locality_model_cache_bytes))
+    usage_error("locality model hints require an explicit locality order");
   if(args.hipblaslt_metadata_per_block_control && args.backend!=RNS8_BACKEND_HIPBLASLT)
     usage_error("per-block metadata control requires explicit hipblaslt backend");
   return args;

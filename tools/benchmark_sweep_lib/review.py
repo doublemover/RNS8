@@ -1706,6 +1706,8 @@ def capture_scenario_promotion_scope(capture: dict[str, Any]) -> str | None:
 
 
 def scenario_promotion_blockers(capture: dict[str, Any]) -> list[str]:
+    if capture.get("locality_schedule") is not None:
+        return ["experimental_locality_workspace_not_runtime_auto_route"]
     scope = capture_scenario_promotion_scope(capture)
     if scope is None or scope == "release_review_candidate":
         return []
