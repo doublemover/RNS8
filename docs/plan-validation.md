@@ -77,3 +77,25 @@ reduce-before-combine, domain/division/layout rejection, K slab boundaries and
 public immutable identity queries. They were **written, not executed** in this
 implementation pass; host C++ syntax checks are not HIP compilation, device
 correctness, ISA evidence or scientific qualification.
+
+The existing offline `ArithmeticCertificate` also has a typed floating-contract
+extension, rather than a second integer checker. It decodes OCP E2M1, E2M3,
+E3M2, E4M3 and E5M2 plus E8M0 scales from the
+[OCP MX specification](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf).
+OCP FP8 is not treated as AMD FNUZ. Code tables must equal the declared logical
+integer tables on an explicit binary grid. The guard covers stored operands,
+all product/reduction partials, per-block exponent rebasing, the initial carry,
+every outer accumulation and integer destination recovery before reduction.
+
+The precision/exponent/rounding/denormal model, fold/balanced tree, scale-placement
+operation, full block schedule and compiler/target identity are serialized.
+Generated lowering/model artifact digests are recomputed; changed assumptions
+without regenerated artifacts fail closed. Only the **new block** can be rebased
+before addition: applying its new scale to an old accumulator is unsupported.
+The conservative rational grid proof does not infer exactness from cancellation
+or identical exceptional floating results. The extended concrete two-evaluator
+rewrite oracle separately models a complete multi-block outer sequence.
+
+These are offline, explicitly declared binary models, not a hardware instruction
+qualification or default floating route. Authored codebook, stale-artifact,
+scale/precision/FTZ, overflow, destination and outer-carry fixtures remain unrun.

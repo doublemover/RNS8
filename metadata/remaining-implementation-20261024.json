@@ -187,7 +187,7 @@
       "issue": 29,
       "title": "[Research P1] Define proof-carrying arithmetic and instruction contracts for every representation",
       "url": "https://github.com/doublemover/RNS8/issues/29",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Offline integer certificate/composition checker, distinct verdicts and strict endpoints exist. Plan creation/research dispatch do not yet consume typed certificates, and explicit floating format/scale/reduction-schedule contracts from latest body remain unsupported.",
       "implementation": [
         {
@@ -198,12 +198,23 @@
             "src/core/api_plan_arithmetic_certificate.inc",
             "src/core/api_prepared_native_group.inc"
           ]
+        },
+        {
+          "summary": "Extended existing integer certificate with exact OCP floating decoding, binary-grid partial/outer/recovery guards, complete scale/reduction/initial-carry contracts and recomputed lowering/model artifact identities; two-evaluator oracle models full outer sequences. No hardware qualification or default floating dispatch.",
+          "files": [
+            "tools/arithmetic_certificate.py",
+            "tools/floating_contract.py",
+            "tools/floating_rewrite_oracle.py"
+          ]
         }
       ],
       "regressions": [
-        "tests/unit/test_arithmetic_certificate_cases.inc"
+        "tests/unit/test_arithmetic_certificate_cases.inc",
+        "tools/test_floating_contract.py"
       ],
-      "commits": [],
+      "commits": [
+        "9951aaf329ffce9a6d88026d67269e088a0e941e"
+      ],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [],

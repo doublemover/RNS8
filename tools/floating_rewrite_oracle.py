@@ -194,3 +194,60 @@ def evaluate(lhs, rhs, scale_a, scale_b, topology="balanced", denominator=1, des
                          "finite_exact_recoverability": "proven" if finite_exact else "refuted",
                          "physical_layout_correctness": "not_run", "target_execution": "not_run"},
             "runtime_dispatch_eligible": False}
+
+
+def evaluate_sequence(blocks, initial_bits=0, denominator=1, destination_bits=64):
+    """Concrete direct/hoisted comparison through a complete outer reduction.
+
+    Each block is (lhs_codes, rhs_codes, scale_a, scale_b, topology,
+    new_block_rebase_exponent). Only the NEW block is rebased. The old
+    accumulator remains in one fixed output grid throughout the sequence.
+    """
+    if (type(initial_bits) is not int or not 0 <= initial_bits <= 0xffffffff
+            or type(denominator) is not int or denominator <= 0
+            or type(destination_bits) is not int or not 1 <= destination_bits <= 256
+            or not 1 <= len(blocks) <= 65536):
+        raise ValueError("invalid outer accumulation contract")
+    results = {name:{"direct":initial_bits,"hoisted":initial_bits} for name in ("rational","host")}
+    exact = rational(initial_bits)
+    initial_finite = exact is not None
+    exact = exact if initial_finite else Fraction()
+    identities, traces = [], []
+    for block in blocks:
+        if len(block) != 6 or type(block[5]) is not int or not -512 <= block[5] <= 512:
+            raise ValueError("explicit bounded new-block rebase required")
+        lhs,rhs,sa,sb,topology,rebase = block
+        result = evaluate(lhs,rhs,sa,sb,topology,1,256)
+        identities.append({"block_sha256":result["sha256"],"new_block_rebase_exponent":rebase})
+        for name,operation in (("rational",_soft),("host",_host)):
+            for route in ("direct","hoisted"):
+                bits = result["outputs"][name][route]
+                if name == "rational":
+                    value = rational(bits)
+                    scaled = bits if value is None else round_binary32(value*pow2(rebase))
+                else:
+                    value = struct.unpack("<f",struct.pack("<I",bits))[0]
+                    try:
+                        scaled = _host_bits(math.ldexp(value,rebase))
+                    except OverflowError:
+                        scaled = (bits & 0x80000000) | INF
+                results[name][route] = operation("add",results[name][route],scaled)
+        exact += sum((decode_element(a)*decode_element(b) for a,b in zip(lhs,rhs)),Fraction())*decode_scale(sa)*decode_scale(sb)*pow2(rebase)
+        traces.append({name:dict(values) for name,values in results.items()})
+    observed=results["rational"]
+    recovered=exact/denominator
+    finite=(initial_finite and all(rational(bits)==exact for bits in observed.values())
+            and recovered.denominator==1 and -(1 << (destination_bits-1)) <= recovered < 1 << (destination_bits-1))
+    rewrite=("unknown" if any((bits & 0x7fffffff)>INF for bits in observed.values())
+             else "proven" if observed["direct"]==observed["hoisted"] else "refuted")
+    identity={"version":"rns8-floating-outer-v1","blocks":identities,"initial_bits":initial_bits,
+              "outer_schedule":"new_block_ldexp_then_left_fold_add","denormals":"gradual",
+              "rounding":"binary32-RNE-separate","denominator":denominator,"destination_bits":destination_bits}
+    return {"schema":"rns8-floating-outer-v1","assumptions":identity,
+            "sha256":hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(",",":")).encode()).hexdigest(),
+            "outputs":results,"outer_trace":traces,"evaluators_agree":results["rational"]==results["host"],
+            "verdict_scope":"supplied-complete-block-sequence-only",
+            "verdicts":{"algebraic_value_equality":"proven","floating_rewrite_equivalence":rewrite,
+                        "finite_exact_recoverability":"proven" if finite else "refuted",
+                        "physical_layout_correctness":"not_run","target_execution":"not_run"},
+            "runtime_dispatch_eligible":False}
