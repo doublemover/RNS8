@@ -321,6 +321,15 @@
             "src/backend_common/product_prefix_cost.hpp",
             "src/core/runtime_product_recipe.cpp"
           ]
+        },
+        {
+          "summary": "Public bounded streaming shortlist uses the same runtime range/resource query and identity-bound pipeline stage rates. Endpoint schedules include mandatory whole-input scans, host packing/scatter, actual cache evictions, shared compute resources, double-buffer dependencies, fill/drain and explicit duplex penalties. Missing/stale/capped predictions remain unknown; no AUTO change.",
+          "files": [
+            "src/backend_common/stream_panel_cost.hpp",
+            "src/core/api_stream_gemm_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_stream_panel_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -2145,7 +2154,7 @@
       "issue": 68,
       "title": "[Research P2] Execute exact GEMM beyond device memory with budgeted single-GPU panel streaming",
       "url": "https://github.com/doublemover/RNS8/issues/68",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Serial public bounded panel-streaming owner implemented; overlap/retained-B/cost selection phases incomplete and latest nested pinned export staging remains outside declared host budget unless explicitly excluded/charged.",
       "implementation": [
         {
@@ -2178,6 +2187,15 @@
             "benchmarks/rns8_stream_panel_calibrate.cpp",
             "tools/collect_stream_panels.py"
           ]
+        },
+        {
+          "summary": "Public bounded streaming shortlist uses the same runtime range/resource query and identity-bound pipeline stage rates. Endpoint schedules include mandatory whole-input scans, host packing/scatter, actual cache evictions, shared compute resources, double-buffer dependencies, fill/drain and explicit duplex penalties. Missing/stale/capped predictions remain unknown; no AUTO change.",
+          "files": [
+            "src/backend_common/stream_panel_cost.hpp",
+            "src/core/api_stream_gemm_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_stream_panel_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -2190,7 +2208,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Calibrated panel shortlist selection remains source work. Serial retained-B and bounded three-stream overlap schedules are authored; useful overlap, peak reconciliation, correctness and capacity/crossover evidence await the deferred validation/trace/benchmark batch."
+        "Serial/retained-B/overlapped execution and calibrated panel shortlisting are authored. Full builds, authored correctness/resource/receipt/model fixture execution, allocation/trace reconciliation, real capacity demonstrations, held-out prediction calibration and measured crossover remain deferred. Exact-wide/finite/wrap streaming extensions remain explicitly unsupported future semantic families."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2604,6 +2622,11 @@
       "kind": "minimal_compile",
       "scope": "Bounded three-stream panel owner, enqueue-only HIP host adapters, calibrator and initial CPU/HIP fixture translation units; v3 receipt/schema Python syntax",
       "result": "MSVC /Zs and py_compile passed. Later small DMA-replay fixture/API-comment refinements await final batch. No linked builds, tests, workloads, benchmarks, traces or hardware qualification executed."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Public panel shortlist, endpoint scheduler and authored API fixtures",
+      "result": "MSVC /Zs passed for api_stream_gemm.cpp and test_api.cpp. No linked build, test, benchmark or qualification executed."
     }
   ],
   "parking_snapshot": {

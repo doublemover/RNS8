@@ -1,4 +1,50 @@
 #include "backend_common/stream_panel_plan.hpp"
+#include "backend_common/stream_panel_cost.hpp"
+TEST_CASE("stream panel shortlist uses runtime admission and identity-bound complete costs") {
+  rns8_context ctx{};ctx.backend=RNS8_BACKEND_HIP_DIRECT;std::strcpy(ctx.device_info.gcn_arch,"gfx1100");
+  rns8_stream_gemm_desc base{};base.struct_size=sizeof(base);base.abi_version=RNS8_ABI_VERSION;
+  base.semantics=RNS8_BOUNDED_I64;base.m=7;base.n=9;base.k=19;base.lda=23;base.ldb=11;base.ldc=13;
+  base.prefix=9;base.max_abs_a=base.max_abs_b=3;base.device_budget_bytes=base.host_budget_bytes=65536;
+  const rns8_stream_gemm_panel_choice choices[]{{3,4,5,RNS8_STREAM_GEMM_SERIAL,65536},
+      {16,16,32,RNS8_STREAM_GEMM_OVERLAPPED,65536},{0,4,5,RNS8_STREAM_GEMM_SERIAL,0}};
+  rns8_stream_gemm_cost_profile costs{};costs.struct_size=sizeof(costs);costs.abi_version=RNS8_ABI_VERSION;
+  costs.max_modeled_panels=4096;costs.reuse_count=8;costs.semantics=base.semantics;costs.prefix=9;costs.schedule_mask=3;
+  auto& rates=costs.stages;rates.struct_size=sizeof(rates);rates.abi_version=RNS8_ABI_VERSION;rates.backend=RNS8_BACKEND_HIP_DIRECT;
+  std::strcpy(rates.target_id,"gfx1100");std::strcpy(rates.calibration_identity,"synthetic-model-fixture-not-evidence");
+  REQUIRE(rns8_get_pipeline_build_identity(rates.build_identity_sha256,sizeof(rates.build_identity_sha256))==RNS8_SUCCESS);
+  rates.known_mask=47;rates.lower_launch_ns=5;rates.upper_launch_ns=7;
+  for(unsigned i=0;i<6;++i){rates.lower_ns_per_unit[i]=0.1;rates.upper_ns_per_unit[i]=0.2;}
+  costs.lower_host_copy_ns_per_byte=0.1;costs.upper_host_copy_ns_per_byte=0.2;
+  costs.lower_input_scan_ns_per_cell=1;costs.upper_input_scan_ns_per_cell=2;
+  costs.lower_boundary_ns=2;costs.upper_boundary_ns=3;costs.lower_duplex_multiplier=1.2;costs.upper_duplex_multiplier=1.5;
+  std::array<rns8_stream_gemm_candidate,3> out{};uint32_t required=0;
+  CHECK(rns8_plan_stream_gemm(&ctx,&base,choices,3,&costs,nullptr,0,&required)==RNS8_WORKSPACE_TOO_SMALL);CHECK(required==3);
+  REQUIRE(rns8_plan_stream_gemm(&ctx,&base,choices,3,&costs,out.data(),3,&required)==RNS8_SUCCESS);
+  CHECK(out[0].cost_known==1);CHECK(out[1].cost_known==1);CHECK(out[0].upper_amortized_ns<=out[1].upper_amortized_ns);
+  CHECK(out[2].status==RNS8_INVALID_ARGUMENT);CHECK(out[2].choice_index==2);
+  for(unsigned i=0;i<2;++i) {
+    CHECK(out[i].lower_amortized_ns>0);CHECK(out[i].upper_amortized_ns>=out[i].lower_amortized_ns);
+    rns8_stream_gemm_resources r{};r.struct_size=sizeof(r);r.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_stream_gemm(&out[i].executable_problem,&r)==RNS8_SUCCESS);
+    CHECK(r.device_bytes==out[i].resources.device_bytes);CHECK(r.host_bytes==out[i].resources.host_bytes);
+  }
+  rns8_stream_gemm_candidate cold{},warm{};costs.reuse_count=1;
+  REQUIRE(rns8_plan_stream_gemm(&ctx,&base,choices,1,&costs,&cold,1,&required)==RNS8_SUCCESS);
+  costs.reuse_count=8;
+  REQUIRE(rns8_plan_stream_gemm(&ctx,&base,choices,1,&costs,&warm,1,&required)==RNS8_SUCCESS);
+  CHECK(warm.upper_amortized_ns<cold.upper_amortized_ns);
+  for(unsigned mutation=0;mutation<5;++mutation) {
+    auto stale=costs;
+    switch(mutation){case 0:stale.stages.build_identity_sha256[0]='!';break;case 1:stale.stages.target_id[0]='!';break;
+      case 2:stale.stages.known_mask&=~2u;break;case 3:stale.max_modeled_panels=1;break;case 4:stale.semantics=RNS8_BOUNDED_U64;break;}
+    REQUIRE(rns8_plan_stream_gemm(&ctx,&base,choices,1,&stale,&warm,1,&required)==RNS8_SUCCESS);
+    CHECK(warm.status==RNS8_SUCCESS);CHECK(warm.cost_known==0);CHECK(warm.upper_amortized_ns==0);
+  }
+  costs.lower_boundary_ns=-1;
+  CHECK(rns8_plan_stream_gemm(&ctx,&base,choices,1,&costs,&warm,1,&required)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_plan_stream_gemm(&ctx,&base,choices,1,nullptr,&warm,1,&required)==RNS8_SUCCESS);
+  CHECK(warm.cost_known==0);CHECK(warm.status==RNS8_SUCCESS);
+}
 TEST_CASE("overlapped panel storage reserves both rings and hard-budgeted pinned controls") {
   using namespace rns8::detail;
   StreamPanelProblem p;p.m=17;p.n=19;p.k=33;p.lda=35;p.ldb=21;p.ldc=23;

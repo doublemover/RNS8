@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "backend_common/stream_panel_plan.hpp"
+#include "backend_common/stream_panel_cost.hpp"
 #include "core/hip_resources.hpp"
 #include <mutex>
 #include <cstring>
@@ -207,3 +208,4 @@ rns8_status rns8_destroy_stream_gemm(rns8_stream_gemm_plan* plan) {
   plan->arena=nullptr;--plan->ctx->prepared_references;
   lock.unlock();delete plan;return RNS8_SUCCESS;
 }
+#include "api_stream_gemm_planner.inc"

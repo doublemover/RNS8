@@ -1148,6 +1148,43 @@ typedef struct rns8_stream_gemm_result {
  * a post-write failure invalidates the entire result. No rollback is implied. */
 RNS8_API rns8_status rns8_query_stream_gemm(const rns8_stream_gemm_desc* desc,
     rns8_stream_gemm_resources* resources);
+typedef struct rns8_stream_gemm_panel_choice {
+  uint32_t panel_m,panel_n,panel_k;
+  rns8_stream_gemm_schedule schedule;
+  uint64_t retained_b_budget_bytes;
+} rns8_stream_gemm_panel_choice;
+typedef struct rns8_stream_gemm_cost_profile {
+  uint64_t struct_size;
+  uint32_t abi_version,max_modeled_panels;
+  rns8_semantics semantics;
+  uint32_t prefix,schedule_mask; /* bit0 serial, bit1 overlapped */
+  /* Reuses pipeline transfer/encoding/multiply-add/general-CRT/output rates.
+   * Target/build/calibration identity must match. Missing rates remain unknown. */
+  rns8_pipeline_cost_profile stages;
+  double lower_host_copy_ns_per_byte,upper_host_copy_ns_per_byte;
+  double lower_input_scan_ns_per_cell,upper_input_scan_ns_per_cell;
+  double lower_boundary_ns,upper_boundary_ns;
+  /* Measured/calibrated bidirectional transfer penalty, >=1; never assumed 1. */
+  double lower_duplex_multiplier,upper_duplex_multiplier;
+  uint64_t reuse_count;
+} rns8_stream_gemm_cost_profile;
+typedef struct rns8_stream_gemm_candidate {
+  uint64_t struct_size;
+  uint32_t abi_version,cost_known;
+  rns8_status status;
+  uint32_t choice_index;
+  rns8_stream_gemm_desc executable_problem;
+  rns8_stream_gemm_resources resources;
+  double lower_amortized_ns,upper_amortized_ns;
+  char explanation[160];
+} rns8_stream_gemm_candidate;
+/* Bounded explicit shortlist, known costs ordered by upper estimate then bytes.
+ * choice_index preserves the original candidate identity. Resource admission uses
+ * the real runtime query. Cost estimates never select AUTO or qualify a path.
+ * NULL/stale/incomplete profiles keep admitted costs unknown. No GPU work. */
+RNS8_API rns8_status rns8_plan_stream_gemm(const rns8_context*,const rns8_stream_gemm_desc*,
+    const rns8_stream_gemm_panel_choice*,uint32_t choice_count,
+    const rns8_stream_gemm_cost_profile*,rns8_stream_gemm_candidate*,uint32_t capacity,uint32_t* required_count);
 RNS8_API rns8_status rns8_create_stream_gemm(rns8_context* ctx,const rns8_stream_gemm_desc* desc,
     rns8_stream_gemm_plan** out);
 RNS8_API rns8_status rns8_execute_stream_gemm(rns8_stream_gemm_plan* plan,

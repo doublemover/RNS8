@@ -25,6 +25,29 @@ traffic. `observed_overlap` remains unknown until a real trace demonstrates it.
 The new schedule and fixtures are source implementations awaiting the deferred
 validation and benchmark batch.
 
+`rns8_plan_stream_gemm` evaluates at most 64 explicit M/N/K, schedule and cache
+choices through the same runtime range/resource query. Returned descriptors can
+be passed directly to creation; `choice_index` preserves the original identity.
+Admitted choices with complete known costs sort by upper amortized estimate,
+then required bytes; rejected and unknown-cost choices remain visible.
+
+The cost profile reuses the pipeline planner's transfer, encoded-byte,
+multiply-add, general-CRT and output-transfer rates. It additionally requires
+input-scan, host-copy and boundary rates, and an explicit calibrated duplex
+penalty for overlap. Target, build, calibration label, bounded signedness,
+prefix and schedule mask bind the profile. Each endpoint simulates actual
+direct-mapped cache evictions and ring dependencies, GPU conversion/GEMM sharing,
+upload/compute/download serialization, CPU fill/scatter, pipeline fill/drain
+and cold-versus-warm reuse. It never uses an ideal maximum of three isolated
+rates. The duplex penalty is conservatively applied to the overlapped transfer
+lane; it is a supplied calibration range, not inferred hardware contention.
+
+Prediction work has an explicit cap of at most 65536 panels per modeled call.
+Oversized predictions, missing stage rates or stale identities keep resource
+admission intact and costs unknown. Synthetic profile fixtures validate model
+ordering without becoming evidence. A shortlist never changes AUTO routing,
+installs a reviewed record or establishes measured benefit.
+
 `StreamPanelProblem` is an internal versioned contract for one host-backed
 bounded i64/u64 product, with explicit M/N/K panels and one uniform prefix.
 `plan_stream_panels` checks the complete padded host spans before admitting
