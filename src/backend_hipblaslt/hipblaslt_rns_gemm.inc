@@ -65,6 +65,7 @@ rns8_status hipblaslt_gemm_rns_device(
     cached_a_base = static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
     cached_b_base = static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
   }
+  matmul_call_metadata metadata;
   for (uint32_t p = 0; p < prefix; ++p) {
     const std::size_t a_offset =
         static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(lda);
@@ -93,12 +94,13 @@ rns8_status hipblaslt_gemm_rns_device(
         ldc,
         kHipblasLtDefaultModuli[p],
         cached_a_for_plane,
-        cached_b_for_plane);
+        cached_b_for_plane,metadata);
     if (status != RNS8_SUCCESS) {
       return status;
     }
   }
   const hipError_t sync_status = hipDeviceSynchronize();
+  metadata.drained=sync_status==hipSuccess;
   return sync_status == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

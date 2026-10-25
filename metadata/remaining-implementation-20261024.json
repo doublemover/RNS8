@@ -260,7 +260,8 @@
       ],
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac",
-        "981e7b109428870ed930eae50370e037be95fce7"
+        "981e7b109428870ed930eae50370e037be95fce7",
+        "709704ed0f53c8197dba0c79c00d17312d5529da"
       ],
       "remaining": [
         "Matched diagnostic companion binding for production accelerator promotion remains separate from conservative ledger admission.",
@@ -1073,12 +1074,30 @@
       "issue": 70,
       "title": "[Perf P2] Reuse hipBLASLt matmul metadata across residue planes and warm calls",
       "url": "https://github.com/doublemover/RNS8/issues/70",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "run_matmul_block still constructs matmul_descriptors and creates all six objects before checking algorithm cache, with stack destruction per block. No within-call geometry reuse or preference-on-cache-hit elision.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Bounded full/tail immutable operation/layout sets shared across every residue plane in one GEMM; preference lazy only on algorithm-value miss, error-path drain, unchanged operand generation cache and arithmetic. Private old-path control, actual API accounting, independently counterbalanced public latency/sustained fixtures and strict cohort/schema identities.",
+          "files": [
+            "src/backend_hipblaslt/matmul_metadata_plan.hpp",
+            "src/backend_hipblaslt/hipblaslt_timing_matmul_cache.inc",
+            "benchmarks/public-calibration/hipblaslt-metadata.json",
+            "tools/benchmark_schema/hipblaslt_metadata.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_hipblaslt_metadata.cpp",
+        "tests/differential/test_hipblaslt.cpp",
+        "tools/test_hipblaslt_metadata.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Regression execution and real hipBLASLt compile/device validation deferred.",
+        "Matched independent-process measurements, including negative/negligible outcomes, unverified.",
+        "Cross-call raw descriptor retention is issue70 slice3 conditional on worthwhile measured benefit, not claimed or selected before that evidence."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         35

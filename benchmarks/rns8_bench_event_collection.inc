@@ -901,11 +901,13 @@ void end_gpu_event_phase(bool collect) {
 }
 
 void record_allocation_after_warmups(BenchmarkResult& result) {
+  result.metadata_after_warmups=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.allocation_after_warmups = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_warmups_available = true;
 }
 
 void record_allocation_after_repeats(BenchmarkResult& result) {
+  result.metadata_after_repeats=rns8::detail::hipblaslt_metadata_counters_snapshot();
   result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
   result.allocation_after_repeats_available = true;
 }

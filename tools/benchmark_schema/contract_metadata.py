@@ -147,6 +147,8 @@ def _prepack_cache_key_fields(cache_key: str) -> dict[str, str] | None:
 
 
 def validate_contract_metadata(self: Any) -> None:
+    from .hipblaslt_metadata import validate_hipblaslt_metadata
+    for error in validate_hipblaslt_metadata(self.data): self._error(error)
     reuse = self.data.get("reuse_contract")
     if reuse is not None:
         if not isinstance(reuse, dict):

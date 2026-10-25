@@ -345,6 +345,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  rns8::detail::hipblaslt_metadata_set_policy(args.hipblaslt_metadata_per_block_control ?
+      rns8::detail::HipblasLtMetadataPolicy::per_block_control : rns8::detail::HipblasLtMetadataPolicy::per_call);
+  rns8::detail::hipblaslt_metadata_counters_reset();
   rns8::detail::hip_direct_allocation_counters_reset();
   const auto allocation_before = rns8::detail::hip_direct_allocation_counters_snapshot();
   BenchmarkResult result{};

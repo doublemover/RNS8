@@ -10,6 +10,7 @@
 #include "public_sustained.hpp"
 #include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
 
@@ -123,6 +124,7 @@ struct Args {
   bool resident_lifetime = false;
   bool workspace_arena = false;
   bool adaptive_grouped_scheduler = false;
+  bool hipblaslt_metadata_per_block_control = false;
   bool streaming_overlap = false;
   bool streaming_serial_control = false;
   uint32_t streaming_batches = 9;
@@ -239,6 +241,7 @@ struct BenchmarkResult {
   rns8::detail::hip_direct_allocation_counters allocation_before{};
   rns8::detail::hip_direct_allocation_counters allocation_after_warmups{};
   rns8::detail::hip_direct_allocation_counters allocation_after_repeats{};
+  rns8::detail::HipblasLtMetadataCounters metadata_after_warmups{}, metadata_after_repeats{};
   bool allocation_tracking_available = false;
   bool allocation_after_warmups_available = false;
   bool allocation_after_repeats_available = false;

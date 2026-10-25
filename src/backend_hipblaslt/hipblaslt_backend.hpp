@@ -7,11 +7,18 @@
 #include <string>
 
 #include "core/backend_common.hpp"
+#include "matmul_metadata_plan.hpp"
 #include "rns8/rns8.h"
 
 struct rns8_workspace;
 
 namespace rns8::detail {
+
+// Private benchmark control; thread-local and never an AUTO/cache policy.
+void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
+HipblasLtMetadataPolicy hipblaslt_metadata_policy();
+void hipblaslt_metadata_counters_reset();
+HipblasLtMetadataCounters hipblaslt_metadata_counters_snapshot();
 
 constexpr std::size_t kHipblasLtAlignment = 16u;
 constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = 32u * 1024u * 1024u;

@@ -693,4 +693,72 @@ TEST_CASE("hipBLASLt rejects adaptive per-tile bounded schedules") {
 
   rns8_destroy_context(hipblaslt);
 }
+TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite output at slab edges") {
+  if(!hipblaslt_available())SKIP("hipBLASLt backend unavailable");
+  using namespace rns8::detail;
+  struct restore_policy {HipblasLtMetadataPolicy value=hipblaslt_metadata_policy();~restore_policy(){hipblaslt_metadata_set_policy(value);}} restore;
+  auto* ctx=create_backend_context(RNS8_BACKEND_HIPBLASLT);
+  auto* cpu=create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
+  for(int64_t k:{17,65535,65536,65537})for(auto semantic:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
+    const bool sign=semantic==RNS8_BOUNDED_I64||semantic==RNS8_EXACT_WIDE_SIGNED;
+    const bool wide=semantic==RNS8_EXACT_WIDE_SIGNED||semantic==RNS8_EXACT_WIDE_UNSIGNED;
+    constexpr int64_t m=2,n=3,ld=5;constexpr uint32_t limbs=3;constexpr uint64_t sentinel=0xabcdef1122334455ull;
+    std::vector<int64_t> sa(m*(k+2),0),sb(k*(n+2),0);std::vector<uint64_t> ua(sa.size()),ub(sb.size());
+    for(unsigned generation=1;generation<=2;++generation) {
+      for(int64_t row=0;row<m;++row)for(int64_t inner=0;inner<k;++inner){
+        const uint64_t v=wide?(uint64_t{1}<<40)+((inner+row+generation)%7):1+(inner+row+generation)%7;
+        sa[row*(k+2)+inner]=sign && (inner%3==0)?-int64_t(v):int64_t(v);ua[row*(k+2)+inner]=v;
+      }
+      for(int64_t inner=0;inner<k;++inner)for(int64_t col=0;col<n;++col){
+        const uint64_t v=wide?(uint64_t{1}<<40)+((inner+col+generation)%5):1+(inner+col+generation)%5;
+        sb[inner*(n+2)+col]=sign && (col%2==0)?-int64_t(v):int64_t(v);ub[inner*(n+2)+col]=v;
+      }
+      auto execute=[&](rns8_context* context,rns8_backend_kind backend,HipblasLtMetadataPolicy policy){
+        hipblaslt_metadata_set_policy(policy);
+        auto desc=wide?(sign?exact_signed_desc(m,n,k,backend):exact_unsigned_desc(m,n,k,backend)):
+            (sign?bounded_i64_desc(m,n,k,uint64_t(k)*35,backend):bounded_u64_desc(m,n,k,uint64_t(k)*35,backend));
+        desc.max_prefix=wide?20:9;
+        rns8_plan* plan=nullptr;rns8_workspace* work=nullptr;rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;
+        REQUIRE(rns8_create_plan(context,&desc,&plan)==RNS8_SUCCESS);
+        REQUIRE(rns8_create_workspace(context,plan,&work)==RNS8_SUCCESS);
+        auto ad=matrix_desc(m,k,semantic,desc.bound_kind,desc.max_prefix),bd=matrix_desc(k,n,semantic,desc.bound_kind,desc.max_prefix),cd=matrix_desc(m,n,semantic,desc.bound_kind,desc.max_prefix);
+        REQUIRE(rns8_create_matrix(context,&ad,&a)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(context,&bd,&b)==RNS8_SUCCESS);REQUIRE(rns8_create_matrix(context,&cd,&c)==RNS8_SUCCESS);
+        REQUIRE((sign?rns8_pack_i64(context,a,sa.data(),k+2,generation):rns8_pack_u64(context,a,ua.data(),k+2,generation))==RNS8_SUCCESS);
+        REQUIRE((sign?rns8_pack_i64(context,b,sb.data(),n+2,generation):rns8_pack_u64(context,b,ub.data(),n+2,generation))==RNS8_SUCCESS);
+        // Warm the algorithm-value cache, then inspect only another successful call.
+        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);hipblaslt_metadata_counters_reset();
+        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);
+        const auto counts=hipblaslt_metadata_counters_snapshot();
+        if(backend==RNS8_BACKEND_HIPBLASLT){
+          const uint64_t blocks=uint64_t(plan->prefix)*((k+65535)/65536),geometries=k>65536?2:1;
+          CHECK(counts.matmul_block_calls==blocks);CHECK(counts.heuristic_calls==0);CHECK(counts.algorithm_cache_hits==blocks);
+          CHECK(counts.descriptor_sets_created==(policy==HipblasLtMetadataPolicy::per_call?geometries:blocks));
+          CHECK(counts.descriptor_create_calls==5*counts.descriptor_sets_created);CHECK(counts.descriptor_destroy_calls==counts.descriptor_create_calls);
+          CHECK(counts.attribute_set_calls==2*counts.descriptor_sets_created);
+          CHECK(counts.preference_create_calls==(policy==HipblasLtMetadataPolicy::per_call?0:blocks));CHECK(counts.preference_destroy_calls==counts.preference_create_calls);
+        }
+        std::vector<uint64_t> out(m*ld*(wide?limbs:1),sentinel);
+        if(wide)REQUIRE((sign?rns8_export_exact_wide_signed_limbs(context,plan,c,out.data(),ld,limbs):rns8_export_exact_wide_unsigned_limbs(context,plan,c,out.data(),ld,limbs))==RNS8_SUCCESS);
+        else if(sign){std::vector<int64_t> values(m*ld,int64_t(sentinel));REQUIRE(rns8_export_i64(context,plan,c,values.data(),ld)==RNS8_SUCCESS);for(size_t i=0;i<values.size();++i)out[i]=uint64_t(values[i]);}
+        else REQUIRE(rns8_export_u64(context,plan,c,out.data(),ld)==RNS8_SUCCESS);
+        rns8_destroy_matrix(c);rns8_destroy_matrix(b);rns8_destroy_matrix(a);rns8_destroy_workspace(work);rns8_destroy_plan(plan);return out;
+      };
+      const auto expected=execute(cpu,RNS8_BACKEND_CPU_REFERENCE,HipblasLtMetadataPolicy::per_call);
+      CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_block_control)==expected);
+      CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_call)==expected);
+    }
+  }
+  for(int64_t k:{65535,65536,65537})for(uint16_t modulus:{251,255,256}){
+    auto desc=finite_desc(2,3,k,RNS8_FINITE_RING_U8,RNS8_BACKEND_HIPBLASLT,modulus);
+    std::vector<uint8_t>a(2*k,253),b(k*3,249),control(10,77),reused(10,77),expected(10,77);
+    hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy::per_block_control);
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx,&desc,modulus,a.data(),k,b.data(),3,control.data(),5)==RNS8_SUCCESS);
+    hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy::per_call);
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx,&desc,modulus,a.data(),k,b.data(),3,reused.data(),5)==RNS8_SUCCESS);
+    desc.requested_backend=RNS8_BACKEND_CPU_REFERENCE;
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu,&desc,modulus,a.data(),k,b.data(),3,expected.data(),5)==RNS8_SUCCESS);
+    CHECK(reused==expected);CHECK(control==expected);
+  }
+  rns8_destroy_context(cpu);rns8_destroy_context(ctx);
+}
 #endif

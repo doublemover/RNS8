@@ -166,3 +166,50 @@ collected in counterbalanced independent processes; streaming controls use their
 own batch loop rather than the incompatible ordinary sustained-loop option.
 All streaming experiments remain non-promoting. The new regressions are authored
 but unexecuted, and no overlap, latency or allocation result on hardware is claimed.
+
+### hipBLASLt immutable per-call metadata controls
+
+Issue #70 is implemented as bounded **within-call** reuse, not a process-global
+raw descriptor cache. The operation and four column-major matrix layouts are
+owned by the complete GEMM call and indexed by device, padded M/N/K, scratch
+leading dimension, library-workspace allowance and fixed attribute ABI. The
+full slab and tail require at most two sets. All residue planes share those
+immutable sets; the modulus still belongs exclusively to reduction. Metadata
+survives the existing final synchronization, with an error-path drain before
+teardown. Operand pointers/generations are not layout attributes: A/B prepack
+invalidation remains independently generation-bound.
+
+The default `--hipblaslt-metadata-policy per-call` creates a heuristic preference
+only on an algorithm-value cache miss. `per-block` is the explicit old-path
+control, retaining its preference construction even on a cache hit. No matrix
+arithmetic, K-slab reduction order, selected algorithm or public output boundary
+changes. ABI1 fixes signed-i8 inputs, i32 compute/scale/output, N/N transforms,
+alpha=1, beta=0 and no epilogue; any future attribute extension must change the
+key/ABI rather than silently reuse incompatible metadata.
+
+For B successful blocks and D distinct padded geometries, a warm algorithm cache
+now entails **5D creates, 5D destroys and 2D attribute writes**, with zero
+preference APIs; the control uses **6B creates, 6B destroys and 3B writes** including
+preferences. Prefix20/K65537 means B=40,D=2: 10/10/4 versus240/240/120. These are
+source/API-site counts, not host allocator bytes or measured speedups. Cold
+algorithm selection adds one preference/create/attribute/destroy per missed
+geometry. Actual calling-thread counters are captured after warmups and measured
+latency repeats, before the separately bounded sustained phase. The schema
+checks completed lifecycle/accounting identities, and physical policy separates
+aggregation cohorts without changing the logical comparison contract.
+
+`benchmarks/public-calibration/hipblaslt-metadata.json` pairs both policies across
+a one-plane finite-ring control, prefixes9/18/20, padded/skinny/medium/large
+shapes and K65535/65536/65537. The public collector reverses case order between
+independent runs as well as counterbalancing instrumented/production captures.
+Production intervals include host metadata setup and the complete public call;
+GPU event service time alone cannot measure this optimization. Full-output
+oracles and generation-changing regressions are authored, not executed.
+
+The [official hipBLASLt API reference](https://rocm.docs.amd.com/projects/hipBLASLt/en/latest/reference/api-reference.html)
+describes descriptor creation as host metadata allocation. Its library-context
+destruction synchronization contract must not be attributed to layout teardown.
+Cross-call raw-descriptor retention remains the issue's explicitly conditional
+post-measurement option; this implementation retains no such state and makes no
+claim about its benefit or opaque library heap footprint. No timing, hardware
+correctness or AUTO promotion is established by these changes.

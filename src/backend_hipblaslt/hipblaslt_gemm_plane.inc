@@ -42,7 +42,8 @@ rns8_status gemm_one_plane(
     int64_t ldc,
     uint16_t modulus,
     const int8_t* cached_packed_a_t,
-    const int8_t* cached_packed_b_t) {
+    const int8_t* cached_packed_b_t,
+    matmul_call_metadata& metadata) {
   if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
       !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
     return RNS8_UNSUPPORTED_BACKEND;
@@ -119,7 +120,7 @@ rns8_status gemm_one_plane(
         scratch,
         library_workspace,
         library_workspace_bytes,
-        shape);
+        shape,metadata);
     const rns8_status mapped_status = status_from_hipblas(matmul_status);
     if (mapped_status != RNS8_SUCCESS) {
       return mapped_status;

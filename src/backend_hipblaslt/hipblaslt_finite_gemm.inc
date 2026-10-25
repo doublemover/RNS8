@@ -30,6 +30,7 @@ rns8_status hipblaslt_gemm_finite_u8_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  matmul_call_metadata metadata;
   const rns8_status status = gemm_one_plane(
       device_id,
       static_cast<hipblasLtHandle_t>(handle),
@@ -47,11 +48,12 @@ rns8_status hipblaslt_gemm_finite_u8_device(
       ldc,
       modulus,
       nullptr,
-      nullptr);
+      nullptr,metadata);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   const hipError_t sync_status = hipDeviceSynchronize();
+  metadata.drained=sync_status==hipSuccess;
   return sync_status == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

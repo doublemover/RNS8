@@ -33,6 +33,11 @@ def commands(binary, cases, runs, seed, output):
                 if mode=="production" and "--streaming-overlap" not in arguments:command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
                 result.append(dict(case=name,run=run,position=position,mode=mode,command=command,
                                    output=str(output/f"{name}-run{run:03d}-{mode}.json")))
+    # Interleave physical variants by independent run; reverse case order every
+    # other run. This keeps per-block/per-call controls from occupying disjoint
+    # time windows while preserving each case's seeded AB/BA instrumentation pair.
+    order={case["name"]:i for i,case in enumerate(cases)}
+    result.sort(key=lambda e:(e["run"],order[e["case"]] if e["run"]%2==0 else -order[e["case"]],e["position"]))
     return result
 
 
@@ -44,7 +49,7 @@ def main():
     parser.add_argument("--plan-only",action="store_true");args=parser.parse_args()
     plan=commands(args.binary,json.loads(args.cases.read_text())["cases"],args.runs,args.order_seed,args.output)
     args.output.mkdir(parents=True,exist_ok=True)
-    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy="seeded_AB_BA_by_independent_process_pair",commands=plan,promotion_eligible=False),indent=2)+"\n")
+    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy="seeded_AB_BA_instrumentation_and_reversed_case_order_by_independent_run",commands=plan,promotion_eligible=False),indent=2)+"\n")
     if args.plan_only:return 0
     captures=[]
     for entry in plan:

@@ -350,6 +350,10 @@ Args parse_args(int argc, char** argv) {
       const std::string mode=argv[++i];
       if(mode!="overlapped" && mode!="serial")usage_error("streaming schedule must be overlapped or serial");
       args.streaming_serial_control=mode=="serial";
+    } else if (arg == "--hipblaslt-metadata-policy" && i + 1 < argc) {
+      const std::string policy=argv[++i];
+      if(policy!="per-call" && policy!="per-block")usage_error("hipBLASLt metadata policy must be per-call or per-block");
+      args.hipblaslt_metadata_per_block_control=policy=="per-block";
     } else if (arg == "--k-block-policy" && i + 1 < argc) {
       args.k_block_policy = argv[++i];
     } else if (arg == "--resident-redesign-candidate" && i + 1 < argc) {
@@ -433,6 +437,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--resident-lifetime]\n"
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
+          << "                  [--hipblaslt-metadata-policy per-call|per-block]\n"
           << "                  [--streaming-overlap --streaming-batches 3..64 --streaming-schedule overlapped|serial]\n"
           << "                  [--k-block-policy NAME]\n"
           << "                  [--resident-redesign-candidate NAME]\n"
@@ -938,6 +943,8 @@ Args parse_args(int argc, char** argv) {
             ? 0
             : -1;
   }
+  if(args.hipblaslt_metadata_per_block_control && args.backend!=RNS8_BACKEND_HIPBLASLT)
+    usage_error("per-block metadata control requires explicit hipblaslt backend");
   return args;
 }
 
