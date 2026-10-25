@@ -1720,10 +1720,6 @@
         {
           "source": "docs/research/README.md",
           "reference": "../block-sparse.md"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "block-sparse.md#public-generation-bound-owner"
         }
       ],
       "anchors": [
@@ -2231,10 +2227,6 @@
         {
           "source": "docs/research/README.md",
           "reference": "../encoded-b-native.md"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "encoded-b-native.md"
         }
       ],
       "anchors": [
@@ -3087,10 +3079,6 @@
         {
           "source": "docs/research/README.md",
           "reference": "../narrow-native-owner.md"
-        },
-        {
-          "source": "docs/roadmap.md",
-          "reference": "narrow-native-owner.md"
         }
       ],
       "anchors": [
@@ -3462,6 +3450,10 @@
         {
           "source": "docs/research/README.md",
           "reference": "../planning-recipes.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "planning-recipes.md#cost-planned-product-materializations"
         }
       ],
       "anchors": [
@@ -4321,9 +4313,9 @@
         "2-rx-7900-xtx--gfx1100-gate",
         "3-mi300x--gfx942-gate",
         "4-release-decision",
-        "current-frontloaded-batch",
+        "current-materialization-and-provider-boundary",
         "current-roadmap-and-release-gates",
-        "current-source-frontload",
+        "current-validation-and-remaining-work",
         "october-23-issue-repair-qualification",
         "pending-issue-batch-qualification-2026-10-23",
         "recorded-baseline",
@@ -5229,11 +5221,19 @@
         },
         {
           "source": "docs/planning-recipes.md",
-          "reference": "local-validation-20261025.md"
+          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
         },
         {
           "source": "docs/roadmap.md",
           "reference": "local-validation-20261025.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
         },
         {
           "source": "examples/device-native/README.md",
@@ -5249,6 +5249,7 @@
         "issue-closeout-and-remaining-gates",
         "reproduction",
         "results-and-coverage",
+        "subsequent-materialization-integration",
         "windows-and-gfx1100-validation--2026-10-25"
       ]
     }

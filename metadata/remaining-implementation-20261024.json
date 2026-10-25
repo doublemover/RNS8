@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-24T22:47:32Z",
+  "scope_refreshed_utc": "2026-10-25T13:51:37.368407+00:00",
   "issues": [
     {
       "issue": 18,
@@ -27,10 +27,18 @@
         "ca51b9f75c93302771fbaf50d0792145bc178d2a"
       ],
       "remaining": [
+        "Real device-failure qualification remains; local transaction/cleanup regressions pass."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [],
+      "historical_frontload_remaining": [
         "Regression execution and real device-failure qualification deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 19,
@@ -97,12 +105,20 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73"
       ],
       "remaining": [
-        "Authored regression execution deferred; no measured proof-policy speedup or default change."
+        "Matched host-proof/admission and complete-route measurements, proof-cache/refinement policy tradeoffs and broader gfx942 qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         27
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Authored regression execution deferred; no measured proof-policy speedup or default change."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 24,
@@ -127,10 +143,18 @@
         "ca51b9f75c93302771fbaf50d0792145bc178d2a"
       ],
       "remaining": [
+        "Budgeted real-device large-address qualification remains; checked host-domain and negative fixtures pass."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [],
+      "historical_frontload_remaining": [
         "Regression execution and large-device-address hardware qualification deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 27,
@@ -358,14 +382,22 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
-        "Authored regressions and any execution/benchmark/GPU/scientific qualification not run."
+        "Complete provider/binding parity for unfinished representation, distributed and async owners; measured identity-bound rates and held-out planner qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         32
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
+        "Authored regressions and any execution/benchmark/GPU/scientific qualification not run."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 31,
@@ -434,13 +466,21 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."
+        "Independent instruction/traffic/clock calibration, profiler evidence and held-out prediction remain; valid receipts do not imply measured rates."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         19,
         27
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 32,
@@ -501,12 +541,20 @@
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
       "remaining": [
-        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
+        "Independent custom-basis calibration and broader target/provider qualification remain. Unsupported accelerator, prepack, ragged, distributed and async basis providers remain explicit."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 34,
@@ -556,14 +604,22 @@
         "7954eb326c5b45080fd60f980140672598a0d3aa"
       ],
       "remaining": [
-        "Regression execution, device compilation and measured net benefit/fallback overhead remain deferred.",
-        "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
+        "Adaptive-prefix complete-route benefit and fallback overhead need matched observations; the conditional globally minimal safe-prefix control is still absent."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         29
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Regression execution, device compilation and measured net benefit/fallback overhead remain deferred.",
+        "Globally minimal safe-prefix completed-output control is explicitly absent (conditional issue request); panel-L1 is not compared by this harness."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 35,
@@ -607,14 +663,22 @@
         "b5ed9b9f2d51514b8743858c9c9810942c21b7a8"
       ],
       "remaining": [
-        "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
+        "Launched-instruction/resource evidence and matched fused conversion/matrix-engine complete-route measurements remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         34,
         55
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP compilation, authored host/GPU regressions, matched independent campaigns, actual launched ISA/resources and target performance qualification deferred. No speedup inferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 36,
@@ -662,13 +726,21 @@
         "05a114ac9600958e742f5ce58e4f34a17c126c15"
       ],
       "remaining": [
-        "GPU compilation/execution, target counters, physical placement/cache state, measured end-to-end profitability and dispatch promotion are unverified and deferred."
+        "Target-specific cache/XCD placement, counters and independent complete-route profitability remain unqualified."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         30,
         35
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "GPU compilation/execution, target counters, physical placement/cache state, measured end-to-end profitability and dispatch promotion are unverified and deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 37,
@@ -696,14 +768,22 @@
         "dff4bd1821797f488f05076c2b3668a52a707ce9"
       ],
       "remaining": [
-        "Device compilation, regression execution and measured same-contract net benefit remain deferred.",
-        "Public native async/prepared and planner selection integration compose with #38/#43/#67; no new automatic selection."
+        "Same-contract split-K/Stream-K profitability and profiler evidence remain; broader provider composition remains with its owning issues."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         35
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Device compilation, regression execution and measured same-contract net benefit remain deferred.",
+        "Public native async/prepared and planner selection integration compose with #38/#43/#67; no new automatic selection."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 38,
@@ -780,14 +860,22 @@
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
       ],
       "remaining": [
-        "HIP compilation, GPU/Boost execution, completion fairness and complete-route independent-process performance/target qualification deferred. Optional adaptive/split/locality composition remains tracked by those feature issues, not claimed as a native queue speedup."
+        "Completion fairness/resource evidence and independent complete-route persistent-queue qualification remain; optional adaptive/split/locality composition is not presumed."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         34,
         35,
         36
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP compilation, GPU/Boost execution, completion fairness and complete-route independent-process performance/target qualification deferred. Optional adaptive/split/locality composition remains tracked by those feature issues, not claimed as a native queue speedup."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 39,
@@ -826,12 +914,20 @@
         "89df5c64a1074cca30de8300f4b0daa12dfdb9fe",
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
-      "remaining": [],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [
+        "Reconstruction candidate ISA/rounding/resource review, independent matched full-export/GEMM measurements and prefix-specific promotion decisions remain. Negative measured outcomes are acceptable."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         69
-      ]
+      ],
+      "historical_frontload_remaining": [],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 40,
@@ -932,14 +1028,22 @@
         "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
-        "General GF(2) algebra, paired-column consumer, rocWMMA direct-A/panel reuse and hipBLASLt operand retention source are authored. Full builds, execution, independent measurements, ISA/compiler resource inspection and qualification remain deferred; no default policy promotion."
+        "Compiled fragment/instruction/resource evidence and matched full-route layout/reuse measurements remain; no default layout policy is promoted."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         34,
         35
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "General GF(2) algebra, paired-column consumer, rocWMMA direct-A/panel reuse and hipBLASLt operand retention source are authored. Full builds, execution, independent measurements, ISA/compiler resource inspection and qualification remain deferred; no default policy promotion."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 41,
@@ -1056,20 +1160,28 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
+        "Independent exact-lift/converted-basis stage and whole-chain measurements, amortization and broader target qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         29,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "implemented_validation_pending_retry",
+      "state": "implemented_validation_deferred",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
       "implementation": [
         {
@@ -1151,6 +1263,15 @@
             "src/core/runtime_product_recipe.cpp",
             "src/core/api_product_recipe_materializations.inc"
           ]
+        },
+        {
+          "summary": "Ragged cost queries/admission use the gathered bound; narrower destinations and pre/post-gather identities are covered. Extend the existing calibrator with matched packed/model modes and required independently checked v2 receipts.",
+          "files": [
+            "src/core/ragged_recipe_binding.hpp",
+            "src/core/api_product_recipe_ragged_helpers.inc",
+            "benchmarks/rns8_lift_recipe_calibrate.cpp",
+            "tools/collect_lift_recipe.py"
+          ]
         }
       ],
       "regressions": [
@@ -1178,19 +1299,28 @@
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
         "11ac95b6482386d74e6804d8a854b4629467208f",
         "a4ef2b9",
-        "c9e53a2"
+        "c9e53a2",
+        "6ce489b"
       ],
       "remaining": [
-        "Consolidated repair/retry of the new materialization slice, including source-version fixture and installed warnings-as-errors repair.",
-        "Independent calibrated stage prices, held-out complete-route measurements, amortization and peak-memory qualification remain open."
+        "Joint uniform/packed B selection, public price identities and ragged producer refresh now pass local CPU/HIP/installed validation. Independent measured stage prices, held-out complete-route comparison and peak/amortization qualification remain."
       ],
-      "validation": "First batch compiled CPU ASan and full gfx1100; new low-level layout arithmetic and ragged CPU/HIP integration passed. Complete repaired-batch outcomes remain pending.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         30,
         41,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Consolidated repair/retry of the new materialization slice, including source-version fixture and installed warnings-as-errors repair.",
+        "Independent calibrated stage prices, held-out complete-route measurements, amortization and peak-memory qualification remain open."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 43,
@@ -1366,13 +1496,21 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Matched pinned-host sync/stream/graph calibration and the concrete direct-HIP async/graph adapters are authored. Consolidated build/test validation is now requested. Provider-specific async/capture support outside those concrete owners remains explicitly unsupported; no blanket graph-safety or measured overlap claim."
+        "Provider-specific async/capture support outside the concrete direct-HIP owners remains explicitly unsupported; overlap/profiler and hardware failure/lifetime qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         24
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Matched pinned-host sync/stream/graph calibration and the concrete direct-HIP async/graph adapters are authored. Consolidated build/test validation is now requested. Provider-specific async/capture support outside those concrete owners remains explicitly unsupported; no blanket graph-safety or measured overlap claim."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 45,
@@ -1384,14 +1522,22 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Real FP4/FP6/FP8 matrix-engine provider and public bridge remain; exact floating contracts alone are not a runtime backend.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Real FP4/FP6/FP8 matrix-engine implementation and public bridge require unavailable qualification hardware; explicitly deferred by the user."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         55
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Real FP4/FP6/FP8 matrix-engine provider and public bridge remain; exact floating contracts alone are not a runtime backend.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 46,
@@ -1418,13 +1564,21 @@
         "70fcacb1d1f01d860739c3fca85dec1ca5e05051"
       ],
       "remaining": [
-        "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
+        "Actual INT4 opcode/fragment/resource evidence and independent complete-route profitability remain; no automatic route promotion."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         35
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 47,
@@ -1456,13 +1610,21 @@
         "5204e4be0860103530c1b768fc146fe077827d26"
       ],
       "remaining": [
-        "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
+        "Compiled epilogue resource evidence and matched fused/unfused complete-route measurements remain; no speedup or promotion is inferred from correctness."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         71
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Actual GPU compilation, authored differential/prepared/graph execution, ISA and complete-public/resident performance outcomes deferred; no speedup or promotion claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 48,
@@ -1513,14 +1675,22 @@
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155"
       ],
       "remaining": [
-        "Execute authored host/Python/GPU differentials, compiler/ISA checks, matched independent-process benchmarks and reviewed one-level promotion gates later.",
-        "The conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not required before the division-free scheduler proves worthwhile; default modulus256 cannot use it."
+        "Compiler/ISA evidence and independent same-contract one-level bilinear measurements remain. Conditional inverse-of-two rank48 work remains gated on measured usefulness."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         47
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Execute authored host/Python/GPU differentials, compiler/ISA checks, matched independent-process benchmarks and reviewed one-level promotion gates later.",
+        "The conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not required before the division-free scheduler proves worthwhile; default modulus256 cannot use it."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 49,
@@ -1568,13 +1738,21 @@
         "64d8184a77af93e25a13b01f3158bc96d6a49065"
       ],
       "remaining": [
-        "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."
+        "Fault-model coverage and complete-route integrity costs remain unmeasured. Real distributed commit composition depends on unfinished #50."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 50,
@@ -1586,16 +1764,24 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Real multi-device HIP ownership/executor, full gather and whole-output transactional commit remain source work.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Real multi-device owners/executor, full gather and transactional whole-output commit require unavailable hardware; explicitly deferred by the user."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         24,
         29,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Real multi-device HIP ownership/executor, full gather and whole-output transactional commit remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 51,
@@ -1626,13 +1812,21 @@
       ],
       "commits": [],
       "remaining": [
-        "Execute authored regressions and independent sparse campaigns; qualify actual target ISA/runtime, controls, sustained crossover and the structured-sparse >=1.5x end-to-end gate. No measured win or promoted route claimed."
+        "Actual structured-sparse target instruction qualification, independent sustained crossover and the >=1.5x gate remain; gfx1100 unsupported cases stay skipped."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         35
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Execute authored regressions and independent sparse campaigns; qualify actual target ISA/runtime, controls, sustained crossover and the structured-sparse >=1.5x end-to-end gate. No measured win or promoted route claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 52,
@@ -1644,14 +1838,22 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "CDNA5 TDM/cluster barrier target-specific litmus, two-stage transfer and multicast implementation remain; official ISA/compiler support must be verified before emitting target operations.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Verified CDNA5 transfer/barrier litmus, two-stage transfer and multicast implementation require unavailable target/compiler hardware; explicitly deferred by the user."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         55
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "CDNA5 TDM/cluster barrier target-specific litmus, two-stage transfer and multicast implementation remain; official ISA/compiler support must be verified before emitting target operations.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 53,
@@ -1700,14 +1902,22 @@
         "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca"
       ],
       "remaining": [
-        "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
+        "Launched instruction/resources and independent complete-route narrow-input measurements and selection qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         35,
         47
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Tests, device compilation, launched ISA/resources, complete-route independent measurements and default selection qualification deferred. Research controls remain explicit, not automatically promoted."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 54,
@@ -1745,14 +1955,22 @@
         "3c202bd885aaa83e731a5e30604758269974fd11"
       ],
       "remaining": [
-        "No remaining first-platform source implementation identified. Runtime OS/thread admission, exhaustive differential execution, performance/energy and cohort adoption remain unverified.",
-        "A second architecture is explicitly gated on real hardware evidence by the issue; no Arm implementation or cross-platform qualification is claimed."
+        "Actual supported OS/CPU matrix-instruction runtime, performance/energy and cohort adoption remain unqualified. A second architecture stays gated on real hardware evidence."
       ],
-      "validation": "Host syntax checks with AMX enabled/OpenMP and disabled branches; GCC 14 AMX object compilation emitted tile-load/config/TDPBSSD/store/release instructions. No execution, tests, benchmarks, CPU/GPU campaigns or scientific qualification.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         30
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "No remaining first-platform source implementation identified. Runtime OS/thread admission, exhaustive differential execution, performance/energy and cohort adoption remain unverified.",
+        "A second architecture is explicitly gated on real hardware evidence by the issue; no Arm implementation or cross-platform qualification is claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 55,
@@ -1779,12 +1997,20 @@
         "042153279a4a40f41b42ef00dfb4ed49a64f59a6"
       ],
       "remaining": [
-        "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
+        "The complete logical/mutation regression passed and its unchanged sources are reused. Actual compiled lane/resource equivalence, measured pruning and promotion remain target-specific gates."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 56,
@@ -1796,10 +2022,9 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Umbrella implementation remains dependent on unfinished child accelerator/composition issues; hardware qualification also deferred.",
-        "Execution, benchmarking and scientific/hardware qualification are deferred."
+        "Umbrella completion still depends on unfinished child implementations and their hardware/performance gates."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         30,
@@ -1833,7 +2058,16 @@
         67,
         68,
         69
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Umbrella implementation remains dependent on unfinished child accelerator/composition issues; hardware qualification also deferred.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 57,
@@ -1856,10 +2090,18 @@
         "319a7f5"
       ],
       "remaining": [
+        "Actual Linux discovery/setup and applicable GPU preset qualification remain; local Windows tooling regressions pass."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [],
+      "historical_frontload_remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 58,
@@ -1882,10 +2124,18 @@
         "319a7f5"
       ],
       "remaining": [
+        "Actual bounded Linux GPU session/preflight/lock/resume rehearsal remains unavailable; local runner contract fixtures pass."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [],
+      "historical_frontload_remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 59,
@@ -1914,15 +2164,23 @@
         "8b6c1125d84789ad86324030a4fb5aeda2d8e601"
       ],
       "remaining": [
-        "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
+        "Failure/ownership qualification and independent matched complete-route paired-complex measurements remain; historical timings describe older storage."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         29,
         43,
         47
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 60,
@@ -1933,12 +2191,20 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "remaining": [
+        "Lock consistency passes, but installed Git2.52.0.windows.1 differs from selected2.56.0.windows.3; installer approval review blocked its update. ROCm10.1 remains explicitly deferred."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         57,
         58
-      ]
+      ],
+      "historical_frontload_remaining": [],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 61,
@@ -1961,10 +2227,18 @@
         "319a7f5"
       ],
       "remaining": [
+        "Local documentation checks pass. Official AMD HTTP429 responses and actual platform command rehearsals remain unresolved."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [],
+      "historical_frontload_remaining": [
         "Runtime regression execution and applicable platform/GPU qualification deferred."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 63,
@@ -1993,15 +2267,23 @@
         "c92d84434604156db85342e737f4a086d217ea67"
       ],
       "remaining": [
-        "HIP device compilation, CPU/HIP regression execution, physical fragment/ISA qualification and matched measured profitability deferred.",
-        "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."
+        "Physical fragment/ISA evidence and independent Gram/SYRK profitability remain; the optional prime-channel five-product extension stays gated on classical-path qualification."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         35,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP device compilation, CPU/HIP regression execution, physical fragment/ISA qualification and matched measured profitability deferred.",
+        "Optional prime-channel five-product stage remains gated on classical-path qualification per issue; no composite/even-basis algebraic shortcut enabled."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 64,
@@ -2033,13 +2315,21 @@
         "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
-        "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
+        "Real CDNA4 MFMA mapping/ISA/resource execution and independent sustained signed-radix qualification require appropriate hardware; no profitable cohort is claimed."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         55
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP target compilation, authored differential/negative tests, CDNA4 physical mapping and emitted-ISA/resource qualification, independent sustained end-to-end cohorts and measured integration/promotion are deferred; no speedup or profitable cohort claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 65,
@@ -2063,13 +2353,21 @@
         "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
       ],
       "remaining": [
-        "GPU differential/counter execution and performance evidence deferred."
+        "Structural host-mirror/upload/counter regressions pass. Matched before/after storage/latency, retained/peak allocation observations and broader-platform qualification remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "GPU differential/counter execution and performance evidence deferred."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 66,
@@ -2114,12 +2412,20 @@
         "10fe3f844eadaf52932cde964055a3e2768c4d88"
       ],
       "remaining": [
-        "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."
+        "Real MFMA target mapping/ISA execution and independent asymmetric/concatenated word-modular cohorts remain; unsupported instructions are explicit skips."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Compile/execute authored scalar, MFMA, concatenation and collector regressions; qualify emitted target ISA/physical mappings/exactness, measure matched cold/reused/resident cohorts and retain positive or negative results. No profitable cohort or speedup claimed."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 67,
@@ -2190,15 +2496,23 @@
         "c7f173f1912fb8cdd04d143ecfdbee54f15af070"
       ],
       "remaining": [
-        "HIP compilation and execution, ownership/failure-injection regressions, installed-example qualification and named-target performance/profiler evidence are deferred; no measured speedup or qualified graph reuse is claimed.",
-        "Optional DLPack adapter is explicitly a follow-on after core qualification, not a required implementation gap."
+        "Installed static/shared synchronous/prepared native-device pipelines passed. Matched external/internal/host-roundtrip performance and profiler/failure qualification remain; DLPack remains an optional follow-on."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         24,
         43
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP compilation and execution, ownership/failure-injection regressions, installed-example qualification and named-target performance/profiler evidence are deferred; no measured speedup or qualified graph reuse is claimed.",
+        "Optional DLPack adapter is explicitly a follow-on after core qualification, not a required implementation gap."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 68,
@@ -2258,15 +2572,23 @@
       ],
       "commits": [],
       "remaining": [
-        "Serial/retained-B/overlapped execution and calibrated panel shortlisting are authored. Full builds, authored correctness/resource/receipt/model fixture execution, allocation/trace reconciliation, real capacity demonstrations, held-out prediction calibration and measured crossover remain deferred. Exact-wide/finite/wrap streaming extensions remain explicitly unsupported future semantic families."
+        "Resource/receipt/model correctness passes locally. Real beyond-device-capacity demonstration, trace/allocation reconciliation, independent crossover and held-out panel calibration remain."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         18,
         24,
         43,
         65
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "Serial/retained-B/overlapped execution and calibrated panel shortlisting are authored. Full builds, authored correctness/resource/receipt/model fixture execution, allocation/trace reconciliation, real capacity demonstrations, held-out prediction calibration and measured crossover remain deferred. Exact-wide/finite/wrap streaming extensions remain explicitly unsupported future semantic families."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 69,
@@ -2306,12 +2628,20 @@
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
+        "Independent packed-transform/conversion crossover measurements and emitted resource/traffic evidence remain; no default promotion."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "HIP compilation, all authored regressions, ISA review and independent crossover measurements deferred; no default promotion."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 70,
@@ -2339,14 +2669,22 @@
         "02d7166eb377d715fddb8e36233b1911af025d3b"
       ],
       "remaining": [
+        "Local hipBLASLt metadata/reuse differentials pass. Independent cold/warm setup/submission and complete-route observations remain; cross-call descriptor retention stays conditional."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [
+        35
+      ],
+      "historical_frontload_remaining": [
         "Regression execution and real hipBLASLt compile/device validation deferred.",
         "Matched independent-process measurements, including negative/negligible outcomes, unverified.",
         "Cross-call raw descriptor retention is issue70 slice3 conditional on worthwhile measured benefit, not claimed or selected before that evidence."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": [
-        35
-      ]
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 71,
@@ -2386,13 +2724,21 @@
         "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
       ],
       "remaining": [
-        "No identified implementation gap in #71. HIP compiler/ISA signedness, differential execution, dynamic profiler launch counts and measured target-specific wins/losses remain deferred outcomes; no promotion or issue closure."
+        "Local scalar and packed-dot differentials pass. Selected ISA/resource/launch evidence and independent same-scheduler arithmetic comparisons remain; no target-specific promotion."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
         29,
         34
-      ]
+      ],
+      "historical_frontload_remaining": [
+        "No identified implementation gap in #71. HIP compiler/ISA signedness, differential execution, dynamic profiler launch counts and measured target-specific wins/losses remain deferred outcomes; no promotion or issue closure."
+      ],
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 72,
@@ -2444,13 +2790,21 @@
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
       "remaining": [
+        "All-limb magnitude fixtures and schema checks pass. Focused paired public CPU/HIP independent-process observations are prepared but held for the restarted NuLARRY workload."
+      ],
+      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "dependencies": [
+        31
+      ],
+      "historical_frontload_remaining": [
         "Regression execution, paired public benchmark collection and independent-run qualification deferred.",
         "Public hook-disabled/sustained timing implementation tracked separately by #31."
       ],
-      "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": [
-        31
-      ]
+      "local_validation": {
+        "receipt": "metadata/materialization-validation-20261025.json",
+        "compiled_source_commit": "6ce489b",
+        "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      }
     },
     {
       "issue": 74,
@@ -2737,15 +3091,16 @@
   },
   "subsequent_closeout": {
     "starting_commit": "e31cb71",
+    "compiled_source_commit": "6ce489b",
     "additional_closed_issues": [
+      19,
       29
     ],
-    "open_issue_count": 44,
-    "remaining_work": "Materialization implementation and issue-specific qualification in progress; hardware deferrals preserved.",
-    "additional_closed": [
-      29,
-      19
-    ],
-    "remaining_open_count": 43
+    "open_issue_count": 43,
+    "local_validation": "metadata/materialization-validation-20261025.json",
+    "local_correctness_complete": true,
+    "remaining_work": "Issue-specific measurements, unfinished providers and explicitly deferred hardware remain; new performance collection is held for restarted NuLARRY work.",
+    "performance_campaign_resumed": false,
+    "all_research_issues_complete": false
   }
 }

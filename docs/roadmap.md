@@ -8,6 +8,11 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
+passed at `6ce489b`; eight issues have evidence-backed closure and 43 remain open.
+The per-issue ledger separates the completed local checks from unresolved
+implementation, measurement and hardware requirements.
+
 The [October 25 consolidated validation](local-validation-20261025.md) records
 the expanded Windows/gfx1100 and CPU ASan correctness coverage, repaired
 failures, installed static/shared graph consumers and six closed tooling issues.
@@ -113,29 +118,28 @@ the paired-complex fifth workload is authored, while sustained production-bounda
 measurements remain in the final validation batch. Documentation consolidation
 [#61](https://github.com/doublemover/RNS8/issues/61) consumes those concrete boundaries.
 
-### Current frontloaded batch
+### Current validation and remaining work
 
-The last completed local all-feature retry at `1bb5e33` passed 491 tests with
-three expected target-inapplicable sparse skips and no failures; its raw receipt
-is `temp/1bb5e33-tests-retry.log`. The separate 17-mode native smoke collection
-also passed. These results predate the new dependency and source changes.
+The [October 25 materialization retry](local-validation-20261025.md#subsequent-materialization-integration)
+records clean `6ce489b` artifacts: 536 CPU ASan passes, 911 full-feature gfx1100
+passes, 661 actual test cases in each arithmetic control, and 12 installed
+static/shared consumer passes, with no failures. Complete inventory accounting
+includes the unchanged shared logical proof. The preceding dated validation
+owns the earlier tooling, fuzz, native-device consumer and artifact checks.
 
-Subsequent commits author failed-drain quarantine, token-bound diagnostics,
-cooperative cancellation, timed observation, typed async support queries, an
-experimental public paired-complex API and resident graph node, compact adaptive
-workers, an explicit retained-native adaptive API, offline dependency-proven arena
-reuse, and direct tile-major CRT consumption with matched route calibration. Their
-fixtures are written; no new project validation or benchmark pass has run.
-The user requested all remaining implementation before one consolidated pass.
-Do not interpret a pushed implementation or an installed compiler as qualification.
+Generation-bound native/pinned-host transfers, event-dependent joins, exact
+lift/export, paired-complex and block-sparse owners, custom bases and product
+arenas have applicable local regression evidence. Their issue-specific timing,
+profiler, capacity and broader-platform gates remain separate. A pushed source
+implementation or passing local test is not blanket hardware qualification.
 
-The user explicitly deferred ROCm 10.1 and hardware-dependent Linux multi-GPU,
-Instinct/CDNA and unavailable instruction-family qualification. Retain the
-HIP 7.1 accelerator pins for this local batch. VS 2026 18.11.1 and the isolated
-non-GPU dependency stack (including GMP/MPFR/FLINT) are installed; their project
-qualification remains pending. Git's installer update remains
-pending after automatic approval review blocked its command. These gaps cannot
-be represented as completed issue acceptance.
+The user explicitly deferred ROCm 10.1 and unavailable Linux multi-GPU,
+Instinct/CDNA and instruction-family qualification. HIP 7.1 remains the local
+accelerator pin. VS2026 and the isolated non-GPU stack passed the named project
+builds/tests; the selected Git upgrade remains blocked by its installer approval
+review. Official AMD documentation responses remain unresolved under #61.
+Focused performance collection waits for NuLARRY to finish; the original
+5,382/16,513-run campaign remains stopped.
 
 ## Stop conditions for hardware work
 
@@ -162,29 +166,19 @@ is preserved with its original context; current public/private boundaries are
 owned by the linked topic guides.
 
 
-### Current source frontload
+### Current materialization and provider boundary
 
-Source additions after the last executed checkpoint include multiwave native WMMA,
-public one-level Strassen exact export ownership, floating rewrite host oracles and
-shared epilogue/lift admission providers and a [public narrow native owner](narrow-native-owner.md). A [generation-bound block-sparse public owner](block-sparse.md#public-generation-bound-owner) is also authored. Their fixtures are authored, not executed.
-The final upgraded-stack campaign remains deferred until the implementation frontload
-ends. No new source commit inherits the old checkpoint's qualification.
+The [runtime product arena](runtime-product-arena.md) executes CPU/direct-HIP
+chains and diamonds with exact suffix growth, retained observations, staged
+publication and reusable scratch. Its [opt-in materialization planner](planning-recipes.md#cost-planned-product-materializations)
+adds shared packed B alternatives, joint prefix/cost search and a physical
+liveness arena. The latest CPU/HIP and installed-consumer fixtures passed.
+Prices remain explicit model inputs; independent measured stage prices and
+held-out complete-route qualification are still required under #42/#30.
 
-A multi-producer token join with explicit nonblocking progress is now authored.
-Concrete remaining development includes event-pipelined dependencies and async transfers/lift/export,
-runtime layout/cost selection and broader resident-graph arena integration, broader runtime recipe providers,
-encoded-B async integration and broader narrow scheduling. Block-sparse hybrid and rank-23 straight-line
-execution are now authored and await the final qualification campaign. These are code gaps, distinct from unavailable hardware and measured
-promotion gates. Completion of one validation batch cannot by itself close them.
-
-The [runtime product arena](runtime-product-arena.md) now authors a real internal
-CPU/direct-HIP fixed-order executor with dependency-safe physical reuse,
-optional minimum-prefix computation and consumer-driven exact suffix materialization,
-and staged final publication. Its linear/diamond fixtures remain unexecuted;
-the specialized public product-recipe API exposes this executor, while broader
-resident-graph/layout/cost planning remains separate.
-
-A [generation-bound encoded-B owner](encoded-b-native.md) now authors actual
-K-contiguous residue storage and a direct fragment consumer. Ordinary grouped
-launches and a synchronous heterogeneous queue owner are authored; async binding
-remains separate.
+Broader provider parity, encoded-B async composition and target-specific
+execution remain explicit issue gates. True multi-device ownership, unavailable
+FP4/FP6/FP8 matrix engines and CDNA5 transfer/multicast work are deferred with
+#45/#50/#52. Unsupported providers do not inherit support from a registry entry
+or a passing direct-HIP path. The [per-issue ledger](../metadata/remaining-implementation-20261024.json)
+tracks current source, local evidence and remaining measurements/hardware.

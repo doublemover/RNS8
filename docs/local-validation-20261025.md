@@ -1,5 +1,9 @@
 # Windows and gfx1100 validation — 2026-10-25
 
+The [subsequent materialization integration](#subsequent-materialization-integration)
+records the latest `6ce489b` rebuild and complete retry. The earlier tables retain
+their original artifact boundaries; neither checkpoint qualifies unmeasured gains.
+
 This record covers the consolidated correctness and tooling pass after the
 frontloaded implementation on PR #15. The host is Windows with an RX 7900 XTX
 (`gfx1100`), VS2026 18.11.1 / MSVC 19.51, HIP 7.1, Python 3.15.1,
@@ -120,3 +124,63 @@ one enables `RNS8_EXPERIMENTAL_RESIDUE_DOT4` and
 `RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL`. Their `rns8_tests` executable runs
 the complete combined Catch2 suite. Source fixtures and case JSON are tracked;
 no ignored runner is required to reproduce them.
+
+
+## Subsequent materialization integration
+
+Commits `a4ef2b9`, `c9e53a2` and `6ce489b` add the opt-in joint
+prefix/packed-B planner, incremental layout conversion and a real descriptor-aware
+CPU/HIP consumer. Graph prices bind ordered basis, proof envelopes, observations,
+target and build. Packing views and exact lift scratch share a bounded liveness
+arena. Ragged queries use the owner's gathered bound before destination mutation;
+a prefix20 producer with a conservative envelope can feed a certified prefix8
+consumer through different producer/consumer tile shapes.
+
+The [new receipt](../metadata/materialization-validation-20261025.json) identifies
+all rebuilt artifacts at clean source `6ce489b`, with the same source-input digest
+across the four configurations. This supersedes the earlier #42 source gap above.
+
+| Fresh repaired execution | Passed | Expected skips | Failed |
+| --- | ---: | ---: | ---: |
+| CPU AddressSanitizer | 536 | 22 | 0 |
+| Full-feature gfx1100 | 911 | 15 | 0 |
+| Packed-dot/Garner-table control, actual Catch test cases | 661 | 5 | 0 |
+| Scalar control, actual Catch test cases | 661 | 5 | 0 |
+| Installed static/shared ordinary consumers | 12 | 0 | 0 |
+
+The name audit covers all 559 CPU and 927 GPU inventory entries. Each fresh CTest
+run omits only the unchanged source-bound logical checker; its prior 1,020.41 s
+passing execution is shared. The checker, lowering, generator and ingestion
+sources match the preceding checkpoint after line-ending normalization. This
+reuse does not qualify the new layout consumer: its independent Boost/CPU and
+real HIP differentials ran afresh, including every prefix, signed extrema,
+padding poison and K=65535/65536/65537.
+
+The initial run found a generation fixture that repacked with the same
+source-version key, correctly hitting the pack cache. The repaired fixture
+advances that key. Strict installed builds also found an unsafe-CRT warning;
+bounded literal copies now pass `/W4 /WX`. Review additionally found that ragged
+price projection must use the gathered owner's bound rather than the source's
+possibly wider conservative envelope. The consolidated repair covers a narrower
+destination and compares pre/post-gather identities. All repairs were collected
+before the single complete retry. No arithmetic mismatch or device fault occurred.
+
+Both installed linkage modes execute the new public-only example. The installed
+experimental header also passes strict C syntax compilation; the shared DLL
+exports all six new C entrypoints. CPU/HIP fixtures cover replay allocation
+counters, shared packing growth, multiple outputs, default/experimental bases,
+source mutation/rebind, and differently tiled ragged refresh.
+
+Issues **#19 and #29** are closed after evidence review of compiled provenance/ISA
+association and arithmetic certificates. Together with the preceding six,
+**eight issues are closed and 43 remain open**. Correctness is separate from
+issue-specific performance and broader hardware acceptance. The per-issue
+[ledger](../metadata/remaining-implementation-20261024.json) records those gaps.
+
+The existing lift/recipe collector now has full/minimum forced-packed and joint
+layout-model controls, required v2 materialization receipts and independent cost,
+packing-growth, liveness and budget checks. Six new GPU correctness smokes pass.
+The model prices are explicitly unqualified analytical estimates. Focused public
+magnitude and matched materialization comparisons are prepared, but no new
+benchmark process has run: a new NuLARRY workload restarted before collection,
+and the requested quiet-host gate blocked launch. The old campaign remains stopped.

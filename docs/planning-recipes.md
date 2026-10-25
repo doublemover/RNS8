@@ -17,10 +17,9 @@ implied. It does not change ordinary GEMM routing.
 
 Boost differential fixtures cover every default prefix, ordered-basis changes,
 signed native extrema, partial packing, shape/pitch tails, padding poison,
-K=65535/65536/65537 and rejected aliases. Host and gfx1100 host/device syntax
-checks passed during frontloading. Their execution is part of the new #42
-integration batch; the earlier [local validation](local-validation-20261025.md)
-qualifies its named preceding artifacts.
+K=65535/65536/65537 and rejected aliases. The CPU/ASan and gfx1100 differentials passed at `6ce489b`, including packed-dot
+and scalar-control configurations. The [dated validation](local-validation-20261025.md#subsequent-materialization-integration)
+records exact artifact and coverage boundaries.
 
 ## Cost-planned product materializations
 
@@ -98,8 +97,8 @@ differently tiled ragged producer refresh, and HIP
 allocation counters. The installed
 [materialized product example](../examples/downstream-cmake/materialized_product_recipe.cpp)
 checks the exported header/functions with static and shared linkage. Functional
-execution and measured qualification of this new slice remain pending its
-consolidated validation batch.
+execution passed in the consolidated `6ce489b` batch. Independent measured
+qualification remains pending; passing correctness does not establish a gain.
 
 ### Matched materialization controls
 
