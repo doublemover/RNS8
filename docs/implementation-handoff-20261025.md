@@ -4,7 +4,9 @@ Subsequent development resumed with validation deferred. The #68 serial owner no
 has a bounded retained-B cache, conflict-aware reload accounting, and authored
 regressions/calibration controls. Serial export now disables unbudgeted nested pinned staging. Overlap and general
 cost selection remain unfinished. Counts below describe the original parked
-snapshot; the per-issue ledger records this later partial implementation.
+snapshot; the per-issue ledger records subsequent partial implementations.
+The #40 hipBLASLt path also has independent none/A/B/both retention controls,
+composed metadata controls and packing receipts, with all execution deferred.
 
 Development was parked at the user's request, **not because the backlog is
 finished**. This branch starts at `5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70` on
@@ -60,7 +62,7 @@ schedule sealing share one flag mask, including the existing research controls.
 | --- | --- |
 | #30 | Finish provider/binding parity as unfinished representation, distributed and asynchronous owners land; do not infer implementation from a registry record. |
 | #32 | Runtime experimental ordered bases, products/inverses and full matrix/layout/plan/cache/export identities; pack, multiply, reconstruction and explicit conversion. |
-| #40 | General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A/panel reuse; hipBLASLt none/A/B/both retention and composed controls. |
+| #40 | General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A/panel reuse; hipBLASLt retention/composed controls are authored, execution deferred. |
 | #41 | Nondefault-basis conversion integrated with #32; default-basis synchronous/prepared lift and selector are written. |
 | #42 | General packed/materialization alternatives with #40; asynchronous NativeToRns/BaseExtend/Export compiled graph-node adapters with #43. |
 | #43 | Those compiled graph-node adapters, additional semantic/provider async integration, and matched pinned-host transfer calibration. |

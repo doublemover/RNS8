@@ -82,6 +82,7 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
     identity["streaming_schedule"] = (capture.get("streaming_overlap") or {}).get("schedule") if streaming_executed(capture) else None
     identity["locality_schedule"] = capture.get("locality_schedule")
     identity["hipblaslt_metadata_policy"] = (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block") if backend_id(capture)=="hipblaslt" else None
+    identity["hipblaslt_prepack_policy"] = (capture.get("hipblaslt_operand_prepack") or {}).get("policy","both") if backend_id(capture)=="hipblaslt" else None
     identity["exact_proof_policy"] = exact_proof_policy(capture)
     identity["host_batch_contract"] = host_batch_contract(capture)
     identity["timing_contract"] = {key: timing.get(key) for key in

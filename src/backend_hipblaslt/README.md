@@ -23,6 +23,25 @@ Stable repeated-A, repeated-B, or repeated-A/B calls skip the matching
 transpose-pack kernel after the first warmup/materialization. Finite-u8,
 adaptive schedules, and split-K calls still use the transient pack path.
 
+Private measurement controls select `none`, `a`, `b` or `both` retained operands
+independently through `--hipblaslt-prepack-policy` in `rns8-bench`. The default is
+`both`. A disabled operand always uses the existing transient transpose pack;
+it cannot consume an older retained buffer. Switching policy does not free a
+workspace's existing allocations. Use a fresh process/workspace for allocation
+comparisons. This control composes with `--hipblaslt-metadata-policy per-call|per-block`.
+It applies to bounded and exact-wide fixed-prefix RNS calls. Split-K remains
+transient regardless of the requested retention policy; finite-u8 does not accept
+this explicit CLI control.
+
+The `hipblaslt_operand_prepack` receipt records successful retained builds,
+generation/identity matches, and retained/transient plane-pack submissions for
+both operands at the warmup and measured-repeat boundaries. These are source
+work counts, not byte capacities or elapsed time. Reports keep different
+retention policies in separate implementation cohorts. The authored
+`benchmarks/public-calibration/hipblaslt-prepack.json` controls include both
+metadata modes, ragged/large shapes and a split-K case. These additions have not
+been built, executed or measured; validation remains deferred.
+
 Supported contracts:
 
 - Fixed-prefix bounded `int64_t` and `uint64_t` RNS GEMM.

@@ -129,6 +129,7 @@ rns8_status ensure_a_prepack_cache(
   }
   const std::size_t total_bytes = plane_bytes * static_cast<std::size_t>(prefix);
   if (a_prepack_cache_matches(state, device_id, generation, instance_id, m, k, lda, prefix, total_bytes)) {
+    ++prepack_counters.a_retained_hits;
     return RNS8_SUCCESS;
   }
   state.hipblaslt_a_prepack_current = false;
@@ -168,6 +169,7 @@ rns8_status ensure_a_prepack_cache(
       state.hipblaslt_a_prepack_current = false;
       return pack_status;
     }
+    ++prepack_counters.a_retained_planes_packed;
   }
 
   state.hipblaslt_a_prepack_generation = generation;
@@ -178,6 +180,7 @@ rns8_status ensure_a_prepack_cache(
   state.hipblaslt_a_prepack_prefix = prefix;
   state.hipblaslt_a_prepack_device_id = device_id;
   state.hipblaslt_a_prepack_current = true;
+  ++prepack_counters.a_retained_builds;
   return RNS8_SUCCESS;
 }
 
@@ -201,6 +204,7 @@ rns8_status ensure_b_prepack_cache(
   }
   const std::size_t total_bytes = plane_bytes * static_cast<std::size_t>(prefix);
   if (b_prepack_cache_matches(state, device_id, generation, instance_id, k, n, ldb, prefix, total_bytes)) {
+    ++prepack_counters.b_retained_hits;
     return RNS8_SUCCESS;
   }
   state.hipblaslt_b_prepack_current = false;
@@ -240,6 +244,7 @@ rns8_status ensure_b_prepack_cache(
       state.hipblaslt_b_prepack_current = false;
       return pack_status;
     }
+    ++prepack_counters.b_retained_planes_packed;
   }
 
   state.hipblaslt_b_prepack_generation = generation;
@@ -250,6 +255,7 @@ rns8_status ensure_b_prepack_cache(
   state.hipblaslt_b_prepack_prefix = prefix;
   state.hipblaslt_b_prepack_device_id = device_id;
   state.hipblaslt_b_prepack_current = true;
+  ++prepack_counters.b_retained_builds;
   return RNS8_SUCCESS;
 }
 

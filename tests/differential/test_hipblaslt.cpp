@@ -353,6 +353,25 @@ TEST_CASE("hipBLASLt workspace operand prepack caches reuse stable source versio
   CHECK(workspace->hipblaslt_b_prepack_current);
   CHECK(workspace->hipblaslt_b_prepack_generation == b_matrix->content_generation);
 
+  // Disabling an operand bypasses its live cache without destroying workspace
+  // storage. Re-enable it only through the complete generation/identity check.
+  {
+    using namespace rns8::detail;
+    struct Restore {HipblasLtPrepackPolicy policy=hipblaslt_prepack_policy();~Restore(){(void)hipblaslt_prepack_set_policy(policy);}} restore;
+    for(const auto policy:{HipblasLtPrepackPolicy::none,HipblasLtPrepackPolicy::a,HipblasLtPrepackPolicy::b,HipblasLtPrepackPolicy::both}) {
+      REQUIRE(hipblaslt_prepack_set_policy(policy)==RNS8_SUCCESS);hipblaslt_prepack_counters_reset();
+      REQUIRE(rns8_gemm_rns(hipblaslt,plan,a_matrix,b_matrix,c_matrix,workspace)==RNS8_SUCCESS);
+      REQUIRE(rns8_export_i64(hipblaslt,plan,c_matrix,out.data(),n)==RNS8_SUCCESS);
+      require_same_i64(reference_i64(A1,B1,m,n,k),out);
+      const auto work=hipblaslt_prepack_counters_snapshot();
+      CHECK(work.a_retained_hits==(hipblaslt_prepack_a_enabled(policy)?1:0));
+      CHECK(work.b_retained_hits==(hipblaslt_prepack_b_enabled(policy)?1:0));
+      CHECK(work.a_transient_planes_packed==(hipblaslt_prepack_a_enabled(policy)?0:plan->prefix));
+      CHECK(work.b_transient_planes_packed==(hipblaslt_prepack_b_enabled(policy)?0:plan->prefix));
+      CHECK(workspace->hipblaslt_a_prepack_cache==first_a_cache_ptr);
+      CHECK(workspace->hipblaslt_b_prepack_cache==first_cache_ptr);
+    }
+  }
   // Exhausted generations cannot admit a cache hit, even on the same handle.
   b_matrix->content_generation = UINT64_MAX;
   REQUIRE(rns8_pack_i64(hipblaslt, b_matrix, B0.data(), n, 12) == RNS8_SUCCESS);
@@ -697,6 +716,7 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
   if(!hipblaslt_available())SKIP("hipBLASLt backend unavailable");
   using namespace rns8::detail;
   struct restore_policy {HipblasLtMetadataPolicy value=hipblaslt_metadata_policy();~restore_policy(){hipblaslt_metadata_set_policy(value);}} restore;
+  struct RestoreRetention {HipblasLtPrepackPolicy value=hipblaslt_prepack_policy();~RestoreRetention(){(void)hipblaslt_prepack_set_policy(value);}} restore_retention;
   auto* ctx=create_backend_context(RNS8_BACKEND_HIPBLASLT);
   auto* cpu=create_backend_context(RNS8_BACKEND_CPU_REFERENCE);
   for(int64_t k:{17,65535,65536,65537})for(auto semantic:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
@@ -713,8 +733,9 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         const uint64_t v=wide?(uint64_t{1}<<40)+((inner+col+generation)%5):1+(inner+col+generation)%5;
         sb[inner*(n+2)+col]=sign && (col%2==0)?-int64_t(v):int64_t(v);ub[inner*(n+2)+col]=v;
       }
-      auto execute=[&](rns8_context* context,rns8_backend_kind backend,HipblasLtMetadataPolicy policy){
+      auto execute=[&](rns8_context* context,rns8_backend_kind backend,HipblasLtMetadataPolicy policy,HipblasLtPrepackPolicy retention){
         hipblaslt_metadata_set_policy(policy);
+        REQUIRE(hipblaslt_prepack_set_policy(retention)==RNS8_SUCCESS);
         auto desc=wide?(sign?exact_signed_desc(m,n,k,backend):exact_unsigned_desc(m,n,k,backend)):
             (sign?bounded_i64_desc(m,n,k,uint64_t(k)*35,backend):bounded_u64_desc(m,n,k,uint64_t(k)*35,backend));
         desc.max_prefix=wide?20:9;
@@ -726,7 +747,7 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         REQUIRE((sign?rns8_pack_i64(context,a,sa.data(),k+2,generation):rns8_pack_u64(context,a,ua.data(),k+2,generation))==RNS8_SUCCESS);
         REQUIRE((sign?rns8_pack_i64(context,b,sb.data(),n+2,generation):rns8_pack_u64(context,b,ub.data(),n+2,generation))==RNS8_SUCCESS);
         // Warm the algorithm-value cache, then inspect only another successful call.
-        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);hipblaslt_metadata_counters_reset();
+        REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);hipblaslt_metadata_counters_reset();hipblaslt_prepack_counters_reset();
         REQUIRE(rns8_gemm_rns(context,plan,a,b,c,work)==RNS8_SUCCESS);
         const auto counts=hipblaslt_metadata_counters_snapshot();
         if(backend==RNS8_BACKEND_HIPBLASLT){
@@ -736,6 +757,16 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
           CHECK(counts.descriptor_create_calls==5*counts.descriptor_sets_created);CHECK(counts.descriptor_destroy_calls==counts.descriptor_create_calls);
           CHECK(counts.attribute_set_calls==2*counts.descriptor_sets_created);
           CHECK(counts.preference_create_calls==(policy==HipblasLtMetadataPolicy::per_call?0:blocks));CHECK(counts.preference_destroy_calls==counts.preference_create_calls);
+          const auto packed=hipblaslt_prepack_counters_snapshot();
+          const bool keep_a=k<=65536 && hipblaslt_prepack_a_enabled(retention);
+          const bool keep_b=k<=65536 && hipblaslt_prepack_b_enabled(retention);
+          CHECK(packed.a_retained_builds==0);CHECK(packed.b_retained_builds==0);
+          CHECK(packed.a_retained_hits==(keep_a?1:0));CHECK(packed.b_retained_hits==(keep_b?1:0));
+          CHECK(packed.a_retained_planes_packed==0);CHECK(packed.b_retained_planes_packed==0);
+          CHECK(packed.a_transient_planes_packed==(keep_a?0:blocks));
+          CHECK(packed.b_transient_planes_packed==(keep_b?0:blocks));
+          CHECK((work->hipblaslt_a_prepack_cache!=nullptr)==keep_a);
+          CHECK((work->hipblaslt_b_prepack_cache!=nullptr)==keep_b);
         }
         std::vector<uint64_t> out(m*ld*(wide?limbs:1),sentinel);
         if(wide)REQUIRE((sign?rns8_export_exact_wide_signed_limbs(context,plan,c,out.data(),ld,limbs):rns8_export_exact_wide_unsigned_limbs(context,plan,c,out.data(),ld,limbs))==RNS8_SUCCESS);
@@ -743,9 +774,11 @@ TEST_CASE("hipBLASLt geometry reuse preserves signed unsigned wide and finite ou
         else REQUIRE(rns8_export_u64(context,plan,c,out.data(),ld)==RNS8_SUCCESS);
         rns8_destroy_matrix(c);rns8_destroy_matrix(b);rns8_destroy_matrix(a);rns8_destroy_workspace(work);rns8_destroy_plan(plan);return out;
       };
-      const auto expected=execute(cpu,RNS8_BACKEND_CPU_REFERENCE,HipblasLtMetadataPolicy::per_call);
-      CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_block_control)==expected);
-      CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_call)==expected);
+      const auto expected=execute(cpu,RNS8_BACKEND_CPU_REFERENCE,HipblasLtMetadataPolicy::per_call,HipblasLtPrepackPolicy::both);
+      for(const auto retention:{HipblasLtPrepackPolicy::none,HipblasLtPrepackPolicy::a,HipblasLtPrepackPolicy::b,HipblasLtPrepackPolicy::both}) {
+        CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_block_control,retention)==expected);
+        CHECK(execute(ctx,RNS8_BACKEND_HIPBLASLT,HipblasLtMetadataPolicy::per_call,retention)==expected);
+      }
     }
   }
   for(int64_t k:{65535,65536,65537})for(uint16_t modulus:{251,255,256}){

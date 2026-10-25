@@ -173,6 +173,17 @@
   };
   std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
   std::cout << "    \"after_measured_repeats\": "; print_metadata_counters(result.metadata_after_repeats); std::cout << "\n  },\n";
+  std::cout << "  \"hipblaslt_operand_prepack\": {\n    \"abi_version\":1,\"policy\":\"" << args.hipblaslt_prepack_policy
+      << "\",\"scope\":\"calling_thread_successful_pack_submissions_and_cache_matches_not_bytes_or_time\",\n";
+  auto print_prepack_counters=[](const rns8::detail::HipblasLtPrepackCounters& v) {
+    std::cout << "{\"a_retained_builds\":" << v.a_retained_builds << ",\"b_retained_builds\":" << v.b_retained_builds
+      << ",\"a_retained_hits\":" << v.a_retained_hits << ",\"b_retained_hits\":" << v.b_retained_hits
+      << ",\"a_retained_planes_packed\":" << v.a_retained_planes_packed << ",\"b_retained_planes_packed\":" << v.b_retained_planes_packed
+      << ",\"a_transient_planes_packed\":" << v.a_transient_planes_packed << ",\"b_transient_planes_packed\":" << v.b_transient_planes_packed << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_prepack_counters(result.prepack_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_prepack_counters(result.prepack_after_repeats);
+  std::cout << "\n  },\n";
 
   std::cout << "  \"immutable_schedule_work\": {\"abi_version\":1,\"scope\":\"calling_thread_source_work_counters_not_latency\",\n";
   auto print_schedule_work=[](const rns8::detail::api::plan_validation_counters& v) {

@@ -32,6 +32,18 @@ struct HipblasLtCallMetadataDirectory {
   }
 };
 enum class HipblasLtMetadataPolicy : uint32_t { per_block_control=0, per_call=1 };
+enum class HipblasLtPrepackPolicy : uint32_t { none=0,a=1,b=2,both=3 };
+inline bool hipblaslt_prepack_a_enabled(HipblasLtPrepackPolicy policy) {
+  return (static_cast<uint32_t>(policy)&1)!=0;
+}
+inline bool hipblaslt_prepack_b_enabled(HipblasLtPrepackPolicy policy) {
+  return (static_cast<uint32_t>(policy)&2)!=0;
+}
+struct HipblasLtPrepackCounters {
+  uint64_t a_retained_builds=0,b_retained_builds=0,a_retained_hits=0,b_retained_hits=0;
+  uint64_t a_retained_planes_packed=0,b_retained_planes_packed=0;
+  uint64_t a_transient_planes_packed=0,b_transient_planes_packed=0;
+};
 struct HipblasLtMetadataCounters {
   uint64_t descriptor_create_calls=0,descriptor_destroy_calls=0,attribute_set_calls=0;
   uint64_t preference_create_calls=0,preference_destroy_calls=0,preference_attribute_calls=0;

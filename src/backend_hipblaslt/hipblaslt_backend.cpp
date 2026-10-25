@@ -52,6 +52,7 @@ extern "C" int rns8_hipblaslt_reduce_i32_to_centered_strided_device(
 namespace rns8::detail {
 using hipblaslt_metadata_state::metadata_policy;
 using hipblaslt_metadata_state::metadata_counters;
+using hipblaslt_metadata_state::prepack_counters;
 
 #include "hipblaslt_timing_matmul_cache.inc"
 #include "hipblaslt_prepack_cache.inc"

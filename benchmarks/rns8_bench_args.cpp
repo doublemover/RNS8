@@ -359,6 +359,11 @@ Args parse_args(int argc, char** argv) {
       args.locality_model_concurrency=parse_u32(argv[++i],"--locality-model-concurrency");
     } else if (arg == "--locality-model-cache-bytes" && i+1<argc) {
       args.locality_model_cache_bytes=parse_u64(argv[++i],"--locality-model-cache-bytes");
+    } else if (arg == "--hipblaslt-prepack-policy" && i + 1 < argc) {
+      args.hipblaslt_prepack_policy=argv[++i];args.hipblaslt_prepack_policy_explicit=true;
+      if(args.hipblaslt_prepack_policy!="none" && args.hipblaslt_prepack_policy!="a" &&
+          args.hipblaslt_prepack_policy!="b" && args.hipblaslt_prepack_policy!="both")
+        usage_error("hipBLASLt prepack policy must be none, a, b or both");
     } else if (arg == "--hipblaslt-metadata-policy" && i + 1 < argc) {
       const std::string policy=argv[++i];
       if(policy!="per-call" && policy!="per-block")usage_error("hipBLASLt metadata policy must be per-call or per-block");
@@ -448,6 +453,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
           << "                  [--hipblaslt-metadata-policy per-call|per-block]\n"
+          << "                  [--hipblaslt-prepack-policy none|a|b|both]\n"
           << "                  [--streaming-overlap --streaming-batches 3..64 --streaming-schedule overlapped|serial]\n"
           << "                  [--k-block-policy NAME]\n"
           << "                  [--resident-redesign-candidate NAME]\n"
@@ -962,6 +968,10 @@ Args parse_args(int argc, char** argv) {
     usage_error("locality model hints require an explicit locality order");
   if(args.hipblaslt_metadata_per_block_control && args.backend!=RNS8_BACKEND_HIPBLASLT)
     usage_error("per-block metadata control requires explicit hipblaslt backend");
+  if(args.hipblaslt_prepack_policy_explicit && (args.backend!=RNS8_BACKEND_HIPBLASLT ||
+      args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
+      args.semantics==BenchSemantics::WrapU64Mod2_64))
+    usage_error("operand prepack controls require explicit hipblaslt bounded or exact-wide RNS GEMM");
   return args;
 }
 

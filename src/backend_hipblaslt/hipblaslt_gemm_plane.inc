@@ -92,6 +92,7 @@ rns8_status gemm_one_plane(
       if (pack_status != RNS8_SUCCESS) {
         return pack_status;
       }
+      ++prepack_counters.a_transient_planes_packed;
     }
     if (cached_packed_b_t) {
       if (k_offset != 0 || k_block != k) {
@@ -111,6 +112,7 @@ rns8_status gemm_one_plane(
       if (pack_status != RNS8_SUCCESS) {
         return pack_status;
       }
+      ++prepack_counters.b_transient_planes_packed;
     }
     const hipblasStatus_t matmul_status = run_matmul_block(
         device_id,

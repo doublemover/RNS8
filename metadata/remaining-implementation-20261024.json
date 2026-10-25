@@ -782,19 +782,38 @@
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Add independent none/A/B/both hipBLASLt retained operand policies composed with per-block/per-call metadata controls. Disabled sides use real transient plane packs; retained sides preserve full workspace binding validation. Record retained builds/hits and actual retained/transient plane-pack submissions, partition report/variance cohorts by physical policy, and author paired metadata/retention calibration controls.",
+          "files": [
+            "src/backend_hipblaslt/hipblaslt_rns_gemm.inc",
+            "src/backend_hipblaslt/hipblaslt_prepack_cache.inc",
+            "src/backend_hipblaslt/hipblaslt_gemm_plane.inc",
+            "src/backend_hipblaslt/hipblaslt_metadata.cpp",
+            "benchmarks/rns8_bench_args.cpp",
+            "benchmarks/rns8_bench_print_json_header_backend.inc",
+            "benchmarks/public-calibration/hipblaslt-prepack.json",
+            "tools/benchmark_schema/hipblaslt_metadata.py",
+            "tools/observation_cohorts.py",
+            "tools/perf_variance_report.py"
+          ]
         }
       ],
       "regressions": [
         "tests/differential/test_hip_direct_ragged_cases.inc",
-        "tests/support/ragged_recipe_fixture.hpp"
+        "tests/support/ragged_recipe_fixture.hpp",
+        "tests/unit/test_hipblaslt_metadata.cpp",
+        "tests/differential/test_hipblaslt.cpp",
+        "tools/test_hipblaslt_metadata.py",
+        "tools/test_observation_cohorts.py"
       ],
       "commits": [
         "aa24012745304a17e26ab6efbe0e0718cf9890a1",
         "003e94daa7f2e273572dc93408a38db08468d762"
       ],
       "remaining": [
-        "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A and within-call panel reuse; hipBLASLt none/A/B/both retention policy and matched composed controls remain source work.",
-        "GPU execution and measured layout/performance qualification deferred."
+        "General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A consumption and within-call panel reuse remain source work.",
+        "Independent hipBLASLt operand-retention controls, composed metadata controls and receipts are authored; compilation, regression execution, measurements and qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2306,6 +2325,11 @@
       "kind": "deferred_by_user",
       "scope": "2026-10-25 resumed frontloaded development: retained B streaming implementation and receipt fixtures",
       "result": "No builds, syntax checks, test execution, benchmarks or qualification performed."
+    },
+    {
+      "kind": "deferred_by_user",
+      "scope": "2026-10-25 hipBLASLt independent operand-retention controls and composed calibration cases",
+      "result": "Source implementation and fixtures only; no builds, syntax checks, tests or benchmarks run."
     }
   ],
   "parking_snapshot": {

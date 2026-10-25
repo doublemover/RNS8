@@ -3,6 +3,31 @@ FIELDS=('descriptor_create_calls','descriptor_destroy_calls','attribute_set_call
         'preference_create_calls','preference_destroy_calls','preference_attribute_calls',
         'heuristic_calls','algorithm_cache_hits','descriptor_set_hits','descriptor_sets_created',
         'matmul_block_calls','maximum_live_sets')
+PREPACK_FIELDS=('a_retained_builds','b_retained_builds','a_retained_hits','b_retained_hits',
+    'a_retained_planes_packed','b_retained_planes_packed','a_transient_planes_packed','b_transient_planes_packed')
+
+
+def validate_hipblaslt_prepack(capture):
+    meta=capture.get('hipblaslt_operand_prepack')
+    if meta is None:return []
+    if not isinstance(meta,dict):return ['hipBLASLt operand prepack must be an object']
+    errors=[];policy=meta.get('policy')
+    if type(meta.get('abi_version')) is not int or meta['abi_version']!=1:errors.append('unknown hipBLASLt operand prepack ABI')
+    if policy not in ('none','a','b','both'):errors.append('unknown hipBLASLt operand prepack policy')
+    if meta.get('scope')!='calling_thread_successful_pack_submissions_and_cache_matches_not_bytes_or_time':errors.append('incorrect hipBLASLt operand prepack scope')
+    previous=None
+    for label in ('after_warmups','after_measured_repeats'):
+        snapshot=meta.get(label)
+        if not isinstance(snapshot,dict) or set(snapshot)!=set(PREPACK_FIELDS) or any(type(snapshot[k]) is not int or snapshot[k]<0 for k in PREPACK_FIELDS):
+            errors.append('invalid hipBLASLt operand prepack snapshot');continue
+        if previous and any(snapshot[k]<previous[k] for k in PREPACK_FIELDS):errors.append('hipBLASLt operand prepack counters decreased')
+        previous=snapshot
+        for operand in ('a','b'):
+            retained=[snapshot[operand+suffix] for suffix in ('_retained_builds','_retained_hits','_retained_planes_packed')]
+            if policy not in (operand,'both') and any(retained):errors.append('disabled hipBLASLt operand was retained')
+            if snapshot[operand+'_retained_planes_packed']<snapshot[operand+'_retained_builds']:errors.append('hipBLASLt retained build lacks packed planes')
+        if capture.get('backend_selected')!='hipblaslt' and any(snapshot.values()):errors.append('non-hipBLASLt capture recorded hipBLASLt pack work')
+    return errors
 
 
 def validate_hipblaslt_metadata(capture):

@@ -52,18 +52,17 @@ rns8_status hipblaslt_gemm_rns_device(
     }
     cached_a_plane_bytes = packed_a_plane_bytes_for(cache_shape);
     cached_b_plane_bytes = packed_b_plane_bytes_for(cache_shape);
-    rns8_status cache_status =
-        ensure_a_prepack_cache(device_id, a_base, *workspace_state, a_generation, a_instance_id, m, k, lda, prefix, cache_shape);
-    if (cache_status != RNS8_SUCCESS) {
-      return cache_status;
+    const auto policy=hipblaslt_prepack_policy();
+    if(hipblaslt_prepack_a_enabled(policy)) {
+      const auto status=ensure_a_prepack_cache(device_id,a_base,*workspace_state,a_generation,a_instance_id,m,k,lda,prefix,cache_shape);
+      if(status!=RNS8_SUCCESS) return status;
+      cached_a_base=static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
     }
-    cache_status =
-        ensure_b_prepack_cache(device_id, b_base, *workspace_state, b_generation, b_instance_id, k, n, ldb, prefix, cache_shape);
-    if (cache_status != RNS8_SUCCESS) {
-      return cache_status;
+    if(hipblaslt_prepack_b_enabled(policy)) {
+      const auto status=ensure_b_prepack_cache(device_id,b_base,*workspace_state,b_generation,b_instance_id,k,n,ldb,prefix,cache_shape);
+      if(status!=RNS8_SUCCESS) return status;
+      cached_b_base=static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
     }
-    cached_a_base = static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
-    cached_b_base = static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
   }
   matmul_call_metadata metadata;
   for (uint32_t p = 0; p < prefix; ++p) {

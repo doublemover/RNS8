@@ -18,11 +18,19 @@ namespace rns8::detail {
 namespace hipblaslt_metadata_state {
 extern thread_local HipblasLtMetadataPolicy metadata_policy;
 extern thread_local HipblasLtMetadataCounters metadata_counters;
+extern thread_local HipblasLtPrepackPolicy prepack_policy;
+extern thread_local HipblasLtPrepackCounters prepack_counters;
 }
 void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
 HipblasLtMetadataPolicy hipblaslt_metadata_policy();
 void hipblaslt_metadata_counters_reset();
 HipblasLtMetadataCounters hipblaslt_metadata_counters_snapshot();
+// Independent retained operand controls. A disabled side uses the existing
+// per-plane transient pack path; it cannot consume a previously retained pack.
+rns8_status hipblaslt_prepack_set_policy(HipblasLtPrepackPolicy policy);
+HipblasLtPrepackPolicy hipblaslt_prepack_policy();
+void hipblaslt_prepack_counters_reset();
+HipblasLtPrepackCounters hipblaslt_prepack_counters_snapshot();
 
 constexpr std::size_t kHipblasLtAlignment = 16u;
 constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = 32u * 1024u * 1024u;

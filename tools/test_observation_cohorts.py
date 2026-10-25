@@ -30,6 +30,21 @@ def write_all(root, captures):
 
 
 class ProcessObservations(unittest.TestCase):
+    def test_hipblaslt_operand_policies_remain_separate_implementations(self):
+        captures=[]
+        for policy in ('none','a','b','both'):
+            capture=bounded_capture('hipblaslt',100)
+            fields=('a_retained_builds','b_retained_builds','a_retained_hits','b_retained_hits',
+                'a_retained_planes_packed','b_retained_planes_packed','a_transient_planes_packed','b_transient_planes_packed')
+            capture['hipblaslt_operand_prepack']={'abi_version':1,'policy':policy,
+                'scope':'calling_thread_successful_pack_submissions_and_cache_matches_not_bytes_or_time',
+                'after_warmups':dict.fromkeys(fields,0),'after_measured_repeats':dict.fromkeys(fields,0)}
+            captures.extend(runs(capture))
+        cohorts=aggregate_captures(captures)
+        self.assertEqual(len(cohorts),4)
+        self.assertEqual({c['hipblaslt_operand_prepack']['policy'] for c in cohorts},{'none','a','b','both'})
+        self.assertTrue(all(evidence(c)['independent_runs']==2 for c in cohorts))
+
     def test_duplicate_and_cohort_boundaries(self):
         a, b = runs(finite_capture("hip-direct", 100))
         result = aggregate_captures([a, b, deepcopy(a)])

@@ -71,6 +71,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         fallback = comparison_environment(capture)
         timing = capture.get("timing_metadata") or {}
         implementation = {"locality_schedule":capture.get("locality_schedule"), "hipblaslt_metadata_policy": (capture.get("hipblaslt_metadata") or {}).get("policy", "legacy_per_block") if capture.get("backend_selected")=="hipblaslt" else None, "scenario": capture.get("scenario_metadata"), "plan_packing": capture.get("plan_packing"),
+            "hipblaslt_prepack_policy":(capture.get("hipblaslt_operand_prepack") or {}).get("policy","both") if capture.get("backend_selected")=="hipblaslt" else None,
             "autotune_key": (capture.get("backend_metadata") or {}).get("autotune_key"),
             "physical_policy": {key: timing.get(key) for key in ("pack_layout", "fusion_mode", "residue_group_width",
                 "residue_group_layout", "generated_reducer_identity")}}

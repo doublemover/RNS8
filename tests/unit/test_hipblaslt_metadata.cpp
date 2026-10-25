@@ -1,7 +1,19 @@
 #include <algorithm>
 #include "backend_hipblaslt/matmul_metadata_plan.hpp"
+#include "backend_hipblaslt/hipblaslt_backend.hpp"
 #include <catch2/catch_test_macros.hpp>
 using namespace rns8::detail;
+TEST_CASE("hipBLASLt operand retention policies are independent and reject unknown bits") {
+  const auto original=hipblaslt_prepack_policy();
+  struct Restore {HipblasLtPrepackPolicy policy;~Restore(){(void)hipblaslt_prepack_set_policy(policy);}} restore{original};
+  for(const auto policy:{HipblasLtPrepackPolicy::none,HipblasLtPrepackPolicy::a,HipblasLtPrepackPolicy::b,HipblasLtPrepackPolicy::both}) {
+    REQUIRE(hipblaslt_prepack_set_policy(policy)==RNS8_SUCCESS);CHECK(hipblaslt_prepack_policy()==policy);
+    CHECK(hipblaslt_prepack_a_enabled(policy)==(policy==HipblasLtPrepackPolicy::a || policy==HipblasLtPrepackPolicy::both));
+    CHECK(hipblaslt_prepack_b_enabled(policy)==(policy==HipblasLtPrepackPolicy::b || policy==HipblasLtPrepackPolicy::both));
+  }
+  CHECK(hipblaslt_prepack_set_policy(static_cast<HipblasLtPrepackPolicy>(4))==RNS8_INVALID_ARGUMENT);
+  CHECK(hipblaslt_prepack_policy()==HipblasLtPrepackPolicy::both);
+}
 TEST_CASE("hipBLASLt immutable call directory shares padded geometry across every residue plane") {
   for(unsigned prefix:{1u,9u,18u,20u})for(int k:{1,15,16,17,65535,65536,65537,131072,131073}) {
     HipblasLtCallMetadataDirectory directory;unsigned builds=0,hits=0,blocks=0;

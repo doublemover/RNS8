@@ -349,6 +349,11 @@ int main(int argc, char** argv) {
   rns8::detail::hipblaslt_metadata_set_policy(args.hipblaslt_metadata_per_block_control ?
       rns8::detail::HipblasLtMetadataPolicy::per_block_control : rns8::detail::HipblasLtMetadataPolicy::per_call);
   rns8::detail::hipblaslt_metadata_counters_reset();
+  const auto prepack_policy=args.hipblaslt_prepack_policy=="none"?rns8::detail::HipblasLtPrepackPolicy::none:
+      args.hipblaslt_prepack_policy=="a"?rns8::detail::HipblasLtPrepackPolicy::a:
+      args.hipblaslt_prepack_policy=="b"?rns8::detail::HipblasLtPrepackPolicy::b:rns8::detail::HipblasLtPrepackPolicy::both;
+  (void)rns8::detail::hipblaslt_prepack_set_policy(prepack_policy);
+  rns8::detail::hipblaslt_prepack_counters_reset();
   rns8::detail::hip_direct_allocation_counters_reset();
   const auto allocation_before = rns8::detail::hip_direct_allocation_counters_snapshot();
   BenchmarkResult result{};
@@ -375,11 +380,13 @@ int main(int argc, char** argv) {
   }
   result.allocation_before = allocation_before;
   if (!result.allocation_after_repeats_available) {
+    result.prepack_after_repeats=rns8::detail::hipblaslt_prepack_counters_snapshot();
     result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
     result.allocation_after_repeats_available = true;
   }
   result.allocation_tracking_available = true;
   if (!result.allocation_after_warmups_available) {
+    result.prepack_after_warmups=result.prepack_after_repeats;
     result.allocation_after_warmups = result.allocation_after_repeats;
     result.allocation_after_warmups_available = true;
   }

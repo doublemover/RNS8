@@ -151,8 +151,9 @@ def validate_contract_metadata(self: Any) -> None:
     for error in validate_locality(self.data): self._error(error)
     from .immutable_schedule import validate_immutable_schedule
     for error in validate_immutable_schedule(self.data): self._error(error)
-    from .hipblaslt_metadata import validate_hipblaslt_metadata
+    from .hipblaslt_metadata import validate_hipblaslt_metadata,validate_hipblaslt_prepack
     for error in validate_hipblaslt_metadata(self.data): self._error(error)
+    for error in validate_hipblaslt_prepack(self.data): self._error(error)
     reuse = self.data.get("reuse_contract")
     if reuse is not None:
         if not isinstance(reuse, dict):
