@@ -536,6 +536,9 @@ def validate_gpu_events(self) -> None:
         selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
         and enabled is not True
         and not residue_current_chain
+        and not (metadata.get("host_instrumentation_state")=="hooks_disabled" and
+                 metadata.get("gpu_event_timing_status")=="not_requested_production_timing" and
+                 metadata.get("gpu_event_timing_reason")=="explicit_production_hooks_disabled")
     ):
         self._error(f"{selected_backend} captures must include HIP event operation-group timings")
     timings = self.data.get("gpu_event_timings_us")

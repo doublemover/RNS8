@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from evidence_database_lib.isa import load_isa_index
+from diagnostic_companion import load_bindings
 from evidence_database_lib.io import discover_capture_paths, discover_isa_report_paths
 
 from .commands import scenario_names, sweep_command_entries
@@ -58,6 +59,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         help="gpu_isa_report.py JSON summary or directory of *-isa-summary.json reports to attach to review candidates",
     )
+    parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[],help="immutable matched production/diagnostic sidecar; revalidated without modifying captures")
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
     parser.add_argument(
         "--dry-run",
@@ -566,7 +568,7 @@ def main() -> int:
 
     captures = validate_paths(capture_paths)
     isa_index = load_required_isa_index(args.isa_report) if args.isa_report else None
-    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index)
+    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:

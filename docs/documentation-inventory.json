@@ -1756,6 +1756,7 @@
         "crt-collection-executable",
         "disjoint-events-and-consistent-work-units",
         "hipblaslt-immutable-per-call-metadata-controls",
+        "match-production-latency-to-diagnostics-without-mixing-observations",
         "public-completed-output-timing-and-sustained-controls",
         "streaming-observations-and-the-matched-serial-pipeline"
       ]

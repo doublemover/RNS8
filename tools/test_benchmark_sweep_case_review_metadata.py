@@ -18,10 +18,9 @@ benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
 assert report["schema_version"] == 3
 assert report["review_mode"] == "release"
 assert report["group_count"] == 1
-assert len(report["promotable_autotune_entries"]) == 1
-assert report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert report["promotable_autotune_entries"] == []  # diagnostic-only timings cannot promote
 assert report["summary"]["group_count"] == 1
-assert report["summary"]["promotable_autotune_entry_count"] == 1
+assert report["summary"]["promotable_autotune_entry_count"] == 0
 assert report["summary"]["missing_required_baseline_group_count"] == 0
 assert report["summary"]["checksum_mismatch_group_count"] == 0
 assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
@@ -155,7 +154,8 @@ assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_cand
 assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
 assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
 assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
-assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
+assert amdgpu_with_isa_report["promotable_autotune_entries"] == []
+assert "diagnostic_instrumented_host_time_not_production_evidence" in amdgpu_with_isa_candidate["promotion_blockers"]
 
 amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
 amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
@@ -758,7 +758,7 @@ cpu_anchor["cpu_parallel"] = {
 anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
 anchor_group = anchor_report["groups"][0]
 anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
-assert anchor_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert anchor_report["promotable_autotune_entries"] == []
 assert anchor_group["release_review_satisfied"] is True
 assert "cpu-reference" not in anchor_group["warmup_counts"]
 assert "cpu-reference" not in anchor_group["repeat_counts"]
@@ -816,7 +816,8 @@ reuse_candidate_group = next(
     if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
 )
 reuse_candidate = reuse_candidate_group["candidates"][0]
-assert reuse_candidate["promotable"] is True
+assert reuse_candidate["promotable"] is False
+assert "diagnostic_instrumented_host_time_not_production_evidence" in reuse_candidate["promotion_blockers"]
 assert reuse_candidate["selection_end_to_end_us"] == 610.0
 assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
 assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
@@ -824,8 +825,8 @@ assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_e
 assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
 assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
 assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
-assert reuse_report["promotable_autotune_entries"][0]["selected_backend"] == "rocwmma"
-assert reuse_report["promotable_autotune_entries"][0]["selection_end_to_end_us"] == 610.0
+assert reuse_report["promotable_autotune_entries"] == []
+assert reuse_candidate["selection_end_to_end_us"] == 610.0
 
 slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
 slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
@@ -905,8 +906,8 @@ assert group["repeat_count_complete"] is True
 assert group["repeat_count_compatible"] is True
 assert group["duplicate_backends"] == []
 assert group["finite_modulus"] == 255
-assert group["fastest_promotable"]["backend"] == "ck"
-assert group["candidates"][0]["promotion_blockers"] == []
+assert group["fastest_promotable"] is None
+assert "diagnostic_instrumented_host_time_not_production_evidence" in group["candidates"][0]["promotion_blockers"]
 assert group["candidates"][0]["bottleneck"]["class"] in {
     "compute_bound",
     "export_bound",

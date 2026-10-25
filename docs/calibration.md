@@ -213,3 +213,48 @@ Cross-call raw-descriptor retention remains the issue's explicitly conditional
 post-measurement option; this implementation retains no such state and makes no
 claim about its benefit or opaque library heap footprint. No timing, hardware
 correctness or AUTO promotion is established by these changes.
+
+## Match production latency to diagnostics without mixing observations
+
+A hook-disabled accelerator capture is now schema-valid only when it explicitly
+records `hooks_disabled`, `not_requested_production_timing` and
+`explicit_production_hooks_disabled`; its event arrays/source/phase list remain
+null. Omitting events from an old instrumented capture does not grant this status.
+Uninstrumented host latency is production evidence; HIP-event captures are separate
+diagnostics. Neither alone supplies both roles.
+
+`tools/diagnostic_companion.py` writes an immutable sidecar between existing
+production and diagnostic files. It records both byte hashes, canonical capture
+hashes and a common-contract hash. The two files must independently validate and
+have distinct child-process receipts, the same stable compiled artifact/build,
+versioned request/environment, target/runtime/compiler, clock/power policy,
+selected kernel/geometry, arithmetic/prefix/layout/proof/input contract, checksum,
+output boundary and warmup/repeat protocol. Only host-instrumentation arguments,
+measured observations and their timer calibration are normalized away. Unknown
+contract fields remain compared, not silently discarded. The raw captures are
+never annotated or rewritten, so their existing variance digests do not change.
+
+`tools/collect_diagnostic_pairs.py` produces alternating production-first and
+diagnostic-first pairs in independent child processes, records a plan, and creates
+bindings only after both outputs validate. It refuses overwrite. Its plan-only
+mode does not open the executable. Production sustained-burst timing is a separate
+observation protocol: this collector does not pretend the currently unsupported
+instrumented sustained mode is an equivalent pair.
+
+The ordinary sweep and promotion ledger accept `--diagnostic-binding` sidecars.
+They reopen/revalidate the files and hashes rather than trusting an `eligible`
+boolean. Production candidate and GPU baseline both need their own valid companion;
+CPU baselines need explicit hook-disabled timing but no HIP event companion. A
+matched diagnostic satisfies the event-presence gate without substituting its
+instrumented host latency. Artifact-bound ISA, correctness, resolution, target,
+independent variance and same-contract speedup gates remain separate. The actual
+cache writer revalidates candidate, baseline/comparison and companions again, and
+marks only entries that were really written. Changed captures or stale sidecars
+cannot retain eligibility through a saved review report.
+
+Historical instrumented captures still support descriptive phase/route comparison,
+but no longer produce promotable cache entries. Review output labels that
+comparison scope explicitly. A provenance/instrumentation block also no longer
+mislabels a phase that is equal to or faster than its baseline as a measured loss.
+Authored mutation/schema/receipt/collector regressions and Python syntax checks are
+not hardware evidence; their execution and all paired collection are deferred.

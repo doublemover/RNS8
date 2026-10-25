@@ -216,7 +216,7 @@
       "issue": 31,
       "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
       "url": "https://github.com/doublemover/RNS8/issues/31",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Calibration infrastructure and native hook-disabled bursts exist; public hook-disabled lane/minimal cold conversion/batch observation/event hierarchy/work units and prefix1 catalog corrections in relevant comments not all implemented.",
       "implementation": [
         {
@@ -247,6 +247,17 @@
             "tools/perf_variance_report.py",
             "tools/timing_eligibility.py"
           ]
+        },
+        {
+          "summary": "Immutable matched production/diagnostic capture sidecars bind actual artifact, environment/request, arithmetic/layout/kernel/proof/output/checksum/clock contracts and independent execution IDs. Explicit hook-disabled accelerator schema, review/ledger/cache-write revalidation, baseline companion gates and counterbalanced paired collector preserve raw/variance identities. Instrumented historical fixtures remain descriptive and cannot promote.",
+          "files": [
+            "tools/diagnostic_companion.py",
+            "tools/collect_diagnostic_pairs.py",
+            "tools/benchmark_schema/gpu_event_validation.py",
+            "tools/benchmark_sweep_lib/review.py",
+            "tools/benchmark_sweep_lib/cli.py",
+            "tools/promotion_ledger.py"
+          ]
         }
       ],
       "regressions": [
@@ -256,7 +267,10 @@
         "tools/test_calibration_manifest.py",
         "tests/unit/test_streaming_measurement.cpp",
         "tools/test_streaming_measurement.py",
-        "benchmarks/public-calibration/streaming.json"
+        "benchmarks/public-calibration/streaming.json",
+        "tools/test_diagnostic_companion.py",
+        "tools/test_benchmark_sweep_case_review_metadata.py",
+        "tools/test_benchmark_sweep_case_cache_wrap_exact.py"
       ],
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac",
@@ -264,8 +278,7 @@
         "709704ed0f53c8197dba0c79c00d17312d5529da"
       ],
       "remaining": [
-        "Matched diagnostic companion binding for production accelerator promotion remains separate from conservative ledger admission.",
-        "Hardware calibration, independent collection, counters, held-out prediction and scientific qualification deferred."
+        "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -473,7 +486,7 @@
       "issue": 38,
       "title": "[Research P2] Build heterogeneous grouped matrix-engine work queues with bounded persistent scheduling",
       "url": "https://github.com/doublemover/RNS8/issues/38",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Prepared heterogeneous persistent queue exists; explicit NativeWmmaWork list still O(work_count), no procedural schedule mode; latest benchmark compact versus padded per-repeat scatter boundary remains.",
       "implementation": [
         {
@@ -529,12 +542,11 @@
       "commits": [
         "981e7b109428870ed930eae50370e037be95fce7",
         "8aa7e9769f77f18c6b42b444d7f21689f7bcb3e4",
-        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
       ],
       "remaining": [
-        "Public prepared execution generation/read-write reservation integration of the private heterogeneous native route remains dependency work; no second raw-pointer value cache introduced.",
-        "HIP compilation, GPU/Boost execution, completion fairness and complete-route performance qualification deferred; no promotion or measured speedup claimed.",
-        "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
+        "HIP compilation, GPU/Boost execution, completion fairness and complete-route independent-process performance/target qualification deferred. Optional adaptive/split/locality composition remains tracked by those feature issues, not claimed as a native queue speedup."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -677,7 +689,8 @@
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
-        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -1197,7 +1210,8 @@
         "tools/test_collect_public_queue_calibration.py"
       ],
       "commits": [
-        "bb8db2b8e371654a4eb87beae7c16c95c68144bb"
+        "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
       ],
       "remaining": [
         "Remaining cross-feature composition and general async transfer/lift work continue; complete-route GPU compilation, execution, fairness diagnostics and qualification deferred."
