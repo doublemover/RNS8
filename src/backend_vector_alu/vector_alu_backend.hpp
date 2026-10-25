@@ -17,7 +17,7 @@ rns8_status vector_alu_gemm_i64_device(
     void* device_status,
     int64_t m,
     int64_t n,
-    int64_t k);
+    int64_t k,bool exact_width=false);
 rns8_status vector_alu_gemm_u64_device(
     int device_id,
     const void* device_a,
@@ -26,7 +26,7 @@ rns8_status vector_alu_gemm_u64_device(
     void* device_status,
     int64_t m,
     int64_t n,
-    int64_t k);
+    int64_t k,bool exact_width=false);
 
 }  // namespace rns8::detail
 

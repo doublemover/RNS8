@@ -121,3 +121,20 @@ TEST_CASE("HIP event-dependent joins submit before producer observation", "[api]
 #include "test_api_operation_provider_cases.inc"
 
 #include "test_api_int4_cases.inc"
+
+#include "backend_common/direct_rns_route.hpp"
+#include "backend_common/vector_small_n.hpp"
+TEST_CASE("public uniform plan metadata and dispatch share one qualified route", "[api][skinny]") {
+  using namespace rns8::detail;
+  for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED})for(int64_t m:{1,16,64,65,128})for(int64_t n:{1,2,4,8,9})for(uint32_t prefix:{1u,3u,9u,20u})for(bool parallel:{false,true}){
+    rns8_plan plan{};plan.backend=RNS8_BACKEND_HIP_DIRECT;plan.prefix=prefix;plan.desc.semantics=semantics;
+    plan.desc.m=m;plan.desc.n=n;plan.desc.k=65537;plan.desc.flags=parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0;
+    const auto route=direct_rns_route(m,n,65537,65537,n,n,prefix,parallel);
+    CHECK(api::selected_kernel_for_plan(plan)==direct_rns_route_name(route));
+    if(!parallel)CHECK(route==(m*n<=64?DirectRnsRoute::persistent_small:DirectRnsRoute::grouped));
+    if(parallel && n<=8)CHECK(route==(n==1?DirectRnsRoute::gemv_n1:DirectRnsRoute::gemv_small_n));
+  }
+  CHECK(vector_small_n_declared_lds(2,true,true)==12800);CHECK(vector_small_n_declared_lds(2,false,true)==12288);
+  CHECK(vector_small_n_declared_lds(2,true,false)==51200);CHECK(vector_small_n_declared_lds(2,false,false)==49152);
+  for(uint32_t n=2;n<=8;++n){CHECK(vector_small_n_width(n,true)==n);CHECK(vector_small_n_width(n,false)==8);}
+}

@@ -595,7 +595,7 @@ rns8_status hip_direct_gemm_rns_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc,
-    uint32_t prefix);
+    uint32_t prefix,bool parallel_skinny=false);
 rns8_status hip_direct_gemm_rns_region_device(
     int device_id,
     const void* device_a_residues,

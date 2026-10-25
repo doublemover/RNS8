@@ -3085,7 +3085,8 @@
         }
       ],
       "anchors": [
-        "public-narrow-native-products"
+        "public-narrow-native-products",
+        "public-skinny-route-identity-and-width-exact-control"
       ]
     },
     {

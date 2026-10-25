@@ -1,3 +1,4 @@
+#include "backend_common/direct_rns_route.hpp"
 #include "backend_common/instruction_roof_plan.hpp"
 #include "backend_common/split_k_plan.hpp"
 #include "backend_common/word_mod_plan.hpp"

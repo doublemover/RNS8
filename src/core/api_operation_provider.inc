@@ -36,7 +36,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   switch(query.operation) {
     case RNS8_OP_GEMM:case RNS8_OP_PREPARED_GROUP:
       out.supported_execution_modes|=RNS8_EXEC_GROUP|RNS8_EXEC_DAG;
-      if(hip && !adaptive)out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
+      if(hip && !adaptive && !(d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
       break;
     case RNS8_OP_EXACT_EPILOGUE:
       if((!cpu && !hip) || !rns8::detail::exact_wide_semantics(d.semantics) || adaptive)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","exact epilogue requires uniform CPU/direct-HIP RNS lowering");

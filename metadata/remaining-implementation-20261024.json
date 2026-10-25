@@ -826,7 +826,9 @@
         "tests/unit/test_api_int4_cases.inc",
         "tools/test_collect_int4_calibration.py"
       ],
-      "commits": [],
+      "commits": [
+        "70fcacb1d1f01d860739c3fca85dec1ca5e05051"
+      ],
       "remaining": [
         "Device compilation, authored regression execution, actual lane/opcode/resource evidence and matched independent-process performance qualification deferred. No unsigned nibble/broad integer route or automatic promotion claimed."
       ],
@@ -960,12 +962,24 @@
       "issue": 53,
       "title": "[Research P2] Add proof-selected native narrow-integer paths for tiny and skinny GEMM",
       "url": "https://github.com/doublemover/RNS8/issues/53",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Proof-admitted public narrow scalar/byte WMMA and controls exist; current public advertised GEMV versus actual generic launch mismatch, width-8 vector control and optional fused persistent-RNS narrow epilogue remain implementation work.",
-      "implementation": [],
+      "implementation": [
+        {
+          "summary": "Public direct-HIP metadata and dispatch share actual uniform route; explicit selected-prefix K/plane-parallel skinny control; explicit compile-time N=2..8 full-width UInt192 control with original width8 retained.",
+          "files": [
+            "src/backend_common/direct_rns_route.hpp",
+            "src/backend_vector_alu/vector_alu_kernels.hip",
+            "src/core/api_plan_contract_names.inc"
+          ]
+        }
+      ],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Fused native-to-RNS narrow epilogue and matched full-public calibration still in progress.",
+        "All tests, device compilation, source-identified ISA/resources and independent complete-route performance qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,

@@ -925,7 +925,7 @@ rns8_status rns8_gemm_rns(
             mutable_c->hip_status_buffer,
             plan->desc.m,
             plan->desc.n,
-            plan->desc.k);
+            plan->desc.k,(plan->desc.flags&RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH)!=0);
       } else {
         status = rns8::detail::vector_alu_gemm_u64_device(
             ctx->device_id,
@@ -935,7 +935,7 @@ rns8_status rns8_gemm_rns(
             mutable_c->hip_status_buffer,
             plan->desc.m,
             plan->desc.n,
-            plan->desc.k);
+            plan->desc.k,(plan->desc.flags&RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH)!=0);
       }
       if (status != RNS8_SUCCESS) {
         return status;
@@ -1001,7 +1001,7 @@ rns8_status rns8_gemm_rns(
             A->desc.cols,
             B->desc.cols,
             C->desc.cols,
-            plan->prefix);
+            plan->prefix,(plan->desc.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL)!=0);
       }
       if (status != RNS8_SUCCESS) {
         return status;

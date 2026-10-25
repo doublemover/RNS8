@@ -14,7 +14,7 @@ extern "C" int rns8_vector_alu_i64_gemm_device(
     uint32_t* status,
     int64_t m,
     int64_t n,
-    int64_t k);
+    int64_t k,bool exact_width);
 
 extern "C" int rns8_vector_alu_u64_gemm_device(
     int device_id,
@@ -24,7 +24,7 @@ extern "C" int rns8_vector_alu_u64_gemm_device(
     uint32_t* status,
     int64_t m,
     int64_t n,
-    int64_t k);
+    int64_t k,bool exact_width);
 #endif
 
 namespace rns8::detail {
@@ -92,12 +92,12 @@ rns8_status vector_alu_gemm_i64_device(
     void* device_status,
     int64_t m,
     int64_t n,
-    int64_t k) {
+    int64_t k,bool exact_width) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = vector_i64_event_label(n, k);
+  const char* event_label = exact_width?"vector_alu_i64_gemv_exact_width_kernel":vector_i64_event_label(n,k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_i64_gemm_device(
         device_id,
@@ -107,7 +107,7 @@ rns8_status vector_alu_gemm_i64_device(
         static_cast<uint32_t*>(device_status),
         m,
         n,
-        k);
+        k,exact_width);
   });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -131,12 +131,12 @@ rns8_status vector_alu_gemm_u64_device(
     void* device_status,
     int64_t m,
     int64_t n,
-    int64_t k) {
+    int64_t k,bool exact_width) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a || !device_b || !device_c || !device_status || !checked_vector_shape(m, n, k)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const char* event_label = vector_u64_event_label(n, k);
+  const char* event_label = exact_width?"vector_alu_u64_gemv_exact_width_kernel":vector_u64_event_label(n,k);
   const int status = run_timed_device_code(event_label, [&]() {
     return rns8_vector_alu_u64_gemm_device(
         device_id,
@@ -146,7 +146,7 @@ rns8_status vector_alu_gemm_u64_device(
         static_cast<uint32_t*>(device_status),
         m,
         n,
-        k);
+        k,exact_width);
   });
   return status == 0 ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else

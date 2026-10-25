@@ -265,7 +265,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
   }
 
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
-  constexpr const char* grouped_kernel = "direct_hip_prefix9_grouped_rns_gemm_v1";
+  constexpr const char* grouped_kernel = "direct_hip_selected_prefix_grouped_rns_gemm_v1";
   for (const rns8_semantics semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64}) {
     CAPTURE(semantics);
     auto desc = semantics == RNS8_BOUNDED_I64
@@ -287,7 +287,7 @@ TEST_CASE("direct HIP fixed-prefix plans advertise grouped GEMM kernels") {
     rns8_destroy_plan(plan);
   }
 
-  constexpr const char* exact_grouped_kernel = "direct_hip_prefix20_grouped_rns_gemm_v1";
+  constexpr const char* exact_grouped_kernel = "direct_hip_selected_prefix_grouped_rns_gemm_v1";
   for (const rns8_semantics semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     CAPTURE(semantics);
     auto desc = semantics == RNS8_EXACT_WIDE_SIGNED ? exact_signed_desc(16, 16, 16, RNS8_BACKEND_HIP_DIRECT)

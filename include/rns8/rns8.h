@@ -403,6 +403,9 @@ typedef struct rns8_device_info {
  * If the scalar envelope fails current admission, full refinement is mandatory.
  */
 #define RNS8_PLAN_EXACT_SCALAR_FIRST 0x00000008u
+/* Explicit synchronous research controls; never selected by AUTO. */
+#define RNS8_PLAN_DIRECT_RNS_PARALLEL 0x00000010u
+#define RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH 0x00000020u
 
 /*
  * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and

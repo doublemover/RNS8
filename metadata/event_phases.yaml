@@ -49,7 +49,9 @@
     "vector_alu_u64_gemv_n1_kernel",
     "vector_alu_u64_gemv_small_n_kernel",
     "vector_alu_status_d2h",
-    "vector_alu_output_d2h"
+    "vector_alu_output_d2h",
+    "vector_alu_i64_gemv_exact_width_kernel",
+    "vector_alu_u64_gemv_exact_width_kernel"
   ],
   "hipblaslt_events": [
     "hipblaslt_pack_transpose_centered",

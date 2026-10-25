@@ -1,4 +1,5 @@
 #include <hip/hip_runtime.h>
+#include "backend_common/vector_small_n.hpp"
 
 #include <cstdint>
 #include <limits>
@@ -273,6 +274,7 @@ __global__ void gemv_n1_u64_kernel(
   }
 }
 
+template<int Width>
 __global__ void gemv_small_n_i64_kernel(
     const int64_t* a,
     const int64_t* b,
@@ -283,13 +285,13 @@ __global__ void gemv_small_n_i64_kernel(
     int64_t k) {
   const int64_t row = static_cast<int64_t>(blockIdx.x);
   const int thread = static_cast<int>(threadIdx.x);
-  if (row >= m || n <= 1 || n > kGemvSmallNMaxN) {
+  if (row >= m || n <= 1 || n > Width) {
     return;
   }
 
-  bool negative[kGemvSmallNMaxN] = {};
-  UInt192 magnitude[kGemvSmallNMaxN];
-  for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+  bool negative[Width] = {};
+  UInt192 magnitude[Width];
+  for (int col = 0; col < Width; ++col) {
     magnitude[col] = zero192();
   }
   for (int64_t kk = thread; kk < k; kk += blockDim.x) {
@@ -302,9 +304,9 @@ __global__ void gemv_small_n_i64_kernel(
     }
   }
 
-  __shared__ UInt192 partial_magnitude[kGemvN1BlockSize][kGemvSmallNMaxN];
-  __shared__ unsigned char partial_negative[kGemvN1BlockSize][kGemvSmallNMaxN];
-  for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+  __shared__ UInt192 partial_magnitude[kGemvN1BlockSize][Width];
+  __shared__ unsigned char partial_negative[kGemvN1BlockSize][Width];
+  for (int col = 0; col < Width; ++col) {
     partial_magnitude[thread][col] = magnitude[col];
     partial_negative[thread][col] = negative[col] ? 1u : 0u;
   }
@@ -312,7 +314,7 @@ __global__ void gemv_small_n_i64_kernel(
 
   for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
     if (thread < stride) {
-      for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+      for (int col = 0; col < Width; ++col) {
         bool lhs_negative = partial_negative[thread][col] != 0u;
         add_signed_product(
             lhs_negative,
@@ -352,6 +354,7 @@ __global__ void gemv_small_n_i64_kernel(
   }
 }
 
+template<int Width>
 __global__ void gemv_small_n_u64_kernel(
     const uint64_t* a,
     const uint64_t* b,
@@ -362,12 +365,12 @@ __global__ void gemv_small_n_u64_kernel(
     int64_t k) {
   const int64_t row = static_cast<int64_t>(blockIdx.x);
   const int thread = static_cast<int>(threadIdx.x);
-  if (row >= m || n <= 1 || n > kGemvSmallNMaxN) {
+  if (row >= m || n <= 1 || n > Width) {
     return;
   }
 
-  UInt192 acc[kGemvSmallNMaxN];
-  for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+  UInt192 acc[Width];
+  for (int col = 0; col < Width; ++col) {
     acc[col] = zero192();
   }
   for (int64_t kk = thread; kk < k; kk += blockDim.x) {
@@ -377,15 +380,15 @@ __global__ void gemv_small_n_u64_kernel(
     }
   }
 
-  __shared__ UInt192 partial[kGemvN1BlockSize][kGemvSmallNMaxN];
-  for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+  __shared__ UInt192 partial[kGemvN1BlockSize][Width];
+  for (int col = 0; col < Width; ++col) {
     partial[thread][col] = acc[col];
   }
   __syncthreads();
 
   for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
     if (thread < stride) {
-      for (int col = 0; col < kGemvSmallNMaxN; ++col) {
+      for (int col = 0; col < Width; ++col) {
         add_assign(partial[thread][col], partial[thread + stride][col]);
       }
     }
@@ -412,7 +415,7 @@ int launch_vector_gemm(
     uint32_t* status,
     int64_t m,
     int64_t n,
-    int64_t k) {
+    int64_t k,bool exact_width) {
   hipError_t error = hipSetDevice(device_id);
   if (error != hipSuccess) {
     return static_cast<int>(error);
@@ -434,10 +437,35 @@ int launch_vector_gemm(
   if (n > 1 && n <= kGemvSmallNMaxN && k >= 512) {
     const dim3 block(kGemvN1BlockSize);
     const dim3 grid(static_cast<unsigned int>(m));
-    if constexpr (std::is_same<T, int64_t>::value) {
-      hipLaunchKernelGGL(gemv_small_n_i64_kernel, grid, block, 0, 0, a, b, c, status, m, n, k);
-    } else {
-      hipLaunchKernelGGL(gemv_small_n_u64_kernel, grid, block, 0, 0, a, b, c, status, m, n, k);
+    switch(rns8::detail::vector_small_n_width(uint32_t(n),exact_width)) {
+      case 2:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<2>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<2>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 3:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<3>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<3>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 4:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<4>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<4>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 5:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<5>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<5>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 6:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<6>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<6>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 7:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<7>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<7>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
+      case 8:
+        if constexpr(std::is_same_v<T,int64_t>)hipLaunchKernelGGL((gemv_small_n_i64_kernel<8>),grid,block,0,0,a,b,c,status,m,n,k);
+        else hipLaunchKernelGGL((gemv_small_n_u64_kernel<8>),grid,block,0,0,a,b,c,status,m,n,k);
+        break;
     }
     error = hipGetLastError();
     if (error != hipSuccess) {
@@ -471,8 +499,8 @@ extern "C" int rns8_vector_alu_i64_gemm_device(
     uint32_t* status,
     int64_t m,
     int64_t n,
-    int64_t k) {
-  return launch_vector_gemm(device_id, a, b, c, status, m, n, k);
+    int64_t k,bool exact_width) {
+  return launch_vector_gemm(device_id, a, b, c, status, m, n, k,exact_width);
 }
 
 extern "C" int rns8_vector_alu_u64_gemm_device(
@@ -483,6 +511,6 @@ extern "C" int rns8_vector_alu_u64_gemm_device(
     uint32_t* status,
     int64_t m,
     int64_t n,
-    int64_t k) {
-  return launch_vector_gemm(device_id, a, b, c, status, m, n, k);
+    int64_t k,bool exact_width) {
+  return launch_vector_gemm(device_id, a, b, c, status, m, n, k,exact_width);
 }
