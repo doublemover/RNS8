@@ -102,6 +102,8 @@ void print_requested_next_op_json(const Args& args, const BenchmarkResult& resul
 
 void print_output_policy_json(const Args& args, int64_t output_ld) {
   std::cout << "  \"output_policy\": {\n";
+  std::cout << "    \"completion_boundary\": \"" << (args.grouped_compact_output ? "compact_task_major_host_slab" : "per_task_host_destinations") << "\",\n";
+  std::cout << "    \"destination_materialization\": \"" << (args.grouped_compact_output ? "outside_timing_for_oracle_only" : "inside_each_timed_export") << "\",\n";
   std::cout << "    \"destination_layout\": \"" << output_destination_layout(args) << "\",\n";
   std::cout << "    \"logical_ld\": " << output_ld << ",\n";
   std::cout << "    \"ld_padding\": " << args.output_ld_padding << ",\n";

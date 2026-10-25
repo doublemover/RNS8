@@ -11,6 +11,7 @@ from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
 from timing_eligibility import phase_blockers, bound_comparison_blockers
+from measurement_contract import host_instrumentation
 import target_validation_report
 
 
@@ -236,6 +237,8 @@ def capture_entry(
     )
     shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
     blockers: list[str] = phase_blockers(capture)
+    if host_instrumentation(capture) != "hooks_disabled":
+        blockers.append("diagnostic_instrumented_host_time_not_production_evidence")
     comparison = (reviewed_entry or {}).get("timing_comparison") or baseline.get("timing_comparison")
     blockers.extend(bound_comparison_blockers(comparison, capture))
     key = metadata.get("autotune_key")

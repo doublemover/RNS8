@@ -1,4 +1,7 @@
   std::cout << "  \"timing_metadata\": {\n";
+  std::cout << "    \"host_instrumentation_state\": \"" << (result.gpu_events.requested ? "diagnostic_gpu_events" : "hooks_disabled") << "\",\n";
+  std::cout << "    \"host_boundary_scope\": \"completed_declared_output_with_production_checks\",\n";
+  std::cout << "    \"host_observation_unit\": \"" << (result.streaming_overlap_executed ? "pipeline_batch_throughput" : "completed_call_or_task_batch") << "\",\n";
   const auto& host_clock = rns8::bench::host_clock_calibration();
   const auto phase_state = [&](const std::vector<double>& samples, const char* declared) {
     if (declared) return declared;

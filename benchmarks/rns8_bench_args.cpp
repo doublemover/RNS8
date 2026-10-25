@@ -283,6 +283,22 @@ Args parse_args(int argc, char** argv) {
       args.finite_modulus = static_cast<uint16_t>(parsed);
     } else if (arg == "--bound-mode" && i + 1 < argc) {
       args.bound_mode = parse_bound_mode(argv[++i]);
+    } else if (arg == "--grouped-output" && i + 1 < argc) {
+      const std::string boundary(argv[++i]);
+      if (boundary != "compact-slab" && boundary != "per-task") usage_error("--grouped-output requires compact-slab or per-task");
+      args.grouped_compact_output = boundary == "compact-slab";
+    } else if (arg == "--host-timing" && i + 1 < argc) {
+      const std::string mode(argv[++i]);
+      if (mode != "instrumented" && mode != "production") usage_error("--host-timing requires instrumented or production");
+      args.production_host_timing = mode == "production";
+    } else if (arg == "--sustained-batches" && i + 1 < argc) {
+      args.sustained_batches = parse_u32(argv[++i], "--sustained-batches");
+    } else if (arg == "--sustained-min-calls" && i + 1 < argc) {
+      args.sustained_min_calls = parse_u32(argv[++i], "--sustained-min-calls");
+    } else if (arg == "--sustained-max-calls" && i + 1 < argc) {
+      args.sustained_max_calls = parse_u32(argv[++i], "--sustained-max-calls");
+    } else if (arg == "--sustained-min-ms" && i + 1 < argc) {
+      args.sustained_min_ms = parse_u32(argv[++i], "--sustained-min-ms");
     } else if (arg == "--input-profile" && i + 1 < argc) {
       args.input_profile = parse_input_profile(argv[++i]);
     } else if (arg == "--bound-source" && i + 1 < argc) {
@@ -391,6 +407,8 @@ Args parse_args(int argc, char** argv) {
           << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
+          << "                  [--host-timing instrumented|production] [--sustained-batches 0..64]\n"
+          << "                  [--sustained-min-calls N] [--sustained-max-calls N] [--sustained-min-ms N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
           << "                  [--input-profile wide-two-limb-constant|wide-three-limb-constant|wide-two-limb-mixed|wide-three-limb-mixed]\n"
           << "                  [--exact-proof-scalar-first]\n"
@@ -631,6 +649,14 @@ Args parse_args(int argc, char** argv) {
       usage_error("--oneshot currently requires --backend cpu or --backend hip-direct");
     }
   }
+  if (args.grouped_compact_output && (args.grouped_dispatch_tasks <= 1 || args.output_ld_padding != 0 ||
+      (exact_wide_benchmark_semantics(args.semantics) && args.exact_wide_limb_count < 3)))
+    usage_error("compact-slab output requires grouped dispatch and no per-task padding");
+  if (args.sustained_batches > 64 || !args.sustained_min_calls || args.sustained_min_calls > args.sustained_max_calls ||
+      args.sustained_max_calls > 65536 || args.sustained_min_ms > 60000) usage_error("invalid sustained bounds");
+  if (args.sustained_batches && (!args.production_host_timing || args.residue_chain_length != 1 ||
+       args.hip_graph_replay || args.streaming_overlap || args.vector_to_rns_chain || args.incremental_result_cache != "none"))
+    usage_error("sustained public intervals require hook-disabled independent single-GEMM host-output calls; graph/overlap/chain/cache experiments have separate boundaries");
   if (args.input_profile == InputProfile::AdaptiveBands && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
   }

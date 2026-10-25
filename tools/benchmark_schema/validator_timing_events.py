@@ -42,6 +42,13 @@ class ValidatorTimingEventsMixin:
         raw = self._require("raw_timings_us", "dict")
         repeats = self.data.get("repeats")
         metadata = self.data.get("timing_metadata") or {}
+        from measurement_contract import host_instrumentation
+        try:
+            host_instrumentation(self.data)
+        except ValueError as error:
+            self._error(str(error))
+        from .public_timing import validate_sustained
+        for error in validate_sustained(self.data): self._error(error)
         contract_version = metadata.get("host_timing_contract_version", 1)
         fractional = contract_version == 2
         if contract_version not in (1, 2):

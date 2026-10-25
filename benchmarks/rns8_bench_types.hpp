@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "exact_wide_magnitude.hpp"
+#include "public_sustained.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
@@ -73,6 +74,8 @@ struct Args {
   uint32_t cpu_threads = 0;
   uint64_t cpu_parallel_threshold = UINT64_C(1) << 20;
   bool progress = false;
+  bool production_host_timing = false;
+  uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096, sustained_min_ms = 250;
   std::string cpu_reference_mode = "timed-baseline";
   uint64_t seed = 1;
   uint32_t tile_m = 128;
@@ -113,6 +116,7 @@ struct Args {
   std::string export_variant = "default";
   std::string reconstruction_variant = "default_garner";
   uint32_t grouped_dispatch_tasks = 1;
+  bool grouped_compact_output = false;
   bool hip_graph_replay = false;
   std::string workload_proxy = "none";
   bool resident_lifetime = false;
@@ -153,6 +157,7 @@ enum class PrepackReuseStrategy {
 
 struct BenchmarkResult {
   ExactWideMagnitudeStats exact_wide_magnitude{};
+  std::vector<SustainedObservation> sustained_observations;
   double plan_us = 0;
   double schedule_query_us = 0;
   double global_bound_scan_us = 0;

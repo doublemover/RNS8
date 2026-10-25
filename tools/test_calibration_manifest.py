@@ -50,6 +50,14 @@ class CalibrationTests(unittest.TestCase):
             validate(rejected)
             self.assertFalse(summarize(rejected)["rate_export_eligible"])
 
+    def test_public_pipeline_requires_explicit_uninstrumented_identity(self):
+        sample = replace(fixture(), work_kind="public_pipeline")
+        self.assertFalse(summarize(sample)["rate_export_eligible"])
+        production = replace(sample, identity=replace(sample.identity, host_instrumentation_state="hooks_disabled"))
+        self.assertTrue(summarize(production)["rate_export_eligible"])
+        diagnostic = replace(sample, identity=replace(sample.identity, host_instrumentation_state="diagnostic_gpu_events"))
+        self.assertFalse(summarize(diagnostic)["rate_export_eligible"])
+
     def test_retirement_and_environment(self):
         sample = fixture()
         for key in ("artifact_sha256", "isa_sha256", "configuration_sha256", "dataset_sha256"):

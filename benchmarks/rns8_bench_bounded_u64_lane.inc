@@ -589,11 +589,13 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
   }
+  verify_sustained_native_output(args, A, B, C);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {

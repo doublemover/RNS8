@@ -216,7 +216,7 @@
       "issue": 31,
       "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
       "url": "https://github.com/doublemover/RNS8/issues/31",
-      "state": "implementation_in_progress",
+      "state": "in_progress",
       "base_gap": "Calibration infrastructure and native hook-disabled bursts exist; public hook-disabled lane/minimal cold conversion/batch observation/event hierarchy/work units and prefix1 catalog corrections in relevant comments not all implemented.",
       "implementation": [
         {
@@ -225,16 +225,32 @@
             "benchmarks/rns8_crt_calibrate.cpp",
             "tools/collect_crt_calibration.py"
           ]
+        },
+        {
+          "summary": "Explicit hook-disabled public single-GEMM latency and bounded sustained completed-output intervals share the actual public ownership/pack/export path, generation policy and full postflight; counterbalanced independent collector, strict instrumentation identity and production rate/promotion gates. Disjoint declared event covers sum aligned raw children before category summaries; batch work includes actual task multiplicity/reuse. Removed duplicate prefix-one labels actually requesting prefix3.",
+          "files": [
+            "benchmarks/public_sustained.hpp",
+            "benchmarks/rns8_bench_event_collection.inc",
+            "tools/collect_public_calibration.py",
+            "tools/evidence_database_lib/event_cover.py",
+            "tools/evidence_database_lib/work_model.py",
+            "tools/measurement_contract.py"
+          ]
         }
       ],
       "regressions": [
-        "tools/test_collect_crt_calibration.py"
+        "tools/test_collect_crt_calibration.py",
+        "tests/unit/test_public_sustained.cpp",
+        "tools/test_public_measurement_contracts.py",
+        "tools/test_calibration_manifest.py"
       ],
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "Public benchmark hooks-disabled timing, event hierarchy/work units and prefix1 scenario label corrections still to implement."
+        "Streaming overlap warm-both-slots and true batch observation contract remain to implement.",
+        "Matched diagnostic companion binding for production accelerator promotion remains separate from conservative ledger admission.",
+        "Hardware calibration, independent collection, counters, held-out prediction and scientific qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -259,7 +275,9 @@
       "regressions": [
         "tools/test_modulus_set_search.py"
       ],
-      "commits": [],
+      "commits": [
+        "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
+      ],
       "remaining": [
         "Explicit experimental basis runtime with complete matrix/layout/plan/cache/export identity and pack/GEMM/reconstruction remains to implement.",
         "Search and qualification execution deferred."
@@ -372,12 +390,28 @@
       "issue": 38,
       "title": "[Research P2] Build heterogeneous grouped matrix-engine work queues with bounded persistent scheduling",
       "url": "https://github.com/doublemover/RNS8/issues/38",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Prepared heterogeneous persistent queue exists; explicit NativeWmmaWork list still O(work_count), no procedural schedule mode; latest benchmark compact versus padded per-repeat scatter boundary remains.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Grouped per-task output now scatters compact slabs inside every timed export; opt-in compact-slab lane explicitly identifies its completed boundary and outside-timing oracle scatter. Native/finite/wide outputs share this contract and comparisons distinguish historical compact captures.",
+          "files": [
+            "benchmarks/rns8_bench_bounded_oneshot_batch.inc",
+            "benchmarks/rns8_bench_finite_lanes.inc",
+            "benchmarks/rns8_bench_exact_wide_batch_lanes.inc",
+            "tools/measurement_contract.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_public_measurement_contracts.py",
+        "benchmarks/public-calibration/grouped-output.json"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Procedural O(tasks) queue directory, checked decoder/chunk claims and matched hardware controls remain to implement.",
+        "Execution and performance qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         34,
@@ -1100,7 +1134,9 @@
         "tests/unit/test_wide_magnitude_fixture.cpp",
         "tools/test_wide_magnitude.py"
       ],
-      "commits": [],
+      "commits": [
+        "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
+      ],
       "remaining": [
         "Regression execution, paired public benchmark collection and independent-run qualification deferred.",
         "Public hook-disabled/sustained timing implementation tracked separately by #31."

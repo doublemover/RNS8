@@ -1752,7 +1752,9 @@
       ],
       "anchors": [
         "calibration-evidence-and-planner-rates",
-        "crt-collection-executable"
+        "crt-collection-executable",
+        "disjoint-events-and-consistent-work-units",
+        "public-completed-output-timing-and-sustained-controls"
       ]
     },
     {

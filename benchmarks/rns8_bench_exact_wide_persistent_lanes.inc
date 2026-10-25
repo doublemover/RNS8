@@ -310,6 +310,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     export_signed_limbs(latest_output_matrix, "rns8_export_exact_wide_signed_limbs(final chain checksum)");
@@ -663,6 +664,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     export_unsigned_limbs(latest_output_matrix, "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");

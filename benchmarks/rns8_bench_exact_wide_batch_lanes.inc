@@ -33,8 +33,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
   GroupedExactWideRnsBatch<int64_t> grouped_batch;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
-                                           !exact_wide_export_status_check_required(args) &&
-                                           args.output_ld_padding == 0;
+                                           !exact_wide_export_status_check_required(args);
   const bool grouped_pack_slab_enabled = grouped_export_slab_enabled;
   const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
@@ -136,6 +135,7 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide signed)", status);
         }
+        if (!args.grouped_compact_output) scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
       }
       return;
     }
@@ -176,8 +176,23 @@ BenchmarkResult run_exact_wide_signed_host_api_batch(rns8_context* ctx, const Ar
         export_task);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_SIGNED,
+        matrix_prefix,
+        version,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
+  });
   std::vector<uint64_t> task_checksums(task_count);
-  if (grouped_export_slab_enabled) {
+  if (grouped_export_slab_enabled && args.grouped_compact_output) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
@@ -227,8 +242,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
   GroupedExactWideRnsBatch<uint64_t> grouped_batch;
   const bool grouped_export_slab_enabled = grouped_dispatch_requested(args) &&
                                            selected_backend == RNS8_BACKEND_HIP_DIRECT &&
-                                           !exact_wide_export_status_check_required(args) &&
-                                           args.output_ld_padding == 0;
+                                           !exact_wide_export_status_check_required(args);
   const bool grouped_pack_slab_enabled = grouped_export_slab_enabled;
   const bool grouped_gemm_slab_enabled = grouped_pack_slab_enabled;
   if (grouped_dispatch_requested(args)) {
@@ -330,6 +344,7 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_export_grouped_exact_wide_task_outputs_to_host(host API batch exact-wide unsigned)", status);
         }
+        if (!args.grouped_compact_output) scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
       }
       return;
     }
@@ -370,8 +385,23 @@ BenchmarkResult run_exact_wide_unsigned_host_api_batch(rns8_context* ctx, const 
         export_task);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_EXACT_WIDE_UNSIGNED,
+        matrix_prefix,
+        version,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
+  });
   std::vector<uint64_t> task_checksums(task_count);
-  if (grouped_export_slab_enabled) {
+  if (grouped_export_slab_enabled && args.grouped_compact_output) {
     scatter_grouped_limb_slab_to_outputs(args, grouped_batch.export_host_slab, batch_c);
   }
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {

@@ -206,6 +206,9 @@
   } else if (result.hip_graph_replay_requested) {
     gpu_event_reason = "hip_graph_replay_wall_clock_only";
     gpu_event_status = result.hip_graph_replay_used ? "not_requested_graph_replay" : "not_requested_graph_replay_unavailable";
+  } else if (args.production_host_timing) {
+    gpu_event_reason = "explicit_production_hooks_disabled";
+    gpu_event_status = "not_requested_production_timing";
   } else if (chain_residue_output) {
     gpu_event_reason = "selected_chain_backend_has_no_gpu_event_hooks";
     gpu_event_status = "not_requested_for_selected_chain_backend";

@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from measurement_contract import exact_proof_policy, host_batch_contract
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, output_completion_boundary
 
 
 def phase_blockers(capture: dict, phase: str = "end_to_end") -> list[str]:
@@ -33,6 +33,10 @@ def pair_blockers(baseline: dict, candidate: dict, phase: str = "end_to_end") ->
     if ((baseline.get("timing_metadata") or {}).get("host_result_kind") !=
             (candidate.get("timing_metadata") or {}).get("host_result_kind")):
         blockers.append("host_result_kind_mismatch")
+    if host_instrumentation(baseline) != host_instrumentation(candidate):
+        blockers.append("host_instrumentation_state_mismatch")
+    if output_completion_boundary(baseline) != output_completion_boundary(candidate):
+        blockers.append("output_completion_boundary_mismatch")
     if exact_proof_policy(baseline) != exact_proof_policy(candidate):
         blockers.append("exact_proof_policy_mismatch")
     if host_batch_contract(baseline) != host_batch_contract(candidate):

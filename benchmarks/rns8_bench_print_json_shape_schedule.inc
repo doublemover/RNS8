@@ -116,6 +116,20 @@
   std::cout << "  \"exact_wide_export_status_check\": ";
   print_json_string_or_null(exact_wide_export_status_check_name(args));
   std::cout << ",\n";
+  std::cout << "  \"sustained_production\": {\"requested_batches\": " << args.sustained_batches
+            << ", \"min_calls\": " << args.sustained_min_calls << ", \"max_calls\": " << args.sustained_max_calls
+            << ", \"min_duration_us\": " << args.sustained_min_ms * 1000.0
+            << ", \"boundary\": \"same_completed_output_as_latency_lane\", \"instrumentation\": \"hooks_disabled\", "
+            << "\"oracle\": \"full_integer_postflight_outside_timed_interval\", \"observations\": [";
+  for (std::size_t i = 0; i < result.sustained_observations.size(); ++i) {
+    const auto& observation = result.sustained_observations[i];
+    if (i) std::cout << ", ";
+    std::cout << "{\"calls\": " << observation.calls << ", \"tasks\": " << observation.tasks
+              << ", \"duration_us\": " << observation.duration_us
+              << ", \"per_call_us\": " << observation.duration_us / observation.calls
+              << ", \"termination\": \"" << (observation.duration_reached ? "duration_and_minimum_calls" : "hard_call_cap") << "\"}";
+  }
+  std::cout << "]},\n";
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
   std::cout << "  \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
   std::cout << "  \"residue_chain_independent_final_export\": "

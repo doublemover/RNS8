@@ -8,7 +8,7 @@ import math
 import statistics
 from typing import Any, Iterable
 
-from measurement_contract import exact_proof_policy, host_batch_contract
+from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation
 from perf_variance_report import execution_cohort, execution_id, DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD, DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD, DEFAULT_MIN_REPEATS
 from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
@@ -27,6 +27,7 @@ def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
     manifest = capture.get("build_manifest") or {}
     identity = {"source_commit": manifest.get("source_commit"), "source_digest": manifest.get("source_digest"),
                 "exact_proof_policy": exact_proof_policy(capture),
+                "host_instrumentation_state": host_instrumentation(capture),
                 "host_batch_contract": host_batch_contract(capture)}
     if not cpu_anchor:
         identity.update({key: capture.get(key) for key in ("compiler", "hip_toolchain", "configured_amdgpu_targets",
