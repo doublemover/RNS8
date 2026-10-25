@@ -31,6 +31,12 @@ struct ComplexMagnitudeBounds {
 struct ComplexResidueScratch {
   uint64_t sum_a_bytes = 0, sum_b_bytes = 0, product_bytes = 0, scratch_bytes = 0;
   uint32_t products = 0;
+  static constexpr uint32_t layout_version=2;
+  uint64_t products_offset() const {return sum_a_bytes+sum_b_bytes;}
+  uint64_t staged_real_offset() const {return products_offset();}
+  uint64_t staged_imag_offset() const {return products_offset()+product_bytes;}
+  // p0/p1 die after each cell's register loads; public outputs stay distinct.
+  uint64_t reused_stage_capacity_bytes() const {return 2*product_bytes;}
 };
 struct ComplexResiduePlan : ComplexResidueScratch {
   rns8_status status = RNS8_INVALID_ARGUMENT;
@@ -112,7 +118,7 @@ inline ComplexResiduePlan plan_complex_residue_product(const ComplexResiduePair<
   // All per-matrix extents are i32-qualified. Still prove host-size accumulation.
   uint64_t total = 0;
   for (uint64_t bytes :
-       {plan.sum_a_bytes, plan.sum_b_bytes, plan.product_bytes * (plan.products + 2)}) {
+       {plan.sum_a_bytes, plan.sum_b_bytes, plan.product_bytes * plan.products}) {
     if (bytes > SIZE_MAX - total) {
       plan.status = RNS8_RANGE_ERROR;
       return plan;

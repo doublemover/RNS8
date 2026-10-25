@@ -24,9 +24,11 @@ __global__ void rns8_complex_combine_kernel(const int8_t *products, int8_t *real
                 p2 = products[2 * stride + offset];
   // Each product is already centered after safe K slabs. These expressions
   // lie in [-383,383], so recombination never adds unrestricted INT32 dots.
-  real[offset] = rns8::detail::finite_u8::reduce_to_centered_i32(p0 - p1, modulus, reciprocal);
-  imag[offset] = rns8::detail::finite_u8::reduce_to_centered_i32(
-      three_real ? p2 - p0 - p1 : p2 + int32_t(products[3 * stride + offset]), modulus, reciprocal);
+  const int32_t p3=three_real?0:products[3*stride+offset];
+  const auto value=rns8::detail::complex_recombine_cell(p0,p1,p2,p3,three_real,modulus,reciprocal);
+  // real/imag deliberately alias internal p0/p1, never public source handles.
+  real[offset]=value.real;
+  imag[offset]=value.imag;
 }
 __global__ void rns8_complex_commit_kernel(const int8_t *real, const int8_t *imag,
                                            int8_t *output_real, int8_t *output_imag, int rows,

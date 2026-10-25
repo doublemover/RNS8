@@ -380,8 +380,8 @@ class CaptureTest(unittest.TestCase):
                         with self.assertRaises(ValueError): validate_capture(capture, case, "fixture-run", 3, 1)
 
     def test_complex_costs_and_component_contract(self):
-        for candidate, products, scratch in (("complex_3m", 3, (17*257+257*19+5*17*19)*20),
-                                              ("complex_4m", 4, 6*17*19*20)):
+        for candidate, products, scratch in (("complex_3m", 3, (17*257+257*19+3*17*19)*20),
+                                              ("complex_4m", 4, 4*17*19*20)):
             case = case_for(candidate)
             record = capture_for(case)
             self.assertEqual(record["real_products"], products)

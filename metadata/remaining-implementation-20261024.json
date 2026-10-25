@@ -836,12 +836,29 @@
       "issue": 59,
       "title": "[Research P2] Add exact complex 3M GEMM as a residue-resident paired-value composition",
       "url": "https://github.com/doublemover/RNS8/issues/59",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Complex3M/4M CPU/HIP/public/graph paired publication implemented; latest liveness refinement remains: two extra full product-sized staged component buffers rather than reusing dead p0/p1 slots.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Shared checked layout-v2 reuses dead p0/p1 slots for real/imaginary stages in both ordinary and graph HIP execution. Shared value-taking recombination helper ensures all per-cell product loads precede either overwrite; paired public commit and ownership unchanged. Both 3M/4M optimized, capacity/accounting identities and collector updated.",
+          "files": [
+            "src/backend_common/complex_residue_plan.hpp",
+            "src/backend_common/complex_residue_algebra.hpp",
+            "src/backend_hip_direct/hip_backend_complex.inc",
+            "src/backend_hip_direct/hip_direct_complex_kernels.cuh"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_complex_residue_plan.cpp",
+        "tests/differential/test_hip_direct_complex_cases.inc",
+        "tests/unit/test_api_complex_residue_cases.inc",
+        "tools/test_collect_native_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Actual HIP compilation, every-channel/final-integer and graph-replay execution, failure qualification and matched complete-route measurements deferred. Historical timings apply only to old storage layout."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -1092,7 +1109,9 @@
         "tests/differential/test_hipblaslt.cpp",
         "tools/test_hipblaslt_metadata.py"
       ],
-      "commits": [],
+      "commits": [
+        "02d7166eb377d715fddb8e36233b1911af025d3b"
+      ],
       "remaining": [
         "Regression execution and real hipBLASLt compile/device validation deferred.",
         "Matched independent-process measurements, including negative/negligible outcomes, unverified.",
