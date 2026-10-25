@@ -4,6 +4,7 @@ static const void* integrity_native_pointer(const rns8_matrix& matrix,bool u) {
 }
 static rns8_status admit_prepared_integrity(const rns8_prepared_execution& e,
     const boost::multiprecision::cpp_int& bound) {
+  if(e.transfer)return RNS8_UNSUPPORTED_BACKEND;
   if(e.d || e.plan->backend!=RNS8_BACKEND_HIP_DIRECT ||
       !rns8::detail::exact_wide_semantics(e.plan->desc.semantics) || !e.plan->tile_schedule.empty())
     return RNS8_UNSUPPORTED_BACKEND;
@@ -38,7 +39,7 @@ static rns8_status close_prepared_integrity(rns8_prepared_execution& e) {
 rns8_status rns8_set_prepared_native_integrity(rns8_prepared_execution* e,
     const rns8_native_integrity_options* options) {
   return guard_api([&]() -> rns8_status {
-    if(!e || !options || !rns8::detail::valid_abi(options->struct_size,options->abi_version,sizeof(*options)) ||
+    if(!e || e->closing || !options || !rns8::detail::valid_abi(options->struct_size,options->abi_version,sizeof(*options)) ||
         options->mode>1 || options->flags || options->reserved)return RNS8_INVALID_ARGUMENT;
     if(e->running || e->group_references || e->dependent_references || e->producer_count)return RNS8_BUSY;
     if(!options->mode) {

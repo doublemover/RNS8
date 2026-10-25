@@ -321,16 +321,16 @@ extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
 
 extern "C" int rns8_hip_direct_lift_suffix_device(
     const int8_t* residues, int8_t* suffix, int cells, int source_prefix, int target_prefix,
-    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix) {
+    bool signed_value, uint64_t bound0, uint64_t bound1, uint64_t bound2, int* status, bool mixed_radix, void* stream) {
   if (!residues || !suffix || !status || cells <= 0 || cells > kRns8MaxInt - 256 ||
       source_prefix <= 0 || target_prefix > kRns8MaxSupportedPrefix || source_prefix >= target_prefix)
     return static_cast<int>(hipErrorInvalidValue);
   if (mixed_radix) {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<true>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
                       (rns8_u192_device{bound0, bound1, bound2}), status);
   } else {
-    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, nullptr,
+    hipLaunchKernelGGL((rns8_exact_lift_suffix_kernel<false>), dim3((cells + 255) / 256), dim3(256), 0, static_cast<hipStream_t>(stream),
                       residues, suffix, cells, source_prefix, target_prefix, signed_value,
                       (rns8_u192_device{bound0, bound1, bound2}), status);
   }
@@ -420,4 +420,24 @@ extern "C" int rns8_hip_wide_gemm(const int8_t* a,const int8_t* b,int8_t* c,
 extern "C" int rns8_hip_export_quarter_crt(const int8_t* residues,uint64_t* output,int cells,int prefix,int digits,int limbs,int mode) {
   hipLaunchKernelGGL(rns8_export_quarter_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,residues,output,cells,prefix,digits,limbs,mode);
   return static_cast<int>(hipGetLastError());
+}
+
+// Generic status-gated compact/padded byte commit. The status-producing kernel
+// finishes earlier on this same stream; all destination writes are conditional.
+__global__ void rns8_guarded_copy_bytes_kernel(const uint8_t* source,uint8_t* destination,
+    uint64_t rows,uint64_t row_bytes,uint64_t source_pitch,uint64_t destination_pitch,const int* status) {
+  if(*status)return;
+  const uint64_t cell=uint64_t(blockIdx.x)*blockDim.x+threadIdx.x;
+  if(cell>=rows*row_bytes)return;
+  const uint64_t row=cell/row_bytes,col=cell%row_bytes;
+  destination[row*destination_pitch+col]=source[row*source_pitch+col];
+}
+extern "C" int rns8_hip_guarded_copy_bytes(const void* source,void* destination,uint64_t rows,
+    uint64_t row_bytes,uint64_t source_pitch,uint64_t destination_pitch,const int* status,void* stream) {
+  if(!source || !destination || !status || !rows || !row_bytes || row_bytes>source_pitch || row_bytes>destination_pitch ||
+      row_bytes>uint64_t(PTRDIFF_MAX) || rows>(UINT64_MAX-255)/row_bytes || (rows*row_bytes+255)/256>uint64_t(INT32_MAX) ||
+      rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/source_pitch || rows-1>(uint64_t(PTRDIFF_MAX)-row_bytes)/destination_pitch)return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_guarded_copy_bytes_kernel,dim3((rows*row_bytes+255)/256),dim3(256),0,static_cast<hipStream_t>(stream),
+      static_cast<const uint8_t*>(source),static_cast<uint8_t*>(destination),rows,row_bytes,source_pitch,destination_pitch,status);
+  return int(hipGetLastError());
 }

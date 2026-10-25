@@ -112,6 +112,48 @@ TEST_CASE("direct HIP exact base extension preserves every source prefix and sig
         for (std::size_t i = 0; i < actual.size(); ++i)
           REQUIRE(actual[i] == (i < target * cells ? expected[i] : int8_t{99}));
         CHECK(rns8_lift_exact_wide_hip(ctx, matrix, target, 0) == RNS8_SUCCESS);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+        for(uint32_t algorithm:{0u,1u}) {
+          REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,matrix->hip_residues,initial.data(),initial.size())==RNS8_SUCCESS);
+          matrix->exact_range_prefix=source;matrix->materialized_rns_prefix=source;
+          rns8_exact_lift_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+          options.target_prefix=target;options.algorithm=algorithm;options.max_total_scratch_bytes=bytes+7;
+          rns8_prepared_execution* prepared=nullptr;
+          REQUIRE(rns8_prepare_exact_lift_hip(ctx,matrix,&options,&prepared)==RNS8_WORKSPACE_TOO_SMALL);
+          REQUIRE(!prepared);options.max_total_scratch_bytes=bytes+8;
+          REQUIRE(rns8_prepare_exact_lift_hip(ctx,matrix,&options,&prepared)==RNS8_SUCCESS);
+          REQUIRE(rns8_capture_prepared_hip_graph(prepared)==RNS8_SUCCESS);
+          rns8::detail::hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+          for(bool graph:{false,true}) {
+            matrix->exact_range_prefix=source;matrix->materialized_rns_prefix=source;
+            const auto before=rns8::detail::hip_direct_allocation_counters_snapshot();
+            rns8_completion_token token{};
+            REQUIRE((graph?rns8_submit_prepared_hip_graph(prepared,stream.get(),&token):rns8_submit_prepared_hip(prepared,stream.get(),&token))==RNS8_SUCCESS);
+            REQUIRE(matrix->in_flight_writer);REQUIRE(matrix->prepared_in_flight_writers==1);
+            REQUIRE(rns8_destroy_prepared_execution(prepared)==RNS8_BUSY);
+            REQUIRE(matrix->exact_range_prefix==source);
+            rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+            REQUIRE(rns8_wait_prepared_hip(prepared,token,&completion)==RNS8_SUCCESS);
+            REQUIRE(completion.operation_status==RNS8_SUCCESS);REQUIRE(completion.output_is_current);
+            REQUIRE(matrix->content_generation==generation);REQUIRE(matrix->source_version==version);
+            REQUIRE(matrix->exact_range_prefix==target);REQUIRE(matrix->materialized_rns_prefix==target);
+            REQUIRE(!matrix->in_flight_writer);REQUIRE(!matrix->prepared_in_flight_writers);
+            const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();
+            CHECK(after.allocate_calls==before.allocate_calls);CHECK(after.free_calls==before.free_calls);
+            REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),matrix->hip_residues,actual.size())==RNS8_SUCCESS);
+            for(std::size_t i=0;i<actual.size();++i)REQUIRE(actual[i]==(i<target*cells?expected[i]:int8_t{99}));
+          }
+          matrix->exact_range_prefix=source;matrix->materialized_rns_prefix=source;
+          rns8_completion_token canceled{};REQUIRE(rns8_submit_prepared_hip(prepared,stream.get(),&canceled)==RNS8_SUCCESS);
+          REQUIRE(rns8_cancel_prepared_hip(prepared,canceled)==RNS8_SUCCESS);
+          rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+          REQUIRE(rns8_wait_prepared_hip(prepared,canceled,&completion)==RNS8_SUCCESS);
+          REQUIRE(completion.operation_status==RNS8_CANCELED);REQUIRE(matrix->exact_range_prefix==source);
+          REQUIRE(matrix->device_residues_current);REQUIRE(matrix->content_generation==generation);
+          REQUIRE(rns8_destroy_prepared_execution(prepared)==RNS8_SUCCESS);
+        }
+#endif
+
       }
       matrix->exact_range_prefix = source;
       matrix->exact_max_magnitude = product; // Cannot recover an aliased integer.

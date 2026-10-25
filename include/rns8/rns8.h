@@ -1605,6 +1605,19 @@ RNS8_API rns8_status rns8_lift_exact_wide_cpu(
  * exact_range_prefix and invalidates any old host residue materialization.
  * Access must be serialized by the caller. This operation is not graph-safe.
  */
+/* Prepared exact lift uses the existing prepared token/stream/group/graph API.
+ * algorithm 0=wide Garner, 1=shared mixed-radix digits. Scratch budget includes
+ * retained suffix + device status + four pinned status bytes; opaque HIP objects
+ * are additional. Replay preserves logical generation, and failures preserve
+ * the prior source prefix. New values must fit the preparation's bound envelope. */
+typedef struct rns8_exact_lift_options {
+  uint64_t struct_size;
+  uint32_t abi_version, target_prefix, algorithm, flags;
+  uint64_t max_total_scratch_bytes;
+} rns8_exact_lift_options;
+RNS8_API rns8_status rns8_prepare_exact_lift_hip(rns8_context* ctx,rns8_matrix* matrix,
+    const rns8_exact_lift_options* options,rns8_prepared_execution** out);
+
 RNS8_API rns8_status rns8_lift_exact_wide_hip(
     rns8_context* ctx,
     rns8_matrix* matrix,

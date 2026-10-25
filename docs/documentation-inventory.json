@@ -3048,12 +3048,17 @@
           "reference": "../mixed-radix-lift.md"
         },
         {
+          "source": "docs/prepared-execution.md",
+          "reference": "mixed-radix-lift.md"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../mixed-radix-lift.md"
         }
       ],
       "anchors": [
-        "mixed-radix-exact-suffix-candidate"
+        "mixed-radix-exact-suffix-candidate",
+        "prepared-stream-and-graph-ownership"
       ]
     },
     {
@@ -3683,6 +3688,7 @@
         "failed-stream-cleanup",
         "heterogeneous-prepared-groups",
         "owned-fixed-envelope-hip-graph",
+        "prepared-exact-conversion-variant",
         "prepared-exact-epilogues",
         "prepared-execution-and-completion-ownership",
         "strict-wrap64-resident-edges",

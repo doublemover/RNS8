@@ -160,3 +160,5 @@ TEST_CASE("synchronous failure leases invalidate only written outputs and releas
 }
 
 #include "test_api_native_integrity_cases.inc"
+
+#include "test_api_prepared_lift_cases.inc"

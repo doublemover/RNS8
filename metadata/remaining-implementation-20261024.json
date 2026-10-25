@@ -687,12 +687,27 @@
       "issue": 41,
       "title": "[Research P1] Implement value-preserving device exact-wide base extension",
       "url": "https://github.com/doublemover/RNS8/issues/41",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "files": [
+            "src/core/prepared_transfer.hpp",
+            "src/core/api_prepared_lift.inc",
+            "src/core/api_prepared_pipeline.inc",
+            "src/backend_hip_direct/hip_backend_lift.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_api_prepared_lift_cases.inc",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "GPU exact selector with whole-input/output transaction, prepared/native transfer composition and matched lift/recipe cost harness remain implementation work; all execution/qualification deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -789,12 +804,23 @@
             "src/core/api_gemm.cpp",
             "src/core/internal.hpp"
           ]
+        },
+        {
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "files": [
+            "src/core/prepared_transfer.hpp",
+            "src/core/api_prepared_lift.inc",
+            "src/core/api_prepared_pipeline.inc",
+            "src/backend_hip_direct/hip_backend_lift.inc"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_matrix_cleanup_cases.inc",
         "tests/differential/test_hip_public_native_group_cases.inc",
-        "tools/test_collect_public_queue_calibration.py"
+        "tools/test_collect_public_queue_calibration.py",
+        "tests/unit/test_api_prepared_lift_cases.inc",
+        "tests/differential/test_hip_direct_exact_lift_cases.inc"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -980,7 +1006,8 @@
         "tools/test_collect_native_integrity.py"
       ],
       "commits": [
-        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a"
+        "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
+        "64d8184a77af93e25a13b01f3158bc96d6a49065"
       ],
       "remaining": [
         "All authored regression execution, HIP compiler/runtime/graph/error-path qualification, fault-model coverage measurements and complete-route cost observations are deferred. Distributed commit integration follows the real multi-device owner (#50); no distributed integrity claim is made before that owner exists."

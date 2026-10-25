@@ -3,6 +3,7 @@ namespace {
 #include "api_prepared_pipeline.inc"
 #endif
 uint32_t prepared_storage_planes(const rns8_prepared_execution& e) {
+  if(e.transfer)return e.transfer->output_prefix();
   if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) return 8;
   return uses_finite_storage(e.plan->desc.semantics)?1:e.plan->prefix;
 }
@@ -12,6 +13,7 @@ const void* prepared_device_storage(const rns8_matrix& matrix) {
 }
 rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
   if (e.ctx->hip_failure_poisoned) return RNS8_BACKEND_FAILURE;
+  if(e.transfer){boost::multiprecision::cpp_int bound;return e.transfer->validate(nullptr,0,bound);}
   const auto provider=plan_operation_preflight(*e.ctx,*e.plan,e.d?RNS8_OP_EXACT_EPILOGUE:RNS8_OP_GEMM,
       RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH);
   if(provider!=RNS8_SUCCESS)return provider;
@@ -30,11 +32,16 @@ rns8_status prepared_hip_support_status(const rns8_prepared_execution& e) {
 void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
   if (operation == RNS8_SUCCESS && e.cancel_requested) operation = RNS8_CANCELED;
   operation=finish_prepared_integrity(e,operation);
+  if(e.transfer) {
+    operation=e.transfer->finish(operation,e.pending_bound);
+    bind_inputs(e);
+  } else {
   --e.a->in_flight_readers;
   if (e.a != e.b)
     --e.b->in_flight_readers;
   if (e.d && e.d != e.a && e.d != e.b)
     --e.d->in_flight_readers;
+  --e.c->prepared_in_flight_writers;
   e.c->in_flight_writer = false;
   e.workspace->in_flight = false;
   if (operation == RNS8_SUCCESS) {
@@ -49,6 +56,8 @@ void finish_prepared_hip(rns8_prepared_execution &e, rns8_status operation) {
         e.c->exact_axis_ranges.rows.clear();e.c->exact_axis_ranges.cols.clear();
       } else rns8::detail::commit_exact_range(*e.c, *e.plan, e.pending_bound,&e.pending_ranges);
     }
+  }
+  e.c->in_flight_writer=e.c->prepared_in_flight_writers!=0;
   }
   e.native_integrity_report.c_generation=e.c->content_generation;
   e.completion = {};
@@ -153,7 +162,7 @@ struct PreparedHipProof {
 static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              void *stream, bool graph,
                                              PreparedHipProof &proof) {
-  if (!e || !stream)
+  if (!e || !stream || e->closing)
     return RNS8_INVALID_ARGUMENT;
   if (e->running || e->dependent_references)
     return RNS8_BUSY;
@@ -163,7 +172,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
   }
   if (!e->hip_submission_prepared)
     return RNS8_UNSUPPORTED_BACKEND;
-  if (e->epoch == UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
+  if (e->epoch == UINT64_MAX || e->c->prepared_in_flight_writers==UINT64_MAX || e->a->in_flight_readers == UINT64_MAX ||
       e->b->in_flight_readers == UINT64_MAX ||
       (e->d && e->d->in_flight_readers == UINT64_MAX))
     return RNS8_RANGE_ERROR;
@@ -185,7 +194,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
     const boost::multiprecision::cpp_int mask=(boost::multiprecision::cpp_int(1)<<64)-1;
     for(unsigned i=0;i<3;++i)proof.integrity_bound[i]=((proof.bound>>(64*i))&mask).convert_to<uint64_t>();
   }
-  if (!rns8::detail::qualified_i32_gemm_address(
+  if (!e->transfer && !rns8::detail::qualified_i32_gemm_address(
           e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
           e->b->desc.cols, e->c->desc.cols, prepared_storage_planes(*e)))
     return RNS8_UNSUPPORTED_BACKEND;
@@ -228,14 +237,18 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
   e->pending_bound.swap(proof.bound);
   e->pending_ranges = std::move(proof.ranges);
+  if(e->transfer)e->transfer->reserve();
+  else {
   invalidate_output_currentness(*e->c);
   ++e->a->in_flight_readers;
   if (e->a != e->b)
     ++e->b->in_flight_readers;
   if (e->d && e->d != e->a && e->d != e->b)
     ++e->d->in_flight_readers;
+  ++e->c->prepared_in_flight_writers;
   e->c->in_flight_writer = true;
   e->workspace->in_flight = true;
+  }
   e->running = true;
   e->pending_stream = stream;
   e->async_failure = {};
@@ -322,7 +335,7 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
     const auto preparation = rns8_prepare_hip_submission(e);
     if (preparation != RNS8_SUCCESS)
       return preparation;
-    if (!rns8::detail::qualified_i32_gemm_address(
+    if (!e->transfer && !rns8::detail::qualified_i32_gemm_address(
             e->plan->desc.m, e->plan->desc.n, e->plan->desc.k, e->a->desc.cols,
             e->b->desc.cols, e->c->desc.cols, prepared_storage_planes(*e)))
       return RNS8_UNSUPPORTED_BACKEND;
@@ -417,13 +430,13 @@ submit_prepared_group_hip_impl(rns8_prepared_group *group, void *const *streams,
       auto *e = group->executions[i];
       if (e->ctx->device_id != device)
         return RNS8_UNSUPPORTED_BACKEND;
-      if (!workspaces.insert(e->workspace).second)
+      if (e->workspace && !workspaces.insert(e->workspace).second)
         return RNS8_INVALID_ARGUMENT;
       const auto status =
           prove_prepared_submission(e, streams[i], graph, proofs[i]);
       if (status != RNS8_SUCCESS)
         return status;
-      ++readers[e->a];
+      if(!e->transfer || !e->transfer->writes_matrix())++readers[e->a];
       if (e->b != e->a)
         ++readers[e->b];
       if (e->d && e->d != e->a && e->d != e->b)

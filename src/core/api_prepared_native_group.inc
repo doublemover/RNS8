@@ -46,6 +46,7 @@ rns8_status admit_native_group_child(rns8_prepared_execution& e,
   using namespace rns8::detail;
   if(!valid_abi(binding.struct_size,binding.abi_version,sizeof(binding)) ||
       (binding.modulus_group!=1 && binding.modulus_group!=2 && binding.modulus_group!=4))return RNS8_INVALID_ARGUMENT;
+  if(e.transfer)return RNS8_UNSUPPORTED_BACKEND;
   if(e.d || e.plan->backend!=RNS8_BACKEND_HIP_DIRECT || !exact_wide_semantics(e.plan->desc.semantics) ||
       !e.plan->tile_schedule.empty())return RNS8_UNSUPPORTED_BACKEND;
   auto status=plan_operation_preflight(*e.ctx,*e.plan,RNS8_OP_NATIVE_GROUP,RNS8_EXEC_GROUP,RNS8_QUERY_NATIVE_RETAINED);
@@ -202,7 +203,7 @@ static rns8_status submit_native_group(rns8_prepared_group* group,void* stream,
     for(size_t i=0;i<group->executions.size();++i) {
       auto& e=*group->executions[i];e.pending_bound.swap(proofs[i].bound);e.pending_ranges=std::move(proofs[i].ranges);
       invalidate_output_currentness(*e.c);++e.a->in_flight_readers;if(e.a!=e.b)++e.b->in_flight_readers;
-      e.c->in_flight_writer=true;e.workspace->in_flight=true;e.running=true;e.pending_stream=stream;
+      ++e.c->prepared_in_flight_writers;e.c->in_flight_writer=true;e.workspace->in_flight=true;e.running=true;e.pending_stream=stream;
       e.async_failure={};e.cancel_requested=false;e.event_dependencies=false;e.event_dependency_depth=0;
       ++e.epoch;tokens[i]={e.id,e.epoch};++*out_submitted;begin_prepared_integrity(e,proofs[i].integrity_bound);
     }

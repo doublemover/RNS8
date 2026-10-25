@@ -437,3 +437,21 @@ retired handle. Construction owns device buffers through preallocated RAII clean
 records from the first allocation: an exception or failed release transfers
 unpublished buffers to the existing device-drain cleanup queue, not a lost raw
 pointer. No failure-injection or hardware qualification is implied by this rule.
+
+
+## Prepared exact conversion variant
+
+Exact HIP base extension now uses the same prepared execution and completion
+token, rather than an unrelated transfer completion system. See
+[mixed-radix lift](mixed-radix-lift.md) for its frozen range/suffix envelope,
+retained pinned status and status-gated device commit. It composes with existing
+pending-value dependencies and independent groups; no whole-device wait is
+hidden in submission. Counted token-ordered writers keep a producer→lift chain
+reserved until its last actual writer finishes. Ordinary arithmetic defaults
+are unchanged, and caller-owned stream capture remains unsupported.
+
+Destroy first retires graph/event identities with checked HIP status, then
+releases transfer scratch. A failed destroy preserves the handle for cleanup
+retry, marks it closing and rejects further execution; it never erases a failed
+HIP object's only identity. Hardware execution and cleanup-failure qualification
+for this extension remain deferred.

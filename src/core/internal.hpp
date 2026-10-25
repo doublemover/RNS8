@@ -132,6 +132,9 @@ struct rns8_matrix {
   mutable uint64_t prepared_references = 0;
   mutable uint64_t in_flight_readers = 0;
   bool in_flight_writer = false;
+  // Token-ordered prepared writer chains (e.g. GEMM -> exact lift). Other
+  // owners still see the aggregate boolean and cannot interleave mutations.
+  uint64_t prepared_in_flight_writers = 0;
   rns8_matrix_desc desc{};
   rns8_backend_kind backend = RNS8_BACKEND_CPU_REFERENCE;
   uint64_t matrix_instance_id = 0;

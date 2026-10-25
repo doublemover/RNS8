@@ -6,11 +6,13 @@
 #include <unordered_map>
 #include "core/hip_resources.hpp"
 #include "core/encoded_b_internal.hpp"
+#include "core/prepared_transfer.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 
 using namespace rns8::detail::api;
 
 struct rns8_prepared_execution {
+  std::unique_ptr<PreparedTransfer> transfer;
   rns8_context* ctx = nullptr;
   const rns8_plan* plan = nullptr;
   const rns8_matrix* a = nullptr;
@@ -25,6 +27,7 @@ struct rns8_prepared_execution {
   rns8_completion_info completion{};
   rns8_async_failure_info async_failure{};
   bool running = false;
+  bool closing = false;
   bool native_integrity_enabled = false;
   rns8_native_integrity_report native_integrity_report{};
   rns8::detail::hip_direct_device_buffer integrity_flag;
@@ -91,6 +94,8 @@ uint64_t next_prepared_id() {
   return 0;
 }
 rns8_status validate_prepared(const rns8_prepared_execution& e) {
+  if(e.closing)return RNS8_INVALID_ARGUMENT;
+  if(e.transfer){boost::multiprecision::cpp_int bound;return e.transfer->validate(nullptr,0,bound);}
   auto status = validate_plan_context_workspace(*e.ctx, *e.plan, *e.workspace);
   if (status != RNS8_SUCCESS) return status;
   if (e.a->generation_exhausted || e.b->generation_exhausted || e.c->generation_exhausted)
@@ -115,16 +120,17 @@ void bind_inputs(rns8_prepared_execution& e) {
   if (e.d) { e.d_instance = e.d->matrix_instance_id; e.d_generation = e.d->content_generation; }
 }
 bool inputs_match(const rns8_prepared_execution& e) {
+  if(e.transfer && !e.transfer->reads_matrix())return e.c->matrix_instance_id==e.a_instance;
   return e.a_instance == e.a->matrix_instance_id && e.a_generation == e.a->content_generation &&
          e.b_instance == e.b->matrix_instance_id && e.b_generation == e.b->content_generation &&
          (!e.d || (e.d_instance == e.d->matrix_instance_id && e.d_generation == e.d->content_generation));
 }
 // A==B is legal; hold that resource once. No allocation follows retention.
 void reference_slots(const rns8_prepared_execution& e, uint64_t* (&slots)[7]) {
-  slots[0] = &e.ctx->prepared_references; slots[1] = &e.plan->prepared_references;
+  slots[0] = &e.ctx->prepared_references; slots[1] = e.plan ? &e.plan->prepared_references : nullptr;
   slots[2] = &e.a->prepared_references;
   slots[3] = e.a == e.b ? nullptr : &e.b->prepared_references;
-  slots[4] = &e.c->prepared_references; slots[5] = &e.workspace->prepared_references;
+  slots[4] = e.c!=e.a && e.c!=e.b ? &e.c->prepared_references : nullptr; slots[5] = e.workspace ? &e.workspace->prepared_references : nullptr;
   slots[6] = e.d && e.d != e.a && e.d != e.b ? &e.d->prepared_references : nullptr;
 }
 }
@@ -174,6 +180,7 @@ static void record_epilogue_completion(rns8_prepared_execution& e) {
 }
 static rns8_status prepared_range(const rns8_prepared_execution& e,
     boost::multiprecision::cpp_int& bound, rns8_exact_matrix_ranges& ranges) {
+  if(e.transfer){ranges={};return e.transfer->validate(nullptr,0,bound);}
   if(uses_finite_storage(e.plan->desc.semantics) ||
      e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
     bound=0;ranges={};return RNS8_SUCCESS; // ring semantics need no integer range lift
@@ -182,6 +189,7 @@ static rns8_status prepared_range(const rns8_prepared_execution& e,
              : rns8::detail::exact_gemm_range(*e.plan, *e.a, *e.b, bound, &ranges);
 }
 static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stream) {
+  if(e.transfer)return e.transfer->enqueue(stream);
   if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
     return rns8::detail::wrap64_hip_enqueue_byte_limbs(
         e.a->hip_byte_limbs,e.b->hip_byte_limbs,e.c->hip_byte_limbs,
@@ -205,7 +213,7 @@ rns8_status rns8_bind_prepared_dependencies(rns8_prepared_execution* consumer,
     std::array<rns8_prepared_execution::Dependency,3> bindings{};
     for(uint32_t i=0;i<count;++i) {
       auto* producer=producers[i];const auto token=tokens[i];
-      if(!producer || producer==consumer || producer->ctx!=consumer->ctx || token.prepared_id!=producer->id ||
+      if(!producer || (producer->transfer && !producer->transfer->produces_resident()) || producer==consumer || producer->ctx!=consumer->ctx || token.prepared_id!=producer->id ||
          !token.epoch || token.epoch!=producer->epoch ||
          (producer->c!=consumer->a && producer->c!=consumer->b && producer->c!=consumer->d)) return RNS8_INVALID_ARGUMENT;
       for(uint32_t j=0;j<i;++j)
@@ -278,10 +286,10 @@ rns8_status rns8_execute_prepared(rns8_prepared_execution* e, rns8_completion_to
     const auto status = validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
     if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
-    if(e->native_integrity_enabled) {
+    if(e->native_integrity_enabled || e->transfer) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       *out_token={};
-      const auto submitted=rns8_submit_prepared_hip(e,e->integrity_stream,out_token);
+      const auto submitted=rns8_submit_prepared_hip(e,e->transfer?e->transfer->sync_stream():e->integrity_stream,out_token);
       if(!out_token->epoch)return submitted;
       rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
       const auto waited=rns8_wait_prepared_hip(e,*out_token,&completion);
@@ -330,7 +338,7 @@ rns8_status rns8_get_prepared_completion(
   if (e->running) return RNS8_BUSY;
   *out = e->completion;
   out->struct_size = sizeof(*out); out->abi_version = RNS8_ABI_VERSION;
-  out->output_is_current = out->operation_status == RNS8_SUCCESS && !e->c->generation_exhausted &&
+  out->output_is_current = out->operation_status == RNS8_SUCCESS && (!e->transfer || e->transfer->output_current()) && !e->c->generation_exhausted &&
       e->c->matrix_instance_id == out->c_instance && e->c->content_generation == out->c_generation &&
       (e->c->host_residues_current || e->c->device_residues_current || e->c->host_byte_limbs_current ||
        e->c->device_byte_limbs_current || e->c->host_native_current || e->c->device_native_current);
@@ -339,6 +347,16 @@ rns8_status rns8_get_prepared_completion(
 rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   if (!e) return RNS8_SUCCESS;
   if (e->running || e->group_references || e->dependent_references) return RNS8_BUSY;
+  e->closing=true;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(e->graph_executable || e->graph || e->completion_event.get()) {
+    rns8::detail::hip_scoped_device selected(e->ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(e->graph_executable){if(hipGraphExecDestroy(e->graph_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph_executable=nullptr;}
+    if(e->graph){if(hipGraphDestroy(e->graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;e->graph=nullptr;}
+    if(e->completion_event.get()){if(hipEventDestroy(e->completion_event.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;(void)e->completion_event.release();}
+  }
+#endif
+  if(e->transfer){const auto closed=e->transfer->close();if(closed!=RNS8_SUCCESS)return closed;}
   const auto closed=close_prepared_integrity(*e);
   if(closed!=RNS8_SUCCESS)return closed;
   release_prepared_dependency(*e);
@@ -360,7 +378,8 @@ rns8_status rns8_create_prepared_group(
     if (!executions || !count || count > 65536) return RNS8_INVALID_ARGUMENT;
     auto group = std::make_unique<rns8_prepared_group>();
     group->executions.assign(executions, executions + count);
-    std::unordered_set<const rns8_matrix*> writers, readers;
+    std::unordered_map<const rns8_matrix*,const rns8_prepared_execution*> writers;
+    std::vector<std::pair<const rns8_matrix*,const rns8_prepared_execution*>> readers;
     writers.reserve(count); readers.reserve(static_cast<std::size_t>(count) * 3);
     for (auto* e : group->executions) {
       if (!e) return RNS8_INVALID_ARGUMENT;
@@ -369,10 +388,10 @@ rns8_status rns8_create_prepared_group(
       auto status = validate_prepared(*e);
       if (status != RNS8_SUCCESS) return status;
       if (!inputs_match(*e)) return RNS8_INVALID_ARGUMENT;
-      if (!writers.insert(e->c).second) return RNS8_INVALID_ARGUMENT;
-      readers.insert(e->a); readers.insert(e->b); if (e->d) readers.insert(e->d);
+      if(!e->transfer || e->transfer->writes_matrix())if(!writers.emplace(e->c,e).second)return RNS8_INVALID_ARGUMENT;
+      if(!e->transfer || e->transfer->reads_matrix()){readers.emplace_back(e->a,e);readers.emplace_back(e->b,e);if(e->d)readers.emplace_back(e->d,e);}
     }
-    for (auto* writer : writers) if (readers.count(writer)) return RNS8_INVALID_ARGUMENT;
+    for(const auto& read:readers){const auto writer=writers.find(read.first);if(writer!=writers.end() && writer->second!=read.second)return RNS8_INVALID_ARGUMENT;}
     for (auto* e : group->executions) ++e->group_references;
     *out = group.release();
     return RNS8_SUCCESS;
@@ -428,4 +447,23 @@ rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group) {
   for (auto* e : group->executions) --e->group_references;
   delete group;
   return RNS8_SUCCESS;
+}
+
+// Factory used by exact-lift and native/host transfer owners. Resource preparation
+// is already complete; ownership/reference publication is one nonthrowing step.
+rns8_status rns8::detail::api::create_transfer_prepared(std::unique_ptr<PreparedTransfer> transfer,
+    rns8_prepared_execution** out) {
+  return guard_api([&]() -> rns8_status {
+    if(!transfer || !out || !transfer->ctx || !transfer->matrix)return RNS8_INVALID_ARGUMENT;
+    *out=nullptr;
+    auto e=std::make_unique<rns8_prepared_execution>();e->ctx=transfer->ctx;
+    e->a=e->b=e->c=transfer->matrix;e->transfer=std::move(transfer);
+    const auto valid=validate_prepared(*e);if(valid!=RNS8_SUCCESS)return valid;
+    uint64_t* slots[7]{};reference_slots(*e,slots);
+    for(const auto* slot:slots)if(slot && *slot==UINT64_MAX)return RNS8_RANGE_ERROR;
+    e->id=next_prepared_id();if(!e->id)return RNS8_RANGE_ERROR;bind_inputs(*e);
+    const auto hip=rns8_prepare_hip_submission(e.get());if(hip!=RNS8_SUCCESS)return hip;
+    for(auto* slot:slots)if(slot)++*slot;
+    *out=e.release();return RNS8_SUCCESS;
+  });
 }

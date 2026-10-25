@@ -36,8 +36,9 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
 extern "C" int rns8_hip_direct_lift_suffix_device(
-    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool);
+    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool, void*);
 
+extern "C" int rns8_hip_guarded_copy_bytes(const void*,void*,uint64_t,uint64_t,uint64_t,uint64_t,const int*,void*);
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
     int8_t* d_residues,
