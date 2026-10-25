@@ -3133,6 +3133,7 @@
         "encode-once-candidates-and-prepared-conversion-owners",
         "encoded-b-preparation-and-observed-reuse-break-even",
         "four-wave-register-and-lds-controls",
+        "gf2-paired-column-control",
         "matched-native-integer-comparison",
         "matched-resident-epilogue-comparison",
         "native-conversion-and-scheduling-calibration"
@@ -3696,6 +3697,7 @@
         "explicit-hip-submission",
         "failed-stream-cleanup",
         "heterogeneous-prepared-groups",
+        "matched-pinned-host-transfer-calibration",
         "owned-fixed-envelope-hip-graph",
         "owned-pinned-host-transfer-boundaries",
         "preparation-and-publication-costs",
@@ -4688,6 +4690,7 @@
         }
       ],
       "anchors": [
+        "explicit-packing-controls",
         "rocwmma-and-amdgpu-builtin-backend"
       ]
     },
@@ -5176,6 +5179,10 @@
       "inbound_links": [
         {
           "source": "docs/README.md",
+          "reference": "experimental-bases.md"
+        },
+        {
+          "source": "docs/planning-recipes.md",
           "reference": "experimental-bases.md"
         },
         {

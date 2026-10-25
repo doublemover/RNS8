@@ -185,7 +185,8 @@ __global__ __launch_bounds__(32) void rns8_native_conversion_wave_kernel(
 template<class T,int Group>
 __global__ __launch_bounds__(32) void rns8_native_paired_columns_kernel(
     const T* a,const T* b,int8_t* c,int m,int n,int k,int lda,int ldb,int ldc,int prefix) {
-#if RNS8_DEVICE_NATIVE_WMMA
+#if (defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)) && \
+    __has_builtin(__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32)
   static_assert(Group==1 || Group==2,"paired columns bound accumulator pressure explicitly");
   using fragment=int __attribute__((ext_vector_type(4)));
   using accumulator=int __attribute__((ext_vector_type(8)));
