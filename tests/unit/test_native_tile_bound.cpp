@@ -467,3 +467,37 @@ TEST_CASE("versioned native datasets certify heterogeneous buckets before GPU wo
   fill_native_dataset(a,b,16,16,17,false,"mixed-tiles-v2",0,rng);
   CHECK_THROWS_AS(model_native_dataset(a,b,16,16,17,false,1,"mixed-tiles-v2"),std::invalid_argument);
 }
+
+#include "backend_common/split_k_partial.hpp"
+TEST_CASE("native first merge normalizes centered bytes without changing canonical trees", "[split-k][arithmetic]") {
+  using namespace rns8::detail;
+  for(uint32_t p=2;p<=256;++p) {
+    for(uint32_t r=0;r<p;++r) {
+      const int32_t centered=r>=(p+1)/2?int32_t(r)-int32_t(p):int32_t(r);
+      const auto bits=static_cast<uint8_t>(centered);
+      CHECK(split_k_partial_canonical(bits,p,true)==r);
+      CHECK(split_k_partial_centered(bits,p,true)==centered);
+      CHECK(split_k_partial_centered(static_cast<uint8_t>(r),p,false)==centered);
+    }
+    for(uint32_t fragments:{1u,2u,3u,127u,128u,129u,257u,4096u}) {
+      std::vector<uint8_t> partials(fragments);uint64_t reference=0;
+      for(uint32_t f=0;f<fragments;++f) {
+        const uint32_t r=(f*127u+(f%2?p-1:0))%p;reference+=r;
+        partials[f]=static_cast<uint8_t>(r>=(p+1)/2?int32_t(r)-int32_t(p):int32_t(r));
+      }
+      bool centered=true;
+      while(partials.size()>1) {
+        std::vector<uint8_t> next((partials.size()+127)/128);
+        for(std::size_t first=0;first<partials.size();first+=128) {
+          uint32_t sum=0;
+          for(auto f=first;f<std::min(first+128,partials.size());++f)sum+=split_k_partial_canonical(partials[f],p,centered);
+          REQUIRE(sum<=32640);next[first/128]=static_cast<uint8_t>(sum%p);
+        }
+        centered=false;partials=std::move(next);
+      }
+      const uint32_t canonical=reference%p;
+      CHECK(split_k_partial_centered(partials[0],p,centered)==
+        static_cast<int8_t>(canonical>=(p+1)/2?int32_t(canonical)-int32_t(p):int32_t(canonical)));
+    }
+  }
+}

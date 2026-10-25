@@ -105,6 +105,7 @@ int main(int argc, char** argv) {
         "conversion_cold|conversion_prepared|conversion_pack_gemm|tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
         "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
         "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
+        "split_k: optional workers fragments fused-first|separate-control; fragments1..min(K,4096), default min(K,3).\n"
         "adaptive_grid: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
         "conversion modes: append depth buffers waves replicated|cooperative|encoded_lds reuse_count stable|reverse_k; cold includes one preparation per R-call batch, prepared reports setup separately.\n"
         "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
@@ -166,7 +167,7 @@ int main(int argc, char** argv) {
       throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
     if (tiled && argc != 13)
       throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
-    if (!conversion && !adaptive && !tiled && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
+    if (!conversion && !adaptive && !tiled && !(candidate=="split_k" && argc==14) && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
       throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
     const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
     if(explicit_dataset && reuse_count!=1)throw std::invalid_argument("dataset controls require one complete product per call");
@@ -181,7 +182,7 @@ int main(int argc, char** argv) {
         throw std::invalid_argument("tiled_register requires depth16/buffers0; tiled_lds requires depth16|32/buffers1|2 within64KiB LDS");
     }
     const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
-        queued ? (argc == 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
+        queued ? (argc >= 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
     const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
     const bool native = conversion || candidate == "wmma" || encoded || queued || prepared || adaptive || tiled;
     if (candidate == "complex_3m" || candidate == "complex_4m")
@@ -195,7 +196,10 @@ int main(int argc, char** argv) {
     if ((!native && !epilogue && candidate != "pack_pair" && candidate != "packed_gemm" && candidate != "pack_gemm") ||
         run_id.empty() || (group != 1 && group != 2 && group != 4) || (!native && group != 1) ||
         uint64_t{m} * n * k > 1073741824) throw std::invalid_argument("invalid candidate/group or reference-work limit");
-    const uint32_t splits = candidate == "split_k" ? std::min(k, 3u) : 1u;
+    const uint32_t splits = candidate == "split_k" ? (argc==14?number(argv[12],1,std::min(k,4096u)):std::min(k,3u)) : 1u;
+    const std::string native_merge_policy=candidate=="split_k" && argc==14?argv[13]:"fused-first";
+    if(native_merge_policy!="fused-first" && native_merge_policy!="separate-control")throw std::invalid_argument("invalid native split merge policy");
+    const bool separate_canonicalization_control=native_merge_policy=="separate-control";
     const uint32_t queue_descriptors = queued ? ((m + 15) / 16) * ((n + 15) / 16) *
         ((prefix + group - 1) / group) * splits : 0u;
     const uint32_t effective_workers = compact ? requested_workers : std::min(requested_workers, queue_descriptors);
@@ -370,7 +374,7 @@ int main(int argc, char** argv) {
       else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
       else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
       else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
-      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written));
+      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written,separate_canonicalization_control));
       else if (adaptive) {
         check(hip_direct_gemm_adaptive_native_device(0, da.get(), db.get(), static_cast<int8_t*>(dc.get()),
             m, n, k, k, n, n, unsigned_inputs, prefix, group, UINT64_MAX, written,
@@ -458,6 +462,12 @@ int main(int argc, char** argv) {
         {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
         {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
         {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if(candidate=="split_k")report.update({{"fragments",splits},{"merge_policy",native_merge_policy},
+      {"native_partial_format","centered_int8"},{"merge_output_format","canonical_uint8"},
+      {"native_split_scratch_bytes",uint64_t{m}*n*prefix*(splits+(splits+127)/128)},
+      {"standalone_canonicalization_logical_bytes",separate_canonicalization_control?uint64_t{2}*splits*prefix*m*n:0},
+      {"standalone_canonicalization_launches",separate_canonicalization_control?1:0},
+      {"merge_maximum_integer_sum",128*255},{"source_counts_not_measured_HBM",true}});
     if(adaptive || explicit_dataset)report.update({{"dataset_profile",dataset_profile},{"dataset_seed",dataset_seed},
       {"dataset_identity",dataset_identity},{"dataset_model",dataset_model}});
     if (reuse_batch && !conversion) {

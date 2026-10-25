@@ -197,7 +197,8 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
-    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started);
+    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started,
+    bool separate_canonicalization_control = false);
 
 // Borrowed status+suffix region; no allocations/frees. Caller retains and drains
 // it on errors. The first int is aligned, suffix follows; publication is unchanged.

@@ -46,7 +46,7 @@ def strict_json(text):
 def validate_case(case):
     """Canonical controls: queues default32 workers; ordinary WMMA defaults1 reuse."""
     keys = {"candidate", "m", "n", "k", "prefix", "group", "unsigned_inputs"}
-    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile", "dataset_profile", "dataset_seed"}:
+    if not isinstance(case, dict) or not keys <= set(case) or set(case) - keys - {"workers", "bound_method", "k_depth", "lds_buffers", "reuse_count", "waves", "conversion", "input_change", "coefficient_profile", "dataset_profile", "dataset_seed", "fragments", "merge_policy"}:
         raise ValueError("native case needs candidate,m,n,k,prefix,group,unsigned_inputs; workers for queues/compact; adaptive requires bound_method; tiled requires k_depth/lds_buffers; encoded B requires reuse_count")
     limits = {"m": (1, 1024), "n": (1, 1024), "k": (1, 65537), "prefix": (1, 20)}
     if any(type(case[key]) is not int or not low <= case[key] <= high for key, (low, high) in limits.items()):
@@ -120,6 +120,12 @@ def validate_case(case):
         normalized["workers"] = workers
     elif "workers" in case:
         raise ValueError("workers applies only to queue/queue_prepared/split_k/adaptive_compact candidates")
+    if case['candidate']=='split_k':
+        fragments=case.get('fragments',min(case['k'],3));policy=case.get('merge_policy','fused-first')
+        if type(fragments) is not int or not 1<=fragments<=min(case['k'],4096) or policy not in ('fused-first','separate-control'):
+            raise ValueError('split_k requires fragments1..min(K,4096) and fused-first|separate-control')
+        normalized.update(fragments=fragments,merge_policy=policy)
+    elif 'fragments' in case or 'merge_policy' in case:raise ValueError('fragment controls apply only to native split_k')
     if 'dataset_profile' in normalized and normalized.get('reuse_count',1)!=1:
         raise ValueError('dataset comparisons require one complete product per call')
     return normalized
@@ -127,7 +133,7 @@ def validate_case(case):
 
 def scheduling_contract(case):
     queued = case["candidate"] in QUEUED
-    splits = min(case["k"], 3) if case["candidate"] == "split_k" else 1
+    splits = case.get("fragments",min(case["k"],3)) if case["candidate"] == "split_k" else 1
     descriptors = (((case["m"] + 15) // 16) * ((case["n"] + 15) // 16)
                    * ((case["prefix"] + case["group"] - 1) // case["group"]) * splits) if queued else 0
     compact = case["candidate"] == "adaptive_compact"
@@ -290,6 +296,13 @@ def capture_contract(case, run_id, repeats, warmups):
         expected['dataset_identity']=dataset_identity(case['dataset_profile'],case['dataset_seed'])
         expected['dataset_model']=dataset_model(case['m'],case['n'],case['k'],case['unsigned_inputs'],case['group'],
             case['dataset_profile'],case['dataset_seed'],case['candidate'] in ADAPTIVE)
+    if case['candidate']=='split_k':
+        fragments=case['fragments'];cells=case['m']*case['n']*case['prefix'];separate=case['merge_policy']=='separate-control'
+        expected.update(native_partial_format='centered_int8',merge_output_format='canonical_uint8',
+            native_split_scratch_bytes=cells*(fragments+(fragments+127)//128),
+            standalone_canonicalization_logical_bytes=2*cells*fragments if separate else 0,
+            standalone_canonicalization_launches=1 if separate else 0,merge_maximum_integer_sum=128*255,
+            source_counts_not_measured_HBM=True)
     expected.update(scheduling_contract(case))
     expected.update(adaptive_contract(case))
     expected.update(tiled_contract(case))
@@ -559,6 +572,7 @@ def main():
                    str(int(case["unsigned_inputs"])), str(args.repeats), str(args.warmups), run_id]
         if case["candidate"] in (*QUEUED, "adaptive_compact"):
             command.append(str(case["workers"]))
+        if case["candidate"]=='split_k':command.extend([str(case['fragments']),case['merge_policy']])
         if case["candidate"] in ADAPTIVE:
             command.append(case["bound_method"])
         if case["candidate"] in TILED:

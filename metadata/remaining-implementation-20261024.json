@@ -335,7 +335,8 @@
         "tools/test_native_dataset.py"
       ],
       "commits": [
-        "caf5cea743d1395e8f3acc760382b9eefad9001d"
+        "caf5cea743d1395e8f3acc760382b9eefad9001d",
+        "7954eb326c5b45080fd60f980140672598a0d3aa"
       ],
       "remaining": [
         "Regression execution, device compilation and measured net benefit/fallback overhead remain deferred.",
@@ -418,12 +419,29 @@
       "issue": 37,
       "title": "[Research P2] Add exact split-K/Stream-K with hierarchical modular partial reduction",
       "url": "https://github.com/doublemover/RNS8/issues/37",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Split-K canonical resident producers, windowed/hierarchical merge and native variant exist. Latest comment's native first-merge fusion and bounded native fragment count control not implemented; separate canonicalization launch remains.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Native WMMA first merge canonicalizes centered bytes in registers, with explicit F=1 centered store; later canonical levels and resident canonical producers stay unchanged. Retain standalone conversion as a matched control and expose bounded fragment-count/merge-policy controls, strict source accounting and paired full-call fixtures.",
+          "files": [
+            "src/backend_common/split_k_partial.hpp",
+            "src/backend_hip_direct/hip_direct_split_k_kernels.cuh",
+            "src/backend_hip_direct/hip_backend_native_split_k.inc",
+            "benchmarks/native-calibration/native-split-merge.json"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_native_tile_bound.cpp",
+        "tests/differential/test_hip_direct_native_wmma_cases.inc",
+        "tools/test_collect_native_calibration.py"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Device compilation, regression execution and measured same-contract net benefit remain deferred.",
+        "Public native async/prepared and planner selection integration compose with #38/#43/#67; no new automatic selection."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,

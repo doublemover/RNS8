@@ -7,12 +7,14 @@ output in scratch, and queues grouped matrix-engine tiles. Every producer still
 uses the established 65536-element internal accumulation cap, so a fragment can
 itself span multiple safe slabs.
 
-Native WMMA outputs are centered signed bytes. A separate, timed conversion
-canonicalizes every fragment before the unsigned merge tree; reinterpreting
-negative bytes would be wrong for odd moduli. Each merge has fan-in at most 128
-and sums at most 32640 before reduction. Canonical byte outputs feed the next
-level, keeping the bound independent of tree depth. The final store centers
-residues and preserves destination pitch padding.
+Native WMMA outputs are centered signed bytes. The first merge now normalizes
+each partial in registers before adding it; negative byte bit patterns are never
+reinterpreted as canonical residues for odd moduli. With one fragment an explicit
+centered-to-centered final store bypasses the merge. Each merge has fan-in at
+most 128 and sums at most 32640 before reduction. Canonical byte outputs feed
+later levels, keeping the bound independent of tree depth. The final store
+preserves destination pitch padding. The old standalone canonicalization remains
+an explicit `separate-control` measurement route, not the default.
 
 Admission checks full native/output address domains and aliases. The explicit
 scratch budget covers producer and merge buffers plus the queue descriptors.
@@ -83,3 +85,26 @@ scratch. It is an explicit user choice, not a measured automatic policy. CPU
 resource fixtures and full independent Boost HIP comparisons exercise windows
 1, 2, 128, short final windows and multi-level full reductions. Qualification and
 matched full/window/unsplit timings remain in the final campaign.
+
+
+### First-merge fusion and bounded native controls
+
+Native calibration accepts `fragments` in 1..min(K,4096), a worker count and
+`merge_policy` (`fused-first` or `separate-control`). Both routes retain identical
+producer tasks, merge scratch capacity, full output residency and final commit.
+The fused route removes one standalone launch/synchronization and
+`2 * fragments * prefix * M * N` logical byte accesses; it does **not** reduce
+scratch capacity or establish a physical HBM/latency improvement. Canonical
+resident-residue producers continue to use their original format-specific merge.
+
+`native-split-merge.json` pairs the two policies at one-fragment, small-fragment
+and 127/128/129 hierarchy boundaries, long K and 512-square shapes, with native
+unsplit and pack+GEMM controls. Collector identity includes fragment count and
+merge format/policy and validates source-byte/launch accounting. Complete-call,
+cold ownership, diagnostic events and sustained uninstrumented boundaries are
+unchanged. CPU fixtures exhaust every valid centered byte for moduli 2..256 and
+multi-level fragment sequences; signed/unsigned GPU fixtures compare both routes
+including odd strides and K tails. These additions have only host syntax checks;
+GPU compilation, regressions and same-contract measurement remain deferred.
+Historical native split-K observations used standalone canonicalization and do
+not qualify this fused variant.

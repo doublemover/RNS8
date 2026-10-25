@@ -538,6 +538,7 @@ class CollectorTest(unittest.TestCase):
                                       k=int(command[4]), prefix=int(command[5]), group=int(command[6]),
                                       unsigned_inputs=bool(int(command[7])),
                                       **({"workers": int(command[11])} if command[1] in (*QUEUED, "adaptive_compact") else {}),
+                                      **({"fragments":int(command[12]),"merge_policy":command[13]} if command[1]=="split_k" else {}),
                                       **({"bound_method": command[-1]} if command[1] in ADAPTIVE else {}),
                                       **({"reuse_count": int(command[11])} if command[1] in REUSE else {}),
                                       **({"coefficient_profile": command[11]} if command[1].startswith("epilogue_") else {}),
@@ -803,6 +804,24 @@ class CompiledCliTest(unittest.TestCase):
                     result = self.invoke([*base, *suffix])
                     self.assertNotEqual(result.returncode, 0)
 
+
+
+class NativeSplitMergeControls(unittest.TestCase):
+    def test_fragment_boundaries_and_capture_accounting(self):
+        for fragments in (1,2,3,127,128,129,257,4096):
+            for policy in ('fused-first','separate-control'):
+                case=case_for('split_k',m=2,n=3,k=4096,fragments=fragments,merge_policy=policy)
+                capture=capture_for(case);validate_capture(capture,case,'fixture-run',3,1)
+                self.assertEqual(capture['splits'],fragments)
+                self.assertEqual(capture['standalone_canonicalization_logical_bytes'],
+                                 2*fragments*case['prefix']*6 if policy=='separate-control' else 0)
+                for key in ('native_partial_format','merge_output_format','merge_maximum_integer_sum','standalone_canonicalization_logical_bytes'):
+                    bad=copy.deepcopy(capture);bad[key]=None
+                    with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',3,1)
+        for value in (0,258,True,3.0):
+            with self.assertRaises(ValueError):case_for('split_k',fragments=value)
+        with self.assertRaises(ValueError):case_for('wmma',fragments=3)
+        with self.assertRaises(ValueError):case_for('split_k',merge_policy='reinterpret-unsigned')
 
 if __name__ == "__main__":
     unittest.main()

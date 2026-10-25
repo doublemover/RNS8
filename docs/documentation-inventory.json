@@ -3210,6 +3210,7 @@
       ],
       "anchors": [
         "bounded-window-execution",
+        "first-merge-fusion-and-bounded-native-controls",
         "native-matrix-engine-split-k",
         "public-reusable-residue-split-k-owner"
       ]

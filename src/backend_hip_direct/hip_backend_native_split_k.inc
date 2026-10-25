@@ -1,12 +1,14 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_split_k_canonicalize(uint8_t*, int64_t, int, int);
+extern "C" int rns8_hip_split_k_merge_centered(const uint8_t*,uint8_t*,int64_t,int,int);
+extern "C" int rns8_hip_split_k_store_centered(const uint8_t*,int8_t*,int,int,int,int);
 #endif
 
 rns8_status hip_direct_gemm_native_wmma_split_k_device(
     int device_id, const void* a, const void* b, int8_t* c,
     int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint32_t prefix, uint32_t group, bool unsigned_inputs, uint32_t splits,
-    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started) try {
+    uint32_t workers, uint64_t max_scratch_bytes, bool& commit_started, bool separate_canonicalization_control) try {
   commit_started = false;
   if (!a || !b || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       !prefix || prefix > 20 || (group != 1 && group != 2 && group != 4) ||
@@ -48,23 +50,28 @@ rns8_status hip_direct_gemm_native_wmma_split_k_device(
       return error == hipSuccess ? hipDeviceSynchronize() : error;
     });
   };
-  if (run("native_split_k_canonicalize", [&]() {
+  if (separate_canonicalization_control && run("native_split_k_canonicalize", [&]() {
         return rns8_hip_split_k_canonicalize(first, m * n, prefix, splits);
       }) != hipSuccess) return RNS8_BACKEND_FAILURE;
   uint32_t fragments = splits;
+  bool centered_input = !separate_canonicalization_control;
   while (fragments > 1) {
-    if (run("native_split_k_merge", [&]() {
-          return rns8_hip_split_k_merge(first, second, m * n, prefix, fragments);
+    if (run(centered_input ? "native_split_k_first_merge_centered" : "native_split_k_merge", [&]() {
+          return centered_input ? rns8_hip_split_k_merge_centered(first, second, m * n, prefix, fragments)
+                                : rns8_hip_split_k_merge(first, second, m * n, prefix, fragments);
         }) != hipSuccess) return RNS8_BACKEND_FAILURE;
+    centered_input = false;
     std::swap(first, second);
     fragments = (fragments + 127) / 128;
   }
   commit_started = true;
   return run("native_split_k_store", [&]() {
-    return rns8_hip_split_k_store(first, c, static_cast<int>(m), static_cast<int>(n), static_cast<int>(ldc), prefix);
+    // F=1 never entered the merge tree: retain its centered format explicitly.
+    return centered_input ? rns8_hip_split_k_store_centered(first,c,static_cast<int>(m),static_cast<int>(n),static_cast<int>(ldc),prefix)
+                          : rns8_hip_split_k_store(first,c,static_cast<int>(m),static_cast<int>(n),static_cast<int>(ldc),prefix);
   }) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
-  (void)device_id; (void)unsigned_inputs;
+  (void)device_id; (void)unsigned_inputs; (void)separate_canonicalization_control;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 } catch (const std::bad_alloc&) {
