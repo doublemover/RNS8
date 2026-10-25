@@ -412,6 +412,12 @@ namespace rns8::detail {
 
 using boost::multiprecision::cpp_int;
 
+// Descriptor admission and immutable schedule sealing must accept the same flags.
+constexpr uint32_t kSupportedPlanFlags = RNS8_PLAN_FORCE_FIXED_PREFIX |
+    RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS | RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS |
+    RNS8_PLAN_EXACT_SCALAR_FIRST | RNS8_PLAN_DIRECT_RNS_PARALLEL |
+    RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH | RNS8_PLAN_EXACT_VALUE_BOUND;
+
 constexpr uint16_t kDefaultModuli[RNS8_DEFAULT_MODULUS_COUNT] = {
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};

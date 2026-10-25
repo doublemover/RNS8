@@ -52,7 +52,7 @@ int main(int argc,char** argv){try {
     else{check(rns8_pack_i64(o.ctx,o.a,reinterpret_cast<const int64_t*>(av.data()),k,generation));check(rns8_pack_i64(o.ctx,o.b,reinterpret_cast<const int64_t*>(bv.data()),n,generation));}
     if(o.execution)check(rns8_refresh_prepared_inputs(o.execution));};
   auto create=[&](){auto o=std::make_unique<Owner>();rns8_context_options co{};co.struct_size=sizeof(co);co.abi_version=RNS8_ABI_VERSION;co.requested_backend=RNS8_BACKEND_HIP_DIRECT;check(rns8_create_context(0,&co,&o->ctx));
-    rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.requested_backend=co.requested_backend;d.m=m;d.n=n;d.k=k;d.max_prefix=prefix;d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
+    rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;d.bound_kind=RNS8_BOUND_NONE;d.requested_backend=co.requested_backend;d.m=m;d.n=n;d.k=k;d.max_prefix=prefix;d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
     check(rns8_create_plan(o->ctx,&d,&o->plan));check(rns8_create_workspace(o->ctx,o->plan,&o->work));
     auto matrix=[&](uint32_t rows,uint32_t cols,rns8_matrix** out){rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.bound_kind=RNS8_BOUND_NONE;md.rows=rows;md.cols=cols;md.logical_ld=cols;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=prefix;md.flags=RNS8_MATRIX_RETAIN_NATIVE_INPUT;check(rns8_create_matrix(o->ctx,&md,out));};
     matrix(m,k,&o->a);matrix(k,n,&o->b);matrix(m,n,&o->c);pack(*o);check(rns8_prepare_gemm(o->ctx,o->plan,o->a,o->b,o->c,o->work,&o->execution));

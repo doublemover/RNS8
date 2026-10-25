@@ -23,6 +23,7 @@ static std::shared_ptr<const arithmetic::Guard> make_plan_arithmetic_guard(const
   i.lowering_identity="ordinary-plan-arithmetic-v1;backend="+std::to_string(plan.backend)+";kernel="+i.opcode+
     ";accumulator="+plan.backend_accumulator_type+";K="+std::to_string(plan.desc.k)+
     ";epilogue="+plan.backend_epilogue_mode+";library="+plan.backend_library_version;
+  if(plan.desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND)i.lowering_identity+=";range_admission=current_value_fixed_basis_v1";
   i.safe_k=plan.backend_accumulator_k_block_size;
   i.lhs_abs=static_cast<uint32_t>(plan.backend_accumulator_max_lhs_abs);
   i.rhs_abs=static_cast<uint32_t>(plan.backend_accumulator_max_rhs_abs);

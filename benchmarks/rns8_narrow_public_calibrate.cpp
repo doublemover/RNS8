@@ -40,7 +40,7 @@ int main(int argc,char** argv){try{
   auto create=[&](){auto o=std::make_unique<Owner>();rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=vector?RNS8_BACKEND_HIP_VECTOR_ALU_INT64:RNS8_BACKEND_HIP_DIRECT;check(rns8_create_context(0,&options,&o->ctx));
     rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.semantics=vector?(u?RNS8_BOUNDED_U64:RNS8_BOUNDED_I64):(u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED);
     d.bound_kind=vector?(u?RNS8_BOUND_GLOBAL_MAX_UNSIGNED:RNS8_BOUND_GLOBAL_MAX_ABS):RNS8_BOUND_NONE;d.bound=vector?bound:0;d.requested_backend=options.requested_backend;d.m=m;d.n=n;d.k=k;d.max_prefix=prefix;
-    d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|(parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0)|(mode=="vector-exact-width"?RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH:0);
+    d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|(!vector?RNS8_PLAN_EXACT_VALUE_BOUND:0)|(parallel?RNS8_PLAN_DIRECT_RNS_PARALLEL:0)|(mode=="vector-exact-width"?RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH:0);
     check(rns8_create_plan(o->ctx,&d,&o->plan));check(rns8_create_workspace(o->ctx,o->plan,&o->work));
     auto matrix=[&](uint32_t rows,uint32_t cols,bool input,rns8_matrix** out){rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.bound_kind=d.bound_kind;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.rows=rows;md.cols=cols;md.logical_ld=cols;md.max_prefix=prefix;md.flags=input && !vector?RNS8_MATRIX_RETAIN_NATIVE_INPUT:0;check(rns8_create_matrix(o->ctx,&md,out));};
     matrix(m,k,true,&o->a);matrix(k,n,true,&o->b);matrix(m,n,false,&o->c);pack(*o);

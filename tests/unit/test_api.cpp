@@ -170,3 +170,5 @@ TEST_CASE("ragged producer binds retained multi-output recipe consumers") {
 }
 
 #include "test_api_pinned_host_cases.inc"
+
+#include "test_api_value_bound_plan_cases.inc"

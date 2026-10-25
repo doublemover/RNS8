@@ -274,6 +274,17 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_api_prepared_lift_cases.inc"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -287,7 +298,8 @@
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
         "f30d1817b6208f781c64d9169aedf672f96319a0",
-        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
+        "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -426,6 +438,17 @@
             "tools/native_dataset.py",
             "tools/collect_native_calibration.py",
             "benchmarks/native-calibration/adaptive-distributions.json"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
         }
       ],
@@ -634,6 +657,17 @@
             "benchmarks/public-native-queue",
             "tools/collect_public_queue_calibration.py"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -737,6 +771,17 @@
             "src/backend_common/mfma_i8_layout.hpp",
             "src/backend_hip_direct/hip_direct_wrap_mfma.cuh"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -798,6 +843,17 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_api_prepared_lift_cases.inc"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -808,7 +864,8 @@
       "commits": [
         "f30d1817b6208f781c64d9169aedf672f96319a0",
         "d403c9711b74e51d4d61ecfed365f9681f4103bc",
-        "11ac95b6482386d74e6804d8a854b4629467208f"
+        "11ac95b6482386d74e6804d8a854b4629467208f",
+        "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
         "Default-basis selector, synchronous/stream/graph lift and matched harness are written. Nondefault-basis conversion composition remains dependent source work under #32; no generic-basis capability is implied.",
@@ -999,7 +1056,8 @@
         "f30d1817b6208f781c64d9169aedf672f96319a0",
         "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
         "d403c9711b74e51d4d61ecfed365f9681f4103bc",
-        "c7850412f000a2d1753c5577d14553789e0200de"
+        "c7850412f000a2d1753c5577d14553789e0200de",
+        "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
         "Compiled resident-graph NativeToRns/BaseExtend/Export node adapters and additional semantics/provider-specific asynchronous integration remain.",
@@ -1126,6 +1184,17 @@
             "benchmarks/rns8_bilinear_calibrate.cpp",
             "tools/collect_bilinear_calibration.py"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1171,6 +1240,17 @@
             "tools/collect_native_integrity.py",
             "benchmarks/native-integrity/",
             "tests/unit/test_api_native_integrity_cases.inc"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
         }
       ],
@@ -1291,6 +1371,17 @@
             "src/core/api_context.cpp",
             "benchmarks/rns8_narrow_public_calibrate.cpp",
             "tools/collect_narrow_public_calibration.py"
+          ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
         }
       ],
@@ -1768,6 +1859,17 @@
             "benchmarks/hip_native_interop_application.hip",
             "tools/collect_native_interop.py"
           ]
+        },
+        {
+          "summary": "Explicit current-value fixed-basis plan policy resolves short-prefix public calibration and runtime shortlist admission without changing the default full-native contract. Actual engine-owned expression proofs remain mandatory at execution; shared descriptor/sealed-schedule flag masks include existing research controls. Six public calibration owners now request the explicit policy.",
+          "files": [
+            "include/rns8/rns8.h",
+            "src/core/moduli.cpp",
+            "src/core/api_plan_schedule.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_matrix_schedule_contracts.inc",
+            "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -2168,6 +2270,39 @@
         "benchmarks",
         "device qualification"
       ]
+    },
+    {
+      "kind": "syntax_only",
+      "scope": "Final explicit value-bound plan core, test_api translation unit and six modified public calibration programs; pinned-host adapter and C public header",
+      "result": "Host syntax passed; tests, benchmarks, HIP compilation/execution and hardware/scientific qualification not performed."
     }
-  ]
+  ],
+  "parking_snapshot": {
+    "parked_utc": "2026-10-25T06:57:00Z",
+    "reason": "User requested parking, commit/push preservation and draft PR; backlog not complete.",
+    "source_complete_validation_deferred": 39,
+    "advanced_partial": 6,
+    "not_advanced_this_pass": 5,
+    "qualification_only": 1,
+    "remaining_development_issues": [
+      30,
+      32,
+      40,
+      41,
+      42,
+      43,
+      45,
+      50,
+      52,
+      56,
+      68
+    ],
+    "handoff": "docs/implementation-handoff-20261025.md",
+    "tests_executed": false,
+    "benchmarks_executed": false,
+    "hardware_qualification_performed": false,
+    "open_inventory_rechecked_utc": "2026-10-25T06:59:00Z",
+    "open_inventory_count": 51,
+    "new_or_removed_issues": []
+  }
 }

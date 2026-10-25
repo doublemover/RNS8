@@ -67,8 +67,7 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
 
 bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
   ++plan_validation_work.exhaustive_validations;
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST;
+  constexpr uint32_t allowed_flags = rns8::detail::kSupportedPlanFlags;
   constexpr uint32_t known_tile_schedule_flags =
       RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
   if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() ||
@@ -175,6 +174,9 @@ bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
       return false;
     }
   }
+  if((plan.desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND) &&
+      (!rns8::detail::exact_wide_semantics(plan.desc.semantics) || !(plan.desc.flags&RNS8_PLAN_FORCE_FIXED_PREFIX) ||
+       plan.schedule_range_bit_length!=0 || plan.schedule_min_required_prefix!=plan.prefix || plan.prefix!=plan.desc.max_prefix))return false;
   if (!per_tile) {
     const bool fixed_prefix_requested = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
     return plan.desc.tile_bounds == nullptr && plan.desc.tile_bounds_count == 0 && plan.tile_bounds.empty() &&

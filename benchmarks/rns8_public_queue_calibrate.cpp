@@ -101,7 +101,7 @@ int main(int argc,char** argv){try{
   for(size_t i=0;i<owner.tasks.size();++i){auto& task=owner.tasks[i];matrix(task.a);pack(task.a);
     rns8_gemm_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
     desc.semantics=task.a.u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;desc.bound_kind=RNS8_BOUND_NONE;desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
-    desc.m=task.m;desc.n=task.n;desc.k=task.k;desc.max_prefix=task.prefix;desc.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;
+    desc.m=task.m;desc.n=task.n;desc.k=task.k;desc.max_prefix=task.prefix;desc.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
     check(rns8_create_plan(owner.ctx,&desc,&task.plan));check(rns8_create_workspace(owner.ctx,task.plan,&task.work));
     rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=desc.semantics;md.bound_kind=RNS8_BOUND_NONE;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;
     md.rows=task.m;md.cols=task.n;md.logical_ld=task.n;md.max_prefix=task.prefix;check(rns8_create_matrix(owner.ctx,&md,&task.c));

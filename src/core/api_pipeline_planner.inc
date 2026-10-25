@@ -35,7 +35,8 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     const auto& input=query->operation.problem;
     if(!exact_wide_semantics(input.semantics) || is_per_tile_bound_kind(input.bound_kind))return RNS8_UNSUPPORTED_BACKEND;
     const uint32_t ceiling=input.max_prefix?input.max_prefix:default_prefix_for_semantics(input.semantics);
-    const auto valid=validate_gemm_desc(input,ceiling);if(valid!=RNS8_SUCCESS)return valid;
+    auto capacity_problem=input;capacity_problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
+    const auto valid=validate_gemm_desc(capacity_problem,ceiling);if(valid!=RNS8_SUCCESS)return valid;
     if((query->output_boundary==1 && input.semantics!=RNS8_EXACT_WIDE_SIGNED) ||
        (query->output_boundary==2 && input.semantics!=RNS8_EXACT_WIDE_UNSIGNED))return RNS8_INVALID_ARGUMENT;
     const auto build=pipeline_build_identity();
@@ -65,7 +66,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         if(reconstruction && (!query->output_boundary || !quarter || (backend!=RNS8_BACKEND_CPU_REFERENCE && backend!=RNS8_BACKEND_HIP_DIRECT)))continue;
         rns8_pipeline_candidate c{};c.struct_size=sizeof(c);c.abi_version=RNS8_ABI_VERSION;c.backend=backend;
         c.prefix=reconstruction?quarter:minimum;c.reconstruction=query->output_boundary?(reconstruction?2:1):0;c.requires_binding=1;
-        auto q=query->operation;q.problem.max_prefix=c.prefix;q.problem.requested_backend=backend;q.problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX;
+        auto q=query->operation;q.problem.max_prefix=c.prefix;q.problem.requested_backend=backend;q.problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
         c.executable_problem=q.problem;
         // Caller-owned pointers cannot escape in a saved executable recipe.
         c.executable_problem.tile_bounds=nullptr;c.executable_problem.tile_bounds_count=0;

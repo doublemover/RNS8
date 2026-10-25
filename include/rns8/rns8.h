@@ -465,6 +465,12 @@ typedef struct rns8_device_info {
 /* Explicit synchronous research controls; never selected by AUTO. */
 #define RNS8_PLAN_DIRECT_RNS_PARALLEL 0x00000010u
 #define RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH 0x00000020u
+/* Exact-wide, fixed-prefix opt-in: capacity is chosen for current engine-owned
+ * value proofs, not every possible native64 product. Requires FORCE_FIXED_PREFIX.
+ * Plan creation proves the modular lowering only; each execution rechecks the
+ * actual complete expression and rejects insufficient range before writes.
+ * A caller-supplied estimate is never an execution certificate. */
+#define RNS8_PLAN_EXACT_VALUE_BOUND 0x00000040u
 
 /*
  * Per-tile schedule flags returned through rns8_plan_schedule_info.flags and

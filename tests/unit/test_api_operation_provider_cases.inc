@@ -34,7 +34,7 @@ TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum an
   q.operation.problem.max_prefix=9;q.output_magnitude_limbs[0]=100;q.output_boundary=1;q.payload_budget=UINT64_MAX;q.reuse_count=1;
   rns8_pipeline_candidate c[2]{};uint32_t count=0;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);REQUIRE(count==2);
   CHECK(c[0].prefix==1);CHECK(c[1].prefix==2);CHECK(c[0].status==RNS8_SUCCESS);CHECK(c[1].status==RNS8_SUCCESS);
-  CHECK_FALSE(c[0].cost_known);CHECK_FALSE(c[0].pareto);CHECK(c[0].executable_problem.flags&RNS8_PLAN_FORCE_FIXED_PREFIX);
+  CHECK_FALSE(c[0].cost_known);CHECK_FALSE(c[0].pareto);CHECK(c[0].executable_problem.flags&RNS8_PLAN_FORCE_FIXED_PREFIX);CHECK(c[0].executable_problem.flags&RNS8_PLAN_EXACT_VALUE_BOUND);
   for(auto& candidate:c){rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&candidate.executable_problem,&plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);}
   const auto ordinary=c[0].peak_payload_bytes,quarter=c[1].peak_payload_bytes;CHECK(quarter>ordinary);
   q.payload_budget=ordinary;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);CHECK(c[0].status==RNS8_SUCCESS);CHECK(c[1].status==RNS8_WORKSPACE_TOO_SMALL);

@@ -3469,6 +3469,7 @@
       ],
       "anchors": [
         "dependency-proven-arena-reuse",
+        "explicit-current-value-fixed-basis-plans",
         "offline-typed-recipe-admission",
         "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]
@@ -5140,6 +5141,28 @@
         "instruction-and-os-references",
         "matched-calibration-implementation-not-executed",
         "optional-cpu-amx-int8-provider"
+      ]
+    },
+    {
+      "path": "docs/implementation-handoff-20261025.md",
+      "purpose": "Parked implementation source status and exact remaining handoff",
+      "audience": "Maintainers resuming the draft implementation branch",
+      "disposition": "keep",
+      "canonical": "docs/implementation-handoff-20261025.md",
+      "owner": "metadata/remaining-implementation-20261024.json",
+      "reason": "User-requested parking checkpoint with source-complete versus remaining implementation boundaries and explicitly deferred validation.",
+      "inbound_links": [
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/implementation-handoff-20261025.md"
+        }
+      ],
+      "anchors": [
+        "checks-and-unverified-boundaries",
+        "delivered-source-clusters",
+        "exact-remaining-implementation",
+        "parked-implementation-handoff--2026-10-25",
+        "scope-and-honest-completion-boundary"
       ]
     }
   ]
