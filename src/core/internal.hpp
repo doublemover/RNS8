@@ -220,6 +220,7 @@ struct rns8_sparse_matrix {
 
 struct rns8_workspace {
   rns8::detail::hip_direct_device_buffer arena_owner;
+  rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
   rns8::detail::hip_direct_device_buffer int32_scratch_owner;
   rns8::detail::hip_direct_device_buffer matmul_workspace_owner;
   rns8::detail::hip_direct_device_buffer a_prepack_owner;

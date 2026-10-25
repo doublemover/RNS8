@@ -29,7 +29,10 @@
     "crt_export_kernel",
     "crt_export_status_d2h",
     "crt_export_d2h",
-    "crt_export"
+    "crt_export",
+    "rank23_oct55_transform_pair",
+    "rank23_oct55_recombine",
+    "rank23_oct55_commit"
   ],
   "grouped_dispatch_events": [
     "rns_gemm_kernel_group",

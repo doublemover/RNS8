@@ -2403,14 +2403,25 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
 typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_STRASSEN = 0,
   RNS8_BILINEAR_RANK23_COEFFICIENTS = 1,
-  RNS8_BILINEAR_RANK23_SLP = 2
+  RNS8_BILINEAR_RANK23_SLP = 2,
+  RNS8_BILINEAR_RANK23_OCTOBER55 = 3,
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE = 4
 } rns8_bilinear_method;
 /* Opt-in direct-HIP exact-wide signed/unsigned product. One bilinear level,
  * complete prefix, staged publication, explicit scratch budget and original
- * input range proof. Rank23 SLP uses the pinned alternative-basis program and
- * retains all23 transformed operand/product buffers; it is not a low-memory
- * schedule. Ratio is additional transient bytes/(resident A+B+C bytes), written
+ * input range proof. SLP=2 executes September 51+5 basis additions; October55=3
+ * executes the division-free 13+14+28 DAG. Both retain 23 operand/product buffers.
+ * October55 recompute=4 reuses one A/B pair, retaining 23 products and executing
+ * the input DAG again per product. Ratio is required scratch/(resident A+B+C bytes), written
  * only on success. No AUTO selection or performance qualification is implied. */
+/* Optional eager scratch preparation. The ordinary bilinear call also grows this
+ * workspace-owned arena once as needed; repeated calls reuse it without device
+ * allocation. A failed undrainable call retains the workspace and input/output
+ * leases until rns8_drain_failed_work succeeds. Does not qualify a method. */
+RNS8_API rns8_status rns8_prepare_bilinear_workspace(
+    rns8_context* ctx,const rns8_plan* plan,rns8_bilinear_method method,
+    uint64_t max_scratch_bytes,rns8_workspace* workspace);
+
 RNS8_API rns8_status rns8_gemm_bilinear_exact(rns8_context* ctx,const rns8_plan* plan,
     const rns8_matrix* A,const rns8_matrix* B,rns8_matrix* C,rns8_bilinear_method method,
     uint64_t max_scratch_bytes,rns8_workspace* workspace,double* out_memory_overhead_ratio);
@@ -2418,7 +2429,8 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(rns8_context* ctx,const rns8_plan*
 /* Experimental synchronous one-level Strassen for direct-HIP exact-wide signed
  * or unsigned plans. Requires current resident RNS inputs and ordinary GEMM
  * ownership/range admission. Other levels/backends/semantics are unsupported.
- * Scratch is allocated internally; workspace retains ordinary plan validation.
+ * Scratch is retained by workspace; optional eager preparation excludes setup
+ * allocation from a repeated measurement boundary.
  * On success, out_memory_overhead_ratio receives additional transient residue
  * bytes divided by resident A+B+C residue bytes (not total memory multiplier).
  * Precommit failures preserve C and ratio; failed output commit invalidates C.

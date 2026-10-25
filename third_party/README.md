@@ -103,3 +103,11 @@ when comparing results. Configure-time CK compatibility overlays are generated
 in the build tree and exact-match guarded; they do not edit installed/upstream
 headers. The LLVM HIP math wrapper compatibility overlay likewise remains
 build-local. The [version policy](../docs/dependency-versions.md) owns deliberate lock refreshes; no automatic upgrade or cache promotion occurs.
+
+### October rank-23 mathematical artifact
+
+`tools/data/rank23-october-55.txt` is the unchanged Apache-2.0 SLP from
+`gsidebottom/logic` commit `938ea3feddc3ebf44eace7a55222d0292a96c1dd`, blob
+`f3b618ea06ec620180317e6054b3e901b24a0781`. License and attribution are retained
+under `third_party/rank23-october-55/`. RNS8's strict importer consumes mathematical
+data only; no upstream executables, dependency installation or runtime code are used.

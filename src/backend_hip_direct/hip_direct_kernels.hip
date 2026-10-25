@@ -19,6 +19,7 @@
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank23_program.hpp"
 #include "../backend_common/rank23_slp.hpp"
+#include "../backend_common/rank23_october55.hpp"
 #include "../backend_common/int4_encoding.hpp"
 #include "../backend_common/native_tile_bound.hpp"
 #include "../backend_common/native_wmma_queue.hpp"
@@ -133,6 +134,21 @@ extern "C" int rns8_hip_rank23_slp_combine(const int8_t* products,int8_t* stage,
     int m,int n,int hm,int hn,int prefix) {
   hipLaunchKernelGGL(rns8_rank23_slp_combine_kernel,
       dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
+      products,stage,m,n,hm,hn,prefix);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_rank23_oct55_transform(const int8_t* source,int8_t* output,
+    int rows,int cols,int ld,int hr,int hc,int prefix,bool lhs,int selected_product) {
+  const dim3 grid((uint64_t(hr)*hc+255)/256,prefix);
+  if(lhs)hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<true>),grid,dim3(256),0,nullptr,
+      source,output,rows,cols,ld,hr,hc,prefix,selected_product);
+  else hipLaunchKernelGGL((rns8_rank23_oct55_transform_kernel<false>),grid,dim3(256),0,nullptr,
+      source,output,rows,cols,ld,hr,hc,prefix,selected_product);
+  return static_cast<int>(hipGetLastError());
+}
+extern "C" int rns8_hip_rank23_oct55_combine(const int8_t* products,int8_t* stage,
+    int m,int n,int hm,int hn,int prefix) {
+  hipLaunchKernelGGL(rns8_rank23_oct55_combine_kernel,dim3((uint64_t(hm)*hn+255)/256,prefix),dim3(256),0,nullptr,
       products,stage,m,n,hm,hn,prefix);
   return static_cast<int>(hipGetLastError());
 }

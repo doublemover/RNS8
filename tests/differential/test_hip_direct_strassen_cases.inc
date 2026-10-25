@@ -48,7 +48,7 @@ TEST_CASE(
                                              observed.size()) == RNS8_SUCCESS);
       bool committed = true;
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
-                                              ldc, prefix, 0, committed) ==
+                                              ldc, prefix, 0, committed,nullptr,0) ==
               RNS8_WORKSPACE_TOO_SMALL);
       REQUIRE_FALSE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
@@ -59,15 +59,15 @@ TEST_CASE(
         const auto resources=query_rank23_slp_resources(m,n,k,lda,ldb,ldc,prefix,UINT64_MAX);
         REQUIRE(resources.status==RNS8_SUCCESS);
         REQUIRE(multiply(0,da,db,dc,m,n,k,lda,ldb,ldc,prefix,resources.total_bytes-1,
-                         committed)==RNS8_WORKSPACE_TOO_SMALL);
+                         committed,nullptr,0)==RNS8_WORKSPACE_TOO_SMALL);
         REQUIRE_FALSE(committed);
         REQUIRE(multiply(0,da,db,da,m,n,k,lda,ldb,ldc,prefix,UINT64_MAX,
-                         committed)==RNS8_INVALID_ARGUMENT);
+                         committed,nullptr,0)==RNS8_INVALID_ARGUMENT);
         REQUIRE_FALSE(committed);
       }
       REQUIRE(multiply(0, da, db, dc, m, n, k, lda, ldb,
                                               ldc, prefix, UINT64_MAX,
-                                              committed) == RNS8_SUCCESS);
+                                              committed,nullptr,0) == RNS8_SUCCESS);
       REQUIRE(committed);
       REQUIRE(hip_direct_copy_device_to_host(0, observed.data(), dc,
                                              observed.size()) == RNS8_SUCCESS);
@@ -162,7 +162,7 @@ TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves 
 
 TEST_CASE("public rank23 methods retain exact proof and output transaction ownership") {
   if(!hip_available()) SKIP("no HIP device for public rank23 methods");
-  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP}) {
+  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE}) {
     check_public_strassen_owner<int64_t>(method);
     check_public_strassen_owner<uint64_t>(method);
   }

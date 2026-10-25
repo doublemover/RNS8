@@ -888,12 +888,30 @@
       "issue": 48,
       "title": "[Research P3] Evaluate certified one-level Strassen and rank-23 modular block GEMM",
       "url": "https://github.com/doublemover/RNS8/issues/48",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Private/public one-level Strassen and rank23 SLP implemented. Current rank23 is September 56-node alternative-basis program, not required October55 artifact; latest one-correction binary transform lowering still uses general remainder.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Pinned Apache-2.0 October 55-add artifact, strict typed importer, independent immutable-node Python checker and compiler-time allocated 729-tensor verification; actual 13+14+28 HIP DAG with retained/recomputed input variants and widened one-correction signed nodes. Public workspace-owned scratch and synchronous failure leases now cover all bilinear variants.",
+          "files": [
+            "tools/rank23_october55.py",
+            "src/backend_common/rank23_october55.hpp",
+            "src/backend_hip_direct/hip_direct_rank23_slp_kernels.cuh",
+            "src/backend_hip_direct/hip_backend_rank23_slp.inc",
+            "src/core/api_gemm.cpp"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_rank23_october55.py",
+        "tests/unit/test_rank23_slp.cpp",
+        "tests/differential/test_hip_direct_strassen_cases.inc"
+      ],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Matched public bilinear calibration and optional matrix-engine subproduct controls still to implement.",
+        "Python checker, tests, HIP compilation, failure execution, timings and scientific qualification deferred; conditional inverse-of-two rank48 extension remains gated on measured usefulness and is not a default-basis method."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1048,7 +1066,9 @@
       "regressions": [
         "tools/test_native_wmma_logic.py"
       ],
-      "commits": [],
+      "commits": [
+        "042153279a4a40f41b42ef00dfb4ed49a64f59a6"
+      ],
       "remaining": [
         "Execute bounded logical/mutation checks and existing real-device differential/ISA suites later; compiled lane behavior, timing, measured pruning and promotion remain unqualified."
       ],

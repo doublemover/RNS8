@@ -3759,6 +3759,7 @@
         }
       ],
       "anchors": [
+        "october-division-free-55-addition-dag",
         "one-level-rank-23-modular-prototype",
         "pinned-alternative-basis-slp",
         "private-slp-device-schedule"
@@ -4747,6 +4748,7 @@
       "anchors": [
         "attribution-and-provenance",
         "dependencies-and-third-party-policy",
+        "october-rank-23-mathematical-artifact",
         "optional-exact-references-and-accelerator-pins",
         "shared-prerequisites"
       ]

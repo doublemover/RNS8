@@ -213,6 +213,7 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
         workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
   }
   reset_workspace_active_schedule_contract(workspace);
+  keep_first_error(workspace.bilinear_scratch_owner.reset());
   keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
   if (!workspace.hip_workspace_arena) clear_workspace_arena_contract(workspace);
   keep_first_error(workspace.int32_scratch_owner.reset_alias(workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));

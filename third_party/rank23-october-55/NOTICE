@@ -1,0 +1,9 @@
+Mathematical straight-line program imported unchanged from gsidebottom/logic:
+https://github.com/gsidebottom/logic/blob/938ea3feddc3ebf44eace7a55222d0292a96c1dd/matmul/external/i19-55adds-slp.txt
+Git blob f3b618ea06ec620180317e6054b3e901b24a0781.
+The pinned repository distributes this artifact under Apache License 2.0.
+The pinned root contains no NOTICE file; its LICENSE is reproduced here.
+
+RNS8 independently parses this mathematical data and generates a typed execution
+DAG and register-liveness schedule. No upstream executable code is imported or
+run. The derived header records the artifact and generated representation hashes.

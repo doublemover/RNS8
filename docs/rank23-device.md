@@ -127,3 +127,49 @@ prefixes 1/3/9/20 and K-block splits above 65536. These new fixtures and the SLP
 kernels are authored only, pending the consolidated validation batch. Earlier
 dated coefficient-route evidence does not qualify this new route. Large-shape
 execution, ISA/resources and matched end-to-end speedup remain open gates.
+
+## October division-free 55-addition DAG
+
+`RNS8_BILINEAR_RANK23_OCTOBER55` executes the pinned
+[gsidebottom/logic artifact](https://github.com/gsidebottom/logic/blob/938ea3feddc3ebf44eace7a55222d0292a96c1dd/matmul/external/i19-55adds-slp.txt),
+Git blob `f3b618ea06ec620180317e6054b3e901b24a0781`. The unchanged artifact and
+Apache-2.0 license/attribution are checked in. It is **not** the September
+51-addition alternative-basis program: this DAG has 13 A, 14 B and 28 output
+binary additions, 23 ordered products and no basis change or division.
+
+A strict data-only importer emits typed nodes and hashes the artifact, DAG and
+allocated schedule. The C++ compiler independently expands the allocated schedule
+and statically checks all 729 ordered tensor coefficients against classical 3×3
+multiplication, plus the exact 8/6/11 intermediate coefficient L1 bounds. The
+separate Python verifier uses immutable nodes and checks the allocated schedule
+against them; its execution is deferred. Ordered A×B coefficients preserve the
+noncommutative block-ring identity, including even/composite moduli.
+
+The shared liveness compiler supports explicit widened unary negation. Each
+binary node reads centered operands into `int`, applies signs/addition, then uses
+one conditional modular correction. Negating -128 never happens in `int8_t`.
+The existing September DAG also uses this one-correction path; arbitrary input
+loads and product reductions retain their general reducers.
+
+Retained October mode evaluates each input DAG once per local cell and writes
+23 transformed matrices. `RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE` explicitly
+reevaluates the input DAG for each product, retaining only one transformed A/B
+pair. Both execute the actual 28-add output DAG over 23 product buffers. The
+recompute query removes exactly `22*(A_block_bytes+B_block_bytes)`; it does not
+pretend that local register reuse eliminates the remaining global products.
+These are distinct arithmetic/launch/memory tradeoffs, not an asserted speedup.
+
+All public bilinear methods now retain scratch in the ordinary workspace, with
+optional eager `rns8_prepare_bilinear_workspace`. Repeats with enough capacity
+allocate no bilinear scratch. A/B reader, C writer and workspace leases cover the
+whole synchronous operation. Precommit failure preserves C; possible-commit
+failure invalidates C; an undrainable failure retains the scratch and all leases
+until explicit draining succeeds. Checked workspace destruction retains failed
+free identities. Successful publication installs residues and the original
+complete-expression range proof together, including exceptions during publishing.
+
+Host C++ syntax/constexpr checks passed; generated data and metadata were refreshed.
+Regressions for all byte rings, signs, altered coefficients, recomputation budgets,
+and public signed/unsigned routes are authored but unexecuted. HIP compilation,
+real-device failure paths and matched performance campaigns remain deferred. The
+one-level N≥16384 / ≥1.15× / ≤2.2× total-memory promotion gates are unchanged.

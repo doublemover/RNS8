@@ -93,3 +93,36 @@ TEST_CASE("rank23 SLP resource query accounts every retained operand and product
   CHECK(query_rank23_slp_resources(INT64_MAX,1,1,1,1,1,20,UINT64_MAX).status==RNS8_UNSUPPORTED_BACKEND);
   CHECK(query_rank23_slp_resources(32768,32768,32768,32768,32768,32768,20,UINT64_MAX).status==RNS8_UNSUPPORTED_BACKEND);
 }
+
+#include "backend_common/rank23_october55.hpp"
+TEST_CASE("October55 executes its own signed DAG in every byte ring without int8 negation overflow") {
+  using namespace rns8::detail::rank23;
+  REQUIRE(october55::exact_ordered_tensor());
+  for(int modulus=2;modulus<=256;++modulus) {
+    for(int left=-(modulus/2);left<=(modulus-1)/2;++left)
+      for(int right=-(modulus/2);right<=(modulus-1)/2;++right)
+        for(int ls:{-1,1})for(int rs:{-1,1})
+          REQUIRE(slp::center_binary(ls*left+rs*right,modulus)==slp::center(ls*left+rs*right,modulus));
+    for(int sample=0;sample<8;++sample) {
+      int8_t a[9]{},b[9]{},u[23]{},v[23]{},products[23]{},out[9]{};
+      for(int i=0;i<9;++i){a[i]=int8_t(sample?((i*71+sample*23)%256)-128:-128);b[i]=int8_t(sample?((i*19+sample*47)%256)-128:127);}
+      slp::evaluate(october55::u,a,u,modulus);slp::evaluate(october55::v,b,v,modulus);
+      for(int p=0;p<23;++p)products[p]=int8_t(slp::center(int(u[p])*v[p],modulus));
+      slp::evaluate(october55::w,products,out,modulus);
+      for(int r=0;r<3;++r)for(int c=0;c<3;++c){int expected=0;for(int q=0;q<3;++q)expected+=int(a[r*3+q])*b[q*3+c];REQUIRE(out[r*3+c]==slp::center(expected,modulus));}
+    }
+  }
+}
+TEST_CASE("October55 recomputation removes only retained input buffers and respects exact budgets") {
+  using namespace rns8::detail;
+  for(uint32_t prefix:{1u,3u,9u,20u}) {
+    const auto retained=query_rank23_slp_resources(17,19,31,34,22,24,prefix,UINT64_MAX);
+    const auto recomputed=query_rank23_slp_resources(17,19,31,34,22,24,prefix,UINT64_MAX,true);
+    REQUIRE(retained.status==RNS8_SUCCESS);REQUIRE(recomputed.status==RNS8_SUCCESS);
+    REQUIRE(retained.total_bytes-recomputed.total_bytes==22*(retained.a_bytes+retained.b_bytes));
+    REQUIRE(recomputed.product_offset==recomputed.a_bytes+recomputed.b_bytes);
+    REQUIRE(recomputed.output_offset==recomputed.product_offset+23*recomputed.product_bytes);
+    REQUIRE(query_rank23_slp_resources(17,19,31,34,22,24,prefix,recomputed.total_bytes,true).status==RNS8_SUCCESS);
+    REQUIRE(query_rank23_slp_resources(17,19,31,34,22,24,prefix,recomputed.total_bytes-1,true).status==RNS8_WORKSPACE_TOO_SMALL);
+  }
+}

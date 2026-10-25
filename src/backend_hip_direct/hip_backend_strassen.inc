@@ -9,7 +9,7 @@ extern "C" int rns8_hip_strassen_commit(const int8_t *, int8_t *, int, int, int,
 static rns8_status hip_direct_gemm_bilinear_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started, bool rank23) {
+    uint64_t max_scratch_bytes, bool &commit_started, bool rank23, void* retained_scratch,uint64_t retained_bytes) {
   commit_started = false;
   if (!a || !b || !c)
     return RNS8_INVALID_ARGUMENT;
@@ -30,10 +30,9 @@ static rns8_status hip_direct_gemm_bilinear_device(
   if (status != RNS8_SUCCESS)
     return status;
   hip_direct_device_buffer scratch;
-  status = scratch.allocate(device_id, resources.total_bytes);
-  if (status != RNS8_SUCCESS)
-    return status;
-  auto *ta = static_cast<int8_t *>(scratch.get());
+  if(retained_scratch && retained_bytes<resources.total_bytes)return RNS8_WORKSPACE_TOO_SMALL;
+  if(!retained_scratch) {status=scratch.allocate(device_id,resources.total_bytes);if(status!=RNS8_SUCCESS)return status;}
+  auto *ta = static_cast<int8_t *>(retained_scratch?retained_scratch:scratch.get());
   auto *tb = ta + resources.b_offset;
   auto *product = ta + resources.product_offset;
   auto *stage = ta + resources.output_offset;
@@ -91,16 +90,16 @@ static rns8_status hip_direct_gemm_bilinear_device(
 rns8_status hip_direct_gemm_strassen_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, false);
+                                         commit_started, false,retained_scratch,retained_bytes);
 }
 rns8_status hip_direct_gemm_rank23_device(
     int device_id, const void *a, const void *b, void *c, int64_t m, int64_t n,
     int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix,
-    uint64_t max_scratch_bytes, bool &commit_started) {
+    uint64_t max_scratch_bytes, bool &commit_started,void* retained_scratch,uint64_t retained_bytes) {
   return hip_direct_gemm_bilinear_device(device_id, a, b, c, m, n, k, lda, ldb,
                                          ldc, prefix, max_scratch_bytes,
-                                         commit_started, true);
+                                         commit_started, true,retained_scratch,retained_bytes);
 }
