@@ -5246,7 +5246,7 @@
         },
         {
           "source": "docs/roadmap.md",
-          "reference": "local-validation-20261025.md#subsequent-materialization-integration"
+          "reference": "local-validation-20261025.md#subsequent-measured-price-integration"
         },
         {
           "source": "examples/device-native/README.md",
@@ -5263,6 +5263,7 @@
         "reproduction",
         "results-and-coverage",
         "subsequent-materialization-integration",
+        "subsequent-measured-price-integration",
         "subsequent-static-instruction-review",
         "windows-and-gfx1100-validation--2026-10-25"
       ]
@@ -5289,6 +5290,10 @@
           "reference": "focused-closeout-measurements-20261025.md"
         },
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment"
+        },
+        {
           "source": "docs/planning-recipes.md",
           "reference": "focused-closeout-measurements-20261025.md#packed-storage-and-the-analytical-model"
         },
@@ -5297,17 +5302,25 @@
           "reference": "focused-closeout-measurements-20261025.md"
         },
         {
+          "source": "docs/roadmap.md",
+          "reference": "focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/focused-closeout-measurements-20261025.md"
         }
       ],
       "anchors": [
-        "beneficial-compiled-resident-graphs",
+        "all-complete-route-controls",
+        "beneficial-proof-policy-comparisons",
         "closeout",
+        "earlier-compiled-resident-graphs-default-public-proof-policy",
         "focused-closeout-measurements--2026-10-25",
+        "frozen-price-held-out-results",
         "genuine-wide-value-public-fixtures",
         "method",
-        "packed-storage-and-the-analytical-model"
+        "packed-storage-and-the-analytical-model",
+        "subsequent-stage-price-and-proof-policy-experiment"
       ]
     }
   ]

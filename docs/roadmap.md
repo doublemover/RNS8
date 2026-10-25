@@ -120,12 +120,14 @@ measurements remain in the final validation batch. Documentation consolidation
 
 ### Current validation and remaining work
 
-The [October 25 materialization retry](local-validation-20261025.md#subsequent-materialization-integration)
-records clean `6ce489b` artifacts: 536 CPU ASan passes, 911 full-feature gfx1100
-passes, 661 actual test cases in each arithmetic control, and 12 installed
-static/shared consumer passes, with no failures. Complete inventory accounting
-includes the unchanged shared logical proof. The preceding dated validation
-owns the earlier tooling, fuzz, native-device consumer and artifact checks.
+The [October 25 measured-price retry](local-validation-20261025.md#subsequent-measured-price-integration)
+records clean `31aa691` artifacts: 541 CPU ASan passes, 921 full-feature gfx1100
+passes, 664 scalar-source cases and 12 installed static/shared consumer passes.
+The packed-dot/Garner-table lane has 663 passes and one missing timing-label
+failure; all numerical assertions pass. Its subsequent source repair reports
+event failures explicitly and still needs fresh execution. The unchanged shared
+logical proof is reused with its source identity. Earlier dated receipts retain
+their actual tooling, fuzz, native-device consumer and artifact checks.
 
 Generation-bound native/pinned-host transfers, event-dependent joins, exact
 lift/export, paired-complex and block-sparse owners, custom bases and product
@@ -139,8 +141,11 @@ accelerator pin. VS2026 and the isolated non-GPU stack passed the named project
 builds/tests; the selected Git upgrade remains blocked by its installer approval
 review. Official AMD documentation responses remain unresolved under #61.
 The [focused measurements](focused-closeout-measurements-20261025.md) completed
-400 captures on the explicitly authorized shared host. Full-prefix compiled
-graphs benefit; packed/model routes lose to that control. The original
+560 captures on the explicitly authorized shared host, including 20 independent
+stage-training and 140 new complete-route captures. Explicit scalar-first public
+proofs beat the default eager-axis policy at 128/256; compiled recipes do not
+establish a benefit over this stronger baseline. All four measured models fail
+the predeclared held-out tolerance; no route is promoted. The original
 5,382/16,513-run campaign remains stopped.
 
 ## Stop conditions for hardware work
@@ -175,8 +180,12 @@ chains and diamonds with exact suffix growth, retained observations, staged
 publication and reusable scratch. Its [opt-in materialization planner](planning-recipes.md#cost-planned-product-materializations)
 adds shared packed B alternatives, joint prefix/cost search and a physical
 liveness arena. The latest CPU/HIP and installed-consumer fixtures passed.
-Prices remain explicit model inputs; independent measured stage prices and
-held-out complete-route qualification are still required under #42/#30.
+Capacity-aware schema-2 prices and frozen measured-stage ingestion are implemented.
+The [new independent collection](focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment)
+passes exact checks but fails all four held-out prediction cohorts. Broader
+representation-choice integration and qualified measured routing remain under
+#42/#30/#31. Fresh global-minimum and live/peak allocation controls are authored;
+their syntax checks do not qualify runtime behavior.
 
 Broader provider parity, encoded-B async composition and target-specific
 execution remain explicit issue gates. True multi-device ownership, unavailable

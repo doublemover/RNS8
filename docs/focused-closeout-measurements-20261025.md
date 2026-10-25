@@ -1,6 +1,10 @@
 # Focused closeout measurements — 2026-10-25
 
-All 400 captures passed numerical/schema/provenance validation: 280 public
+The latest [stage-price and proof-policy experiment](#subsequent-stage-price-and-proof-policy-experiment)
+adds 160 exact captures and a stronger baseline. It supersedes the earlier
+compiled-versus-default comparison as the current baseline assessment.
+
+The first 400 captures passed numerical/schema/provenance validation: 280 public
 magnitude captures and 120 materialization captures. These are new bounded
 comparisons; the stopped 5,382/16,513-run campaign was not resumed. The user
 explicitly authorized collection with NuLARRY still running. Results describe
@@ -32,7 +36,12 @@ timing; required proof/status work and completion remain inside the calls.
 Times use C++ `std::chrono::steady_clock`. These observations do not export
 planner rates, infer causal instrumentation overhead or promote an AUTO route.
 
-## Beneficial compiled resident graphs
+## Earlier compiled resident graphs: default public proof policy
+
+These `6ce489b` comparisons use the default eager-axis public proof policy.
+The subsequent `31aa691` experiment below adds an explicit scalar-first public
+control. Compiled execution does not beat that stronger control in the larger
+cohort medians; the earlier speedups are not speedups over the best public path.
 
 Manual baseline and compiled full-prefix owner execute the same complete DAG
 and final full-prefix three-limb padded host export. Both use all 20 planes and
@@ -127,3 +136,106 @@ and this paired independent-process collection. With #19/#29 and the preceding
 six closures, nine issues are closed and 42 remain open. Their individual
 implementation/hardware/performance gates remain in the
 [ledger](../metadata/remaining-implementation-20261024.json).
+
+
+## Subsequent stage-price and proof-policy experiment
+
+**160/160 captures passed exact reference checks:** 20 independent stage-training
+processes and 140 complete-DAG processes. All executables were compiled from clean
+`31aa691`; their hashes were pinned before collection. Subsequent checkout edits
+are not attributed to these artifacts. The
+[reviewed receipt](../metadata/product-stage-observations-20261025.json) preserves
+all cases, commands, process identities, raw samples, sustained bursts, copy and
+allocation-call counters, exact checks, frozen price bundles and negative results.
+This brings the new focused collection to 560 captures. The old campaign remains
+stopped. The user authorized this shared-host collection with NuLARRY active.
+
+Each of four graphs has five independent training processes and five processes
+for each of seven complete-route controls. Stage training uses three warmups and
+31 samples per shortlisted cell. Complete routes use three warmups, nine latency
+samples and three sustained bursts, each at least 16 calls and 250 ms. Burst means
+are weighted by completed calls within each process; the table reports the median
+of the five process means. CPU integer oracles and padding checks run outside
+these intervals. Required admission, synchronization and final three-limb padded
+host publication remain inside. Event hooks are disabled.
+
+All fixtures use all-one inputs, a full 20-plane destination and the same graph
+and final observable result. `manual-full` uses default eager-axis proof discovery;
+`manual-scalar-first` explicitly asks the existing deterministic scalar-first
+proof policy to admit the same fixed-prefix public operations. It does not skip
+proofs, cache a result or change exactness. Native roundtrip imports native A/B at
+each product and exports/reimports intermediate native integers. Intermediate
+values in these fixtures fit that native contract; the final output uses the
+common three-limb export. Measured recipes consume frozen, identity-bound stage
+prices from the separate training processes.
+
+### Beneficial proof-policy comparisons
+
+Only the two positive comparisons with separated observed process ranges appear
+in this gains table. These are gains from selecting the explicit proof policy;
+they are not attributed to the compiled recipe or packed storage.
+
+| Graph / addition | Default public eager-axis | Explicit scalar-first | Steady speedup | Useful integer TOPS, before → after |
+| --- | ---: | ---: | ---: | ---: |
+| 128³ signed chain, three products | 38.330 ms | **5.022 ms** | **7.63×** | 0.000328 → **0.002505** |
+| 256³ signed chain, three products | 113.176 ms | **8.064 ms** | **14.04×** | 0.000889 → **0.012483** |
+
+Process ranges are 31.270–47.579 versus 1.559–6.010 ms at 128³, and
+100.100–122.067 versus 2.621–10.393 ms at 256³. Useful operations count `2MNK`
+once for each of the three graph products. These are complete host-output graph
+rates. The tiny 17³ and 32³ comparisons have overlapping process ranges and do
+not enter the gains table. No automatic policy change is made from these fixtures.
+
+### All complete-route controls
+
+This comparison table retains the slower controls; it is not a gains table.
+Values are steady weighted process medians in milliseconds. The 32³ unsigned
+case is a four-product diamond; the others are three-product signed chains.
+
+| Side | Public eager-axis | Public scalar-first | Native roundtrip | Compiled full | Compiled minimum | Analytical layout | Measured layout |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 17 | 5.714 | 5.235 | 14.490 | 5.018 | 8.529 | 5.778 | 5.222 |
+| 32 | 7.450 | 5.258 | 29.704 | 5.307 | 16.784 | 14.383 | 6.854 |
+| 128 | 38.330 | 5.022 | 120.012 | 7.753 | 8.484 | 9.884 | 7.533 |
+| 256 | 113.176 | 8.064 | 372.881 | 10.671 | 13.561 | 17.246 | 9.041 |
+
+Compiled recipes do not beat scalar-first public calls in the larger cohort
+medians. Candidate-versus-scalar process ranges overlap in all four cohorts.
+The stronger baseline therefore removes the earlier interpretation that graph
+compilation itself is an established best-baseline gain. The earlier `6ce489b`
+tables remain historical observations against their named eager-axis control;
+source identities and host conditions differ and are not pooled.
+
+The receipt includes setup, first-call, repeated-call and sustained observations,
+owner-only `setup/100 + steady` projections, and separate projections charging
+all measured stage training to 100 calls. Training cost includes backend setup
+and measured calibration work; process startup and report serialization are
+outside that recorded boundary. A conditional pretrained projection is not a
+cold-start gain. No new setup-inclusive compiled gain qualifies against the
+scalar-first control. Replay allocation-call counters are zero for the compiled
+owners; these older captures predate the live/peak observation API and do not
+establish an allocator peak.
+
+### Frozen-price held-out results
+
+All four models fail the predeclared 25% held-out prediction tolerance. Training
+and held-out execution IDs are disjoint, but use the same graph, all-one dataset
+and build: this does not establish generalization across shapes or distributions.
+The model underpredicts the complete measured graph intervals. Confidence bounds
+use the existing conservative run-mean method and its stated stationarity
+assumptions; shared-host variance is substantial.
+
+| Side | Predicted graph interval | Held-out process mean | Held-out 95% interval | Pass |
+| --- | ---: | ---: | ---: | --- |
+| 17 | 0.165–0.241 ms | 1.529 ms | 0.027–3.031 ms | No |
+| 32 | 0.229–0.313 ms | 3.338 ms | -0.199–6.875 ms | No |
+| 128 | 0.294–0.370 ms | 2.097 ms | 0.260–3.934 ms | No |
+| 256 | 0.590–0.727 ms | 5.904 ms | 2.093–9.716 ms | No |
+
+The negative lower confidence bound at 32³ is uncertainty from the interval
+construction, not a negative measured duration. Unstable training cells whose
+lower interval is not positive are omitted as unknown, never replaced with free
+work. Tolerances are not widened after seeing these results. Price-file ingestion
+and complete-route controls are implemented; prediction qualification, hardware
+traffic/instruction roofs, representation-choice integration and physical
+capacity qualification remain open under #30/#31/#42. No AUTO route is promoted.

@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-25T15:06:16.512526+00:00",
+  "scope_refreshed_utc": "2026-10-25T17:57:29.990779+00:00",
   "issues": [
     {
       "issue": 18,
@@ -105,7 +105,7 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73"
       ],
       "remaining": [
-        "Matched host-proof/admission and complete-route measurements, proof-cache/refinement policy tradeoffs and broader gfx942 qualification remain."
+        "The explicit scalar-first public control is implemented. Five independent shared-host processes per cohort show range-separated gains over default eager-axis calls at 128 and 256, while compiled recipes do not beat scalar-first in the larger medians. Proof-cache/refinement phase attribution and broader gfx942 qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -118,6 +118,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -382,8 +391,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Complete provider/binding parity for unfinished representation, distributed and async owners; measured identity-bound rates and held-out planner qualification remain.",
-        "The 400 focused shared-host observations are descriptive. Analytical layout prices are unqualified and choose slower routes here; no planner-rate export or default promotion is established."
+        "Capacity-aware cost schema 2, identity-bound measured stage ingestion and native roundtrip/scalar-first controls are implemented. The 20 training and 140 complete-route captures pass exact checks; all four frozen models fail the declared held-out tolerance. Representation choices, broader provider/async binding parity and qualified measured routing remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -398,6 +406,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -467,8 +484,7 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "Independent instruction/traffic/clock calibration, profiler evidence and held-out prediction remain; valid receipts do not imply measured rates.",
-        "The 400 focused shared-host observations are descriptive. Analytical layout prices are unqualified and choose slower routes here; no planner-rate export or default promotion is established."
+        "Independent measured stage-price collection and frozen held-out comparisons are implemented. All four same-graph/build models fail the predeclared 25% tolerance on this shared host; instruction/traffic/clock calibration, profiler evidence and qualified prediction remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -482,6 +498,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -606,7 +631,7 @@
         "7954eb326c5b45080fd60f980140672598a0d3aa"
       ],
       "remaining": [
-        "Adaptive-prefix complete-route benefit and fallback overhead need matched observations; the conditional globally minimal safe-prefix control is still absent."
+        "The fresh device-proved global minimum completed-output control is authored in c7f84eb, with phase-lifetime scratch reuse in fe77491; runtime qualification is pending. Generation-bound reusable bound-summary ownership, matched adaptive benefit and fallback overhead remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -621,6 +646,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -1055,7 +1089,7 @@
       "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
       "implementation": [
         {
-          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM→lift→GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
           "files": [
             "src/core/prepared_transfer.hpp",
             "src/core/api_prepared_lift.inc",
@@ -1305,7 +1339,7 @@
         "6ce489b"
       ],
       "remaining": [
-        "The full-prefix compiled owner has measured complete-route benefits over the public resident sequence. Packed B loses to that best compiled control in all four tested cohort medians. Independent measured stage-price ingestion and held-out selection, a native per-operation import/export control, and physical peak/capacity qualification remain source/evidence work."
+        "Capacity-aware materialization prices, frozen measured-price ingestion, native per-operation roundtrip and scalar-first controls are implemented. All 160 captures pass exact checks; no compiled recipe establishes a gain over the stronger scalar-first baseline, and all four held-out models fail. Broader representation-choice integration, physical capacity, provider parity and measured route qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1322,6 +1356,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -1377,7 +1420,7 @@
           ]
         },
         {
-          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM\u2192lift\u2192GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
+          "summary": "Exact lift is now a variant of the existing prepared owner/token with retained suffix and pinned status, status-gated device commit, stream/owned-graph/group replay, frozen uniqueness envelope and token-qualified GEMM→lift→GEMM composition. Counted ordered writer reservations prevent early unlock; failed/canceled suffixes preserve the old source value. Checked graph/event cleanup preserves retryable identities. Exact-wide materialization records the actually written prefix.",
           "files": [
             "src/core/prepared_transfer.hpp",
             "src/core/api_prepared_lift.inc",
@@ -2355,7 +2398,7 @@
         "7e77f69f52cc8a1f0e598d9e67713e9f2413be71"
       ],
       "remaining": [
-        "Structural host-mirror/upload/counter regressions pass. Matched before/after storage/latency, retained/peak allocation observations and broader-platform qualification remain."
+        "Live/peak requested device and pinned-host allocation observations are authored in 3ca72d8, including failed/deferred-free retention and per-device allocation transactions; fresh runtime qualification is pending. Matched storage/latency before/after, large physical-capacity fixtures and broader-platform qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2369,6 +2412,15 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "subsequent_evidence": {
+        "receipt": "metadata/product-stage-observations-20261025.json",
+        "compiled_source_commit": "31aa691",
+        "training_captures": 20,
+        "complete_route_captures": 140,
+        "all_exact_checks_passed": true,
+        "held_out_passed": false,
+        "promotion_eligible": false
       }
     },
     {
@@ -3104,5 +3156,15 @@
     "performance_campaign_resumed": false,
     "all_research_issues_complete": false,
     "focused_observations": "metadata/focused-closeout-observations-20261025.json"
+  },
+  "subsequent_stage_price_review": {
+    "receipt": "metadata/product-stage-observations-20261025.json",
+    "validation_receipt": "metadata/product-stage-validation-20261025.json",
+    "new_captures": 160,
+    "all_focused_captures": 560,
+    "closed_issues_added": [],
+    "open_issues": 42,
+    "campaign_resumed": false,
+    "all_work_complete": false
   }
 }

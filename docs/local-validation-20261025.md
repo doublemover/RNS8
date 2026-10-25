@@ -208,3 +208,41 @@ baseline for this consumer. Occupancy and dynamic counts remain unmeasured.
 Inspection uses the HIP SDK's AMDGPU-capable disassembler; the standalone
 LLVM23 distribution lacks that target backend. Exact tool paths, symbol names,
 resource metadata and object/code-object hashes are retained in the receipt.
+
+
+## Subsequent measured-price integration
+
+The complete collected retry at clean `31aa691` follows the consolidated repairs
+to the provider output ABI fixture and documentation inventory. The
+[receipt](../metadata/product-stage-validation-20261025.json) preserves each test
+name/state, commands, timings and the artifact hashes saved before later rebuilds.
+The immutable artifacts, rather than the current checkout, identify this run.
+
+| Lane | Passed | Skipped | Failed |
+| --- | ---: | ---: | ---: |
+| CPU, Clang AddressSanitizer | 541 | 22 | 0 |
+| Full-feature gfx1100 | 921 | 15 | 0 |
+| Packed-dot/Garner-table control, Catch cases | 663 | 5 | 1 |
+| Scalar-source control, Catch cases | 664 | 5 | 0 |
+| Installed static/shared consumers | 12 | 0 | 0 |
+
+The remaining packed-dot failure is a missing `direct_hip_zero_output_tile_memset`
+event label; all its numerical/residue assertions pass. Investigation found that
+HIP event acquisition/record/synchronize/elapsed failures could silently discard
+labels. Source commit `3ca72d8` records these failures explicitly, censors invalid
+samples, distinguishes synchronized host fallback durations, and retains the
+arithmetic assertions. It is a subsequent repair and is not claimed to have run
+in this `31aa691` receipt.
+
+The unchanged logical checker remains the single reused CTest entry in each full
+configuration, bound to its previously recorded inputs. Unsupported sparse/CDNA
+paths remain skips on gfx1100. The 160 subsequent stage-price and complete-route
+[measurements](focused-closeout-measurements-20261025.md#subsequent-stage-price-and-proof-policy-experiment)
+all pass exact checks on these pinned binaries, while every held-out prediction
+cohort fails its declared performance-model tolerance. Correctness and model
+qualification are separate outcomes.
+
+Later commits add the global-minimum completed-output control, live/peak owned
+allocation observations and phase-lifetime scratch reuse. Their syntax checks
+do not extend this runtime checkpoint. Their fresh integration checks are
+recorded separately when complete.
