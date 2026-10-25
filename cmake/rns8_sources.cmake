@@ -4,6 +4,7 @@ set(RNS8_PUBLIC_HEADERS
   include/rns8/semantics.h
   include/rns8/bounds.h
   include/rns8/moduli.h
+  include/rns8/experimental_basis.h
   include/rns8/rns8.h
   include/rns8/rns8.hpp
 )
@@ -12,6 +13,7 @@ set(RNS8_SOURCES
   src/backend_hipblaslt/hipblaslt_metadata.cpp
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
+  src/core/api_experimental_basis.cpp
   src/core/api_backend_info.cpp
   src/core/api_context.cpp
   src/core/api_export.cpp

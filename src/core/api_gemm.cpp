@@ -877,6 +877,7 @@ rns8_status rns8_gemm_rns(
     if (!ctx || !plan || !A || !B || !C || !workspace || A == C || static_cast<const void*>(B) == C) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if(A->experimental_basis || B->experimental_basis || C->experimental_basis)return RNS8_INVALID_ARGUMENT;
     const rns8_status workspace_status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (workspace_status != RNS8_SUCCESS) {
       return workspace_status;

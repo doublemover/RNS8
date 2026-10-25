@@ -18,6 +18,7 @@ Dated records identify the builds and devices actually checked.
 - [Checked examples](../examples/README.md) and [installed CMake consumer](../examples/downstream-cmake/README.md)
 - [Arithmetic, bounds and exports](correctness.md), with a [short glossary](glossary.md)
 - [Architecture and ownership](design.md), [immutable plans](plan-validation.md)
+- [Experimental ordered runtime bases](experimental-bases.md): explicit ownership, packing, products, CRT and integer conversion
 - [Prepared execution and completion](prepared-execution.md)
 - [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
 - [Experimental public exact complex composition](complex-residue-composition.md)

@@ -61,9 +61,9 @@ schedule sealing share one flag mask, including the existing research controls.
 | Issue | Remaining source work |
 | --- | --- |
 | #30 | Finish provider/binding parity as unfinished representation, distributed and asynchronous owners land; do not infer implementation from a registry record. |
-| #32 | Runtime experimental ordered bases, products/inverses and full matrix/layout/plan/cache/export identities; pack, multiply, reconstruction and explicit conversion. |
+| #32 | Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/conversion are authored; general layout/recipe/provider identity integration remains. |
 | #40 | General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A/panel reuse; hipBLASLt retention/composed controls are authored, execution deferred. |
-| #41 | Nondefault-basis conversion integrated with #32; default-basis synchronous/prepared lift and selector are written. |
+| #41 | Default-basis lifts/selector and explicit nondefault-basis conversion are authored; general layout/recipe binding remains. |
 | #42 | General packed/materialization alternatives with #40; general packed/materialization alternatives with #40; NativeToRns/BaseExtend/Export graph adapters are authored. |
 | #43 | Additional semantic/provider async integration, and matched pinned-host transfer calibration. |
 | #45 | Actual FP4/FP6/FP8 matrix-engine provider and public representation bridge; contracts alone are not a backend. |

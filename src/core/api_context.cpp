@@ -19,13 +19,22 @@ rns8_status begin_synchronous_lease(rns8_context& ctx,const rns8_matrix& a,const
   if(input_writers){const_cast<rns8_matrix&>(a).in_flight_writer=true;const_cast<rns8_matrix&>(b).in_flight_writer=true;}
   else{++a.in_flight_readers;if(&a!=&b)++b.in_flight_readers;}c.in_flight_writer=true;workspace.in_flight=true;return RNS8_SUCCESS;
 }
+rns8_status begin_synchronous_matrix_lease(rns8_context& ctx,rns8_matrix& matrix,rns8_workspace& workspace,size_t& token,bool write) {
+  if(matrix.in_flight_writer || (write && matrix.in_flight_readers) || workspace.in_flight)return RNS8_BUSY;
+  if(!write && matrix.in_flight_readers==UINT64_MAX)return RNS8_RANGE_ERROR;
+  token=ctx.failed_work_leases.size();ctx.failed_work_leases.push_back({&matrix,&matrix,write?&matrix:nullptr,&workspace,false,true,!write});
+  if(write)matrix.in_flight_writer=true;else ++matrix.in_flight_readers;
+  workspace.in_flight=true;return RNS8_SUCCESS;
+}
 bool finish_synchronous_lease(rns8_context& ctx,size_t token,rns8_status status,bool written) noexcept {
   if(token>=ctx.failed_work_leases.size() || !ctx.failed_work_leases[token].a)return true;
   auto& lease=ctx.failed_work_leases[token];
-  if(status!=RNS8_SUCCESS && written){lease.c->in_flight_writer=false;invalidate_output_currentness(*lease.c);lease.c->in_flight_writer=true;}
-  if((status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) && rns8::detail::hip_direct_synchronize(ctx.device_id)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
-  if(lease.input_writers){const_cast<rns8_matrix*>(lease.a)->in_flight_writer=false;const_cast<rns8_matrix*>(lease.b)->in_flight_writer=false;}
-  else{--lease.a->in_flight_readers;if(lease.a!=lease.b)--lease.b->in_flight_readers;}lease.c->in_flight_writer=false;lease.workspace->in_flight=false;lease={};
+  if(status!=RNS8_SUCCESS && written && lease.c){lease.c->in_flight_writer=false;invalidate_output_currentness(*lease.c);lease.c->in_flight_writer=true;}
+  if(ctx.device_id>=0 && (status==RNS8_BACKEND_FAILURE || status==RNS8_INTERNAL_ERROR) && rns8::detail::hip_direct_synchronize(ctx.device_id)!=RNS8_SUCCESS){ctx.hip_failure_poisoned=true;return false;}
+  if(lease.unary){if(lease.read_only)--lease.a->in_flight_readers;}
+  else if(lease.input_writers){const_cast<rns8_matrix*>(lease.a)->in_flight_writer=false;const_cast<rns8_matrix*>(lease.b)->in_flight_writer=false;}
+  else{--lease.a->in_flight_readers;if(lease.a!=lease.b)--lease.b->in_flight_readers;}
+  if(lease.c)lease.c->in_flight_writer=false;lease.workspace->in_flight=false;lease={};
   while(!ctx.failed_work_leases.empty() && !ctx.failed_work_leases.back().a)ctx.failed_work_leases.pop_back();return true;
 }
 }

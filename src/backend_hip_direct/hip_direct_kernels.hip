@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <type_traits>
 #include "../backend_common/garner_constants.hpp"
+#include "../backend_common/basis_word_arithmetic.hpp"
 
 #include "../backend_common/finite_u8_reducer.hpp"
 #include "../backend_common/residue_dot.hpp"
@@ -458,3 +459,5 @@ extern "C" int rns8_hip_native_bound_status(const void* maximum,uint64_t limit,i
 }
 
 #include "hip_direct_cache_displace.cuh"
+
+#include "hip_direct_experimental_basis.cuh"

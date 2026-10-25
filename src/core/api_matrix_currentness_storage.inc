@@ -7,7 +7,7 @@ bool matrix_descriptor_matches(
     uint32_t prefix,
     uint32_t tile_m,
     uint32_t tile_n) {
-  if (matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
+  if (matrix.experimental_basis || matrix.desc.semantics != semantics || matrix.desc.bound_kind != bound_kind || matrix.desc.rows != rows ||
       matrix.desc.cols != cols || matrix.desc.logical_layout != RNS8_LAYOUT_ROW_MAJOR ||
       matrix.desc.logical_ld < matrix.desc.cols || (matrix.desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
       (matrix.desc.flags && (matrix.backend != RNS8_BACKEND_HIP_DIRECT ||
@@ -373,6 +373,7 @@ bool rns_residue_count(int64_t rows, int64_t cols, uint32_t prefix, std::size_t&
 }
 
 bool rns_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind backend, int64_t rows, int64_t cols, uint32_t prefix) {
+  if(matrix.experimental_basis)return false;
   std::size_t expected_residues = 0;
   if (matrix.prefix < prefix || !rns_residue_count(rows, cols, matrix.prefix, expected_residues)) {
     return false;

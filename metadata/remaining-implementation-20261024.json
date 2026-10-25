@@ -297,13 +297,30 @@
             "tests/differential/test_hip_native_device_cases.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Implement explicit experimental ordered-basis runtime: immutable copied coprime byte moduli, products/inverses/codec identity, shared matrix/plan ownership, strict whole-content binding, budgeted retained staging, native packing, fused per-modulus GEMM with safe K slabs, checked CPU/HIP CRT, and exact reordered/default-basis conversion. Existing default consumers reject experimental matrices before consumption. Independent Boost fixtures cover ownership, full native boundaries, narrow destination rejection, reordered/default interoperability, padding and K slab edges.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/experimental_basis.hpp",
+            "src/core/api_experimental_basis.cpp",
+            "src/backend_common/basis_packet.hpp",
+            "src/backend_common/basis_word_arithmetic.hpp",
+            "src/backend_hip_direct/hip_direct_experimental_basis.cuh",
+            "src/backend_hip_direct/hip_backend_experimental_basis.inc",
+            "src/core/api_context.cpp",
+            "docs/experimental-bases.md"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_auto_selector_cases.inc",
         "tools/test_auto_decision_trace.py",
         "tests/unit/test_api_operation_provider_cases.inc",
-        "tests/differential/test_hip_native_device_cases.inc"
+        "tests/differential/test_hip_native_device_cases.inc",
+        "tests/support/experimental_basis_fixture.hpp",
+        "tests/unit/test_experimental_basis_cases.inc",
+        "tests/differential/test_hip_direct.cpp"
       ],
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
@@ -411,17 +428,34 @@
           "files": [
             "tools/modulus_set_search.py"
           ]
+        },
+        {
+          "summary": "Implement explicit experimental ordered-basis runtime: immutable copied coprime byte moduli, products/inverses/codec identity, shared matrix/plan ownership, strict whole-content binding, budgeted retained staging, native packing, fused per-modulus GEMM with safe K slabs, checked CPU/HIP CRT, and exact reordered/default-basis conversion. Existing default consumers reject experimental matrices before consumption. Independent Boost fixtures cover ownership, full native boundaries, narrow destination rejection, reordered/default interoperability, padding and K slab edges.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/experimental_basis.hpp",
+            "src/core/api_experimental_basis.cpp",
+            "src/backend_common/basis_packet.hpp",
+            "src/backend_common/basis_word_arithmetic.hpp",
+            "src/backend_hip_direct/hip_direct_experimental_basis.cuh",
+            "src/backend_hip_direct/hip_backend_experimental_basis.inc",
+            "src/core/api_context.cpp",
+            "docs/experimental-bases.md"
+          ]
         }
       ],
       "regressions": [
-        "tools/test_modulus_set_search.py"
+        "tools/test_modulus_set_search.py",
+        "tests/support/experimental_basis_fixture.hpp",
+        "tests/unit/test_experimental_basis_cases.inc",
+        "tests/differential/test_hip_direct.cpp"
       ],
       "commits": [
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
       "remaining": [
-        "Explicit experimental basis runtime with complete matrix/layout/plan/cache/export identity and pack/GEMM/reconstruction remains to implement.",
-        "Search and qualification execution deferred."
+        "Explicit CPU/direct-HIP experimental runtime and conversion are authored. Bind experimental bases into general layout/materialization descriptors and typed automatic-provider planning without inferring support in default-only prepack, ragged/distributed or asynchronous providers.",
+        "Runtime execution, independent calibration and hardware/scientific qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -896,6 +930,20 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Implement explicit experimental ordered-basis runtime: immutable copied coprime byte moduli, products/inverses/codec identity, shared matrix/plan ownership, strict whole-content binding, budgeted retained staging, native packing, fused per-modulus GEMM with safe K slabs, checked CPU/HIP CRT, and exact reordered/default-basis conversion. Existing default consumers reject experimental matrices before consumption. Independent Boost fixtures cover ownership, full native boundaries, narrow destination rejection, reordered/default interoperability, padding and K slab edges.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/experimental_basis.hpp",
+            "src/core/api_experimental_basis.cpp",
+            "src/backend_common/basis_packet.hpp",
+            "src/backend_common/basis_word_arithmetic.hpp",
+            "src/backend_hip_direct/hip_direct_experimental_basis.cuh",
+            "src/backend_hip_direct/hip_backend_experimental_basis.inc",
+            "src/core/api_context.cpp",
+            "docs/experimental-bases.md"
+          ]
         }
       ],
       "regressions": [
@@ -903,7 +951,10 @@
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
         "tools/test_collect_lift_recipe.py",
         "tests/unit/test_api_resident_export_cases.inc",
-        "tests/unit/test_api_resident_graph_cases.inc"
+        "tests/unit/test_api_resident_graph_cases.inc",
+        "tests/support/experimental_basis_fixture.hpp",
+        "tests/unit/test_experimental_basis_cases.inc",
+        "tests/differential/test_hip_direct.cpp"
       ],
       "commits": [
         "f30d1817b6208f781c64d9169aedf672f96319a0",
@@ -912,8 +963,8 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Default-basis selector, synchronous/stream/graph lift and matched harness are written. Nondefault-basis conversion composition remains dependent source work under #32; no generic-basis capability is implied.",
-        "HIP compilation, tests, named-target performance and scientific qualification are deferred."
+        "Default-basis selector and synchronous/stream/graph lifts plus explicit nondefault-basis CPU/direct-HIP integer conversion are authored. General nondefault-basis layout/recipe binding remains composed with #32/#40/#42.",
+        "Build/link, regression execution, performance and scientific qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2415,6 +2466,11 @@
       "kind": "minimal_compile",
       "scope": "NativeToRns resident graph core, native lease implementation and HIP differential fixture translation unit",
       "result": "MSVC /Zs syntax passed; no test execution, full builds, benchmarks or hardware qualification."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Experimental basis runtime, failure leases, matrix admission and HIP host backend; initial CPU/HIP fixture translation units; gfx1100 HIP kernel host/device syntax",
+      "result": "MSVC /Zs and HIP -fsyntax-only passed. Later small resource-info/alias admission and fixture refinements await the final batch. No test execution, linked build, benchmark or qualification performed."
     }
   ],
   "parking_snapshot": {

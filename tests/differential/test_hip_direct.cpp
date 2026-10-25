@@ -20,6 +20,7 @@
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
+#include "../support/experimental_basis_fixture.hpp"
 #include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "../support/ragged_fixture.hpp"
@@ -118,4 +119,12 @@ TEST_CASE("direct HIP ragged producer binds retained multi-output recipe consume
 TEST_CASE("direct HIP Gram native, transpose and independent reconstruction ablations") {
   if(!hip_available()){SKIP("HIP direct unavailable");}
   check_gram_prepared_ablations(RNS8_BACKEND_HIP_DIRECT);
+}
+
+TEST_CASE("experimental direct-HIP ordered bases match Boost products and conversion") {
+  if(!hip_available())SKIP("no HIP device for experimental ordered bases");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool sign:{false,true})experimental_basis_fixture::roundtrip(ctx,sign);
+  experimental_basis_fixture::slab_edges(ctx);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

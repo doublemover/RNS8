@@ -726,4 +726,5 @@ rns8_status hip_direct_synchronize(int device_id) {
 #endif
 }
 
+#include "hip_backend_experimental_basis.inc"
 }  // namespace rns8::detail

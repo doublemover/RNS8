@@ -15,10 +15,12 @@
 
 #include "rns8/rns8.h"
 #include "cpu/cpu_amx.hpp"
+namespace rns8::detail {struct ExperimentalBasis;}
 
 struct rns8_synchronous_lease {
   const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
   bool input_writers=false;
+  bool unary=false,read_only=false;
 };
 struct rns8_context {
   std::vector<rns8_synchronous_lease> failed_work_leases;
@@ -133,6 +135,7 @@ struct rns8_exact_matrix_ranges {
 };
 
 struct rns8_matrix {
+  std::shared_ptr<const rns8::detail::ExperimentalBasis> experimental_basis;
   rns8_matrix* failed_cleanup_next = nullptr;
   mutable uint64_t prepared_references = 0;
   mutable uint64_t in_flight_readers = 0;

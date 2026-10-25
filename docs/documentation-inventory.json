@@ -403,7 +403,7 @@
     },
     {
       "path": "docs/7900xtx-large-throughput-2026-10-23.md",
-      "purpose": "RX 7900 XTX larger-workload measurements — 2026-10-23",
+      "purpose": "RX 7900 XTX larger-workload measurements \u2014 2026-10-23",
       "audience": "Performance reviewers",
       "disposition": "historical",
       "canonical": "docs/7900xtx-large-throughput-2026-10-23.md",
@@ -517,7 +517,7 @@
     },
     {
       "path": "docs/7900xtx-throughput-2026-10-23.md",
-      "purpose": "RX 7900 XTX local throughput — 2026-10-23",
+      "purpose": "RX 7900 XTX local throughput \u2014 2026-10-23",
       "audience": "Performance reviewers",
       "disposition": "historical",
       "canonical": "docs/7900xtx-throughput-2026-10-23.md",
@@ -1429,7 +1429,7 @@
     },
     {
       "path": "docs/audit-2026-10-06.md",
-      "purpose": "RNS8 source and qualification audit — 2026-10-06",
+      "purpose": "RNS8 source and qualification audit \u2014 2026-10-06",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -1810,7 +1810,7 @@
     },
     {
       "path": "docs/continuation-2026-10-06.md",
-      "purpose": "Cloud correctness continuation — 2026-10-06",
+      "purpose": "Cloud correctness continuation \u2014 2026-10-06",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2598,7 +2598,7 @@
     },
     {
       "path": "docs/local-all-features-20261023.md",
-      "purpose": "RX 7900 XTX expanded validation — 2026-10-23",
+      "purpose": "RX 7900 XTX expanded validation \u2014 2026-10-23",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2830,7 +2830,7 @@
     },
     {
       "path": "docs/local-cpu-auto-continuation-20261008.md",
-      "purpose": "Opt-in CPU continuation checkpoint — 2026-10-08",
+      "purpose": "Opt-in CPU continuation checkpoint \u2014 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2856,7 +2856,7 @@
     },
     {
       "path": "docs/local-cpu-lifting-20261008.md",
-      "purpose": "Local CPU ladder-lifting checkpoint — 2026-10-08",
+      "purpose": "Local CPU ladder-lifting checkpoint \u2014 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2939,7 +2939,7 @@
     },
     {
       "path": "docs/local-moment-range-20261011.md",
-      "purpose": "Integer moment range campaign — 2026-10-11",
+      "purpose": "Integer moment range campaign \u2014 2026-10-11",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -2967,7 +2967,7 @@
     },
     {
       "path": "docs/local-range-continuation-20261008.md",
-      "purpose": "Local row/column exact-wide continuation — 2026-10-08",
+      "purpose": "Local row/column exact-wide continuation \u2014 2026-10-08",
       "audience": "Evidence reviewers",
       "disposition": "historical",
       "canonical": "docs/archive/README.md#dated-implementation-and-local-evidence",
@@ -5163,6 +5163,28 @@
         "exact-remaining-implementation",
         "parked-implementation-handoff--2026-10-25",
         "scope-and-honest-completion-boundary"
+      ]
+    },
+    {
+      "path": "docs/experimental-bases.md",
+      "purpose": "Experimental ordered runtime bases",
+      "audience": "Exact arithmetic researchers and library users",
+      "disposition": "keep",
+      "canonical": "docs/experimental-bases.md",
+      "owner": "src/core/api_experimental_basis.cpp",
+      "reason": "Explicit opt-in CPU/direct-HIP ownership, complete ordered basis identities, staged packing/product/CRT/conversion and pending validation boundaries.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "experimental-bases.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/experimental-bases.md"
+        }
+      ],
+      "anchors": [
+        "experimental-ordered-runtime-bases"
       ]
     }
   ]
