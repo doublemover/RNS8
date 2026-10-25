@@ -2,6 +2,7 @@
 #define RNS8_CORE_INTERNAL_HPP
 
 #include "backend_common/address_domain.hpp"
+#include "backend_common/arithmetic_certificate.hpp"
 #include "core/hip_resources.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
@@ -40,6 +41,7 @@ struct rns8_sealed_schedule_launch {
 };
 
 struct rns8_validated_plan_contract {
+  std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
   uint64_t fingerprint = 0;
   std::vector<uint64_t> canonical_workspace_key;
   uint64_t active_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
@@ -47,6 +49,7 @@ struct rns8_validated_plan_contract {
 };
 
 struct rns8_plan {
+  std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
   std::shared_ptr<const rns8_validated_plan_contract> validated_contract;
   mutable uint64_t prepared_references = 0;
   rns8_gemm_desc desc{};

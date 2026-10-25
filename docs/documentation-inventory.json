@@ -3422,7 +3422,8 @@
         }
       ],
       "anchors": [
-        "immutable-plan-validation"
+        "immutable-plan-validation",
+        "typed-arithmetic-guard-implementation-execution-deferred"
       ]
     },
     {

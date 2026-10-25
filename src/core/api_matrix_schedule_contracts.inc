@@ -71,7 +71,8 @@ bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
                                      RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS | RNS8_PLAN_EXACT_SCALAR_FIRST;
   constexpr uint32_t known_tile_schedule_flags =
       RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
-  if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
+  if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() ||
+      !backend_supports_semantics(plan.backend, plan.desc.semantics) ||
       !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
       (plan.desc.flags & ~allowed_flags) != 0 ||
       !zero_row_col_contract_matches(plan)) {

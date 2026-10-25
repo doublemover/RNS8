@@ -301,7 +301,7 @@ bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& byte
 std::string build_autotune_key(const rns8_plan& plan) {
   std::string key = "backend=";
   key += backend_name(plan.backend);
-  key += ";implementation_revision=4";
+  key += ";implementation_revision=5";
   if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0) key += ";exact_proof=scalar_first_v1";
   key += ";target_id=";
   key += target_id_for_plan_key(plan);
@@ -355,6 +355,7 @@ std::string build_autotune_key(const rns8_plan& plan) {
   key += ";k_block_cap=" + std::to_string(plan.backend_accumulator_k_block_cap);
   key += ";kernel=" + plan.backend_selected_kernel;
   key += ";epilogue=" + plan.backend_epilogue_mode;
+  key += ";arithmetic_certificate=" + (plan.arithmetic_guard ? plan.arithmetic_guard->checked.sha256 : "missing");
   return key;
 }
 

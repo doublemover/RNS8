@@ -187,14 +187,29 @@
       "issue": 29,
       "title": "[Research P1] Define proof-carrying arithmetic and instruction contracts for every representation",
       "url": "https://github.com/doublemover/RNS8/issues/29",
-      "state": "implementation_pending",
+      "state": "in_progress",
       "base_gap": "Offline integer certificate/composition checker, distinct verdicts and strict endpoints exist. Plan creation/research dispatch do not yet consume typed certificates, and explicit floating format/scale/reduction-schedule contracts from latest body remain unsupported.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Typed exact-integer runtime DAG guards gate plan sealing and public native prepared dispatch; independent public verdicts, build/lowering SHA256, complete canonical workspace keys and autotune revision5. Floating extension remains next.",
+          "files": [
+            "src/backend_common/arithmetic_certificate.hpp",
+            "src/backend_common/sha256.hpp",
+            "src/core/api_plan_arithmetic_certificate.inc",
+            "src/core/api_prepared_native_group.inc"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_arithmetic_certificate_cases.inc"
+      ],
       "commits": [],
       "remaining": [],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
-      "dependencies": []
+      "dependencies": [],
+      "deferred_validation": [
+        "Written regression cases unexecuted; host-only syntax checked; GPU layout/opcode/execution and performance remain unqualified."
+      ]
     },
     {
       "issue": 30,
@@ -275,7 +290,8 @@
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac",
         "981e7b109428870ed930eae50370e037be95fce7",
-        "709704ed0f53c8197dba0c79c00d17312d5529da"
+        "709704ed0f53c8197dba0c79c00d17312d5529da",
+        "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
         "Regression execution, paired hardware collection, independently measured calibration/counters, held-out prediction and scientific qualification deferred. No measurement or promotion inferred from a valid binding."

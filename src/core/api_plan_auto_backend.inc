@@ -34,6 +34,7 @@ void configure_plan_backend_metadata(rns8_plan& plan, const rns8_context* ctx) {
   plan.backend_accumulator_type = accumulator_type_for_plan(plan);
   plan.backend_accumulator_modulus_policy = accumulator_modulus_policy_for_plan(plan);
   plan.backend_accumulator_safety_status = accumulator_safety_status_for_plan(plan);
+  plan.arithmetic_guard = make_plan_arithmetic_guard(plan);
   plan.backend_autotune_key = build_autotune_key(plan);
 }
 

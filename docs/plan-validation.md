@@ -44,3 +44,36 @@ equivalent workspace checks, forced hash collisions, caller-array changes, stale
 workspace fingerprints and corrupted coverage/prefix/mask fields. Registered
 applicable execution is covered by the [dated validation](local-all-features-20261023.md). Zero traversal counts are a work-count assertion;
 first-preparation, steady-state host and end-to-end GPU timings remain unmeasured.
+
+## Typed arithmetic guard (implementation; execution deferred)
+
+Plan construction now checks an exact-integer, topologically ordered proof DAG
+before sealing. The declared ordinary lowering binds the ordered basis, signed
+input alphabet, K slab, prior residue, physical intermediate widths, explicit
+modular reductions, semantics, output-range obligation, compiler manifest and
+lowering identity. A uint64 wrap operation is a distinct modular node, not a
+fictional exact 65-bit temporary. Native 192-bit software accumulation and the
+small-K uint32 wrap diagonals have separate contracts. Full-integer recovery
+still requires the existing current input/output-range proof; an algebraic guard
+never substitutes for that proof.
+
+`rns8_get_plan_arithmetic_certificate` exposes five independent verdicts and the
+SHA-256 identities. Algebraic/finite exactness is conditional on the declared
+input contract. Layout and target execution remain **not run**; floating rewrite
+is **unsupported** for these integer guards. Evidence strings cannot promote a
+verdict. Unsupported node kinds, overflow, noncoprime bases, nonintegral division,
+modular-to-integer reinterpretation and noninjective layout maps fail closed.
+
+The certificate digest is in the version-5 autotune key; its complete canonical
+encoding is also in the workspace structural key, so a digest is not the sole
+equivalence test. Native prepared groups recheck the shared slab invariant under
+a distinct native-encoding/WMMA lowering and bind each child's source instance,
+generation and encoded-B layout plus the group schedule into their own digest.
+Submission consumes immutable guards without symbolic checking per output cell.
+Existing reviewed version-4 cache entries do not silently qualify these builds.
+
+Regression sources cover standard SHA-256 vectors, unsafe fused dots, safe
+reduce-before-combine, domain/division/layout rejection, K slab boundaries and
+public immutable identity queries. They were **written, not executed** in this
+implementation pass; host C++ syntax checks are not HIP compilation, device
+correctness, ISA evidence or scientific qualification.

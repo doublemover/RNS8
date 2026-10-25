@@ -70,6 +70,7 @@ static uint64_t compute_plan_workspace_fingerprint(const rns8_plan& plan, std::v
   hash = mix_string(hash, plan.backend_isa_evidence);
   hash = mix_string(hash, plan.backend_target_id);
   hash = mix_string(hash, plan.backend_autotune_key);
+  hash = mix_string(hash, plan.arithmetic_guard ? arithmetic::canonical(plan.arithmetic_guard->certificate) : "missing");
   hash = mix(hash, static_cast<uint64_t>(plan.tile_bounds.size()));
   for (const uint64_t bound : plan.tile_bounds) {
     hash = mix(hash, bound);
@@ -108,8 +109,9 @@ uint64_t plan_workspace_fingerprint(const rns8_plan& plan) {
 
 bool seal_plan_contract(rns8_plan& plan) {
   plan.validated_contract.reset();
-  if (!revalidate_plan_schedule_contract(plan)) return false;
+  if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() || !revalidate_plan_schedule_contract(plan)) return false;
   auto contract = std::make_shared<rns8_validated_plan_contract>();
+  contract->arithmetic_guard = plan.arithmetic_guard;
   contract->fingerprint = compute_plan_workspace_fingerprint(plan, &contract->canonical_workspace_key);
   // These facts are separately checked by workspace validation; also preserve
   // them in the complete equivalence key rather than relying on a hash.

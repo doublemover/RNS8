@@ -59,6 +59,7 @@ struct rns8_prepared_group {
   std::vector<rns8_prepared_execution*> executions;
   bool running = false;
   struct NativeBinding {
+    std::shared_ptr<const rns8::detail::arithmetic::Guard> arithmetic_guard;
     rns8::detail::NativeWmmaTask task{};
     uint64_t a_instance=0,a_generation=0,b_instance=0,b_generation=0;
   };
@@ -67,6 +68,7 @@ struct rns8_prepared_group {
   std::vector<rns8_native_group_binding> native_bindings;
   rns8_native_group_desc native_desc{};
   uint64_t native_peak_device_bytes=0;
+  std::string native_certificate_sha256;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   hipStream_t native_stream=nullptr;
   hipGraph_t native_graph=nullptr;

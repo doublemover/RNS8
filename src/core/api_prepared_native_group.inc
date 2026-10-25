@@ -65,6 +65,17 @@ rns8_status admit_native_group_child(rns8_prepared_execution& e,
       e.a->desc.cols,e.b->desc.cols,e.c->desc.cols,e.plan->prefix,binding.modulus_group,u?1u:0u,
       cache?static_cast<const uint32_t*>(cache->storage.get()):nullptr,
       cache?((uint64_t(e.plan->desc.k)+15)/16)*4:0};
+  // Native encoding/WMMA is a different lowering from the ordinary RNS plan.
+  // Recheck the shared per-modulus slab invariant once with its own identity.
+  if(!e.plan->arithmetic_guard)return RNS8_INVALID_ARGUMENT;
+  auto certificate=e.plan->arithmetic_guard->certificate;
+  certificate.instruction.opcode="native_wmma_i8_16x16x16";
+  certificate.instruction.lowering_identity="native-queue-v1;plan="+e.plan->arithmetic_guard->checked.sha256+
+      ";group="+std::to_string(binding.modulus_group)+";encoded_b_layout="+(cache?"1":"0")+
+      ";a_instance="+std::to_string(e.a->matrix_instance_id)+";a_generation="+std::to_string(e.a->content_generation)+
+      ";b_instance="+std::to_string(e.b->matrix_instance_id)+";b_generation="+std::to_string(e.b->content_generation);
+  value.arithmetic_guard=std::make_shared<const arithmetic::Guard>(std::move(certificate));
+  if(!value.arithmetic_guard->checked.admitted())return RNS8_RANGE_ERROR;
   value.a_instance=e.a->matrix_instance_id;value.a_generation=e.a->content_generation;
   value.b_instance=e.b->matrix_instance_id;value.b_generation=e.b->content_generation;
   return RNS8_SUCCESS;
@@ -75,7 +86,7 @@ rns8_status native_group_values_current(const rns8_prepared_group& group) {
     const auto& e=*group.executions[i];const auto& value=group.native_values[i];
     const auto* cache=group.native_bindings[i].encoded_b;
     const bool u=e.plan->desc.semantics==RNS8_EXACT_WIDE_UNSIGNED;
-    if(value.a_instance!=e.a->matrix_instance_id || value.a_generation!=e.a->content_generation ||
+    if(!value.arithmetic_guard || !value.arithmetic_guard->checked.admitted() || value.a_instance!=e.a->matrix_instance_id || value.a_generation!=e.a->content_generation ||
         value.b_instance!=e.b->matrix_instance_id || value.b_generation!=e.b->content_generation ||
         value.task.a!=(u?e.a->hip_native_u64:e.a->hip_native_i64) ||
         value.task.b!=(u?e.b->hip_native_u64:e.b->hip_native_i64) || value.task.c!=e.c->hip_residues ||
@@ -110,6 +121,11 @@ rns8_status rns8_prepare_native_group(rns8_prepared_group* group,const rns8_nati
       tasks.push_back(values[i].task);
       if(retained[i].encoded_b)++cache_refs[retained[i].encoded_b];
     }
+    std::string proof_identity="native-queue-schedule-v1;mode="+std::to_string(config.schedule_mode)+
+        ";chunk="+std::to_string(config.claim_chunk)+";workers="+std::to_string(config.workers)+
+        ";ordinary="+std::to_string(config.ordinary_grid_control);
+    for(const auto& value:values)proof_identity+=';'+value.arithmetic_guard->checked.sha256;
+    const auto proof_hash=sha256(proof_identity);
     for(const auto& [cache,references]:cache_refs)
       if(cache->prepared_references>UINT64_MAX-references)return RNS8_RANGE_ERROR;
     const auto old_bytes=group->native_queue?group->native_queue->device_metadata_bytes():0;
@@ -135,6 +151,7 @@ rns8_status rns8_prepare_native_group(rns8_prepared_group* group,const rns8_nati
     group->native_peak_device_bytes=old_bytes+queue->preparation_peak_device_metadata_bytes();
     group->native_queue=std::move(queue);group->native_values=std::move(values);
     group->native_bindings=std::move(retained);group->native_desc=config;
+    group->native_certificate_sha256=proof_hash;
     for(auto* e:group->executions) {bind_inputs(*e);e->hip_submission_prepared=true;}
     return RNS8_SUCCESS;
   });
@@ -152,6 +169,7 @@ rns8_status rns8_get_native_group_info(const rns8_prepared_group* group,rns8_nat
       group->native_values.capacity()*sizeof(rns8_prepared_group::NativeBinding)+
       group->native_bindings.capacity()*sizeof(rns8_native_group_binding);
   info->preparation_peak_device_metadata_bytes=group->native_peak_device_bytes;
+  std::copy(group->native_certificate_sha256.begin(),group->native_certificate_sha256.end(),info->arithmetic_certificate_sha256);
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   info->graph_ready=group->native_executable!=nullptr;
 #endif

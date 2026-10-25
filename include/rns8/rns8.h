@@ -681,6 +681,22 @@ typedef enum rns8_next_op_flags RNS8_ENUM_BASE {
 #define RNS8_PLAN_PACKING_SOURCE_VERSIONED_INPUTS 0x00000001u
 #define RNS8_PLAN_PACKING_SAME_SOURCE_VERSION_PACK_ELISION 0x00000002u
 
+/* Proof verdicts are independent: a plan-time algebraic guard does not attest
+ * an AMD opcode, lane mapping, synchronization, or performance. */
+typedef enum rns8_proof_verdict RNS8_ENUM_BASE {
+  RNS8_PROOF_UNKNOWN=0, RNS8_PROOF_PROVEN=1, RNS8_PROOF_REFUTED=2,
+  RNS8_PROOF_UNSUPPORTED=3, RNS8_PROOF_NOT_RUN=4
+} rns8_proof_verdict;
+typedef struct rns8_arithmetic_certificate_info {
+  uint64_t struct_size;
+  uint32_t abi_version,certificate_version,representation;
+  uint32_t algebraic_verdict,floating_rewrite_verdict,finite_exact_verdict;
+  uint32_t layout_verdict,target_execution_verdict,requires_current_range_guard;
+  uint32_t operand_bits,accumulator_bits,basis_count,ordered_basis[20];
+  uint64_t safe_k,prior_absolute_bound;
+  char certificate_sha256[65],lowering_sha256[65];
+} rns8_arithmetic_certificate_info;
+
 typedef struct rns8_plan_packing_info {
   uint64_t struct_size;
   uint32_t abi_version;
@@ -1138,6 +1154,11 @@ RNS8_API rns8_status rns8_get_plan_backend_info(
  * transient per-dispatch pack workspaces unless a public cache surface is
  * implemented.
  */
+/* Conditional exactness under the declared input alphabet and current range
+ * guard; this query never promotes a target. Immutable for the plan lifetime. */
+RNS8_API rns8_status rns8_get_plan_arithmetic_certificate(
+    const rns8_plan* plan, rns8_arithmetic_certificate_info* out);
+
 RNS8_API rns8_status rns8_get_plan_packing_info(
     const rns8_plan* plan,
     rns8_plan_packing_info* out);
@@ -1727,6 +1748,7 @@ typedef struct rns8_native_group_info {
   uint32_t ordinary_grid_control, graph_ready;
   uint64_t retained_device_metadata_bytes, retained_host_metadata_bytes;
   uint64_t preparation_peak_device_metadata_bytes;
+  char arithmetic_certificate_sha256[65]; /* ordered children + schedule */
 } rns8_native_group_info;
 RNS8_API rns8_status rns8_prepare_native_group(rns8_prepared_group* group,
     const rns8_native_group_desc* desc,const rns8_native_group_binding* bindings,uint32_t count);

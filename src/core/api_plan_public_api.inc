@@ -553,3 +553,22 @@ rns8_status rns8_get_plan_packing_info(const rns8_plan* plan, rns8_plan_packing_
     return RNS8_SUCCESS;
   });
 }
+
+rns8_status rns8_get_plan_arithmetic_certificate(const rns8_plan* plan, rns8_arithmetic_certificate_info* out) {
+  return guard_api([&]() -> rns8_status {
+    if(!plan || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)) ||
+       !plan_schedule_contract_matches(*plan) || !plan->arithmetic_guard)return RNS8_INVALID_ARGUMENT;
+    const auto& guard=*plan->arithmetic_guard;const auto& c=guard.certificate;const auto& checked=guard.checked;
+    *out={};out->struct_size=sizeof(*out);out->abi_version=RNS8_ABI_VERSION;out->certificate_version=c.version;
+    out->representation=uint32_t(c.representation);out->algebraic_verdict=uint32_t(checked.algebra);
+    out->finite_exact_verdict=uint32_t(checked.finite_exact);out->layout_verdict=uint32_t(checked.layout);
+    out->target_execution_verdict=uint32_t(checked.target);out->floating_rewrite_verdict=uint32_t(checked.floating_rewrite);
+    out->requires_current_range_guard=checked.requires_range_guard;out->safe_k=checked.safe_k;
+    out->prior_absolute_bound=c.instruction.prior_abs;out->operand_bits=c.instruction.operand_bits;
+    out->accumulator_bits=c.instruction.accumulator_bits;out->basis_count=static_cast<uint32_t>(c.basis.size());
+    std::copy(c.basis.begin(),c.basis.end(),out->ordered_basis);
+    std::copy(checked.sha256.begin(),checked.sha256.end(),out->certificate_sha256);
+    std::copy(checked.lowering_sha256.begin(),checked.lowering_sha256.end(),out->lowering_sha256);
+    return RNS8_SUCCESS;
+  });
+}

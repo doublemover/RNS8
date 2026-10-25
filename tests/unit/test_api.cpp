@@ -113,3 +113,5 @@ TEST_CASE("HIP event-dependent joins submit before producer observation", "[api]
 #include "test_api_pipeline_bounded_cases.inc"
 
 #include "test_api_materialized_prefix_cases.inc"
+
+#include "test_arithmetic_certificate_cases.inc"
