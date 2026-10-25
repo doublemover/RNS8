@@ -1,3 +1,39 @@
+TEST_CASE("experimental basis typed inventory shares concrete owner resources and full identity") {
+  auto* ctx=create_cpu_context();auto ordered=experimental_basis_fixture::moduli(),reordered=ordered;
+  std::reverse(reordered.begin(),reordered.end());auto* basis=experimental_basis_fixture::create(ordered);
+  auto* other=experimental_basis_fixture::create(reordered);
+  rns8_basis_plan_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.backend=RNS8_BACKEND_CPU_REFERENCE;
+  d.semantics=RNS8_EXACT_WIDE_SIGNED;d.m=3;d.n=2;d.k=5;d.prefix=20;d.max_host_bytes=d.max_device_bytes=UINT64_MAX;
+  rns8_operation_support support{};support.struct_size=sizeof(support);support.abi_version=RNS8_ABI_VERSION;
+  rns8_basis_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  std::string first_identity;
+  for(auto operation:{RNS8_OP_GEMM,RNS8_OP_PACK,RNS8_OP_EXPORT,RNS8_OP_BASE_EXTEND,RNS8_OP_EXPERIMENTAL_BASIS}) {
+    REQUIRE(rns8_query_basis_operation(ctx,basis,&d,operation,RNS8_EXEC_SYNC,&support,&info)==RNS8_SUCCESS);
+    CHECK(support.source_implemented==1);CHECK(support.compiled_inventory==1);CHECK(support.requires_binding==1);
+    CHECK(support.correctness_qualified==0);CHECK(support.performance_qualified==0);
+    CHECK(support.supported_execution_modes==RNS8_EXEC_SYNC);CHECK(support.required_pinned_host_bytes==0);
+    REQUIRE(std::equal(ordered.begin(),ordered.end(),info.moduli));
+    rns8_basis_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_basis_plan(basis,&d,&resources)==RNS8_SUCCESS);
+    CHECK(resources.required_device_bytes==support.required_device_bytes);CHECK(resources.required_host_bytes==support.required_host_bytes);
+    rns8_basis_plan* plan=nullptr;REQUIRE(rns8_create_basis_plan(ctx,basis,&d,&plan)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_basis_plan(plan)==RNS8_SUCCESS);
+    if(operation==RNS8_OP_GEMM)first_identity=support.provider_identity_sha256;
+  }
+  REQUIRE(rns8_query_basis_operation(ctx,other,&d,RNS8_OP_GEMM,RNS8_EXEC_SYNC,&support,&info)==RNS8_SUCCESS);
+  CHECK(first_identity!=support.provider_identity_sha256);
+  CHECK(rns8_query_basis_operation(ctx,basis,&d,RNS8_OP_GEMM,RNS8_EXEC_OWNED_GRAPH,&support,&info)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(support.reason_code==RNS8_SUPPORT_EXECUTION_MODE);
+  CHECK(rns8_query_basis_operation(ctx,basis,&d,RNS8_OP_QUARTER_CRT,RNS8_EXEC_SYNC,&support,&info)==RNS8_UNSUPPORTED_BACKEND);
+  CHECK(support.reason_code==RNS8_SUPPORT_OPERATION);
+  REQUIRE(rns8_query_basis_operation(ctx,basis,&d,RNS8_OP_GEMM,RNS8_EXEC_SYNC,&support,&info)==RNS8_SUCCESS);
+  d.max_host_bytes=support.required_host_bytes-1;
+  CHECK(rns8_query_basis_operation(ctx,basis,&d,RNS8_OP_GEMM,RNS8_EXEC_SYNC,&support,&info)==RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(support.reason_code==RNS8_SUPPORT_BUDGET);CHECK(support.required_host_bytes==d.max_host_bytes+1);
+  REQUIRE(rns8_destroy_basis(other)==RNS8_SUCCESS);REQUIRE(rns8_destroy_basis(basis)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
 TEST_CASE("experimental ordered bases reject noncoprime descriptors and retain owned identities") {
   rns8_basis_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.representation=1;
   rns8_basis* basis=nullptr;

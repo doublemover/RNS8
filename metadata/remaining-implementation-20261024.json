@@ -330,6 +330,15 @@
             "include/rns8/rns8.h",
             "tests/unit/test_stream_panel_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Typed explicit-basis operation inventory shares concrete plan storage/admission, returns complete owned channel order, binds provider SHA256 to full basis/semantics/shape/target/build/budgets and explicitly rejects unsupported providers/modes. Ordinary inventory identifies implemented source and requires the explicit descriptor.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/api_experimental_basis.cpp",
+            "src/core/api_operation_provider.inc",
+            "tests/unit/test_experimental_basis_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -441,7 +450,7 @@
       "issue": 32,
       "title": "[Research P2] Extend offline modulus search into a certified hardware-weighted scheme optimizer",
       "url": "https://github.com/doublemover/RNS8/issues/32",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Offline scheme machinery exists but explicit experimental runtime basis absent and legacy required-prefix full-u64 report still uses product bit_length rather than strict semantic bound, as current comment specifies.",
       "implementation": [
         {
@@ -473,6 +482,15 @@
             "src/backend_common/product_prefix_cost.hpp",
             "src/core/runtime_product_recipe.cpp"
           ]
+        },
+        {
+          "summary": "Typed explicit-basis operation inventory shares concrete plan storage/admission, returns complete owned channel order, binds provider SHA256 to full basis/semantics/shape/target/build/budgets and explicitly rejects unsupported providers/modes. Ordinary inventory identifies implemented source and requires the explicit descriptor.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/api_experimental_basis.cpp",
+            "src/core/api_operation_provider.inc",
+            "tests/unit/test_experimental_basis_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -487,8 +505,7 @@
         "07c79727f9a1b99eefb7420fa1dc623d09cc4579"
       ],
       "remaining": [
-        "Explicit CPU/direct-HIP bases now compose with uniform layout conversions and product recipes. Typed route enumeration and any newly offered provider must bind complete identity; default-only ragged, accelerator prepack, async and distributed providers remain explicitly rejected.",
-        "Runtime execution, independent calibration and hardware/scientific qualification remain deferred."
+        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -932,7 +949,7 @@
       "issue": 41,
       "title": "[Research P1] Implement value-preserving device exact-wide base extension",
       "url": "https://github.com/doublemover/RNS8/issues/41",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Public synchronous HIP value-preserving lift, staged commit, shared mixed-radix digit suffix kernel and recipe consumer exist. Device selection/general async+graph extension phases not complete: header explicitly says operation is not graph-safe.",
       "implementation": [
         {
@@ -1013,6 +1030,15 @@
             "src/backend_common/product_prefix_cost.hpp",
             "src/core/runtime_product_recipe.cpp"
           ]
+        },
+        {
+          "summary": "Typed explicit-basis operation inventory shares concrete plan storage/admission, returns complete owned channel order, binds provider SHA256 to full basis/semantics/shape/target/build/budgets and explicitly rejects unsupported providers/modes. Ordinary inventory identifies implemented source and requires the explicit descriptor.",
+          "files": [
+            "include/rns8/experimental_basis.h",
+            "src/core/api_experimental_basis.cpp",
+            "src/core/api_operation_provider.inc",
+            "tests/unit/test_experimental_basis_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1034,8 +1060,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Default sync/stream/graph lifts and explicit experimental CPU/direct-HIP conversions and product recipe lifts are authored. Calibrated selection and measured benefits remain unqualified.",
-        "Build/link, regression execution, performance and scientific qualification remain deferred."
+        "Experimental CPU/direct-HIP basis ownership, pack/GEMM/CRT/integer conversion, layout/recipe identity and typed provider query are authored. Full builds, regression execution, independent calibrations and target/scientific qualification remain deferred. Unsupported accelerator/prepack/ragged/distributed/async basis providers reject explicitly."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2627,6 +2652,11 @@
       "kind": "minimal_compile",
       "scope": "Public panel shortlist, endpoint scheduler and authored API fixtures",
       "result": "MSVC /Zs passed for api_stream_gemm.cpp and test_api.cpp. No linked build, test, benchmark or qualification executed."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "Explicit-basis typed provider inventory, ordinary provider registry and authored API fixtures",
+      "result": "MSVC /Zs passed for api_experimental_basis.cpp, api_plan.cpp and test_api.cpp. No linked builds, test execution, benchmark or qualification."
     }
   ],
   "parking_snapshot": {

@@ -1,6 +1,7 @@
 #include "core/api_internal.hpp"
 #include "core/experimental_basis.hpp"
 #include "backend_common/ordered_basis_identity.hpp"
+#include "backend_common/sha256.hpp"
 #include "rns8/experimental_basis.h"
 #include "backend_common/basis_word_arithmetic.hpp"
 #include <algorithm>
@@ -140,6 +141,61 @@ rns8_status rns8_query_basis_plan(const rns8_basis* basis,const rns8_basis_plan_
     info.required_device_bytes=storage.device;info.required_host_bytes=storage.host;
     info.ordered_basis_identity=data->packet.identity;info.prefix=desc->prefix;info.representation=1;
     *out=info;return status;
+  });
+}
+rns8_status rns8_query_basis_operation(const rns8_context* ctx,const rns8_basis* basis,
+    const rns8_basis_plan_desc* desc,rns8_operation_kind operation,uint32_t modes,
+    rns8_operation_support* support,rns8_basis_info* info) {
+  return guard_api([&]()->rns8_status {
+    if(!ctx || !desc || !support || !info || !valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) ||
+        !valid_abi(support->struct_size,support->abi_version,sizeof(*support)) ||
+        !valid_abi(info->struct_size,info->abi_version,sizeof(*info)))return RNS8_INVALID_ARGUMENT;
+    const auto data=basis_data(basis);const auto described=describe_basis(*data,desc->prefix,info);
+    if(described!=RNS8_SUCCESS)return described;
+    rns8_operation_support out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;
+    out.backend=desc->backend;out.operation=operation;out.requires_binding=1;
+    out.supported_execution_modes=RNS8_EXEC_SYNC;out.safe_k=65536;
+    out.alignment=desc->backend==RNS8_BACKEND_CPU_REFERENCE?alignof(uint64_t):256;
+    const auto text=[](char* dst,size_t bytes,const char* src){std::strncpy(dst,src,bytes-1);};
+    text(out.target_id,sizeof(out.target_id),desc->backend==RNS8_BACKEND_CPU_REFERENCE?"cpu":ctx->device_info.gcn_arch);
+    const auto finish=[&](rns8_status status,uint32_t reason,const char* field,const char* explanation) {
+      out.status=status;out.reason_code=reason;text(out.offending_field,sizeof(out.offending_field),field);
+      text(out.explanation,sizeof(out.explanation),explanation);*support=out;return status;
+    };
+    if(operation>=RNS8_OP_COUNT || !modes || (modes&~127u))
+      return finish(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"operation/modes","invalid operation or execution mode");
+    if(desc->backend!=RNS8_BACKEND_CPU_REFERENCE && desc->backend!=RNS8_BACKEND_HIP_DIRECT)
+      return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"backend","explicit ordered basis has only CPU/direct-HIP owners");
+    out.source_implemented=1;out.compiled_inventory=desc->backend==RNS8_BACKEND_CPU_REFERENCE || hip_direct_compiled();
+    if(!out.compiled_inventory)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"backend","direct-HIP source is not compiled in this build");
+    if(ctx->backend!=desc->backend)return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"context","owner backend must match its context");
+    out.runtime_observed=desc->backend==RNS8_BACKEND_CPU_REFERENCE || ctx->device_info.hip_available;
+    if(operation!=RNS8_OP_GEMM && operation!=RNS8_OP_PACK && operation!=RNS8_OP_EXPORT &&
+        operation!=RNS8_OP_BASE_EXTEND && operation!=RNS8_OP_EXPERIMENTAL_BASIS)
+      return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","operation has no explicit ordered-basis adapter");
+    if(!exact_wide_semantics(desc->semantics))return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,
+        "semantics","explicit basis owner requires signed/unsigned exact-wide arithmetic");
+    if(modes&~uint32_t(RNS8_EXEC_SYNC))return finish(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,
+        "execution_modes","basis-plan API is synchronous; no inferred graph/library/prepack support");
+    if(ctx->hip_failure_poisoned)return finish(RNS8_BACKEND_FAILURE,RNS8_SUPPORT_RUNTIME,"context","context has a poisoned failure lease");
+    BasisStorage storage;const auto status=basis_plan_storage(*data,*desc,storage);
+    out.required_device_bytes=storage.device;out.required_host_bytes=storage.host;
+    if(status!=RNS8_SUCCESS && status!=RNS8_WORKSPACE_TOO_SMALL) {
+      out.resource_status=status==RNS8_RANGE_ERROR?2:3;
+      return finish(status,status==RNS8_RANGE_ERROR?RNS8_SUPPORT_RESOURCE_OVERFLOW:RNS8_SUPPORT_BAD_DESCRIPTOR,
+          "problem","basis plan rejected its shape, semantics, flags, prefix or address domain");
+    }
+    char build[65]{};const auto build_status=rns8_get_pipeline_build_identity(build,sizeof(build));if(build_status!=RNS8_SUCCESS)return build_status;
+    std::string identity="basis-runtime-provider-v1;build="+std::string(build)+";backend="+std::to_string(desc->backend)+
+        ";operation="+std::to_string(operation)+";modes="+std::to_string(modes)+";semantics="+std::to_string(desc->semantics)+
+        ";shape="+std::to_string(desc->m)+","+std::to_string(desc->n)+","+std::to_string(desc->k)+
+        ";prefix="+std::to_string(desc->prefix)+";representation="+std::to_string(data->packet.version)+";moduli=";
+    for(unsigned i=0;i<data->packet.count;++i)identity+=std::to_string(data->packet.moduli[i])+",";
+    identity+=";target="+std::string(out.target_id)+";devicebudget="+std::to_string(desc->max_device_bytes)+
+        ";hostbudget="+std::to_string(desc->max_host_bytes);
+    const auto digest=sha256(identity);text(out.provider_identity_sha256,sizeof(out.provider_identity_sha256),digest.c_str());
+    if(status==RNS8_WORKSPACE_TOO_SMALL)return finish(status,RNS8_SUPPORT_BUDGET,"budgets","plan payload exceeds its explicit device/host budgets");
+    return finish(RNS8_SUCCESS,RNS8_SUPPORT_COMPATIBLE,"","explicit ordered CPU/direct-HIP owner; complete current basis/range/generation binding still required");
   });
 }
 rns8_status rns8_create_basis_plan(rns8_context* ctx,const rns8_basis* basis,const rns8_basis_plan_desc* desc,rns8_basis_plan** out) {

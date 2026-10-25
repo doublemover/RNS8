@@ -77,6 +77,18 @@ Internal uniform layout descriptors use ABI 2 with the complete ordered basis.
 Plain/tile-major format conversion preserves it and rejects a reordered basis
 or missing prefix. Changing a basis still requires explicit integer conversion.
 
+`rns8_query_basis_operation` reports typed static compatibility for the concrete
+packing, GEMM, CRT/export, integer-conversion and basis-plan owners. It returns
+the complete ordered basis alongside the shared operation-support record and
+uses the same payload calculation as plan creation. Its provider digest binds
+all channels, prefix, signedness, shape, backend, target, build and budgets.
+Static success still requires actual current matrix/range/generation binding.
+Graph, accelerator-library, prepack and other unsupported operations reject
+explicitly. Ordinary inventory identifies the implemented source and directs
+callers to this explicit query; it cannot infer an experimental basis from a
+default-ladder descriptor. Neither query marks arithmetic or performance as
+qualified.
+
 Every operation stages its complete result before committing. Rejected proof,
 basis, shape, capacity or width leaves the prior output intact. A failed commit
 invalidates the destination. Existing context failure leases retain borrowed

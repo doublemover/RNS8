@@ -52,6 +52,13 @@ RNS8_API rns8_status rns8_get_matrix_basis(const rns8_matrix*,rns8_basis_info*);
  * They retain that immutable identity independently of the public basis handle. */
 RNS8_API rns8_status rns8_get_product_recipe_basis(const rns8_product_recipe*,rns8_basis_info*);
 RNS8_API rns8_status rns8_query_basis_plan(const rns8_basis*,const rns8_basis_plan_desc*,rns8_basis_resources*);
+/* Typed static inventory for the explicit basis owner: GEMM, PACK, EXPORT,
+ * BASE_EXTEND (integer conversion), or EXPERIMENTAL_BASIS (plan construction).
+ * This query owns no GPU resources and never certifies current input values.
+ * The returned status is also recorded in support; basis contains full order. */
+RNS8_API rns8_status rns8_query_basis_operation(const rns8_context*,const rns8_basis*,
+    const rns8_basis_plan_desc*,rns8_operation_kind,uint32_t execution_modes,
+    rns8_operation_support*,rns8_basis_info*);
 RNS8_API rns8_status rns8_create_basis_plan(rns8_context*,const rns8_basis*,const rns8_basis_plan_desc*,rns8_basis_plan**);
 RNS8_API rns8_status rns8_destroy_basis_plan(rns8_basis_plan*);
 RNS8_API rns8_status rns8_get_basis_plan_info(const rns8_basis_plan*,rns8_basis_info*,rns8_basis_resources*);

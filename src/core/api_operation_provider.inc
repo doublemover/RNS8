@@ -120,7 +120,11 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(!rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","quarter CRT requires exact-wide sources");
       if((query.proof_flags&(RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF))!=(RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF))
         return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"source_bound","quarter CRT requires current engine-owned 4B<=M and width proof");break;
-    case RNS8_OP_MULTI_DEVICE:case RNS8_OP_EXPERIMENTAL_BASIS:case RNS8_OP_FP8:
+    case RNS8_OP_EXPERIMENTAL_BASIS:
+      out.source_implemented=1;out.compiled_inventory=cpu || (hip && rns8::detail::hip_direct_compiled());
+      return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_BAD_DESCRIPTOR,"basis",
+          "use rns8_query_basis_operation with an explicit owned ordered basis; default planning cannot infer one");
+    case RNS8_OP_MULTI_DEVICE:case RNS8_OP_FP8:
       out.source_implemented=0;return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","no integrated provider for this operation in this implementation revision");
     default:return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"operation","unknown operation");
   }
