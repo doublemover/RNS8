@@ -100,8 +100,29 @@ applicable execution is covered by the [dated validation](local-all-features-202
 of fixed-prefix exact-wide MatMul/ExactAxpby or finite ring/field MatMul nodes. `rns8_submit_resident_graph_hip` preflights every
 binding and propagates every intermediate proof, then enqueues the ordered DAG
 on one caller-owned nondefault stream. Internal dependencies follow stream
-order. BaseExtend/Export nodes and adaptive tile schedules reject as unsupported
-before launch. Owned capture supports this same fixed resource envelope.
+order. BaseExtend and ExportLimbs nodes retain explicit transfer staging;
+adaptive tile schedules reject as unsupported before launch. Owned capture
+supports this same fixed resource envelope.
+
+Set each transfer node's `max_transfer_storage_bytes` to cover its retained
+device scratch plus pinned staging before preparing. Base extension also retains
+its existing suffix-payload budget. Ordered nodes share one maximum-sized device
+arena; each export keeps a separate compact pinned payload and status word.
+`rns8_get_resident_graph_resources` reports actual retained scratch/pinned payload
+capacities, excluding referenced matrices/workspaces and runtime event metadata.
+There are no allocations or pageable transfers during enqueue.
+
+Every transfer status is checked after the final event and before any graph
+publication. Only then are compact export rows copied into the borrowed host
+destination; padding remains untouched. Failed or canceled graphs never modify
+host export destinations. Base extension is value preserving: successful
+publication advances materialized-prefix metadata without advancing generation.
+On failure an external source retains its original proven prefix and value.
+Arithmetic outputs retain whole-graph invalidation rules. Preparation freezes
+source-prefix capacity and the complete uniquely representable source envelope;
+compatible proof changes need no recapture, while a smaller source prefix rejects
+before submission. These adapters and regression fixtures are authored; execution
+and measurements remain deferred.
 
 The graph reserves each distinct external input once, each output as a writer,
 and each distinct workspace once. A workspace shared by serial nodes is legal.

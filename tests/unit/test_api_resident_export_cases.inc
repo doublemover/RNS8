@@ -1,3 +1,18 @@
+TEST_CASE("resident transfer layouts account payload status and aligned pinned storage") {
+  using namespace rns8::detail;
+  const auto layout=resident_export_layout(3,5,3);
+  REQUIRE(layout.status==RNS8_SUCCESS);
+  CHECK(layout.payload_bytes==360);CHECK(layout.device_bytes==364);CHECK(layout.pinned_bytes==368);
+  CHECK(resident_export_layout(3,5,0).status==RNS8_INVALID_ARGUMENT);
+  CHECK(resident_export_layout(3,5,33).status==RNS8_INVALID_ARGUMENT);
+  CHECK(resident_export_layout(INT64_MAX,5,3).status!=RNS8_SUCCESS);
+  const auto lift=resident_lift_layout(15,17,20);
+  REQUIRE(lift.status==RNS8_SUCCESS);CHECK(lift.payload_bytes==45);
+  CHECK(lift.device_bytes==49);CHECK(lift.pinned_bytes==4);
+  const auto noop=resident_lift_layout(15,20,20);
+  REQUIRE(noop.status==RNS8_SUCCESS);CHECK(noop.device_bytes==0);CHECK(noop.pinned_bytes==0);
+}
+
 TEST_CASE(
     "resident exports preflight widths and preserve intermediate generations",
     "[api][graph][export]") {
@@ -56,16 +71,41 @@ TEST_CASE(
       nodes[1].kind = RNS8_RESIDENT_EXPORT_LIMBS;
       nodes[1].export_limbs = result.data();
       nodes[1].export_ld = 3;
-      nodes[1].export_limb_count = 3;
+      nodes[1].export_limb_count = 3;nodes[1].max_transfer_storage_bytes=1024;
       rns8_resident_graph *graph = nullptr, *bad = nullptr;
+      if(hip) {
+        nodes[1].max_transfer_storage_bytes=203; // 100 device + 104 pinned bytes.
+        REQUIRE(rns8_create_resident_graph(ctx,nodes,2,&bad)==RNS8_SUCCESS);
+        REQUIRE(rns8_prepare_resident_graph_hip(bad)==RNS8_WORKSPACE_TOO_SMALL);
+        REQUIRE(rns8_destroy_resident_graph(bad)==RNS8_SUCCESS);bad=nullptr;
+        nodes[1].max_transfer_storage_bytes=1024;
+      }
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 2, &graph) ==
               RNS8_SUCCESS);
-      REQUIRE(rns8_prepare_resident_graph_hip(graph) == RNS8_UNSUPPORTED_BACKEND);
+      REQUIRE(rns8_prepare_resident_graph_hip(graph) == (hip?RNS8_SUCCESS:RNS8_UNSUPPORTED_BACKEND));
       rns8_graph_execution_info info{};
       info.struct_size = sizeof(info);
       info.abi_version = RNS8_ABI_VERSION;
       for (int repeat = 0; repeat < 2; ++repeat) {
-        REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+        if(hip) {
+          rns8::detail::hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+          const auto before=result;const auto generation=c->content_generation;
+          rns8_graph_completion_token token{};
+          if(repeat) {REQUIRE(rns8_capture_resident_graph_hip(graph)==RNS8_SUCCESS);
+            REQUIRE(rns8_replay_resident_graph_hip(graph,stream.get(),&token)==RNS8_SUCCESS);}
+          else REQUIRE(rns8_submit_resident_graph_hip(graph,stream.get(),&token)==RNS8_SUCCESS);
+          REQUIRE(result==before);REQUIRE(c->content_generation==generation);
+          REQUIRE(rns8_wait_resident_graph_hip(graph,token,&info)==RNS8_SUCCESS);
+          REQUIRE(info.operation_status==RNS8_SUCCESS);REQUIRE(c->content_generation==generation+1);
+          rns8_resident_graph_resources resources{};resources.struct_size=sizeof(resources);resources.abi_version=RNS8_ABI_VERSION;
+          REQUIRE(rns8_get_resident_graph_resources(graph,&resources)==RNS8_SUCCESS);
+          CHECK(resources.prepared==1);CHECK(resources.transfer_nodes==1);
+          CHECK(resources.retained_device_scratch_bytes==4*3*8+4);
+          CHECK(resources.retained_pinned_host_bytes==4*3*8+8);
+        } else
+#endif
+          REQUIRE(rns8_execute_resident_graph(graph, &info) == RNS8_SUCCESS);
         REQUIRE(info.completed_nodes == 2);
         for (int row = 0; row < 2; ++row)
           for (int col = 0; col < 2; ++col) {
@@ -92,6 +132,19 @@ TEST_CASE(
       REQUIRE(rns8_execute_resident_graph(reader, &info) == RNS8_SUCCESS);
       REQUIRE(c->content_generation == generation);
       REQUIRE(second == result);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      if(hip) {
+        REQUIRE(rns8_prepare_resident_graph_hip(reader)==RNS8_SUCCESS);
+        rns8::detail::hip_unique_stream stream;REQUIRE(stream.create_non_blocking()==hipSuccess);
+        const auto before=second;rns8_graph_completion_token token{};
+        REQUIRE(rns8_submit_resident_graph_hip(reader,stream.get(),&token)==RNS8_SUCCESS);
+        REQUIRE(rns8_cancel_resident_graph_hip(reader,token)==RNS8_SUCCESS);
+        REQUIRE(rns8_wait_resident_graph_hip(reader,token,&info)==RNS8_SUCCESS);
+        CHECK(info.operation_status==RNS8_CANCELED);CHECK(info.completed_nodes==0);
+        CHECK(second==before);CHECK(c->content_generation==generation);
+        CHECK(c->device_residues_current);
+      }
+#endif
       REQUIRE(rns8_destroy_resident_graph(reader) == RNS8_SUCCESS);
       rns8_resident_node overlap[]{nodes[0], nodes[1], nodes[1]};
       REQUIRE(rns8_create_resident_graph(ctx, overlap, 3, &bad) ==

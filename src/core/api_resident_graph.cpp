@@ -1,6 +1,8 @@
 #include "core/api_internal.hpp"
 #include "backend_common/complex_residue_plan.hpp"
 #include <array>
+#include <cstring>
+#include "backend_common/resident_transfer_plan.hpp"
 #include <atomic>
 #include "core/hip_resources.hpp"
 #include <unordered_map>
@@ -13,6 +15,7 @@ struct rns8_resident_graph {
     rns8_exact_matrix_ranges ranges;
     boost::multiprecision::cpp_int imag_bound;
     rns8::detail::ComplexResidueScratch complex_scratch;
+    uint32_t source_prefix=0,target_prefix=0;
   };
   struct Input {
     const rns8_matrix* matrix;
@@ -27,8 +30,10 @@ struct rns8_resident_graph {
   bool cancel_requested = false;
   uint64_t id = 0;
   bool hip_prepared = false;
+  bool retiring = false;
   void* pending_stream = nullptr;
   std::vector<rns8_workspace*> hip_workspaces;
+  std::vector<rns8_matrix*> hip_outputs;
   std::vector<OutputProof> pending_proofs;
   rns8_graph_execution_info completion{};
   rns8_async_failure_info async_failure{};
@@ -37,9 +42,17 @@ struct rns8_resident_graph {
   rns8::detail::hip_unique_stream synchronous_stream;
   rns8::detail::hip_direct_device_buffer complex_storage;
   std::vector<rns8::detail::ComplexResidueScratch> complex_resources;
+  struct Transfer {
+    rns8::detail::ResidentTransferLayout layout;
+    uint32_t source=0,target=0;
+    boost::multiprecision::cpp_int envelope;
+    std::array<uint64_t,3> bound{};
+    rns8::detail::hip_pinned_host_buffer host;
+  };
+  std::vector<Transfer> transfers;
   hipGraph_t captured_graph = nullptr;
   hipGraphExec_t captured_executable = nullptr;
-  std::vector<std::array<const void*, 8>> captured_addresses;
+  std::vector<std::array<const void*, 12>> captured_addresses;
   ~rns8_resident_graph() {
     if (!captured_executable && !captured_graph && !completion_event.get()) return;
     rns8::detail::hip_scoped_device device(ctx ? ctx->device_id : 0);
@@ -51,6 +64,8 @@ struct rns8_resident_graph {
 };
 
 namespace {
+rns8_status validate_resident_transfer_envelopes(const rns8_resident_graph& graph,
+    const std::vector<rns8_resident_graph::OutputProof>& proofs);
 bool bounded_graph_semantics(rns8_semantics semantics) {
   return semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64;
 }
@@ -121,7 +136,8 @@ rns8_status prove_extension(const rns8_context& ctx, const rns8_resident_node& n
 // Metadata-only proof values: no copies of host/device matrix payloads.
 rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node, bool check_bindings,
                        std::vector<rns8_resident_graph::OutputProof>* pending = nullptr) {
-  if (pending) { pending->clear(); pending->reserve(graph.nodes.size()); }
+  if(graph.retiring)return RNS8_BUSY;
+  if (pending) { pending->clear(); pending->resize(graph.nodes.size()); }
   std::unordered_map<const rns8_matrix*, rns8_matrix> proofs;
   proofs.reserve(graph.inputs.size() + graph.nodes.size());
   for (const auto& input : graph.inputs) {
@@ -159,13 +175,17 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
       if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
       const auto status = prove_export(*graph.ctx, node, input->second);
       if (status != RNS8_SUCCESS) return status;
+      if(pending) (*pending)[index].bound=input->second.exact_max_magnitude;
       continue;
     }
     if (node.kind == RNS8_RESIDENT_BASE_EXTEND) {
       auto input = proofs.find(node.c);
       if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
+      const auto source=input->second.exact_range_prefix;
       const auto status = prove_extension(*graph.ctx, node, input->second);
       if (status != RNS8_SUCCESS) return status;
+      if(pending) {auto& value=(*pending)[index];value.bound=input->second.exact_max_magnitude;
+        value.source_prefix=source;value.target_prefix=input->second.exact_range_prefix;}
       continue;
     }
     auto status = validate_plan_context_workspace(*graph.ctx, *node.plan, *node.workspace);
@@ -192,14 +212,14 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
         return RNS8_RANGE_ERROR;
       auto& output=proofs.try_emplace(node.c).first->second;
       output.materialized_rns_prefix=node.plan->tile_schedule.empty()?node.plan->prefix:node.plan->schedule_min_selected_prefix;
-      if(pending) pending->push_back({{}, {}});
+      if(pending) (*pending)[index]={};
       continue;
     }
     if(uses_finite_storage(node.plan->desc.semantics)) {
       if(node.kind!=RNS8_RESIDENT_MATMUL || ai->second.finite_modulus!=node.plan->desc.finite_modulus ||
           bi->second.finite_modulus!=node.plan->desc.finite_modulus) return RNS8_INVALID_ARGUMENT;
       proofs.try_emplace(node.c).first->second.finite_modulus=static_cast<uint16_t>(node.plan->desc.finite_modulus);
-      if(pending) pending->push_back({{}, {}});
+      if(pending) (*pending)[index]={};
       continue;
     }
     if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) {
@@ -228,8 +248,8 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
           node.complex_method == RNS8_COMPLEX_THREE_REAL_PRODUCTS ? ComplexProductMethod::three_real : ComplexProductMethod::four_real,
           node.max_staged_residue_bytes);
       if (admitted.status != RNS8_SUCCESS) return admitted.status;
-      if (pending) pending->push_back({admitted.real_bound, {}, admitted.imag_bound,
-          static_cast<const ComplexResidueScratch&>(admitted)});
+      if (pending) (*pending)[index]={admitted.real_bound, {}, admitted.imag_bound,
+          static_cast<const ComplexResidueScratch&>(admitted)};
       rns8_matrix real, imag;
       real.exact_range_prefix = imag.exact_range_prefix = node.plan->prefix;
       real.exact_max_magnitude.swap(admitted.real_bound);
@@ -250,7 +270,7 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
     }
     if (status != RNS8_SUCCESS) return status;
     output.exact_range_prefix = node.plan->prefix;
-    if (pending) pending->push_back({output.exact_max_magnitude, output.exact_axis_ranges});
+    if (pending) (*pending)[index]={output.exact_max_magnitude, output.exact_axis_ranges};
     proofs.emplace(node.c, std::move(output));
   }
   failed_node = UINT32_MAX;
@@ -287,6 +307,8 @@ rns8_status rns8_create_resident_graph(
            node.plan->desc.semantics != RNS8_WRAP_U64_MOD_2_64)) return RNS8_UNSUPPORTED_BACKEND;
       if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
           (node.a_imag || node.b_imag || node.c_imag || node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
+        return RNS8_INVALID_ARGUMENT;
+      if (node.kind != RNS8_RESIDENT_BASE_EXTEND && node.kind != RNS8_RESIDENT_EXPORT_LIMBS && node.max_transfer_storage_bytes)
         return RNS8_INVALID_ARGUMENT;
       if (node.kind != RNS8_RESIDENT_EXPORT_LIMBS && (node.export_limbs || node.export_ld || node.export_limb_count))
         return RNS8_INVALID_ARGUMENT;
@@ -357,8 +379,13 @@ rns8_status rns8_refresh_resident_graph_inputs(rns8_resident_graph* graph) {
     if (!graph) return RNS8_INVALID_ARGUMENT;
     if (graph->running) return RNS8_BUSY;
     uint32_t failed = UINT32_MAX;
-    const auto status = prove_graph(*graph, failed, false);
+    std::vector<rns8_resident_graph::OutputProof> proofs;
+    auto status = prove_graph(*graph, failed, false,graph->hip_prepared?&proofs:nullptr);
     if (status != RNS8_SUCCESS) return status;
+    if(graph->hip_prepared) {
+      status=validate_resident_transfer_envelopes(*graph,proofs);
+      if(status!=RNS8_SUCCESS)return status;
+    }
     bind_graph_inputs(*graph);
     return RNS8_SUCCESS;
   });
@@ -375,7 +402,7 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
     // Prepared complex graphs reuse their bounded scratch and owned stream.
     // Keep a failed drain attached to the graph exactly as for borrowed streams.
-    if (graph->hip_prepared && graph->complex_storage.get()) {
+    if (graph->hip_prepared) {
       rns8_graph_completion_token token{};
       auto status = rns8_submit_resident_graph_hip(graph, graph->synchronous_stream.get(), &token);
       if (status != RNS8_SUCCESS) {
@@ -427,9 +454,52 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
 rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph) {
   if (!graph) return RNS8_SUCCESS;
   if (graph->running) return RNS8_BUSY;
+  graph->retiring=true;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  // Retain both handle and references on cleanup failure so destruction can be
+  // retried. Release wrappers only after the corresponding HIP destroy succeeds.
+  if(graph->ctx->backend==RNS8_BACKEND_HIP_DIRECT) {
+  rns8::detail::hip_scoped_device device(graph->ctx->device_id);
+  if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  if(graph->captured_executable) {
+    if(hipGraphExecDestroy(graph->captured_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    graph->captured_executable=nullptr;
+  }
+  if(graph->captured_graph) {
+    if(hipGraphDestroy(graph->captured_graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    graph->captured_graph=nullptr;
+  }
+  if(graph->completion_event.get()) {
+    if(hipEventDestroy(graph->completion_event.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    (void)graph->completion_event.release();
+  }
+  if(graph->synchronous_stream.get()) {
+    if(hipStreamDestroy(graph->synchronous_stream.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    (void)graph->synchronous_stream.release();
+  }
+  if(graph->complex_storage.reset()!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  for(auto& transfer:graph->transfers)if(transfer.host.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  }
+#endif
   for (auto* hold : graph->holds) --*hold;
   delete graph;
   return RNS8_SUCCESS;
+}
+
+rns8_status rns8_get_resident_graph_resources(const rns8_resident_graph* graph,rns8_resident_graph_resources* out) {
+  if(!graph || !out || !rns8::detail::valid_abi(out->struct_size,out->abi_version,sizeof(*out)))return RNS8_INVALID_ARGUMENT;
+  rns8_resident_graph_resources info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  info.prepared=graph->hip_prepared;
+  for(const auto& node:graph->nodes)
+    info.transfer_nodes+=node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  info.retained_device_scratch_bytes=graph->complex_storage.bytes();
+  for(const auto& transfer:graph->transfers) {
+    if(transfer.host.capacity()>UINT64_MAX-info.retained_pinned_host_bytes)return RNS8_RANGE_ERROR;
+    info.retained_pinned_host_bytes+=transfer.host.capacity();
+  }
+#endif
+  *out=info;return RNS8_SUCCESS;
 }
 
 #include "api_resident_graph_hip.inc"

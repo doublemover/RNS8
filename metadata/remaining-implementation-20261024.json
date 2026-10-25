@@ -873,12 +873,24 @@
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Compile BaseExtend and ExportLimbs resident nodes into the direct-HIP ordered stream/owned graph. Reuse maximum-sized device scratch, retain separate pinned exports/statuses under explicit per-node budgets, validate all statuses before any publication, preserve lift generation/source proof and canceled host destinations, deduplicate writer reservations, expose retained resource counts and keep failed destruction retryable.",
+          "files": [
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_prepared_lift_cases.inc",
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
-        "tools/test_collect_lift_recipe.py"
+        "tools/test_collect_lift_recipe.py",
+        "tests/unit/test_api_resident_export_cases.inc",
+        "tests/unit/test_api_resident_graph_cases.inc"
       ],
       "commits": [
         "f30d1817b6208f781c64d9169aedf672f96319a0",
@@ -930,6 +942,16 @@
             "tests/support/ragged_recipe_fixture.hpp",
             "benchmarks/rns8_lift_recipe_calibrate.cpp"
           ]
+        },
+        {
+          "summary": "Compile BaseExtend and ExportLimbs resident nodes into the direct-HIP ordered stream/owned graph. Reuse maximum-sized device scratch, retain separate pinned exports/statuses under explicit per-node budgets, validate all statuses before any publication, preserve lift generation/source proof and canceled host destinations, deduplicate writer reservations, expose retained resource counts and keep failed destruction retryable.",
+          "files": [
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
@@ -938,14 +960,16 @@
         "tests/support/product_recipe_outputs_fixture.hpp",
         "tests/support/product_recipe_rebind_fixture.hpp",
         "tools/test_collect_lift_recipe.py",
-        "tests/support/ragged_recipe_fixture.hpp"
+        "tests/support/ragged_recipe_fixture.hpp",
+        "tests/unit/test_api_resident_export_cases.inc",
+        "tests/unit/test_api_resident_graph_cases.inc"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
         "11ac95b6482386d74e6804d8a854b4629467208f"
       ],
       "remaining": [
-        "Synchronous ragged-to-uniform recipe binding, shared materializations, multi-output retention and matched harness are implemented. Generalized packed-B/materialization alternatives remain composed with #40; asynchronous NativeToRns/BaseExtend/Export graph-node adapters remain composed with #43.",
+        "Synchronous ragged-to-uniform recipe binding, shared materializations, multi-output retention and matched harness are implemented. Generalized packed-B/materialization alternatives remain composed with #40; asynchronous NativeToRns graph-node adapter remain composed with #43.",
         "Hardware compilation, authored test execution, independent calibrated stage costs and measured outcomes remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -1055,6 +1079,16 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_api_prepared_lift_cases.inc"
           ]
+        },
+        {
+          "summary": "Compile BaseExtend and ExportLimbs resident nodes into the direct-HIP ordered stream/owned graph. Reuse maximum-sized device scratch, retain separate pinned exports/statuses under explicit per-node budgets, validate all statuses before any publication, preserve lift generation/source proof and canceled host destinations, deduplicate writer reservations, expose retained resource counts and keep failed destruction retryable.",
+          "files": [
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "src/backend_hip_direct/hip_backend_native_interop.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
@@ -1063,7 +1097,9 @@
         "tools/test_collect_public_queue_calibration.py",
         "tests/unit/test_api_prepared_lift_cases.inc",
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
-        "tests/unit/test_api_pinned_host_cases.inc"
+        "tests/unit/test_api_pinned_host_cases.inc",
+        "tests/unit/test_api_resident_export_cases.inc",
+        "tests/unit/test_api_resident_graph_cases.inc"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -1079,7 +1115,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Compiled resident-graph NativeToRns/BaseExtend/Export node adapters and additional semantics/provider-specific asynchronous integration remain.",
+        "Compiled resident-graph NativeToRns node adapter and additional semantics/provider-specific asynchronous integration remain.",
         "Matched pinned-host stream/graph transfer calibration and complete-route HIP compilation/execution/overlap evidence remain; hardware and scientific qualification deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -2330,6 +2366,11 @@
       "kind": "deferred_by_user",
       "scope": "2026-10-25 hipBLASLt independent operand-retention controls and composed calibration cases",
       "result": "Source implementation and fixtures only; no builds, syntax checks, tests or benchmarks run."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "BaseExtend/Export resident graph adapter core/backend and authored API fixtures",
+      "result": "MSVC /Zs host syntax only; test execution, complete builds, benchmarks and qualification deferred."
     }
   ],
   "parking_snapshot": {

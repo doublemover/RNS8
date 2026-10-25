@@ -99,7 +99,21 @@ typedef struct rns8_resident_node {
   const rns8_matrix* b_imag;
   rns8_matrix* c_imag;
   rns8_complex_product_method complex_method;
+  /* BASE_EXTEND/EXPORT_LIMBS: explicit per-node sum of owned device scratch
+   * and pinned staging for HIP preparation. Zero permits synchronous execution
+   * only. The prepared graph shares maximum-sized device scratch across nodes;
+   * each export retains its pinned payload until whole-graph observation. */
+  uint64_t max_transfer_storage_bytes;
 } rns8_resident_node;
+
+typedef struct rns8_resident_graph_resources {
+  uint64_t struct_size;
+  uint32_t abi_version,prepared;
+  uint64_t retained_device_scratch_bytes,retained_pinned_host_bytes;
+  uint32_t transfer_nodes,reserved;
+} rns8_resident_graph_resources;
+RNS8_API rns8_status rns8_get_resident_graph_resources(
+    const rns8_resident_graph* graph,rns8_resident_graph_resources* out);
 
 typedef struct rns8_graph_execution_info {
   uint64_t struct_size;
@@ -130,7 +144,8 @@ typedef struct rns8_graph_completion_token {
  * synchronous GEMM. EXPORT_LIMBS nodes mark explicit host output boundaries;
  * other outputs remain resident. Export width is proved before any graph writes.
  * Shared handles require external host-thread serialization; not graph-capture
- * safe or asynchronous. On runtime failure completed earlier nodes remain valid,
+ * safe until explicitly prepared below. On an unprepared synchronous runtime
+ * failure completed earlier nodes remain valid,
  * the failing node follows ordinary GEMM invalidation, later nodes are untouched.
  */
 RNS8_API rns8_status rns8_create_resident_graph(
@@ -143,10 +158,12 @@ RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
 
 /* Explicit single-stream direct-HIP fixed-prefix exact-wide MatMul/ExactAxpby
  * and bounded i64/u64, strict wrap64 or finite ring/field MatMul DAGs.
- * Prepare completion resources first. BaseExtend/Export nodes and adaptive
- * schedules are unsupported. Submission preflights the complete DAG, reserves
+ * Prepare completion resources first. BaseExtend and ExportLimbs nodes retain
+ * budgeted staging; adaptive schedules are unsupported. Submission preflights the complete DAG, reserves
  * external readers and all output/workspace writers, and issues one token.
- * Query/wait publishes all outputs only after the final event succeeds.
+ * Query/wait checks every transfer status before publishing any output. Host
+ * exports remain untouched until that observation, including on cancellation.
+ * BaseExtend preserves the source generation and source prefix on failure.
  * A backend failure drains the stream and leaves every attempted output invalid;
  * unattempted outputs retain their prior values. Inputs/resources remain owned
  * until observation or failure cleanup. Null/default streams and external HIP

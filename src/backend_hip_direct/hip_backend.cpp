@@ -1,3 +1,4 @@
+#include "backend_common/resident_transfer_plan.hpp"
 #include "backend_common/native_locality.hpp"
 #include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "backend_common/direct_rns_route.hpp"

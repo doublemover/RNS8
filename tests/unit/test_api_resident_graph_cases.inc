@@ -141,6 +141,7 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
       nodes[0].plan = small; nodes[0].a = a; nodes[0].b = b; nodes[0].c = c; nodes[0].workspace = small_work;
       nodes[1].kind = RNS8_RESIDENT_BASE_EXTEND; nodes[1].c = c;
       nodes[1].target_prefix = 20; nodes[1].max_staged_residue_bytes = staged_bytes;
+      nodes[1].max_transfer_storage_bytes=staged_bytes+8;
       nodes[2].plan = wide; nodes[2].a = c; nodes[2].b = b; nodes[2].c = d; nodes[2].workspace = wide_work;
       rns8_resident_graph* graph = nullptr;
       nodes[1].max_staged_residue_bytes = staged_bytes - 1;
@@ -158,6 +159,7 @@ TEST_CASE("resident DAG explicitly extends intermediate materializations before 
       rns8_resident_node missing[] = {nodes[0], nodes[2]};
       REQUIRE(rns8_create_resident_graph(ctx, missing, 2, &graph) == RNS8_RANGE_ERROR);
       REQUIRE(rns8_create_resident_graph(ctx, nodes, 3, &graph) == RNS8_SUCCESS);
+      if(hip) REQUIRE(rns8_prepare_resident_graph_hip(graph)==RNS8_SUCCESS);
       rns8_graph_execution_info info{};
       info.struct_size = sizeof(info); info.abi_version = RNS8_ABI_VERSION;
       for (int round = 0; round < 2; ++round) {

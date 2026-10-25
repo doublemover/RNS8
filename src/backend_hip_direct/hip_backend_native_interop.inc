@@ -156,3 +156,33 @@ rns8_status hip_direct_enqueue_native_export(int device_id,const void* residues,
   (void)device_id;(void)signed_values;(void)bound;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+
+// Graph export deliberately stops at owned pinned storage. Publication into
+// caller memory is a host transaction after all node status words are observed.
+rns8_status hip_direct_enqueue_limb_export_to_host(int device_id,const void* residues,
+    int64_t rows,int64_t cols,uint32_t prefix,bool signed_values,uint32_t limbs,
+    void* scratch,uint64_t scratch_bytes,void* pinned_storage,uint64_t pinned_bytes,void* stream) {
+  const auto layout=resident_export_layout(rows,cols,limbs);
+  if(layout.status!=RNS8_SUCCESS)return layout.status;
+  if(!residues || !scratch || !pinned_storage || !stream || !prefix || prefix>20 ||
+      scratch_bytes<layout.device_bytes || pinned_bytes<layout.pinned_bytes ||
+      reinterpret_cast<uintptr_t>(scratch)%8 || reinterpret_cast<uintptr_t>(pinned_storage)%8 ||
+      !qualified_i32_matrix_address(rows,cols,cols,prefix))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(set_hip_device(device_id)!=RNS8_SUCCESS)return RNS8_BACKEND_FAILURE;
+  const auto st=static_cast<hipStream_t>(stream);
+  auto* flag=reinterpret_cast<int*>(static_cast<uint8_t*>(scratch)+layout.payload_bytes);
+  if(hipMemsetAsync(flag,0,4,st)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  const int code=signed_values?rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(
+      static_cast<const int8_t*>(residues),static_cast<uint64_t*>(scratch),int(rows),int(cols),int(prefix),int(limbs),flag,stream):
+      rns8_hip_direct_export_exact_wide_unsigned_limbs_device_on_stream(
+      static_cast<const int8_t*>(residues),static_cast<uint64_t*>(scratch),int(rows),int(cols),int(prefix),int(limbs),flag,stream);
+  if(code!=int(hipSuccess))return RNS8_BACKEND_FAILURE;
+  if(hipMemcpyAsync(pinned_storage,flag,4,hipMemcpyDeviceToHost,st)!=hipSuccess ||
+      hipMemcpyAsync(static_cast<uint8_t*>(pinned_storage)+8,scratch,layout.payload_bytes,hipMemcpyDeviceToHost,st)!=hipSuccess)
+    return RNS8_BACKEND_FAILURE;
+  return RNS8_SUCCESS;
+#else
+  (void)device_id;(void)signed_values;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
