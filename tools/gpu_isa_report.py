@@ -270,8 +270,8 @@ def scan_disassembly(disassembly: str) -> dict[str, Any]:
         if lowered_mnemonic.startswith(('v_dot4_','v_dot4c_')):counts['packed_dot4']+=1
         if lowered_mnemonic.startswith(('v_mul_lo_i32','v_mul_lo_u32','v_mad_i32','v_mad_u32','v_mad_i24','v_mad_u24','v_mul_i32_i24','v_mul_u32_u24')):counts['scalar_integer_multiply_add']+=1
         if lowered_mnemonic.startswith(('v_bfe_','v_perm_','v_lshrrev_b32','v_lshlrev_b32','v_lshl_or_b32')):counts['byte_extract_permute']+=1
-        if lowered_mnemonic.startswith('ds_read'):counts['lds_read']+=1
-        if lowered_mnemonic.startswith('ds_write'):counts['lds_write']+=1
+        if lowered_mnemonic.startswith(('ds_read', 'ds_load')):counts['lds_read']+=1
+        if lowered_mnemonic.startswith(('ds_write', 'ds_store')):counts['lds_write']+=1
         family = matrix_mnemonic_family(lowered_mnemonic)
         if family is not None and MATRIX_MNEMONIC_RE.match(lowered_mnemonic):
             matrix_histogram[lowered_mnemonic] = matrix_histogram.get(lowered_mnemonic, 0) + 1

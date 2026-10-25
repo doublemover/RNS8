@@ -184,3 +184,26 @@ The model prices are explicitly unqualified analytical estimates. Focused public
 magnitude and matched materialization comparisons are prepared, but no new
 benchmark process has run: a new NuLARRY workload restarted before collection,
 and the requested quiet-host gate blocked launch. The old campaign remains stopped.
+
+
+### Subsequent static instruction review
+
+Restricted inspection of the validated layout consumer/converter objects found
+a reporting omission: gfx1100 disassembly uses `ds_load`/`ds_store`, while the
+scanner counted only the `ds_read`/`ds_write` spellings. The repaired scanner and
+its mixed-spelling/vector-width/atomic fixture pass, along with residue-dot,
+measurement-association and tooling-contract suites. Reinspection preserves all
+input object hashes. No C++/GPU implementation changed or required another
+hardware correctness run.
+
+| Layout consumer build | Static dot4 | Static LDS reads | Static LDS writes | VGPR / SGPR | LDS bytes | Scratch / spills |
+| --- | ---: | ---: | ---: | --- | ---: | --- |
+| Default / packed-dot | 8 | 40 | 2 | 49 / 57 | 1,024 | 0 / 0 |
+| Scalar source | 8 | 34 | 2 | 49 / 57 | 1,024 | 0 / 0 |
+
+The scalar-source loop also emits signed dot4 with the required signed-operand
+flags. That build is a source control, not a physical scalar-instruction
+baseline for this consumer. Occupancy and dynamic counts remain unmeasured.
+Inspection uses the HIP SDK's AMDGPU-capable disassembler; the standalone
+LLVM23 distribution lacks that target backend. Exact tool paths, symbol names,
+resource metadata and object/code-object hashes are retained in the receipt.

@@ -1861,6 +1861,7 @@
         "exact-import-and-crt-conversion-calibration",
         "public-signed-pack-selection-and-minimal-cold-ownership",
         "reproducible-collection",
+        "source-arithmetic-controls-and-actual-emission",
         "timing-boundaries"
       ]
     },
@@ -5250,6 +5251,7 @@
         "reproduction",
         "results-and-coverage",
         "subsequent-materialization-integration",
+        "subsequent-static-instruction-review",
         "windows-and-gfx1100-validation--2026-10-25"
       ]
     }

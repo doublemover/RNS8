@@ -7,6 +7,25 @@ import gpu_isa_report
 
 
 def main() -> int:
+    # Both spellings occur in actual AMDGPU disassembly. Count instructions,
+    # not vector elements/bytes, and leave atomics out of plain load/store bins.
+    aliases = gpu_isa_report.scan_disassembly("""
+ds_read_b32 v1, v2
+ds_read2_b32 v[1:2], v3 offset0:0 offset1:1
+ds_write_b8 v1, v2
+ds_load_u8 v1, v2
+ds_load_b32 v1, v2
+DS_LOAD_B128 v[0:3], v4
+ds_store_b8 v1, v2
+ds_store_b128 v1, v[2:5]
+ds_add_u32 v1, v2
+v_dot4_i32_iu8 v0, v1, v2, v0 neg_lo:[1,1,0]
+""")
+    assert aliases["lds_read"] == 5
+    assert aliases["lds_write"] == 3
+    assert aliases["lds_mentions"] == 9
+    assert aliases["packed_dot4"] == 1
+    assert aliases["matrix_instruction_count"] == 0
     readobj_output = """
 AMDGPU Metadata: ---
 amdhsa.kernels:

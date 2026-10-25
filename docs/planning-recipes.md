@@ -11,7 +11,10 @@ Basis/shape/range/alias validation completes before any write.
 
 The HIP consumer stages 16x32 and 32x16 byte tiles and reduces its INT32 carry
 every 32 K terms. Its explicit packed-dot path uses the shared signed-byte dot
-implementation; the scalar-control build retains scalar updates. This is a
+implementation; the scalar-source build selects scalar updates in the source.
+LLVM may still combine them into dot instructions: the `6ce489b` consumer emits
+eight dot4 instructions in all three inspected configurations. It is therefore
+not a physical scalar-versus-dot4 control. This is a
 vector/LDS consumer, with no matrix-instruction or performance qualification
 implied. It does not change ordinary GEMM routing.
 

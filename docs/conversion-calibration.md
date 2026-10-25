@@ -188,3 +188,18 @@ only Garner owns a status word. Output allocation is its logical payload plus
 and aggregate host/device/probe envelope. These changed ownership semantics
 must not be compared as v2 captures. Execution and crossover evidence are still
 deferred; no production selector is promoted by this implementation.
+
+
+### Source arithmetic controls and actual emission
+
+The scalar-control option chooses scalar source loops. It does not disable
+compiler instruction combining. Static inspection of the new descriptor-aware
+layout consumer at `6ce489b` finds eight signed dot4 instructions in both the
+packed and scalar-source builds. Compare selected emitted instructions before
+attributing any timing difference to scalar versus packed hardware arithmetic.
+The existing collectors' source-update counts remain source counts.
+
+The ISA scanner now recognizes both `ds_read`/`ds_write` and
+`ds_load`/`ds_store` spellings. These bins count static instructions; vector
+width does not multiply the count, and LDS atomics remain outside plain
+load/store bins. They do not establish dynamically executed traffic.
