@@ -13,7 +13,7 @@ from collect_native_integrity import MODULI, positive
 from collect_native_interop import quantile
 
 MATERIALIZED_MODES=('recipe-packed-full','recipe-packed-minimum','recipe-layout-model')
-MODES=(*MATERIALIZED_MODES,'recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-auto','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
+MODES=(*MATERIALIZED_MODES,'recipe-ragged-full','recipe-ragged-minimum','recipe-full','recipe-minimum','recipe-cost-model','manual-full','manual-scalar-first','manual-auto','native-roundtrip','eager-observe','lift-wide','lift-mixed','lift-graph','lift-cpu-roundtrip','wider-producer')
 
 
 def graph(c):
@@ -25,6 +25,19 @@ def bounds(c):
     result=[1,1]
     for a,b in graph(c):result.append(c['side']*result[a]*result[b])
     return result
+
+
+def native_payload(c):
+    """Logical native64 payload; actual HIP copies can transfer RNS/staging data."""
+    if c['mode']!='native-roundtrip':return (0,0,0)
+    cells=c['side']**2;nodes=graph(c)
+    return (sum(1 if a==b else 2 for a,b in nodes)*cells*8,
+            (len(nodes)-1)*cells*8,(len(nodes)+1)*cells*8)
+
+
+def payload_bytes(c):
+    cells=c['side']**2;nodes=len(graph(c))
+    return (nodes+3)*cells*c['prefix']+cells*48*(nodes+1)+cells*16+native_payload(c)[2]
 
 
 def validate_case(c):
@@ -39,37 +52,50 @@ def validate_case(c):
     if lift and c['topology']!='chain':raise ValueError('lift topology')
     b=c['side'] if single else bounds(c)[-1];factor=1 if c['unsigned_inputs'] else 2
     if math.prod(MODULI[:c['prefix']])<=b*factor or (lift and math.prod(MODULI[:c['source_prefix']])<=c['side']*factor):raise ValueError('strict range')
-    cells=c['side']**2;nodes=len(graph(c));payload=(nodes+3)*cells*c['prefix']+cells*48*(nodes+1)+cells*16
+    if c['mode']=='native-roundtrip':
+        lo,hi=(0,2**64-1) if c['unsigned_inputs'] else (-2**63,2**63-1)
+        if any(not lo<=v<=hi for v in bounds(c)[2:-1]):raise ValueError('native roundtrip intermediate exceeds native64')
+    cells=c['side']**2;nodes=len(graph(c));payload=payload_bytes(c)
     if payload>=c['max_payload_bytes'] or cells*c['prefix']>2**31-1 or c['side']**3*nodes>134217728:raise ValueError('payload/work')
     return c
 
 
 def validate_capture(c,entry):
     case=validate_case(entry['case']);mode=case['mode'];lift=mode.startswith('lift-');single=lift or mode=='wider-producer';cells=case['side']**2;nodes=len(graph(case));p=case['prefix']
-    fixed=dict(schema='rns8_lift_recipe_microcase_v2',case=case,run_id=entry['run_id'],output_boundary='one_product_full_prefix_final_three_limb_export' if single else 'complete_dag_final_three_limb_export',
-        extra_intermediate_observations=mode=='eager-observe',private_residue_transfer_control=mode=='lift-cpu-roundtrip',logical_payload_estimate_bytes=(nodes+3)*cells*p+cells*48*(nodes+1)+cells*16,
-        host_payload_bytes_before_final_export=cells*p if mode=='lift-cpu-roundtrip' else 0,final_export_payload_bytes=cells*24,exact_reference_passed=True,promotion_eligible=False)
+    native_h2d,native_d2h,native_host=native_payload(case)
+    fixed=dict(schema='rns8_lift_recipe_microcase_v3',case=case,run_id=entry['run_id'],output_boundary='one_product_full_prefix_final_three_limb_export' if single else 'complete_dag_final_three_limb_export',
+        extra_intermediate_observations=mode=='eager-observe',private_residue_transfer_control=mode=='lift-cpu-roundtrip',native_roundtrip_control=mode=='native-roundtrip',
+        fixed_plan_exact_proof_policy='scalar_first' if mode=='manual-scalar-first' else 'eager_axis',logical_payload_estimate_bytes=payload_bytes(case),
+        host_payload_bytes_before_final_export=cells*p if mode=='lift-cpu-roundtrip' else native_h2d+native_d2h,
+        native_roundtrip_h2d_payload_bytes_per_replay=native_h2d,native_roundtrip_d2h_payload_bytes_per_replay=native_d2h,native_roundtrip_retained_host_bytes=native_host,
+        replay_hip_counter_samples=case['repeats'],final_export_payload_bytes=cells*24,exact_reference_passed=True,promotion_eligible=False)
     for key,value in fixed.items():
         if type(c.get(key)) is not type(value) or c.get(key)!=value:raise ValueError('capture '+key)
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id') or not c.get('target') or not c.get('device'):raise ValueError('provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact')
-    for key in ('ragged_retained_bytes','ragged_materialized_input_bytes','ragged_binding_peak_bytes','recipe_arena_bytes','recipe_retained_lift_bytes','auto_retained_device_bytes','replay_hip_allocations','replay_hip_frees'):
+    for key in ('ragged_retained_bytes','ragged_materialized_input_bytes','ragged_binding_peak_bytes','recipe_arena_bytes','recipe_retained_lift_bytes','auto_retained_device_bytes','replay_hip_allocations','replay_hip_frees','replay_hip_h2d_bytes','replay_hip_d2h_bytes','replay_hip_h2d_calls','replay_hip_d2h_calls'):
         if type(c.get(key)) is not int or c[key]<0:raise ValueError(key)
+    if mode=='native-roundtrip':
+        imports=sum(1 if a==b else 2 for a,b in graph(case))*case['repeats']
+        if c['replay_hip_h2d_calls']<imports or c['replay_hip_d2h_calls']<nodes*case['repeats'] or not c['replay_hip_h2d_bytes'] or not c['replay_hip_d2h_bytes']:
+            raise ValueError('native roundtrip actual transfer receipt')
     if mode.startswith('recipe-ragged-'):
         if c['ragged_retained_bytes']<=0 or c['ragged_materialized_input_bytes']<cells*p:raise ValueError('ragged conversion footprint omitted')
     elif any(c[k] for k in ('ragged_retained_bytes','ragged_materialized_input_bytes','ragged_binding_peak_bytes')):raise ValueError('unrequested ragged adapter')
     if mode.startswith('recipe-') and (c['replay_hip_allocations'] or c['replay_hip_frees']):raise ValueError('retained recipe unexpectedly allocates on replay')
     selected=c.get('selected_compute_prefixes')
     if type(selected) is not list or len(selected)!=(0 if single else nodes):raise ValueError('selected prefix trace')
+    if mode in ('manual-full','manual-scalar-first','native-roundtrip','eager-observe','recipe-full','recipe-ragged-full') and selected!=[p]*nodes:
+        raise ValueError('full compute prefix control')
     factor=1 if case['unsigned_inputs'] else 2
     for i,selected_prefix in enumerate(selected):
         if type(selected_prefix) is not int or not 1<=selected_prefix<=p or math.prod(MODULI[:selected_prefix])<=bounds(case)[i+2]*factor:raise ValueError('independent selected range')
     model=c.get('cost_model')
     expected_model=dict(kind='explicit-unqualified-analytical-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',qualified=False) if mode=='recipe-cost-model' else None
-    if mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v1',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',qualified=False)
+    if mode in MATERIALIZED_MODES:expected_model=dict(kind='explicit-unqualified-layout-work-model-v2',launch_ns=case['model_launch_ns'],gemm_units='one_ns_per_scalar_modular_multiply',packed_gemm_units='one_ns_per_four_term_group',pack_units='one_ns_per_logical_byte_read_or_write',cost_schema_version=2,packed_cost_capacity='physical_shared_b_prefix',qualified=False)
     validate_materializations(c,case,selected)
-    if model!=expected_model:raise ValueError('unqualified cost model identity')
+    if type(model) is not type(expected_model) or model!=expected_model or (expected_model is not None and any(type(model[k]) is not type(v) for k,v in expected_model.items())):raise ValueError('unqualified cost model identity')
     if not positive(c.get('setup_us')) or len(c.get('samples',[]))!=case['repeats']:raise ValueError('samples/setup')
     for s in [c.get('first_call',{}),*c['samples']]:
         phases=[s.get(k) for k in ('producer_us','execute_lift_us','final_export_us')]
@@ -145,7 +171,7 @@ def summarize(observations):
             selected=[r for r in rows if r['mode']==mode]
             if selected and len({r['independent_run'] for r in selected})<2:raise ValueError('independent process evidence')
             if selected:modes[mode]={metric:statistics.median(r[metric] for r in selected) for metric in ('setup_us','p50_us','p95_us','sustained_us')}
-        baseline='manual-full' if 'manual-full' in modes else 'wider-producer' if 'wider-producer' in modes else None
+        baseline='manual-scalar-first' if 'manual-scalar-first' in modes else 'manual-full' if 'manual-full' in modes else 'wider-producer' if 'wider-producer' in modes else None
         pairs={}
         if baseline:
             for mode,metrics in modes.items():

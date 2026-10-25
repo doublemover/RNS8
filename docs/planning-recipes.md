@@ -132,14 +132,38 @@ integer audit as `manual-full`, `recipe-full` and `recipe-minimum`. Full packed
 preserves every compute prefix; minimum packed forces the packed consumer while
 allowing prefix choices; layout model also allows uniform consumers.
 
+`manual-scalar-first` uses the public GEMM API with
+`RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_EXACT_VALUE_BOUND |
+RNS8_PLAN_EXACT_SCALAR_FIRST`. It preserves full compute prefixes and tries the
+scalar range envelope before axis refinement. The collector uses this public
+control as its baseline when present, then `manual-full` otherwise.
+
+`native-roundtrip` executes the same DAG through public native64 imports and
+exports. At each node it imports both host operands with fresh source versions
+(once when A and B are the same value), executes full-prefix GEMM, and exports
+each nonfinal result to a retained one-limb host buffer. The final result uses
+the common three-limb export and may exceed native64. Exact preflight rejects
+any nonfinal value outside the chosen signed/unsigned native64 contract before
+HIP execution. Matrices, workspaces and native host buffers persist across
+replays; independent intermediate and final audits run outside sample timing.
+These internal transfers contribute to the same final-output cohort. The
+`eager-observe` mode requests additional externally observable outputs and
+remains a separate cohort.
+
 The model's integer prices are explicit analytical work estimates, not measured
-stage calibration. Captures identify that model as unqualified. The v2 capture
-requires a materialization receipt (null for other modes): selected packed
+stage calibration. Captures identify layout model v2, cost schema 2 and physical
+shared B capacity indexing. The v3 capture requires logical native64 H2D/D2H
+bytes per replay, retained native host payload bytes, and actual HIP transfer
+bytes/calls summed over the declared warm sample count. Logical native bytes
+are separate from device copies of residue/staging data; retained host bytes
+count buffer payload rather than process memory. Captures also require a
+materialization receipt (null for other modes): selected packed
 operands, unique view capacities/lifetimes/arena offsets, packing calls, search
 scope and estimated cost. The collector independently replays packing growth,
 prefix lifting and the cost trace, checks tile padding, interference and the hard
-retained budget, and rejects omitted or inconsistent receipts. Old v1 captures
-are not silently reinterpreted.
+retained budget, and rejects omitted or inconsistent receipts. Earlier capture
+schemas are rejected. The native roundtrip and scalar-first sources and receipt
+fixtures await integrated execution; earlier measurements do not validate them.
 
 Small signed chain and unsigned diamond CTest cases exercise all three routes;
 the 128x128 chain files support a larger sustained comparison. Existing

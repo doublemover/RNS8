@@ -383,6 +383,21 @@ conversion nodes retain their existing backend requirements.
 integer/output boundaries across full-prefix manual execution, transactional
 minimum-prefix execution, and retained full/minimum/cost-model recipe arenas.
 Chains and diamonds exercise consumer-demand extension and shared operands.
+The public `manual-scalar-first` control combines fixed-prefix, exact-value and
+scalar-first proof flags. The `native-roundtrip` control reimports both native64
+operands at every node with fresh source versions and exports each nonfinal
+result to one limb; its common final export can be wide. Exact preflight rejects
+an intermediate outside signed/unsigned native64 before HIP execution. Native
+host buffers, matrices and workspaces are retained; audits run outside timing.
+Internal roundtrip materializations belong to the same final-output cohort,
+while eager extra observations remain separate. The collector prefers the
+scalar-first public baseline when supplied.
+
+Capture v3 separates per-replay logical native H2D/D2H payload and retained
+native host buffer payload from actual HIP copy bytes/calls summed across the
+warm samples. It records the fixed-plan proof policy and rejects older capture
+schemas. Layout analytical prices use cost schema 2 and physical shared B
+capacity indexing. These source additions await integrated validation.
 The explicit analytical cost model is unqualified; it is recorded in each
 capture and cannot be mistaken for a calibrated or AUTO-promoted profile.
 
