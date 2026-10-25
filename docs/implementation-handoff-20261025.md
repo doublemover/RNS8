@@ -64,8 +64,8 @@ schedule sealing share one flag mask, including the existing research controls.
 | #32 | Runtime experimental ordered bases, products/inverses and full matrix/layout/plan/cache/export identities; pack, multiply, reconstruction and explicit conversion. |
 | #40 | General fragment algebra and GF(2) paired-column consumer; rocWMMA direct-A/panel reuse; hipBLASLt retention/composed controls are authored, execution deferred. |
 | #41 | Nondefault-basis conversion integrated with #32; default-basis synchronous/prepared lift and selector are written. |
-| #42 | General packed/materialization alternatives with #40; asynchronous NativeToRns compiled graph-node adapter with #43; BaseExtend/Export are authored. |
-| #43 | NativeToRns compiled graph-node adapter, additional semantic/provider async integration, and matched pinned-host transfer calibration. |
+| #42 | General packed/materialization alternatives with #40; general packed/materialization alternatives with #40; NativeToRns/BaseExtend/Export graph adapters are authored. |
+| #43 | Additional semantic/provider async integration, and matched pinned-host transfer calibration. |
 | #45 | Actual FP4/FP6/FP8 matrix-engine provider and public representation bridge; contracts alone are not a backend. |
 | #50 | Real multi-device HIP owners/executor, full gather and whole-output transactional commit. |
 | #52 | Verified compiler/ISA-specific CDNA5 TDM/cluster-barrier litmus, two-stage transfer and multicast kernels; do not invent target interfaces. |

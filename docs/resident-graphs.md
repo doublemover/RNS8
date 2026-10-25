@@ -75,8 +75,8 @@ the full-native planner prefix -> fixed prefix 20, signed negative values, faile
 or forward lifts, identity preservation and stale external bindings. Registered applicable execution evidence is recorded in the
 [dated validation](local-all-features-20261023.md).
 
-Liveness-based allocation reuse, native conversion IR nodes,
-ragged inputs, backwards materialization demand, cost-based representation
+Liveness-based allocation reuse, ragged inputs, backwards materialization demand,
+cost-based representation
 selection and broader asynchronous node support remain open. The explicit
 fixed-prefix direct-HIP asynchronous subset is described below. Preflight and ordinary GEMM
 both perform admission; this baseline exposes that setup cost rather than
@@ -105,12 +105,33 @@ adaptive tile schedules reject as unsupported before launch. Owned capture
 supports this same fixed resource envelope.
 
 Set each transfer node's `max_transfer_storage_bytes` to cover its retained
-device scratch plus pinned staging before preparing. Base extension also retains
+device scratch plus pinned staging before preparing. Native imports also charge
+any requested retained native matrix copy. Base extension also retains
 its existing suffix-payload budget. Ordered nodes share one maximum-sized device
 arena; each export keeps a separate compact pinned payload and status word.
 `rns8_get_resident_graph_resources` reports actual retained scratch/pinned payload
 capacities, excluding referenced matrices/workspaces and runtime event metadata.
 There are no allocations or pageable transfers during enqueue.
+
+`RNS8_RESIDENT_NATIVE_TO_RNS` imports an existing scalar i64/u64 read lease into
+an exact-wide matrix at an explicit target prefix. The lease is retained and its
+source generation is frozen by the graph binding. An optional device magnitude
+scan verifies a declared bound before guarded residue/native-copy writes; without
+that option the complete native64 domain must fit the selected prefix. The typed
+operation/provider query admits the same contract as the prepared import owner.
+Two imports may share a read lease; the graph reserves that external owner once.
+Borrowed source views cannot alias referenced library matrix payloads.
+
+A producer can publish a new lease generation through the existing write window
+and readiness event. Refresh validates the entire graph before rebinding any
+source generation. Every submission waits for the current producer event before
+issuing the imported values, including captured replay: the dynamic readiness
+wait is outside the immutable capture. Import scratch/status and optional native
+copies remain retained through completion or failed drain. Successful observation
+publishes each imported matrix once; later value-preserving lifts do not advance
+its generation again. A failed import rejects publication of the entire graph,
+including staged host exports. An unprepared graph containing NativeToRns is
+prepared on its first synchronous execution; its per-node budget is mandatory.
 
 Every transfer status is checked after the final event and before any graph
 publication. Only then are compact export rows copied into the borrowed host

@@ -285,12 +285,25 @@
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Add direct-HIP NativeToRns resident nodes backed by retained existing native read leases. Share typed provider admission, verified or full-native range proofs, fixed scratch/status budgets and optional retained native copies. Deduplicate lease reservations, atomically refresh generation bindings, wait current producer events outside captures on each submission, and gate all imported/lifted/arithmetic/host-export publication on whole-graph success.",
+          "files": [
+            "src/core/resident_native_import.hpp",
+            "src/core/api_native_device.cpp",
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "tests/differential/test_hip_native_device_cases.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_auto_selector_cases.inc",
         "tools/test_auto_decision_trace.py",
-        "tests/unit/test_api_operation_provider_cases.inc"
+        "tests/unit/test_api_operation_provider_cases.inc",
+        "tests/differential/test_hip_native_device_cases.inc"
       ],
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
@@ -952,6 +965,18 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Add direct-HIP NativeToRns resident nodes backed by retained existing native read leases. Share typed provider admission, verified or full-native range proofs, fixed scratch/status budgets and optional retained native copies. Deduplicate lease reservations, atomically refresh generation bindings, wait current producer events outside captures on each submission, and gate all imported/lifted/arithmetic/host-export publication on whole-graph success.",
+          "files": [
+            "src/core/resident_native_import.hpp",
+            "src/core/api_native_device.cpp",
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "tests/differential/test_hip_native_device_cases.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
@@ -962,14 +987,15 @@
         "tools/test_collect_lift_recipe.py",
         "tests/support/ragged_recipe_fixture.hpp",
         "tests/unit/test_api_resident_export_cases.inc",
-        "tests/unit/test_api_resident_graph_cases.inc"
+        "tests/unit/test_api_resident_graph_cases.inc",
+        "tests/differential/test_hip_native_device_cases.inc"
       ],
       "commits": [
         "81568e2c2e08f2260a2ced4e93dd182e3157352d",
         "11ac95b6482386d74e6804d8a854b4629467208f"
       ],
       "remaining": [
-        "Synchronous ragged-to-uniform recipe binding, shared materializations, multi-output retention and matched harness are implemented. Generalized packed-B/materialization alternatives remain composed with #40; asynchronous NativeToRns graph-node adapter remain composed with #43.",
+        "Generalized packed/materialization alternatives remain composed with #40; typed NativeToRns/BaseExtend/Export resident-graph adapters are now authored.",
         "Hardware compilation, authored test execution, independent calibrated stage costs and measured outcomes remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
@@ -1089,6 +1115,18 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "include/rns8/rns8.h"
           ]
+        },
+        {
+          "summary": "Add direct-HIP NativeToRns resident nodes backed by retained existing native read leases. Share typed provider admission, verified or full-native range proofs, fixed scratch/status budgets and optional retained native copies. Deduplicate lease reservations, atomically refresh generation bindings, wait current producer events outside captures on each submission, and gate all imported/lifted/arithmetic/host-export publication on whole-graph success.",
+          "files": [
+            "src/core/resident_native_import.hpp",
+            "src/core/api_native_device.cpp",
+            "src/core/api_resident_graph.cpp",
+            "src/core/api_resident_graph_hip.inc",
+            "src/backend_common/resident_transfer_plan.hpp",
+            "tests/differential/test_hip_native_device_cases.inc",
+            "include/rns8/rns8.h"
+          ]
         }
       ],
       "regressions": [
@@ -1099,7 +1137,8 @@
         "tests/differential/test_hip_direct_exact_lift_cases.inc",
         "tests/unit/test_api_pinned_host_cases.inc",
         "tests/unit/test_api_resident_export_cases.inc",
-        "tests/unit/test_api_resident_graph_cases.inc"
+        "tests/unit/test_api_resident_graph_cases.inc",
+        "tests/differential/test_hip_native_device_cases.inc"
       ],
       "commits": [
         "ca51b9f75c93302771fbaf50d0792145bc178d2a",
@@ -1115,8 +1154,8 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Compiled resident-graph NativeToRns node adapter and additional semantics/provider-specific asynchronous integration remain.",
-        "Matched pinned-host stream/graph transfer calibration and complete-route HIP compilation/execution/overlap evidence remain; hardware and scientific qualification deferred."
+        "Typed NativeToRns/BaseExtend/Export graph adapters are authored. Additional semantics/provider-specific asynchronous integrations require reviewing the concrete offered owners rather than inferring capability from registry entries.",
+        "Matched pinned-host stream/graph transfer calibration remains source work; complete-route builds, tests, overlap evidence and hardware/scientific qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -2371,6 +2410,11 @@
       "kind": "minimal_compile",
       "scope": "BaseExtend/Export resident graph adapter core/backend and authored API fixtures",
       "result": "MSVC /Zs host syntax only; test execution, complete builds, benchmarks and qualification deferred."
+    },
+    {
+      "kind": "minimal_compile",
+      "scope": "NativeToRns resident graph core, native lease implementation and HIP differential fixture translation unit",
+      "result": "MSVC /Zs syntax passed; no test execution, full builds, benchmarks or hardware qualification."
     }
   ],
   "parking_snapshot": {

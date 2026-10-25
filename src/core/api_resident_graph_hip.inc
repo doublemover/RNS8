@@ -18,7 +18,7 @@ rns8_status resident_graph_hip_support_status(const rns8_resident_graph& graph) 
   if (!direct_hip_compiled() || graph.ctx->backend != RNS8_BACKEND_HIP_DIRECT)
     return RNS8_UNSUPPORTED_BACKEND;
   for (const auto& node : graph.nodes) {
-    if(node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS) {
+    if(node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS || node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
       if(!rns8::detail::exact_wide_semantics(node.c->desc.semantics) ||
           !rns8::detail::qualified_i32_matrix_address(node.c->desc.rows,node.c->desc.cols,node.c->desc.cols,node.c->prefix))
         return RNS8_UNSUPPORTED_BACKEND;
@@ -49,6 +49,9 @@ void invalidate_owned_graph_output(rns8_matrix& output) {
 rns8_status enqueue_resident_node(rns8_resident_graph& graph, size_t index, void *stream) {
   const auto& node = graph.nodes[index];
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS)
+    return graph.native_imports[index]->enqueue(graph.complex_storage.get(),graph.complex_storage.bytes(),
+        graph.transfers[index].host.get(),stream);
   if(node.kind==RNS8_RESIDENT_BASE_EXTEND) {
     const auto& transfer=graph.transfers[index];
     if(!transfer.layout.device_bytes)return RNS8_SUCCESS;
@@ -90,6 +93,9 @@ rns8_status enqueue_resident_node(rns8_resident_graph& graph, size_t index, void
 std::array<const void *, 12>
 resident_node_addresses(const rns8_resident_graph& graph, size_t index) {
   const auto& node = graph.nodes[index];
+  if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS)
+    return {node.c->hip_residues,graph.complex_storage.get(),graph.transfers[index].host.get(),
+        graph.native_imports[index]->source(),graph.native_imports[index]->retained_native()};
   if(node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS)
     return {node.c->hip_residues,graph.complex_storage.get(),graph.transfers[index].host.get(),node.export_limbs};
   if(node.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)
@@ -124,6 +130,7 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
   }
 #endif
   if (status == RNS8_SUCCESS && graph.cancel_requested) status = RNS8_CANCELED;
+  for(auto* input:graph.native_readers)input->release_external(status==RNS8_SUCCESS);
   for (const auto &input : graph.inputs)
     --input.matrix->in_flight_readers;
   for (auto *workspace : graph.hip_workspaces)
@@ -132,6 +139,14 @@ void finish_resident_graph_hip(rns8_resident_graph &graph, rns8_status status,
   for (size_t i = 0; i < graph.nodes.size(); ++i) {
     const auto &node = graph.nodes[i];
     if (status == RNS8_SUCCESS) {
+      if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
+        mark_output_device_residues_current(*node.c);
+        node.c->exact_max_magnitude.swap(graph.pending_proofs[i].bound);
+        node.c->exact_range_prefix=node.c->materialized_rns_prefix=node.target_prefix;
+        node.c->exact_axis_ranges.rows.clear();node.c->exact_axis_ranges.cols.clear();
+        if(graph.native_imports[i]->retained_native())mark_device_native_current(*node.c);
+        continue;
+      }
       if(node.kind==RNS8_RESIDENT_BASE_EXTEND) {
         const auto target=graph.pending_proofs[i].target_prefix;
         if(target>node.c->exact_range_prefix)node.c->host_residues_current=false;
@@ -289,12 +304,20 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
           auto bound=transfer.envelope;
           for(auto& limb:transfer.bound){limb=static_cast<uint64_t>(bound&UINT64_MAX);bound>>=64;}
           if(bound!=0)return RNS8_RANGE_ERROR;
+        } else if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
+          transfer.layout=rns8::detail::resident_import_layout(node.c->desc.rows,node.c->desc.cols,node.target_prefix);
+          transfer.target=node.target_prefix;transfer.envelope=proof.bound;
         } else if(node.kind==RNS8_RESIDENT_EXPORT_LIMBS)
           transfer.layout=rns8::detail::resident_export_layout(node.c->desc.rows,node.c->desc.cols,node.export_limb_count);
         else continue;
         if(transfer.layout.status!=RNS8_SUCCESS)return transfer.layout.status;
         if(transfer.layout.device_bytes>UINT64_MAX-transfer.layout.pinned_bytes ||
             transfer.layout.device_bytes+transfer.layout.pinned_bytes>node.max_transfer_storage_bytes)return RNS8_WORKSPACE_TOO_SMALL;
+        if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
+          const auto native_bytes=graph->native_imports[i]->required_native_bytes();
+          if(native_bytes>node.max_transfer_storage_bytes-transfer.layout.device_bytes-transfer.layout.pinned_bytes)return RNS8_WORKSPACE_TOO_SMALL;
+          const auto prepared=graph->native_imports[i]->prepare_retained_native();if(prepared!=RNS8_SUCCESS)return prepared;
+        }
         if(transfer.layout.pinned_bytes>uint64_t(PTRDIFF_MAX)-pinned_bytes)return RNS8_RANGE_ERROR;
         pinned_bytes+=transfer.layout.pinned_bytes;
         bytes=std::max(bytes,transfer.layout.device_bytes);
@@ -369,6 +392,7 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
       ++input.matrix->in_flight_readers;
     for (auto *workspace : graph->hip_workspaces)
       workspace->in_flight = true;
+    for(auto* input:graph->native_readers)input->reserve_external();
     for(auto* output:graph->hip_outputs)output->in_flight_writer=true;
     graph->complex_storage.mark_pending();
     for(auto& transfer:graph->transfers)if(transfer.layout.pinned_bytes) {
@@ -383,12 +407,15 @@ static rns8_status submit_resident_graph_hip(rns8_resident_graph *graph,
     // unpublished until the final event; these private enqueues do no
     // admission.
     hipError_t launch_error = hipSuccess;
-    if (replay) {
+    for(auto* input:graph->native_readers) {
+      status=input->before_enqueue(stream);if(status!=RNS8_SUCCESS)break;
+    }
+    if (status==RNS8_SUCCESS && replay) {
       for (const auto &node : graph->nodes)
         invalidate_owned_graph_outputs(node);
       launch_error = hipGraphLaunch(graph->captured_executable, hip_stream);
       status = launch_error == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
-    } else
+    } else if(status==RNS8_SUCCESS)
       for (uint32_t i = 0; i < graph->nodes.size(); ++i) {
         const auto &node = graph->nodes[i];
         invalidate_owned_graph_outputs(node);

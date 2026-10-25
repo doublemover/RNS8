@@ -25,6 +25,7 @@ typedef struct rns8_result_cache rns8_result_cache;
 typedef struct rns8_prepared_execution rns8_prepared_execution;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
+typedef struct rns8_native_device_lease rns8_native_device_lease;
 
 /* Optional Linux x86-64 AMX-INT8 provider. Queries never execute tile instructions.
  * request_permission=1 requests only this process's dynamic xstate permission;
@@ -60,7 +61,8 @@ typedef enum rns8_resident_node_kind RNS8_ENUM_BASE {
   RNS8_RESIDENT_BASE_EXTEND = 1,
   RNS8_RESIDENT_EXACT_AXPBY = 2,
   RNS8_RESIDENT_EXPORT_LIMBS = 3,
-  RNS8_RESIDENT_COMPLEX_MATMUL = 4
+  RNS8_RESIDENT_COMPLEX_MATMUL = 4,
+  RNS8_RESIDENT_NATIVE_TO_RNS = 5
 } rns8_resident_node_kind;
 
 typedef struct rns8_resident_node {
@@ -99,17 +101,28 @@ typedef struct rns8_resident_node {
   const rns8_matrix* b_imag;
   rns8_matrix* c_imag;
   rns8_complex_product_method complex_method;
-  /* BASE_EXTEND/EXPORT_LIMBS: explicit per-node sum of owned device scratch
+  /* BASE_EXTEND/EXPORT_LIMBS/NATIVE_TO_RNS: explicit per-node sum of owned device scratch
    * and pinned staging for HIP preparation. Zero permits synchronous execution
    * only. The prepared graph shares maximum-sized device scratch across nodes;
-   * each export retains its pinned payload until whole-graph observation. */
+   * each export retains its pinned payload until whole-graph observation. Native
+   * retention requested by c also counts against this per-node allowance. */
   uint64_t max_transfer_storage_bytes;
+  /* NATIVE_TO_RNS imports a scalar i64/u64 READ lease into c at target_prefix.
+   * plan/a/b/workspace/epilogue/export fields must be zero. The lease signedness
+   * must match c's exact-wide contract. verify_native_bound=1 verifies the given
+   * maximum on device before guarded import. Otherwise native_max_magnitude
+   * must be zero and the complete native64 domain is proved. Refresh rebinds
+   * changed lease generations only after every graph proof passes. */
+  rns8_native_device_lease* native_source;
+  uint64_t native_max_magnitude;
+  uint32_t verify_native_bound;
 } rns8_resident_node;
 
 typedef struct rns8_resident_graph_resources {
   uint64_t struct_size;
   uint32_t abi_version,prepared;
   uint64_t retained_device_scratch_bytes,retained_pinned_host_bytes;
+  uint64_t retained_native_matrix_bytes;
   uint32_t transfer_nodes,reserved;
 } rns8_resident_graph_resources;
 RNS8_API rns8_status rns8_get_resident_graph_resources(
@@ -130,6 +143,8 @@ typedef struct rns8_graph_completion_token {
 } rns8_graph_completion_token;
 
 /* Ordered exact-wide MatMul/BaseExtend/ExactAxpby/ComplexMatMul DAG, CPU or direct HIP.
+ * NativeToRns nodes require direct HIP and automatically prepare the graph when
+ * first executed synchronously; scalar native leases remain retained until destroy.
  * MATMUL also admits bounded i64/u64, strict wrap64 byte-limb edges and explicit
  * finite ring/field edges with matching moduli. CPU wrap64-only graphs use
  * RNS8_BACKEND_WRAP64_BYTE_LIMB. Bounded nodes retain each plan
@@ -158,7 +173,7 @@ RNS8_API rns8_status rns8_destroy_resident_graph(rns8_resident_graph* graph);
 
 /* Explicit single-stream direct-HIP fixed-prefix exact-wide MatMul/ExactAxpby
  * and bounded i64/u64, strict wrap64 or finite ring/field MatMul DAGs.
- * Prepare completion resources first. BaseExtend and ExportLimbs nodes retain
+ * Prepare completion resources first. NativeToRns, BaseExtend and ExportLimbs nodes retain
  * budgeted staging; adaptive schedules are unsupported. Submission preflights the complete DAG, reserves
  * external readers and all output/workspace writers, and issues one token.
  * Query/wait checks every transfer status before publishing any output. Host
@@ -2723,7 +2738,7 @@ RNS8_API rns8_status rns8_gemm_rns_sparse_a(
  * work before binding and holds borrowed allocations immutable while leased.
  * COPY_OWNED read snapshots release external ownership after completed creation. Owner
  * callbacks run on the calling host thread, never a HIP runtime callback. */
-typedef struct rns8_native_device_lease rns8_native_device_lease;
+
 typedef enum rns8_native_device_type {
   RNS8_NATIVE_DEVICE_I64=1, RNS8_NATIVE_DEVICE_U64=2,
   RNS8_NATIVE_DEVICE_SIGNED_LIMBS=3, RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS=4

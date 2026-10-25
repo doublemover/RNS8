@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "core/resident_native_import.hpp"
 #include "backend_common/complex_residue_plan.hpp"
 #include <array>
 #include <cstring>
@@ -23,6 +24,8 @@ struct rns8_resident_graph {
   };
   rns8_context* ctx = nullptr;
   std::vector<rns8_resident_node> nodes;
+  std::vector<std::unique_ptr<rns8::detail::api::ResidentNativeImport>> native_imports;
+  std::vector<rns8::detail::api::ResidentNativeImport*> native_readers;
   std::vector<Input> inputs;
   std::vector<uint64_t*> holds;
   uint64_t epoch = 0;
@@ -77,6 +80,7 @@ uint64_t next_graph_id() {
   return 0;
 }
 std::array<const rns8_matrix*, 4> node_inputs(const rns8_resident_node& node) {
+  if (node.kind == RNS8_RESIDENT_NATIVE_TO_RNS)return {};
   if (node.kind == RNS8_RESIDENT_COMPLEX_MATMUL) return {node.a, node.a_imag, node.b, node.b_imag};
   if (node.kind == RNS8_RESIDENT_BASE_EXTEND || node.kind == RNS8_RESIDENT_EXPORT_LIMBS)
     return {node.c, nullptr, nullptr, nullptr};
@@ -170,6 +174,14 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
   for (uint32_t index = 0; index < graph.nodes.size(); ++index) {
     failed_node = index;
     const auto& node = graph.nodes[index];
+    if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
+      rns8_matrix output;
+      const auto status=graph.native_imports[index]->validate(check_bindings,output.exact_max_magnitude);
+      if(status!=RNS8_SUCCESS)return status;
+      output.exact_range_prefix=node.target_prefix;
+      if(pending) {auto& value=(*pending)[index];value.bound=output.exact_max_magnitude;value.target_prefix=node.target_prefix;}
+      proofs.emplace(node.c,std::move(output));continue;
+    }
     if (node.kind == RNS8_RESIDENT_EXPORT_LIMBS) {
       const auto input = proofs.find(node.c);
       if (input == proofs.end()) return RNS8_INVALID_ARGUMENT;
@@ -277,6 +289,7 @@ rns8_status prove_graph(const rns8_resident_graph& graph, uint32_t& failed_node,
   return RNS8_SUCCESS;
 }
 void bind_graph_inputs(rns8_resident_graph& graph) {
+  for(auto& input:graph.native_imports)if(input)input->commit_refresh();
   for (auto& input : graph.inputs) {
     input.instance = input.matrix->matrix_instance_id;
     input.generation = input.matrix->content_generation;
@@ -294,7 +307,7 @@ rns8_status rns8_create_resident_graph(
         ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) return RNS8_UNSUPPORTED_BACKEND;
     auto graph = std::make_unique<rns8_resident_graph>();
     graph->ctx = ctx;
-    graph->nodes.assign(nodes, nodes + count);
+    graph->nodes.assign(nodes, nodes + count);graph->native_imports.resize(count);
     std::unordered_map<const rns8_matrix*, uint32_t> producers;
     std::vector<std::pair<const void*, uint64_t>> exports;
     producers.reserve(count);
@@ -308,11 +321,17 @@ rns8_status rns8_create_resident_graph(
       if (node.kind != RNS8_RESIDENT_COMPLEX_MATMUL &&
           (node.a_imag || node.b_imag || node.c_imag || node.complex_method != RNS8_COMPLEX_THREE_REAL_PRODUCTS))
         return RNS8_INVALID_ARGUMENT;
-      if (node.kind != RNS8_RESIDENT_BASE_EXTEND && node.kind != RNS8_RESIDENT_EXPORT_LIMBS && node.max_transfer_storage_bytes)
+      if(node.kind!=RNS8_RESIDENT_NATIVE_TO_RNS && (node.native_source || node.native_max_magnitude || node.verify_native_bound))return RNS8_INVALID_ARGUMENT;
+      if (node.kind != RNS8_RESIDENT_BASE_EXTEND && node.kind != RNS8_RESIDENT_EXPORT_LIMBS && node.kind!=RNS8_RESIDENT_NATIVE_TO_RNS && node.max_transfer_storage_bytes)
         return RNS8_INVALID_ARGUMENT;
       if (node.kind != RNS8_RESIDENT_EXPORT_LIMBS && (node.export_limbs || node.export_ld || node.export_limb_count))
         return RNS8_INVALID_ARGUMENT;
-      if (node.kind == RNS8_RESIDENT_MATMUL || node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
+      if(node.kind==RNS8_RESIDENT_NATIVE_TO_RNS) {
+        if(node.plan || node.a || node.b || node.workspace || node.d || node.alpha || node.beta || node.max_staged_residue_bytes ||
+            !producers.emplace(node.c,i).second)return RNS8_INVALID_ARGUMENT;
+        const auto status=create_resident_native_import(ctx,node,graph->native_imports[i]);
+        if(status!=RNS8_SUCCESS)return status;
+      } else if (node.kind == RNS8_RESIDENT_MATMUL || node.kind == RNS8_RESIDENT_EXACT_AXPBY) {
         if (node.kind == RNS8_RESIDENT_EXACT_AXPBY ? !node.d : (node.d || node.alpha || node.beta))
           return RNS8_INVALID_ARGUMENT;
         if (!node.plan || !node.a || !node.b || !node.workspace || node.target_prefix || node.max_staged_residue_bytes ||
@@ -364,6 +383,19 @@ rns8_status rns8_create_resident_graph(
         if (input && external.erase(input)) graph->inputs.push_back({input, input->matrix_instance_id, input->content_generation});
     graph->holds.assign(holds.begin(), holds.end());
     for (auto* hold : graph->holds) if (*hold == UINT64_MAX) return RNS8_RANGE_ERROR;
+    std::unordered_set<const void*> native_owners;
+    for(const auto& input:graph->native_imports)if(input) {
+      if(native_owners.insert(input->owner_key()).second)graph->native_readers.push_back(input.get());
+      for(const auto& node:graph->nodes) {
+        const std::array<const rns8_matrix*,7> matrices{node.a,node.b,node.c,node.d,node.a_imag,node.b_imag,node.c_imag};
+        for(const auto* matrix:matrices)if(matrix)
+          for(const auto& storage:{std::pair<const void*,uint64_t>{matrix->hip_residues,matrix->hip_residue_bytes},
+              {matrix->hip_byte_limbs,matrix->hip_byte_limb_bytes},
+              {matrix->hip_native_i64,matrix->hip_native_i64_bytes},{matrix->hip_native_u64,matrix->hip_native_u64_bytes}})
+            if(storage.first && !rns8::detail::nonoverlapping_byte_ranges(input->source(),input->source_bytes(),storage.first,storage.second))
+              return RNS8_INVALID_ARGUMENT;
+      }
+    }
     uint32_t failed = UINT32_MAX;
     const auto status = prove_graph(*graph, failed, true);
     if (status != RNS8_SUCCESS) return status;
@@ -396,6 +428,9 @@ rns8_status rns8_execute_resident_graph(rns8_resident_graph* graph, rns8_graph_e
       return RNS8_INVALID_ARGUMENT;
     if (graph->running) return RNS8_BUSY;
     if (graph->epoch == UINT64_MAX) return RNS8_RANGE_ERROR;
+    if(!graph->native_readers.empty() && !graph->hip_prepared) {
+      const auto status=rns8_prepare_resident_graph_hip(graph);if(status!=RNS8_SUCCESS)return status;
+    }
     out->completed_nodes = 0; out->failed_node = UINT32_MAX; out->epoch = graph->epoch;
     out->operation_status = prove_graph(*graph, out->failed_node, true);
     if (out->operation_status != RNS8_SUCCESS) return out->operation_status;
@@ -491,7 +526,7 @@ rns8_status rns8_get_resident_graph_resources(const rns8_resident_graph* graph,r
   rns8_resident_graph_resources info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
   info.prepared=graph->hip_prepared;
   for(const auto& node:graph->nodes)
-    info.transfer_nodes+=node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS;
+    info.transfer_nodes+=node.kind==RNS8_RESIDENT_BASE_EXTEND || node.kind==RNS8_RESIDENT_EXPORT_LIMBS || node.kind==RNS8_RESIDENT_NATIVE_TO_RNS;
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   info.retained_device_scratch_bytes=graph->complex_storage.bytes();
   for(const auto& transfer:graph->transfers) {
@@ -499,6 +534,10 @@ rns8_status rns8_get_resident_graph_resources(const rns8_resident_graph* graph,r
     info.retained_pinned_host_bytes+=transfer.host.capacity();
   }
 #endif
+  for(const auto& input:graph->native_imports)if(input) {
+    if(input->retained_native_bytes()>UINT64_MAX-info.retained_native_matrix_bytes)return RNS8_RANGE_ERROR;
+    info.retained_native_matrix_bytes+=input->retained_native_bytes();
+  }
   *out=info;return RNS8_SUCCESS;
 }
 

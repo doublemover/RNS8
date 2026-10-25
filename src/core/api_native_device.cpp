@@ -1,5 +1,6 @@
 #include "core/api_internal.hpp"
 #include "core/prepared_transfer.hpp"
+#include "core/resident_native_import.hpp"
 #include "backend_common/native_device_contract.hpp"
 #include <mutex>
 #include <utility>
@@ -308,3 +309,88 @@ rns8_status rns8::detail::api::drain_failed_native_cleanup(rns8_context& ctx) {
 }
 
 #include "api_prepared_native_transfer.inc"
+
+namespace rns8::detail::api {
+namespace {
+class GraphNativeImport final:public ResidentNativeImport {
+ public:
+  rns8_context* ctx=nullptr;rns8_matrix* matrix=nullptr;rns8_native_device_lease* lease=nullptr;
+  uint64_t generation=0,bound_native=0;uint32_t prefix=0;
+  bool verify=false,signed_values=false,held=false;
+  void* allocation=nullptr;void* native=nullptr;uint64_t native_bytes=0;
+  ~GraphNativeImport() override {if(held)--lease->prepared_references;}
+  rns8_status validate(bool check_generation,boost::multiprecision::cpp_int& bound) const override {
+    const auto status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS)return status;
+    if(lease->pinned || lease->desc.access!=RNS8_NATIVE_DEVICE_READ || matrix->hip_residues!=allocation ||
+        (check_generation && generation!=lease->desc.generation))return RNS8_INVALID_ARGUMENT;
+    if(matrix->content_generation==UINT64_MAX)return RNS8_RANGE_ERROR;
+    if(native && native!=(signed_values?matrix->hip_native_i64:matrix->hip_native_u64))return RNS8_INVALID_ARGUMENT;
+    bound=bound_native;return RNS8_SUCCESS;
+  }
+  rns8_status prepare_retained_native() override {
+    if(!(matrix->desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT))return RNS8_SUCCESS;
+    auto& pointer=signed_values?matrix->hip_native_i64:matrix->hip_native_u64;
+    auto& bytes=signed_values?matrix->hip_native_i64_bytes:matrix->hip_native_u64_bytes;
+    if((pointer || bytes) && (!pointer || bytes!=native_bytes))return RNS8_INVALID_ARGUMENT;
+    if(!pointer) {const auto status=hip_direct_allocate(ctx->device_id,native_bytes,&pointer);if(status!=RNS8_SUCCESS)return status;bytes=native_bytes;}
+    native=pointer;return RNS8_SUCCESS;
+  }
+  rns8_status before_enqueue(void* stream) override {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+    if(lease->readiness_pending && hipStreamWaitEvent(static_cast<hipStream_t>(stream),lease->readiness_event,0)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+#else
+    (void)stream;
+#endif
+    return RNS8_SUCCESS;
+  }
+  rns8_status enqueue(void* scratch,uint64_t bytes,void* pinned_status,void* stream) override {
+    return hip_direct_enqueue_native_import(ctx->device_id,lease->view,allocation,matrix->desc.rows,matrix->desc.cols,
+        lease->view_ld,prefix,signed_values,verify,bound_native,native,scratch,bytes,pinned_status,stream);
+  }
+  void reserve_external() noexcept override {
+    unlink_native_active(*lease);lease->active=true;
+    lease->active_next=ctx->active_native_operations;ctx->active_native_operations=lease;
+  }
+  void release_external(bool success) noexcept override {
+    unlink_native_active(*lease);lease->active=false;
+    if(success){lease->readiness_pending=false;lease->producer_stream=nullptr;}
+    else if(lease->readiness_pending){lease->active_next=ctx->active_native_operations;ctx->active_native_operations=lease;}
+  }
+  void commit_refresh() noexcept override {generation=lease->desc.generation;}
+  const void* owner_key() const noexcept override {return lease;}
+  const void* source() const noexcept override {return lease->view;}
+  uint64_t source_bytes() const noexcept override {return lease->snapshot?lease->resources.compact_native_bytes:lease->resources.view_span_bytes;}
+  void* retained_native() const noexcept override {return native;}
+  uint64_t retained_native_bytes() const noexcept override {return native?native_bytes:0;}
+  uint64_t required_native_bytes() const noexcept override {return native_bytes;}
+};
+}
+rns8_status create_resident_native_import(rns8_context* ctx,const rns8_resident_node& node,
+    std::unique_ptr<ResidentNativeImport>& out) {
+  if(!ctx || !node.c || !node.native_source || node.verify_native_bound>1 ||
+      (!node.verify_native_bound && node.native_max_magnitude))return RNS8_INVALID_ARGUMENT;
+  auto* lease=node.native_source;auto* matrix=node.c;
+  if(!exact_wide_semantics(matrix->desc.semantics))return RNS8_UNSUPPORTED_BACKEND;
+  const auto status=native_matrix_contract(ctx,matrix,lease,true);if(status!=RNS8_SUCCESS)return status;
+  if(lease->desc.access!=RNS8_NATIVE_DEVICE_READ || lease->pinned || native_device_limb_type(lease->desc.element_type) ||
+      !node.target_prefix || node.target_prefix>matrix->prefix)return RNS8_INVALID_ARGUMENT;
+  if(lease->prepared_references==UINT64_MAX)return RNS8_RANGE_ERROR;
+  auto owner=std::make_unique<GraphNativeImport>();owner->ctx=ctx;owner->matrix=matrix;owner->lease=lease;
+  owner->generation=lease->desc.generation;owner->prefix=node.target_prefix;owner->verify=node.verify_native_bound!=0;
+  owner->signed_values=native_device_signed_type(lease->desc.element_type);owner->allocation=matrix->hip_residues;
+  owner->bound_native=owner->verify?node.native_max_magnitude:owner->signed_values?(UINT64_C(1)<<63):UINT64_MAX;
+  if(owner->signed_values && owner->bound_native>(UINT64_C(1)<<63))return RNS8_INVALID_ARGUMENT;
+  if(!exact_range_fits(matrix->desc.semantics,owner->bound_native,modulus_product(owner->prefix)))return RNS8_RANGE_ERROR;
+  if(matrix->desc.flags&RNS8_MATRIX_RETAIN_NATIVE_INPUT)owner->native_bytes=uint64_t(matrix->desc.rows)*matrix->desc.cols*8;
+  rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
+  query.operation=RNS8_OP_NATIVE_IMPORT;query.execution_modes=RNS8_EXEC_SYNC|RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
+  query.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF|(owner->native_bytes?RNS8_QUERY_NATIVE_RETAINED:0);
+  query.problem.struct_size=sizeof(query.problem);query.problem.abi_version=RNS8_ABI_VERSION;
+  query.problem.semantics=matrix->desc.semantics;query.problem.bound_kind=RNS8_BOUND_NONE;
+  query.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;query.problem.m=matrix->desc.rows;query.problem.n=matrix->desc.cols;
+  query.problem.k=1;query.problem.max_prefix=owner->prefix;query.lda=lease->view_ld;query.ldc=matrix->desc.cols;
+  query.algorithm=owner->verify;query.scratch_budget=node.max_transfer_storage_bytes;
+  const auto support=operation_support(*ctx,query,RNS8_BACKEND_HIP_DIRECT);if(support.status!=RNS8_SUCCESS)return support.status;
+  ++lease->prepared_references;owner->held=true;out=std::move(owner);return RNS8_SUCCESS;
+}
+}
