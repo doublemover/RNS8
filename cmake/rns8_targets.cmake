@@ -185,6 +185,11 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-narrow-public-calibrate benchmarks/rns8_narrow_public_calibrate.cpp)
   add_executable(rns8-bilinear-calibrate benchmarks/rns8_bilinear_calibrate.cpp)
   add_executable(rns8-native-integrity-calibrate benchmarks/rns8_native_integrity_calibrate.cpp)
+  add_executable(rns8-native-interop-calibrate benchmarks/rns8_native_interop_calibrate.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(RNS8_INTEROP_APPLICATION_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_native_interop_application.hip")
+    target_sources(rns8-native-interop-calibrate PRIVATE "${RNS8_INTEROP_APPLICATION_OBJECT}")
+  endif()
   add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   foreach(_calibrator IN ITEMS
@@ -203,6 +208,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-int4-calibrate
       rns8-bilinear-calibrate
       rns8-native-integrity-calibrate
+      rns8-native-interop-calibrate
       rns8-narrow-public-calibrate
       rns8-stream-panel-calibrate)
     rns8_bind_manifest(${_calibrator})

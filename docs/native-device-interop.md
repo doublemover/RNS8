@@ -219,3 +219,39 @@ Its setup and validation traffic are labeled separately. New all-prefix/width,
 small-bound rejection, graph-generation, independent reader, alias, padding,
 lease lifetime and failure-propagation fixtures are authored, **not executed**.
 No overlap, latency or throughput benefit is claimed from this source work.
+
+
+## Matched application cost experiments (authored, unexecuted)
+
+`rns8-native-interop-calibrate` and `tools/collect_native_interop.py` compare
+complete custom HIP producer → public RNS8 product → custom HIP consumer
+transactions. Stream and owned-graph candidates use the same three-limb,
+padded signed/unsigned output as the explicit device→host→host-pack and
+host-export→device control. Inputs include small and full-width boundaries.
+Every timed call advances all external owner generations, including unchanged
+values; import independently verifies its envelope. The consumer digests every
+output limb. An independent Boost product and padding/digest audit run outside
+every measured sample in **all** modes, not just the control.
+
+A separate resident control repeats the same external application work but
+retains already-established, unchanged internal inputs. It intentionally
+excludes input binding/conversion and is a labeled cost floor, **not** a matched
+speedup claim. It is never included in candidate/control ratios. Initial
+allocation, binding, verified import, product, and graph construction are timed
+as cold setup, separately from first-call, p50/p95, and three sustained bursts.
+The two true device candidates issue imports, product, and export across
+nondefault streams and observe only the final dependency completion.
+
+Captures name payload transfers, compact status bytes (12 per device candidate,
+4 for the resident export), validation-only readback, logical host/device
+payload estimates, and separate plan workspace. Opaque runtime/driver objects,
+Boost allocation capacity, host matrix capacity, and profiler launch counts
+are explicitly unknown, not zero or inferred from API counts. Wall subphases
+include overlapping enqueues/observations; they are **not** per-kernel GPU
+durations. A named-target profiler remains necessary for actual launch/memory
+peaks. No benchmark or hardware profiler has been run for this addition.
+
+The collector counterbalances independent processes, refuses reused process
+identities, checks immutable executable/build/environment provenance, requires
+complete phase/sustained observations and exact validation, and reports only
+same-cohort device/host-roundtrip ratios. Captures remain nonpromoting.

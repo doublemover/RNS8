@@ -1,0 +1,14 @@
+{
+  "schema": "native_interop_case_v1",
+  "m": 1,
+  "n": 1,
+  "k": 1,
+  "prefix": 5,
+  "unsigned_inputs": false,
+  "mode": "host-roundtrip",
+  "dataset": "small",
+  "repeats": 9,
+  "warmups": 2,
+  "seed": 67,
+  "max_payload_bytes": 1073741824
+}

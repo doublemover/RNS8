@@ -277,7 +277,8 @@
         "b1a9d15f20513ee371d52241f408ad03096f7f2d",
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
-        "f30d1817b6208f781c64d9169aedf672f96319a0"
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
       ],
       "remaining": [
         "Remaining feature providers must bind newly implemented experimental/INT4/FP8/multi-device/async recipes as those owners land; full cross-family parity and calibration qualification deferred.",
@@ -852,7 +853,8 @@
         "64c7ddc77a9cdbf3e16accffc9c292135e2c3aca",
         "ebcf9f36b3d3ccbc73d6500fcf04dea24c3cf155",
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
-        "f30d1817b6208f781c64d9169aedf672f96319a0"
+        "f30d1817b6208f781c64d9169aedf672f96319a0",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
       ],
       "remaining": [
         "Async transfers/export/lift and additional semantics/provider integration still to implement.",
@@ -1464,7 +1466,7 @@
       "issue": 67,
       "title": "[Architecture P2] Add public HIP-native buffer import and export with explicit ownership and stream interoperability",
       "url": "https://github.com/doublemover/RNS8/issues/67",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Public typed device-native leases, verified import/export and installed HIP producer-consumer example implemented. Prepared async external bindings and graph reuse phase missing: only synchronous readiness/lease boundary is exposed.",
       "implementation": [
         {
@@ -1495,19 +1497,30 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "examples/device-native/main.cpp"
           ]
+        },
+        {
+          "summary": "Matched public interop application harness and counterbalanced independent-process collector cover stream/graph device candidates, explicit host roundtrip, and a clearly distinct resident cost floor; complete Boost/consumer/padding validation, external generation changes, cold binding, sustained p50/p95 and payload/status/resource boundaries.",
+          "files": [
+            "benchmarks/rns8_native_interop_calibrate.cpp",
+            "benchmarks/hip_native_interop_application.hip",
+            "tools/collect_native_interop.py"
+          ]
         }
       ],
       "regressions": [
         "tests/differential/test_hip_public_native_group_cases.inc",
-        "tools/test_collect_public_queue_calibration.py"
+        "tools/test_collect_public_queue_calibration.py",
+        "tools/test_collect_native_interop.py",
+        "tests/differential/test_hip_native_device_cases.inc"
       ],
       "commits": [
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
-        "cb6057cd2e160bb3e36848c059e111d8c40e02fb"
+        "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
+        "f4cdbcd384afdd18efffcc1c1323642612e4b5e0"
       ],
       "remaining": [
-        "Matched external-device vs explicit host-roundtrip vs internal-resident cost harness and capture validation still to write.",
-        "Device compilation, regression execution, named-target ownership/failure qualification and performance outcomes deferred. Optional DLPack is explicitly follow-on, not required."
+        "HIP compilation and execution, ownership/failure-injection regressions, installed-example qualification and named-target performance/profiler evidence are deferred; no measured speedup or qualified graph reuse is claimed.",
+        "Optional DLPack adapter is explicitly a follow-on after core qualification, not a required implementation gap."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
