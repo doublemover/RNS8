@@ -17,6 +17,7 @@
 
 struct rns8_synchronous_lease {
   const rns8_matrix* a=nullptr;const rns8_matrix* b=nullptr;rns8_matrix* c=nullptr;rns8_workspace* workspace=nullptr;
+  bool input_writers=false;
 };
 struct rns8_context {
   std::vector<rns8_synchronous_lease> failed_work_leases;
@@ -226,6 +227,7 @@ struct rns8_sparse_matrix {
 struct rns8_workspace {
   rns8::detail::hip_direct_device_buffer arena_owner;
   rns8::detail::hip_direct_device_buffer bilinear_scratch_owner;
+  rns8::detail::hip_direct_device_buffer exact_auto_scratch_owner;
   rns8::detail::hip_direct_device_buffer int32_scratch_owner;
   rns8::detail::hip_direct_device_buffer matmul_workspace_owner;
   rns8::detail::hip_direct_device_buffer a_prepack_owner;

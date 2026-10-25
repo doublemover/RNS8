@@ -687,7 +687,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Fragment GF(2) paired-column layout/cost/retention and panel reuse; ragged directory upload/precopy composition remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -710,6 +713,14 @@
             "src/core/api_prepared_pipeline.inc",
             "src/backend_hip_direct/hip_backend_lift.inc"
           ]
+        },
+        {
+          "summary": "Synchronous direct-HIP exact-prefix selector stages every required input lift and the complete product before whole A/B-suffix+C publication, using retained workspace scratch and exclusive input reservations. Failed drains retain the entire transaction; unchanged source planes/proofs survive uncommitted suffix errors. Both existing lift algorithms and shared A==B compose.",
+          "files": [
+            "src/core/api_exact_hip_auto.inc",
+            "src/core/api_context.cpp",
+            "tests/differential/test_hip_direct_exact_lift_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -720,7 +731,8 @@
         "f30d1817b6208f781c64d9169aedf672f96319a0"
       ],
       "remaining": [
-        "GPU exact selector with whole-input/output transaction, prepared/native transfer composition and matched lift/recipe cost harness remain implementation work; all execution/qualification deferred."
+        "Matched lift/recipe cost harness and break-even reporting remain source work.",
+        "All HIP compilation, regressions and named-target scientific/performance qualification remain deferred."
       ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
@@ -837,6 +849,14 @@
             "src/backend_hip_direct/hip_backend_native_interop.inc",
             "examples/device-native/main.cpp"
           ]
+        },
+        {
+          "summary": "Synchronous direct-HIP exact-prefix selector stages every required input lift and the complete product before whole A/B-suffix+C publication, using retained workspace scratch and exclusive input reservations. Failed drains retain the entire transaction; unchanged source planes/proofs survive uncommitted suffix errors. Both existing lift algorithms and shared A==B compose.",
+          "files": [
+            "src/core/api_exact_hip_auto.inc",
+            "src/core/api_context.cpp",
+            "tests/differential/test_hip_direct_exact_lift_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -876,7 +896,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Real FP4/FP6/FP8 matrix-engine provider and public bridge remain; exact floating contracts alone are not a runtime backend.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1053,7 +1076,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Real multi-device HIP ownership/executor, full gather and whole-output transactional commit remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,
@@ -1071,7 +1097,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Structured sparse counterbalanced collector, CDNA3 larger family and event/provenance schema composition remain.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1087,7 +1116,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "CDNA5 TDM/cluster barrier target-specific litmus, two-stage transfer and multicast implementation remain; official ISA/compiler support must be verified before emitting target operations.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1148,7 +1180,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Optimized CPU matrix-engine backends, OS/thread admission and actual x86 AMX/Arm microkernels remain.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1196,7 +1231,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Umbrella implementation remains dependent on unfinished child accelerator/composition issues; hardware qualification also deferred.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1373,7 +1411,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Native fused Gram, retained orientation adapter and reconstruct-once triad composition remain.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1390,7 +1431,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Linux Instinct signed-MFMA wraparound radix backend remains; gfx11 and host signed recoding do not complete the CDNA route.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         29,
@@ -1538,7 +1582,10 @@
       "implementation": [],
       "regressions": [],
       "commits": [],
-      "remaining": [],
+      "remaining": [
+        "Streaming overlap, retained B reuse, cost selection and nested pinned-memory budget accounting remain source work.",
+        "Execution, benchmarking and scientific/hardware qualification are deferred."
+      ],
       "validation": "Not run: execution, benchmarks, GPU campaigns and scientific qualification deferred by request.",
       "dependencies": [
         18,

@@ -2132,6 +2132,27 @@ RNS8_API rns8_status rns8_gemm_exact_wide_cpu_auto(
     uint64_t max_staged_residue_bytes,
     uint32_t* out_selected_prefix);
 
+/* Direct-HIP exact-wide selector, with the same deterministic prefix and
+ * strict input uniqueness rules as the CPU selector above. The chosen prefix
+ * never changes the caller's plan. algorithm: 0 wide Garner, 1 mixed radix.
+ * All required input lifts and the product are computed in private device
+ * staging before any resident publication. Source planes/identities/generations
+ * are preserved. A/B suffixes and C proof publish together after successful
+ * copies. A device failure after the C copy starts invalidates C; uncommitted
+ * suffixes stay hidden at their old proven prefixes. Undrainable work pins
+ * all three matrices and the workspace until rns8_drain_failed_work succeeds.
+ * max_device_scratch_bytes covers full staged A/B values when they require a
+ * lift, staged C, aligned reusable suffix/status scratch; one host status word
+ * and opaque driver costs are additional. Scratch is retained by workspace.
+ * No native payload crosses the host; only per-lift status does. This is an
+ * explicit synchronous DIRECT-HIP route, not AUTO backend promotion or an
+ * asynchronous plan. Uniform default basis, no schedule/split-K/epilogue.
+ */
+RNS8_API rns8_status rns8_gemm_exact_wide_hip_auto(
+    rns8_context* ctx,const rns8_plan* plan,rns8_matrix* A,rns8_matrix* B,
+    rns8_matrix* C,rns8_workspace* workspace,uint32_t algorithm,
+    uint64_t max_device_scratch_bytes,uint32_t* out_selected_prefix);
+
 /*
  * Explicit incremental resident RNS GEMM. Dirty regions are output rectangles
  * recomputed over the full K dimension. A first call initializes the cache

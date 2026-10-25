@@ -63,3 +63,32 @@ Authored new regressions cover both algorithms at every source/target pair,
 untouched planes/canaries, no allocation on replay, cancellation, generation
 preservation, and a three-stream producer/integrity/lift/consumer chain. These
 new cases have **not been executed**; older dated receipts do not qualify them.
+
+
+## Direct-HIP automatic prefix transaction
+
+`rns8_gemm_exact_wide_hip_auto` is an explicit synchronous selector for uniform
+exact-wide default-basis matrices. It computes the same conservative/axis bound
+as ordinary GEMM, chooses the smallest sufficient prefix at or above the plan
+floor, and honors a forced fixed prefix. It validates both source uniqueness
+proofs even for a zero product. The caller's immutable plan is never replaced.
+
+If an input needs extension, its existing planes are copied into a private
+full-selected-prefix region; the selected wide-Garner or shared-digit lift
+fills only that private suffix. GEMM also targets private staging. Only after
+both input checks and the product succeed are resident suffixes and output
+copied; all three metadata publications follow the all-copy success point.
+Input integer identity/source generation is unchanged. A failed suffix copy
+cannot damage original source planes, and its uncommitted region remains hidden.
+A failed output copy invalidates C. An undrainable device error retains exclusive
+A/B/C and workspace reservations until an explicit successful drain, without
+unpoisoning the context or publishing results.
+
+Workspace-owned staging is retained across replay. The explicit budget charges
+full temporary inputs only when they need lifting, full temporary output,
+4-byte alignment between regions, and one maximum reusable suffix/status region.
+The four-byte host status and opaque runtime cost are additional; no native
+input/output payload is downloaded. This route does not silently select a
+vendor/matrix-engine backend or claim measured performance. Authored shared-input,
+second-input-failure, no-allocation replay, padded export and ownership regressions
+have not been executed.

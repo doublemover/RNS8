@@ -163,3 +163,48 @@ TEST_CASE("direct HIP exact base extension preserves every source prefix and sig
   }
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
+
+TEST_CASE("direct HIP exact selector stages both inputs and output before one proof publication") {
+  if(!hip_available())SKIP("no HIP device for exact selector transaction");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool signed_values:{false,true})for(uint32_t algorithm:{0u,1u})for(bool shared:{false,true}) {
+    constexpr int64_t side=3;const auto semantics=signed_values?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;
+    auto gd=signed_values?exact_signed_desc(side,side,side,RNS8_BACKEND_HIP_DIRECT):exact_unsigned_desc(side,side,side,RNS8_BACKEND_HIP_DIRECT);
+    gd.max_prefix=20;gd.flags=0;rns8_plan* plan=nullptr;rns8_workspace* workspace=nullptr;
+    REQUIRE(rns8_create_plan(ctx,&gd,&plan)==RNS8_SUCCESS);REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+    std::array<rns8_matrix*,3> matrices{};auto md=matrix_desc(side,side,semantics,RNS8_BOUND_NONE);md.max_prefix=20;
+    for(auto& matrix:matrices)REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);
+    auto* a=matrices[0];auto* b=shared?a:matrices[1];auto* c=matrices[2];
+    std::vector<uint64_t> values(side*side,100),old_values(side*side,7);
+    const auto pack=[&](rns8_matrix* matrix,const std::vector<uint64_t>& x){return signed_values?rns8_pack_i64(ctx,matrix,reinterpret_cast<const int64_t*>(x.data()),side,1):rns8_pack_u64(ctx,matrix,x.data(),side,1);};
+    REQUIRE(pack(a,values)==RNS8_SUCCESS);if(!shared)REQUIRE(pack(b,values)==RNS8_SUCCESS);REQUIRE(pack(c,old_values)==RNS8_SUCCESS);
+    std::vector<int8_t> old_a(side*side*20,99),old_b=old_a,old_c(old_a.size());std::fill_n(old_a.begin(),side*side,int8_t(100));old_b=old_a;
+    REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,a->hip_residues,old_a.data(),old_a.size())==RNS8_SUCCESS);
+    if(!shared)REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,b->hip_residues,old_b.data(),old_b.size())==RNS8_SUCCESS);
+    for(auto* input:{a,b}){input->exact_range_prefix=1;input->materialized_rns_prefix=1;input->host_residues_current=false;}
+    REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,old_c.data(),c->hip_residues,old_c.size())==RNS8_SUCCESS);
+    const auto a_generation=a->content_generation,b_generation=b->content_generation,c_generation=c->content_generation;
+    uint32_t selected=999;CHECK(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,0,&selected)==RNS8_WORKSPACE_TOO_SMALL);
+    CHECK(selected==999);CHECK(c->content_generation==c_generation);CHECK(a->exact_range_prefix==1);
+    a->in_flight_readers=1;CHECK(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_BUSY);a->in_flight_readers=0;
+    CHECK(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,a,workspace,algorithm,UINT64_MAX,&selected)==RNS8_INVALID_ARGUMENT);
+    // A valid first stage must not publish when the second operand fails its
+    // device magnitude check. No original plane or output byte is touched.
+    if(!shared){old_b[0]=127;REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,b->hip_residues,old_b.data(),old_b.size())==RNS8_SUCCESS);
+      CHECK(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_RANGE_ERROR);
+      CHECK(a->exact_range_prefix==1);CHECK(b->exact_range_prefix==1);CHECK(selected==999);CHECK(c->device_residues_current);
+      for(auto pair:{std::pair<rns8_matrix*,const std::vector<int8_t>*>{a,&old_a},{b,&old_b},{c,&old_c}}){std::vector<int8_t> actual(old_a.size());REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0,actual.data(),pair.first->hip_residues,actual.size())==RNS8_SUCCESS);CHECK(actual==*pair.second);}
+      old_b[0]=100;REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0,b->hip_residues,old_b.data(),old_b.size())==RNS8_SUCCESS);}
+    REQUIRE(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_SUCCESS);
+    CHECK(selected==2);CHECK(a->exact_range_prefix==2);CHECK(b->exact_range_prefix==2);CHECK(a->content_generation==a_generation);CHECK(b->content_generation==b_generation);CHECK(c->content_generation==c_generation+1);
+    const auto counters=rns8::detail::hip_direct_allocation_counters_snapshot();
+    REQUIRE(rns8_gemm_exact_wide_hip_auto(ctx,plan,a,b,c,workspace,algorithm,UINT64_MAX,&selected)==RNS8_SUCCESS);
+    const auto after=rns8::detail::hip_direct_allocation_counters_snapshot();CHECK(after.allocate_calls==counters.allocate_calls);CHECK(after.free_calls==counters.free_calls);
+    gd.max_prefix=selected;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX;rns8_plan* export_plan=nullptr;REQUIRE(rns8_create_plan(ctx,&gd,&export_plan)==RNS8_SUCCESS);
+    std::vector<uint64_t> output(side*(side+2)*3,99);REQUIRE((signed_values?rns8_export_exact_wide_signed_limbs(ctx,export_plan,c,output.data(),side+2,3):rns8_export_exact_wide_unsigned_limbs(ctx,export_plan,c,output.data(),side+2,3))==RNS8_SUCCESS);
+    for(int row=0;row<side;++row)for(int col=0;col<side+2;++col)for(int limb=0;limb<3;++limb)CHECK(output[(row*(side+2)+col)*3+limb]==(col>=side?99u:limb?0u:30000u));
+    REQUIRE(rns8_destroy_plan(export_plan)==RNS8_SUCCESS);for(auto* matrix:matrices)REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

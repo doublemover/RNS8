@@ -3,6 +3,7 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstdint>
 #include <iterator>

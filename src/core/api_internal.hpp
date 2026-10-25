@@ -32,7 +32,7 @@
 
 namespace rns8::detail::api {
 rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
-rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&);
+rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
 rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
 

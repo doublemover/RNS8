@@ -130,6 +130,7 @@ rns8_status rns8_gemm_exact_wide_cpu_auto(rns8_context* ctx, const rns8_plan* pl
     }
     if (ctx->backend != plan->backend) return RNS8_INVALID_ARGUMENT;
     if (plan->backend != RNS8_BACKEND_CPU_REFERENCE) return RNS8_UNSUPPORTED_BACKEND;
+    require_matrix_writable(*A);require_matrix_writable(*B);require_matrix_writable(*C);
     if (!rns8::detail::exact_wide_semantics(plan->desc.semantics)) return RNS8_INVALID_ARGUMENT;
     auto status = validate_plan_context_workspace(*ctx, *plan, *workspace);
     if (status != RNS8_SUCCESS) return status;
@@ -256,3 +257,5 @@ rns8_status rns8_lift_exact_wide_hip(rns8_context* ctx, rns8_matrix* matrix, uin
 }
 
 #include "api_prepared_lift.inc"
+
+#include "api_exact_hip_auto.inc"

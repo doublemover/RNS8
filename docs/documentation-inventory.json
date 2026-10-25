@@ -3057,6 +3057,7 @@
         }
       ],
       "anchors": [
+        "direct-hip-automatic-prefix-transaction",
         "mixed-radix-exact-suffix-candidate",
         "prepared-stream-and-graph-ownership"
       ]
