@@ -6,6 +6,63 @@ is a filesystem operation: it does not run a compiler, package manager,
 device query, installer or version probe. A discovered path is not evidence
 of API, ABI, instruction, runtime or arithmetic compatibility.
 
+## SDK initialization
+
+`tools/bootstrap_rocm_accelerators.py` also provisions exact ROCm Core SDK
+tarballs from the [AMD stable index](https://stable.repo.amd.com/rocm/core/tarball/).
+The default is Core SDK 10.1.0. This opt-in path is separate from the read-only
+doctor and from `--init`/`--probe` source-submodule actions. It does not install
+a driver, change system PATH, install vcpkg packages or qualify a GPU backend.
+AMD documents the [tarball layout and extraction](https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html).
+
+```powershell
+# Preview detected targets and one SDK/build lane per family; no network/writes.
+python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-build --dry-run --json
+
+# Explicit target also works before any SDK is installed, or on a headless host.
+python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-target gfx1100 --json
+
+# Reuse an existing extraction; explicitly select the vcpkg installation already prepared.
+python tools/bootstrap_rocm_accelerators.py --sdk-root C:/TheRock/build --sdk-target gfx1100 --sdk-build --sdk-cmake-arg=-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake --sdk-cmake-arg=-DVCPKG_INSTALLED_DIR=C:/Users/sneak/Development/RNS8/vcpkg_installed --json
+```
+
+Native Linux uses the same Python entry point. AMD architecture enumeration is
+preferred; Windows also recognizes common desktop RX 7000/9000 adapter names
+without an SDK. Unknown AMD adapters require an exact `--sdk-target`; there is
+no silent gfx1100 fallback. Repeat that option for multiple devices/families.
+Only exact known targets are mapped; actual OS/family/release availability is
+checked against AMD's index before download. Available archives do not imply
+official driver support or arithmetic/instruction qualification.
+
+`--sdk-prefix`, `--sdk-cache` and `--sdk-build-root` select managed directories;
+defaults are ignored `out/third_party/rocm/sdk`, `temp/rocm-sdk-downloads` and
+`build/rocm-sdk`. Family/version directories are never overlaid. Downloads use
+HTTPS, bounded streaming and atomic publication; extraction uses Python's tar
+data filter plus path/member/expanded-size checks in a new staging directory.
+Internal Linux library links are permitted, escaping links and special files
+are rejected. An interrupted extraction never becomes an installed prefix.
+Successful installations record source URL, archive SHA-256, family, version
+and SDK-relative root in `rns8-sdk.json`. Reuse rechecks SDK coherence/version.
+
+Supply `--sdk-sha256 gfx110X-all=HEX_DIGEST` to enforce an independently obtained
+64-digit SHA-256. The observed AMD index has no checksum sidecar for the local
+archive; an unpinned install records `https_observed_sha256`, not publisher hash
+verification. Cached archives are rehashed before reuse; corrupt/unknown cache
+entries and existing inconsistent prefixes fail without being overwritten.
+An adopted `--sdk-root` records unverified archive origin instead of inventing
+a download receipt. Archive hashes describe the archive, not ongoing installed
+file tamper detection.
+
+`--sdk-build` configures Release/Ninja and builds each selected family separately,
+feeding explicit compiler, runtime, bitcode, optional SDK-header roots and
+offload targets through shared discovery. `--sdk-cmake-arg=-DKEY=VALUE` supplies
+feature/package choices and `--sdk-jobs` bounds compilation parallelism. SDK
+bindings take precedence over extra options. Build commands inherit only
+process-local SDK paths; Windows loads the VS developer environment through
+`windows_dev.py`. No tests or benchmark campaigns are started by provisioning.
+The JSON output records the actual commands; in a dry run the archive's internal
+SDK subdirectory is not yet known, so the planned root is the destination prefix.
+
 ## Inspect or configure
 
 Inspect environment candidates without executing the full doctor's command/

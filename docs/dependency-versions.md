@@ -44,14 +44,17 @@ artifact set; installation must fail rather than silently build an unpinned
 source distribution. The CMake project minimum remains 3.22; it is distinct
 from this selected candidate toolchain.
 
-The user explicitly deferred ROCm Core SDK10.1 migration. Retain the exact
-HIP7.1-era CK1.1.0 and rocWMMA2.1.0 source pins in the
+The user authorized ROCm Core SDK10.1 migration on 2026-10-26. Its extracted
+local candidate supplies HIP7.16.26385, AMD Clang24, CK1.3.0 and rocWMMA2.2.1.
+Fresh candidate builds explicitly select those installed SDK headers and
+compiler paths through shared discovery. Keep the exact HIP7.1-era CK1.1.0 and
+rocWMMA2.1.0 source pins as the prior source fallback in the
 [dependency guide](../third_party/README.md#optional-exact-references-and-accelerator-pins).
-The newer bundle's CK1.3.0/rocWMMA2.2.1 monorepo commit is recorded as a deferred
-candidate, with an explicit owner/revisit condition; it is not the active source.
+The newer bundle's monorepo commit remains recorded separately from those
+unchanged submodule pins. SDK qualification does not silently move source pins.
 Generated CK version metadata now comes from the selected source or installed
 header instead of a hardcoded version. Matching AMD compiler/runtime/driver and
-target qualification remain required for a future migration; stock upstream LLVM
+target qualification remain required for each candidate lane; stock upstream LLVM
 is not a replacement for AMD's HIP compiler.
 
 NumPy, pandas, Matplotlib, pytest, SciPy, NTL, FFLAS-FFPACK and LinBox remain

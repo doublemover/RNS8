@@ -8,15 +8,19 @@ separates installed tools from compiled and device-validated paths.
 
 Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
 [version policy](dependency-versions.md). Their upgrade qualification remains
-pending; the user has deferred the separate ROCm10.1 migration.
+pending across the full platform matrix. The user authorized the ROCm Core SDK
+10.1 migration on 2026-10-26. Its local bring-up uses `C:/TheRock/build` and
+explicit `lib/llvm/bin/amdclang++.exe` selection in a fresh Release build.
+Use [SDK initialization](dependency-discovery.md#sdk-initialization) to download
+the correct family archive or reuse an existing extraction.
 
 Install a GPU/driver combination supported by the selected
 [Windows HIP SDK release](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/reference/system-requirements.html)
 and the [HIP SDK development components](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/how-to/install.html).
 Install [Visual Studio's C++ desktop workload and Windows SDK](https://learn.microsoft.com/en-us/cpp/build/vscpp-step-0-installation),
 CMake, Ninja, Git, Python and vcpkg dependencies as described in the dependency
-guide. The measured local stack uses VS2026 and HIP 7.1; it includes the
-build-local LLVM math-header fix described below.
+guide. Historical measurements use VS2026 and HIP 7.1, including the build-local
+LLVM math-header fix described below; they do not qualify the new SDK.
 
 From the repository root, inspect existing tools:
 

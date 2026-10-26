@@ -2009,6 +2009,10 @@
           "reference": "docs/dependency-discovery.md"
         },
         {
+          "source": "README.md",
+          "reference": "docs/dependency-discovery.md#sdk-initialization"
+        },
+        {
           "source": "docs/README.md",
           "reference": "dependency-discovery.md"
         },
@@ -2019,6 +2023,10 @@
         {
           "source": "docs/platform-linux.md",
           "reference": "dependency-discovery.md"
+        },
+        {
+          "source": "docs/platform-windows.md",
+          "reference": "dependency-discovery.md#sdk-initialization"
         },
         {
           "source": "docs/platform-windows.md",
@@ -2037,6 +2045,7 @@
         "inspect-or-configure",
         "installation-and-remaining-gates",
         "optional-components-and-core-packages",
+        "sdk-initialization",
         "selection-rules",
         "shared-dependency-selection"
       ]

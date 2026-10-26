@@ -24,6 +24,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_therock_nested_amd_compiler_layout(self):
+        sdk = self.sdk()
+        (sdk / "bin/clang++.exe").unlink()
+        compiler = self.put(sdk, "lib/llvm/bin/amdclang++.exe")
+        report = self.resolve(self.request(overrides={"RNS8_HIP_ROOT": str(sdk)}, hip=True))
+        self.assert_clean(report)
+        self.assertEqual(Path(report["cmake_bindings"]["RNS8_HIP_CLANG"]), compiler)
+
     def setUp(self):
         scratch = ROOT / "temp/dependency-resolution-tests"; scratch.mkdir(parents=True, exist_ok=True)
         self.temporary = tempfile.TemporaryDirectory(dir=scratch)

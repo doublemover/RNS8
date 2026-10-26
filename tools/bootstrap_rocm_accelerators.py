@@ -7,10 +7,12 @@ import argparse
 import json
 import platform
 import subprocess
+import tarfile
 from pathlib import Path
 from typing import Sequence
 
 import check_dependencies as deps
+import rocm_sdk
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 from check_dependencies_lib.resolution import Request, resolve, selection_context
 
@@ -310,7 +312,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--init", action="store_true", help="initialize/update CK and rocWMMA submodules")
     parser.add_argument("--probe", action="store_true", help="compile repo-local CK and rocWMMA dependency probes")
-    parser.add_argument("--target", default="gfx1100", help="AMDGPU offload target for probes")
+    parser.add_argument("--target", default=None, help="AMDGPU offload target for probes (default gfx1100); also selects an SDK target")
+    rocm_sdk.add_arguments(parser)
     parser.add_argument(
         "--probe-root",
         type=Path,
@@ -324,6 +327,21 @@ def main() -> int:
     )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args()
+
+    if args.sdk_install or args.sdk_root or args.sdk_build:
+        if not (args.sdk_install or args.sdk_root):
+            parser.error("--sdk-build requires --sdk-install or --sdk-root")
+        if args.init or args.probe:
+            parser.error("SDK provisioning/build and repo-local submodule probes are separate explicit invocations")
+        try:
+            report = rocm_sdk.run(args)
+        except (OSError, ValueError, tarfile.TarError, subprocess.SubprocessError) as error:
+            print(json.dumps({"schema": "rns8_rocm_sdk_init_v1", "error": str(error)}))
+            return 1
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+
+    args.target = args.target or "gfx1100"
 
     root = deps.repo_root()
     probe_root = args.probe_root or (root / "temp" / "accelerator-deps" / "bootstrap")

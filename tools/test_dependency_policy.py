@@ -36,12 +36,13 @@ class Policy(unittest.TestCase):
         self.assertTrue({"numpy", "pandas", "scipy", "PyYAML"}.issubset({item["name"] for item in inventory}))
         self.assertTrue(all(item["selected"] is None for item in inventory))
 
-    def test_user_deferred_gpu_stack_keeps_existing_source_pins(self):
+    def test_sdk_candidate_keeps_prior_source_fallback_pins(self):
         selected = {item["name"]: item for item in self.policy["components"]}
         self.assertEqual(selected["ck"]["selected"]["version"], "1.1.0")
         self.assertEqual(selected["rocwmma"]["selected"]["version"], "2.1.0")
-        self.assertEqual(self.policy["deferred_gpu_candidate"]["status"], "deferred_by_explicit_user_instruction")
-        self.assertFalse(self.policy["deferred_gpu_candidate"]["installed_or_qualified"])
+        self.assertEqual(self.policy["gpu_sdk_candidate"]["status"], "user_authorized_local_qualification_in_progress")
+        self.assertTrue(self.policy["gpu_sdk_candidate"]["installed"])
+        self.assertFalse(self.policy["gpu_sdk_candidate"]["qualified"])
         invalid = deepcopy(self.policy)
         del next(item for item in invalid["components"] if item["name"] == "ck")["exception"]
         self.assertTrue(p.validate_policy(invalid))

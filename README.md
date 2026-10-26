@@ -113,6 +113,15 @@ set paths to your actual installations; spaces and nondefault roots are supporte
 The preset uses shared discovery; explicit overrides below select the intended
 stack when several installations exist.
 
+To provision the matching ROCm Core SDK from AMD's stable tarballs, use the
+existing initializer. It detects installed GPU targets, supports repeated
+`--sdk-target gfxNNNN` overrides, and keeps each family in its own SDK/build
+directory. Preview with `--sdk-install --sdk-build --dry-run`; remove `--dry-run`
+to download, extract, configure and build. Reuse an extraction with
+`--sdk-root C:/TheRock/build --sdk-build`. See
+[SDK initialization](docs/dependency-discovery.md#sdk-initialization) for full
+commands, integrity pins and platform boundaries.
+
 ```powershell
 $env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
 $rns8HipRoot = 'D:/AMD SDK/ROCm/7.1'

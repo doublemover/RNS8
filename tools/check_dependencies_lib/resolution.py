@@ -230,7 +230,8 @@ def inspect_hip(candidate: Candidate, request: Request) -> None:
             if len(matches) == 1: candidate.paths["device_libraries"] = canonical(matches[0]); break
             if len(matches) > 1 and not request.overrides.get("RNS8_HIP_DEVICE_LIB_DIR"):
                 candidate.rejected.append("multiple compiler device-library directories; select RNS8_HIP_DEVICE_LIB_DIR explicitly")
-    clang = first_file(root, ("bin/clang++.exe", "bin/clang.exe", "llvm/bin/clang++.exe") if windows else
+    clang = first_file(root, ("lib/llvm/bin/amdclang++.exe", "lib/llvm/bin/clang++.exe",
+                             "bin/clang++.exe", "bin/clang.exe", "llvm/bin/clang++.exe") if windows else
                        ("llvm/bin/clang++", "bin/clang++", "bin/amdclang++", "lib/llvm/bin/clang++"))
     if not clang and not windows and (root / "lib").is_dir():
         compilers = sorted(path for path in (root / "lib").glob("llvm-*/bin/clang++") if path.is_file())
