@@ -80,6 +80,12 @@ pending work or result readers. Callers must release borrows and obtain successf
 close before destroying the handle; destructor quarantine preserves safety but
 cannot discharge a consumer whose retention was abandoned.
 
+Preparation uploads use the same conservative ownership rule. Native snapshots
+and the lowered tile directory remain owned if an initial copy or default-stream
+completion fails. Quarantine observes those initialization streams before freeing
+either host or device storage; no local descriptor vector becomes a dangling DMA
+source when preparation unwinds.
+
 ## Resource contract
 
 The shared plan prices native replication, one to three reusable packing slots,

@@ -43,10 +43,11 @@ Kernel/application replay timings remain raw observations and are rejected as
 uninstrumented planner calibration. Replay preservation, snapshot costs and
 allocation/concurrency limits still require target-specific qualification.
 
-This slice supplies evidence plumbing and synthetic schema/algebra fixtures.
-Instruction-chain, LDS/cache/memory, conversion, launch/descriptor, reconstruction
-and interaction microbenchmark collection, ISA/resource evidence, sustainable
-clock verification and real held-out qualification remain open in #31. Tests
+The evidence plumbing is accompanied by authored instruction-chain,
+[system/LDS/memory and launch/event/descriptor probes](system-roof-calibration.md),
+conversion, reconstruction and interaction controls. Executing those collectors,
+ISA/resource/counter evidence, sustainable clock verification and qualified
+held-out prediction remain open in #31. Tests
 for this addition are covered as registered applicable cases in the
 [dated validation](local-all-features-20261023.md).
 

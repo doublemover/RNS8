@@ -163,6 +163,17 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
   add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
+  add_test(NAME system_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_system_roof.py")
+  if(TARGET rns8-system-roof-calibrate)
+    add_test(NAME system_roof_cli_help COMMAND rns8-system-roof-calibrate --help)
+    if(RNS8_ENABLE_HIP)
+      foreach(_system_mode IN ITEMS global-copy lds-read lds-read-write launch event descriptor graph)
+        add_test(NAME system_roof_${_system_mode}_smoke COMMAND rns8-system-roof-calibrate
+          "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/system-roof/${_system_mode}-smoke.json" ctest-system-${_system_mode})
+        set_tests_properties(system_roof_${_system_mode}_smoke PROPERTIES LABELS "hip;calibration;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+      endforeach()
+    endif()
+  endif()
   add_test(NAME split_k_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_split_k.py")
   add_test(NAME ragged_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_ragged.py")
   add_test(NAME stream_panel_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_stream_panels.py")
@@ -1014,6 +1025,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_integrity_identity.cpp
     tests/unit/test_distributed_plan.cpp
     tests/unit/test_distributed_hip.cpp
+    tests/unit/test_system_roof_plan.cpp
     tests/unit/test_int4_encoding.cpp
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_native_wmma_queue.cpp

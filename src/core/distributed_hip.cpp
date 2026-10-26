@@ -34,6 +34,7 @@ struct HipExecution::Impl {
   HipProgress progress;
   uint64_t readers = 0, deadline = 0;
   bool issued = false, final_queued = false, closed = false;
+  bool initialization_pending = false;
   std::vector<std::string> certificates;
   Impl* quarantine_next = nullptr;
   inline static std::atomic<Impl*> quarantined{nullptr};
@@ -62,6 +63,8 @@ struct HipExecution::Impl {
   uint32_t uniform_prefix = 0;
   hip_pinned_host_buffer staging, host_status;
   std::vector<uint64_t> export_staging;
+  // Retained through failed initialization drains, just like native snapshots.
+  std::vector<DeviceTile> tile_records;
   std::vector<Phase> phases;
   std::vector<uint8_t> queued;
   uint64_t staged_work = UINT64_MAX;
@@ -157,7 +160,7 @@ struct HipExecution::Impl {
     queued.resize(plan->work().size(), 0); export_staging.resize(size_t(r.m * r.n * 3));
     for (uint32_t rank = 0; rank < devices.size(); ++rank) devices[rank].ordinal = int(r.ranks[rank].ordinal);
     for (const auto& work : plan->work()) devices[work.rank].work.push_back(work.id);
-    std::vector<DeviceTile> tiles;
+    auto& tiles = tile_records;
     tiles.reserve(plan->tiles().size());
     for (const auto& tile : plan->tiles()) {
       DeviceTile record;
@@ -185,10 +188,14 @@ struct HipExecution::Impl {
           !(admission = allocate(device.output, device.ordinal, plan->resources().ranks[rank].local_outputs))) return admission;
       // Preparation is explicitly synchronous; submit reuses these immutable
       // resident native snapshots and never performs a pageable upload.
+      // A failed copy/synchronization is not proof that initialization DMA has
+      // stopped. Retain the complete owner until its default streams are safe.
+      initialization_pending = true; issued = true; pending(true);
       code = hipMemcpy(device.a.get(), inputs->lhs().data(), inputs->lhs().size() * 8, hipMemcpyHostToDevice);
       if (code == hipSuccess) code = hipMemcpy(device.b.get(), inputs->rhs().data(), inputs->rhs().size() * 8, hipMemcpyHostToDevice);
       if (code == hipSuccess) code = hipStreamSynchronize(nullptr);
       if (code != hipSuccess) return error(code, "native_replication", rank);
+      pending(false); issued = false; initialization_pending = false;
       if ((code = event_create(device.staged)) != hipSuccess) return error(code, "staging_event", rank);
       for (auto& slot : device.slots) {
         if (!(admission = allocate(slot.packed, device.ordinal, device.packed_bytes))) return admission;
@@ -208,8 +215,11 @@ struct HipExecution::Impl {
         !(admission = allocate(result, root, r.m * r.n * 24)) ||
         !(admission = allocate(directory, root, tiles.size() * sizeof(DeviceTile))) ||
         !(admission = allocate(status, root, 4))) return admission;
+    initialization_pending = true; issued = true; pending(true);
     auto code = hipMemcpy(directory.get(), tiles.data(), tiles.size() * sizeof(DeviceTile), hipMemcpyHostToDevice);
     if (code == hipSuccess) code = hipStreamSynchronize(nullptr);
+    if (code != hipSuccess) return error(code, "directory_upload");
+    pending(false); issued = false; initialization_pending = false;
     if (code == hipSuccess) code = gather_stream.create_non_blocking();
     if (code == hipSuccess) code = event_create(completion);
     if (code == hipSuccess) code = event_create(stage_arrived);
@@ -303,7 +313,13 @@ struct HipExecution::Impl {
           })) continue;
       hip_scoped_device selected(device.ordinal);
       if (selected.status() != hipSuccess) { progress.state = State::quarantined; return; }
+      if (initialization_pending) {
+        const auto code = hipStreamQuery(nullptr);
+        if (code == hipErrorNotReady) ready = false;
+        else if (code != hipSuccess) { progress.state = State::quarantined; return; }
+      }
       for (auto& slot : device.slots) {
+        if (!slot.stream) continue;
         const auto code = hipStreamQuery(slot.stream.get());
         if (code == hipErrorNotReady) ready = false;
         else if (code != hipSuccess) { progress.state = State::quarantined; return; }
@@ -315,7 +331,7 @@ struct HipExecution::Impl {
     if (code == hipErrorNotReady) ready = false;
     else if (code != hipSuccess) { progress.state = State::quarantined; return; }
     if (!ready) return;
-    pending(false); issued = false;
+    pending(false); issued = false; initialization_pending = false;
     progress.state = progress.operation.status == RNS8_CANCELED ? State::canceled :
         progress.operation.status == RNS8_TIMEOUT ? State::timed_out : State::failed;
   }

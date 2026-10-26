@@ -182,6 +182,11 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-wrap64-calibrate benchmarks/rns8_wrap64_calibrate.cpp)
   add_executable(rns8-word-mod-calibrate benchmarks/rns8_word_mod_calibrate.cpp)
   add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
+  add_executable(rns8-system-roof-calibrate benchmarks/rns8_system_roof_calibrate.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(RNS8_SYSTEM_ROOF_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_system_roof_kernels.hip")
+    target_sources(rns8-system-roof-calibrate PRIVATE "${RNS8_SYSTEM_ROOF_OBJECT}")
+  endif()
   add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
   add_executable(rns8-queue-calibrate benchmarks/rns8_queue_calibrate.cpp)
   add_executable(rns8-public-queue-calibrate benchmarks/rns8_public_queue_calibrate.cpp)
@@ -212,6 +217,7 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-wrap64-calibrate
       rns8-word-mod-calibrate
       rns8-instruction-roof-calibrate
+      rns8-system-roof-calibrate
       rns8-split-k-calibrate
       rns8-queue-calibrate
       rns8-public-queue-calibrate

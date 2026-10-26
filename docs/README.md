@@ -4,6 +4,8 @@ Choose the task you want to complete. Public API behavior is defined in the
 [headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
 Dated records identify the builds and devices actually checked.
 
+- [October 26 selected implementation pass](selected-implementation-20261026.md): 25 requested source slices, new distributed execution/system probes and deferred qualification
+
 - [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, scalar-first proof controls and failed held-out models
 
 ## Build
@@ -41,6 +43,7 @@ issue links.
 - [Performance methodology](performance.md), [timing admission](timing-admission.md)
 - [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)
+- [System/LDS/memory roofs](system-roof-calibration.md): exact checked launch/event/upload/graph and memory probes
 - [Public finite verifier calibration](finite-verifier-calibration.md): replay and full modular-reference cost boundaries; commands and receipt contracts, with measured qualification recorded in the dated reports
 - [Public block-sparse calibration](block-sparse-calibration.md): dense, warm/cold owners and observed reuse controls; commands and receipt contracts, with measured qualification recorded in the dated reports
 - [Canonical word-modular calibration](word-modular-calibration.md): full-u64 baseline/packed-dot4 and admitted scalar binary64 digit/slab controls; commands and receipt contracts, with measured qualification recorded in the dated reports

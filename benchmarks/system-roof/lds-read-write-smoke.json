@@ -1,0 +1,13 @@
+{
+  "schema": "rns8_system_roof_case_v1",
+  "device": 0,
+  "mode": "lds-read-write",
+  "words": 384,
+  "blocks": 3,
+  "iterations": 17,
+  "stride": 32,
+  "displacement_words": 0,
+  "budget_bytes": 1073741824,
+  "warmups": 1,
+  "repeats": 3
+}

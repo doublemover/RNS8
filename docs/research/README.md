@@ -41,8 +41,9 @@ rules instead of creating independent public contracts.
 - [Strassen](../strassen-device.md) and [rank-23](../rank23-device.md): opt-in public one-level Strassen, private coefficient control and pinned alternative-basis SLP; new SLP validation pending, #48
 - [Exact epilogues](../exact-epilogues.md): public exact-wide expression and separate private rocWMMA candidate, #47
 
-Packed INT4/IU4 work remains restricted to internal proof-certified subsets;
-public research semantics are rejected. Floating FP4/FP6/FP8 and Ozaki retain
+Packed INT4/IU4 has an explicit opt-in finite-ring owner with certified signed
+nibbles and generation-bound packed B; it does not enable new public integer
+semantics or change ordinary finite dispatch. Floating FP4/FP6/FP8 and Ozaki retain
 separate arithmetic/instruction/ISA gates under #45/#46. The
 [specification](../RNS8_RESEARCH_SPEC.md#17-technique-decisions-and-retirement-rules)
 keeps their retirement and production criteria.
@@ -51,12 +52,13 @@ keeps their retirement and production criteria.
 
 - [Typed planning recipes](../planning-recipes.md), #29/#30
 - [Runtime product arena](../runtime-product-arena.md): internal CPU/HIP exact product DAG execution with strict last-reader reuse; validation pending, #29/#30
-- [Distributed modulus plan and CPU mock](../distributed-mock.md), #50 M0; no GPU transport or qualification
+- [Distributed modulus plan and CPU mock](../distributed-mock.md) plus [real HIP modulus shards](../distributed-hip.md), #50 M0/M1/M2 source; hardware qualification pending
 - [Joint basis/schedule search](../joint-scheme-search.md), #32
 - [Generated scalar encoding certificates](../generated-encodings.md), #44
 - [Floating rewrite oracle](../floating-rewrite-oracle.md): host rational/binary32 checks and separate proof verdicts; no hardware qualification, #29/#45
 - [Generated native WMMA family](../generated-native-wmma.md), #55
 - [Calibration identities/rates](../calibration.md) and [native microcases](../native-calibration.md), #31
+- [System/LDS/memory probes](../system-roof-calibration.md), #31; source counts and real transport/launch/event/graph operations, unexecuted
 
 Models, supplied resource costs and synthetic fixtures are distinguishable from
 compiled instructions and measured hardware. Representation/certificate identities

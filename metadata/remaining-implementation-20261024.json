@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-26T13:53:25.912528+00:00",
+  "scope_refreshed_utc": "2026-10-26T19:46:56.304226+00:00",
   "issues": [
     {
       "issue": 18,
@@ -309,7 +309,13 @@
       "dependencies": [],
       "deferred_validation": [
         "Written regression cases unexecuted; host-only syntax checked; GPU layout/opcode/execution and performance remain unqualified."
-      ]
+      ],
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Exact typed composition certificates; already closed.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
+      }
     },
     {
       "issue": 30,
@@ -584,6 +590,41 @@
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/checked-gemm-exports.json"
           ]
+        },
+        {
+          "summary": "Real bounded system/LDS/global-memory, launch/event/pinned-upload/graph probes with exact references, output guards, displacement audits, checked live payloads and immutable counterbalanced collection. Syntax only; no measurement or automatic rate promotion.",
+          "files": [
+            "src/backend_common/system_roof_plan.hpp",
+            "benchmarks/hip_system_roof_kernels.hip",
+            "benchmarks/rns8_system_roof_calibrate.cpp",
+            "tools/collect_system_roof.py",
+            "tools/test_collect_system_roof.py",
+            "tests/unit/test_system_roof_plan.cpp",
+            "cmake/rns8_targets.cmake",
+            "cmake/rns8_tests.cmake",
+            "benchmarks/system-roof/descriptor-smoke.json",
+            "benchmarks/system-roof/event-smoke.json",
+            "benchmarks/system-roof/global-copy-smoke.json",
+            "benchmarks/system-roof/global-displaced.json",
+            "benchmarks/system-roof/global-large.json",
+            "benchmarks/system-roof/global-reuse.json",
+            "benchmarks/system-roof/graph-smoke.json",
+            "benchmarks/system-roof/launch-smoke.json",
+            "benchmarks/system-roof/lds-read-smoke.json",
+            "benchmarks/system-roof/lds-read-stride1.json",
+            "benchmarks/system-roof/lds-read-stride16.json",
+            "benchmarks/system-roof/lds-read-stride2.json",
+            "benchmarks/system-roof/lds-read-stride32.json",
+            "benchmarks/system-roof/lds-read-stride4.json",
+            "benchmarks/system-roof/lds-read-stride8.json",
+            "benchmarks/system-roof/lds-read-write-smoke.json",
+            "benchmarks/system-roof/lds-read-write-stride1.json",
+            "benchmarks/system-roof/lds-read-write-stride16.json",
+            "benchmarks/system-roof/lds-read-write-stride2.json",
+            "benchmarks/system-roof/lds-read-write-stride32.json",
+            "benchmarks/system-roof/lds-read-write-stride4.json",
+            "benchmarks/system-roof/lds-read-write-stride8.json"
+          ]
         }
       ],
       "regressions": [
@@ -596,7 +637,9 @@
         "benchmarks/public-calibration/streaming.json",
         "tools/test_diagnostic_companion.py",
         "tools/test_benchmark_sweep_case_review_metadata.py",
-        "tools/test_benchmark_sweep_case_cache_wrap_exact.py"
+        "tools/test_benchmark_sweep_case_cache_wrap_exact.py",
+        "tests/unit/test_system_roof_plan.cpp",
+        "tools/test_collect_system_roof.py"
       ],
       "commits": [
         "833ae93c551bed50a5f65abcef2eac201ea7fcac",
@@ -605,7 +648,7 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "Independent measured stage-price collection and frozen held-out comparisons are implemented. All four same-graph/build models fail the predeclared 25% tolerance on this shared host; instruction/traffic/clock calibration, profiler evidence and qualified prediction remain."
+        "All requested bounded calibration source and capture/parameter/discrepancy interfaces are present. Named-target ISA/resources/counters/clocks, execution of new system probes, independent collection and accepted held-out prediction remain; previous four models failed their predeclared tolerance."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -640,6 +683,12 @@
         "qualified_stage_comparisons": 5,
         "selection_promoted": false,
         "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Calibration/rates, instruction/conversion/CRT/system probes, interaction and held-out tools.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -714,6 +763,12 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Certified bounded joint search and explicit ordered runtime basis.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -809,6 +864,12 @@
         "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
         "completed_captures": 95,
         "scope": "Four low-magnitude workloads, common complete P20 resident output, fixed RNS/narrow scalar/narrow WMMA/adaptive controls. Fused narrow WMMA is fastest at 512^3 (0.573 ms, 0.469 useful TOPS), 1.288x over the strongest tested scalar alternative. Fixed RNS wins tiny/long-K; two within-adaptive summary gains do not establish routing wins. No AUTO promotion."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Device summary/buckets, adaptive consumers, immutable proof/schedule reuse and proof-policy planning.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -868,6 +929,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Multi-channel/wave native WMMA, register/LDS pipelines and conversion ownership.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -930,6 +997,12 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Checked locality permutations, explicit queue/split-K lowering and displacement controls.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -973,6 +1046,12 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Exact split-K, hierarchical/fused merge, bounded windows and controls.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -1365,6 +1444,12 @@
         "qualified_stage_comparisons": 5,
         "selection_promoted": false,
         "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Executable layout algebra, real consumers, ragged adapters and retained panels.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -1497,13 +1582,19 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Sign-correct exact GPU extension, shared digits, prepared/graph and explicit bases.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
       "issue": 42,
       "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
       "url": "https://github.com/doublemover/RNS8/issues/42",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Resident recipe DAG arena/liveness and consumer-driven prefix planner implemented. Latest comment remains: arena retained but suffix lifting uses one-shot helper allocating suffix+status per replay, not prepared workspace.",
       "implementation": [
         {
@@ -1664,7 +1755,7 @@
         "6ce489b"
       ],
       "remaining": [
-        "Capacity-aware materialization prices, frozen measured-price ingestion, native per-operation roundtrip and scalar-first controls are implemented. All 160 captures pass exact checks; no compiled recipe establishes a gain over the stronger scalar-first baseline, and all four held-out models fail. Broader representation-choice integration, physical capacity, provider parity and measured route qualification remain."
+        "Native/uniform/ragged/packed materialization selection, real shared-B/lift/arena execution, chain DP and bounded DAG search are implemented. Independent measured prices, accepted held-out choice, physical peak/capacity and supported-provider qualification remain. Unimplemented representation/provider families remain explicit unsupported extensions, not eligible plans."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1690,13 +1781,19 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Native/uniform/ragged/packed planning, shared B, chain DP, bounded DAG and retained arena.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
       "issue": 43,
       "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
       "url": "https://github.com/doublemover/RNS8/issues/43",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Prepared async/graph/token/dependency/cancel/timeout machinery exists. Latest comment's legacy cleanup remains: release_workspace_device_buffer, result/prepack cache destroy null pointers/delete owners even when free fails; general transfer/semantic coverage also incomplete.",
       "implementation": [
         {
@@ -1875,7 +1972,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Provider-specific async/capture support outside the concrete direct-HIP owners remains explicitly unsupported; overlap/profiler and hardware failure/lifetime qualification remain."
+        "Supported direct-HIP public lifecycle, dependencies, semantic families, pinned import/export/lift, owned graphs and cleanup ownership are implemented. OS/device failure, lifetime, overlap and profiler qualification remain. Other library/caller-capture modes remain explicitly unsupported by the typed support matrix; no synchronous fallback is advertised as async."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1895,6 +1992,12 @@
         "scope": "Release prepared-export readers on CPU exceptions while retaining pending GPU readers on failed drain; dedicated allocation-fault sweeps authored.",
         "file": "src/core/prepared_export_read.hpp",
         "real_device_fault_qualification": false
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Public direct-HIP lifecycle, dependencies, supported semantics, pinned transfers/lift/export and owned graphs.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -1963,6 +2066,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Explicit finite signed INT4 owner and generation-bound packed B.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2009,6 +2118,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Shared exact coefficient lowering and dead-term specialization.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2075,6 +2190,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "One-level Strassen, coefficient rank23 and retained/recomputed straight-line matrix execution.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2197,6 +2318,12 @@
         "source_written": true,
         "execution_performed": false,
         "hardware_qualification": false
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Real one-process M1/M2 HIP modulus shards, weighted work, transports, publication/reuse and capture tooling.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2242,6 +2369,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Explicit Sparse-A/hybrid owners/examples, real target builtins and shared metadata.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2349,6 +2482,12 @@
         "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
         "completed_captures": 95,
         "scope": "Four low-magnitude workloads, common complete P20 resident output, fixed RNS/narrow scalar/narrow WMMA/adaptive controls. Fused narrow WMMA is fastest at 512^3 (0.573 ms, 0.469 useful TOPS), 1.288x over the strongest tested scalar alternative. Fixed RNS wins tiny/long-K; two within-adaptive summary gains do not establish routing wins. No AUTO promotion."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Proof-selected native scalar/vector/dot/matrix and fused RNS output/planning.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2402,6 +2541,12 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Linux AMX INT8 kernel, per-worker OS admission, pack/reuse and scalar/AMX collector.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2449,6 +2594,12 @@
         "exit_code": 0,
         "receipt": "metadata/dag-owner-parity-validation-20261026.json",
         "reason": "promotion ledger dependency changed; ran once afresh"
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Actual bounded generated kernels and source-bound symbolic/mutation/lifetime checks.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2619,6 +2770,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Atomic paired 3M/4M, transpose/conjugation and reduced scratch with graph composition.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2722,6 +2879,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Prepared native Gram/SYRK, panel reuse, transpose/mirror and reconstruction-once export.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2768,6 +2931,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Signed-radix wrap64 with separate RDNA3/CDNA2/3/4 matrix maps and slabs.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2841,6 +3010,12 @@
         "scope": "Exact-size host reservation and one retained GPU payload block for public checked integer policies; compatible rebind has authored no-additional-device-allocation assertions.",
         "resource_query": "src/backend_common/checked_crt_export.hpp",
         "physical_memory_qualified": false
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Lazy host storage, canonical upload, mod256 byte identity, trim/retention and allocation observations.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -2899,6 +3074,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Exact word split/recombine, width-specific dot4 and asymmetric/concatenated FP64 MFMA.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
       }
     },
     {
@@ -3553,6 +3734,32 @@
         31,
         75
       ]
+    },
+    {
+      "issue": 28,
+      "title": "[P2] Validate multi-GPU smoke coverage against the declared launch inventory",
+      "url": "https://github.com/doublemover/RNS8/issues/28",
+      "state": "validated_closed",
+      "base_gap": "Already closed at requested-scope refresh; preserve authoritative expected/observed inventory.",
+      "implementation": [
+        {
+          "summary": "Expected inventory, unique ranks/devices, world size, case coverage and unknown/missing execution are checked explicitly.",
+          "files": [
+            "tools/multigpu_shard_report.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tools/test_multigpu_shard_report.py"
+      ],
+      "remaining": [],
+      "commits": [],
+      "selected_source_audit": {
+        "recorded_utc": "2026-10-26T19:46:56.304226+00:00",
+        "implementation_complete": true,
+        "scope": "Authoritative shard inventory; already closed.",
+        "proof_boundary": "Authored source/fixtures; new source is syntax checked only. Hardware/performance qualification is independent."
+      }
     }
   ],
   "checks": [

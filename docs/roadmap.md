@@ -8,6 +8,12 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The [October 26 selected implementation audit](selected-implementation-20261026.md)
+records source and fixtures for all 25 requested issue slices, including the new
+real modulus-sharded HIP owner and standalone system/LDS/memory probes. Only
+syntax checks were performed for that source; runtime and measurement gates
+remain. #28/#29 were already closed; this pass closes no issue from source alone.
+
 The [frontloaded combined retest](../metadata/frontloaded-combined-validation-20261026.json)
 records successful full builds at `f406c29`, 1,038 GPU passes / 17 skips and
 572 CPU-ASan passes / 32 skips, with one stale fixture assertion failing in each
@@ -106,16 +112,16 @@ Focused topic guides retain arithmetic proofs and remaining gates:
 
 | Work | Current boundary / next acceptance | Issue |
 |---|---|---|
-| Conversion-aware planning and roofs | Offline certified models/calibration; target measurements, memory/instruction roofs and held-out regret remain | [#30](https://github.com/doublemover/RNS8/issues/30), [#31](https://github.com/doublemover/RNS8/issues/31) |
+| Conversion-aware planning and roofs | Typed models/calibration and instruction/conversion/CRT/system probes are written; target measurements, counters and qualified held-out prediction remain | [#30](https://github.com/doublemover/RNS8/issues/30), [#31](https://github.com/doublemover/RNS8/issues/31) |
 | Bound discovery and variable prefixes | Device discovery/adaptive/ragged candidates, compact device-bucket workers and explicit matrix-owned adaptive API are authored; four-wave register/one-buffer/two-buffer native WMMA candidates are authored; summary reuse and measured cost tradeoffs remain | [#34](https://github.com/doublemover/RNS8/issues/34), [#35](https://github.com/doublemover/RNS8/issues/35) |
 | Scheduling | Private queue/split-K and logical locality models; measured configuration selection and broader target work remain | [#36](https://github.com/doublemover/RNS8/issues/36), [#37](https://github.com/doublemover/RNS8/issues/37), [#38](https://github.com/doublemover/RNS8/issues/38) |
 | Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives include an authored tile-major CRT consumer; performance and broader representation integration remain | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
-| Resident execution | Public synchronous DAGs and fixed-prefix HIP stream/capture subsets; cancellation, timed observation, failed-drain quarantine and synchronous paired-complex nodes are authored; broader async nodes, runtime allocation reuse and qualification remain | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
-| Algebraic composition | Public exact-wide epilogue and experimental paired complex 3M/4M; opt-in public one-level Strassen ownership is authored; rank-23 straight-line execution and measured routing remain | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Resident execution | Native/uniform/ragged/packed materialization planning and retained arena execution; direct-HIP tokens/dependencies, transfer/lift/export, supported semantics and owned graphs are written; provider-specific unsupported modes, measurements and hardware qualification stay explicit | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
+| Algebraic composition | Exact epilogues, paired 3M/4M and one-level Strassen/rank-23 coefficient/straight-line matrix subproducts are written; measured routing and conditional extensions remain gated | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. Floating hardware/public execution remains reserved, with target proof/ISA/performance gates | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Integrity/sparse/multi-GPU | Private check-residue/block-sparse candidates and explicit public Sparse-A; integration and true distributed execution remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
-| Narrow/generated kernels | Checked research candidates/generator; public dispatch, target expansion and measured selection remain | [#53](https://github.com/doublemover/RNS8/issues/53), [#55](https://github.com/doublemover/RNS8/issues/55) |
-| Additional hardware | Future CDNA5 TDM/cluster and optional CPU matrix instruction work | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
+| Integrity/sparse/multi-GPU | Private integrity candidates, public Sparse-A/hybrid owners and real modulus-sharded M1/M2 source; actual multi-GPU and sparse target execution/traffic/failure qualification remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Narrow/generated kernels | Explicit public proof-selected native paths and source-bound generated families are written; target execution and measured selection remain | [#53](https://github.com/doublemover/RNS8/issues/53), [#55](https://github.com/doublemover/RNS8/issues/55) |
+| Additional hardware | Future CDNA5 TDM/cluster; Linux AMX-INT8 kernel, OS permission, packing/reuse and collector are written but require actual supported CPU qualification | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
 
 ## Setup and examples dependencies
 

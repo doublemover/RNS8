@@ -1901,6 +1901,10 @@
           "reference": "conversion-calibration.md#matched-group-crt-observations"
         },
         {
+          "source": "docs/system-roof-calibration.md",
+          "reference": "conversion-calibration.md"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/conversion-calibration.md"
         }
@@ -2209,6 +2213,10 @@
         },
         {
           "source": "docs/design.md",
+          "reference": "distributed-mock.md"
+        },
+        {
+          "source": "docs/distributed-hip.md",
           "reference": "distributed-mock.md"
         },
         {
@@ -2590,6 +2598,10 @@
         {
           "source": "docs/research/README.md",
           "reference": "../instruction-chain-calibration.md"
+        },
+        {
+          "source": "docs/system-roof-calibration.md",
+          "reference": "instruction-chain-calibration.md"
         },
         {
           "source": "docs/documentation-inventory.json",
@@ -3166,6 +3178,10 @@
         {
           "source": "docs/research/README.md",
           "reference": "../native-calibration.md"
+        },
+        {
+          "source": "docs/system-roof-calibration.md",
+          "reference": "native-calibration.md"
         }
       ],
       "anchors": [
@@ -3515,6 +3531,10 @@
         {
           "source": "docs/roadmap.md",
           "reference": "planning-recipes.md#cost-planned-product-materializations"
+        },
+        {
+          "source": "docs/system-roof-calibration.md",
+          "reference": "planning-recipes.md#measured-resident-stage-prices"
         }
       ],
       "anchors": [
@@ -4368,6 +4388,10 @@
         {
           "source": "docs/research/README.md",
           "reference": "../roadmap.md"
+        },
+        {
+          "source": "docs/selected-implementation-20261026.md",
+          "reference": "roadmap.md"
         },
         {
           "source": "docs/documentation-inventory.json",
@@ -5342,6 +5366,10 @@
           "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },
         {
+          "source": "docs/selected-implementation-20261026.md",
+          "reference": "local-validation-20261025.md#october-26-frontloaded-source-and-combined-retest"
+        },
+        {
           "source": "docs/wide-index-gemm.md",
           "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },
@@ -5370,6 +5398,7 @@
         "matched-hipblaslt-metadata-policy-observations",
         "native-moment-and-completion-boundary-validation",
         "october-26-dag-discoveryowner-parity",
+        "october-26-frontloaded-source-and-combined-retest",
         "physical-beyond-vram-streaming-capacity",
         "reproduction",
         "results-and-coverage",
@@ -5433,6 +5462,118 @@
         "method",
         "packed-storage-and-the-analytical-model",
         "subsequent-stage-price-and-proof-policy-experiment"
+      ]
+    },
+    {
+      "path": "docs/distributed-hip.md",
+      "purpose": "Experimental real modulus-sharded HIP owner",
+      "audience": "Compute researchers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/distributed-hip.md",
+      "owner": "src/core/distributed_hip.cpp",
+      "reason": "Current source and qualification boundary; no new runtime evidence.",
+      "inbound_links": [
+        {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/distributed-mock.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/distributed-mock.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../distributed-hip.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/selected-implementation-20261026.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/distributed-hip.md"
+        }
+      ],
+      "anchors": [
+        "experimental-modulus-sharded-hip-execution",
+        "future-qualification-commands",
+        "preparation-and-arithmetic",
+        "progress-publication-and-lifetime",
+        "resource-contract"
+      ]
+    },
+    {
+      "path": "docs/system-roof-calibration.md",
+      "purpose": "Bounded exact system and memory calibration probes",
+      "audience": "Compute researchers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/system-roof-calibration.md",
+      "owner": "benchmarks/rns8_system_roof_calibrate.cpp",
+      "reason": "Current source and qualification boundary; no new runtime evidence.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "system-roof-calibration.md"
+        },
+        {
+          "source": "docs/calibration.md",
+          "reference": "system-roof-calibration.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../system-roof-calibration.md"
+        },
+        {
+          "source": "docs/selected-implementation-20261026.md",
+          "reference": "system-roof-calibration.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/system-roof-calibration.md"
+        }
+      ],
+      "anchors": [
+        "explicit-operations",
+        "future-collection",
+        "system-and-memory-calibration-probes",
+        "timing-memory-and-capture-identity"
+      ]
+    },
+    {
+      "path": "docs/selected-implementation-20261026.md",
+      "purpose": "Selected 25-issue source completion and deferred qualification",
+      "audience": "Compute researchers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/selected-implementation-20261026.md",
+      "owner": "metadata/selected-implementation-20261026.json",
+      "reason": "Current source and qualification boundary; no new runtime evidence.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "selected-implementation-20261026.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "selected-implementation-20261026.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/selected-implementation-20261026.md"
+        }
+      ],
+      "anchors": [
+        "check-boundary",
+        "implementation-audit",
+        "new-source-work",
+        "october-26-selected-implementation-pass"
       ]
     }
   ]
