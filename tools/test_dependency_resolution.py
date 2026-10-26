@@ -24,6 +24,30 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_selected_manifest_installation_precedes_classic_optional_references(self):
+        vcpkg = self.vcpkg()
+        installed = self.base / "prepared manifest"
+        classic = vcpkg / "installed/x64-windows"
+        chosen = installed / "x64-windows"
+        for root in (classic, chosen):
+            self.put(root, "include/gmp.h")
+            self.put(root, "lib/gmp.lib")
+        request = self.request(overrides={"VCPKG_ROOT": str(vcpkg), "VCPKG_INSTALLED_DIR": str(installed)},
+                               features={"RNS8_ENABLE_GMP": True})
+        report = self.resolve(request)
+        self.assert_clean(report)
+        self.assertEqual(Path(report["cmake_bindings"]["RNS8_GMP_ROOT"]), chosen)
+        self.assertEqual(Path(report["cmake_bindings"]["VCPKG_INSTALLED_DIR"]), installed)
+        self.assertIn("vcpkg_installation", report["effective_identity"])
+        (chosen / "lib/gmp.lib").unlink()
+        self.assertTrue(self.resolve(request)["errors"])
+        self.assert_clean(self.resolve(replace(request, features={})))
+        source = Path(request.source_root) / "third_party/rocm/composable_kernel"
+        self.put(source, "include/ck/ck.hpp")
+        fallback = self.resolve(replace(request, features={"RNS8_ENABLE_CK": True}))
+        self.assert_clean(fallback)
+        self.assertEqual(Path(fallback["cmake_bindings"]["RNS8_CK_ROOT"]), source)
+
     def test_standard_therock_root_follows_system_drive(self):
         therock = self.base / "TheRock/build"
         therock.mkdir(parents=True)

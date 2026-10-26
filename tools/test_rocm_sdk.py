@@ -207,7 +207,8 @@ class SDKTests(unittest.TestCase):
             "RNS8_HIP_CLANG": str(root / "lib/llvm/bin/amdclang++.exe")},
             "compiler_environment": {"HIP_PATH": str(root), "ROCM_PATH": str(root)}}
         with patch.object(sdk, "inspect", return_value=resolution), \
-                patch.object(sdk, "package_installation", return_value={}), patch.object(sdk.subprocess, "run") as run:
+                patch.object(sdk, "package_installation", return_value={}), \
+                patch.object(sdk, "resolve", return_value={**resolution, "errors": []}), patch.object(sdk.subprocess, "run") as run:
             result = sdk.run(args)
         self.assertEqual(run.call_count, 2)
         configure = run.call_args_list[0].args[0]

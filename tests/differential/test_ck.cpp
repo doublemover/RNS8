@@ -13,7 +13,7 @@ TEST_CASE("CK input signedness preserves negative residues across K slab boundar
   options.requested_backend=RNS8_BACKEND_CK;rns8_context* context=nullptr;
   if(rns8_create_context(0,&options,&context)!=RNS8_SUCCESS)SKIP("CK device unavailable");
   constexpr int64_t m=3,n=5,ldc=n+2;
-  for(uint16_t modulus:{uint16_t{127},uint16_t{129},uint16_t{199},uint16_t{251},uint16_t{253},uint16_t{255},uint16_t{256}})
+  for(uint16_t modulus:{uint16_t{127},uint16_t{199},uint16_t{241},uint16_t{243},uint16_t{251},uint16_t{253},uint16_t{255},uint16_t{256}})
     for(int64_t k:{int64_t{64},int64_t{65536},int64_t{65537}}) {
       CAPTURE(modulus,k);const int64_t lda=k+3,ldb=n+3;
       std::vector<uint8_t> a(size_t(m*lda),0xa5),b(size_t(k*ldb),0x5a),c(size_t(m*ldc),0xcc);

@@ -56,6 +56,13 @@ revisions; explicit `VCPKG_INSTALLED_DIR` choices can retain reported version
 drift. Matching repository packages take precedence; other ambiguous matches
 fail. No package manager is run implicitly. All child build/test commands get
 the chosen SDK/LLVM/tool paths; CTest also loads the VS/Windows SDK environment.
+Shared discovery accepts `VCPKG_INSTALLED_DIR` directly and binds enabled
+GMP/FLINT headers and libraries to that selected manifest triplet. A missing
+enabled reference fails instead of borrowing it from an older classic install;
+an intentional alternate reference still uses its explicit component root.
+The installation/status identity is recorded. The initializer resolves every
+enabled component before invoking CMake, overriding stale automatic component
+paths when the selected manifest installation changes.
 
 Native Linux uses the same Python entry point. AMD architecture enumeration is
 preferred; Windows also recognizes common desktop RX 7000/9000 adapter names

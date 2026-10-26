@@ -28,7 +28,7 @@ OPTIONAL_PATH_KEYS = {"RNS8_CK_INCLUDE_DIR": ("ck", "include"), "RNS8_ROCWMMA_IN
     "RNS8_HIPBLASLT_INCLUDE_DIR": ("hipblaslt", "include"), "RNS8_HIPBLASLT_LIBRARY": ("hipblaslt", "library"),
     "hipblaslt_DIR": ("hipblaslt", "cmake_package"), "RNS8_GMP_INCLUDE_DIR": ("gmp", "include"),
     "RNS8_GMP_LIBRARY": ("gmp", "library"), "RNS8_FLINT_INCLUDE_DIR": ("flint", "include"), "RNS8_FLINT_LIBRARY": ("flint", "library")}
-REQUEST_KEYS = (*ROOT_KEYS, *HIP_PATH_KEYS, "CMAKE_TOOLCHAIN_FILE", "VCPKG_ROOT", "VCPKG_TARGET_TRIPLET",
+REQUEST_KEYS = (*ROOT_KEYS, *HIP_PATH_KEYS, "CMAKE_TOOLCHAIN_FILE", "VCPKG_ROOT", "VCPKG_TARGET_TRIPLET", "VCPKG_INSTALLED_DIR",
                 "CMAKE_PREFIX_PATH", "CMAKE_INCLUDE_PATH", "CMAKE_LIBRARY_PATH", "CMAKE_SYSROOT", "CMAKE_CXX_COMPILER",
                 "CMAKE_SYSTEM_NAME", "CMAKE_SYSTEM_PROCESSOR", "RNS8_AMDGPU_TARGETS", "RNS8_ROCM_DEPS_INSTALL_ROOT",
                 "RNS8_ROCM_DEPS_BUILD_ROOT", "CMAKE_FIND_ROOT_PATH", "CMAKE_FIND_ROOT_PATH_MODE_PACKAGE", *OPTIONAL_PATH_KEYS)
@@ -407,6 +407,8 @@ def resolve_vcpkg(request: Request, environment: Mapping[str, str]) -> tuple[dic
     if toolchain and not Path(toolchain).is_file(): external["status"] = "invalid"; external["error"] = "explicit CMAKE_TOOLCHAIN_FILE does not exist: " + toolchain
     if request.host != "Windows":
         errors = []
+        if request.overrides.get("VCPKG_INSTALLED_DIR"):
+            errors.append(NATIVE_PACKAGE_POLICY + "VCPKG_INSTALLED_DIR is unsupported on native Linux/WSL")
         if toolchain and (is_vcpkg or "vcpkg" in toolchain.lower()): errors.append(NATIVE_PACKAGE_POLICY + "vcpkg toolchains are unsupported")
         for key in ("CMAKE_PREFIX_PATH", "CMAKE_INCLUDE_PATH", "CMAKE_LIBRARY_PATH", "CMAKE_FIND_ROOT_PATH", "CMAKE_SYSROOT", "VCPKG_TARGET_TRIPLET"):
             if any(forbidden_windows_path(value) for value in split_paths(request.overrides.get(key, ""), request.host)):
@@ -465,6 +467,11 @@ def optional_components(request: Request, environment: Mapping[str, str], hip: d
         if hip.get("selected"): roots.append((hip["selected"]["canonical_root"], "selected_HIP_stack", 30, False))
         if vcpkg.get("selected"):
             selected = vcpkg["selected"]
+            installed = request.overrides.get("VCPKG_INSTALLED_DIR") or environment.get("VCPKG_INSTALLED_DIR")
+            if installed:
+                roots.append((str(Path(installed) / selected["paths"]["triplet"]),
+                              "selected_manifest_installation", 10 if name in {"gmp", "flint"} else 30,
+                              name in {"gmp", "flint"} and request.features.get(feature, False)))
             roots.append((str(Path(selected["canonical_root"]) / "installed" / selected["paths"]["triplet"]), "selected_vcpkg_triplet", 30, False))
             roots.append((str(Path(request.source_root) / "vcpkg_installed" / selected["paths"]["triplet"]), "repository_manifest_triplet", 30, False))
         if name in {"ck", "rocwmma"}:
@@ -539,6 +546,9 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
         selected_vcpkg = vcpkg["selected"]
         bindings["VCPKG_ROOT"] = selected_vcpkg["canonical_root"]
         bindings["VCPKG_TARGET_TRIPLET"] = selected_vcpkg["paths"]["triplet"]
+        installed = request.overrides.get("VCPKG_INSTALLED_DIR") or env.get("VCPKG_INSTALLED_DIR")
+        if installed:
+            bindings["VCPKG_INSTALLED_DIR"] = canonical(installed)
     for name, component in optional.items():
         selected_optional = component.get("selected")
         has_component_override = any(request.overrides.get(variable) for variable, (dependency, _) in OPTIONAL_PATH_KEYS.items() if dependency == name)
@@ -588,6 +598,10 @@ def resolve(request: Request, environment: Mapping[str, str] | None = None) -> d
                 "feature_policy": {key: request.features.get(key, False) for key in FEATURE_KEYS},
                 "targets": request.overrides.get("RNS8_AMDGPU_TARGETS", "gfx1100"),
                 "manifest_sha256": report["manifest_sha256"]}
+    if bindings.get("VCPKG_INSTALLED_DIR"):
+        status = Path(bindings["VCPKG_INSTALLED_DIR"]) / "vcpkg/status"
+        identity["vcpkg_installation"] = {"root": bindings["VCPKG_INSTALLED_DIR"],
+                                            "status_sha256": digest(status) if status.is_file() else None}
     if toolchain.get("path") and Path(toolchain["path"]).is_file(): identity["toolchain_sha256"] = digest(Path(toolchain["path"]))
     report["effective_identity"] = identity
     report["identity_sha256"] = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

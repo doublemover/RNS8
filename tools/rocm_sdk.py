@@ -19,7 +19,7 @@ import tarfile
 import tempfile
 import urllib.request
 
-from check_dependencies_lib.resolution import Request, default_hip_roots, resolve, truth
+from check_dependencies_lib.resolution import FEATURE_KEYS, REQUEST_KEYS, Request, default_hip_roots, resolve, truth
 from check_dependencies_lib.version_policy import installed_vcpkg_receipt
 
 BASE_URL = "https://stable.repo.amd.com/rocm/core/tarball/"
@@ -420,6 +420,12 @@ def run(args: argparse.Namespace) -> dict:
         raise ValueError("--sdk-jobs must be positive")
     if any(not value.startswith("-D") or "=" not in value for value in args.sdk_cmake_arg):
         raise ValueError("--sdk-cmake-arg accepts only -DKEY=VALUE options")
+    definitions = {}
+    for value in args.sdk_cmake_arg:
+        key, setting = value[2:].split("=", 1)
+        definitions[key.split(":", 1)[0]] = setting
+    if args.sdk_test and not truth(definitions.get("RNS8_BUILD_TESTS", "ON")):
+        raise ValueError("--sdk-test requires RNS8_BUILD_TESTS=ON")
     pins = {}
     for value in args.sdk_sha256:
         family, separator, digest = value.partition("=")
@@ -458,12 +464,6 @@ def run(args: argparse.Namespace) -> dict:
         bindings = dict(resolution["cmake_bindings"]) if resolution else {"RNS8_HIP_ROOT": str(root)}
         bindings.update(RNS8_ENABLE_HIP="ON", RNS8_AMDGPU_TARGETS=";".join(lane["targets"]))
         bindings.update(RNS8_CK_ROOT=str(root), RNS8_ROCWMMA_ROOT=str(root), RNS8_HIPBLASLT_ROOT=str(root))
-        definitions = {}
-        for value in args.sdk_cmake_arg:
-            key, setting = value[2:].split("=", 1)
-            definitions[key.split(":", 1)[0]] = setting
-        if args.sdk_test and not truth(definitions.get("RNS8_BUILD_TESTS", "ON")):
-            raise ValueError("--sdk-test requires RNS8_BUILD_TESTS=ON")
         for key in ("CMAKE_TOOLCHAIN_FILE", "VCPKG_ROOT", "VCPKG_TARGET_TRIPLET"):
             if key in definitions:
                 bindings[key] = definitions[key]
@@ -471,6 +471,19 @@ def run(args: argparse.Namespace) -> dict:
         if args.sdk_build and not args.dry_run:
             result["packages"] = package_installation(resolution, definitions)
             bindings.update(result["packages"].get("bindings", {}))
+            # Resolve enabled references against the *selected* manifest tree,
+            # then pass every component binding so stale automatic cache values
+            # cannot reintroduce an older classic installation on reconfigure.
+            overrides = {key: value for key, value in definitions.items() if key in REQUEST_KEYS}
+            overrides.update({key: value for key, value in bindings.items() if key in REQUEST_KEYS})
+            features = {key: truth(definitions.get(key, "OFF")) for key in FEATURE_KEYS}
+            features["RNS8_ENABLE_HIP"] = True
+            build_resolution = resolve(Request(host, overrides=overrides, features=features,
+                source_root=str(ROOT), require_hip=True, require_vcpkg=host == "Windows"))
+            if build_resolution["errors"]:
+                raise ValueError("Build dependency selection failed: " + "; ".join(build_resolution["errors"]))
+            bindings.update(build_resolution["cmake_bindings"])
+            result["build_dependency_resolution"] = build_resolution
             bindings.update(CMAKE_MAKE_PROGRAM=tools["ninja"], Python3_EXECUTABLE=sys.executable)
         build = args.sdk_build_root.resolve() / f"{host.lower()}-{lane['family']}-{lane['version']}"
         wrapper = [sys.executable, str(ROOT / "tools/windows_dev.py")] if host == "Windows" else []
