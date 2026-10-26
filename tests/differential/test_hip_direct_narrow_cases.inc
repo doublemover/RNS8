@@ -89,6 +89,24 @@ template<class T> void check_public_narrow_owner(rns8_narrow_product_method meth
     return rns8_gemm_narrow_exact(ctx,plan,a,b,c,method,budget,ws);
   };
   REQUIRE(pack(a,av)==RNS8_SUCCESS); REQUIRE(pack(b,bv)==RNS8_SUCCESS); REQUIRE(pack(c,av)==RNS8_SUCCESS);
+  // Bind the explicit native producer through the same runtime shortlist.
+  // Its output remains persistent RNS, and no ordinary GEMM cost prices the
+  // actual scan/status/native-accumulation/encoding boundary.
+  rns8_pipeline_query pipeline{};pipeline.struct_size=sizeof(pipeline);pipeline.abi_version=RNS8_ABI_VERSION;
+  pipeline.operation.struct_size=sizeof(pipeline.operation);pipeline.operation.abi_version=RNS8_ABI_VERSION;
+  pipeline.operation.operation=RNS8_OP_NARROW_NATIVE;pipeline.operation.algorithm=method;pipeline.operation.execution_modes=RNS8_EXEC_SYNC;
+  pipeline.operation.problem=desc;pipeline.operation.scratch_budget=UINT64_MAX;pipeline.operation.output_limbs=3;
+  pipeline.operation.proof_flags=RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_NARROW_INPUT_PROOF;
+  pipeline.output_boundary=u?2:1;pipeline.output_magnitude_limbs[0]=UINT64_C(1000000000);pipeline.retained_operands=3;
+  pipeline.reuse_count=3;pipeline.payload_budget=UINT64_MAX;rns8_pipeline_candidate candidates[7]{};uint32_t candidate_count=0;
+  REQUIRE(rns8_plan_pipeline(ctx,&pipeline,nullptr,0,candidates,7,&candidate_count)==RNS8_SUCCESS);REQUIRE(candidate_count==7);
+  if(candidates[0].status==RNS8_UNSUPPORTED_BACKEND){cleanup();SKIP("native producer pipeline target unsupported");}
+  REQUIRE(candidates[0].status==RNS8_SUCCESS);CHECK_FALSE(candidates[0].cost_known);CHECK_FALSE(candidates[0].pareto);
+  REQUIRE(candidates[0].stage_count>0);CHECK(candidates[0].stages[0].kind==11+uint32_t(method));
+  rns8_plan* selected=nullptr;rns8_workspace* selected_work=nullptr;
+  REQUIRE(rns8_create_plan(ctx,&candidates[0].executable_problem,&selected)==RNS8_SUCCESS);
+  REQUIRE(rns8_create_workspace(ctx,selected,&selected_work)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_workspace(ws)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);plan=selected;ws=selected_work;
   auto generation=c->content_generation;
   CHECK(run(0)==RNS8_WORKSPACE_TOO_SMALL);
   CHECK(c->content_generation==generation);

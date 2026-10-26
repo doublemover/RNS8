@@ -29,10 +29,13 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     if(!ctx || !query || !required || (capacity && !results) || (profile_count && !profiles) || profile_count>8 ||
        !valid_abi(query->struct_size,query->abi_version,sizeof(*query)) ||
        !valid_abi(query->operation.struct_size,query->operation.abi_version,sizeof(query->operation)) ||
-       query->operation.operation!=RNS8_OP_GEMM || query->operation.execution_modes!=RNS8_EXEC_SYNC ||
+       (query->operation.operation!=RNS8_OP_GEMM && query->operation.operation!=RNS8_OP_NARROW_NATIVE) || query->operation.execution_modes!=RNS8_EXEC_SYNC ||
        query->operation.output_limbs>32 || query->output_boundary>3 || query->retained_operands>3 || !query->reuse_count)return RNS8_INVALID_ARGUMENT;
     *required=0;
     const auto& input=query->operation.problem;
+    const bool native_producer=query->operation.operation==RNS8_OP_NARROW_NATIVE;
+    if(native_producer && input.requested_backend!=RNS8_BACKEND_AUTO && input.requested_backend!=RNS8_BACKEND_HIP_DIRECT)
+      return RNS8_UNSUPPORTED_BACKEND;
     if(!exact_wide_semantics(input.semantics) || is_per_tile_bound_kind(input.bound_kind))return RNS8_UNSUPPORTED_BACKEND;
     const uint32_t ceiling=input.max_prefix?input.max_prefix:default_prefix_for_semantics(input.semantics);
     auto capacity_problem=input;capacity_problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
@@ -64,6 +67,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
       RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_CPU_AMX};
     for(auto backend:backends){if(input.requested_backend!=RNS8_BACKEND_AUTO && input.requested_backend!=backend)continue;
+      if(native_producer && backend!=RNS8_BACKEND_HIP_DIRECT)continue;
       for(unsigned reconstruction=0;reconstruction<7;++reconstruction){
         const bool checked=reconstruction>=2,quarter_owner=reconstruction==1;
         if(reconstruction && (!query->output_boundary || (quarter_owner && (!quarter || !quarter_crt_backend_supported(backend))) ||
@@ -71,6 +75,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         rns8_pipeline_candidate c{};c.struct_size=sizeof(c);c.abi_version=RNS8_ABI_VERSION;c.backend=backend;
         c.prefix=quarter_owner?quarter:minimum;c.reconstruction=query->output_boundary?reconstruction+1:0;c.requires_binding=1;
         auto q=query->operation;q.problem.max_prefix=c.prefix;q.problem.requested_backend=backend;q.problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
+        if(native_producer){q.ldc=input.n;q.output_limbs=0;} // Producer RNS storage is compact; final host stride/limbs belong to export.
         c.executable_problem=q.problem;
         // Caller-owned pointers cannot escape in a saved executable recipe.
         c.executable_problem.tile_bounds=nullptr;c.executable_problem.tile_bounds_count=0;
@@ -138,7 +143,11 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         for(unsigned operand=0;operand<2;++operand)if(!(query->retained_operands&(1u<<operand))){uint32_t dependency=0;
           if(gpu){stage(0,2,0,operand?native_b:native_a,operand?native_b:native_a,true);dependency=1u<<(c.stage_count-1);}
           stage(1,gpu?4:1,dependency,operand?bbytes:abytes,operand?bbytes:abytes,true);inputs|=1u<<(c.stage_count-1);}
-        stage(2,gpu?4:1,inputs,ops,cbytes,false);
+        // A native producer includes its real range scan/status, allocation,
+        // native accumulation and RNS encoding. The six-rate profile cannot
+        // price that boundary with ordinary per-plane multiply-add rates.
+        stage(native_producer?11+query->operation.algorithm:2,native_producer?7:gpu?4:1,inputs,
+            native_producer?product(ccells,input.k,1):ops,cbytes,false);
         if(query->output_boundary){if(checked)
             stage(6+reconstruction-2,gpu?7:1,1u<<(c.stage_count-1),cbytes,export_support.required_host_bytes+export_support.required_device_bytes,false);
           else{stage(quarter_owner?4:3,gpu?4:1,1u<<(c.stage_count-1),cbytes,output,false);
@@ -147,7 +156,8 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
           c.upper_amortized_ns=last.latest_end_ns-high_setup+high_setup/query->reuse_count;
           set_text(c.explanation,sizeof(c.explanation),"non-promoting calibrated shortlist; enforced resource order; robust simultaneous-payload bound; actual values and opaque setup still bind");}
         else {for(auto& stage:c.stages){stage.earliest_start_ns=stage.earliest_end_ns=stage.latest_start_ns=stage.latest_end_ns=0;}
-          set_text(c.explanation,sizeof(c.explanation),checked?"admissible checked export composition; policy-specific complete-owner cost unknown in this profile schema; current source and opaque setup still bind":
+          set_text(c.explanation,sizeof(c.explanation),native_producer?"native producer requires retained native input matrices and actual scanned range; complete producer cost unknown; bind using the original operation query":
+            checked?"admissible checked export composition; policy-specific complete-owner cost unknown in this profile schema; current source and opaque setup still bind":
             "admissible static candidate; cost unknown (missing/stale target/build calibration); never ranked as zero cost");}
         candidates.push_back(c);
       }

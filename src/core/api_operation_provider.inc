@@ -126,6 +126,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","native lease requires direct-HIP exact-wide context");break;
     case RNS8_OP_NARROW_NATIVE:
       if(!hip || !rns8::detail::exact_wide_semantics(d.semantics) || (!(query.algorithm&1) && d.semantics!=RNS8_EXACT_WIDE_SIGNED))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","narrow native provider requires direct-HIP signed semantics");
+      if((query.lda && query.lda!=d.k) || (query.ldb && query.ldb!=d.n))
+        return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SHAPE,"native_input_stride","public narrow owners consume compact retained native copies; padded host packing does not create padded native storage");
       if((query.algorithm&1) && !rdna3)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current byte-WMMA narrow provider requires gfx11");
       if(!(query.proof_flags&RNS8_QUERY_NATIVE_RETAINED))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_storage","narrow input requires retained current native storage");
       if(!(query.proof_flags&RNS8_QUERY_NARROW_INPUT_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"input_range","narrow arithmetic requires an actual input partial-sum proof");break;

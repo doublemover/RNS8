@@ -494,3 +494,42 @@ Their steady-call assertions require zero intercepted host allocations; they
 have not run yet. Existing CPU/HIP rebind fixtures also exercise growth from one
 unique source to two without resizing retained device arenas. This is source
 work, not a measured latency gain or a broader materialization-route promotion.
+
+
+### Explicit native-to-RNS producer planning
+
+`rns8_plan_pipeline` accepts either the ordinary `RNS8_OP_GEMM` producer or
+`RNS8_OP_NARROW_NATIVE` with one of the four concrete narrow methods. The native
+form is an explicit direct-HIP query, not an automatic replacement for an RNS
+producer. Its typed provider requires retained-native and actual input-range
+proof binding; create both input matrices with `RNS8_MATRIX_RETAIN_NATIVE_INPUT`
+before packing. Padded host input is permitted by packing, while the retained
+native device copies are compact; public narrow discovery rejects padded native
+strides. Producer RNS output is compact independently of the final host limb
+stride. The query can retain either packed operand and reports planned native
+upload/encoding storage for missing materializations.
+
+Preserve the original query when binding: `candidate.executable_problem` creates
+the ordinary fixed-prefix plan, then `query.operation.operation` and `algorithm`
+select `rns8_gemm_narrow_exact` and its method before the requested final export.
+The descriptor alone is not a complete serialized execution recipe. Actual
+entrypoint scanning checks every current native input, partial-sum width and
+source generation; a proposed planner output bound never substitutes for those
+checks. Unsupported unsigned scalar methods and unavailable target instructions
+remain explicit rejections. No fallback silently changes representation.
+
+Stage kinds 11..14 describe each complete native producer call, including real
+range scans, status readback, scratch lifecycle, native accumulation and final
+RNS encoding. Its work units are logical multiply-adds, not residue-plane work.
+The six-rate profile cannot price these calls, so their candidate cost stays
+unknown and cannot enter the Pareto set even when every ordinary rate is known.
+Final default/quarter/checked CRT choices retain their own admission and resource
+queries. Public struct layouts and profile arrays are unchanged.
+
+Authored mock-target cases check all methods, proof/stride/signedness rejection,
+method-specific identities, budgets and unknown costs without touching a GPU.
+The existing real-HIP narrow differential now creates the returned candidate's
+plan and checks the actual public execution against every independent Boost
+output, including source mutation and invalid-value/currentness rejection.
+Those additions are syntax checked only; target execution and cross-route
+profitability remain deferred.

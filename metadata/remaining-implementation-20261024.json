@@ -447,6 +447,16 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_quarter_crt_cases.inc"
           ]
+        },
+        {
+          "summary": "Runtime pipeline query now accepts explicit existing narrow-native-to-RNS producers with concrete method/proof/compact-retained-input contracts, ordinary plan binding and default/quarter/checked export choices. Complete native scan/status/scratch/accumulation/encoding stays unpriced by the six-rate residue profile. Mock-target admission and real-HIP candidate-plan differentials are authored; syntax only, no route promotion.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_operation_provider.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/differential/test_hip_direct_narrow_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1613,6 +1623,16 @@
             "tests/unit/test_exact_cpu_allocation_faults.cpp",
             "tests/support/product_recipe_rebind_fixture.hpp"
           ]
+        },
+        {
+          "summary": "Runtime pipeline query now accepts explicit existing narrow-native-to-RNS producers with concrete method/proof/compact-retained-input contracts, ordinary plan binding and default/quarter/checked export choices. Complete native scan/status/scratch/accumulation/encoding stays unpriced by the six-rate residue profile. Mock-target admission and real-HIP candidate-plan differentials are authored; syntax only, no route promotion.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_operation_provider.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/differential/test_hip_direct_narrow_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -2254,6 +2274,16 @@
             "src/core/api_pipeline_planner.inc",
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
+          ]
+        },
+        {
+          "summary": "Runtime pipeline query now accepts explicit existing narrow-native-to-RNS producers with concrete method/proof/compact-retained-input contracts, ordinary plan binding and default/quarter/checked export choices. Complete native scan/status/scratch/accumulation/encoding stays unpriced by the six-rate residue profile. Mock-target admission and real-HIP candidate-plan differentials are authored; syntax only, no route promotion.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_operation_provider.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/differential/test_hip_direct_narrow_cases.inc"
           ]
         }
       ],

@@ -351,3 +351,59 @@ TEST_CASE("quarter export source discovery follows ordinary residue storage prod
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
+
+
+TEST_CASE("native producer pipeline queries retain explicit representation and unpriced owner boundaries", "[api][planner][mock-target]") {
+  // A synthetic inventory target: this test launches no GPU, creates no HIP
+  // context and attests neither runtime availability nor execution correctness.
+  rns8_context target{};target.backend=RNS8_BACKEND_HIP_DIRECT;target.device_id=0;
+  target.device_info.hip_available=1;std::strcpy(target.device_info.gcn_arch,"gfx1100");
+  rns8_pipeline_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation.struct_size=sizeof(q.operation);q.operation.abi_version=RNS8_ABI_VERSION;
+  q.operation.operation=RNS8_OP_NARROW_NATIVE;q.operation.execution_modes=RNS8_EXEC_SYNC;q.operation.scratch_budget=UINT64_MAX;
+  q.operation.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,3,5,7);q.operation.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  q.operation.problem.max_prefix=9;q.operation.output_limbs=1;q.operation.input_domain=4;
+  q.operation.proof_flags=RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_NARROW_INPUT_PROOF;
+  q.output_boundary=1;q.output_magnitude_limbs[0]=100;q.payload_budget=UINT64_MAX;q.reuse_count=2;
+  rns8_pipeline_cost_profile profile{};profile.struct_size=sizeof(profile);profile.abi_version=RNS8_ABI_VERSION;
+  profile.backend=RNS8_BACKEND_HIP_DIRECT;std::strcpy(profile.target_id,"gfx1100");std::strcpy(profile.calibration_identity,"synthetic-native-producer-regression");
+  REQUIRE(rns8_get_pipeline_build_identity(profile.build_identity_sha256,sizeof(profile.build_identity_sha256))==RNS8_SUCCESS);
+  profile.known_mask=63;for(unsigned i=0;i<6;++i){profile.lower_ns_per_unit[i]=1;profile.upper_ns_per_unit[i]=2;}
+  std::string identities[4];
+  for(uint32_t method=0;method<4;++method) {
+    q.operation.algorithm=method;rns8_pipeline_candidate candidates[7]{};uint32_t count=0;
+    REQUIRE(rns8_plan_pipeline(&target,&q,&profile,1,candidates,7,&count)==RNS8_SUCCESS);REQUIRE(count==7);
+    for(const auto& candidate:candidates) {
+      CHECK(candidate.backend==RNS8_BACKEND_HIP_DIRECT);CHECK(candidate.requires_binding);CHECK_FALSE(candidate.cost_known);CHECK_FALSE(candidate.pareto);
+      if(!rns8::detail::hip_direct_compiled()){CHECK(candidate.status==RNS8_UNSUPPORTED_BACKEND);continue;}
+      REQUIRE(candidate.status==RNS8_SUCCESS);bool found=false;
+      for(uint32_t stage=0;stage<candidate.stage_count;++stage)if(candidate.stages[stage].kind==11+method) {
+        found=true;CHECK_FALSE(candidate.stages[stage].cost_known);CHECK(candidate.stages[stage].resources==7);
+        CHECK(candidate.stages[stage].work_units==3*5*7);
+      }
+      CHECK(found);
+    }
+    if(rns8::detail::hip_direct_compiled()) {
+      identities[method]=candidates[0].provider_identity_sha256;
+      for(uint32_t earlier=0;earlier<method;++earlier)CHECK(identities[method]!=identities[earlier]);
+      const auto peak=candidates[0].peak_payload_bytes;q.payload_budget=peak-1;
+      REQUIRE(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);CHECK(candidates[0].status==RNS8_WORKSPACE_TOO_SMALL);
+      q.payload_budget=UINT64_MAX;
+    }
+  }
+  q.operation.algorithm=0;q.operation.proof_flags=RNS8_QUERY_NATIVE_RETAINED;
+  rns8_pipeline_candidate candidates[7]{};uint32_t count=0;REQUIRE(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+  REQUIRE(count==7);for(const auto& candidate:candidates){CHECK(candidate.status==RNS8_RANGE_ERROR);CHECK(candidate.reason_code==RNS8_SUPPORT_MISSING_PROOF);}
+  q.operation.proof_flags=RNS8_QUERY_NARROW_INPUT_PROOF;REQUIRE(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+  for(const auto& candidate:candidates)CHECK(candidate.reason_code==RNS8_SUPPORT_MISSING_PROOF);
+  q.operation.proof_flags=RNS8_QUERY_NATIVE_RETAINED|RNS8_QUERY_NARROW_INPUT_PROOF;q.operation.lda=8;
+  REQUIRE(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+  for(const auto& candidate:candidates){CHECK(candidate.status==RNS8_UNSUPPORTED_BACKEND);CHECK(candidate.reason_code==RNS8_SUPPORT_SHAPE);}
+  q.operation.lda=0;q.operation.problem.semantics=RNS8_EXACT_WIDE_UNSIGNED;q.output_boundary=2;
+  for(uint32_t method:{0u,2u}) {
+    q.operation.algorithm=method;REQUIRE(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+    for(const auto& candidate:candidates){CHECK(candidate.status==RNS8_UNSUPPORTED_BACKEND);CHECK(candidate.reason_code==RNS8_SUPPORT_SEMANTICS);}
+  }
+  q.operation.problem.requested_backend=RNS8_BACKEND_CPU_REFERENCE;
+  CHECK(rns8_plan_pipeline(&target,&q,nullptr,0,candidates,7,&count)==RNS8_UNSUPPORTED_BACKEND);CHECK(count==0);
+}

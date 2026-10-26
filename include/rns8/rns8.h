@@ -875,6 +875,11 @@ typedef struct rns8_pipeline_cost_profile {
 typedef struct rns8_pipeline_query {
   uint64_t struct_size;
   uint32_t abi_version;
+  /* Producer is GEMM or explicit NARROW_NATIVE (direct HIP methods 0..3).
+   * Native producers require actual retained-native/range proof binding; create
+   * each input matrix with RNS8_MATRIX_RETAIN_NATIVE_INPUT before packing.
+   * Preserve this query when binding a candidate: executable_problem creates
+   * its ordinary plan; operation/algorithm choose the real producer entrypoint. */
   rns8_operation_query operation;
   uint64_t output_magnitude_limbs[3];
   uint32_t output_boundary; /* resident0,signed limbs1,unsigned limbs2,canonical3 */
@@ -886,7 +891,10 @@ typedef struct rns8_pipeline_stage {
   /* Kinds 0..5 use the six cost-profile entries. Kinds 6..10 describe a
    * complete prepared checked-export owner (Garner/direct/balanced/local/split),
    * including root/decode/status/readback/publication. These costs are unknown
-   * in this profile schema; ordinary CRT rates never price another policy. */
+   * in this profile schema; ordinary CRT rates never price another policy.
+   * Kinds 11..14 describe complete narrow-native producer methods 0..3,
+   * including actual scan/status/native accumulation/RNS encoding. Their costs
+   * are also unknown; no per-plane GEMM rate substitutes for this boundary. */
   uint32_t kind,dependencies,resources; /* prior stage bitmask; host1,copy2,compute4 */
   uint32_t cost_known;
   uint64_t work_units,allocated_bytes;
