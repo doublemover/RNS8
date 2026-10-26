@@ -684,6 +684,12 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "resident_route_observations": {
+        "receipt": "metadata/adaptive-resident-qualification-20261025.json",
+        "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+        "completed_captures": 95,
+        "scope": "Four low-magnitude workloads, common complete P20 resident output, fixed RNS/narrow scalar/narrow WMMA/adaptive controls. Fused narrow WMMA is fastest at 512^3 (0.573 ms, 0.469 useful TOPS), 1.288x over the strongest tested scalar alternative. Fixed RNS wins tiny/long-K; two within-adaptive summary gains do not establish routing wins. No AUTO promotion."
       }
     },
     {
@@ -1991,6 +1997,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "resident_route_observations": {
+        "receipt": "metadata/adaptive-resident-qualification-20261025.json",
+        "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+        "completed_captures": 95,
+        "scope": "Four low-magnitude workloads, common complete P20 resident output, fixed RNS/narrow scalar/narrow WMMA/adaptive controls. Fused narrow WMMA is fastest at 512^3 (0.573 ms, 0.469 useful TOPS), 1.288x over the strongest tested scalar alternative. Fixed RNS wins tiny/long-K; two within-adaptive summary gains do not establish routing wins. No AUTO promotion."
       }
     },
     {

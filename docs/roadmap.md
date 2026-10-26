@@ -189,8 +189,11 @@ representation-choice integration and qualified measured routing remain under
 #42/#30/#31. The fresh global-minimum and live/peak allocation controls now pass local CPU/GPU
 and installed-ABI checks. Explicit generation-bound summary ownership passes
 the [full local batch and 40 matched captures](adaptive-native-product.md#matched-summary-reuse-observations).
-Its median elapsed effects fail the fixed qualification gates; matched adaptive
-benefit and qualified measured routing remain open.
+Its host-output elapsed effects fail the fixed qualification gates. A separate
+[95-capture resident-output comparison](adaptive-native-product.md#separate-resident-output-boundary)
+qualifies two within-adaptive reuse improvements, while fixed RNS still wins
+those workloads. Fused narrow WMMA wins the 512³ comparison against the strongest
+tested scalar alternative; qualified measured routing remains open.
 
 The [physical capacity qualification](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx)
 now completes a real >32 GiB native/minimum-RNS input on the 24 GiB gfx1100 card:

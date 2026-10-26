@@ -186,8 +186,51 @@ the benchmark performs independent padded limb export/oracle checks after the
 timed interval and checks all resident residue planes. Timed export must be
 exactly zero in the receipt, and explicit boundary/proof-policy fields prevent
 pooling these samples with the completed host-output study. Setup/first-call and
-steady/burst observations stay separate. This new boundary is authored pending
-its focused compilation, contracts and fresh independent-process collection.
+steady/burst observations stay separate.
+
+All **95/95 captures** pass at clean compiled source **3532e57**, with five fresh
+processes per route/workload. Both GPU and sanitizer targets compile, and all six
+collector regressions pass. Production library/kernel sources are unchanged from
+the complete `4e21e9c` qualification. Every sustained burst reaches its declared
+250 ms minimum. The table reports medians of duration-weighted process means;
+all columns return the same complete P20 RNS output.
+
+| Shape / semantics | Fixed RNS, ms | Narrow scalar fused, ms | Narrow WMMA fused, ms | Adaptive fresh, ms | Adaptive cached, ms |
+|---|---:|---:|---:|---:|---:|
+| 17×19×31 signed | **0.081** | 0.331 | 0.346 | 1.053 | 0.946 |
+| 512³ signed | 1.817 | 0.738 | **0.573** | 5.784 | 5.704 |
+| 17×19×65537 signed | **3.087** | 12.018 | 22.667 | 20.569 | 18.913 |
+| 128×3×65537 unsigned | **3.346** | Unsupported | 19.669 | 22.223 | 20.844 |
+
+At 512³, fused narrow WMMA beats the next-fastest measured control, fused narrow
+scalar, by **1.288×**: 0.737890 versus 0.572776 ms, with disjoint process ranges
+0.728450–0.745404 and 0.568429–0.573541 ms. Both satisfy the fixed 10% spread gate.
+Useful integer throughput is **0.36379 versus 0.46866 TOPS**. Against fixed RNS,
+the same winner is 3.172× faster; the stronger scalar comparison is the headline.
+These low-magnitude, resident-input/output observations do not select AUTO.
+
+Context/plan/matrix/packing setup and first call remain separate. The observed
+512³ WMMA setup is about 541 ms, versus 519 ms for scalar; setup is material.
+Per-process diagnostic projections from recorded setup + first call + remaining
+steady calls give scalar/WMMA median ratios **0.960× at one call, 0.970× at 32,
+0.998× at 128 and 1.128× at 1024**. The 1024-call totals project to 1.273 versus
+1.128 s. These are projections, not separately timed fixed-length batches.
+
+Summary reuse itself passes the fixed elapsed gates within the adaptive route
+at 17×19×31 (**1.113×**) and signed 17×19×65537 (**1.088×**). Fixed RNS remains
+much faster on both workloads, so these do not establish adaptive routing wins.
+The 512³ reuse ranges overlap; the unsigned long-K reuse spread fails. All
+controls and losses remain in the receipt rather than being retired by intuition.
+
+The exact measured executable contains the inspected original device code object.
+Its selected signed/unsigned fused native-byte kernels contain actual integer
+`v_wmma_i32_16x16x16_iu8`, use 49 VGPR / 54 SGPR, wave32 and zero LDS/scratch/spills.
+The fused scalar kernel has no matrix instruction, uses 17 VGPR / 18 SGPR and
+zero LDS/scratch/spills. These are binary static resources, not achieved dynamic
+occupancy or profiler instruction/traffic totals. The
+[resident qualification](../metadata/adaptive-resident-qualification-20261025.json)
+preserves all 95 capture hashes/samples, producer identities, retained-summary
+counters, setup projections and the exact artifact-bound instruction evidence.
 
 ## Shared static preflight
 

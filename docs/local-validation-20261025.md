@@ -481,3 +481,31 @@ are actually reused, but no comparison passes both predeclared variance and
 range-separation gates. The negative qualification is retained without retiming
 or widening thresholds. See the [observations](adaptive-native-product.md#matched-summary-reuse-observations)
 and [source/artifact-bound receipt](../metadata/adaptive-summary-qualification-20261025.json).
+
+## Separate resident-output route comparison
+
+Benchmark source **3532e57** compiles in the GPU and CPU-ASan targets; all six
+collector regressions pass. No production library/kernel/public-header source
+changes follow **4e21e9c**, whose full 556-pass sanitizer / 942-pass GPU lanes
+remain the production qualification. The focused build leaves the earlier
+qualified general benchmark executable unchanged.
+
+All **95/95 new captures** pass, five fresh processes for each applicable route
+and workload. Every timed call returns complete P20 RNS output; proof, status,
+completion, commit and synchronization stay inside. Independent limb/padding and
+all-plane checks run outside timing. All bursts reach the 250 ms minimum.
+
+Fused narrow WMMA wins 512³ at **0.572776 ms / 0.46866 useful integer TOPS**,
+**1.288×** over fused scalar at 0.737890 ms. The ranges separate and both process
+spreads pass the fixed 10% gate. Fixed RNS wins the tiny/long-K workloads. Two
+within-adaptive reuse improvements pass timing gates but lose to that stronger
+control; neither becomes an adaptive routing claim. Setup/first-call costs and
+all losses are retained.
+
+Static inspection verifies the original code object occurs byte-for-byte in
+the measured executable. The selected fused native signed/unsigned kernels
+contain actual integer WMMA, with 49 VGPR / 54 SGPR and no LDS/scratch/spills;
+the scalar control has no matrix instruction and 17 VGPR / 18 SGPR. This does
+not measure achieved occupancy or hardware traffic. See the
+[complete comparison](adaptive-native-product.md#separate-resident-output-boundary)
+and [95-capture/ISA receipt](../metadata/adaptive-resident-qualification-20261025.json).

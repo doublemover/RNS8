@@ -773,12 +773,20 @@
           "reference": "adaptive-native-product.md#matched-summary-reuse-observations"
         },
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "adaptive-native-product.md#separate-resident-output-boundary"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../adaptive-native-product.md"
         },
         {
           "source": "docs/roadmap.md",
           "reference": "adaptive-native-product.md#matched-summary-reuse-observations"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "adaptive-native-product.md#separate-resident-output-boundary"
         }
       ],
       "anchors": [
@@ -5325,6 +5333,7 @@
         "physical-beyond-vram-streaming-capacity",
         "reproduction",
         "results-and-coverage",
+        "separate-resident-output-route-comparison",
         "subsequent-materialization-integration",
         "subsequent-measured-price-integration",
         "subsequent-static-instruction-review",
