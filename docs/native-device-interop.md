@@ -303,8 +303,8 @@ compute difference: its host/resident calls used synchronous dispatch while
 device calls used grouped prepared dispatch. The
 [mixed-compute record](../metadata/native-interop-mixed-compute-controls-20261025.json)
 retains every observation and qualifies no gain. The v4 experiment uses common
-prepared compute and awaits measurement. Neither earlier cohort will be pooled
-into it, and the fixed timing thresholds remain unchanged.
+prepared compute and passes the separate qualification below. Neither earlier
+cohort is pooled into it, and the fixed timing thresholds remain unchanged.
 
 The collector counterbalances independent processes, refuses reused process
 identities, checks immutable executable/build/environment provenance, requires
@@ -313,3 +313,57 @@ same-cohort device/host ratios, with the strongest control selected by sustained
 cost. The eager comparison remains visible as a diagnostic. Captures remain nonpromoting.
 Each sustained process mean divides total elapsed burst time by total calls;
 reported cohort means are medians of independent process means.
+
+
+## Common-compute observations on RX 7900 XTX
+
+Compiled source **5e554b5** passes both focused GPU/CPU-ASan target builds and
+all nine collector checks. All **100/100 captures / 62,112 completed transactions**
+pass, using five fresh processes per route/workload, three warmups, nine latency
+samples and three sustained bursts per process. Every burst reaches at least
+250 ms and 16 calls. Complete Boost product, padding and digest audits run outside
+timing in every mode; all requested owned payload returns to baseline. Production
+source remains unchanged from its full **4e21e9c** qualification.
+
+Medians below aggregate duration-weighted sustained means within each process.
+The strongest tested host control is selected by its sustained median; it is
+scalar-first for the small signed workloads and default eager for the two
+unsigned workloads. Host controls and device candidates use the same grouped
+prepared compute provider. The resident floor excludes fresh input binding.
+
+| Shape / input | Host eager ms | Host scalar-first ms | Device stream ms | Device graph ms | Resident floor ms | Sustained gain gate |
+|---|---:|---:|---:|---:|---:|---|
+| 1×3×65537 unsigned, fullwidth | 91.708354 | 92.159123 | 3.199915 | 3.209955 | 2.892327 | device-stream: 28.66×; device-graph: 28.57× |
+| 17×19×31 signed, fullwidth | 5.235056 | 2.636468 | 0.955138 | 0.960116 | 0.628864 | fails fixed variance gate |
+| 128×128×128 signed, small | 32.775546 | 6.495216 | 0.592980 | 0.605353 | 0.345232 | fails fixed variance gate |
+| 257×3×4097 unsigned, small | 204.791710 | 206.733583 | 0.828556 | 0.832558 | 0.536526 | fails fixed variance gate |
+
+The full-width unsigned long-K stream comparison passes the fixed disjoint-range
+and ≤10% process-spread gate at **28.660×**: host **85.344–92.615 ms**, stream
+**3.177–3.308 ms**. Graph replay also passes at **28.570×**, but does not beat
+stream submission. Other observed median improvements do not pass the fixed
+variance gate and are not qualified gains. No routing policy is promoted.
+
+For that long-K case, stream/host setup medians are **406.702/433.275 ms**,
+first calls **7.855/71.773 ms**, p50 **3.402/69.983 ms** and p95
+**3.871/76.473 ms**. Per-process setup-plus-first medians are **414.086/505.048 ms**;
+the warm 28.66× factor is not a cold-call factor. The complete application avoids
+**4,194,584 host payload bytes per call**, with **12 compact status bytes** rather
+than the host control’s four. CPU host-pack proof/conversion costs are part of
+this comparison, so it is not a PCIe bandwidth measurement.
+
+The benefit trades memory for latency: observed RNS8-owned requested device
+peaks are **10,486,088 bytes** for stream/graph versus **7,340,276 bytes** for either
+host control; pinned peaks are **12/0 bytes**. Both also own **2,097,336 bytes** of
+explicit application GPU allocations. The benchmark’s four native host vectors
+retain **2,097,472 capacity bytes** in every route. Boost/library heap, opaque
+graph/runtime objects, allocator overhead, physical VRAM/RSS, actual launch
+counts and hardware traffic remain unmeasured.
+
+The [reviewed receipt](../metadata/native-interop-qualification-20261025.json)
+retains every process’s setup/first/p50/p95/sustained observations, allocation
+snapshots, callbacks, complete commands and artifact/profile hashes. Its shared
+compiled manifest is stored once and referenced by each normalized capture.
+The two earlier diagnostic studies and original failed attempt remain separate.
+Real failed-drain device-fault and native Linux GPU qualification remain open;
+optional DLPack integration is a follow-on.

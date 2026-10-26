@@ -2588,12 +2588,17 @@
         "bb8db2b8e371654a4eb87beae7c16c95c68144bb",
         "cb6057cd2e160bb3e36848c059e111d8c40e02fb",
         "f4cdbcd384afdd18efffcc1c1323642612e4b5e0",
-        "c7f173f1912fb8cdd04d143ecfdbee54f15af070"
+        "c7f173f1912fb8cdd04d143ecfdbee54f15af070",
+        "1a4dfc475dcbaaa4cd26f438ef8518f6120b9ab9",
+        "0f26d9694a834bf1b6092c38f9896862b018bdb8",
+        "29de8304f044145c11e4288a64b67f960f9e7df3",
+        "433b89b47046314bb7cb3ffe48da2916593f02ba",
+        "5e554b5541c9e45ac893b4b54f514bcb1a0f768a"
       ],
       "remaining": [
-        "Installed static/shared synchronous/prepared native-device pipelines passed. Matched external/internal/host-roundtrip performance and profiler/failure qualification remain; DLPack remains an optional follow-on."
+        "Installed static/shared consumers and the seven native-device GPU fixtures pass at 4e21e9c. Common-compute v4 passes 100 captures / 62112 transactions at 5e554b5; the full-width unsigned long-K pipeline passes the fixed timing gate at 28.66x versus the fastest tested host control. Hardware launch/traffic and physical-memory observations, real failed-drain device-fault qualification and native Linux GPU coverage remain; DLPack is optional."
       ],
-      "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
+      "validation": "Both v4 target builds, nine collector contracts, exact output/padding/digest checks, ownership callbacks and allocation retirement pass. Earlier 80- and 100-capture studies remain diagnostic because their proof/compute controls differed; they establish no interop gain.",
       "dependencies": [
         18,
         24,

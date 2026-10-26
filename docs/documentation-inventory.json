@@ -4948,6 +4948,7 @@
         }
       ],
       "anchors": [
+        "common-compute-observations-on-rx-7900-xtx",
         "copy-owned-read-leases",
         "explicit-multiword-device-output",
         "matched-application-cost-experiments",
