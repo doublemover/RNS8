@@ -59,6 +59,7 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
         if not root:
             return
         root_path = Path(root)
+        append_tool_dir(root_path / "lib" / "llvm" / "bin")
         append_tool_dir(root_path / "bin")
         append_tool_dir(root_path / "llvm" / "bin")
 
@@ -74,7 +75,8 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
         for candidate_hipcc in hipcc_paths:
             parent = candidate_hipcc.parent
             if parent.name == "bin" and parent.parent.name == "llvm":
-                append_hip_root(str(parent.parent.parent))
+                llvm_parent = parent.parent.parent
+                append_hip_root(str(llvm_parent.parent if llvm_parent.name == "lib" else llvm_parent))
             elif parent.name == "bin":
                 append_hip_root(str(parent.parent))
 

@@ -53,3 +53,22 @@ TEST_CASE("hipBLASLt metadata identity includes all layout operation device and 
   bad=key;bad.device_id=-1;CHECK_FALSE(d.publish(1,bad));bad=key;bad.scratch_ld=31;CHECK_FALSE(d.publish(1,bad));
   auto tail=key;tail.k=16;REQUIRE(d.publish(1,tail));CHECK(d.free_slot()==-1);CHECK(d.find(key)==0);CHECK(d.find(tail)==1);
 }
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
+#include "backend_hipblaslt/hipblaslt_headers.hpp"
+#include <cmath>
+#if __has_include(<hipblaslt/hipblaslt_e5m3.h>)
+TEST_CASE("hipBLASLt host E5M3 decodes every positive subnormal exactly", "[hipblaslt][headers]") {
+  for (uint8_t bits=1;bits<8;++bits) {
+    hipblaslt_e5m3 value; value.data=bits;
+    CHECK(float(value)==std::ldexp(float(bits),-17));
+  }
+}
+#endif
+#if defined(_MSC_VER) && !defined(__clang__)
+TEST_CASE("hipBLASLt MSVC leading-zero adaptation covers unsigned boundaries", "[hipblaslt][headers]") {
+  CHECK(hipblaslt_host_clz(0)==32);
+  for(unsigned bit=0;bit<32;++bit) CHECK(hipblaslt_host_clz(1u<<bit)==31-int(bit));
+  CHECK(hipblaslt_host_clz(UINT32_MAX)==0);
+}
+#endif
+#endif

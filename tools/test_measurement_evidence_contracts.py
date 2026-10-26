@@ -2,6 +2,7 @@
 from copy import deepcopy
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,6 +12,17 @@ from evidence_database_lib.isa import load_isa_index, lookup_isa_resources
 from test_capture_identity_support import synthetic_identity, synthetic_static_isa_report
 import gpu_isa_report
 import isa_common
+
+
+class SelectedSDKTools(unittest.TestCase):
+    def test_therock_nested_llvm_precedes_unrelated_sdk_fallbacks(self):
+        selected = Path("/selected/sdk")
+        with patch.dict(os.environ, {"HIP_PATH": "/other/sdk"}, clear=True), \
+                patch.object(isa_common.shutil, "which", return_value=None):
+            candidates = isa_common.hip_sdk_tool_candidates(selected / "bin/hipcc", "llvm-objdump")
+        nested = next(i for i,p in enumerate(candidates) if p.parent == selected / "lib/llvm/bin")
+        stale = next(i for i,p in enumerate(candidates) if str(p).replace("\\", "/").startswith("/other/sdk/"))
+        self.assertLess(nested, stale)
 
 
 class StaticAssociation(unittest.TestCase):

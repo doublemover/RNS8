@@ -160,7 +160,7 @@ if(RNS8_PROBE_ACCELERATORS AND MSVC AND TARGET roc::hipblaslt)
   file(
     WRITE
     "${_RNS8_HIPBLASLT_PROBE_SOURCE}"
-    "#include <hipblaslt/hipblaslt.h>\nint main() { hipblasLtHandle_t h = nullptr; return hipblasLtCreate(&h) == HIPBLAS_STATUS_SUCCESS && h ? (hipblasLtDestroy(h), 0) : 0; }\n"
+    "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_headers.hpp\"\nint main() { hipblasLtHandle_t h = nullptr; return hipblasLtCreate(&h) == HIPBLAS_STATUS_SUCCESS && h ? (hipblasLtDestroy(h), 0) : 0; }\n"
   )
   try_compile(
     RNS8_HIPBLASLT_MSVC_LINK_PROBE_PASSED
@@ -225,7 +225,7 @@ if(RNS8_ENABLE_HIPBLASLT AND RNS8_HIP_HIPCC AND RNS8_HIPBLASLT_LIBRARY)
   if(_rns8_algo_index_result STREQUAL "0" AND TARGET roc::hipblaslt)
     set(_rns8_algo_index_main "${CMAKE_CURRENT_BINARY_DIR}/hipblaslt-algorithm-index-main.cpp")
     file(WRITE "${_rns8_algo_index_main}"
-      "#include <hipblaslt/hipblaslt.h>\nextern \"C\" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);\nint main() { hipblasLtMatmulAlgo_t algo{}; return rns8_hipblaslt_algorithm_index(&algo); }\n")
+      "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_headers.hpp\"\nextern \"C\" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);\nint main() { hipblasLtMatmulAlgo_t algo{}; return rns8_hipblaslt_algorithm_index(&algo); }\n")
     if(DEFINED CMAKE_TRY_COMPILE_CONFIGURATION)
       set(_rns8_had_try_configuration TRUE)
       set(_rns8_saved_try_configuration "${CMAKE_TRY_COMPILE_CONFIGURATION}")

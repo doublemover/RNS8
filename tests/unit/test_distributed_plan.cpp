@@ -439,7 +439,8 @@ TEST_CASE("independent commit checking charges native inputs to an otherwise idl
   const auto ordinary=distributed_plan(request);REQUIRE(ordinary->resources().ranks[1].native_inputs==0);
   request.native_integrity=true;const auto checked=distributed_plan(request);
   CHECK(checked->resources().ranks[1].native_inputs==16);
-  CHECK(checked->resources().ranks[1].peak==ordinary->resources().ranks[1].peak+16);
+  uint64_t aligned_native=0; REQUIRE(d::aligned_bytes(16,aligned_native));
+  CHECK(checked->resources().ranks[1].peak==ordinary->resources().ranks[1].peak+aligned_native);
   request.ranks[1].memory_budget=checked->resources().ranks[1].peak-1;
   std::shared_ptr<const d::Plan> rejected;CHECK(d::Plan::create(request,rejected).status==RNS8_WORKSPACE_TOO_SMALL);
 }

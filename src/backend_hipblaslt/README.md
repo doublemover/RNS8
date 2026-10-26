@@ -8,6 +8,15 @@ records the specific Windows/gfx1100 configuration exercised.
 
 Feature-detected hipBLASLt baseline accelerator path.
 
+Core SDK10.1's E5M3 host header uses `__builtin_clz`, which native MSVC does not
+provide. The private `hipblaslt_headers.hpp` include adapter scopes that one
+operation to `_BitScanReverse` and restores the macro immediately afterward.
+The backend and CMake link probes use the same include path. AMD Clang device
+compilation retains the upstream implementation; installed SDK files are not
+modified. Host fixtures cover all E5M3 subnormal significands and the 32-bit
+leading-zero boundaries. This is header compatibility, separate from INT8 GPU
+correctness and loaded-library qualification.
+
 `RNS8_ENABLE_HIPBLASLT=ON` builds an opt-in HIP/ROCm baseline backend
 when `RNS8_ENABLE_HIP=ON` and AMD's `roc::hipblaslt` target or import archive
 is discoverable. The backend uses resident HIP RNS matrices, packs each selected

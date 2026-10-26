@@ -1,4 +1,14 @@
 #include "core/hip_resources.hpp"
+TEST_CASE("non-CDNA5 code objects expose no TDM or cluster capability", "[hip][tdm][capability]") {
+  using namespace rns8::detail;if(!hip_available())SKIP("HIP unavailable");
+  rns8_device_info info{};REQUIRE(hip_direct_probe(0,info)==RNS8_SUCCESS);
+  if(std::string(info.gcn_arch).substr(0,7)=="gfx1250")SKIP("positive CDNA5 paths have their own fixtures");
+  NativeTdmProblem p;p.m=p.n=p.k=p.lda=p.ldb=p.ldc=1;p.prefix=1;p.mode=1;
+  hip_direct_device_buffer probe;REQUIRE(probe.allocate(0,4)==RNS8_SUCCESS);probe.mark_pending();uint32_t flags=UINT32_MAX;
+  const auto status=hip_direct_prepare_native_tdm(0,p,probe.get(),flags);
+  REQUIRE(hip_direct_synchronize(0)==RNS8_SUCCESS);probe.mark_completed();
+  CHECK(status==RNS8_UNSUPPORTED_BACKEND);CHECK(flags==0);
+}
 TEST_CASE("CDNA5 TDM and multicast transfer litmus preserves full words and zero tails") {
   using namespace rns8::detail;if(!hip_available())SKIP("HIP unavailable");
   NativeTdmProblem p;p.m=17;p.n=19;p.k=33;p.lda=35;p.ldb=21;p.ldc=23;p.prefix=9;p.group=4;p.mode=1;

@@ -10,7 +10,7 @@
 #else
 #define RNS8_DEVICE_TDM_WMMA 0
 #endif
-#if __has_attribute(cluster_dims)
+#if RNS8_DEVICE_TDM && __has_attribute(cluster_dims)
 #define RNS8_TDM_CLUSTER(N) __attribute__((cluster_dims(N,1,1)))
 #define RNS8_DEVICE_TDM_CLUSTER RNS8_DEVICE_TDM
 #else

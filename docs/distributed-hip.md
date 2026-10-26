@@ -57,6 +57,12 @@ bounded staging slot. There are no device-wide spin barriers, cross-device
 event-time subtraction, pageable copies during submit, or host callbacks.
 Packing/compute may advance while earlier shard copies remain pending.
 
+Cancellation records terminal events on each allocated work stream and the
+owner gather stream before polling their completion. This covers queued work
+without requiring further shard scheduling, and gives the Windows runtime an
+explicit completion point for batched commands. Reservations stay pending until
+every marker completes; recording/query failures retain the quarantined owner.
+
 An owner-stream event covers all expected copies, per-tile exact CRT, range
 status and status readback. Only that observed event can publish the complete
 result. Adaptive tile prefixes, including proved zero tiles, reconstruct with

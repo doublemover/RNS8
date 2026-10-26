@@ -38,6 +38,7 @@ struct HipExecution::Impl {
   uint64_t readers = 0, deadline = 0;
   bool issued = false, final_queued = false, closed = false;
   bool initialization_pending = false;
+  bool drain_markers_queued = false;
   std::vector<std::string> certificates;
   Impl* quarantine_next = nullptr;
   inline static std::atomic<Impl*> quarantined{nullptr};
@@ -323,14 +324,26 @@ struct HipExecution::Impl {
       }
       for (auto& slot : device.slots) {
         if (!slot.stream) continue;
-        const auto code = hipStreamQuery(slot.stream.get());
+        // Use an explicit terminal event for cancellation too. In particular,
+        // Windows HIP command batching must observe a recorded completion
+        // point, rather than only querying an otherwise unflushed stream.
+        if (!drain_markers_queued && slot.ready &&
+            hipEventRecord(slot.ready.get(), slot.stream.get()) != hipSuccess) {
+          progress.state = State::quarantined; return;
+        }
+        const auto code = slot.ready ? hipEventQuery(slot.ready.get()) : hipStreamQuery(slot.stream.get());
         if (code == hipErrorNotReady) ready = false;
         else if (code != hipSuccess) { progress.state = State::quarantined; return; }
       }
     }
     hip_scoped_device selected(int(plan->request().ranks[plan->request().owner].ordinal));
     if (selected.status() != hipSuccess) { progress.state = State::quarantined; return; }
-    const auto code = hipStreamQuery(gather_stream.get());
+    if (!drain_markers_queued && completion &&
+        hipEventRecord(completion.get(), gather_stream.get()) != hipSuccess) {
+      progress.state = State::quarantined; return;
+    }
+    const auto code = completion ? hipEventQuery(completion.get()) : hipStreamQuery(gather_stream.get());
+    drain_markers_queued = true;
     if (code == hipErrorNotReady) ready = false;
     else if (code != hipSuccess) { progress.state = State::quarantined; return; }
     if (!ready) return;
@@ -529,6 +542,7 @@ Admission HipExecution::submit(uint64_t epoch, uint64_t timeout_ns) {
   p.progress.integrity_requested=r.native_integrity;
   p.progress.state = State::pending; p.deadline = deadline_after(timeout_ns);
   p.final_queued = false; p.staged_work = UINT64_MAX; p.stage_phase = 0;
+  p.drain_markers_queued = false;
   p.uniform_prefix = 0;
   std::fill(p.phases.begin(), p.phases.end(), Phase::expected); std::fill(p.queued.begin(), p.queued.end(), 0);
   for (auto& device : p.devices) { device.next = 0; for (auto& slot : device.slots) slot.work = UINT64_MAX; }
