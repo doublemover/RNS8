@@ -31,6 +31,12 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+// Discovery and the concrete resident-graph owner must admit the same backend
+// families. Dense/synchronous GEMM support alone does not provide a DAG owner.
+inline bool resident_graph_backend_supported(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT ||
+      backend==RNS8_BACKEND_WRAP64_BYTE_LIMB;
+}
 rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
 rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;

@@ -27,6 +27,45 @@ TEST_CASE("operation discovery shares CPU plan admission and rejects representat
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
 
+TEST_CASE("DAG discovery agrees with concrete resident graph backend ownership", "[api][provider][graph]") {
+  auto* ctx=create_cpu_context();
+  for(auto backend:{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,
+      RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_AMDGPU_BUILTINS,
+      RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_CPU_AMX,RNS8_BACKEND_HIP_VECTOR_ALU_INT64}) {
+    CAPTURE(backend);
+    const bool owns_graph=backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT ||
+        backend==RNS8_BACKEND_WRAP64_BYTE_LIMB;
+    rns8_context hypothetical{};hypothetical.backend=backend;
+    rns8_resident_node invalid_node{};rns8_resident_graph* graph=nullptr;
+    // Unsupported families fail at ownership admission; admitted families reach
+    // descriptor validation. No plan, matrix, GPU probe or device allocation is needed.
+    CHECK(rns8_create_resident_graph(&hypothetical,&invalid_node,1,&graph)==
+        (owns_graph?RNS8_INVALID_ARGUMENT:RNS8_UNSUPPORTED_BACKEND));
+    CHECK(graph==nullptr);
+    for(auto operation:{RNS8_OP_GEMM,RNS8_OP_PREPARED_GROUP}) {
+      rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
+      query.operation=operation;query.execution_modes=RNS8_EXEC_DAG;query.scratch_budget=UINT64_MAX;
+      query.problem=bounded_gemm_desc(RNS8_BOUNDED_I64,1,1,1);
+      if(backend==RNS8_BACKEND_WRAP64_BYTE_LIMB) {
+        query.problem.semantics=RNS8_WRAP_U64_MOD_2_64;query.problem.bound_kind=RNS8_BOUND_NONE;
+        query.problem.max_prefix=0;query.problem.bound=0;
+      }
+      query.problem.requested_backend=backend;
+      rns8_operation_support support{};uint32_t count=0;
+      REQUIRE(rns8_query_operation_support(ctx,&query,&support,1,&count)==RNS8_SUCCESS);
+      REQUIRE(count==1);
+      CHECK(bool(support.supported_execution_modes&RNS8_EXEC_DAG)==owns_graph);
+      if(!owns_graph) {
+        CHECK(support.status==RNS8_UNSUPPORTED_BACKEND);
+        if(support.source_implemented)CHECK(support.reason_code==RNS8_SUPPORT_EXECUTION_MODE);
+        else CHECK(support.reason_code==RNS8_SUPPORT_SEMANTICS);
+      }
+      CHECK_FALSE(support.correctness_qualified);CHECK_FALSE(support.performance_qualified);
+    }
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
 TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum and stale costs", "[api][planner]") {
   auto* ctx=create_cpu_context();rns8_pipeline_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
   q.operation.struct_size=sizeof(q.operation);q.operation.abi_version=RNS8_ABI_VERSION;q.operation.operation=RNS8_OP_GEMM;

@@ -708,6 +708,7 @@
         "83-crt-reconstruction",
         "9-bounds-and-adaptive-moduli",
         "amd-and-rocm",
+        "concrete-resident-dag-admission",
         "existing-codebases-and-libraries",
         "native-hip-interoperability-source-implementation-pending-qualification",
         "ozaki-rns-and-exact-matrix-multiplication",
@@ -4866,7 +4867,8 @@
         }
       ],
       "anchors": [
-        "direct-operation-providers"
+        "direct-operation-providers",
+        "resident-dag-owner-parity"
       ]
     },
     {

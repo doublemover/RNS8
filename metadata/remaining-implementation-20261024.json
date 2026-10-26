@@ -459,6 +459,19 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "resident_dag_owner_parity": {
+        "status": "implemented_validation_pending",
+        "scope": "Share one concrete backend-owner predicate between GEMM/prepared operation discovery and resident graph creation; stop advertising DAG mode for synchronous-only providers.",
+        "files": [
+          "src/core/api_internal.hpp",
+          "src/core/api_operation_provider.inc",
+          "src/core/api_resident_graph.cpp"
+        ],
+        "regression": "tests/unit/test_api_operation_provider_cases.inc",
+        "backends": 9,
+        "operations": 2,
+        "arithmetic_or_routing_policy_changed": false
       }
     },
     {

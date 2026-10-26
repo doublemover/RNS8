@@ -51,7 +51,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   switch(query.operation) {
     case RNS8_OP_GEMM:case RNS8_OP_PREPARED_GROUP:
       out.supported_execution_modes|=RNS8_EXEC_GROUP;
-      if(!amx)out.supported_execution_modes|=RNS8_EXEC_DAG;
+      if(resident_graph_backend_supported(backend))out.supported_execution_modes|=RNS8_EXEC_DAG;
       if(hip && !adaptive && !(d.flags&RNS8_PLAN_DIRECT_RNS_PARALLEL))out.supported_execution_modes|=RNS8_EXEC_BORROWED_STREAM|RNS8_EXEC_OWNED_GRAPH;
       break;
     case RNS8_OP_EXACT_EPILOGUE:

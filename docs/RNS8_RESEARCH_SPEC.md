@@ -2112,3 +2112,12 @@ The 150-capture matched study retains all outcomes and exact static resources in
 [its source-bound receipt](../metadata/group-crt-qualification-20261026.json).
 No production policy or broader-target qualification follows from this local
 canonical-root experiment.
+
+## Concrete resident DAG admission
+
+Execution-mode discovery must agree with an implemented owner. Resident DAG
+creation and public GEMM/prepared-operation discovery share the CPU-reference,
+direct-HIP and wrap64-byte-limb backend predicate. Other synchronous dense GEMM
+providers do not implicitly support resident DAGs. This source-mode declaration
+is independent of compilation/runtime availability and still requires concrete
+operand, context, semantic and lifetime binding before execution.

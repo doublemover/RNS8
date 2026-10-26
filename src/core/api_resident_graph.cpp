@@ -303,8 +303,7 @@ rns8_status rns8_create_resident_graph(
     if (!out) return RNS8_INVALID_ARGUMENT;
     *out = nullptr;
     if (!ctx || !nodes || !count || count > 4096) return RNS8_INVALID_ARGUMENT;
-    if (ctx->backend != RNS8_BACKEND_CPU_REFERENCE && ctx->backend != RNS8_BACKEND_HIP_DIRECT &&
-        ctx->backend != RNS8_BACKEND_WRAP64_BYTE_LIMB) return RNS8_UNSUPPORTED_BACKEND;
+    if (!resident_graph_backend_supported(ctx->backend)) return RNS8_UNSUPPORTED_BACKEND;
     auto graph = std::make_unique<rns8_resident_graph>();
     graph->ctx = ctx;
     graph->nodes.assign(nodes, nodes + count);graph->native_imports.resize(count);
