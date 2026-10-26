@@ -7,6 +7,7 @@ instruction's documented lane algebra and native encoder are trusted contracts.
 """
 import argparse
 from collections import Counter
+from functools import lru_cache
 import copy
 import hashlib
 import json
@@ -85,18 +86,15 @@ def configuration(c):
             raise Unsupported("configuration outside qualified full-storage byte domain")
 
 
-def _check(ir, c, budget):
-    validate(ir)
-    configuration(c)
-    m, n, k, prefix, group = c["m"], c["n"], c["k"], c["prefix"], ir["group"]
-    tiles = ((m + 15) // 16) * ((n + 15) // 16)
-    instruction_count = tiles * ((k + 15) // 16) * ir["slab_repetitions"]
-    if instruction_count * 1024 > budget or prefix * m * n > 500000:
-        raise Unsupported("explicit physical-fragment checking budget exceeded")
-    fail(ir["accumulator_initialized"], "read of uninitialized accumulator before first instruction")
-    fail(ir["slab_k"] * ir["slab_repetitions"] * 128 * 128 + 255 <= 2147483647,
-         "INT32 partial/carry overflow cannot be simplified as integer algebra")
-    fail(not ir["reset_each_slab"] or k <= ir["slab_k"], "stale partial: previous slab contribution discarded")
+@lru_cache(maxsize=32)
+def _input_fragment_proof(key):
+    # Only successful proofs are cached. The complete evaluated input expressions,
+    # loop schedule and configuration are bound; group/output expressions and
+    # signedness cannot affect these physical input-cell identities (validate
+    # rejects those variables in input expressions). Accumulator/range guards
+    # and all output ownership checks are still evaluated on every check.
+    ir, c = json.loads(key)
+    m, n, k = c["m"], c["n"], c["k"]
     work = Counter()
     # A symbolic token identifies the original native cell. Equality of each
     # lane's token with the reference implies equality after the same exact
@@ -140,6 +138,28 @@ def _check(ir, c, budget):
             fail(len(contributions) == k and all(contributions[q] == 1 for q in range(k)),
                  "missing or duplicate K contribution; scalar residue polynomial differs")
             work["exact_symbolic_contraction_terms_per_output"] += k
+    return dict(work)
+
+
+def _check(ir, c, budget):
+    validate(ir)
+    configuration(c)
+    m, n, k, prefix, group = c["m"], c["n"], c["k"], c["prefix"], ir["group"]
+    tiles = ((m + 15) // 16) * ((n + 15) // 16)
+    instruction_count = tiles * ((k + 15) // 16) * ir["slab_repetitions"]
+    if instruction_count * 1024 > budget or prefix * m * n > 500000:
+        raise Unsupported("explicit physical-fragment checking budget exceeded")
+    fail(ir["accumulator_initialized"], "read of uninitialized accumulator before first instruction")
+    fail(ir["slab_k"] * ir["slab_repetitions"] * 128 * 128 + 255 <= 2147483647,
+         "INT32 partial/carry overflow cannot be simplified as integer algebra")
+    fail(not ir["reset_each_slab"] or k <= ir["slab_k"], "stale partial: previous slab contribution discarded")
+    work = Counter()
+    input_ir = {name: ir[name] for name in ("a_index", "a_mask", "b_index", "b_mask",
+                "slab_k", "slab_step", "slab_repetitions", "k_step")}
+    key = json.dumps([input_ir, c], sort_keys=True, separators=(",", ":"))
+    previous_hits = _input_fragment_proof.cache_info().hits
+    work.update(_input_fragment_proof(key))
+    work["reused_input_fragment_proof"] = int(_input_fragment_proof.cache_info().hits > previous_hits)
     writers = Counter()
     for bz in range((prefix + group - 1) // group):
         for by in range((m + 15) // 16):

@@ -38,6 +38,15 @@ element widths, role and edge masking. Canonical source selection and conversion
 classification distinguish register-only permutations from within-wave exchange;
 this slice does not emit new shuffle or LDS conversion kernels.
 
+The logical checker keeps a bounded process-local cache of successful physical
+input-cell/contraction proofs. Its key includes the complete input index/mask
+expressions, slab schedule and concrete dimensions/pitches/prefix. Identical
+input geometry can therefore be reused across group sizes and signedness,
+whose input-expression scope excludes those variables. Accumulator/range/work
+budget guards and every output-ownership check still run for each variant.
+The work receipt reports `reused_input_fragment_proof`; failed checks are not
+cached. This reuses a specific host proof and adds no hardware qualification.
+
 The exact map-definition SHA256 is part of each generated identity and source
 dependency. Changing a basis vector or its preconditions regenerates the symbols
 and invalidates previous artifact identities. CPU fixtures exhaustively compare

@@ -61,6 +61,17 @@ def main():
                         break
                 assert any(r["logical_equivalence"] == "refuted" for r in results), (name, results)
     ir = recipe(1, False)
+    first = check(ir, CONFIGURATIONS[0])
+    reused = check(recipe(4, True), CONFIGURATIONS[0])
+    assert first["logical_equivalence"] == reused["logical_equivalence"] == "proven"
+    assert reused["work"]["reused_input_fragment_proof"] == 1
+    # Reusing an input-cell proof cannot conceal changed addressing or skip
+    # an output-ownership mutation, range guards or a smaller work budget.
+    changed = copy.deepcopy(ir); changed["a_index"] = ["+", changed["a_index"], 1]
+    assert check(changed, CONFIGURATIONS[0])["logical_equivalence"] == "refuted"
+    changed = copy.deepcopy(ir); changed["c_index"] = ["+", changed["c_index"], 1]
+    assert check(changed, CONFIGURATIONS[0])["logical_equivalence"] == "refuted"
+    assert check(ir, CONFIGURATIONS[0], budget=1)["logical_equivalence"] == "unknown"
     unsupported = copy.deepcopy(ir); unsupported["instruction"] = "unknown_mfma"
     assert check(unsupported, CONFIGURATIONS[0])["logical_equivalence"] == "unknown"
     hidden = copy.deepcopy(ir); hidden["a_index"] = ["+", hidden["a_index"], "channel"]
