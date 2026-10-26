@@ -427,6 +427,17 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "examples/downstream-cmake/checked_crt_export.cpp"
           ]
+        },
+        {
+          "summary": "Reconciled every shortlisted host export with its concrete provider: known CPU staging/status floor with unknown worker scratch, charged quarter host staging, shared quarter residue-producer source predicate, typed scalar-width rejection and explicit unsupported centered-signed versus canonical boundary. Authored nine-family inventory and seven concrete producer owner cases. Syntax only; hardware qualification remains deferred.",
+          "files": [
+            "src/core/api_internal.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_export_quarter_crt.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_quarter_crt_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1097,6 +1108,17 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "examples/downstream-cmake/checked_crt_export.cpp"
           ]
+        },
+        {
+          "summary": "Reconciled every shortlisted host export with its concrete provider: known CPU staging/status floor with unknown worker scratch, charged quarter host staging, shared quarter residue-producer source predicate, typed scalar-width rejection and explicit unsupported centered-signed versus canonical boundary. Authored nine-family inventory and seven concrete producer owner cases. Syntax only; hardware qualification remains deferred.",
+          "files": [
+            "src/core/api_internal.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_export_quarter_crt.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_quarter_crt_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -1561,6 +1583,17 @@
             "include/rns8/rns8.h",
             "tests/unit/test_api_operation_provider_cases.inc",
             "examples/downstream-cmake/checked_crt_export.cpp"
+          ]
+        },
+        {
+          "summary": "Reconciled every shortlisted host export with its concrete provider: known CPU staging/status floor with unknown worker scratch, charged quarter host staging, shared quarter residue-producer source predicate, typed scalar-width rejection and explicit unsupported centered-signed versus canonical boundary. Authored nine-family inventory and seven concrete producer owner cases. Syntax only; hardware qualification remains deferred.",
+          "files": [
+            "src/core/api_internal.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_export_quarter_crt.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_quarter_crt_cases.inc"
           ]
         }
       ],
@@ -2662,6 +2695,17 @@
             "src/backend_hip_direct/hip_backend_pack.inc",
             "src/backend_hip_direct/hip_backend_export_finite_grouped.inc"
           ]
+        },
+        {
+          "summary": "Reconciled every shortlisted host export with its concrete provider: known CPU staging/status floor with unknown worker scratch, charged quarter host staging, shared quarter residue-producer source predicate, typed scalar-width rejection and explicit unsupported centered-signed versus canonical boundary. Authored nine-family inventory and seven concrete producer owner cases. Syntax only; hardware qualification remains deferred.",
+          "files": [
+            "src/core/api_internal.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_export_quarter_crt.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_quarter_crt_cases.inc"
+          ]
         }
       ],
       "regressions": [
@@ -3003,6 +3047,17 @@
             "include/rns8/rns8.h",
             "tests/unit/test_api_operation_provider_cases.inc",
             "examples/downstream-cmake/checked_crt_export.cpp"
+          ]
+        },
+        {
+          "summary": "Reconciled every shortlisted host export with its concrete provider: known CPU staging/status floor with unknown worker scratch, charged quarter host staging, shared quarter residue-producer source predicate, typed scalar-width rejection and explicit unsupported centered-signed versus canonical boundary. Authored nine-family inventory and seven concrete producer owner cases. Syntax only; hardware qualification remains deferred.",
+          "files": [
+            "src/core/api_internal.hpp",
+            "src/core/api_operation_provider.inc",
+            "src/core/api_pipeline_planner.inc",
+            "src/core/api_export_quarter_crt.inc",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "tests/unit/test_quarter_crt_cases.inc"
           ]
         }
       ],

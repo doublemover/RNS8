@@ -256,3 +256,11 @@ keys, and refuses raw-stage candidates or non-square output shapes in these
 scopes. Production bursts contain public calls only; reference/source audits and
 metadata serialization stay outside their intervals. These cases are authored,
 unexecuted, and carry no new gain or qualification claims.
+
+
+Quarter export can consume ordinary uniform residues produced by CPU reference,
+CPU AMX, direct HIP, hipBLASLt, CK, rocWMMA or the builtin backend. Discovery and
+the concrete owner share that source predicate; compilation, exact semantic
+support, current 4B<=M certificate and device binding remain independent gates.
+No native-vector or byte-limb storage is treated as centered residues. Broader
+producer correctness cases are authored but unexecuted in this development pass.

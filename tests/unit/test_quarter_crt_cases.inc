@@ -84,3 +84,41 @@ TEST_CASE("quarter CRT HIP signed canonical and tail exports use the public owne
   SKIP("HIP was not compiled");
 #endif
 }
+
+
+namespace {
+void check_quarter_residue_producer(rns8_backend_kind backend) {
+  rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=backend;
+  const bool host=backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_CPU_AMX;
+  rns8_context* ctx=nullptr;const auto created=rns8_create_context(host?-1:0,&options,&ctx);
+  if(created==RNS8_UNSUPPORTED_BACKEND)SKIP("quarter producer backend unavailable on this build/host");
+  REQUIRE(created==RNS8_SUCCESS);
+  auto d=exact_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);d.requested_backend=backend;d.max_prefix=3;
+  d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
+  rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&d,&plan)==RNS8_SUCCESS);
+  auto md=exact_matrix_desc(2,3,d.semantics);md.max_prefix=3;rns8_matrix* matrix=nullptr;
+  REQUIRE(rns8_create_matrix(ctx,&md,&matrix)==RNS8_SUCCESS);const int64_t values[]={-31,0,31,-7,1,19};
+  REQUIRE(rns8_pack_i64(ctx,matrix,values,3,1)==RNS8_SUCCESS);
+  rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.problem=d;
+  q.operation=RNS8_OP_QUARTER_CRT;q.execution_modes=RNS8_EXEC_SYNC;q.output_limbs=1;q.ldc=5;q.scratch_budget=65536;
+  q.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF;
+  rns8_operation_support support{};uint32_t count=0;REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
+  REQUIRE(count==1);REQUIRE(support.status==RNS8_SUCCESS);CHECK(support.required_host_bytes==48);CHECK(support.required_device_bytes==(host?0:48));
+  rns8_quarter_crt_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;config.mode=0;config.limb_count=1;config.max_scratch_bytes=65536;
+  rns8_quarter_crt_export* owner=nullptr;REQUIRE(rns8_prepare_quarter_crt_export(ctx,plan,matrix,&config,&owner)==RNS8_SUCCESS);
+  uint64_t output[10];std::fill(std::begin(output),std::end(output),99);REQUIRE(rns8_export_quarter_crt_limbs(owner,output,5)==RNS8_SUCCESS);
+  for(unsigned r=0;r<2;++r)for(unsigned c=0;c<3;++c)CHECK(output[r*5+c]==static_cast<uint64_t>(values[r*3+c]));
+  CHECK(output[3]==99);CHECK(output[4]==99);CHECK(output[8]==99);CHECK(output[9]==99);
+  rns8_quarter_crt_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+  REQUIRE(rns8_get_quarter_crt_info(owner,&info)==RNS8_SUCCESS);CHECK(info.retained_payload_bytes>=support.required_host_bytes+support.required_device_bytes);
+  REQUIRE(rns8_destroy_quarter_crt_export(owner)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+}
+TEST_CASE("quarter owner accepts CPU reference residue producers","[api][crt][provider]") {check_quarter_residue_producer(RNS8_BACKEND_CPU_REFERENCE);}
+TEST_CASE("quarter owner accepts direct HIP residue producers","[api][crt][provider][hip]") {check_quarter_residue_producer(RNS8_BACKEND_HIP_DIRECT);}
+TEST_CASE("quarter owner accepts hipBLASLt residue producers","[api][crt][provider][hip]") {check_quarter_residue_producer(RNS8_BACKEND_HIPBLASLT);}
+TEST_CASE("quarter owner accepts CK residue producers","[api][crt][provider][hip]") {check_quarter_residue_producer(RNS8_BACKEND_CK);}
+TEST_CASE("quarter owner accepts rocWMMA residue producers","[api][crt][provider][hip]") {check_quarter_residue_producer(RNS8_BACKEND_ROCWMMA);}
+TEST_CASE("quarter owner accepts builtin residue producers","[api][crt][provider][hip]") {check_quarter_residue_producer(RNS8_BACKEND_AMDGPU_BUILTINS);}
+TEST_CASE("quarter owner accepts CPU AMX residue producers","[api][crt][provider][amx]") {check_quarter_residue_producer(RNS8_BACKEND_CPU_AMX);}

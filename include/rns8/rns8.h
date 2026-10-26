@@ -826,7 +826,8 @@ typedef struct rns8_operation_query {
    * Gram 4*input_policy + method (0/1 scalar/WMMA, +2 separate mirror);
    * input_policy 0 resident,1 retained native i64,2 cached transpose; bilinear 0 Strassen,1 coefficient rank23,
    * 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
-   * explicit matrix-engine subproducts. Other families require zero. */
+   * explicit matrix-engine subproducts; checked CRT policy + 5*output mode.
+   * Other families require zero. */
   uint32_t algorithm,orientation,source_prefix;
   /* Domain 0 infers the concrete family's default; 1 centered RNS,
    * 2 finite byte,3 wrap byte limbs,4 native64,5 integer limbs. */

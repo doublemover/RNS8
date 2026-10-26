@@ -66,7 +66,8 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     for(auto backend:backends){if(input.requested_backend!=RNS8_BACKEND_AUTO && input.requested_backend!=backend)continue;
       for(unsigned reconstruction=0;reconstruction<7;++reconstruction){
         const bool checked=reconstruction>=2,quarter_owner=reconstruction==1;
-        if(reconstruction && (!query->output_boundary || (quarter_owner && !quarter) || !checked_crt_backend_supported(backend)))continue;
+        if(reconstruction && (!query->output_boundary || (quarter_owner && (!quarter || !quarter_crt_backend_supported(backend))) ||
+            (checked && !checked_crt_backend_supported(backend))))continue;
         rns8_pipeline_candidate c{};c.struct_size=sizeof(c);c.abi_version=RNS8_ABI_VERSION;c.backend=backend;
         c.prefix=quarter_owner?quarter:minimum;c.reconstruction=query->output_boundary?reconstruction+1:0;c.requires_binding=1;
         auto q=query->operation;q.problem.max_prefix=c.prefix;q.problem.requested_backend=backend;q.problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
@@ -80,13 +81,18 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         set_text(c.explanation,sizeof(c.explanation),support.explanation);
         if(c.status!=RNS8_SUCCESS){candidates.push_back(c);continue;}
         rns8_operation_support export_support{};
-        if(checked){auto export_query=q;export_query.operation=RNS8_OP_CHECKED_CRT;export_query.problem.k=1;
-          export_query.algorithm=reconstruction-2+5*(query->output_boundary-1);export_query.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF;
+        if(query->output_boundary){
+          if(!reconstruction && query->output_boundary==3 && input.semantics==RNS8_EXACT_WIDE_SIGNED) {
+            c.status=RNS8_UNSUPPORTED_BACKEND;c.reason_code=RNS8_SUPPORT_OPERATION;c.resource_status=3;
+            set_text(c.explanation,sizeof(c.explanation),"default signed export is centered, not canonical; use an explicit checked CRT or quarter owner");candidates.push_back(c);continue;}
+          auto export_query=q;export_query.operation=checked?RNS8_OP_CHECKED_CRT:quarter_owner?RNS8_OP_QUARTER_CRT:RNS8_OP_EXPORT;export_query.problem.k=1;
+          export_query.algorithm=checked?reconstruction-2+5*(query->output_boundary-1):0;
+          export_query.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF|(quarter_owner?RNS8_QUERY_QUARTER_RANGE_PROOF:0);
           export_query.input_domain=1;export_query.output_domain=5;export_query.lda=input.n;export_query.ldb=0;export_query.ldc=query->operation.ldc?query->operation.ldc:input.n;
           export_query.output_limbs=limbs;
           export_support=operation_support(*ctx,export_query,backend);
-          c.status=export_support.status;c.reason_code=export_support.reason_code;c.resource_status=export_support.resource_status;
-          set_text(c.provider_identity_sha256,sizeof(c.provider_identity_sha256),sha256(std::string("rns8-checked-pipeline-v1;")+support.provider_identity_sha256+";"+
+          c.status=export_support.status;c.reason_code=export_support.reason_code;c.resource_status=std::max(support.resource_status,export_support.resource_status);
+          set_text(c.provider_identity_sha256,sizeof(c.provider_identity_sha256),sha256(std::string("rns8-export-pipeline-v2;")+support.provider_identity_sha256+";"+
               export_support.provider_identity_sha256+";bound="+bound.str()+";mode="+std::to_string(query->output_boundary-1)));
           if(c.status!=RNS8_SUCCESS){set_text(c.explanation,sizeof(c.explanation),export_support.explanation);candidates.push_back(c);continue;}}
         if(query->output_boundary==3 && modulus_product(c.prefix)>(cpp_int(1)<<(limbs*64))){c.status=RNS8_RANGE_ERROR;c.reason_code=RNS8_SUPPORT_MISSING_PROOF;candidates.push_back(c);continue;}
@@ -112,8 +118,7 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         reserve(support.required_host_bytes);reserve(cbytes);
         if(!(query->retained_operands&1)){reserve(abytes);if(gpu)reserve(native_a);}
         if(!(query->retained_operands&2)){reserve(bbytes);if(gpu)reserve(native_b);}
-        if(query->output_boundary){reserve(caller_output);if(checked){reserve(export_support.required_host_bytes);reserve(export_support.required_device_bytes);}
-          else{if(gpu)reserve(output);if(gpu && !quarter_owner)reserve(4);}}
+        if(query->output_boundary){reserve(caller_output);reserve(export_support.required_host_bytes);reserve(export_support.required_device_bytes);}
         c.peak_payload_bytes=peak;c.setup_payload_bytes=peak-cbytes;
         if(peak>query->payload_budget){c.status=RNS8_WORKSPACE_TOO_SMALL;c.reason_code=RNS8_SUPPORT_BUDGET;}
         if(c.status!=RNS8_SUCCESS){candidates.push_back(c);continue;}

@@ -11,6 +11,7 @@ rns8_status rns8_prepare_quarter_crt_export(rns8_context* ctx,const rns8_plan* p
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if(!ctx || !plan || !source || !desc || !out)return RNS8_INVALID_ARGUMENT;*out=nullptr;
+    if(!quarter_crt_backend_supported(plan->backend))return RNS8_UNSUPPORTED_BACKEND;
     if(!valid_abi(desc->struct_size,desc->abi_version,sizeof(*desc)) || desc->mode>2 || !desc->limb_count || desc->limb_count>32)return RNS8_INVALID_ARGUMENT;
     if(source->in_flight_writer)return RNS8_BUSY;
     if(!exact_wide_semantics(plan->desc.semantics) || (desc->mode==0 && plan->desc.semantics!=RNS8_EXACT_WIDE_SIGNED) ||

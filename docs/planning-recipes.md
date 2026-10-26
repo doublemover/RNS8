@@ -436,3 +436,33 @@ every returned checked policy to an actual GEMM/export owner across signed,
 unsigned and canonical output; installed consumers also inspect these routes.
 Only syntax checks have run for this addition; execution and measured pricing
 remain deferred.
+
+
+### Export-provider parity and resource lower bounds
+
+Every host-output pipeline alternative now queries both its GEMM producer and
+its concrete final export. The composition identity binds both providers and
+the requested bound/mode. Ordinary CPU integer export has a known floor for
+full-result staging plus one status entry per cell; gathered per-worker residue
+vectors and allocator capacity remain unknown additional storage. Its provider
+reports that nonzero host floor with opaque-scratch status instead of successful
+zero scratch. Bounded/finite/wrap scalar export discovery rejects multi-limb
+widths because those entry points do not expose an arbitrary integer view.
+
+Quarter export discovery uses the same source predicate as its concrete owner:
+CPU reference/AMX host residues and direct HIP, hipBLASLt, CK, rocWMMA and builtin
+resident residues. It remains synchronous; producer compilation, source semantic
+support, current quarter-range proof, device affinity and actual preparation
+still apply independently. Native-vector and byte-limb producers are excluded.
+The shortlist charges quarter host staging as well as device output storage.
+Optional producer cases are authored and unexecuted; this inventory is not a
+qualification claim for any unavailable architecture.
+
+A default signed limb export publishes centered integers and cannot implement a
+canonical-root output contract. The planner now returns an explicit unsupported
+record for that alternative, while preserving canonical checked/quarter owners.
+An unsigned exact-wide default export already has canonical integer values.
+Budget comparisons use each route's real storage floor rather than assuming a
+stronger prefix must always need more memory: CPU ordinary per-cell status can
+outweigh an extra residue plane in quarter reconstruction. Unknown metadata and
+worker storage remain explicit additional requirements.

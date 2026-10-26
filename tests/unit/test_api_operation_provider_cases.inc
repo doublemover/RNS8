@@ -134,8 +134,9 @@ TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum an
   CHECK(c[0].prefix==1);CHECK(c[1].prefix==2);CHECK(c[0].status==RNS8_SUCCESS);CHECK(c[1].status==RNS8_SUCCESS);
   CHECK_FALSE(c[0].cost_known);CHECK_FALSE(c[0].pareto);CHECK(c[0].executable_problem.flags&RNS8_PLAN_FORCE_FIXED_PREFIX);CHECK(c[0].executable_problem.flags&RNS8_PLAN_EXACT_VALUE_BOUND);
   for(auto& candidate:c){rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&candidate.executable_problem,&plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);}
-  const auto ordinary=c[0].peak_payload_bytes,quarter=c[1].peak_payload_bytes;CHECK(quarter>ordinary);
-  q.payload_budget=ordinary;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);CHECK(c[0].status==RNS8_SUCCESS);CHECK(c[1].status==RNS8_WORKSPACE_TOO_SMALL);
+  const auto ordinary=c[0].peak_payload_bytes,quarter=c[1].peak_payload_bytes;CHECK(ordinary>0);CHECK(quarter>0);
+  q.payload_budget=std::min(ordinary,quarter);REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);
+  CHECK(c[0].status==(ordinary<=q.payload_budget?RNS8_SUCCESS:RNS8_WORKSPACE_TOO_SMALL));CHECK(c[1].status==(quarter<=q.payload_budget?RNS8_SUCCESS:RNS8_WORKSPACE_TOO_SMALL));
   q.payload_budget=UINT64_MAX;rns8_pipeline_cost_profile profile{};profile.struct_size=sizeof(profile);profile.abi_version=RNS8_ABI_VERSION;
   profile.backend=RNS8_BACKEND_CPU_REFERENCE;std::strcpy(profile.target_id,"cpu");std::strcpy(profile.calibration_identity,"synthetic-regression-not-evidence");
   REQUIRE(rns8_get_pipeline_build_identity(profile.build_identity_sha256,sizeof(profile.build_identity_sha256))==RNS8_SUCCESS);
@@ -262,7 +263,10 @@ TEST_CASE("pipeline checked CRT policies bind executable owners without borrowin
     profile.known_mask=63;for(unsigned kind=0;kind<6;++kind){profile.lower_ns_per_unit[kind]=1;profile.upper_ns_per_unit[kind]=2;}
     rns8_pipeline_candidate candidates[8]{};candidates[7].struct_size=UINT64_C(0xdeadbeef);uint32_t count=0;
     REQUIRE(rns8_plan_pipeline(ctx,&q,&profile,1,candidates,7,&count)==RNS8_SUCCESS);REQUIRE(count==7);
-    CHECK(candidates[7].struct_size==UINT64_C(0xdeadbeef));CHECK(candidates[0].cost_known);CHECK(candidates[1].cost_known);
+    CHECK(candidates[7].struct_size==UINT64_C(0xdeadbeef));
+    if(mode==2){CHECK(candidates[0].status==RNS8_UNSUPPORTED_BACKEND);CHECK(candidates[0].reason_code==RNS8_SUPPORT_OPERATION);CHECK_FALSE(candidates[0].cost_known);}
+    else CHECK(candidates[0].cost_known);
+    CHECK(candidates[1].cost_known);
     for(uint32_t algorithm=0;algorithm<5;++algorithm) {
       const auto& candidate=candidates[algorithm+2];REQUIRE(candidate.status==RNS8_SUCCESS);
       CHECK(candidate.reconstruction==RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GARNER+algorithm);CHECK(candidate.prefix==1);
@@ -292,7 +296,7 @@ TEST_CASE("pipeline checked CRT policies bind executable owners without borrowin
       CHECK(output[3]==99);CHECK(output[4]==99);CHECK(output[8]==99);CHECK(output[9]==99);
       rns8_crt_export_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
       REQUIRE(rns8_get_crt_export_info(exporter,&info)==RNS8_SUCCESS);
-      CHECK(candidate.peak_payload_bytes==candidates[0].peak_payload_bytes+info.retained_host_bytes+info.retained_device_bytes);
+      CHECK(candidate.peak_payload_bytes==uint64_t(2*3+2*4+4*3+2*3*8)+info.retained_host_bytes+info.retained_device_bytes);
       REQUIRE(rns8_destroy_crt_export(exporter)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
       REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);
       REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
@@ -303,6 +307,47 @@ TEST_CASE("pipeline checked CRT policies bind executable owners without borrowin
     q.payload_budget=tight;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
     CHECK(candidates[2].status==RNS8_WORKSPACE_TOO_SMALL);
     q.operation.ldc=INT64_MAX;CHECK(rns8_plan_pipeline(ctx,&q,nullptr,0,candidates,7,&count)==RNS8_RANGE_ERROR);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+
+TEST_CASE("CPU integer export discovery prices staging and preserves unknown worker scratch", "[api][provider][memory]") {
+  auto* ctx=create_cpu_context();rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation=RNS8_OP_EXPORT;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;
+  for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
+    q.problem=semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64?bounded_gemm_desc(semantics,2,3,1):exact_desc(semantics,2,3,1);
+    q.problem.max_prefix=20;
+    for(uint32_t limbs:{1u,3u,32u}) {
+      q.output_limbs=limbs;q.scratch_budget=UINT64_MAX;rns8_operation_support support{};uint32_t count=0;
+      REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);REQUIRE(count==1);
+      if((semantics==RNS8_BOUNDED_I64 || semantics==RNS8_BOUNDED_U64) && limbs>1) {
+        CHECK(support.status==RNS8_INVALID_ARGUMENT);CHECK(support.reason_code==RNS8_SUPPORT_BAD_DESCRIPTOR);continue;
+      }
+      REQUIRE(support.status==RNS8_SUCCESS);
+      const uint64_t expected=6*(uint64_t(limbs)*8+sizeof(rns8_status));
+      CHECK(support.required_host_bytes==expected);CHECK(support.required_device_bytes==0);CHECK(support.resource_status==1);
+      q.scratch_budget=expected-1;REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
+      CHECK(support.status==RNS8_WORKSPACE_TOO_SMALL);CHECK(support.reason_code==RNS8_SUPPORT_BUDGET);
+    }
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("quarter export source discovery follows ordinary residue storage producers", "[api][provider][crt]") {
+  using namespace rns8::detail::api;auto* ctx=create_cpu_context();
+  rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation=RNS8_OP_QUARTER_CRT;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;q.output_limbs=1;
+  q.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF;
+  for(auto backend:{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_CPU_AMX,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,
+                    RNS8_BACKEND_CK,RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_WRAP64_BYTE_LIMB}) {
+    q.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);q.problem.requested_backend=backend;q.problem.max_prefix=20;
+    rns8_operation_support support{};uint32_t count=0;REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);REQUIRE(count==1);
+    if(quarter_crt_backend_supported(backend) && backend_source_supports_semantics(backend,q.problem.semantics)) {
+      CHECK(support.source_implemented);CHECK(support.reason_code!=RNS8_SUPPORT_OPERATION);
+      CHECK(support.supported_execution_modes==RNS8_EXEC_SYNC);
+    } else CHECK_FALSE(support.source_implemented);
+    CHECK_FALSE(support.correctness_qualified);CHECK_FALSE(support.performance_qualified);
   }
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

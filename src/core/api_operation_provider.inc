@@ -42,10 +42,12 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   if((query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT) && query.output_limbs)
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"output_limbs","native and pinned-host imports require scalar native64; integer limb views are export-only");
+  if(query.operation==RNS8_OP_EXPORT && !rns8::detail::exact_wide_semantics(d.semantics) && query.output_limbs>1)
+    return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"output_limbs","bounded, finite and wrap exports expose one scalar element, not an arbitrary integer limb view");
   const bool cpu=backend==RNS8_BACKEND_CPU_REFERENCE,hip=backend==RNS8_BACKEND_HIP_DIRECT;
   const bool amx=backend==RNS8_BACKEND_CPU_AMX;
-  if(amx && query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_PREPARED_GROUP && query.operation!=RNS8_OP_PACK && query.operation!=RNS8_OP_EXPORT)
-    return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","AMX provider integrates dense GEMM, synchronous prepared groups, host pack and shared CRT export only");
+  if(amx && query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_PREPARED_GROUP && query.operation!=RNS8_OP_PACK && query.operation!=RNS8_OP_EXPORT && query.operation!=RNS8_OP_QUARTER_CRT)
+    return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","AMX provider integrates dense GEMM, synchronous groups, host pack and ordinary/quarter CRT export");
   const bool adaptive=is_per_tile_bound_kind(d.bound_kind);
   if(!backend_source_supports_semantics(backend,d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","backend has no implementation of these arithmetic semantics");
   out.source_implemented=1;out.supported_execution_modes=RNS8_EXEC_SYNC;
@@ -137,7 +139,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
         return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"source_bound","checked CRT requires a current engine-owned uniqueness proof");
       break;
     case RNS8_OP_QUARTER_CRT:
-      if(!cpu && !hip)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","quarter owner supports CPU or direct HIP only");
+      if(!quarter_crt_backend_supported(backend))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","quarter owner requires a host or HIP-resident uniform RNS producer");
       if(!rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","quarter CRT requires exact-wide sources");
       if((query.proof_flags&(RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF))!=(RNS8_QUERY_CURRENT_RANGE_PROOF|RNS8_QUERY_QUARTER_RANGE_PROOF))
         return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"source_bound","quarter CRT requires current engine-owned 4B<=M and width proof");break;
@@ -189,6 +191,14 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(query.operation==RNS8_OP_QUARTER_CRT)out.required_host_bytes=output_bytes;
       const bool status_word=query.operation==RNS8_OP_EXPORT && rns && (!rns8::detail::exact_wide_semantics(d.semantics) || limbs<3);
       if(device_backend && (!add(scratch,output_bytes) || !add(scratch,status_word?4:0)))out.resource_status=2;
+      if(query.operation==RNS8_OP_EXPORT && !device_backend && rns) {
+        // CPU integer exports stage every result and per-cell status before
+        // publication. Per-worker gathered residues and allocator capacity are
+        // additional unknown storage, never a successful zero-byte query.
+        const uint64_t status_bytes=uint64_t(d.m)*uint64_t(d.n)*sizeof(rns8_status);
+        if(!add(out.required_host_bytes,output_bytes) || !add(out.required_host_bytes,status_bytes))out.resource_status=2;
+        else if(out.resource_status!=2)out.resource_status=1;
+      }
       // Ordinary export may use an environment-controlled retained pinned pool;
       // its allocation/current capacity is intentionally not queried here.
       if(query.operation==RNS8_OP_EXPORT && device_backend && out.resource_status!=2)out.resource_status=1;}}
