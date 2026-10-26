@@ -45,16 +45,25 @@ def validate_case(c):
 def validate_capture(c, entry):
     case=validate_case(entry['case']);m,n,k,p=(case[x] for x in ('m','n','k','prefix'));mode=case['mode'];device=mode.startswith('device-');resident=mode=='resident-control'
     ac,bc,cc=m*k,k*n,m*(n+3)*3
-    fixed=dict(schema='rns8_native_interop_microcase_v1',case=case,run_id=entry['run_id'],
+    fixed=dict(schema='rns8_native_interop_microcase_v2',case=case,run_id=entry['run_id'],
         output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,resident_control_excludes_input_binding=resident,
         host_payload_bytes_per_call=0 if device or resident else 2*(ac+bc)*8+m*n*24+cc*8,compact_status_bytes_per_call=12 if device else 4,
-        consumer_validation_bytes=8,validation_payload_bytes=cc*8,retained_device_payload_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,
-        retained_host_payload_bytes=(ac+bc)*8+2*cc*8+12,memory_scope='logical_payload_estimate_excludes_boost_host_matrix_capacity_driver_opaque_events_graphs_workspace_separate',
+        consumer_validation_bytes=8,validation_payload_bytes=cc*8,preflight_device_payload_estimate_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,
+        preflight_host_payload_estimate_bytes=(ac+bc)*8+2*cc*8+12,memory_scope='conservative_all_route_logical_preflight_excludes_Boost_library_heap_driver_opaque_events_graphs_workspace_separate',
+        participating_external_owners=3 if device else 1 if resident else 0,
+        owner_acquire_callbacks=3 if device else 1 if resident else 0,owner_release_callbacks=3 if device else 1 if resident else 0,
         launch_count=None,launch_count_scope='not_inferred_from_api_calls',timing_source='steady_clock_complete_host_observed_transaction',
-        phase_scope='enqueue_and_observation_not_disjoint_device_kernel_durations',exact_reference_passed=True,owner_callbacks_exactly_once=True,promotion_eligible=False)
+        phase_scope='enqueue_and_observation_not_disjoint_device_kernel_durations',exact_reference_passed=True,owner_callbacks_exactly_once=True,promotion_eligible=False,
+        observed_allocation_scope='RNS8_owned_requested_device_and_pinned_payload_excludes_app_allocations_host_heap_allocator_and_driver',
+        all_owned_payload_retired=True,external_application_device_requested_bytes=(ac+bc)*8+cc*8+8,
+        ordinary_host_capacity_scope='four_native_vectors_only_excludes_Boost_objects_and_dynamic_limbs_library_heap_and_RSS')
     for key,value in fixed.items():
         if type(c.get(key)) is not type(value) or c.get(key)!=value:
             raise ValueError('capture '+key)
+    capacity=c.get('ordinary_host_native_vector_capacity_bytes')
+    if type(capacity) is not int or capacity < (ac+bc+2*cc)*8 or capacity%8:
+        raise ValueError('ordinary native-vector capacity')
+    validate_owned_observations(c)
     if type(c.get('plan_workspace_bytes')) is not int or c['plan_workspace_bytes']<0 or not manifest_provenance_complete(c.get('build_manifest')) or not c.get('target') or not c.get('device') or not c.get('execution_id'):
         raise ValueError('build/device/workspace/process identity')
     artifact=c.get('artifact_capture') or {}
@@ -75,6 +84,31 @@ def validate_capture(c, entry):
     return c
 
 
+def validate_owned_observations(c):
+    keys={'live_bytes','peak_bytes','live_allocations','peak_allocations','allocation_calls','free_calls','allocated_bytes'}
+    snapshots=[]
+    for name in ('owned_before','owned_after_setup','owned_after_calls','owned_after_cleanup'):
+        value=c.get(name)
+        if type(value) is not dict or set(value)!={'epoch','device','pinned_host'} or type(value['epoch']) is not int or not 1<=value['epoch']<=2**64-1:
+            raise ValueError('owned allocation epoch')
+        for domain in ('device','pinned_host'):
+            d=value[domain]
+            if type(d) is not dict or set(d)!=keys or any(type(x) is not int or not 0<=x<=2**64-1 for x in d.values()):
+                raise ValueError('owned allocation domain')
+            if d['peak_bytes']<d['live_bytes'] or d['peak_allocations']<d['live_allocations'] or d['allocated_bytes']<d['live_bytes'] or d['allocation_calls']-d['free_calls']!=d['live_allocations']:
+                raise ValueError('owned allocation accounting')
+        snapshots.append(value)
+    if len({s['epoch'] for s in snapshots})!=1:
+        raise ValueError('reset allocation epoch during measurement')
+    for domain in ('device','pinned_host'):
+        baseline=snapshots[0][domain];retired=snapshots[-1][domain]
+        if any(retired[key]!=baseline[key] for key in ('live_bytes','live_allocations')):
+            raise ValueError('unretired owned payload')
+        for previous,current in zip(snapshots,snapshots[1:]):
+            if any(current[domain][key]<previous[domain][key] for key in ('peak_bytes','peak_allocations','allocation_calls','free_calls','allocated_bytes')):
+                raise ValueError('nonmonotone allocation counters')
+
+
 def quantile(values, fraction):
     values=sorted(values);position=(len(values)-1)*fraction;lo=math.floor(position);hi=math.ceil(position)
     return values[lo]+(values[hi]-values[lo])*(position-lo)
@@ -87,7 +121,10 @@ def summarize(observations):
         identity=dict(case={k:v for k,v in entry['case'].items() if k!='mode'},build=c['build_manifest'],target=c['target'],device=c['device'],runtime=c.get('runtime_version'),
             artifact={k:c['artifact_capture'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')},environment=(c.get('request_identity') or {}).get('environment'))
         cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(mode=entry['case']['mode'],execution_id=c['execution_id'],independent_run=entry['independent_run'],path=entry['output'],
-            setup_us=c['setup_us'],p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),sustained_us=statistics.median(s['per_call_us'] for s in c['sustained'])))
+            setup_us=c['setup_us'],p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),
+            sustained_us=sum(s['total_us'] for s in c['sustained'])/sum(s['calls'] for s in c['sustained']),
+            observed_owned_device_peak_bytes=c['owned_after_calls']['device']['peak_bytes'],
+            observed_owned_pinned_peak_bytes=c['owned_after_calls']['pinned_host']['peak_bytes']))
     result=[]
     for key,rows in cohorts.items():
         if len({r['execution_id'] for r in rows})!=len(rows):
