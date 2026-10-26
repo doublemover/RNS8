@@ -332,10 +332,10 @@ class hip_pinned_host_buffer {
   void mark_pending() noexcept {pending_=true;}
   void mark_completed() noexcept {pending_=false;}
   bool pending() const noexcept {return pending_;}
-  hipError_t ensure(int device_id,std::size_t bytes) {
+  hipError_t ensure(int device_id,std::size_t bytes,bool portable=false) {
     if(pending_) return hipErrorNotReady;
     if(!bytes || device_id<0) return hipErrorInvalidValue;
-    if(cleanup_ && cleanup_->device_id==device_id && capacity_>=bytes) return hipSuccess;
+    if(cleanup_ && cleanup_->device_id==device_id && capacity_>=bytes && portable_==portable) return hipSuccess;
     const auto release_status=reset();
     if(release_status!=hipSuccess) return release_status;
     hip_scoped_device selected(device_id);
@@ -344,10 +344,10 @@ class hip_pinned_host_buffer {
     if(!record) return hipErrorOutOfMemory;
     record->kind=hip_deferred_allocation_kind::pinned_host;record->device_id=device_id;
     AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
-    const auto status=hipHostMalloc(&record->pointer,bytes,hipHostMallocDefault);
+    const auto status=hipHostMalloc(&record->pointer,bytes,portable?hipHostMallocPortable:hipHostMallocDefault);
     if(status!=hipSuccess) {delete record;return status;}
     observation.allocated(record->pointer,bytes,AllocationObservationDomain::pinned_host);
-    cleanup_=record;capacity_=bytes;return hipSuccess;
+    cleanup_=record;capacity_=bytes;portable_=portable;return hipSuccess;
   }
   void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}
   std::size_t capacity() const noexcept {return capacity_;}
@@ -359,12 +359,13 @@ class hip_pinned_host_buffer {
     }
   }
   void move_from(hip_pinned_host_buffer& other) noexcept {
-    cleanup_=other.cleanup_;capacity_=other.capacity_;pending_=other.pending_;
+    cleanup_=other.cleanup_;capacity_=other.capacity_;pending_=other.pending_;portable_=other.portable_;
     other.cleanup_=nullptr;other.capacity_=0;other.pending_=false;
   }
   hip_deferred_buffer_cleanup* cleanup_=nullptr;
   std::size_t capacity_=0;
   bool pending_=false;
+  bool portable_=false;
 };
 #endif
 

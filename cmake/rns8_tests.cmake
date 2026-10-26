@@ -124,6 +124,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
   add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
   add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
+  add_test(NAME distributed_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_distributed_calibration.py")
   add_test(NAME native_integrity_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_integrity.py")
   add_test(NAME native_interop_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_interop.py")
   if(TARGET rns8-native-calibrate AND RNS8_ENABLE_HIP)
@@ -1012,6 +1013,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_rank23_slp.cpp
     tests/unit/test_integrity_identity.cpp
     tests/unit/test_distributed_plan.cpp
+    tests/unit/test_distributed_hip.cpp
     tests/unit/test_int4_encoding.cpp
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_native_wmma_queue.cpp

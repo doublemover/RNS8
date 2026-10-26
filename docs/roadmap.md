@@ -84,7 +84,9 @@ composite moduli and accumulation-cap rejection. Preserve target/OS/compiler,
 ISA, resources, counters and independent-process timing. Use one explicitly
 selected physical GPU before expanding to per-device checks.
 
-Independent per-GPU shard scripts do not implement distributed GEMM. RDNA2,
+Independent per-GPU shard scripts do not implement distributed GEMM. The new
+[private modulus-sharded HIP owner](distributed-hip.md) supplies real runtime
+source and opt-in qualification fixtures, with syntax checks only. RDNA2,
 RDNA4, CDNA2 and CDNA4 require their own per-device/OS/backend campaigns using
 AMD-supported stacks; the [hardware matrix](../README.md#hardware-tested-and-hardware-wanted)
 lists validation requests.

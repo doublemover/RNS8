@@ -1,5 +1,9 @@
 # Distributed modulus plan and CPU mock
 
+The [experimental HIP executor](distributed-hip.md) now consumes this shared
+plan/input contract for real device work. This page describes the independent
+CPU mock; its observations remain mock evidence.
+
 The private [plan](../src/backend_common/distributed_plan.hpp) and
 [mock owner](../src/backend_common/distributed_mock.hpp) implement the
 hardware-independent M0 slice of issue #50. They compute one exact product
@@ -124,19 +128,19 @@ cancel/deadline/quarantine, retained readers, cancellation arithmetic and adapti
 materialization followed by a changed-identity chain. Their classical Boost
 oracle is independent of the modular producer and CRT.
 
-All fixtures and the schema are authored only. No build, test, checker,
-benchmark or GPU execution has run for this slice.
+The M0 fixtures ran in the earlier consolidated local suites. The subsequent
+shared resource/window changes and real HIP owner have syntax checks only;
+earlier passes do not qualify those changed sources.
 
-Remaining non-hardware work includes a runtime adapter retaining actual public
-matrix/plan generations and completion owners, stronger allocator/transport
-overhead accounting, bounded pipelined slots, existing session/provenance receipt
-integration, and separate M/N/K-region coverage oracles. M0 currently supports
-modulus decomposition only. A concurrent mock scheduler can later model delayed
-callbacks and allocation failure without calling those actual GPU failures.
+The [HIP owner](distributed-hip.md) now implements selected devices, immutable
+generation-bound native snapshots, reusable packing windows, maintained local
+kernels, peer/portable-pinned gather, exact CRT/export, materialization and
+retained cleanup. Its collector uses the existing artifact/request and bounded
+independent-process framework. `HostStorage::limbs_only` models that runtime;
+the mock requires `exact_reference` storage for its independent integer oracle.
+Source readiness remains separate from native Linux/Windows execution,
+topology, failure, traffic and scaling evidence.
 
-M1 still needs selected Linux GPU contexts/streams, source replication,
-qualified local kernels, directional peer or explicit pinned transport, gather,
-exact export and supported cleanup. Native Windows transport, RCCL,
-heterogeneous targets and multi-process/multi-node execution remain separate
-unsupported experiments. No hardware, installation, system changes or promotion
-follow from this mock.
+Stable public C-ABI integration, RCCL, M/N/K distributions and multi-process or
+multi-node execution are separately scoped follow-ons to the private M1/M2
+modulus owner. No hardware, installation or promotion follows from this mock.

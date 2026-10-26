@@ -2143,13 +2143,38 @@
       "issue": 50,
       "title": "[Research P2] Implement true modulus-sharded multi-GPU GEMM with residue-consistency epochs",
       "url": "https://github.com/doublemover/RNS8/issues/50",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Typed distributed planner and mock transport/coverage exist. No real multi-GPU HIP executor, gather-to-owner and complete product publication implementation; M1 remains source-missing independent of absent hardware tests.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Real bounded HIP modulus-shard executor, transport, global publication, materialization and deferred-hardware capture/qualification fixtures are written; syntax only.",
+          "files": [
+            "src/core/distributed_hip.cpp",
+            "src/core/distributed_hip.hpp",
+            "src/backend_common/distributed_plan.hpp",
+            "src/backend_common/distributed_inputs.hpp",
+            "src/backend_common/distributed_device.hpp",
+            "src/backend_hip_direct/hip_direct_distributed.cuh",
+            "src/backend_hip_direct/hip_direct_kernels.hip",
+            "src/core/hip_resources.hpp",
+            "src/core/api_operation_provider.inc",
+            "tests/unit/test_distributed_hip.cpp",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "benchmarks/rns8_distributed_calibrate.cpp",
+            "tools/collect_distributed_calibration.py",
+            "tools/test_collect_distributed_calibration.py"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_distributed_hip.cpp",
+        "tests/unit/test_distributed_plan.cpp",
+        "tests/unit/test_api_operation_provider_cases.inc",
+        "tools/test_collect_distributed_calibration.py"
+      ],
       "commits": [],
       "remaining": [
-        "Real multi-device owners/executor, full gather and transactional whole-output commit require unavailable hardware; explicitly deferred by the user."
+        "Execution and qualification of the written M1/M2 runtime on native Linux gfx942/gfx950 and native Windows supported transport paths; real device-fault/cleanup, topology/NUMA/traffic and independent 8192-square scaling gates remain. Optional M3 distributions/transports remain separately scoped by the issue."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2166,6 +2191,12 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "selected_implementation_20261026": {
+        "receipt": "metadata/selected-implementation-20261026.json",
+        "source_written": true,
+        "execution_performed": false,
+        "hardware_qualification": false
       }
     },
     {

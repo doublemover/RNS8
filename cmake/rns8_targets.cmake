@@ -173,6 +173,7 @@ if(RNS8_BUILD_BENCHMARKS)
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
   add_executable(rns8-cpu-amx-calibrate benchmarks/rns8_cpu_amx_calibrate.cpp)
+  add_executable(rns8-distributed-calibrate benchmarks/rns8_distributed_calibrate.cpp)
   add_executable(rns8-crt-calibrate benchmarks/rns8_crt_calibrate.cpp)
   add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
   add_executable(rns8-epilogue-calibrate benchmarks/rns8_epilogue_calibrate.cpp)
@@ -202,6 +203,7 @@ if(RNS8_BUILD_BENCHMARKS)
   add_executable(rns8-stream-capacity-qualify benchmarks/rns8_stream_capacity_qualify.cpp)
   foreach(_calibrator IN ITEMS
       rns8-cpu-amx-calibrate
+      rns8-distributed-calibrate
       rns8-crt-calibrate
       rns8-native-calibrate
       rns8-epilogue-calibrate

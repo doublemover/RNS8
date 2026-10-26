@@ -1,3 +1,17 @@
+TEST_CASE("distributed discovery separates written HIP source from unbound topology", "[api][provider][distributed]") {
+  auto* ctx=create_cpu_context();
+  rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation=RNS8_OP_MULTI_DEVICE;q.execution_modes=RNS8_EXEC_SYNC|RNS8_EXEC_MULTI_DEVICE;
+  q.problem=bounded_gemm_desc(RNS8_BOUNDED_I64,17,19,65);q.problem.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  q.input_domain=4;q.output_domain=5;q.output_limbs=3;q.device_count=2;q.scratch_budget=UINT64_MAX;
+  rns8_operation_support support{};uint32_t count=0;
+  REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);REQUIRE(count==1);
+  CHECK(support.source_implemented==1);CHECK(support.compiled_inventory==uint32_t(rns8::detail::hip_direct_compiled()));
+  CHECK(support.status==RNS8_UNSUPPORTED_BACKEND);CHECK(support.reason_code==RNS8_SUPPORT_TOPOLOGY);
+  CHECK(support.requires_binding==1);CHECK(support.resource_status==3);CHECK(support.runtime_observed==0);
+  CHECK(support.correctness_qualified==0);CHECK(support.performance_qualified==0);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
 TEST_CASE("operation discovery shares CPU plan admission and rejects representation/mode mismatches", "[api][provider]") {
   auto* ctx=create_cpu_context();
   rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.operation=RNS8_OP_GEMM;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;

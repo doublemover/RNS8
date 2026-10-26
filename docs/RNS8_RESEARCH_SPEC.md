@@ -1606,6 +1606,14 @@ Decision: split by modulus, not by K.
 Ship rule: multi-GPU ships only on Linux ROCm after the modulus split reaches
 at least 1.55x speedup for 8192 square bounded GEMM.
 
+The private [modulus-sharded HIP owner](distributed-hip.md) implements selected
+device discovery, resident native replication, bounded packing slots, explicit
+plane membership, peer/portable-pinned gather, per-tile checked CRT and complete
+epoch publication. Its uniform device materialization uses the globally unique
+result, never an isolated shard. Cancellation, deadlines, retained readers and
+quarantine share the existing resource contracts. This source implementation
+does not satisfy the Linux performance or broader hardware qualification gate.
+
 ### 17.6 AMDGPU Builtins
 
 Decision: not production until CK or rocWMMA diagnostics identify a concrete

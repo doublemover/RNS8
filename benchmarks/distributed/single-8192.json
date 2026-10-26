@@ -1,0 +1,19 @@
+{
+  "schema": "rns8_distributed_case_v1",
+  "m": 8192,
+  "n": 8192,
+  "k": 8192,
+  "prefix": 9,
+  "tile": 128,
+  "slots": 2,
+  "devices": [
+    0
+  ],
+  "transport": "local",
+  "scope": "resident-device-limbs",
+  "host_budget": 8589934592,
+  "pinned_budget": 1048576,
+  "device_budget": 17179869184,
+  "warmups": 3,
+  "repeats": 5
+}

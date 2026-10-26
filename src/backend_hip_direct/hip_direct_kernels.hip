@@ -32,6 +32,7 @@
 #include "../backend_common/fragment_layout.hpp"
 #include "../backend_common/ragged_residues.hpp"
 #include "../backend_common/mixed_radix_lift.hpp"
+#include "../backend_common/distributed_device.hpp"
 
 namespace {
 
@@ -71,10 +72,38 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_bound_kernels.cuh"
 #include "hip_direct_ragged_kernels.cuh"
 #include "hip_direct_block_sparse_kernels.cuh"
+#include "hip_direct_distributed.cuh"
 
 }  // namespace
 
 #include "hip_direct_complex_wrappers.inc"
+
+extern "C" int rns8_hip_distributed_pack(const uint64_t* native_a, const uint64_t* native_b,
+    int8_t* a, int8_t* b, uint64_t row, uint64_t col, uint64_t rows, uint64_t cols,
+    uint64_t k, uint64_t lda, uint64_t ldb, bool signed_value, uint32_t modulus, void* stream) {
+  const uint64_t blocks = ((rows + cols) * k + 255) / 256;
+  hipLaunchKernelGGL(rns8_distributed_pack_kernel, dim3(unsigned(blocks > 4096 ? 4096 : blocks)),
+      dim3(256), 0, static_cast<hipStream_t>(stream), native_a, native_b, a, b,
+      row, col, rows, cols, k, lda, ldb, signed_value,
+      rns8::detail::finite_u8::native64_reducer(modulus));
+  return int(hipGetLastError());
+}
+extern "C" int rns8_hip_distributed_export(const int8_t* residues, uint64_t* output,
+    int elements, int cols, uint32_t tile_rows, uint32_t tile_cols,
+    const rns8::detail::distributed::DeviceTile* tiles, bool signed_value, bool bounded,
+    int* status, void* stream) {
+  hipLaunchKernelGGL(rns8_distributed_export_kernel, dim3((uint64_t(elements) + 255) / 256),
+      dim3(256), 0, static_cast<hipStream_t>(stream), residues, output, elements, cols,
+      tile_rows, tile_cols, tiles, signed_value, bounded, status);
+  return int(hipGetLastError());
+}
+extern "C" int rns8_hip_distributed_materialize(const uint64_t* limbs, int8_t* residues,
+    int elements, uint32_t prefix, bool signed_value, void* stream) {
+  hipLaunchKernelGGL(rns8_distributed_materialize_kernel,
+      dim3((uint64_t(elements) * prefix + 255) / 256), dim3(256), 0,
+      static_cast<hipStream_t>(stream), limbs, residues, elements, prefix, signed_value);
+  return int(hipGetLastError());
+}
 
 extern "C" int rns8_hip_native_byte_domain(const void* source, int rows, int cols,
     int ld, uint64_t* maximum, uint64_t* invalid, bool unsigned_inputs) {

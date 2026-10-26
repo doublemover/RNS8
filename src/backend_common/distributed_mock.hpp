@@ -1,37 +1,10 @@
 #pragma once
-#include "distributed_plan.hpp"
+#include "distributed_inputs.hpp"
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
 namespace rns8::detail::distributed {
-// Immutable native input snapshot. Signed inputs use the defined modulo-2^64
-// conversion to bits; no implementation-defined uint64-to-int64 cast is used.
-class Inputs {
- public:
-  Inputs(ValueIdentity a, ValueIdentity b, std::vector<uint64_t> lhs, std::vector<uint64_t> rhs)
-      : a_(a), b_(b), lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
-  const ValueIdentity& a() const { return a_; }
-  const ValueIdentity& b() const { return b_; }
-  const std::vector<uint64_t>& lhs() const { return lhs_; }
-  const std::vector<uint64_t>& rhs() const { return rhs_; }
- private:
-  const ValueIdentity a_, b_;
-  const std::vector<uint64_t> lhs_, rhs_;
-};
-inline Integer native_integer(uint64_t bits, bool signed_value) {
-  Integer value = bits;
-  if (signed_value && (bits >> 63)) value -= Integer(1) << 64;
-  return value;
-}
-inline uint32_t native_residue(uint64_t bits, bool signed_value, uint32_t modulus) {
-  uint32_t result = static_cast<uint32_t>(bits % modulus);
-  if (signed_value && (bits >> 63)) {
-    const auto radix = static_cast<uint32_t>(((UINT64_MAX % modulus) + 1) % modulus);
-    result = (result + modulus - radix) % modulus;
-  }
-  return result;
-}
 struct Stamp {
   uint64_t operation = 0, epoch = 0;
   ValueIdentity a, b;
@@ -53,8 +26,6 @@ struct Fragment {
   std::vector<uint8_t> canonical;
   ResidueEncoding encoding = ResidueEncoding::canonical_u8;
 };
-enum class Phase { expected, local_complete, host_staged, transfer_complete, visible, proof_ready };
-enum class State { idle, pending, published, draining, failed, canceled, timed_out, quarantined };
 struct ExecutionReport {
   const char* schema = "rns8_distributed_mock_v1";
   const char* execution_kind = "cpu_mock_modulus_split";
@@ -110,6 +81,8 @@ class MockExecution {
 
   Admission begin(uint64_t epoch, std::shared_ptr<const Inputs> inputs, uint64_t now_ns, uint64_t deadline_ns) {
     if (!plan_) return reject(RNS8_INVALID_ARGUMENT, "plan_required");
+    if (plan_->request().host_storage != HostStorage::exact_reference)
+      return reject(RNS8_INVALID_ARGUMENT, "mock_reference_storage_required");
     if (state_ == State::pending || state_ == State::draining || state_ == State::quarantined || readers_)
       return reject(RNS8_BUSY, "previous_epoch_retained");
     if (!epoch || epoch == UINT64_MAX || epoch <= epoch_ || deadline_ns <= now_ns || !inputs)

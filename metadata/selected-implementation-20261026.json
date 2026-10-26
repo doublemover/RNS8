@@ -1,0 +1,162 @@
+{
+  "schema": "rns8_selected_implementation_source_pass_v1",
+  "recorded_utc": "2026-10-26T19:19:27.195118+00:00",
+  "requested_issues": [
+    31,
+    32,
+    34,
+    35,
+    36,
+    37,
+    28,
+    29,
+    40,
+    41,
+    42,
+    43,
+    46,
+    47,
+    48,
+    50,
+    51,
+    53,
+    54,
+    55,
+    59,
+    63,
+    64,
+    65,
+    66
+  ],
+  "status": "in_progress_remaining_source_audit",
+  "new_implementation_issue": 50,
+  "base_commit": "e759f4a1d3365c4421970d752fae131331e1f408",
+  "implemented": [
+    "Real one-process HIP modulus-shard owners, explicit runtime identities and positive peer capability checks",
+    "Immutable native replication and actual per-tile uniqueness proof, with checked post-CRT output range",
+    "Bounded one-to-three-slot per-rank pack/GEMM pipelines using maintained safe-slab arithmetic",
+    "Explicit peer or portable-pinned copies, source readiness and owner-stream destination visibility",
+    "Complete expected coverage before per-tile CRT and one epoch publication; no partial shard export",
+    "Retained distributed/device result, checked host export and uniform GPU materialization from the complete unique result",
+    "Cancellation, operation/observation deadlines, typed failures, retry and allocation-free complete-owner quarantine",
+    "Separate mock-reference and live-limb host storage accounting, hard rank/host/pinned budgets and runtime free-memory checks",
+    "Source/compiled operation inventory without fabricated binding or zero-resource success",
+    "CPU/HIP edge fixtures, explicit 1/2+ device configuration, matched cold/resident capture driver and counterbalanced collector"
+  ],
+  "checks": [
+    {
+      "path": "temp/implementation-runtime-syntax-20261026/receipt.json",
+      "scope": "MSVC syntax only; no objects or execution",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-test-syntax-20261026/receipt.json",
+      "scope": "MSVC syntax only; no linking or execution",
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-gpu-syntax-20261026/receipt.json",
+      "scope": "HIP syntax only for gfx1100; no objects, device execution or broader-target qualification",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-cpu-syntax-20261026/receipt.json",
+      "scope": "CPU HIP-off syntax only; no objects, sanitizer execution or tests",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-inventory-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs syntax only; no objects, linking, tests or GPU execution",
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-benchmark-syntax-20261026/receipt.json",
+      "scope": "MSVC/Python/JSON syntax only; no objects, linking or execution",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-target-syntax-20261026/gfx90a/receipt.json",
+      "scope": "Explicit device-only HIP syntax; no objects, linking, execution or hardware qualification",
+      "target": "gfx90a",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-target-syntax-20261026/gfx942/receipt.json",
+      "scope": "Explicit device-only HIP syntax; no objects, linking, execution or hardware qualification",
+      "target": "gfx942",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-target-syntax-20261026/gfx950/receipt.json",
+      "scope": "Explicit device-only HIP syntax; no objects, linking, execution or hardware qualification",
+      "target": "gfx950",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-target-syntax-20261026/gfx1030/receipt.json",
+      "scope": "Explicit device-only HIP syntax; no objects, linking, execution or hardware qualification",
+      "target": "gfx1030",
+      "exit_codes": [
+        0
+      ]
+    },
+    {
+      "path": "temp/implementation-target-syntax-20261026/gfx1200/receipt.json",
+      "scope": "Explicit device-only HIP syntax; no objects, linking, execution or hardware qualification",
+      "target": "gfx1200",
+      "exit_codes": [
+        0
+      ]
+    }
+  ],
+  "source_sha256": {
+    "src/core/distributed_hip.cpp": "d78563d7e6bf7819375aa87ee05fd2b630b03fb4dd9c230070017533c4879731",
+    "src/core/distributed_hip.hpp": "91bcc0ee4ee56290753667a2d2203c1c84a79696899d3491807e6e7b41e77f20",
+    "src/backend_common/distributed_plan.hpp": "4f9938cd6761ac25e1ff3c41165d159d1236dc7a13ddaa8fee244384561953ff",
+    "src/backend_common/distributed_inputs.hpp": "e47aafb2c23ebb215f29373db2ba9f2f2a15733927416d6b1cfd52510d20e5a0",
+    "src/backend_common/distributed_device.hpp": "24df2db22fd4795e94ae99797162f3f72d096f167289cafbbd7aa4a3db4b54d4",
+    "src/backend_hip_direct/hip_direct_distributed.cuh": "6eb47519dec3a25d1ebaebc0c745ae31975641faa71f6a47dea3e59fbbe9776b",
+    "src/backend_hip_direct/hip_direct_kernels.hip": "b29c99f2f612c3a091f07149903382cc46656d60b8c4480e2dc507ad12a6510f",
+    "src/core/hip_resources.hpp": "c54c86d07044e3e9d35e5b8cfb0ddce307906cd17fa3f7aa2c57a24cd4167917",
+    "src/core/api_operation_provider.inc": "9bde31b3e5ab81acb985d8b39bdfa05de71b06550823ac456e68c7a8b9161bc9",
+    "tests/unit/test_distributed_hip.cpp": "721614445d421072d8d7f2d80ab6cbe2d2d49c056582cc89faf12c7e8c1804e6",
+    "tests/unit/test_api_operation_provider_cases.inc": "05f5ac42ba02e0c514fe2b212c7427dd3b39b74d8bc2677d44e871fc22cda263",
+    "benchmarks/rns8_distributed_calibrate.cpp": "2bc2f1d0f3a147ee1cd897fec1de1d7c1c396fe1d75eac357b523d4e8b486089",
+    "tools/collect_distributed_calibration.py": "1e3f0461c42f08e2dbeb84ceac4f6011af3bf18f1b9c67024f60cfa2a14d72fc",
+    "tools/test_collect_distributed_calibration.py": "8554cbbd9a77fab079a02c1fc7647129f44383e8eae300e1e2f6af96d7e2e193"
+  },
+  "check_boundary": "Syntax only; no objects, linking, unit execution, GPU execution, new timing or hardware qualification",
+  "deferred_qualification": [
+    "Native Linux gfx942/gfx950 and native Windows transport execution",
+    "Actual two/four/eight-device inventory/topology/NUMA and transport evidence",
+    "Real device/transport failure and failed-drain qualification",
+    "Independent scaling, traffic/overlap and existing 1.55x 8192-square Linux release gate"
+  ],
+  "optional_outside_initial_scope": [
+    "M/N/K/hybrid distribution",
+    "RCCL and multi-process/multi-node/device-initiated transport"
+  ],
+  "campaign_resumed": false,
+  "benchmarks_launched": 0,
+  "issues_closed": []
+}

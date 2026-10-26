@@ -32,9 +32,9 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const auto valid=rns8::detail::validate_gemm_desc(validation_problem,validation_prefix);
   if(valid!=RNS8_SUCCESS)return reject(valid,RNS8_SUPPORT_BAD_DESCRIPTOR,"problem","ordinary semantic, range, shape or basis descriptor rejected");
   const uint32_t default_domain=finite?2:d.semantics==RNS8_WRAP_U64_MOD_2_64?3:1;
-  const bool native=query.operation==RNS8_OP_NATIVE_GROUP || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_NATIVE_LEASE || query.operation==RNS8_OP_NATIVE_INTEGRITY || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || (query.operation==RNS8_OP_GRAM && query.algorithm/4==1);
+  const bool native=query.operation==RNS8_OP_MULTI_DEVICE || query.operation==RNS8_OP_NATIVE_GROUP || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_NATIVE_LEASE || query.operation==RNS8_OP_NATIVE_INTEGRITY || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || (query.operation==RNS8_OP_GRAM && query.algorithm/4==1);
   const uint32_t input_domain=query.operation==RNS8_OP_PACK?(finite?2:4):(native?4:default_domain);
-  const uint32_t output_domain=(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):((query.operation==RNS8_OP_QUARTER_CRT || checked_export)?5:default_domain);
+  const uint32_t output_domain=query.operation==RNS8_OP_MULTI_DEVICE?5:(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):((query.operation==RNS8_OP_QUARTER_CRT || checked_export)?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
   const uint32_t max_algorithm=checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
@@ -149,7 +149,13 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       out.source_implemented=1;out.compiled_inventory=cpu || (hip && rns8::detail::hip_direct_compiled());
       return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_BAD_DESCRIPTOR,"basis",
           "use rns8_query_basis_operation with an explicit owned ordered basis; default planning cannot infer one");
-    case RNS8_OP_MULTI_DEVICE:case RNS8_OP_FP8:
+    case RNS8_OP_MULTI_DEVICE:
+      if(!hip || !rns)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","modulus-sharded owner requires direct HIP bounded/exact-wide integer semantics");
+      out.source_implemented=1;out.compiled_inventory=rns8::detail::hip_direct_compiled();out.runtime_observed=0;
+      out.supported_execution_modes=RNS8_EXEC_SYNC|RNS8_EXEC_MULTI_DEVICE;out.safe_k=65536;
+      return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TOPOLOGY,"distributed_plan",
+          "bind private HipExecution to explicit Plan/Inputs, selected identities, transport and all rank budgets; one-context query cannot price or admit it");
+    case RNS8_OP_FP8:
       out.source_implemented=0;return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","no integrated provider for this operation in this implementation revision");
     default:return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"operation","unknown operation");
   }

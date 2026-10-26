@@ -1,7 +1,7 @@
 #pragma once
 
-// Hardware-independent M0 contract. No runtime/device discovery, communication,
-// public ABI, route selection or target qualification is supplied here.
+// Shared hardware-independent contract for the CPU mock and real HIP owner.
+// Runtime discovery, transport and target qualification remain with the owner.
 #include "address_domain.hpp"
 #include "garner_constants.hpp"
 #include "rns8/rns8.h"
@@ -22,6 +22,9 @@ using Integer = boost::multiprecision::cpp_int;
 enum class Axis { modulus, rows, columns, contraction, hybrid };
 enum class Transport { local, peer, pinned_host };
 enum class Support { unknown, unsupported, supported };
+enum class HostStorage { exact_reference, limbs_only };
+enum class Phase { expected, local_complete, host_staged, transfer_complete, visible, proof_ready };
+enum class State { idle, pending, published, draining, failed, canceled, timed_out, quarantined };
 struct Admission {
   rns8_status status = RNS8_SUCCESS;
   const char* reason = "admitted";
@@ -94,6 +97,8 @@ struct Request {
   Transport transport = Transport::pinned_host; // explicit; no automatic fallback
   uint64_t host_budget = 0, pinned_budget = 0, host_overhead_reserve = 1u << 20;
   uint64_t maximum_work_items = 1u << 20;
+  uint32_t pipeline_slots = 2; // bounded per-rank pack/compute windows
+  HostStorage host_storage = HostStorage::exact_reference;
 };
 struct Tile {
   uint64_t row = 0, col = 0, rows = 0, cols = 0;
@@ -166,7 +171,8 @@ class Plan {
     key << "distributed_modulus_v1;" << r.operation << ';' << unsigned(r.semantics) << ';'
         << r.m << ';' << r.n << ';' << r.k << ';' << r.lda << ';' << r.ldb << ';'
         << r.prefix << ';' << r.owner << ';' << r.a.instance << ';' << r.a.generation << ';'
-        << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';';
+        << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';'
+        << r.pipeline_slots << ';' << unsigned(r.host_storage) << ';';
     text(r.certificate_sha256); text(r.layout_sha256); text(r.cost_profile_sha256);
     for (const auto& rank : r.ranks) {
       key << rank.ordinal << ';' << rank.weight << ';';
@@ -192,7 +198,8 @@ class Plan {
         !digest(r.layout_sha256) || !r.m || !r.n || !r.k || r.lda < r.k || r.ldb < r.n ||
         !r.prefix || r.prefix > 20 || !r.tile_rows || !r.tile_cols || r.tile_rows > 256 ||
         r.tile_cols > 256 || r.ranks.empty() || r.ranks.size() > 64 || r.owner >= r.ranks.size() ||
-        !r.maximum_work_items || r.maximum_work_items > (1u << 20) || r.magnitude_bound < 0)
+        !r.maximum_work_items || r.maximum_work_items > (1u << 20) || r.magnitude_bound < 0 ||
+        !r.pipeline_slots || r.pipeline_slots > 3 || unsigned(r.host_storage) > 1)
       return reject(RNS8_INVALID_ARGUMENT, "malformed_contract");
     if (r.magnitude_bound >= (Integer(1) << 160)) return reject(RNS8_RANGE_ERROR, "proof_width_limit");
     if (r.transport != Transport::peer && r.transport != Transport::pinned_host &&
@@ -280,9 +287,10 @@ class Plan {
           const uint64_t offset = memory.local_outputs;
           uint64_t packed_a = 0, packed_b = 0;
           if (!multiply(tile.rows, r.k, packed_a) || !multiply(r.k, tile.cols, packed_b) ||
-              !add_bytes(memory.packed_inputs, packed_a) || !add_bytes(memory.packed_inputs, packed_b) ||
+              !add_bytes(packed_a, packed_b) ||
               !add_bytes(memory.local_outputs, cells))
             return reject(RNS8_RANGE_ERROR, "rank_buffer_overflow", selected);
+          memory.packed_inputs = std::max(memory.packed_inputs, packed_a);
           work_.push_back({work_.size(), id, selected, plane, garner::kConstants.moduli[plane],
               0, r.k, offset, cells, transport});
           if (transport != Transport::local) {
@@ -299,6 +307,8 @@ class Plan {
     if (!multiply(r.m, r.n, cells)) return reject(RNS8_RANGE_ERROR, "output_overflow");
     for (uint32_t rank = 0; rank < r.ranks.size(); ++rank) {
       auto& memory = resources_.ranks[rank];
+      if (!multiply(memory.packed_inputs, r.pipeline_slots, memory.packed_inputs))
+        return reject(RNS8_RANGE_ERROR, "pipeline_buffer_overflow", rank);
       memory.native_inputs = counts[rank] ? native : 0;
       memory.scratch = counts[rank] ? r.ranks[rank].scratch_bytes : 0;
       memory.overhead_reserve = r.ranks[rank].overhead_reserve;
@@ -306,6 +316,10 @@ class Plan {
         return reject(RNS8_RANGE_ERROR, "descriptor_overflow", rank);
       if (rank == r.owner) {
         memory.gather = c_span.byte_extent;
+        uint64_t tile_metadata = 0;
+        if (!multiply(tile_count, 64, tile_metadata) || !add_bytes(tile_metadata, 4) ||
+            !add_bytes(memory.descriptors, tile_metadata))
+          return reject(RNS8_RANGE_ERROR, "owner_descriptor_overflow", rank);
         if (!multiply(cells, 24, memory.crt_workspace) ||
             !multiply(cells, bounded() ? 8 : 24, memory.export_output))
           return reject(RNS8_RANGE_ERROR, "owner_output_overflow", rank);
@@ -322,6 +336,8 @@ class Plan {
       if (!add_bytes(resources_.descriptor_bytes, memory.descriptors))
         return reject(RNS8_RANGE_ERROR, "descriptor_overflow", rank);
     }
+    if (!add_bytes(resources_.pinned_staging, 4))
+      return reject(RNS8_RANGE_ERROR, "pinned_status_overflow");
     resources_.host_inputs = native;
     resources_.host_overhead_reserve = r.host_overhead_reserve;
     // Mock owns native bytes, fragment payloads, gathered bytes, cpp_int output
@@ -329,16 +345,17 @@ class Plan {
     // native oracle is <192 bits: K<=PTRDIFF_MAX/8 and each product<2^128.
     // 512/cell reserves these objects/temporaries; allocator overhead is explicit.
     uint64_t integer_bytes = 0;
-    if (!multiply(cells, 512, integer_bytes)) return reject(RNS8_RANGE_ERROR, "host_model_overflow");
+    if (!multiply(cells, r.host_storage == HostStorage::exact_reference ? 512 : 24, integer_bytes))
+      return reject(RNS8_RANGE_ERROR, "host_model_overflow");
     resources_.host_model = native;
     // Exact structural keys, tile proofs and the transient fragment stamp are
     // bounded but not fixed-size Work objects. Reserve separately for them.
     if (!multiply(work_.size(), 2048, resources_.contract_metadata))
       return reject(RNS8_RANGE_ERROR, "contract_metadata_overflow");
-    for (auto bytes : {integer_bytes, c_span.byte_extent, resources_.descriptor_bytes,
+    for (auto bytes : {integer_bytes, r.host_storage == HostStorage::exact_reference ? c_span.byte_extent : uint64_t{0}, resources_.descriptor_bytes,
         resources_.contract_metadata, resources_.pinned_staging, r.host_overhead_reserve})
       if (!add_bytes(resources_.host_model, bytes)) return reject(RNS8_RANGE_ERROR, "host_model_overflow");
-    for (const auto& memory : resources_.ranks)
+    if (r.host_storage == HostStorage::exact_reference) for (const auto& memory : resources_.ranks)
       if (!add_bytes(resources_.host_model, memory.local_outputs)) return reject(RNS8_RANGE_ERROR, "host_model_overflow");
     if (resources_.pinned_staging > r.pinned_budget) return reject(RNS8_WORKSPACE_TOO_SMALL, "pinned_memory_budget");
     if (resources_.host_model > r.host_budget) return reject(RNS8_WORKSPACE_TOO_SMALL, "host_memory_budget");

@@ -854,6 +854,9 @@ typedef struct rns8_operation_support {
 } rns8_operation_support;
 /* AUTO enumerates inventory without probing or allocating GPU storage. Required
  * count is returned even with zero capacity; truncated copies are explicit. */
+/* MULTI_DEVICE inventories the private experimental HIP owner. This descriptor
+ * cannot bind its rank/transport/resource plan; it reports a topology rejection
+ * with source/compiled inventory intact, never successful zero scratch. */
 RNS8_API rns8_status rns8_query_operation_support(const rns8_context*,const rns8_operation_query*,
     rns8_operation_support* results,uint32_t capacity,uint32_t* required_count);
 
