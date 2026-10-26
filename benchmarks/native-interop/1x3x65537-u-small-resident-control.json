@@ -8,7 +8,7 @@
   "mode": "resident-control",
   "dataset": "small",
   "repeats": 9,
-  "warmups": 2,
+  "warmups": 3,
   "seed": 67,
   "max_payload_bytes": 1073741824
 }
