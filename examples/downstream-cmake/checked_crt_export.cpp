@@ -57,6 +57,14 @@ int main(int argc,char** argv) {
       rns8_operation_support support{};uint32_t count=0;
       check(rns8_query_operation_support(owners.ctx,&query,&support,1,&count));
       require(count==1 && support.status==RNS8_SUCCESS,"installed checked CRT discovery");
+      rns8_pipeline_query pipeline{};pipeline.struct_size=sizeof(pipeline);pipeline.abi_version=RNS8_ABI_VERSION;
+      pipeline.operation=query;pipeline.operation.operation=RNS8_OP_GEMM;pipeline.operation.algorithm=0;
+      pipeline.output_boundary=1;pipeline.output_magnitude_limbs[0]=31;pipeline.reuse_count=2;pipeline.payload_budget=UINT64_MAX;
+      rns8_pipeline_candidate candidates[7]{};uint32_t candidate_count=0;
+      check(rns8_plan_pipeline(owners.ctx,&pipeline,nullptr,0,candidates,7,&candidate_count));
+      require(candidate_count==7 && candidates[algorithm+2].status==RNS8_SUCCESS &&
+          candidates[algorithm+2].reconstruction==RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GARNER+algorithm &&
+          !candidates[algorithm+2].cost_known && !candidates[algorithm+2].pareto,"installed checked pipeline discovery");
       rns8_crt_export_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
       config.algorithm=algorithm;config.mode=0;config.limb_count=1;config.max_scratch_bytes=65536;
       config.producer_order=algorithm==RNS8_CRT_GROUP_SPLIT?5u:0u;

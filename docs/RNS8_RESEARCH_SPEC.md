@@ -2146,3 +2146,12 @@ No policy performs caller writes until every cell and GPU completion succeeds.
 Failed drains retain read references with the live owner; CPU unwinding releases
 them. Policy-specific algebra, default routing and target qualification remain
 separate. Local source availability is not a measured performance promotion.
+
+
+The runtime pipeline shortlist also enumerates concrete prepared checked integer
+CRT policies through the same operation provider. Complete owner costs remain
+unknown in the six-rate profile until policy-specific measurements exist; no
+default rate substitution or promotion is permitted. See
+[prepared integer CRT shortlist contracts](planning-recipes.md#prepared-integer-crt-policies-in-the-shortlist)
+for binding, identity and padded-payload admission. This source addition is
+syntax checked only; execution qualification remains deferred.

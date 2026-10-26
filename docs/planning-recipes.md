@@ -403,3 +403,36 @@ final CRT/export remains a separate common boundary. A failed prediction is
 retained as a failed report. These profiles remain **unqualified estimates**:
 no ISA/counter qualification, controlled clocks, new-shape generalization,
 selection-regret success or performance promotion is inferred from collection.
+
+
+### Prepared integer CRT policies in the shortlist
+
+The same `rns8_plan_pipeline` now includes five prepared checked-export
+compositions for CPU reference and direct HIP when a host limb output is
+requested. `reconstruction` uses the public
+`rns8_pipeline_reconstruction_kind`: checked Garner/direct/balanced/group-local/
+group-split are 3..7. After creating the returned ordinary plan and computing
+current values, callers prepare `rns8_crt_export` with algorithm
+`reconstruction - RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GARNER`, output mode
+`output_boundary - 1`, and the requested limb count. These compositions use the
+minimum unique-integer prefix. The quarter owner retains its independently
+stronger quarter-bound prefix; a resident-only boundary adds no export owners.
+
+Both GEMM and checked export pass through the shared operation provider. The
+composed identity includes both providers, output mode and declared bound.
+Admission charges the actual queried retained host/device/group payload and the
+complete padded caller destination span, in addition to GEMM/operand storage.
+Querying a route does not bind the proposed range to a real source; the prepared
+owner must still validate its engine-owned current proof and generation.
+
+Stage kinds 6..10 represent the complete checked public owner, including
+canonical-root reconstruction, integer validation, status/completion/readback and
+caller publication. The existing six-rate cost profile cannot price these
+policies: their stage/candidate cost stays unknown, with no Pareto promotion,
+even when every default/quarter rate is populated. No other policy borrows a
+Garner coefficient or becomes a zero-time winner. Existing default/quarter cost
+profiles and public struct layouts remain unchanged. Authored CPU cases bind
+every returned checked policy to an actual GEMM/export owner across signed,
+unsigned and canonical output; installed consumers also inspect these routes.
+Only syntax checks have run for this addition; execution and measured pricing
+remain deferred.

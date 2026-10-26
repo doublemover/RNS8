@@ -418,6 +418,15 @@
             "src/core/api_operation_provider.inc",
             "tests/unit/test_experimental_basis_cases.inc"
           ]
+        },
+        {
+          "summary": "Runtime pipeline shortlist now composes five concrete checked CRT owners with the shared GEMM/export providers, bound/mode/provider identities and exact retained/group/padded-destination payloads. New complete-owner stages deliberately remain unpriced by unrelated default rates. Authored executable CPU owner binding and installed consumer cases; syntax only, not qualification.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "examples/downstream-cmake/checked_crt_export.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -1079,6 +1088,15 @@
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/checked-gemm-exports.json"
           ]
+        },
+        {
+          "summary": "Runtime pipeline shortlist now composes five concrete checked CRT owners with the shared GEMM/export providers, bound/mode/provider identities and exact retained/group/padded-destination payloads. New complete-owner stages deliberately remain unpriced by unrelated default rates. Authored executable CPU owner binding and installed consumer cases; syntax only, not qualification.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "examples/downstream-cmake/checked_crt_export.cpp"
+          ]
         }
       ],
       "regressions": [
@@ -1534,6 +1552,15 @@
             "src/core/api_product_recipe_ragged_helpers.inc",
             "benchmarks/rns8_lift_recipe_calibrate.cpp",
             "tools/collect_lift_recipe.py"
+          ]
+        },
+        {
+          "summary": "Runtime pipeline shortlist now composes five concrete checked CRT owners with the shared GEMM/export providers, bound/mode/provider identities and exact retained/group/padded-destination payloads. New complete-owner stages deliberately remain unpriced by unrelated default rates. Authored executable CPU owner binding and installed consumer cases; syntax only, not qualification.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "examples/downstream-cmake/checked_crt_export.cpp"
           ]
         }
       ],
@@ -2967,6 +2994,15 @@
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/checked-gemm-exports.json"
+          ]
+        },
+        {
+          "summary": "Runtime pipeline shortlist now composes five concrete checked CRT owners with the shared GEMM/export providers, bound/mode/provider identities and exact retained/group/padded-destination payloads. New complete-owner stages deliberately remain unpriced by unrelated default rates. Authored executable CPU owner binding and installed consumer cases; syntax only, not qualification.",
+          "files": [
+            "src/core/api_pipeline_planner.inc",
+            "include/rns8/rns8.h",
+            "tests/unit/test_api_operation_provider_cases.inc",
+            "examples/downstream-cmake/checked_crt_export.cpp"
           ]
         }
       ],

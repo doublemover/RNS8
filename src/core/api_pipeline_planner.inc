@@ -56,16 +56,19 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
     if(!minimum)return RNS8_RANGE_ERROR;
     if(input.flags&RNS8_PLAN_FORCE_FIXED_PREFIX){minimum=ceiling;quarter=bound*4<=modulus_product(ceiling)?ceiling:0;}
     const uint32_t limbs=query->operation.output_limbs?query->operation.output_limbs:3;
+    const int64_t output_ld=query->operation.ldc?query->operation.ldc:input.n;
+    if(query->output_boundary && !valid_limb_export_access(input.m,input.n,output_ld,limbs))return RNS8_RANGE_ERROR;
     if(query->output_boundary==1 && bound>=(cpp_int(1)<<(limbs*64-1)))return RNS8_RANGE_ERROR;
     if(query->output_boundary==2 && bound>=(cpp_int(1)<<(limbs*64)))return RNS8_RANGE_ERROR;
     std::vector<rns8_pipeline_candidate> candidates;
     constexpr rns8_backend_kind backends[]{RNS8_BACKEND_CPU_REFERENCE,RNS8_BACKEND_HIP_DIRECT,RNS8_BACKEND_HIPBLASLT,RNS8_BACKEND_CK,
       RNS8_BACKEND_ROCWMMA,RNS8_BACKEND_WRAP64_BYTE_LIMB,RNS8_BACKEND_HIP_VECTOR_ALU_INT64,RNS8_BACKEND_AMDGPU_BUILTINS,RNS8_BACKEND_CPU_AMX};
     for(auto backend:backends){if(input.requested_backend!=RNS8_BACKEND_AUTO && input.requested_backend!=backend)continue;
-      for(unsigned reconstruction=0;reconstruction<2;++reconstruction){
-        if(reconstruction && (!query->output_boundary || !quarter || (backend!=RNS8_BACKEND_CPU_REFERENCE && backend!=RNS8_BACKEND_HIP_DIRECT)))continue;
+      for(unsigned reconstruction=0;reconstruction<7;++reconstruction){
+        const bool checked=reconstruction>=2,quarter_owner=reconstruction==1;
+        if(reconstruction && (!query->output_boundary || (quarter_owner && !quarter) || !checked_crt_backend_supported(backend)))continue;
         rns8_pipeline_candidate c{};c.struct_size=sizeof(c);c.abi_version=RNS8_ABI_VERSION;c.backend=backend;
-        c.prefix=reconstruction?quarter:minimum;c.reconstruction=query->output_boundary?(reconstruction?2:1):0;c.requires_binding=1;
+        c.prefix=quarter_owner?quarter:minimum;c.reconstruction=query->output_boundary?reconstruction+1:0;c.requires_binding=1;
         auto q=query->operation;q.problem.max_prefix=c.prefix;q.problem.requested_backend=backend;q.problem.flags|=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
         c.executable_problem=q.problem;
         // Caller-owned pointers cannot escape in a saved executable recipe.
@@ -76,6 +79,16 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         set_text(c.provider_identity_sha256,sizeof(c.provider_identity_sha256),support.provider_identity_sha256);
         set_text(c.explanation,sizeof(c.explanation),support.explanation);
         if(c.status!=RNS8_SUCCESS){candidates.push_back(c);continue;}
+        rns8_operation_support export_support{};
+        if(checked){auto export_query=q;export_query.operation=RNS8_OP_CHECKED_CRT;export_query.problem.k=1;
+          export_query.algorithm=reconstruction-2+5*(query->output_boundary-1);export_query.proof_flags=RNS8_QUERY_CURRENT_RANGE_PROOF;
+          export_query.input_domain=1;export_query.output_domain=5;export_query.lda=input.n;export_query.ldb=0;export_query.ldc=query->operation.ldc?query->operation.ldc:input.n;
+          export_query.output_limbs=limbs;
+          export_support=operation_support(*ctx,export_query,backend);
+          c.status=export_support.status;c.reason_code=export_support.reason_code;c.resource_status=export_support.resource_status;
+          set_text(c.provider_identity_sha256,sizeof(c.provider_identity_sha256),sha256(std::string("rns8-checked-pipeline-v1;")+support.provider_identity_sha256+";"+
+              export_support.provider_identity_sha256+";bound="+bound.str()+";mode="+std::to_string(query->output_boundary-1)));
+          if(c.status!=RNS8_SUCCESS){set_text(c.explanation,sizeof(c.explanation),export_support.explanation);candidates.push_back(c);continue;}}
         if(query->output_boundary==3 && modulus_product(c.prefix)>(cpp_int(1)<<(limbs*64))){c.status=RNS8_RANGE_ERROR;c.reason_code=RNS8_SUPPORT_MISSING_PROOF;candidates.push_back(c);continue;}
         const bool gpu=hip_device_backend(backend);
         const auto* profile=static_cast<const rns8_pipeline_cost_profile*>(nullptr);
@@ -87,6 +100,9 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         const uint64_t acells=product(input.m,input.k,1),bcells=product(input.k,input.n,1),ccells=product(input.m,input.n,1);
         const uint64_t abytes=product(acells,c.prefix,1),bbytes=product(bcells,c.prefix,1),cbytes=product(ccells,c.prefix,1);
         const uint64_t native_a=product(acells,8,1),native_b=product(bcells,8,1),output=product(ccells,limbs,8);
+        const uint64_t output_row_offset=query->output_boundary?product(uint64_t(input.m-1),uint64_t(output_ld),1):0;
+        if(query->output_boundary && uint64_t(input.n)>UINT64_MAX-output_row_offset){c.status=RNS8_RANGE_ERROR;c.reason_code=RNS8_SUPPORT_RESOURCE_OVERFLOW;}
+        const uint64_t caller_output=query->output_boundary && c.status==RNS8_SUCCESS?product(output_row_offset+uint64_t(input.n),limbs,8):0;
         const uint64_t ops=product(ccells,input.k,c.prefix);
         if(c.status!=RNS8_SUCCESS){candidates.push_back(c);continue;}
         // Robust capacity bound: all owned payloads simultaneously live. This
@@ -96,14 +112,15 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
         reserve(support.required_host_bytes);reserve(cbytes);
         if(!(query->retained_operands&1)){reserve(abytes);if(gpu)reserve(native_a);}
         if(!(query->retained_operands&2)){reserve(bbytes);if(gpu)reserve(native_b);}
-        if(query->output_boundary){reserve(output);if(gpu)reserve(output);if(gpu && !reconstruction)reserve(4);}
+        if(query->output_boundary){reserve(caller_output);if(checked){reserve(export_support.required_host_bytes);reserve(export_support.required_device_bytes);}
+          else{if(gpu)reserve(output);if(gpu && !quarter_owner)reserve(4);}}
         c.peak_payload_bytes=peak;c.setup_payload_bytes=peak-cbytes;
         if(peak>query->payload_budget){c.status=RNS8_WORKSPACE_TOO_SMALL;c.reason_code=RNS8_SUPPORT_BUDGET;}
         if(c.status!=RNS8_SUCCESS){candidates.push_back(c);continue;}
         double low_resource[3]{},high_resource[3]{};double low_setup=0,high_setup=0;
         const auto stage=[&](uint32_t kind,uint32_t resources,uint32_t deps,uint64_t work,uint64_t bytes,bool setup){
           auto& s=c.stages[c.stage_count];s.kind=kind;s.resources=resources;s.dependencies=deps;s.work_units=work;s.allocated_bytes=bytes;
-          s.cost_known=profile && (profile->known_mask&(1u<<kind));c.cost_known&=s.cost_known;
+          s.cost_known=kind<6 && profile && (profile->known_mask&(1u<<kind));c.cost_known&=s.cost_known;
           double lo=0,hi=0;if(s.cost_known){lo=profile->lower_launch_ns+double(work)*profile->lower_ns_per_unit[kind];hi=profile->upper_launch_ns+double(work)*profile->upper_ns_per_unit[kind];
             if(!std::isfinite(lo) || !std::isfinite(hi)){s.cost_known=0;c.cost_known=0;lo=hi=0;}}
           for(uint32_t i=0;i<c.stage_count;++i)if(deps&(1u<<i)){s.earliest_start_ns=std::max(s.earliest_start_ns,c.stages[i].earliest_end_ns);s.latest_start_ns=std::max(s.latest_start_ns,c.stages[i].latest_end_ns);}
@@ -117,13 +134,16 @@ rns8_status rns8_plan_pipeline(const rns8_context* ctx,const rns8_pipeline_query
           if(gpu){stage(0,2,0,operand?native_b:native_a,operand?native_b:native_a,true);dependency=1u<<(c.stage_count-1);}
           stage(1,gpu?4:1,dependency,operand?bbytes:abytes,operand?bbytes:abytes,true);inputs|=1u<<(c.stage_count-1);}
         stage(2,gpu?4:1,inputs,ops,cbytes,false);
-        if(query->output_boundary){stage(reconstruction?4:3,gpu?4:1,1u<<(c.stage_count-1),cbytes,output,false);
-          if(gpu)stage(5,2,1u<<(c.stage_count-1),output,output,false);}
+        if(query->output_boundary){if(checked)
+            stage(6+reconstruction-2,gpu?7:1,1u<<(c.stage_count-1),cbytes,export_support.required_host_bytes+export_support.required_device_bytes,false);
+          else{stage(quarter_owner?4:3,gpu?4:1,1u<<(c.stage_count-1),cbytes,output,false);
+            if(gpu)stage(5,2,1u<<(c.stage_count-1),output,output,false);}}
         if(c.cost_known){const auto& last=c.stages[c.stage_count-1];c.lower_amortized_ns=last.earliest_end_ns-low_setup+low_setup/query->reuse_count;
           c.upper_amortized_ns=last.latest_end_ns-high_setup+high_setup/query->reuse_count;
           set_text(c.explanation,sizeof(c.explanation),"non-promoting calibrated shortlist; enforced resource order; robust simultaneous-payload bound; actual values and opaque setup still bind");}
         else {for(auto& stage:c.stages){stage.earliest_start_ns=stage.earliest_end_ns=stage.latest_start_ns=stage.latest_end_ns=0;}
-          set_text(c.explanation,sizeof(c.explanation),"admissible static candidate; cost unknown (missing/stale target/build calibration); never ranked as zero cost");}
+          set_text(c.explanation,sizeof(c.explanation),checked?"admissible checked export composition; policy-specific complete-owner cost unknown in this profile schema; current source and opaque setup still bind":
+            "admissible static candidate; cost unknown (missing/stale target/build calibration); never ranked as zero cost");}
         candidates.push_back(c);
       }
     }

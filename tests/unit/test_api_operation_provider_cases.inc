@@ -130,7 +130,7 @@ TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum an
   q.operation.struct_size=sizeof(q.operation);q.operation.abi_version=RNS8_ABI_VERSION;q.operation.operation=RNS8_OP_GEMM;
   q.operation.execution_modes=RNS8_EXEC_SYNC;q.operation.scratch_budget=UINT64_MAX;q.operation.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,16,16,16);
   q.operation.problem.max_prefix=9;q.output_magnitude_limbs[0]=100;q.output_boundary=1;q.payload_budget=UINT64_MAX;q.reuse_count=1;
-  rns8_pipeline_candidate c[2]{};uint32_t count=0;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);REQUIRE(count==2);
+  rns8_pipeline_candidate c[2]{};uint32_t count=0;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,c,2,&count)==RNS8_SUCCESS);REQUIRE(count==7);
   CHECK(c[0].prefix==1);CHECK(c[1].prefix==2);CHECK(c[0].status==RNS8_SUCCESS);CHECK(c[1].status==RNS8_SUCCESS);
   CHECK_FALSE(c[0].cost_known);CHECK_FALSE(c[0].pareto);CHECK(c[0].executable_problem.flags&RNS8_PLAN_FORCE_FIXED_PREFIX);CHECK(c[0].executable_problem.flags&RNS8_PLAN_EXACT_VALUE_BOUND);
   for(auto& candidate:c){rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&candidate.executable_problem,&plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);}
@@ -244,4 +244,65 @@ TEST_CASE("static provider rejections preserve published output across synchrono
   CHECK(rns8_prepare_bilinear_workspace(ctx,plan,RNS8_BILINEAR_STRASSEN,UINT64_MAX,work)==support.status);preserved();
   REQUIRE(rns8_destroy_workspace(work)==RNS8_SUCCESS);for(auto* matrix:matrices)REQUIRE(rns8_destroy_matrix(matrix)==RNS8_SUCCESS);
   REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+
+TEST_CASE("pipeline checked CRT policies bind executable owners without borrowing default prices", "[api][planner][crt]") {
+  auto* ctx=create_cpu_context();
+  for(unsigned mode=0;mode<3;++mode) {
+    const auto semantics=mode==1?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;
+    rns8_pipeline_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+    q.operation.struct_size=sizeof(q.operation);q.operation.abi_version=RNS8_ABI_VERSION;
+    q.operation.operation=RNS8_OP_GEMM;q.operation.execution_modes=RNS8_EXEC_SYNC;q.operation.scratch_budget=UINT64_MAX;
+    q.operation.problem=exact_desc(semantics,2,3,4);q.operation.problem.max_prefix=9;q.operation.output_limbs=1;
+    q.output_boundary=mode+1;q.output_magnitude_limbs[0]=100;q.payload_budget=UINT64_MAX;q.reuse_count=3;
+    rns8_pipeline_cost_profile profile{};profile.struct_size=sizeof(profile);profile.abi_version=RNS8_ABI_VERSION;
+    profile.backend=RNS8_BACKEND_CPU_REFERENCE;std::strcpy(profile.target_id,"cpu");std::strcpy(profile.calibration_identity,"synthetic-only-unrelated-default-prices");
+    REQUIRE(rns8_get_pipeline_build_identity(profile.build_identity_sha256,sizeof(profile.build_identity_sha256))==RNS8_SUCCESS);
+    profile.known_mask=63;for(unsigned kind=0;kind<6;++kind){profile.lower_ns_per_unit[kind]=1;profile.upper_ns_per_unit[kind]=2;}
+    rns8_pipeline_candidate candidates[8]{};candidates[7].struct_size=UINT64_C(0xdeadbeef);uint32_t count=0;
+    REQUIRE(rns8_plan_pipeline(ctx,&q,&profile,1,candidates,7,&count)==RNS8_SUCCESS);REQUIRE(count==7);
+    CHECK(candidates[7].struct_size==UINT64_C(0xdeadbeef));CHECK(candidates[0].cost_known);CHECK(candidates[1].cost_known);
+    for(uint32_t algorithm=0;algorithm<5;++algorithm) {
+      const auto& candidate=candidates[algorithm+2];REQUIRE(candidate.status==RNS8_SUCCESS);
+      CHECK(candidate.reconstruction==RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GARNER+algorithm);CHECK(candidate.prefix==1);
+      CHECK(candidate.requires_binding);CHECK_FALSE(candidate.cost_known);CHECK_FALSE(candidate.pareto);
+      REQUIRE(candidate.stage_count>0);REQUIRE(candidate.stage_count<=8);
+      CHECK(candidate.stages[candidate.stage_count-1].kind==6+algorithm);
+      CHECK_FALSE(candidate.stages[candidate.stage_count-1].cost_known);
+      CHECK(std::string(candidate.provider_identity_sha256)!=candidates[0].provider_identity_sha256);
+      for(uint32_t other=0;other<algorithm;++other)CHECK(std::string(candidate.provider_identity_sha256)!=candidates[other+2].provider_identity_sha256);
+      rns8_plan* plan=nullptr;rns8_workspace* workspace=nullptr;
+      REQUIRE(rns8_create_plan(ctx,&candidate.executable_problem,&plan)==RNS8_SUCCESS);
+      REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
+      const auto matrix=[&](int64_t rows,int64_t cols){auto md=exact_matrix_desc(rows,cols,semantics);md.max_prefix=candidate.prefix;
+        rns8_matrix* out=nullptr;REQUIRE(rns8_create_matrix(ctx,&md,&out)==RNS8_SUCCESS);return out;};
+      auto* a=matrix(2,4);auto* b=matrix(4,3);auto* c=matrix(2,3);
+      const int64_t av[]={1,1,1,1,-1,-1,-1,-1},bv[]={1,1,1,1,1,1,1,1,1,1,1,1};
+      const uint64_t au[]={1,1,1,1,0,0,0,0},bu[]={1,1,1,1,1,1,1,1,1,1,1,1};
+      REQUIRE((mode==1?rns8_pack_u64(ctx,a,au,4,1):rns8_pack_i64(ctx,a,av,4,1))==RNS8_SUCCESS);
+      REQUIRE((mode==1?rns8_pack_u64(ctx,b,bu,3,1):rns8_pack_i64(ctx,b,bv,3,1))==RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_rns(ctx,plan,a,b,c,workspace)==RNS8_SUCCESS);
+      rns8_crt_export_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
+      config.algorithm=algorithm;config.mode=mode;config.limb_count=1;config.max_scratch_bytes=65536;
+      rns8_crt_export* exporter=nullptr;REQUIRE(rns8_prepare_crt_export(ctx,plan,c,&config,&exporter)==RNS8_SUCCESS);
+      uint64_t output[10];std::fill(std::begin(output),std::end(output),99);
+      REQUIRE(rns8_export_crt_limbs(exporter,output,5)==RNS8_SUCCESS);
+      for(unsigned col=0;col<3;++col){CHECK(output[col]==4);CHECK(output[5+col]==(mode==0?uint64_t(-4):mode==1?0:252));}
+      CHECK(output[3]==99);CHECK(output[4]==99);CHECK(output[8]==99);CHECK(output[9]==99);
+      rns8_crt_export_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+      REQUIRE(rns8_get_crt_export_info(exporter,&info)==RNS8_SUCCESS);
+      CHECK(candidate.peak_payload_bytes==candidates[0].peak_payload_bytes+info.retained_host_bytes+info.retained_device_bytes);
+      REQUIRE(rns8_destroy_crt_export(exporter)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(a)==RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_matrix(b)==RNS8_SUCCESS);REQUIRE(rns8_destroy_matrix(c)==RNS8_SUCCESS);
+      REQUIRE(rns8_destroy_workspace(workspace)==RNS8_SUCCESS);REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);
+    }
+    const auto tight=candidates[2].peak_payload_bytes;q.operation.ldc=5;
+    REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+    CHECK(candidates[2].peak_payload_bytes==tight+16);
+    q.payload_budget=tight;REQUIRE(rns8_plan_pipeline(ctx,&q,nullptr,0,candidates,7,&count)==RNS8_SUCCESS);
+    CHECK(candidates[2].status==RNS8_WORKSPACE_TOO_SMALL);
+    q.operation.ldc=INT64_MAX;CHECK(rns8_plan_pipeline(ctx,&q,nullptr,0,candidates,7,&count)==RNS8_RANGE_ERROR);
+  }
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }

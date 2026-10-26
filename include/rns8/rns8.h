@@ -882,14 +882,28 @@ typedef struct rns8_pipeline_query {
   uint64_t payload_budget;
 } rns8_pipeline_query;
 typedef struct rns8_pipeline_stage {
+  /* Kinds 0..5 use the six cost-profile entries. Kinds 6..10 describe a
+   * complete prepared checked-export owner (Garner/direct/balanced/local/split),
+   * including root/decode/status/readback/publication. These costs are unknown
+   * in this profile schema; ordinary CRT rates never price another policy. */
   uint32_t kind,dependencies,resources; /* prior stage bitmask; host1,copy2,compute4 */
   uint32_t cost_known;
   uint64_t work_units,allocated_bytes;
   double earliest_start_ns,earliest_end_ns,latest_start_ns,latest_end_ns;
 } rns8_pipeline_stage;
+typedef enum rns8_pipeline_reconstruction_kind RNS8_ENUM_BASE {
+  RNS8_PIPELINE_RECONSTRUCTION_RESIDENT=0,RNS8_PIPELINE_RECONSTRUCTION_DEFAULT=1,
+  RNS8_PIPELINE_RECONSTRUCTION_QUARTER=2,RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GARNER=3,
+  RNS8_PIPELINE_RECONSTRUCTION_CHECKED_DIRECT=4,RNS8_PIPELINE_RECONSTRUCTION_CHECKED_BALANCED=5,
+  RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GROUP_LOCAL=6,RNS8_PIPELINE_RECONSTRUCTION_CHECKED_GROUP_SPLIT=7
+} rns8_pipeline_reconstruction_kind;
 typedef struct rns8_pipeline_candidate {
   uint64_t struct_size;
-  uint32_t abi_version,backend,prefix,reconstruction; /* resident0,general1,quarter2 */
+  uint32_t abi_version,backend,prefix,reconstruction;
+  /* resident0,default1,quarter2,checked Garner3/direct4/balanced5/local6/split7.
+   * For checked policies, prepare rns8_crt_export with algorithm=reconstruction-3
+   * and explicit output mode after the ordinary GEMM has bound current values.
+   * No checked-policy costs or Pareto ranking are inferred from default rates. */
   rns8_status status;
   uint32_t reason_code,cost_known,pareto,requires_binding,resource_status;
   uint64_t peak_payload_bytes,setup_payload_bytes;
