@@ -18,8 +18,9 @@ from modulus_set_search import DEFAULT_MODULI
 def validate_case(case):
     keys = {'schema','m','n','k','prefix','tile','slots','devices','transport','scope',
             'host_budget','pinned_budget','device_budget','warmups','repeats'}
-    if type(case) is not dict or set(case) != keys or case['schema'] != 'rns8_distributed_case_v1':
+    if type(case) is not dict or set(case)-{'native_integrity'} != keys or case['schema'] != 'rns8_distributed_case_v1':
         raise ValueError('case ABI')
+    if 'native_integrity' in case and type(case['native_integrity']) is not bool:raise ValueError('integrity policy')
     for key, low, high in [('m',1,8192),('n',1,8192),('k',1,131073),('prefix',1,20),('tile',1,256),
             ('slots',1,3),('host_budget',1,2**60),('pinned_budget',4,2**30),('device_budget',1,2**60),
             ('warmups',1,100),('repeats',3,100)]:
@@ -52,6 +53,8 @@ def validate_capture(capture, entry):
         plan_reused=True,production_timing_hooks_enabled=False,affinity_policy='inherited_not_modified',numa_placement_observed=False)
     for key,value in fixed.items():
         if type(capture.get(key)) is not type(value) or capture[key] != value:raise ValueError('capture '+key)
+    integrity=case.get('native_integrity',False)
+    if capture.get('integrity_requested') is not integrity or capture.get('integrity_completed') is not integrity or type(capture.get('integrity_failure_mask')) is not int or capture['integrity_failure_mask']!=0 or capture.get('checking_moduli') != [257,263]:raise ValueError('independent integrity completion')
     if not manifest_provenance_complete(capture.get('build_manifest')) or not capture.get('execution_id'):
         raise ValueError('compiled/process provenance')
     artifact = capture.get('artifact_capture') or {}; request = capture.get('request_identity') or {}
@@ -74,7 +77,7 @@ def validate_capture(capture, entry):
         for field in ('native_inputs','packed_inputs','local_output','gather'):
             if type(row.get(field)) is not int or row[field] < 0:raise ValueError('rank payload accounting')
         if row['gather'] != (case['m']*case['n']*case['prefix'] if rank==0 else 0):raise ValueError('owner gather extent')
-        if row['native_inputs'] != (8*(case['m']*case['k']+case['k']*case['n']) if row['local_output'] else 0):raise ValueError('resident source replication')
+        if row['native_inputs'] != (8*(case['m']*case['k']+case['k']*case['n']) if row['local_output'] or (integrity and rank==0) else 0):raise ValueError('resident source replication')
     if len(set(identities)) != len(identities):raise ValueError('duplicate observed devices')
     if sum(r['local_output'] for r in ranks) != case['m']*case['n']*case['prefix']:raise ValueError('complete residue payload')
     for field in ('caller_output_bytes','host_owner_reservation','pinned_reservation','transfer_bytes_per_call'):

@@ -22,6 +22,7 @@
 #include "backend_common/block_sparse.hpp"
 #include "backend_common/integrity_identity.hpp"
 #include "backend_common/native_narrow.hpp"
+#include "backend_common/native_tdm.hpp"
 
 namespace rns8::detail {
 namespace checked_crt {struct Decode;}
@@ -156,6 +157,15 @@ rns8_status hip_direct_gemm_finite_int4_device(
 // Explicit preparation caches a device/code-object capability result. Admitted
 // execution never probes or allocates. Caller owns currentness and failure drain.
 rns8_status hip_direct_prepare_int4_capability(int device_id);
+rns8_status hip_direct_prepare_native_tdm(int device_id,const NativeTdmProblem&,void* probe,uint32_t& flags);
+rns8_status hip_direct_native_tdm_litmus(int device_id,const void*,void*,void*,uint32_t rows,uint32_t cols,uint32_t ld,uint32_t cluster,uint32_t prepared_flags);
+/* Caller retains the successful device/code-object preparation and all native
+ * value/proof lifetimes. These synchronous raw research calls do not publish a
+ * public matrix generation and never substitute a baseline for requested TDM. */
+rns8_status hip_direct_native_tdm_admitted(int device_id,const void*,const void*,void*,void*,const NativeTdmProblem&,uint32_t prepared_flags);
+rns8_status hip_direct_fp8_modular_prepare(int device_id,void* probe);
+rns8_status hip_direct_fp8_modular_gemm(int device_id,const int8_t*,const int8_t*,int8_t*,
+    int64_t,int64_t,int64_t,int64_t,int64_t,int64_t,uint32_t,void* failure,void* product_planes);
 rns8_status hip_direct_pack_int4_b(int device_id,const int8_t* b,void* packed,int64_t k,int64_t n,int64_t ldb,uint32_t modulus);
 rns8_status hip_direct_gemm_int4_admitted(int device_id,const int8_t* a,const int8_t* b,const void* packed_b,int8_t* c,
     int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t modulus);

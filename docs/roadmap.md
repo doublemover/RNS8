@@ -118,7 +118,7 @@ Focused topic guides retain arithmetic proofs and remaining gates:
 | Reconstruction/materialization | Public explicit CPU/HIP lift; private balanced/mixed-radix alternatives include an authored tile-major CRT consumer; performance and broader representation integration remain | [#39](https://github.com/doublemover/RNS8/issues/39), [#40](https://github.com/doublemover/RNS8/issues/40), [#41](https://github.com/doublemover/RNS8/issues/41) |
 | Resident execution | Native/uniform/ragged/packed materialization planning and retained arena execution; direct-HIP tokens/dependencies, transfer/lift/export, supported semantics and owned graphs are written; provider-specific unsupported modes, measurements and hardware qualification stay explicit | [#42](https://github.com/doublemover/RNS8/issues/42), [#43](https://github.com/doublemover/RNS8/issues/43) |
 | Algebraic composition | Exact epilogues, paired 3M/4M and one-level Strassen/rank-23 coefficient/straight-line matrix subproducts are written; measured routing and conditional extensions remain gated | [#47](https://github.com/doublemover/RNS8/issues/47), [#48](https://github.com/doublemover/RNS8/issues/48) |
-| Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. Floating hardware/public execution remains reserved, with target proof/ISA/performance gates | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Low-bit/floating encodings | Scalar certificates now separate proof verdicts; a host rational/binary32 rewrite oracle is authored. An explicit gfx942 FNUZ FP8 finite owner and MFMA implementation are authored; target proof/ISA/performance execution gates remain | [#44](https://github.com/doublemover/RNS8/issues/44), [#45](https://github.com/doublemover/RNS8/issues/45), [#46](https://github.com/doublemover/RNS8/issues/46) |
 | Integrity/sparse/multi-GPU | Private integrity candidates, public Sparse-A/hybrid owners and real modulus-sharded M1/M2 source; actual multi-GPU and sparse target execution/traffic/failure qualification remain | [#49](https://github.com/doublemover/RNS8/issues/49), [#50](https://github.com/doublemover/RNS8/issues/50), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Narrow/generated kernels | Explicit public proof-selected native paths and source-bound generated families are written; target execution and measured selection remain | [#53](https://github.com/doublemover/RNS8/issues/53), [#55](https://github.com/doublemover/RNS8/issues/55) |
 | Additional hardware | Future CDNA5 TDM/cluster; Linux AMX-INT8 kernel, OS permission, packing/reuse and collector are written but require actual supported CPU qualification | [#52](https://github.com/doublemover/RNS8/issues/52), [#54](https://github.com/doublemover/RNS8/issues/54) |
@@ -223,9 +223,12 @@ Address-domain issue #24 and the completed cold/steady hipBLASLt metadata
 study #70 are closed; the latter accepts its negligible/negative elapsed result
 without raw cross-call descriptors or routing promotion.
 
-Broader provider parity, encoded-B async composition and target-specific
-execution remain explicit issue gates. True multi-device ownership, unavailable
-FP4/FP6/FP8 matrix engines and CDNA5 transfer/multicast work are deferred with
-#45/#50/#52. Unsupported providers do not inherit support from a registry entry
+The [bound recipe layer](bound-pipeline-recipes.md) now composes existing producer,
+representation, queue, stream/graph and checked-export owners with explicit costs.
+The [FP8 finite owner](fp8-modular-research.md), [CDNA5 transfer/cluster kernels](cdna5-tdm-research.md)
+and [distributed independent commit check](distributed-hip.md#optional-independent-integrity-before-commit)
+are implemented in source. Broader provider parity and target-specific execution,
+ISA, fault coverage and measured routing remain qualification gates under
+#30/#45/#49/#50/#52. Unsupported providers do not inherit support from a registry entry
 or a passing direct-HIP path. The [per-issue ledger](../metadata/remaining-implementation-20261024.json)
 tracks current source, local evidence and remaining measurements/hardware.

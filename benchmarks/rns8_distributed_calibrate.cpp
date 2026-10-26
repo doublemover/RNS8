@@ -31,9 +31,10 @@ uint64_t elapsed(Clock::time_point start) {
 int main(int argc, char** argv) { try {
   if (argc != 3) throw std::invalid_argument("usage: rns8-distributed-calibrate CASE.json unique-run-id");
   json c; std::ifstream(argv[1]) >> c;
-  if (c.at("schema") != "rns8_distributed_case_v1" || c.size() != 15 || std::string(argv[2]).empty())
+  if (c.at("schema") != "rns8_distributed_case_v1" || c.size() != (c.contains("native_integrity")?16:15) || std::string(argv[2]).empty())
     throw std::invalid_argument("case/run identity");
   d::Request r; r.operation = 5001; r.semantics = RNS8_BOUNDED_I64; r.host_storage = d::HostStorage::limbs_only;
+  if(c.contains("native_integrity")){if(!c["native_integrity"].is_boolean())throw std::invalid_argument("integrity policy");r.native_integrity=c["native_integrity"].get<bool>();}
   r.m = integer(c, "m", 1, 8192); r.n = integer(c, "n", 1, 8192); r.k = integer(c, "k", 1, 131073);
   r.lda = r.k; r.ldb = r.n; r.prefix = uint32_t(integer(c, "prefix", 1, 20));
   r.tile_rows = r.tile_cols = uint32_t(integer(c, "tile", 1, 256));
@@ -157,6 +158,8 @@ int main(int argc, char** argv) { try {
       {"arithmetic_certificates", certificates}, {"expected_work", plan->work().size()},
       {"local_completed", last.local_completed}, {"transfers_queued", last.transfers_queued},
       {"published", last.output_current}, {"calls", calls}, {"setup_ns", setup_ns}, {"first_ns", first_ns},
+      {"integrity_requested",last.integrity_requested},{"integrity_completed",last.integrity_completed},
+      {"integrity_failure_mask",last.integrity_failure_mask},{"checking_moduli",json::array({257,263})},
       {"setup_scope", cold ? "untimed_preparation_admission_probe_and_cleanup" : "retained_preparation"},
       {"plan_compilation_ns", plan_compilation_ns}, {"plan_reused", true}, {"production_timing_hooks_enabled", false},
       {"samples_ns", samples}, {"sustained", bursts}, {"transfer_bytes_per_call", plan->resources().transfer_bytes},

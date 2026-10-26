@@ -25,6 +25,7 @@ namespace {
 }  // namespace
 
 #include "test_api_validation_cases.inc"
+#include "test_api_pipeline_recipe_cases.inc"
 #include "test_api_exact_wide_cases.inc"
 #include "test_api_host_address_cases.inc"
 #include "test_api_backend_info_cases.inc"
@@ -127,6 +128,7 @@ TEST_CASE("HIP event-dependent joins submit before producer observation", "[api]
 #include "test_api_operation_provider_cases.inc"
 
 #include "test_api_int4_cases.inc"
+#include "test_api_fp8_cases.inc"
 
 #include "backend_common/direct_rns_route.hpp"
 #include "backend_common/vector_small_n.hpp"

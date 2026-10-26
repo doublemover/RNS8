@@ -740,4 +740,6 @@ rns8_status hip_direct_synchronize(int device_id) {
 }
 
 #include "hip_backend_experimental_basis.inc"
+#include "hip_backend_fp8_modular.inc"
+#include "hip_backend_native_tdm.inc"
 }  // namespace rns8::detail

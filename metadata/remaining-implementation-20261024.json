@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-26T19:46:56.304226+00:00",
+  "scope_refreshed_utc": "2026-10-26T21:10:55.879767+00:00",
   "issues": [
     {
       "issue": 18,
@@ -321,7 +321,7 @@
       "issue": 30,
       "title": "[Research P1] Add a conversion-aware analytical planner before measured kernel promotion",
       "url": "https://github.com/doublemover/RNS8/issues/30",
-      "state": "in_progress",
+      "state": "implemented_validation_deferred",
       "base_gap": "Offline typed planning/resource prototype exists, but shared operation/provider parity query/runtime integration and current actual AUTO rejection decision trace absent; emitter still hardcodes no exact entry.",
       "implementation": [
         {
@@ -463,6 +463,14 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/differential/test_hip_direct_narrow_cases.inc"
           ]
+        },
+        {
+          "summary": "Bound whole-route recipes compose shared provider predicates with generation-bound uniform/encoded-B/windowed-split-K/narrow/native-locality producers, explicit complete modeled/measured price intervals, stream/graph owners and final checked CRT exports.",
+          "files": [
+            "include/rns8/pipeline_recipe.h",
+            "src/core/api_pipeline_recipe.cpp",
+            "docs/bound-pipeline-recipes.md"
+          ]
         }
       ],
       "regressions": [
@@ -474,7 +482,8 @@
         "tests/unit/test_experimental_basis_cases.inc",
         "tests/differential/test_hip_direct.cpp",
         "tests/unit/test_residue_layout.cpp",
-        "tests/support/product_recipe_outputs_fixture.hpp"
+        "tests/support/product_recipe_outputs_fixture.hpp",
+        "tests/unit/test_api_pipeline_recipe_cases.inc"
       ],
       "commits": [
         "916152ace5a966e4001fdfc002eb5e2b620143a9",
@@ -486,7 +495,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Capacity-aware cost schema 2, identity-bound measured stage ingestion and native roundtrip/scalar-first controls are implemented. The 20 training and 140 complete-route captures pass exact checks; all four frozen models fail the declared held-out tolerance. Representation choices, broader provider/async binding parity and qualified measured routing remain."
+        "Execute authored query/dispatch, stale-generation, lifetime and stream/graph/export fixtures; qualify whole-route prediction/regret, opaque resource peaks and matching provider/target modes."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -534,6 +543,11 @@
         "arithmetic_domains": 7,
         "production_arithmetic_changed": false,
         "production_selection_changed": false
+      },
+      "five_issue_source_20261026": {
+        "report": "docs/five-issue-implementation-20261026.md",
+        "metadata": "metadata/five-issue-implementation-20261026.json",
+        "qualification": "deferred; no new tests or benchmarks"
       }
     },
     {
@@ -2004,13 +2018,30 @@
       "issue": 45,
       "title": "[Research P3] Prototype certified FP4/FP6/FP8 modular GEMM with fixed-scale exactness gates",
       "url": "https://github.com/doublemover/RNS8/issues/45",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "Offline encoding/certificate groundwork exists; no real FP4/FP6/FP8 HIP modular matrix backend or certified public FP8 representation bridge. Native floating kernel implementation, not merely hardware testing, remains absent.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Explicit gfx942 E4M3 FNUZ finite research owner uses four real FP8 MFMA products, safe K slabs, guarded integer conversion and fused or materialized-product recombination, with a conditional source certificate and matched INT8 controls.",
+          "files": [
+            "src/core/api_fp8.cpp",
+            "src/backend_common/fp8_modular.hpp",
+            "src/backend_hip_direct/hip_direct_fp8_modular.cuh",
+            "tools/fp8_modular_certificate.py",
+            "benchmarks/rns8_fp8_calibrate.cpp",
+            "docs/fp8-modular-research.md"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_fp8_modular.cpp",
+        "tests/unit/test_api_fp8_cases.inc",
+        "tools/test_fp8_modular_certificate.py",
+        "tools/test_collect_research_kernels.py"
+      ],
       "commits": [],
       "remaining": [
-        "Real FP4/FP6/FP8 matrix-engine implementation and public bridge require unavailable qualification hardware; explicitly deferred by the user."
+        "Run actual gfx942 lane/accumulator/ISA/adversarial arithmetic and complete public differential/cost fixtures. The acknowledged conditional model is not hardware qualification. Other FP4/FP6/OCP/dynamic-scale forms are outside this initial one-format implementation."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2025,6 +2056,11 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "five_issue_source_20261026": {
+        "report": "docs/five-issue-implementation-20261026.md",
+        "metadata": "metadata/five-issue-implementation-20261026.json",
+        "qualification": "deferred; no new tests or benchmarks"
       }
     },
     {
@@ -2233,18 +2269,30 @@
             "src/core/api_matrix_schedule_contracts.inc",
             "tests/unit/test_api_value_bound_plan_cases.inc"
           ]
+        },
+        {
+          "summary": "Original-native 257/263 checks run on the distributed owner after CRT and before status/completion publication; budgets include otherwise-idle owner snapshots, mismatch inhibits output and collector identities separate checked calls.",
+          "files": [
+            "src/backend_common/distributed_integrity.hpp",
+            "src/backend_common/distributed_plan.hpp",
+            "src/core/distributed_hip.cpp",
+            "src/backend_hip_direct/hip_direct_distributed.cuh"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_api_native_integrity_cases.inc",
-        "tools/test_collect_native_integrity.py"
+        "tools/test_collect_native_integrity.py",
+        "tests/unit/test_distributed_hip.cpp",
+        "tests/unit/test_distributed_plan.cpp",
+        "tools/test_collect_distributed_calibration.py"
       ],
       "commits": [
         "0b925fd210ed924c20c1c720f49a9b3c51f7e58a",
         "64d8184a77af93e25a13b01f3158bc96d6a49065"
       ],
       "remaining": [
-        "Fault-model coverage and complete-route integrity costs remain unmeasured. Real distributed commit composition depends on unfinished #50."
+        "Execute distributed corruption/invisibility and failure-publication fixtures; qualify actual multi-device fault coverage and complete-route integrity overhead."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2258,6 +2306,11 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "five_issue_source_20261026": {
+        "report": "docs/five-issue-implementation-20261026.md",
+        "metadata": "metadata/five-issue-implementation-20261026.json",
+        "qualification": "deferred; no new tests or benchmarks"
       }
     },
     {
@@ -2381,13 +2434,28 @@
       "issue": 52,
       "title": "[Research P3] Prototype CDNA5 TDM and cluster multicast for shared RNS source tiles",
       "url": "https://github.com/doublemover/RNS8/issues/52",
-      "state": "implementation_pending",
+      "state": "implemented_validation_deferred",
       "base_gap": "No CDNA5 TDM/cluster transfer/barrier litmus or two-stage/multicast kernel in current source; existing gfx11/gfx94/gfx95 paths are not this implementation.",
-      "implementation": [],
-      "regressions": [],
+      "implementation": [
+        {
+          "summary": "Feature-detected gfx1250 tensor descriptors/transfer litmus and two-stage raw-native pipelines feed explicit scalar or wave32 INT8 WMMA consumers; multicast maps to residue groups or output-column neighbors with participant waits and safe stage retirement.",
+          "files": [
+            "src/backend_common/native_tdm.hpp",
+            "src/backend_hip_direct/hip_direct_native_tdm.cuh",
+            "src/backend_hip_direct/hip_backend_native_tdm.inc",
+            "benchmarks/rns8_tdm_calibrate.cpp",
+            "docs/cdna5-tdm-research.md"
+          ]
+        }
+      ],
+      "regressions": [
+        "tests/unit/test_native_tdm.cpp",
+        "tests/differential/test_hip_direct_tdm_cases.inc",
+        "tools/test_collect_research_kernels.py"
+      ],
       "commits": [],
       "remaining": [
-        "Verified CDNA5 transfer/barrier litmus, two-stage transfer and multicast implementation require unavailable target/compiler hardware; explicitly deferred by the user."
+        "Qualify matching supported compiler/runtime/device, real transfer/cluster/fragment differentials, wait/barrier stress, emitted instructions, actual traffic/stalls/occupancy/spills and matched end-to-end costs. LLVM23 active-body syntax does not prove these gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2402,6 +2470,11 @@
         "receipt": "metadata/materialization-validation-20261025.json",
         "compiled_source_commit": "6ce489b",
         "scope": "Applicable registered Windows/CPU-ASan/gfx1100 tests and explicit unsupported paths; issue-specific hardware/performance acceptance remains separate."
+      },
+      "five_issue_source_20261026": {
+        "report": "docs/five-issue-implementation-20261026.md",
+        "metadata": "metadata/five-issue-implementation-20261026.json",
+        "qualification": "deferred; no new tests or benchmarks"
       }
     },
     {
@@ -2814,16 +2887,28 @@
           "files": [
             "docs/documentation-inventory.json"
           ]
+        },
+        {
+          "summary": "Reconciled stale capability claims for materialization planning, public capacity streaming, finite verification, sparse hybrid methods, distributed runtime and new FP8/TDM/whole-route implementations; added focused guides to the exhaustive inventory.",
+          "files": [
+            "docs/backend-notes.md",
+            "docs/research/README.md",
+            "docs/roadmap.md",
+            "docs/RNS8_RESEARCH_SPEC.md",
+            "include/rns8/rns8.h",
+            "docs/documentation-inventory.json"
+          ]
         }
       ],
       "regressions": [
-        "tools/test_tooling_contracts.py"
+        "tools/test_tooling_contracts.py",
+        "tools/check_documentation.py"
       ],
       "commits": [
         "319a7f5"
       ],
       "remaining": [
-        "Local inventory/path/anchor checks pass for 134 documents, and all 44 official external URLs are reachable in the fresh check. Matching-platform command rehearsals, including native Linux GPU steps, remain unrun; link reachability does not establish them."
+        "Matching-platform command rehearsals remain unrun. Local inventory/path/anchor/command checks cover the updated source; external URL checks are not rerun in this pass."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
@@ -2834,6 +2919,11 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "five_issue_source_20261026": {
+        "report": "docs/five-issue-implementation-20261026.md",
+        "metadata": "metadata/five-issue-implementation-20261026.json",
+        "qualification": "deferred; no new tests or benchmarks"
       }
     },
     {
@@ -4013,5 +4103,6 @@
       "passed": 4,
       "failed": 0
     }
-  }
+  },
+  "current_source_branch": "codex/runtime-cache-transactions-20261011"
 }

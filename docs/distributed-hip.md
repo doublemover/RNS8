@@ -86,7 +86,28 @@ completion fails. Quarantine observes those initialization streams before freein
 either host or device storage; no local descriptor vector becomes a dangling DMA
 source when preparation unwinds.
 
-## Resource contract
+## Optional independent integrity before commit
+
+Set `Request::native_integrity` to compare the complete reconstructed result
+against independent original-native products modulo 257 and 263. The owner
+retains native inputs even when its rank owns no computational plane. Neither
+checking channel contributes to the computational CRT range. The explicit
+policy is part of plan/capture identity and the native replication is budgeted.
+
+The scalar checker runs on the owner stream after CRT and before status readback
+and the final completion event. Query reports requested/completed/mismatch
+separately. Range errors and `RNS8_VERIFICATION_FAILED` both prevent publication;
+cancellation or backend failure cannot fabricate a completed successful check.
+An error divisible by 257*263 is invisible. This is a declared integrity model,
+not arbitrary-error correction or a replacement for deterministic exactness.
+CPU corruption/invisibility fixtures and actual HIP signed/unsigned check
+fixtures are authored; no execution or cost claim is made by this source pass.
+
+The collector accepts an explicit boolean `native_integrity` in its case and
+requires matching completion/zero-mask reports. Checked/unchecked modes remain
+different comparison cohorts; check work stays inside timed complete calls.
+
+## Resource accounting
 
 The shared plan prices native replication, one to three reusable packing slots,
 all retained local result fragments, the complete owner gather, CRT/output,

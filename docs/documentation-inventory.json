@@ -2194,6 +2194,7 @@
         }
       ],
       "anchors": [
+        "distributed-publication",
         "independent-native-product-integrity-sentinel",
         "matched-cost-experiments-not-executed"
       ]
@@ -2207,10 +2208,6 @@
       "owner": "src/backend_common/distributed_plan.hpp",
       "reason": "Issue #50 M0: explicit rank/plane coverage, resource reservations, mock transport/epochs and unsupported real hardware boundary; no validation claimed.",
       "inbound_links": [
-        {
-          "source": "docs/backend-notes.md",
-          "reference": "distributed-mock.md"
-        },
         {
           "source": "docs/design.md",
           "reference": "distributed-mock.md"
@@ -2404,10 +2401,6 @@
         {
           "source": "docs/archive/implementation-checkpoints-2026-10-23.md",
           "reference": "../generated-encodings.md"
-        },
-        {
-          "source": "docs/backend-notes.md",
-          "reference": "generated-encodings.md"
         },
         {
           "source": "docs/research/README.md",
@@ -3525,6 +3518,14 @@
           "reference": "../planning-recipes.md"
         },
         {
+          "source": "docs/backend-notes.md",
+          "reference": "planning-recipes.md#cost-planned-product-materializations"
+        },
+        {
+          "source": "docs/bound-pipeline-recipes.md",
+          "reference": "planning-recipes.md"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../planning-recipes.md"
         },
@@ -3538,6 +3539,7 @@
         }
       ],
       "anchors": [
+        "bound-runtime-routes",
         "cost-planned-product-materializations",
         "dependency-proven-arena-reuse",
         "explicit-current-value-fixed-basis-plans",
@@ -5021,6 +5023,10 @@
       "reason": "Current public contract, implementation boundaries and qualification requirements.",
       "inbound_links": [
         {
+          "source": "docs/backend-notes.md",
+          "reference": "out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx"
+        },
+        {
           "source": "docs/local-validation-20261025.md",
           "reference": "out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx"
         },
@@ -5478,12 +5484,24 @@
           "reference": "distributed-hip.md"
         },
         {
+          "source": "docs/backend-notes.md",
+          "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/device-integrity.md",
+          "reference": "distributed-hip.md#optional-independent-integrity-before-commit"
+        },
+        {
           "source": "docs/distributed-mock.md",
           "reference": "distributed-hip.md"
         },
         {
           "source": "docs/distributed-mock.md",
           "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/five-issue-implementation-20261026.md",
+          "reference": "distributed-hip.md#optional-independent-integrity-before-commit"
         },
         {
           "source": "docs/research/README.md",
@@ -5492,6 +5510,10 @@
         {
           "source": "docs/roadmap.md",
           "reference": "distributed-hip.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "distributed-hip.md#optional-independent-integrity-before-commit"
         },
         {
           "source": "docs/selected-implementation-20261026.md",
@@ -5505,9 +5527,10 @@
       "anchors": [
         "experimental-modulus-sharded-hip-execution",
         "future-qualification-commands",
+        "optional-independent-integrity-before-commit",
         "preparation-and-arithmetic",
         "progress-publication-and-lifetime",
-        "resource-contract"
+        "resource-accounting"
       ]
     },
     {
@@ -5561,6 +5584,10 @@
           "reference": "selected-implementation-20261026.md"
         },
         {
+          "source": "docs/five-issue-implementation-20261026.md",
+          "reference": "selected-implementation-20261026.md"
+        },
+        {
           "source": "docs/roadmap.md",
           "reference": "selected-implementation-20261026.md"
         },
@@ -5574,6 +5601,176 @@
         "implementation-audit",
         "new-source-work",
         "october-26-selected-implementation-pass"
+      ]
+    },
+    {
+      "path": "docs/bound-pipeline-recipes.md",
+      "purpose": "Bound whole-route planning and actual ownership/execution",
+      "audience": "Implementers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/bound-pipeline-recipes.md",
+      "owner": "src/core/api_pipeline_recipe.cpp",
+      "reason": "Current source contract and explicit deferred target/test/performance gates",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/five-issue-implementation-20261026.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/planning-recipes.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "bound-pipeline-recipes.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/bound-pipeline-recipes.md"
+        }
+      ],
+      "anchors": [
+        "bound-whole-route-recipes",
+        "execution-and-lifetime",
+        "pricing-and-selection",
+        "routes-and-admission"
+      ]
+    },
+    {
+      "path": "docs/fp8-modular-research.md",
+      "purpose": "Conditional FNUZ FP8 finite arithmetic, lifecycle and matched controls",
+      "audience": "Implementers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/fp8-modular-research.md",
+      "owner": "src/core/api_fp8.cpp",
+      "reason": "Current source contract and explicit deferred target/test/performance gates",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/fp8-modular-research.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "fp8-modular-research.md"
+        },
+        {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "fp8-modular-research.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "fp8-modular-research.md"
+        },
+        {
+          "source": "docs/cdna5-tdm-research.md",
+          "reference": "fp8-modular-research.md#matched-capture-source"
+        },
+        {
+          "source": "docs/five-issue-implementation-20261026.md",
+          "reference": "fp8-modular-research.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../fp8-modular-research.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "fp8-modular-research.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/fp8-modular-research.md"
+        }
+      ],
+      "anchors": [
+        "explicit-gfx942-fp8-modular-research",
+        "matched-capture-source"
+      ]
+    },
+    {
+      "path": "docs/cdna5-tdm-research.md",
+      "purpose": "CDNA5 descriptor, stage, cluster and integer matrix handoff",
+      "audience": "Implementers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/cdna5-tdm-research.md",
+      "owner": "src/backend_hip_direct/hip_direct_native_tdm.cuh",
+      "reason": "Current source contract and explicit deferred target/test/performance gates",
+      "inbound_links": [
+        {
+          "source": "README.md",
+          "reference": "docs/cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/README.md",
+          "reference": "cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/backend-notes.md",
+          "reference": "cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/five-issue-implementation-20261026.md",
+          "reference": "cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/research/README.md",
+          "reference": "../cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "cdna5-tdm-research.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/cdna5-tdm-research.md"
+        }
+      ],
+      "anchors": [
+        "cdna5-tdm-and-multicast-source",
+        "fixtures-and-measurements"
+      ]
+    },
+    {
+      "path": "docs/five-issue-implementation-20261026.md",
+      "purpose": "Five-issue development follow-through and static evidence boundary",
+      "audience": "Implementers and qualification contributors",
+      "disposition": "keep",
+      "canonical": "docs/five-issue-implementation-20261026.md",
+      "owner": "metadata/five-issue-implementation-20261026.json",
+      "reason": "Current source contract and explicit deferred target/test/performance gates",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "five-issue-implementation-20261026.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/five-issue-implementation-20261026.md"
+        }
+      ],
+      "anchors": [
+        "five-issue-source-follow-through-october26",
+        "static-source-checks"
       ]
     }
   ]

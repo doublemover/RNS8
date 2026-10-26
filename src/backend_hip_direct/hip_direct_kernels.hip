@@ -104,6 +104,12 @@ extern "C" int rns8_hip_distributed_materialize(const uint64_t* limbs, int8_t* r
       static_cast<hipStream_t>(stream), limbs, residues, elements, prefix, signed_value);
   return int(hipGetLastError());
 }
+extern "C" int rns8_hip_distributed_integrity(const uint64_t* a,const uint64_t* b,const uint64_t* candidate,
+    uint64_t m,uint64_t n,uint64_t k,uint64_t lda,uint64_t ldb,bool signed_value,int* status,void* stream) {
+  hipLaunchKernelGGL(rns8_distributed_integrity_kernel,dim3((m*n+255)/256),dim3(256),0,
+      static_cast<hipStream_t>(stream),a,b,candidate,m,n,k,lda,ldb,signed_value,status);
+  return int(hipGetLastError());
+}
 
 extern "C" int rns8_hip_native_byte_domain(const void* source, int rows, int cols,
     int ld, uint64_t* maximum, uint64_t* invalid, bool unsigned_inputs) {
@@ -489,6 +495,8 @@ extern "C" int rns8_hip_finite_indexed_window(const int8_t* a,const int8_t* b,in
 #include "hip_direct_word_mod_mfma.cuh"
 
 #include "hip_direct_instruction_roof.cuh"
+#include "hip_direct_fp8_modular.cuh"
+#include "hip_direct_native_tdm.cuh"
 
 extern "C" int rns8_hip_export_quarter_crt(const int8_t* residues,uint64_t* output,int cells,int prefix,int digits,int limbs,int mode) {
   hipLaunchKernelGGL(rns8_export_quarter_crt_kernel,dim3((cells+255)/256),dim3(256),0,nullptr,residues,output,cells,prefix,digits,limbs,mode);

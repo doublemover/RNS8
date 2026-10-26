@@ -204,6 +204,8 @@ if(RNS8_BUILD_BENCHMARKS)
     target_sources(rns8-native-interop-calibrate PRIVATE "${RNS8_INTEROP_APPLICATION_OBJECT}")
   endif()
   add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
+  add_executable(rns8-fp8-calibrate benchmarks/rns8_fp8_calibrate.cpp)
+  add_executable(rns8-tdm-calibrate benchmarks/rns8_tdm_calibrate.cpp)
   add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
   add_executable(rns8-stream-capacity-qualify benchmarks/rns8_stream_capacity_qualify.cpp)
   foreach(_calibrator IN ITEMS
@@ -223,6 +225,8 @@ if(RNS8_BUILD_BENCHMARKS)
       rns8-public-queue-calibrate
       rns8-ragged-calibrate
       rns8-int4-calibrate
+      rns8-fp8-calibrate
+      rns8-tdm-calibrate
       rns8-bilinear-calibrate
       rns8-native-integrity-calibrate
       rns8-native-interop-calibrate

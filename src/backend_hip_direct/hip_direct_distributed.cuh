@@ -42,6 +42,32 @@ __global__ void rns8_distributed_export_kernel(const int8_t* residues, uint64_t*
   else rns8_store_u192_unsigned_limbs_device(output + uint64_t(cell) * 3, root, 3);
 }
 
+__device__ uint32_t rns8_distributed_check_native(uint64_t bits,bool signed_value,uint32_t q) {
+  uint32_t value=uint32_t(bits%q);
+  if(signed_value && (bits>>63))value=(value+q-uint32_t(((UINT64_MAX%q)+1)%q))%q;
+  return value;
+}
+__global__ void rns8_distributed_integrity_kernel(const uint64_t* a,const uint64_t* b,
+    const uint64_t* candidate,uint64_t m,uint64_t n,uint64_t k,uint64_t lda,uint64_t ldb,
+    bool signed_value,int* status) {
+  const uint64_t cell=uint64_t(blockIdx.x)*blockDim.x+threadIdx.x;
+  if(cell>=m*n || (atomicAdd(status,0)&1))return;
+  rns8_u192_device value{candidate[cell*3],candidate[cell*3+1],candidate[cell*3+2]};
+  const bool negative=signed_value && (value.limb2>>63);
+  if(negative)value=rns8_u192_sub_device(rns8_u192_device{},value);
+  const uint32_t primes[2]={257,263};uint32_t checks[2]{};
+  for(uint64_t inner=0;inner<k;++inner)for(unsigned p=0;p<2;++p) {
+    const auto q=primes[p];
+    checks[p]=(checks[p]+rns8_distributed_check_native(a[(cell/n)*lda+inner],signed_value,q)*
+        rns8_distributed_check_native(b[inner*ldb+cell%n],signed_value,q))%q;
+  }
+  for(unsigned p=0;p<2;++p) {
+    uint32_t observed=rns8_u192_mod_u32_device(value,primes[p]);
+    if(negative && observed)observed=primes[p]-observed;
+    if(observed!=checks[p])atomicOr(reinterpret_cast<unsigned*>(status),4u<<p);
+  }
+}
+
 __global__ void rns8_distributed_materialize_kernel(const uint64_t* limbs, int8_t* residues,
     int elements, uint32_t prefix, bool signed_value) {
   const uint64_t index = uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;

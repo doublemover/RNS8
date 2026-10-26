@@ -29,6 +29,7 @@ class DistributedCases(unittest.TestCase):
             transfer_bytes_per_call=sum(local[1:]),setup_ns=1,first_ns=1000,samples_ns=[1000]*request['repeats'],
             sustained=[dict(calls=16,elapsed_ns=250000000,mean_call_ns=250000000/16,duration_reached=True,stop_reason='duration') for _ in range(3)],
             calls=1+request['warmups']+request['repeats']+48,setup_scope='retained_preparation')
+        capture.update(integrity_requested=False,integrity_completed=False,integrity_failure_mask=0,checking_moduli=[257,263])
         synthetic_identity(capture)
         identity=capture['request_identity'];identity['arguments']=entry['command'][1:];identity.pop('identity_sha256')
         identity['identity_sha256']=hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':')).encode()).hexdigest()
@@ -45,6 +46,13 @@ class DistributedCases(unittest.TestCase):
             with self.assertRaises(ValueError):validate_case(bad)
     def test_raw_output_without_wrapper_provenance_cannot_qualify(self):
         with self.assertRaises(ValueError):validate_capture({},dict(case=case(),run_id='unqualified',command=['binary','case','unqualified']))
+    def test_integrity_policy_requires_actual_completion_and_own_cohort(self):
+        entry,capture=self.fixture();entry['case']['native_integrity']=True
+        capture['integrity_requested']=True;capture['integrity_completed']=True
+        validate_capture(capture,entry)
+        for field,value in [('integrity_completed',False),('integrity_failure_mask',4),('checking_moduli',[257])]:
+            bad=copy.deepcopy(capture);bad[field]=value
+            with self.assertRaises(ValueError):validate_capture(bad,entry)
     def test_complete_fixture_and_missing_or_false_completion(self):
         entry,capture=self.fixture();validate_capture(capture,entry)
         for key,value in [('published',False),('local_completed',11),('transfers_queued',True),('physical_card_count_known',True),

@@ -89,22 +89,25 @@ public API envelope.
 
 | Family | Current boundary | Owner |
 |---|---|---|
-| Native-byte WMMA, grouped native conversion, queue and split-K | Internal checked candidates; four-wave register/LDS controls are authored; public default dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| Native-byte WMMA, grouped native conversion, queue and split-K | Private register/LDS controls plus explicit prepared native groups and windowed split-K owners; ordinary dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| [Bound whole-route planner](bound-pipeline-recipes.md) | Explicit preparation/execution of representation, split-K, narrow, queue, stream/graph and final checked CRT alternatives; unpriced routes remain unknown | [Issue30](https://github.com/doublemover/RNS8/issues/30) |
+| [CDNA5 transfer research](cdna5-tdm-research.md) | Private ordinary/TDM/two-stage cluster-multicast raw-native controls; LLVM23 gfx1250 syntax only, no target run | [Issue52](https://github.com/doublemover/RNS8/issues/52) |
 | Matrix-owned narrow native | Opt-in synchronous public exact-wide scalar/byte products; fresh domain/partial-sum scans and complete RNS output; validation pending | [Narrow owner](narrow-native-owner.md) |
 | Encoded B | Explicit generation-bound public cache of actual K-contiguous B residues with grouped WMMA consumers; new validation pending | [Encoded-B owner](encoded-b-native.md) |
-| Runtime product arena | Internal CPU/direct-HIP fixed exact-wide DAG; common-prefix storage and strict last-reader reuse; no public materialization planner | [Runtime arena](runtime-product-arena.md) |
+| Runtime product arena | CPU/direct-HIP exact-wide DAG, strict last-reader reuse and opt-in public packed-materialization planning; capacity-aware price schema and measured-stage ingestion | [Runtime arena](runtime-product-arena.md), [materializations](planning-recipes.md#cost-planned-product-materializations) |
 | Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; validation pending | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
 | Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; new binding validation pending | [Complex owner](complex-residue-composition.md) |
-| Wide-index residue control | Private scalar 64-bit global offsets; matched finite i32/u64 window controls and opt-in physical fixture authored; no public large-shape packing/export support or measured large allocation | [Wide-index control](wide-index-gemm.md) |
+| Wide-index residue control | Private scalar64-bit offsets plus public panel streaming with a completed >32GiB native-input capacity study; each path keeps its own indexing/output contract | [Wide-index control](wide-index-gemm.md), [capacity study](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx) |
 | Strassen / rank-23 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23; new public qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Packed INT4/IU4 | Explicit public finite signed-nibble owner and versioned packed B; gfx1100/1101/1102 implementation; target/performance qualification deferred | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Floating encodings / Ozaki | Scalar certificates and host rational/binary32 rewrite oracle; no public floating backend | [Generated encodings](generated-encodings.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
-| Redundant checks / Freivalds | Private deterministic check-residue sentinel; public Freivalds entrypoint unsupported | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
-| Sparse/hybrid | Public explicit structured Sparse-A plus opt-in generation-bound scalar block-sparse materializations; no hybrid selection | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
-| Multi-GPU | Independent device scripts plus authored CPU modulus-plan/mock; actual distributed GPU execution absent | [M0 plan/mock](distributed-mock.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
+| Floating encodings / Ozaki | Explicit public finite gfx942 FNUZ FP8 research owner, four-product conditional model and real MFMA kernel; target/performance execution unqualified; Ozaki reserved | [FP8 owner](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Redundant checks / Freivalds | Native-input independent residue sentinel, producer-attached public integrity and distributed commit check; public finite Freivalds verifier with explicit randomness metadata | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
+| Sparse/hybrid | Public structured Sparse-A and generation-bound block-sparse owners with explicit scalar/WMMA/hybrid methods; provider restrictions and measured cohorts remain scoped | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Multi-GPU | Private real HIP modulus shards, staged/peer transport, bounded owner/cleanup and optional independent commit integrity; multi-device qualification pending | [Real HIP owner](distributed-hip.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
-The public Ozaki and Freivalds research entrypoints return
-`RNS8_UNSUPPORTED_BACKEND`. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.
+The Ozaki entrypoint returns `RNS8_UNSUPPORTED_BACKEND`. The seeded Freivalds
+entrypoint delegates to the public finite verifier; other arithmetic domains
+remain unsupported. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.
 
 Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
 or an output with pending readers or a writer, before target admission and output
@@ -120,7 +123,8 @@ qualified. Lift reports suffix payload and the additional device status word
 separately: the public staged-residue budget still limits payload, preserving its
 documented meaning. Pointer aliases, generations, value proofs and stream ownership
 remain dynamic admission steps. Provider parity/budget fixtures await final validation;
-this is an incremental runtime provider surface, not a complete recipe planner.
+the [bound recipe layer](bound-pipeline-recipes.md) composes these providers with
+existing resource owners and explicit complete-route prices.
 
 ### Explicit finite INT4 ownership
 

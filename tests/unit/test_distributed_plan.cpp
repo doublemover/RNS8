@@ -431,3 +431,15 @@ TEST_CASE("distributed pinned mock slot follows D2H then H2D completion before r
   REQUIRE(execution.destination_visible(remote[0], ++clock).status == RNS8_SUCCESS);
   CHECK(execution.report().visible == 1);
 }
+
+TEST_CASE("independent commit checking charges native inputs to an otherwise idle owner", "[distributed][cpu]") {
+  auto request=distributed_request(2);request.owner=1;request.m=request.n=request.k=request.lda=request.ldb=1;
+  request.prefix=1;request.tile_rows=request.tile_cols=1;request.magnitude_bound=1;
+  request.edges.push_back({0,1,d::Support::unknown,d::Support::supported});
+  const auto ordinary=distributed_plan(request);REQUIRE(ordinary->resources().ranks[1].native_inputs==0);
+  request.native_integrity=true;const auto checked=distributed_plan(request);
+  CHECK(checked->resources().ranks[1].native_inputs==16);
+  CHECK(checked->resources().ranks[1].peak==ordinary->resources().ranks[1].peak+16);
+  request.ranks[1].memory_budget=checked->resources().ranks[1].peak-1;
+  std::shared_ptr<const d::Plan> rejected;CHECK(d::Plan::create(request,rejected).status==RNS8_WORKSPACE_TOO_SMALL);
+}

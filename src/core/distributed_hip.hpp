@@ -10,6 +10,8 @@ struct HipProgress {
   Admission operation;
   int runtime_error = 0;
   bool output_current = false;
+  bool integrity_requested = false, integrity_completed = false;
+  uint32_t integrity_failure_mask = 0;
 };
 // One process, explicit modulus shards and caller-serialized host operations.
 // No RCCL, cross-device event timing, partial-result export or implicit fallback.

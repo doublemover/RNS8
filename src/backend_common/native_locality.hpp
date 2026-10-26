@@ -19,6 +19,14 @@ inline rns8_status lower_native_locality(const std::vector<NativeWmmaTask>& task
   // Exact union of consumed source byte intervals, not padded allocation spans.
   // Native group reuse does not multiply raw storage by the residue count.
   std::vector<std::pair<uintptr_t,uintptr_t>> intervals;
+  uint64_t interval_count=0;
+  for(const auto& t:tasks) {
+    if(t.m<=0 || t.k<=0)return RNS8_INVALID_ARGUMENT;
+    const uint64_t count=uint64_t(t.m)+(t.encoded_b?1:uint64_t(t.k));
+    if(count>uint64_t(PTRDIFF_MAX)/sizeof(intervals.front())-interval_count)return RNS8_RANGE_ERROR;
+    interval_count+=count;
+  }
+  intervals.reserve(static_cast<size_t>(interval_count));
   const auto span=[&](const void* base,uint64_t offset,uint64_t bytes){const auto p=reinterpret_cast<uintptr_t>(base);
     if(!base || !bytes || offset>UINTPTR_MAX-p || bytes>UINTPTR_MAX-p-offset)return false;
     intervals.emplace_back(p+offset,p+offset+bytes);return true;};

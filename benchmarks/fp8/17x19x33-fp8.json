@@ -1,0 +1,12 @@
+{
+  "schema": "finite_fp8_public_case_v1",
+  "m": 17,
+  "n": 19,
+  "k": 33,
+  "mode": "fp8",
+  "repeats": 3,
+  "warmups": 1,
+  "seed": 52645,
+  "modulus": 251,
+  "residency": "repeated-ab"
+}

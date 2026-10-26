@@ -1,6 +1,6 @@
 """Exact rational extension of arithmetic_certificate, not an AMD qualifier.
 
-OCP MX v1 element decoding; FNUZ deliberately is not an alias of OCP FP8.
+OCP MX v1 and separately named AMD FNUZ decoding; their biases are distinct.
 Every contract names storage, products, reduction order and outer accumulation.
 The sufficient grid proof is conservative: failure means not admitted, not a
 claim that every concrete input must round incorrectly.
@@ -12,7 +12,8 @@ import json
 
 VERSION = "rns8-floating-grid-v1"
 FORMATS = {"ocp_e2m1": (2, 1, 1), "ocp_e2m3": (2, 3, 1),
-           "ocp_e3m2": (3, 2, 3), "ocp_e4m3": (4, 3, 7), "ocp_e5m2": (5, 2, 15)}
+           "ocp_e3m2": (3, 2, 3), "ocp_e4m3": (4, 3, 7), "ocp_e5m2": (5, 2, 15),
+           "amd_e4m3_fnuz": (4, 3, 8)}
 
 
 def power(exponent):
@@ -26,7 +27,8 @@ def decode_element(format_name, code):
     if type(code) is not int or not 0 <= code < 1 << (1+e+m):
         raise ValueError("element_code_width")
     sign, exponent, mantissa = code >> (e+m), (code >> m) & ((1 << e)-1), code & ((1 << m)-1)
-    if ((format_name == "ocp_e4m3" and exponent == 15 and mantissa == 7)
+    if ((format_name == "amd_e4m3_fnuz" and code == 128)
+            or (format_name == "ocp_e4m3" and exponent == 15 and mantissa == 7)
             or (format_name == "ocp_e5m2" and exponent == 31)):
         raise ValueError("nonfinite_element")
     return (-1 if sign else 1) * power((exponent if exponent else 1)-bias-m) * (mantissa + ((1 << m) if exponent else 0))

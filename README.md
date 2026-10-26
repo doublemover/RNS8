@@ -24,6 +24,10 @@ an application can build around.
 | MI300X / MI325X / CDNA3 | `gfx942` | No RNS8 GPU run; Linux ROCm target | Direct HIP, MFMA and optional accelerator source | **Validation wanted / unvalidated** | Compile, CPU differentials and ISA on each device |
 | MI350X / MI355X / CDNA4 | `gfx950` | No RNS8 GPU run; Linux ROCm target | Direct HIP and target-dependent accelerator source | **Validation wanted / unvalidated** | Supported compiler/components and device execution |
 
+Future CDNA5 `gfx1250` [TDM/multicast source](docs/cdna5-tdm-research.md) and
+CDNA3 `gfx942` [FP8 finite research](docs/fp8-modular-research.md) have compile-only
+checks, with actual target execution and supported-stack qualification still needed.
+
 [Offer hardware validation, temporary compute access, or cloud credits](https://github.com/doublemover/RNS8/issues/new?template=hardware_validation_offer.yml).
 You can volunteer to run a bounded set of checks yourself. **Do not post passwords,
 SSH keys, tokens, account credentials, private connection endpoints, or billing

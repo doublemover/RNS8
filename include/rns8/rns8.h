@@ -953,6 +953,31 @@ RNS8_API rns8_status rns8_get_int4_info(const rns8_int4_recipe*,rns8_int4_info*)
 RNS8_API rns8_status rns8_gemm_int4(rns8_int4_recipe*,const rns8_matrix* a,rns8_matrix* c,rns8_workspace*);
 RNS8_API rns8_status rns8_destroy_int4_recipe(rns8_int4_recipe*);
 
+/* Explicit research finite-ring FP8 owner. Only gfx942 E4M3 FNUZ is
+ * implemented. Four exact balanced-radix16 products cover every signed byte;
+ * no default exact API selects it. The caller must explicitly acknowledge
+ * the named instruction model; that acknowledgement is not qualification.
+ * Preparation probes the actual code object, not its numerical behavior.
+ * Failed undrainable preparation may return a cleanup-only owner. */
+#define RNS8_FP8_GFX942_E4M3_FNUZ 1u
+#define RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL 1u
+typedef struct rns8_fp8_recipe rns8_fp8_recipe;
+typedef struct rns8_fp8_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,format,flags,method; /* fused0; materialized product-residue planes1 */
+  uint64_t max_preparation_bytes;
+} rns8_fp8_desc;
+typedef struct rns8_fp8_info {
+  uint64_t struct_size;
+  uint32_t abi_version,format,modulus,model_proven,target_qualified,performance_qualified,pending_cleanup,method;
+  uint64_t safe_k,retained_device_bytes;
+  char certificate_sha256[65],target_id[128];
+} rns8_fp8_info;
+RNS8_API rns8_status rns8_prepare_fp8_recipe(rns8_context*,const rns8_plan*,const rns8_fp8_desc*,rns8_fp8_recipe**);
+RNS8_API rns8_status rns8_get_fp8_info(const rns8_fp8_recipe*,rns8_fp8_info*);
+RNS8_API rns8_status rns8_gemm_fp8_research(rns8_fp8_recipe*,const rns8_matrix*,const rns8_matrix*,rns8_matrix*,rns8_workspace*);
+RNS8_API rns8_status rns8_destroy_fp8_recipe(rns8_fp8_recipe*);
+
 typedef enum rns8_auto_reason RNS8_ENUM_BASE {
   RNS8_AUTO_BASELINE_POLICY=0, RNS8_AUTO_UNSUPPORTED_SEMANTICS=1, RNS8_AUTO_UNSUPPORTED_MODULUS=2,
   RNS8_AUTO_PER_TILE_UNSUPPORTED=3, RNS8_AUTO_NOT_COMPILED=4, RNS8_AUTO_PROBE_FAILED=5,
@@ -2773,7 +2798,7 @@ RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
 
 
 /*
- * Ozaki decomposition and Freivalds verification remain reserved and return
+ * Ozaki decomposition remains reserved and returns
  * RNS8_UNSUPPORTED_BACKEND without modifying outputs.
  */
 RNS8_API rns8_status rns8_ozaki_decompose_i64(
@@ -2888,6 +2913,10 @@ RNS8_API rns8_status rns8_verify_finite_product(
 
 /* Legacy adapter: same finite-only replay contract; probability is the ideal
  * independent-bit bound above. Other semantics remain unsupported. */
+/* Seeded finite-ring/field product verification using the public binary-vector
+ * verifier. Reports its ideal probability on success or mismatch; deterministic
+ * replay is research metadata, not independent entropy or proof of equality.
+ * Other arithmetic domains are unsupported. See rns8_verify_finite_product. */
 RNS8_API rns8_status rns8_freivalds_verify(
     rns8_context* ctx,
     const rns8_matrix* A,

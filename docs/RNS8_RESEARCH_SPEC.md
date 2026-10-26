@@ -1682,6 +1682,13 @@ mode may be accepted only with explicit verification metadata, exact reference
 differentials for the advertised contract, split-matrix and K-block accounting,
 and measured verification overhead.
 
+The initial [gfx942 FNUZ FP8 source](fp8-modular-research.md) implements four
+fixed-digit products and reduced integer recombination for explicit finite
+research calls. Its acknowledged instruction model is conditional; compile-only
+checks do not satisfy the device differential, emitted-ISA or performance ship
+gates above. [CDNA5 TDM source](cdna5-tdm-research.md) separately explores raw-native
+data movement and has no floating-format or production-routing implication.
+
 ### 17.10 Finite-U8 Specialized Reducers
 
 Decision: finite-u8 reducers are production candidates for explicit moduli.

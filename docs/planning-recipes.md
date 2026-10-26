@@ -533,3 +533,12 @@ plan and checks the actual public execution against every independent Boost
 output, including source mutation and invalid-value/currentness rejection.
 Those additions are syntax checked only; target execution and cross-route
 profitability remain deferred.
+
+## Bound runtime routes
+
+The separate [bound recipe API](bound-pipeline-recipes.md) now takes current
+matrix-owned inputs and a real uniform exact-wide plan, enumerates existing
+representation/schedule/execution/export owners, binds explicit complete costs,
+and prepares/executes the selected route. It shares operation predicates and
+does not promote AUTO. This extends the shape-level query above; a shape-level
+candidate alone still does not own current values or device resources.

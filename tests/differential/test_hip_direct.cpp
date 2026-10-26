@@ -64,6 +64,7 @@ namespace {
 #include "test_hip_direct_complex_cases.inc"
 #include "test_hip_direct_narrow_cases.inc"
 #include "test_hip_direct_int4_cases.inc"
+#include "test_hip_direct_tdm_cases.inc"
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
 #include "native_variants.hpp"
 #endif

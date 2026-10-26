@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include "core/distributed_hip.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_common/distributed_integrity.hpp"
+#include "core/hip_resources.hpp"
 #include <cstdlib>
 #include <string>
 
@@ -64,6 +66,19 @@ TEST_CASE("distributed pack capacity follows bounded slots rather than total out
   CHECK(d::Plan::create(r, rejected).status == RNS8_INVALID_ARGUMENT);
   r.pipeline_slots = 4; CHECK(d::Plan::create(r, rejected).status == RNS8_INVALID_ARGUMENT);
 }
+TEST_CASE("distributed integrity distinguishes native checks from range and invisible errors", "[distributed][cpu]") {
+  auto r=live_request();mock_inventory(r);r.m=r.n=r.k=r.lda=r.ldb=1;
+  r.native_integrity=true;auto plan=make_plan(r);
+  d::Inputs inputs(r.a,r.b,{7},{9});uint64_t value[3]={63,0,0};
+  CHECK(d::reference_integrity_cell(*plan,inputs,0,0,value)==0);
+  value[0]=64;CHECK(d::reference_integrity_cell(*plan,inputs,0,0,value)==12);
+  value[0]=63+257*263;CHECK(d::reference_integrity_cell(*plan,inputs,0,0,value)==0);
+  CHECK(d::distributed_commit_status(1)==RNS8_RANGE_ERROR);
+  CHECK(d::distributed_commit_status(4)==RNS8_VERIFICATION_FAILED);
+  CHECK(d::distributed_commit_status(8)==RNS8_VERIFICATION_FAILED);
+  CHECK(d::distributed_commit_status(0)==RNS8_SUCCESS);
+  r.native_integrity=false;auto unchecked=make_plan(r);CHECK(plan->identity()!=unchecked->identity());
+}
 static void check_real_modulus_shards(uint64_t k) {
   if (!d::HipExecution::compiled()) SKIP("direct HIP not compiled");
   rns8_device_info info{};
@@ -96,6 +111,7 @@ static void check_real_modulus_shards(uint64_t k) {
     if (peer && ordinals.size() > 1) for (const auto& edge : r.edges)
       if (edge.peer != d::Support::supported) SKIP("explicit peer transport unsupported on selected devices");
     if (ragged) r.tile_proofs = {{0, 0}, {0, 0}, {r.prefix, r.magnitude_bound}, {r.prefix, r.magnitude_bound}};
+    r.native_integrity=true;
     auto plan = make_plan(r); auto inputs = make_inputs(r, narrow, ragged, full_bounded);
     std::unique_ptr<d::HipExecution> execution;
     REQUIRE(d::HipExecution::create(plan, inputs, execution));
@@ -107,6 +123,7 @@ static void check_real_modulus_shards(uint64_t k) {
     d::HipProgress progress;
     REQUIRE(execution->wait(1, UINT64_C(30000000000), progress)); REQUIRE(progress.operation);
     REQUIRE(progress.output_current); REQUIRE(progress.local_completed == plan->work().size());
+    CHECK(progress.integrity_requested);CHECK(progress.integrity_completed);CHECK(progress.integrity_failure_mask==0);
     REQUIRE(progress.transfers_queued == plan->work().size());
     REQUIRE(execution->export_limbs(1, observed.data(), r.n + 2));
     CHECK(execution->export_limbs(1, const_cast<uint64_t*>(inputs->lhs().data()), r.n + 2).status == RNS8_INVALID_ARGUMENT);
@@ -158,3 +175,31 @@ TEST_CASE("real HIP modulus shards gather and publish one exact generation", "[d
 TEST_CASE("real HIP distributed packing and GEMM cross the safe K slab boundary", "[distributed][hip]") {
   check_real_modulus_shards(65537);
 }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_distributed_integrity(const uint64_t*,const uint64_t*,const uint64_t*,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,int*,void*);
+TEST_CASE("HIP distributed integrity compares complete limbs against independent native products", "[distributed][hip]") {
+  using namespace rns8::detail;rns8_device_info info{};
+  if(hip_direct_probe(0,info)!=RNS8_SUCCESS)SKIP("HIP device unavailable");
+  hip_direct_device_buffer a,b,c,status;
+  REQUIRE(a.allocate(0,8)==RNS8_SUCCESS);REQUIRE(b.allocate(0,8)==RNS8_SUCCESS);
+  REQUIRE(c.allocate(0,24)==RNS8_SUCCESS);REQUIRE(status.allocate(0,4)==RNS8_SUCCESS);
+  for(bool sign:{false,true})for(uint64_t error:{uint64_t{0},uint64_t{1},uint64_t{257*263}}) {
+    const uint64_t av=sign?UINT64_MAX:7,bv=9;
+    const d::Integer integer=(sign?d::Integer(-9):d::Integer(63))+error;
+    d::Integer encoded=integer&((d::Integer(1)<<192)-1);uint64_t limbs[3]{};
+    for(unsigned i=0;i<3;++i)limbs[i]=uint64_t((encoded>>(64*i))&UINT64_MAX);
+    const uint32_t zero=0;
+    REQUIRE(hip_direct_copy_host_to_device(0,a.get(),&av,8)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,b.get(),&bv,8)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,c.get(),limbs,24)==RNS8_SUCCESS);
+    REQUIRE(hip_direct_copy_host_to_device(0,status.get(),&zero,4)==RNS8_SUCCESS);
+    for(auto* buffer:{&a,&b,&c,&status})buffer->mark_pending();
+    const auto launched=rns8_hip_distributed_integrity(static_cast<const uint64_t*>(a.get()),static_cast<const uint64_t*>(b.get()),
+        static_cast<const uint64_t*>(c.get()),1,1,1,1,1,sign,static_cast<int*>(status.get()),nullptr);
+    REQUIRE(hip_direct_synchronize(0)==RNS8_SUCCESS);
+    for(auto* buffer:{&a,&b,&c,&status})buffer->mark_completed();REQUIRE(launched==0);
+    uint32_t flags=0;REQUIRE(hip_direct_copy_device_to_host(0,&flags,status.get(),4)==RNS8_SUCCESS);
+    CHECK(flags==(error==1?12u:0u));
+  }
+}
+#endif

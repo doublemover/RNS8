@@ -4,6 +4,8 @@ Choose the task you want to complete. Public API behavior is defined in the
 [headers](../include/rns8/rns8.h) and [correctness contract](correctness.md).
 Dated records identify the builds and devices actually checked.
 
+- [Five-issue implementation follow-through](five-issue-implementation-20261026.md): bound recipes, distributed commit checks, FP8, CDNA5 TDM and capability reconciliation
+
 - [October 26 selected implementation pass](selected-implementation-20261026.md): 25 requested source slices, new distributed execution/system probes and deferred qualification
 
 - [October 25 focused measurements](focused-closeout-measurements-20261025.md): genuine wide values, scalar-first proof controls and failed held-out models
@@ -27,6 +29,7 @@ Dated records identify the builds and devices actually checked.
 - [Resident DAGs](resident-graphs.md) and [exact algebraic epilogues](exact-epilogues.md)
 - [Experimental public exact complex composition](complex-residue-composition.md)
 - [Experimental public narrow native products](narrow-native-owner.md), [encoded B](encoded-b-native.md) and [block materializations](block-sparse.md#public-generation-bound-owner)
+- [Bound whole-route recipes](bound-pipeline-recipes.md), [FP8 finite research](fp8-modular-research.md) and [CDNA5 TDM](cdna5-tdm-research.md)
 - [Backend capabilities and selection](backend-notes.md)
 
 ## Understand and extend

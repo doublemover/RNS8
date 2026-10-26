@@ -99,6 +99,7 @@ struct Request {
   uint64_t maximum_work_items = 1u << 20;
   uint32_t pipeline_slots = 2; // bounded per-rank pack/compute windows
   HostStorage host_storage = HostStorage::exact_reference;
+  bool native_integrity = false; // independent original-input checks before publication
 };
 struct Tile {
   uint64_t row = 0, col = 0, rows = 0, cols = 0;
@@ -172,7 +173,7 @@ class Plan {
         << r.m << ';' << r.n << ';' << r.k << ';' << r.lda << ';' << r.ldb << ';'
         << r.prefix << ';' << r.owner << ';' << r.a.instance << ';' << r.a.generation << ';'
         << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';'
-        << r.pipeline_slots << ';' << unsigned(r.host_storage) << ';';
+        << r.pipeline_slots << ';' << unsigned(r.host_storage) << ';' << r.native_integrity << ';';
     text(r.certificate_sha256); text(r.layout_sha256); text(r.cost_profile_sha256);
     for (const auto& rank : r.ranks) {
       key << rank.ordinal << ';' << rank.weight << ';';
@@ -309,7 +310,7 @@ class Plan {
       auto& memory = resources_.ranks[rank];
       if (!multiply(memory.packed_inputs, r.pipeline_slots, memory.packed_inputs))
         return reject(RNS8_RANGE_ERROR, "pipeline_buffer_overflow", rank);
-      memory.native_inputs = counts[rank] ? native : 0;
+      memory.native_inputs = counts[rank] || (r.native_integrity && rank==r.owner) ? native : 0;
       memory.scratch = counts[rank] ? r.ranks[rank].scratch_bytes : 0;
       memory.overhead_reserve = r.ranks[rank].overhead_reserve;
       if (!multiply(counts[rank], sizeof(Work) + 128, memory.descriptors))

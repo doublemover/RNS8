@@ -86,3 +86,15 @@ process identities. Only matched compute+check routes form cost ratios; standalo
 checks retain their different boundary. The existing finite verifier experiment
 separately measures Freivalds projections with its own ring/randomness theorem.
 No captures, cost advantage or target qualification have been produced here.
+
+## Distributed publication
+
+The [real HIP shard owner](distributed-hip.md#optional-independent-integrity-before-commit) now
+queues an optional original-native-input check modulo257/263 after root CRT and
+before its status readback/completion event. These channels are separate from
+the computational ladder and never count toward exact range. A mismatch blocks
+eligible output and uses the existing transactional cleanup/drain path.
+Collectors keep checked and unchecked cohorts separate. Invisible multiples of
+257*263 remain an explicit sentinel limit; this is not a fault correction or
+Freivalds probability. The new source and injected-fault fixtures are authored,
+with actual distributed qualification/costs deferred.

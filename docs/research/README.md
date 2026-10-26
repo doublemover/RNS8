@@ -22,7 +22,7 @@ and [public headers](../../include/rns8/rns8.h) identify public support; the
 | [Ragged materialization](../ragged-residues.md) | Private mixed-prefix storage and exact completion; #40 |
 | [Mixed-radix lift](../mixed-radix-lift.md) | Private suffix arithmetic alternative; public lift keeps its default; #41 |
 | [Balanced CRT](../balanced-crt.md) | Private reconstruction candidate; public Garner remains default; #39 |
-| [Integrity sentinel](../device-integrity.md) | Private deterministic redundant-residue consistency checks; public Freivalds reserved; #49 |
+| [Integrity sentinel](../device-integrity.md) | Native-input sentinel, public finite verifier and independent distributed commit check; #49 |
 
 [Correctness](../correctness.md) owns uniqueness, centering and failure semantics.
 The [glossary](../glossary.md) defines shared terms; topic pages specialize those
@@ -31,10 +31,11 @@ rules instead of creating independent public contracts.
 ## Kernels and scheduling
 
 - [Native narrow](../native-narrow.md) and [public narrow owner](../narrow-native-owner.md): checked scalar/byte products with complete persistent RNS publication; new owner validation pending, #53
-- [Encoded B](../encoded-b-native.md): generation-bound materialization and explicit WMMA consumers; cold/warm reuse calibration authored, #54
+- [Encoded B](../encoded-b-native.md): generation-bound materialization and explicit WMMA consumers; cold/warm reuse calibration and explicit recipe binding, #35/#40
 - [Native tiled WMMA](../native-tiled-wmma.md): private four-wave register/LDS candidates and matched calibration; validation pending, #35
 - [Instruction-chain probes](../instruction-chain-calibration.md): private dependent/independent INT8 WMMA and centered-reduction controls; modeled work and unqualified event normalization, #31/#35
 - [Wide-index scalar control](../wide-index-gemm.md): private 64-bit offsets; large-span descriptors and small-allocation GPU fixtures authored, #24
+- [CDNA5 TDM/multicast](../cdna5-tdm-research.md): actual raw-native transfer and cluster kernels, target execution deferred, #52
 - [Native split-K](../native-split-k.md) and [persistent queues](../persistent-native-queue.md): private producer/merge scheduling, #37/#38
 - [Logical locality](../locality-schedules.md): offline permutations/model, #36
 - [Block sparse](../block-sparse.md): private scalar control, generation-bound public block materializations and separate structured Sparse-A, #51
@@ -43,14 +44,15 @@ rules instead of creating independent public contracts.
 
 Packed INT4/IU4 has an explicit opt-in finite-ring owner with certified signed
 nibbles and generation-bound packed B; it does not enable new public integer
-semantics or change ordinary finite dispatch. Floating FP4/FP6/FP8 and Ozaki retain
+semantics or change ordinary finite dispatch. The [gfx942 FNUZ FP8 owner](../fp8-modular-research.md)
+implements one explicit conditional research form. FP4/FP6, other FP8 formats and Ozaki retain
 separate arithmetic/instruction/ISA gates under #45/#46. The
 [specification](../RNS8_RESEARCH_SPEC.md#17-technique-decisions-and-retirement-rules)
 keeps their retirement and production criteria.
 
 ## Planning and generation
 
-- [Typed planning recipes](../planning-recipes.md), #29/#30
+- [Typed planning recipes](../planning-recipes.md) and [bound whole-route execution](../bound-pipeline-recipes.md), #29/#30
 - [Runtime product arena](../runtime-product-arena.md): internal CPU/HIP exact product DAG execution with strict last-reader reuse; validation pending, #29/#30
 - [Distributed modulus plan and CPU mock](../distributed-mock.md) plus [real HIP modulus shards](../distributed-hip.md), #50 M0/M1/M2 source; hardware qualification pending
 - [Joint basis/schedule search](../joint-scheme-search.md), #32

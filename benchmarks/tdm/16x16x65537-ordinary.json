@@ -1,0 +1,15 @@
+{
+  "schema": "native_tdm_case_v1",
+  "m": 16,
+  "n": 16,
+  "k": 65537,
+  "mode": "ordinary",
+  "repeats": 3,
+  "warmups": 1,
+  "seed": 52645,
+  "prefix": 9,
+  "group": 4,
+  "signed_input": true,
+  "compute": "scalar",
+  "cluster_axis": "moduli"
+}

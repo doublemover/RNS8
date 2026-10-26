@@ -1,5 +1,19 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME research_kernel_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_research_kernels.py")
+  foreach(_research_family IN ITEMS fp8 tdm)
+    if(TARGET rns8-${_research_family}-calibrate AND RNS8_ENABLE_HIP)
+      if(_research_family STREQUAL "fp8")
+        set(_research_modes int8 fp8 fp8-materialized)
+      else()
+        set(_research_modes ordinary tdm multicast2 multicast4 ordinary-wmma tdm-wmma multicast2-wmma multicast4-wmma multicast2-wmma-neighbor multicast4-wmma-neighbor)
+      endif()
+      foreach(_research_mode IN LISTS _research_modes)
+        add_test(NAME ${_research_family}_${_research_mode}_capture_smoke COMMAND rns8-${_research_family}-calibrate "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/${_research_family}/17x19x33-${_research_mode}.json" ctest-${_research_family}-${_research_mode})
+        set_tests_properties(${_research_family}_${_research_mode}_capture_smoke PROPERTIES LABELS "hip;research;benchmark-smoke" SKIP_RETURN_CODE 77 TIMEOUT 180)
+      endforeach()
+    endif()
+  endforeach()
   add_test(NAME stream_capacity_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_stream_capacity.py")
   if(TARGET rns8-stream-capacity-qualify)
     add_test(NAME stream_capacity_fixture_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_stream_capacity_fixture.py" "$<TARGET_FILE:rns8-stream-capacity-qualify>")
@@ -164,6 +178,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
   add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
   add_test(NAME system_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_system_roof.py")
+  add_test(NAME fp8_modular_certificate_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fp8_modular_certificate.py")
   if(TARGET rns8-system-roof-calibrate)
     add_test(NAME system_roof_cli_help COMMAND rns8-system-roof-calibrate --help)
     if(RNS8_ENABLE_HIP)
@@ -1026,6 +1041,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_distributed_plan.cpp
     tests/unit/test_distributed_hip.cpp
     tests/unit/test_system_roof_plan.cpp
+    tests/unit/test_fp8_modular.cpp
+    tests/unit/test_native_tdm.cpp
     tests/unit/test_int4_encoding.cpp
     tests/unit/test_native_tile_bound.cpp
     tests/unit/test_native_wmma_queue.cpp

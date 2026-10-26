@@ -1,5 +1,6 @@
 #include "distributed_hip.hpp"
 #include "backend_common/distributed_device.hpp"
+#include "backend_common/distributed_integrity.hpp"
 #include "backend_common/arithmetic_certificate.hpp"
 #include "core/hip_resources.hpp"
 #include <atomic>
@@ -13,6 +14,8 @@ extern "C" int rns8_hip_distributed_pack(const uint64_t*, const uint64_t*, int8_
 extern "C" int rns8_hip_distributed_export(const int8_t*, uint64_t*, int, int, uint32_t,
     uint32_t, const rns8::detail::distributed::DeviceTile*, bool, bool, int*, void*);
 extern "C" int rns8_hip_distributed_materialize(const uint64_t*, int8_t*, int, uint32_t, bool, void*);
+extern "C" int rns8_hip_distributed_integrity(const uint64_t*,const uint64_t*,const uint64_t*,
+    uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,bool,int*,void*);
 extern "C" int rns8_hip_direct_ring_gemm_i8_device_on_stream(const int8_t*, const int8_t*, int8_t*,
     int, int, int, int, int, int, int, uint32_t, int, int, int, void*);
 #endif
@@ -177,7 +180,7 @@ struct HipExecution::Impl {
       if (code != hipSuccess) return error(code, "memory_inventory", rank);
       if (plan->resources().ranks[rank].peak > free)
         return reject(RNS8_WORKSPACE_TOO_SMALL, "runtime_free_memory", rank);
-      if (device.work.empty()) continue; // idle ranks remain in the expected inventory
+      if (device.work.empty() && !(r.native_integrity && rank==r.owner)) continue;
       device.slots.resize(r.pipeline_slots);
       for (auto id : device.work) {
         const auto& tile = plan->tiles()[plan->work()[id].tile];
@@ -367,6 +370,12 @@ struct HipExecution::Impl {
           static_cast<uint64_t*>(result.get()), int(r.m * r.n), int(r.n), r.tile_rows, r.tile_cols,
           static_cast<const DeviceTile*>(directory.get()), plan->signed_value(), plan->bounded(),
           static_cast<int*>(status.get()), gather_stream.get()));
+      if(code==hipSuccess && r.native_integrity) {
+        const auto& source=devices[r.owner];
+        code=hipError_t(rns8_hip_distributed_integrity(static_cast<const uint64_t*>(source.a.get()),
+            static_cast<const uint64_t*>(source.b.get()),static_cast<const uint64_t*>(result.get()),
+            r.m,r.n,r.k,r.lda,r.ldb,plan->signed_value(),static_cast<int*>(status.get()),gather_stream.get()));
+      }
       if (code == hipSuccess) code = hipMemcpyAsync(host_status.get(), status.get(), 4, hipMemcpyDeviceToHost, gather_stream.get());
       if (code == hipSuccess) code = hipEventRecord(completion.get(), gather_stream.get());
       if (code != hipSuccess) { error(code, "global_reconstruction"); return {}; }
@@ -379,8 +388,12 @@ struct HipExecution::Impl {
       // Every copy and reconstruction is before this owner-stream event. Rank
       // source events were observed before each copy; no cross-device clock math.
       pending(false); issued = false; staged_work = UINT64_MAX; stage_phase = 0;
-      if (*static_cast<const uint32_t*>(host_status.get())) {
-        progress.operation = reject(RNS8_RANGE_ERROR, "global_export_range"); progress.state = State::failed;
+      const uint32_t flags=*static_cast<const uint32_t*>(host_status.get());
+      progress.integrity_failure_mask=flags&~1u;
+      progress.integrity_completed=r.native_integrity && !(flags&1u);
+      const auto committed=distributed_commit_status(flags);
+      if (committed!=RNS8_SUCCESS) {
+        progress.operation = reject(committed, flags&1u?"global_export_range":"global_integrity_mismatch"); progress.state = State::failed;
       } else {
         std::fill(phases.begin(), phases.end(), Phase::proof_ready);
         progress.published_epoch = progress.epoch; progress.output_current = true; progress.state = State::published;
@@ -513,6 +526,7 @@ Admission HipExecution::submit(uint64_t epoch, uint64_t timeout_ns) {
   const auto& r = p.plan->request(); hip_scoped_device selected(int(r.ranks[r.owner].ordinal));
   if (selected.status() != hipSuccess) return reject(RNS8_BACKEND_FAILURE, "submit_owner_preflight");
   p.progress = {}; p.progress.epoch = epoch; p.progress.expected = p.plan->work().size();
+  p.progress.integrity_requested=r.native_integrity;
   p.progress.state = State::pending; p.deadline = deadline_after(timeout_ns);
   p.final_queued = false; p.staged_work = UINT64_MAX; p.stage_phase = 0;
   p.uniform_prefix = 0;

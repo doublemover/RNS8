@@ -133,7 +133,7 @@ TEST_CASE("operation inventory separates source semantics compilation and unknow
   q.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
   rns8_operation_support support{};uint32_t count=0;
   REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
-  CHECK(support.reason_code==RNS8_SUPPORT_OPERATION);CHECK(support.resource_status==3);
+  CHECK(support.reason_code==RNS8_SUPPORT_SEMANTICS);CHECK(support.resource_status==3);
   CHECK_FALSE(support.source_implemented);CHECK_FALSE(support.compiled_inventory);
   CHECK_FALSE(support.runtime_observed);CHECK(support.supported_execution_modes==0);
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
