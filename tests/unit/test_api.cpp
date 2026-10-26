@@ -44,6 +44,7 @@ namespace {
 #include "test_api_complex_residue_cases.inc"
 #include "test_api_prepared_hip_cases.inc"
 #include "test_api_plan_validation_cache_cases.inc"
+#include "test_api_folded_bounds_cases.inc"
 
 #include "test_runtime_product_recipe_cases.inc"
 

@@ -366,7 +366,7 @@ rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8
           plan->desc.m,
           plan->desc.n,
           plan->prefix,
-          plan->desc.bound,
+          bound_for_cell(*plan, 0, 0),
           dst,
           ld);
     }
@@ -482,7 +482,7 @@ rns8_status rns8_export_u64(
           plan->desc.m,
           plan->desc.n,
           plan->prefix,
-          plan->desc.bound,
+          bound_for_cell(*plan, 0, 0),
           dst,
           ld);
     }

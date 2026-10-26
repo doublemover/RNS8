@@ -702,6 +702,12 @@ valid when their required and selected prefixes are otherwise well formed.
 Direct HIP all-zero scheduled exports zero-fill the compact native export
 buffer directly and do not upload tile schedule/bounds metadata for the export
 because no tile-local CRT work can run on that contract.
+A per-tile bounded plan may fold its physical schedule into a uniform launch
+only when every tile has the same bound as well as the same required/selected
+prefix and no adaptive or skip work remains. The owned tile bounds remain the
+export range contract; a folded plan's zero global descriptor bound is not a
+substitute. Different bounds sharing one prefix retain per-tile export checks.
+
 Per-tile bounded descriptors may also opt into
 `RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS` with `zero_a_rows` and
 `zero_b_cols` proof masks whose lengths are exactly `m` and `n`. A set A-row

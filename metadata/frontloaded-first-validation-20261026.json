@@ -1,0 +1,33 @@
+{
+  "schema": "rns8_frontloaded_validation_v1",
+  "artifact_source": "f5ce75bc2058e97ed25ee4e86674e5f805b7179c",
+  "main_builds": {"gpu": "passed", "cpu_asan": "passed"},
+  "first_test_pass": {
+    "gpu": {"total": 1054, "passed": 989, "skipped": 17, "failed": 48, "disk_exhaustion_failures": 47, "fixture_oracle_failures": 1},
+    "cpu_asan": {"total": 603, "passed": 570, "skipped": 31, "failed": 2, "disk_exhaustion_failures": 1, "fixture_oracle_failures": 1},
+    "installed_consumers": {"passed": 18, "failed": 0, "linkages": ["static", "shared"], "includes_gpu": true},
+    "installed_strict_c17_probes": {"passed": 2, "failed": 0},
+    "retained_complete_crt_outputs": {"validated": 50, "errors": 0, "coverage": "partial: raw logging stopped when C: filled"}
+  },
+  "dedicated_residue_harness": {
+    "additional_pass_authorized_and_consumed": true,
+    "scalar": {"total": 10, "passed": 9, "failed": 1},
+    "dot4": {"total": 10, "passed": 9, "failed": 1},
+    "failed_case": "residue_dot_scheduled-p1-sparse_smoke: range error",
+    "cause": "Folded per-tile HIP native export used the zero global descriptor bound instead of the retained tile bound.",
+    "collector_replay_limit": "The auxiliary raw-CTest replay incorrectly required execution_id and artifact_capture normally added by the collection wrapper. Its selected-identity errors do not qualify producer metadata and are not additional GPU test failures.",
+    "rerun": "Not authorized by the consumed one-pass allowance; ordinary main-suite CPU/HIP export regressions cover the repair."
+  },
+  "frontloaded_repairs": [
+    "Allocation-fault canonical CRT oracle uses the selected prefix product rather than the maximum capacity product.",
+    "Physical per-tile folding requires equal bounds, not just equal prefixes; diagnostic schedule validation enforces the same invariant.",
+    "Uniform HIP signed/unsigned native export uses the retained common tile bound for folded plans.",
+    "CPU/HIP regressions cover zero, unit, full-width and heterogeneous same-prefix bounds, padded outputs and range-error publication preservation."
+  ],
+  "logical_checker": {"reused_unchanged_inputs": true, "original_source": "36568f505e77836bc79c21301a33efab60e15631", "original_seconds": 1006.6031684875488, "scope": "Logical/mutation checker only; not new kernel qualification"},
+  "disk_recovery": {"generated_objects_deleted": false, "deletion_blocked_by_automatic_review": true, "user_freed_space": true, "compression_recovery": false},
+  "combined_retest": "Pending repair commit and rebuild",
+  "campaign_resumed": false,
+  "residue_timing_captures_launched": 0,
+  "issues_closed": []
+}

@@ -205,7 +205,10 @@ bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
     return plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
            plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
            plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
-           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0;
+           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0 &&
+           !plan.tile_bounds.empty() &&
+           std::all_of(plan.tile_bounds.begin(), plan.tile_bounds.end(),
+                       [&](uint64_t bound) { return bound == plan.tile_bounds.front(); });
   }
   if (plan.tile_schedule.size() != plan.tile_bounds.size()) {
     return false;

@@ -8,6 +8,13 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The [frontloaded first-pass receipt](../metadata/frontloaded-first-validation-20261026.json)
+records successful full builds at `f5ce75b`, disk-censored CPU/GPU suites,
+18 passing installed consumers and two passing strict C17 probes. The additional
+residue harness allowance found a folded per-tile HIP export bound defect;
+its source repair and new ordinary CPU/HIP regressions await the combined retest.
+These partial results do not qualify the remaining research issues.
+
 The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
 passed at `6ce489b`; subsequent address/metadata qualification brings the total
 to 11 evidence-backed closures and 40 open issues.

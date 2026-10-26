@@ -469,7 +469,10 @@ void prepared_crt_export_faults(bool profile_only) {
     const auto invoke=[&] {return quarter?rns8_export_quarter_crt_limbs(quarter,output.data(),5):
         rns8_export_crt_limbs(checked,output.data(),5);};
     const auto verify=[&] {
-      const auto product=rns8::detail::modulus_product(20);
+      // Capacity is not the active basis: a non-fixed plan may select fewer
+      // planes. Canonical roots belong to that selected product for every policy.
+      cpp_int product=1;
+      for(uint32_t p=0;p<plan.get()->prefix;++p)product*=rns8_default_modulus(p);
       for(unsigned row=0;row<2;++row)for(unsigned col=0;col<5;++col)for(unsigned limb=0;limb<3;++limb) {
         if(col>=3) {require(output[(row*5+col)*3+limb]==99,"prepared CRT caller padding");continue;}
         cpp_int expected=values[row*3+col];if(expected<0)expected+=product;
