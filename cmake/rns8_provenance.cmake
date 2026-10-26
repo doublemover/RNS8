@@ -8,6 +8,9 @@ function(rns8_generate_manifest_configuration)
   # Bind enabled accelerator headers, including build-local CK adaptations.
   # These may live in a different checkout and are not covered by our git SHA.
   set(_dependency_trees "")
+  if(RNS8_ENABLE_CK)
+    string(APPEND _dependency_trees "ck_wmma_signed_inputs=${RNS8_CK_WMMA_SIGNED_INPUTS}\n")
+  endif()
   file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/metadata/dependencies.json" _dependency_policy_hash)
   file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/scripts/requirements-build-tools.txt" _bootstrap_requirements_hash)
   string(APPEND _dependency_trees "dependency_policy_sha256=${_dependency_policy_hash}\nbootstrap_requirements_sha256=${_bootstrap_requirements_hash}\n")

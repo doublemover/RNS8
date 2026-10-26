@@ -7,6 +7,31 @@
 
 #include "rns8/rns8.h"
 
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+TEST_CASE("CK input signedness preserves negative residues across K slab boundaries", "[ck][hip][signedness]") {
+  rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;
+  options.requested_backend=RNS8_BACKEND_CK;rns8_context* context=nullptr;
+  if(rns8_create_context(0,&options,&context)!=RNS8_SUCCESS)SKIP("CK device unavailable");
+  constexpr int64_t m=3,n=5,ldc=n+2;
+  for(uint16_t modulus:{uint16_t{127},uint16_t{129},uint16_t{199},uint16_t{251},uint16_t{253},uint16_t{255},uint16_t{256}})
+    for(int64_t k:{int64_t{64},int64_t{65536},int64_t{65537}}) {
+      CAPTURE(modulus,k);const int64_t lda=k+3,ldb=n+3;
+      std::vector<uint8_t> a(size_t(m*lda),0xa5),b(size_t(k*ldb),0x5a),c(size_t(m*ldc),0xcc);
+      for(int64_t row=0;row<m;++row)for(int64_t q=0;q<k;++q)a[size_t(row*lda+q)]=uint8_t(modulus-1);
+      for(int64_t q=0;q<k;++q)for(int64_t col=0;col<n;++col)b[size_t(q*ldb+col)]=uint8_t(modulus-2);
+      rns8_gemm_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
+      desc.semantics=RNS8_FINITE_RING_U8;desc.bound_kind=RNS8_BOUND_NONE;
+      desc.requested_backend=RNS8_BACKEND_CK;desc.m=m;desc.n=n;desc.k=k;
+      desc.finite_modulus=modulus;
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(context,&desc,modulus,a.data(),lda,b.data(),ldb,c.data(),ldc)==RNS8_SUCCESS);
+      const auto exact=uint8_t((uint64_t(k)*(modulus-1)*(modulus-2))%modulus);
+      for(int64_t row=0;row<m;++row)for(int64_t col=0;col<ldc;++col)
+        CHECK(c[size_t(row*ldc+col)]==(col<n?exact:uint8_t{0xcc}));
+    }
+  rns8_destroy_context(context);
+}
+#endif
+
 namespace {
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK

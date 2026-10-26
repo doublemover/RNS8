@@ -404,16 +404,14 @@ __device__ int8_t center_i32_device(int32_t value, int modulus, uint32_t recipro
   return ck_reduce_to_centered_static_i32(value, static_cast<uint32_t>(modulus));
 }
 
-__device__ int8_t canonical_byte_from_centered_device(int8_t residue, int modulus) {
-  return static_cast<int8_t>(
-      rns8::detail::finite_u8::canonical_from_centered(residue, static_cast<uint32_t>(modulus)));
-}
-
 __device__ int8_t ck_input_byte_from_centered_device(int8_t residue, int modulus) {
 #if RNS8_CK_USE_XDL
   (void)modulus;
   return residue;
 #else
-  return canonical_byte_from_centered_device(residue, modulus);
+#ifndef RNS8_CK_WMMA_SIGNED_INPUTS
+#error "CK WMMA requires a detected operand signedness contract"
+#endif
+  return rns8::detail::ck_encode_matrix_input(residue, uint32_t(modulus), RNS8_CK_WMMA_SIGNED_INPUTS != 0);
 #endif
 }
