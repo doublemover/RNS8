@@ -347,6 +347,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
           endforeach()
         endforeach()
       endforeach()
+      foreach(_gemm_crt_policy IN ITEMS garner quarter owned_garner owned_direct owned_balanced owned_group_local owned_group_split)
+        foreach(_gemm_crt_sign IN ITEMS signed unsigned)
+          foreach(_gemm_crt_scope IN ITEMS gemm_resident gemm_cold)
+            set(_gemm_crt_candidate public_${_gemm_crt_policy}_${_gemm_crt_sign})
+            add_test(NAME conversion_${_gemm_crt_candidate}_${_gemm_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_gemm_crt_candidate} 9 3 2 1
+                ctest-gemm-${_gemm_crt_policy}-${_gemm_crt_sign}-${_gemm_crt_scope} ${_gemm_crt_scope} 65)
+            set_tests_properties(conversion_${_gemm_crt_candidate}_${_gemm_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;gemm;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
       foreach(_public_crt_candidate IN ITEMS public_garner_signed public_garner_unsigned public_quarter_signed public_quarter_unsigned)
         foreach(_public_crt_prefix IN ITEMS 3 9)
           foreach(_public_crt_scope IN ITEMS resident cold)

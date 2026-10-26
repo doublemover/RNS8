@@ -537,6 +537,14 @@
             "tools/benchmark_sweep_lib/cli.py",
             "tools/promotion_ledger.py"
           ]
+        },
+        {
+          "summary": "Authored public GEMM-plus-export cold/resident scopes in the existing CRT executable/collector. Explicit K, matched fixed-prefix scalar-first proof, one product per timed call, retained checked-owner rebind versus charged quarter rebuild, exact per-cell binary-integer reference, real retained workspace and completion/generation accounting. 364 matched cases cover up to 2,147,483,648 useful integer operations. Syntax only; all execution and performance qualification deferred.",
+          "files": [
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/checked-gemm-exports.json"
+          ]
         }
       ],
       "regressions": [
@@ -1062,6 +1070,14 @@
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/checked-public-exports.json"
+          ]
+        },
+        {
+          "summary": "Authored public GEMM-plus-export cold/resident scopes in the existing CRT executable/collector. Explicit K, matched fixed-prefix scalar-first proof, one product per timed call, retained checked-owner rebind versus charged quarter rebuild, exact per-cell binary-integer reference, real retained workspace and completion/generation accounting. 364 matched cases cover up to 2,147,483,648 useful integer operations. Syntax only; all execution and performance qualification deferred.",
+          "files": [
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/checked-gemm-exports.json"
           ]
         }
       ],
@@ -2943,6 +2959,14 @@
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/checked-public-exports.json"
+          ]
+        },
+        {
+          "summary": "Authored public GEMM-plus-export cold/resident scopes in the existing CRT executable/collector. Explicit K, matched fixed-prefix scalar-first proof, one product per timed call, retained checked-owner rebind versus charged quarter rebuild, exact per-cell binary-integer reference, real retained workspace and completion/generation accounting. 364 matched cases cover up to 2,147,483,648 useful integer operations. Syntax only; all execution and performance qualification deferred.",
+          "files": [
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/checked-gemm-exports.json"
           ]
         }
       ],

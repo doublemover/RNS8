@@ -29,15 +29,21 @@ OWNED_CANDIDATES=tuple("public_owned_"+policy+"_"+sign for policy in OWNED_POLIC
 CANDIDATES=BASE_CANDIDATES+QUARTER_CANDIDATES+GROUP_CANDIDATES+OWNED_CANDIDATES
 
 SCOPES=("resident", "cold")
+GEMM_SCOPES=("gemm_resident", "gemm_cold")
 MASK=(1 << 64)-1
 BUDGET=768*1024*1024
 EDGES=(0, 1, MASK, 1 << 63, 0x8080808080808080, 0x7f8081ff007fff80)
 
 
 def validate_case(case):
-    demand(type(case) is dict and set(case)=={"candidate", "cells", "prefix", "scope"}, "case requires candidate,cells,prefix,scope")
-    demand(case["candidate"] in CANDIDATES and case["scope"] in SCOPES, "invalid candidate/scope")
+    demand(type(case) is dict and {"candidate", "cells", "prefix", "scope"}<=set(case), "case requires candidate,cells,prefix,scope")
+    gemm=case["scope"] in GEMM_SCOPES
+    demand(set(case)==({"candidate","cells","prefix","scope","k"} if gemm else {"candidate","cells","prefix","scope"}),"K is required only for GEMM/export cases")
+    demand(case["candidate"] in CANDIDATES and case["scope"] in SCOPES+GEMM_SCOPES, "invalid candidate/scope")
     demand(integer(case["cells"],1,1048576) and integer(case["prefix"],1,20), "invalid cells/prefix")
+    if gemm:
+        demand(case["candidate"].startswith("public_") and math.isqrt(case["cells"])**2==case["cells"],"GEMM/export requires a public square-output case")
+        demand(integer(case["k"],1,8192) and 4*case["k"]<=math.prod(DEFAULT_MODULI[:case["prefix"]]),"K exceeds the matched quarter-bound contract")
     demand(contract(case,"validation",1,1)["logical_payload_envelope_bytes"]<=BUDGET, "payload budget exceeded")
     return dict(case)
 
@@ -55,6 +61,7 @@ def load_cases(path):
 
 def contract(case,run_id,repeats,warmups):
     candidate,cells,prefix,scope=(case[key] for key in ("candidate","cells","prefix","scope"))
+    gemm=scope in GEMM_SCOPES;cold=scope in ("cold","gemm_cold")
     public=candidate.startswith("public_")
     quarter=candidate in QUARTER_CANDIDATES+OWNED_CANDIDATES;narrow="narrow" in candidate or public
     importing=candidate.startswith("import_");tile=candidate.startswith("tile_")
@@ -131,11 +138,33 @@ def contract(case,run_id,repeats,warmups):
                 checked_owner_info_scope="final_resident_owner" if scope=="resident" else "separate_untimed_cold_audit_owner",
                 payload_envelope_scope="modeled_buffers_and_retained_payloads_excludes_opaque_owner_metadata")
             result["logical_payload_envelope_bytes"]+=owner_bytes
+        if gemm:
+            side=math.isqrt(cells);k=case["k"];source=2*side*k*prefix
+            # Includes host fixture/audit, packed operands/output, retained root
+            # and publication payloads; separately admitted workspace is measured.
+            base=source*4+cells*prefix*2+output*5+(2*side*k)*24+16384
+            if candidate in OWNED_CANDIDATES:base+=owner_bytes
+            result.update(schema="rns8_crt_microcase_v6",gemm_measured=True,operation="public_gemm_narrow_crt",
+                dataset_recipe="splitmix64_binary_gemm_seed3903_v1",reference_method="exact_binary_integer_popcount_all_output_cells",
+                input_contract="engine_current_binary_integer_operands_global_k_bound",
+                plan_admission_policy="fixed_prefix_scalar_first_global_k_bound_gemm_export",
+                logical_rows=side,logical_cols=side,logical_ld=side,source_bytes_modeled=source,source_physical_bytes=source,
+                certified_magnitude_bound=str(k),logical_payload_envelope_bytes=base,
+                payload_envelope_scope="modeled_buffers_and_retained_payloads_workspace_separately_admitted_excludes_opaque_metadata",
+                timing_scope="public_context_plan_workspace_pack_gemm_prepare_export_checked_free" if cold else "public_current_operands_gemm_refresh_export_stage_readback_publish",
+                cache_state="fresh_buffers_each_call" if cold else "repeated_same_operands_new_output_generation",
+                input_preservation_scope="one_separate_resident_audit_before_warmups" if cold else "outside_each_verified_call_and_final_burst",
+                gemm=dict(m=side,n=side,k=k,useful_integer_operations=2*cells*k,selected_prefix=prefix,
+                    proof_policy="exact_scalar_first_global_k_bound",initial_setup_products=0 if cold else 1,products_per_timed_call=1,
+                    export_refresh="retained_owner_rebind" if candidate in OWNED_CANDIDATES else "destroy_and_prepare_current_quarter_owner" if candidate.startswith("public_quarter_") else "maintained_default_export"))
+            if candidate in OWNED_CANDIDATES:
+                result["checked_owner_info_scope"]="separate_untimed_cold_audit_owner" if cold else "final_resident_owner"
     return result
 
 
 def dataset(case):
     """Independent integer replay of every input/output byte, including canaries."""
+    if case["scope"] in GEMM_SCOPES:return gemm_dataset(case)
     importing=case["candidate"].startswith("import_");signed=case["candidate"].endswith("_signed")
     quarter=case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES;narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
     cells,prefix=case["cells"],case["prefix"];state=3903;product=math.prod(DEFAULT_MODULI[:prefix])
@@ -177,7 +206,39 @@ def dataset(case):
     return tiled,expected
 
 
+def gemm_dataset(case):
+    """Exact binary GEMM via independent arbitrary-width integer bit operations."""
+    side=math.isqrt(case["cells"]);k=case["k"];prefix=case["prefix"]
+    signed=case["candidate"].endswith("_signed");state=3903
+    operands=[];row_bits=[0]*side;col_bits=[0]*side
+    for role in (0,1):
+        values=[]
+        for index in range(side*k):
+            state=(state+0x9e3779b97f4a7c15)&MASK;z=state
+            z=((z^(z>>30))*0xbf58476d1ce4e5b9)&MASK;z=((z^(z>>27))*0x94d049bb133111eb)&MASK
+            bit=(z^(z>>31))&1
+            row,col=divmod(index,k if role==0 else side)
+            if (role==0 and row==0) or (role==1 and col==0):bit=1
+            if role==0 and row==1:bit=0
+            value=(1 if bit else -1) if signed else bit;values.append(value)
+            if bit:
+                if role==0:row_bits[row]|=1 << col
+                else:col_bits[col]|=1 << row
+        operands.append(values)
+    source=bytearray()
+    for values in operands:
+        demand(all(modulus>=3 for modulus in DEFAULT_MODULI[:prefix]),"binary GEMM residue recipe requires moduli above two")
+        source.extend(bytes(v&255 for v in values)*prefix)
+    output=bytearray([99])*(case["cells"]*8+64)
+    for row in range(side):
+        for col in range(side):
+            value=k-2*(row_bits[row]^col_bits[col]).bit_count() if signed else (row_bits[row]&col_bits[col]).bit_count()
+            offset=(row*side+col)*8;output[offset:offset+8]=(value&MASK).to_bytes(8,"little")
+    return source,output
+
+
 def validate_capture(capture,case,run_id,repeats,warmups):
+    gemm=case["scope"] in GEMM_SCOPES;cold=case["scope"] in ("cold","gemm_cold")
     demand(type(capture) is dict,"capture must be object")
     for key,value in contract(case,run_id,repeats,warmups).items():
         demand(key in capture and same(capture[key],value), f"metadata mismatch: {key}")
@@ -190,7 +251,7 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         demand(capture["target"].split(":")[0] in ("gfx1100","gfx1101","gfx1102"),"fixed conversion target not admitted")
     demand(integer(capture.get("runtime_version"),1,(1 << 31)-1),"invalid runtime identity")
     demand(positive(capture.get("oracle_and_dataset_ns")),"invalid oracle timing")
-    demand(positive(capture.get("resident_setup_ns")) if case["scope"]=="resident" else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")
+    demand(positive(capture.get("resident_setup_ns")) if not cold else capture.get("resident_setup_ns","absent") is None,"invalid setup scope")
     source,expected=dataset(case)
     demand(capture.get("input_checksum")==checksum(source) and capture.get("output_checksum")==checksum(expected),"recipe/full output checksum mismatch")
     samples=capture.get("samples")
@@ -211,16 +272,16 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         and (sustained["calls"]==4096 or sustained["elapsed_ns"]>=250000000),"invalid sustained duration")
     if not case['candidate'].startswith('public_'):
         demand(same(capture.get('resident_completion_count'),warmups+2*repeats+sustained['calls'] if case['scope']=='resident' else 0),"missing completed resident calls")
-    demand(sustained.get("scope")==("fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else
+    demand(sustained.get("scope")==("fresh_buffers_transfer_inclusive_no_intermediate_reference" if cold else
         "resident_same_buffers_no_intermediate_poison_or_reference"),"sustained scope mismatch")
     if case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES:
         narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
-        bound=math.prod(DEFAULT_MODULI[:case["prefix"]])//4
-        if narrow:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
+        bound=case["k"] if gemm else math.prod(DEFAULT_MODULI[:case["prefix"]])//4
+        if narrow and not gemm:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
         if case["candidate"].startswith("public_"):
-            actual=0 if case["cells"]==1 else bound
+            actual=bound if gemm else 0 if case["cells"]==1 else bound
             demand(capture.get("certified_magnitude_bound")==str(actual),"public current magnitude proof mismatch")
-            if case["scope"]=="resident":
+            if not cold:
                 demand(integer(capture.get("retained_public_device_payload_bytes"),case["cells"]*case["prefix"],BUDGET),"public retained bytes missing")
                 if case["candidate"].startswith("public_quarter_"):
                     demand(integer(capture.get("quarter_owner_payload_bytes"),case["cells"]*16,BUDGET),"quarter staging payload mismatch")
@@ -235,7 +296,16 @@ def validate_capture(capture,case,run_id,repeats,warmups):
                 and q.get("target_execution")=="not_run" and q.get("source_scope")=="private_fixture_immutable_for_process"
                 and positive(q.get("setup_ns")) and re.fullmatch(r"[0-9a-f]{64}",q.get("sha256","")),"quarter proof contract mismatch")
     if case["candidate"] in OWNED_CANDIDATES:
-        validate_checked_owner(capture,case,warmups+2*repeats+sustained["calls"] if case["scope"]=="resident" else 1)
+        validate_checked_owner(capture,case,warmups+2*repeats+sustained["calls"] if not cold else 1)
+    if gemm:
+        workspace=capture.get("workspace_payload_bytes")
+        demand(integer(workspace,0,BUDGET-capture["logical_payload_envelope_bytes"]),"GEMM workspace exceeds aggregate admission")
+        demand(same(capture.get("aggregate_payload_admission_bytes"),workspace+capture["logical_payload_envelope_bytes"]),"GEMM aggregate payload mismatch")
+        demand(same(capture.get("gemm_completed_products"),1 if cold else 1+warmups+2*repeats+sustained["calls"]),"GEMM completion count mismatch")
+        initial=capture.get("gemm_initial_source_generation");final=capture.get("gemm_final_source_generation")
+        demand(integer(initial,1,MASK) and same(final,initial+(0 if cold else warmups+2*repeats+sustained["calls"])),"GEMM source generation mismatch")
+        if case["candidate"] in OWNED_CANDIDATES:
+            demand(same(capture["checked_owner"]["source_generation"],final),"checked export did not rebind the produced generation")
     validate_provenance(capture.get("build_manifest"))
     return {key:capture[key] for key in ("build_manifest","device","target","runtime_version")}
 
@@ -277,7 +347,17 @@ def collect(args):
         cases=load_cases(args.cases)
         demand(digest(args.cases)==initial_case_hash,"cases changed while loading")
     else:
-        cases=[validate_case(dict(candidate=c,cells=n,prefix=p,scope=s)) for c in args.candidates for n in args.cells for p in args.prefixes for s in args.scopes]
+        cases=[]
+        for c in args.candidates:
+            for n in args.cells:
+                for p in args.prefixes:
+                    for s in args.scopes:
+                        reductions=getattr(args,"k",None) if s in GEMM_SCOPES else [None]
+                        demand(reductions,"GEMM/export scopes require --k or explicit cases")
+                        for k in reductions:
+                            case=dict(candidate=c,cells=n,prefix=p,scope=s)
+                            if k is not None:case["k"]=k
+                            cases.append(validate_case(case))
         demand(cases and len({json.dumps(c,sort_keys=True) for c in cases})==len(cases),"duplicate/empty cases")
     exe=Path(args.exe).resolve(strict=True);artifact=digest(exe)
     sources=[Path(__file__),Path(__file__).with_name("collect_finite_verify.py"),Path(__file__).with_name("build_manifest.py"),Path(__file__).with_name("modulus_set_search.py")]
@@ -290,6 +370,7 @@ def collect(args):
             and (not args.cases or digest(args.cases)==case_hash),"executable/tools/cases changed during collection")
     for ordinal,(case,repeat) in enumerate(tasks):
         unchanged();run_id=str(uuid.uuid4());command=[str(exe),case["candidate"],str(case["cells"]),str(case["prefix"]),str(args.repeats),str(args.warmups),run_id,case["scope"]]
+        if case["scope"] in GEMM_SCOPES:command.append(str(case["k"]))
         record=dict(schema="rns8_crt_collection_v3",campaign_id=campaign,run_id=run_id,case=case,command=command,ordinal=ordinal,
             independent_repeat=repeat,order_seed=args.order_seed,started_unix_ns=time.time_ns(),artifact_sha256=artifact,
             collector_sha256=identities[Path(__file__).name],tool_dependencies_sha256=identities,cases_sha256=case_hash,
@@ -310,7 +391,7 @@ def collect(args):
             demand(same(identity,cohort),"compiled build/device/runtime cohort mismatch")
             # Import signedness is part of the semantics; CRT layout/candidate is
             # a transport difference, so every canonical control must match.
-            key=(case["cells"],case["prefix"],capture["operation"],capture["signed_inputs"],capture["dataset_recipe"],capture["output_contract"])
+            key=(case["cells"],case.get("k"),case["prefix"],capture["operation"],capture["signed_inputs"],capture["dataset_recipe"],capture["output_contract"])
             expected=checksums.setdefault(key,capture["output_checksum"])
             demand(capture["output_checksum"]==expected,"matched output checksum mismatch")
             unchanged();record.update(validated=True,provenance_complete=manifest_provenance_complete(capture["build_manifest"]))
@@ -334,7 +415,8 @@ def main():
     parser.add_argument("--cases",type=Path,help="versioned explicit conversion cases; otherwise use cartesian controls below")
     parser.add_argument("--cells",type=int,nargs="+",default=[1,257,4096]);parser.add_argument("--prefixes",type=int,nargs="+",default=list(range(1,21)))
     parser.add_argument("--candidates",nargs="+",choices=CANDIDATES,default=["garner","direct","balanced"])
-    parser.add_argument("--scopes",nargs="+",choices=SCOPES,default=["resident"])
+    parser.add_argument("--scopes",nargs="+",choices=SCOPES+GEMM_SCOPES,default=["resident"])
+    parser.add_argument("--k",type=int,nargs="+",help="required reduction sizes for public GEMM/export scopes")
     parser.add_argument("--runs",type=int,default=5);parser.add_argument("--repeats",type=int,default=10);parser.add_argument("--warmups",type=int,default=3)
     parser.add_argument("--timeout",type=int,default=300);parser.add_argument("--order-seed",type=int,default=3903)
     args=parser.parse_args()

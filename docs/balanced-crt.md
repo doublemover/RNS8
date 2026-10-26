@@ -220,3 +220,39 @@ export counts. A separate untimed cold owner supplies cold metadata; it is not
 reported as an owner retained across timed calls. Logical envelopes charge the
 new root/output/group payload, and exclude opaque owner/driver metadata. These
 controls are authored and unexecuted; there are no new performance results.
+
+
+### Complete GEMM and export calls
+
+The same public candidates accept `gemm_resident` or `gemm_cold` and a required
+final K argument. `cells` is the square output area, and inputs are dense signed
+±1 or unsigned 0/1 matrices. The engine proves the global K magnitude bound;
+`4*K <= prefix_product` admits every compared policy, including quarter CRT.
+The fixed prefix and scalar-first proof policy are shared across controls.
+Row 0 and column 0 force the positive K boundary, and signed row 1 forces -K.
+Independent C++ fixed-word and Python arbitrary-integer population counts check
+every output exactly, including K word tails and all caller canaries.
+
+A resident call performs one public GEMM into a fresh output generation, refreshes
+the export certificate, reconstructs, completes and publishes. Prepared integer
+owners use retained-payload rebind. Quarter owners are destroyed and prepared
+again because the current API binds their certificates immutably to a generation;
+that work remains in their interval. The maintained default Garner export is
+also present. Resident setup reports one priming GEMM separately. A cold call
+creates context/plan/workspace, packs both operands, computes exactly one GEMM,
+prepares and exports, then checks every destruction. It performs no hidden second
+product. Completion and generation counts are recorded and verified.
+
+`checked-gemm-exports.json` contains 364 matched cases spanning 32² to 1024²
+output cells, K=64/256/1024/4096, prefixes 1/3/9/20 where the shared bound admits
+K, both semantic contracts and both ownership scopes. This covers compute sizes
+through 2,147,483,648 useful integer operations per call. v6 captures include
+explicit M/N/K, useful operation count, selected prefix, certificate-refresh
+policy and completed products. Retained workspace is separately admitted against
+the aggregate 768 MiB payload budget before workspace/matrix allocation. This
+budget models buffers and retained payload; opaque metadata and physical process
+memory are separate. The existing collector seals K into commands and pairing
+keys, and refuses raw-stage candidates or non-square output shapes in these
+scopes. Production bursts contain public calls only; reference/source audits and
+metadata serialization stay outside their intervals. These cases are authored,
+unexecuted, and carry no new gain or qualification claims.

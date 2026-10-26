@@ -8,30 +8,31 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,OWNED_CANDIDATES,SCOPES,checked_owner_contract,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,OWNED_CANDIDATES,SCOPES,GEMM_SCOPES,checked_owner_contract,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
 
 def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
     case=case or BASE;capture=contract(case,run_id,repeats,warmups);synthetic_identity(capture)
+    cold=case["scope"] in ("cold","gemm_cold");gemm=case["scope"] in GEMM_SCOPES
     source,expected=dataset(case)
     capture.update(device="synthetic mocked GPU only",target="gfx1100",runtime_version=70100000,
         input_checksum=checksum(source),output_checksum=checksum(expected),oracle_and_dataset_ns=1000,
-        resident_setup_ns=1000 if case["scope"]=="resident" else None,
+        resident_setup_ns=None if cold else 1000,
         samples=[dict(host_call_ns=150+index,uninstrumented_host_call_ns=100+index,events=[dict(label="mock",elapsed_ns=1.5)],
             exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,elapsed_ns=320000000,mean_call_ns=20000000.,final_exact_reference_passed=True,
-            scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else "resident_same_buffers_no_intermediate_poison_or_reference"))
+            scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if cold else "resident_same_buffers_no_intermediate_poison_or_reference"))
     if case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES:
         import math
         from modulus_set_search import DEFAULT_MODULI
         narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
-        bound=math.prod(DEFAULT_MODULI[:case["prefix"]])//4
-        if narrow:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
+        bound=case["k"] if gemm else math.prod(DEFAULT_MODULI[:case["prefix"]])//4
+        if narrow and not gemm:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
         if case["candidate"].startswith("public_"):
-            actual=0 if case["cells"]==1 else bound;capture["certified_magnitude_bound"]=str(actual)
-            if case["scope"]=="resident":
+            actual=bound if gemm else 0 if case["cells"]==1 else bound;capture["certified_magnitude_bound"]=str(actual)
+            if not cold:
                 capture["retained_public_device_payload_bytes"]=case["cells"]*(case["prefix"]+8)+4
                 if case["candidate"].startswith("public_quarter_"):
                     capture.update(quarter_owner_payload_bytes=case["cells"]*16,quarter_certificate_sha256="a"*64,
@@ -42,7 +43,12 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
     if not case['candidate'].startswith('public_'):capture['resident_completion_count']=warmups+2*repeats+16 if case['scope']=='resident' else 0
     if case["candidate"] in OWNED_CANDIDATES:
         capture["checked_owner"]=dict(checked_owner_contract(case),source_instance=11,source_generation=2,
-            successful_exports=warmups+2*repeats+16 if case["scope"]=="resident" else 1,certificate_sha256="b"*64)
+            successful_exports=1 if cold else warmups+2*repeats+16,certificate_sha256="b"*64)
+    if gemm:
+        delta=0 if cold else warmups+2*repeats+16
+        capture.update(workspace_payload_bytes=4096,aggregate_payload_admission_bytes=capture['logical_payload_envelope_bytes']+4096,
+            gemm_completed_products=1+delta,gemm_initial_source_generation=2,gemm_final_source_generation=2+delta)
+        if case['candidate'] in OWNED_CANDIDATES:capture['checked_owner']['source_generation']=2+delta
     if case['candidate'] in GROUP_CANDIDATES:capture['group_plan_setup_ns']=1000
     return capture
 
@@ -55,10 +61,48 @@ def arguments(directory,cases=None):
 
 def successful(command,**kwargs):
     case=dict(candidate=command[1],cells=int(command[2]),prefix=int(command[3]),scope=command[7])
+    if len(command)==9:case["k"]=int(command[8])
     return subprocess.CompletedProcess(command,0,json.dumps(fixture(case,command[6],int(command[4]),int(command[5]))),"")
 
 
 class Captures(unittest.TestCase):
+    def test_gemm_export_replay_matches_scalar_integer_products_across_word_tails(self):
+        for sign in ('signed','unsigned'):
+            for k in (1,7,63,64,65,129):
+                case=dict(candidate='public_owned_direct_'+sign,cells=9,prefix=3,scope='gemm_resident',k=k)
+                source,expected=dataset(case);side=3;count=side*k
+                a=[v-256 if v>=128 else v for v in source[:count]]
+                b=[v-256 if v>=128 else v for v in source[count*case['prefix']:count*(case['prefix']+1)]]
+                for row in range(side):
+                    for col in range(side):
+                        value=sum(a[row*k+i]*b[i*side+col] for i in range(k))
+                        offset=(row*side+col)*8
+                        self.assertEqual(int.from_bytes(expected[offset:offset+8],'little',signed=sign=='signed'),value)
+                self.assertEqual(int.from_bytes(expected[:8],'little'),k)
+                self.assertEqual(expected[-64:],bytes([99])*64)
+                for policy in ('public_garner_','public_quarter_',*[c.rsplit('_',1)[0]+'_' for c in OWNED_CANDIDATES[::2]]):
+                    self.assertEqual(dataset(dict(case,candidate=policy+sign)),(source,expected))
+
+    def test_gemm_export_contract_charges_products_workspace_and_owner_refresh(self):
+        public=tuple(c for c in CANDIDATES if c.startswith('public_'))
+        for candidate in public:
+            for scope in GEMM_SCOPES:
+                for prefix in (1,3,9,20):
+                    case=validate_case(dict(candidate=candidate,cells=9,prefix=prefix,scope=scope,k=64))
+                    capture=fixture(case);validate_capture(capture,case,'fixture-run',2,1)
+                    for key,value in [('gemm_measured',False),('workspace_payload_bytes',-1),('aggregate_payload_admission_bytes',1),
+                                      ('gemm_completed_products',0),('gemm_final_source_generation',0),('certified_magnitude_bound','63')]:
+                        bad=deepcopy(capture);bad[key]=value
+                        with self.subTest(candidate=candidate,scope=scope,prefix=prefix,key=key),self.assertRaises(ValueError):
+                            validate_capture(bad,case,'fixture-run',2,1)
+                    for key,value in [('products_per_timed_call',0),('selected_prefix',2),('k',63),('export_refresh','unbound_export')]:
+                        bad=deepcopy(capture);bad['gemm'][key]=value
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+        base=dict(candidate='public_owned_direct_signed',cells=9,prefix=1,scope='gemm_resident',k=64)
+        for bad in (dict(base,k=65),dict(base,k=True),dict(base,cells=17),dict(base,candidate='direct'),
+                    dict(base,scope='resident'),{k:v for k,v in base.items() if k!='k'}):
+            with self.assertRaises(ValueError):validate_case(bad)
+
     def test_checked_public_policies_share_the_public_garner_dataset_and_charge_retained_payloads(self):
         for candidate in OWNED_CANDIDATES:
             for prefix in (1,8,9,16,17,20):
@@ -102,6 +146,15 @@ class Captures(unittest.TestCase):
         self.assertEqual({c['candidate'] for c in cases},set(OWNED_CANDIDATES)|{'public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'})
         self.assertEqual({c['cells'] for c in cases},{257,1048576})
         self.assertEqual({c['prefix'] for c in cases},{1,3,9,20})
+
+    def test_checked_gemm_manifest_spans_compute_sizes_and_seals_reduction(self):
+        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        cases=load_cases(root/"checked-gemm-exports.json")
+        self.assertEqual(len(cases),364)
+        self.assertEqual({c['candidate'] for c in cases},{c for c in CANDIDATES if c.startswith('public_')})
+        self.assertEqual({c['k'] for c in cases},{64,256,1024,4096})
+        self.assertEqual({c['scope'] for c in cases},set(GEMM_SCOPES))
+        self.assertEqual(max(2*c['cells']*c['k'] for c in cases),2147483648)
 
     def test_enqueue_only_resident_times_cannot_be_complete_conversion_costs(self):
         c=fixture();validate_capture(c,BASE,'fixture-run',2,1)
@@ -221,6 +274,15 @@ class Captures(unittest.TestCase):
 
 
 class Collection(unittest.TestCase):
+    def test_gemm_export_command_seals_k_and_keeps_distinct_reductions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=arguments(directory);args.candidates=['public_owned_direct_signed','public_garner_signed']
+            args.cells=[9];args.prefixes=[3];args.scopes=['gemm_resident'];args.k=[7,65]
+            with patch('collect_crt_calibration.subprocess.run',side_effect=successful):summary=collect(args)
+            self.assertEqual(summary['independent_processes'],4)
+            records=[json.loads(p.read_text()) for p in args.output.glob('*.json') if not p.name.endswith('.summary.json')]
+            for record in records:self.assertEqual(int(record['command'][8]),record['case']['k'])
+
     def test_matched_records_and_tools_are_bound(self):
         with tempfile.TemporaryDirectory() as directory:
             args=arguments(directory)
@@ -295,5 +357,10 @@ class CompiledCli(unittest.TestCase):
             args=base.copy();args[index]=value
             result=self.invoke(args);self.assertEqual(result.returncode,1);self.assertTrue(result.stderr)
         self.assertEqual(self.invoke(base+["extra"]).returncode,1)
+        for args in (["public_owned_direct_signed","9","1","2","1","negative","gemm_resident"],
+                     ["public_owned_direct_signed","9","1","2","1","negative","gemm_resident","65"],
+                     ["public_garner_unsigned","17","3","2","1","negative","gemm_cold","64"],
+                     ["public_quarter_signed","9","3","2","1","negative","resident","64"]):
+            result=self.invoke(args);self.assertEqual(result.returncode,1);self.assertTrue(result.stderr)
 
 if __name__=="__main__":unittest.main()
