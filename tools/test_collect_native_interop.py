@@ -13,7 +13,7 @@ class NativeInteropContracts(unittest.TestCase):
         empty=dict(live_bytes=0,peak_bytes=0,live_allocations=0,peak_allocations=0,allocation_calls=0,free_calls=0,allocated_bytes=0)
         live=dict(live_bytes=4096,peak_bytes=4096,live_allocations=1,peak_allocations=1,allocation_calls=1,free_calls=0,allocated_bytes=4096)
         retired=dict(live,live_bytes=0,live_allocations=0,free_calls=1)
-        return dict(schema='rns8_native_interop_microcase_v2',case=c,run_id='fixture',output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,
+        return dict(schema='rns8_native_interop_microcase_v3',case=c,run_id='fixture',exact_proof_policy='scalar_first',output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,
             resident_control_excludes_input_binding=False,host_payload_bytes_per_call=0,compact_status_bytes_per_call=12,consumer_validation_bytes=8,validation_payload_bytes=cc*8,
             preflight_device_payload_estimate_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,preflight_host_payload_estimate_bytes=(ac+bc)*8+2*cc*8+12,
             memory_scope='conservative_all_route_logical_preflight_excludes_Boost_library_heap_driver_opaque_events_graphs_workspace_separate',launch_count=None,launch_count_scope='not_inferred_from_api_calls',
@@ -74,11 +74,12 @@ class NativeInteropContracts(unittest.TestCase):
 
     @patch('collect_native_interop.manifest_provenance_complete',return_value=True)
     def test_only_participating_owners_are_charged(self,_manifest):
-        for mode,count in [('device-stream',3),('device-graph',3),('resident-control',1),('host-roundtrip',0)]:
+        for mode,count in [('device-stream',3),('device-graph',3),('resident-control',1),('host-roundtrip',0),('host-scalar-first',0)]:
             c=self.capture();c['case']['mode']=mode;c['resident_control_excludes_input_binding']=mode=='resident-control'
+            c['exact_proof_policy']='default_eager' if mode=='host-roundtrip' else 'scalar_first'
             c['compact_status_bytes_per_call']=12 if mode.startswith('device-') else 4
             m,n,k=(c['case'][x] for x in ('m','n','k'))
-            c['host_payload_bytes_per_call']=2*(m*k+k*n)*8+m*n*24+m*(n+3)*24 if mode=='host-roundtrip' else 0
+            c['host_payload_bytes_per_call']=2*(m*k+k*n)*8+m*n*24+m*(n+3)*24 if mode.startswith('host-') else 0
             for key in ('participating_external_owners','owner_acquire_callbacks','owner_release_callbacks'):c[key]=count
             entry=dict(case=c['case'],run_id='fixture');self.assertEqual(validate_capture(c,entry),c)
             bad=copy.deepcopy(c);bad['owner_release_callbacks']+=1
@@ -91,7 +92,7 @@ class NativeInteropContracts(unittest.TestCase):
             c=validate_case(json.loads(path.read_text()));mode=c.pop('mode')
             groups.setdefault(json.dumps(c,sort_keys=True),set()).add(mode)
         self.assertTrue(groups)
-        for modes in groups.values():self.assertEqual(modes,{'device-stream','device-graph','host-roundtrip','resident-control'})
+        for modes in groups.values():self.assertEqual(modes,{'device-stream','device-graph','host-roundtrip','host-scalar-first','resident-control'})
 
     @patch('collect_native_interop.manifest_provenance_complete',return_value=True)
     def test_sustained_means_weight_durations_by_calls(self,_manifest):
@@ -100,5 +101,24 @@ class NativeInteropContracts(unittest.TestCase):
         second=copy.deepcopy(c);second['execution_id']='process2'
         result=summarize([(entry,c),(dict(entry,independent_run=1),second)])
         self.assertAlmostEqual(result[0]['median_process_metrics']['device-graph']['sustained_us'],1000000/112)
+
+    @patch('collect_native_interop.manifest_provenance_complete',return_value=True)
+    def test_stronger_host_control_is_not_hidden_by_eager_proofs(self,_manifest):
+        observations=[]
+        for mode,factor in [('host-roundtrip',100),('host-scalar-first',2),('device-graph',1)]:
+            for run in range(2):
+                c=self.capture();c['case']['mode']=mode;c['execution_id']=f'{mode}-{run}'
+                c['exact_proof_policy']='default_eager' if mode=='host-roundtrip' else 'scalar_first'
+                if mode.startswith('host-'):
+                    m,n,k=(c['case'][x] for x in ('m','n','k'))
+                    c.update(compact_status_bytes_per_call=4,host_payload_bytes_per_call=2*(m*k+k*n)*8+m*n*24+m*(n+3)*24,
+                        participating_external_owners=0,owner_acquire_callbacks=0,owner_release_callbacks=0)
+                for sample in c['samples']:sample.update({key:value*factor for key,value in sample.items()})
+                for burst in c['sustained']:burst['total_us']*=factor;burst['per_call_us']*=factor
+                observations.append((dict(case=c['case'],run_id='fixture',independent_run=run,output=c['execution_id']),c))
+        row=summarize(observations)[0]
+        self.assertEqual(row['strongest_matched_host_control'],'host-scalar-first')
+        self.assertEqual(row['device_to_host_roundtrip_cost_ratios']['device-graph']['sustained_us'],.01)
+        self.assertEqual(row['device_to_strongest_host_cost_ratios']['device-graph']['sustained_us'],.5)
 
 if __name__=='__main__':unittest.main()

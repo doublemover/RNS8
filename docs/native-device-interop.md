@@ -228,6 +228,12 @@ complete custom HIP producer → public RNS8 product → custom HIP consumer
 transactions. Stream and owned-graph candidates use the same three-limb,
 padded signed/unsigned output as the explicit device→host→host-pack and
 host-export→device control. Inputs include small and full-width boundaries.
+The host composition has both default eager and explicit scalar-first proof
+controls. Device candidates and the resident floor also select scalar-first.
+Compare against the strongest same-work host control; an eager-only comparison
+can charge host metadata propagation that conservative device import does not
+produce. Normal host pack still constructs its documented input facts, so a
+whole-transaction benefit includes conversion/proof work as well as payload copies.
 Every timed call advances participating external owner generations, including
 unchanged values; import independently verifies its envelope. The consumer digests every
 output limb. An independent Boost product and padding/digest audit run outside
@@ -248,7 +254,7 @@ device candidates, one for the resident floor, zero for the host control).
 The two true device candidates issue imports, product, and export across
 nondefault streams and observe only the final dependency completion.
 
-Version-two captures name payload transfers, compact status bytes (12 per
+Version-three captures name the proof policy, payload transfers, compact status bytes (12 per
 device candidate, 4 for the resident export), validation-only readback,
 conservative all-route preflight payload estimates, and separate plan workspace.
 Four same-epoch public allocation snapshots observe RNS8-owned requested device
@@ -263,15 +269,29 @@ remain unmeasured. The preflight estimate is not an observed retained-byte count
 or a physical memory limit. Wall subphases
 include overlapping enqueues/observations; they are **not** per-kernel GPU
 durations. Hardware launch counts and physical memory peaks still require a
-named-target profiler. The first updated collection stopped after two passing
+named-target profiler. The first version-two collection stopped after two passing
 captures when the stream candidate omitted explicit GEMM submission preparation.
 Graph capture supplies this preparation internally. The stream setup now calls
-`rns8_prepare_hip_submission` for its four operations; a fresh complete retry
-remains pending. The incomplete first collection cannot qualify a speedup.
+`rns8_prepare_hip_submission` for its four operations. The complete fresh retry
+passes **80/80 captures / 37,771 transactions**, including exact outputs, callbacks
+and requested-payload retirement, at compiled source **0f26d96** with the runtime
+three-warmup profiles from **29de830**. Both focused builds and eight collector
+checks pass. The seven native-device GPU fixtures also pass in the unchanged
+production source's full **4e21e9c** qualification.
+
+That retry exposed the eager-proof control confound above: its large apparent
+ratios do not qualify an interoperability gain. Its input-binding-excluded
+resident control also retained unnecessary eager product proof propagation.
+The [reviewed v2 evidence](../metadata/native-interop-eager-controls-20261025.json)
+retains all observations, the initial failure, setup/first-call costs, payload
+peaks and this limit. The distinct v3 experiment adds the scalar-first host
+control, repairs the resident floor, and awaits measurement. No threshold was
+widened and the v2 captures will not be pooled into it.
 
 The collector counterbalances independent processes, refuses reused process
 identities, checks immutable executable/build/environment provenance, requires
 complete phase/sustained observations, observed-payload retirement, and exact validation, and reports only
-same-cohort device/host-roundtrip ratios. Captures remain nonpromoting.
+same-cohort device/host ratios, with the strongest control selected by sustained
+cost. The eager comparison remains visible as a diagnostic. Captures remain nonpromoting.
 Each sustained process mean divides total elapsed burst time by total calls;
 reported cohort means are medians of independent process means.

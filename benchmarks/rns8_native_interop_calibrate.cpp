@@ -42,7 +42,7 @@ int main(int argc,char** argv){try {
       repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),seed=number(c,"seed",0,UINT32_MAX);
   const uint64_t budget=number(c,"max_payload_bytes",8,UINT64_C(1)<<40);const bool u=c.at("unsigned_inputs");
   const std::string mode=c.at("mode"),dataset=c.at("dataset");const bool full=dataset=="fullwidth",device=mode=="device-stream" || mode=="device-graph",graph=mode=="device-graph",resident=mode=="resident-control";
-  if((!device && !resident && mode!="host-roundtrip") || (dataset!="small" && !full) || uint64_t(m)*n*k>134217728)throw std::invalid_argument("route/work");
+  if((!device && !resident && mode!="host-roundtrip" && mode!="host-scalar-first") || (dataset!="small" && !full) || uint64_t(m)*n*k>134217728)throw std::invalid_argument("route/work");
   const uint64_t ac=uint64_t(m)*k,bc=uint64_t(k)*n,cc=uint64_t(m)*(n+3)*3,input_bytes=(ac+bc)*8,output_bytes=cc*8;
   const uint64_t device_payload=(ac+bc+uint64_t(m)*n)*p+input_bytes+output_bytes+8+(ac+bc)*p+32+uint64_t(m)*n*24+4;
   const uint64_t host_payload=input_bytes+2*output_bytes+12;
@@ -68,7 +68,7 @@ int main(int argc,char** argv){try {
   rns8_context_options co{};co.struct_size=sizeof(co);co.abi_version=RNS8_ABI_VERSION;co.requested_backend=RNS8_BACKEND_HIP_DIRECT;check(rns8_create_context(0,&co,&ctx));
   uint64_t allocation_epoch=0;check(rns8_reset_allocation_peaks(ctx,&allocation_epoch));
   const auto owned_before=observe(ctx);
-  rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.requested_backend=co.requested_backend;gd.semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;gd.bound_kind=RNS8_BOUND_NONE;gd.m=m;gd.n=n;gd.k=k;gd.max_prefix=p;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;
+  rns8_gemm_desc gd{};gd.struct_size=sizeof(gd);gd.abi_version=RNS8_ABI_VERSION;gd.requested_backend=co.requested_backend;gd.semantics=u?RNS8_EXACT_WIDE_UNSIGNED:RNS8_EXACT_WIDE_SIGNED;gd.bound_kind=RNS8_BOUND_NONE;gd.m=m;gd.n=n;gd.k=k;gd.max_prefix=p;gd.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND|(mode!="host-roundtrip"?RNS8_PLAN_EXACT_SCALAR_FIRST:0);
   check(rns8_create_plan(ctx,&gd,&plan));check(rns8_create_workspace(ctx,plan,&work));
   for(unsigned i=0;i<3;++i){const uint32_t rows=i==1?k:m,cols=i==0?k:n;rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=gd.semantics;md.bound_kind=RNS8_BOUND_NONE;md.rows=rows;md.cols=cols;md.logical_ld=cols;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.max_prefix=p;check(rns8_create_matrix(ctx,&md,&matrices[i]));
     if(device || (resident && i==2)){rns8_native_device_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;d.element_type=i<2?(u?RNS8_NATIVE_DEVICE_U64:RNS8_NATIVE_DEVICE_I64):(u?RNS8_NATIVE_DEVICE_UNSIGNED_LIMBS:RNS8_NATIVE_DEVICE_SIGNED_LIMBS);d.limb_count=i<2?0:3;d.access=i<2?RNS8_NATIVE_DEVICE_READ:RNS8_NATIVE_DEVICE_WRITE;d.allocation_base=allocations[i];d.allocation_bytes=i==0?ac*8:i==1?bc*8:output_bytes;d.rows=rows;d.cols=cols;d.ld=i<2?cols:n+3;d.device_id=0;d.producer_complete=1;d.policy=RNS8_NATIVE_DEVICE_BORROW;d.owner_identity=i+1;d.generation=1;d.owner=&owners[i];d.acquire=acquire;d.release=release;check(rns8_create_native_device_lease(ctx,&d,&leases[i]));}}
@@ -120,7 +120,8 @@ int main(int argc,char** argv){try {
       owned_after_cleanup.epoch!=allocation_epoch || !same_live_payload(owned_before.device,owned_after_cleanup.device) ||
       !same_live_payload(owned_before.pinned_host,owned_after_cleanup.pinned_host))throw std::runtime_error("owned payload did not retire to baseline");
   check(rns8_destroy_context(ctx));for(auto s:streams)if(s)hipcheck(hipStreamDestroy(s));for(auto a:allocations)hipcheck(hipFree(a));
-  std::cout<<json({{"schema","rns8_native_interop_microcase_v2"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"selected_compute_kernel",pi.selected_kernel},
+  std::cout<<json({{"schema","rns8_native_interop_microcase_v3"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"selected_compute_kernel",pi.selected_kernel},
+    {"exact_proof_policy",mode=="host-roundtrip"?"default_eager":"scalar_first"},
     {"output_boundary","external_producer_to_external_consumer_padded_three_limbs"},{"dataset_replayed_unchanged",true},{"external_generations_advanced",true},{"resident_control_excludes_input_binding",resident},
     {"host_payload_bytes_per_call",device||resident?0:2*input_bytes+uint64_t(m)*n*24+output_bytes},{"compact_status_bytes_per_call",device?12:resident?4:4},{"consumer_validation_bytes",8},{"validation_payload_bytes",output_bytes},
     {"preflight_device_payload_estimate_bytes",device_payload},{"plan_workspace_bytes",pi.workspace_required_bytes},{"preflight_host_payload_estimate_bytes",host_payload},{"memory_scope","conservative_all_route_logical_preflight_excludes_Boost_library_heap_driver_opaque_events_graphs_workspace_separate"},{"launch_count",nullptr},{"launch_count_scope","not_inferred_from_api_calls"},

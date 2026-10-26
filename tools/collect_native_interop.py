@@ -16,7 +16,7 @@ from collect_native_calibration import strict_json
 from collect_int4_calibration import collection_plan
 from collect_native_integrity import MODULI, positive
 
-MODES = ('device-stream', 'device-graph', 'host-roundtrip', 'resident-control')
+MODES = ('device-stream', 'device-graph', 'host-roundtrip', 'host-scalar-first', 'resident-control')
 
 
 def validate_case(c):
@@ -45,7 +45,8 @@ def validate_case(c):
 def validate_capture(c, entry):
     case=validate_case(entry['case']);m,n,k,p=(case[x] for x in ('m','n','k','prefix'));mode=case['mode'];device=mode.startswith('device-');resident=mode=='resident-control'
     ac,bc,cc=m*k,k*n,m*(n+3)*3
-    fixed=dict(schema='rns8_native_interop_microcase_v2',case=case,run_id=entry['run_id'],
+    fixed=dict(schema='rns8_native_interop_microcase_v3',case=case,run_id=entry['run_id'],
+        exact_proof_policy='default_eager' if mode=='host-roundtrip' else 'scalar_first',
         output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,resident_control_excludes_input_binding=resident,
         host_payload_bytes_per_call=0 if device or resident else 2*(ac+bc)*8+m*n*24+cc*8,compact_status_bytes_per_call=12 if device else 4,
         consumer_validation_bytes=8,validation_payload_bytes=cc*8,preflight_device_payload_estimate_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,
@@ -135,8 +136,14 @@ def summarize(observations):
             if selected and len({r['independent_run'] for r in selected})<2:
                 raise ValueError('independent process evidence')
             if selected:medians[mode]={metric:statistics.median(r[metric] for r in selected) for metric in ('setup_us','p50_us','p95_us','sustained_us')}
-        ratios={mode:{metric:medians[mode][metric]/medians['host-roundtrip'][metric] for metric in ('p50_us','p95_us','sustained_us')} for mode in ('device-stream','device-graph') if mode in medians and 'host-roundtrip' in medians}
-        result.append(dict(identity=json.loads(key),observations=rows,median_process_metrics=medians,device_to_host_roundtrip_cost_ratios=ratios,resident_control_is_input_binding_excluded_floor=True,promotion_eligible=False))
+        def ratios(control):
+            return {mode:{metric:medians[mode][metric]/medians[control][metric] for metric in ('p50_us','p95_us','sustained_us')} for mode in ('device-stream','device-graph') if mode in medians and control in medians}
+        hosts=[mode for mode in ('host-roundtrip','host-scalar-first') if mode in medians]
+        strongest=min(hosts,key=lambda mode:(medians[mode]['sustained_us'],mode)) if hosts else None
+        result.append(dict(identity=json.loads(key),observations=rows,median_process_metrics=medians,
+            device_to_host_roundtrip_cost_ratios=ratios('host-roundtrip'),device_to_scalar_first_host_cost_ratios=ratios('host-scalar-first'),
+            strongest_matched_host_control=strongest,device_to_strongest_host_cost_ratios=ratios(strongest),
+            eager_control_can_include_extra_proof_work=True,resident_control_is_input_binding_excluded_floor=True,promotion_eligible=False))
     return result
 
 
