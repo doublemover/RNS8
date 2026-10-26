@@ -335,6 +335,18 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
             LABELS "hip;conversion;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
         endforeach()
       endforeach()
+      foreach(_owned_crt_policy IN ITEMS garner direct balanced group_local group_split)
+        foreach(_owned_crt_sign IN ITEMS signed unsigned)
+          foreach(_owned_crt_scope IN ITEMS resident cold)
+            set(_owned_crt_candidate public_owned_${_owned_crt_policy}_${_owned_crt_sign})
+            add_test(NAME conversion_${_owned_crt_candidate}_${_owned_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_owned_crt_candidate} 17 20 2 1
+                ctest-owned-${_owned_crt_policy}-${_owned_crt_sign}-${_owned_crt_scope} ${_owned_crt_scope})
+            set_tests_properties(conversion_${_owned_crt_candidate}_${_owned_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
       foreach(_public_crt_candidate IN ITEMS public_garner_signed public_garner_unsigned public_quarter_signed public_quarter_unsigned)
         foreach(_public_crt_prefix IN ITEMS 3 9)
           foreach(_public_crt_scope IN ITEMS resident cold)

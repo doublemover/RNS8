@@ -1,12 +1,12 @@
 // Public owner controls share the conversion executable/capture schema. Every
 // timed call crosses the real public proof/export/publication boundary.
 struct PublicCrtOwner {
-  rns8_context* ctx=nullptr;rns8_plan* plan=nullptr;rns8_matrix* matrix=nullptr;rns8_quarter_crt_export* quarter=nullptr;
+  rns8_context* ctx=nullptr;rns8_plan* plan=nullptr;rns8_matrix* matrix=nullptr;rns8_quarter_crt_export* quarter=nullptr;rns8_crt_export* checked=nullptr;
   ~PublicCrtOwner(){if(ctx)(void)rns8::detail::hip_direct_synchronize(ctx->device_id);
-    if(quarter)(void)rns8_destroy_quarter_crt_export(quarter);if(matrix)(void)rns8_destroy_matrix(matrix);if(plan)(void)rns8_destroy_plan(plan);if(ctx)(void)rns8_destroy_context(ctx);}
-  void close(){if(quarter){check(rns8_destroy_quarter_crt_export(quarter));quarter=nullptr;}if(matrix){check(rns8_destroy_matrix(matrix));matrix=nullptr;}
+    if(checked)(void)rns8_destroy_crt_export(checked);if(quarter)(void)rns8_destroy_quarter_crt_export(quarter);if(matrix)(void)rns8_destroy_matrix(matrix);if(plan)(void)rns8_destroy_plan(plan);if(ctx)(void)rns8_destroy_context(ctx);}
+  void close(){if(checked){check(rns8_destroy_crt_export(checked));checked=nullptr;}if(quarter){check(rns8_destroy_quarter_crt_export(quarter));quarter=nullptr;}if(matrix){check(rns8_destroy_matrix(matrix));matrix=nullptr;}
     if(plan){check(rns8_destroy_plan(plan));plan=nullptr;}if(ctx){check(rns8_destroy_context(ctx));ctx=nullptr;}}
-  void initialize(const std::vector<uint64_t>& native,uint32_t prefix,bool sign,bool quotient) {
+  void initialize(const std::vector<uint64_t>& native,uint32_t prefix,bool sign,bool quotient,int algorithm=-1) {
     rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     check(rns8_create_context(0,&options,&ctx));rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
     d.semantics=sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;d.requested_backend=RNS8_BACKEND_HIP_DIRECT;
@@ -19,22 +19,43 @@ struct PublicCrtOwner {
     else check(rns8_pack_u64(ctx,matrix,native.data(),native.size(),1));
     if(quotient){rns8_quarter_crt_desc q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.mode=sign?0:1;q.limb_count=1;q.max_scratch_bytes=uint64_t(native.size())*16;
       check(rns8_prepare_quarter_crt_export(ctx,plan,matrix,&q,&quarter));}
+    if(algorithm>=0){rns8_crt_export_desc q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;q.algorithm=uint32_t(algorithm);q.mode=sign?0:1;q.limb_count=1;
+      q.max_scratch_bytes=uint64_t(native.size())*(40+(algorithm==4?8*((prefix+7)/8):0))+4;
+      check(rns8_prepare_crt_export(ctx,plan,matrix,&q,&checked));}
   }
   void execute(std::vector<uint64_t>& output,bool sign) {
-    if(quarter)check(rns8_export_quarter_crt_limbs(quarter,output.data(),plan->desc.n+8));
+    if(checked)check(rns8_export_crt_limbs(checked,output.data(),plan->desc.n+8));
+    else if(quarter)check(rns8_export_quarter_crt_limbs(quarter,output.data(),plan->desc.n+8));
     else if(sign)check(rns8_export_exact_wide_signed_limbs(ctx,plan,matrix,output.data(),plan->desc.n+8,1));
     else check(rns8_export_exact_wide_unsigned_limbs(ctx,plan,matrix,output.data(),plan->desc.n+8,1));
   }
+  nlohmann::json checked_info() const {
+    rns8_crt_export_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_get_crt_export_info(checked,&info));
+    nlohmann::json groups=nlohmann::json::array();for(uint32_t g=0;g<info.group_count;++g)
+      groups.push_back({{"id",g},{"channel_mask",info.group_channel_masks[g]},{"canonical_modulus",std::to_string(info.group_products[g])}});
+    return {{"algorithm",info.algorithm},{"mode",info.mode},{"limb_count",info.limb_count},{"prefix",info.prefix},{"groups",groups},
+      {"producer_order",info.producer_order},{"source_instance",info.source_instance},{"source_generation",info.source_generation},
+      {"successful_exports",info.successful_exports},{"retained_host_bytes",info.retained_host_bytes},{"retained_device_bytes",info.retained_device_bytes},
+      {"group_scratch_bytes",info.group_scratch_bytes},{"certificate_sha256",info.certificate_sha256}};
+  }
 };
+int public_crt_algorithm(const std::string& candidate) {
+  const char* policies[]={"garner","direct","balanced","group_local","group_split"};
+  for(int i=0;i<5;++i)for(const char* sign:{"signed","unsigned"})
+    if(candidate==std::string("public_owned_")+policies[i]+"_"+sign)return i;
+  return -1;
+}
 int public_crt_case(const std::string& candidate,uint32_t cells,uint32_t prefix,uint32_t repeats,uint32_t warmups,
                     const std::string& run_id,const std::string& scope) {
-  const bool sign=candidate=="public_quarter_signed" || candidate=="public_garner_signed";
+  const int algorithm=public_crt_algorithm(candidate);
+  const bool sign=candidate.size()>=7 && candidate.compare(candidate.size()-7,7,"_signed")==0;
   const bool quotient=candidate.rfind("public_quarter_",0)==0;
-  if((candidate!="public_quarter_signed" && candidate!="public_quarter_unsigned" && candidate!="public_garner_signed" && candidate!="public_garner_unsigned") ||
+  if((algorithm<0 && candidate!="public_quarter_signed" && candidate!="public_quarter_unsigned" && candidate!="public_garner_signed" && candidate!="public_garner_unsigned") ||
      (scope!="resident" && scope!="cold") || run_id.empty() || run_id.size()>128 || run_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")!=std::string::npos)
     throw std::invalid_argument("invalid public CRT case");
   const uint64_t output_bytes=uint64_t(cells)*8+64,source_bytes=uint64_t(cells)*prefix;
-  const uint64_t envelope=source_bytes*3+output_bytes*5+uint64_t(cells)*8+16384,budget=UINT64_C(768)*1024*1024;
+  const uint64_t owner_bytes=algorithm<0?0:uint64_t(cells)*(40+(algorithm==4?8*((prefix+7)/8):0))+4;
+  const uint64_t envelope=source_bytes*3+output_bytes*5+uint64_t(cells)*8+owner_bytes+16384,budget=UINT64_C(768)*1024*1024;
   if(envelope>budget)throw std::invalid_argument("public CRT payload budget");
   const auto oracle_start=Clock::now();const cpp_int product=modulus_product(prefix);
   const cpp_int bound=std::min(cpp_int(product/4),(cpp_int(1)<<(sign?63:64))-1);
@@ -50,14 +71,16 @@ int public_crt_case(const std::string& candidate,uint32_t cells,uint32_t prefix,
   const auto input_hash=checksum(residues.data(),residues.size()),output_hash=checksum(expected.data(),output_bytes);
   const double oracle_ns=std::chrono::duration<double,std::nano>(Clock::now()-oracle_start).count();
   rns8_device_info device{};check(hip_direct_probe(0,device));hip_direct_timing_set_enabled(false);
-  PublicCrtOwner resident;const auto setup_start=Clock::now();if(scope=="resident")resident.initialize(native,prefix,sign,quotient);
+  PublicCrtOwner resident;const auto setup_start=Clock::now();if(scope=="resident")resident.initialize(native,prefix,sign,quotient,algorithm);
   const double setup_ns=std::chrono::duration<double,std::nano>(Clock::now()-setup_start).count();
   const auto source_audit=[&](PublicCrtOwner& owner){check(hip_direct_copy_device_to_host(0,audit.data(),owner.matrix->hip_residues,source_bytes));
     if(audit!=residues)throw std::runtime_error("public CRT changed source");};
-  const auto execute=[&](){if(scope=="resident")resident.execute(observed,sign);else{PublicCrtOwner cold;cold.initialize(native,prefix,sign,quotient);cold.execute(observed,sign);cold.close();}};
+  const auto execute=[&](){if(scope=="resident")resident.execute(observed,sign);else{PublicCrtOwner cold;cold.initialize(native,prefix,sign,quotient,algorithm);cold.execute(observed,sign);cold.close();}};
   const auto prepare=[&](){std::fill(observed.begin(),observed.end(),UINT64_C(0x6363636363636363));};
   const auto verify=[&](){if(observed!=expected)throw std::runtime_error("public CRT complete output/canary mismatch");if(scope=="resident")source_audit(resident);};
-  if(scope=="cold"){PublicCrtOwner audit_owner;audit_owner.initialize(native,prefix,sign,quotient);audit_owner.execute(observed,sign);source_audit(audit_owner);audit_owner.close();}
+  nlohmann::json checked_info;
+  if(scope=="cold"){PublicCrtOwner audit_owner;audit_owner.initialize(native,prefix,sign,quotient,algorithm);audit_owner.execute(observed,sign);source_audit(audit_owner);
+    if(audit_owner.checked)checked_info=audit_owner.checked_info();audit_owner.close();}
   for(uint32_t w=0;w<warmups;++w){prepare();execute();verify();}
   nlohmann::json samples=nlohmann::json::array();
   for(uint32_t sample=0;sample<repeats;++sample){prepare();hip_direct_timing_reset();hip_direct_timing_set_enabled(true);
@@ -89,7 +112,10 @@ int public_crt_case(const std::string& candidate,uint32_t cells,uint32_t prefix,
       {"elapsed_ns",elapsed},{"mean_call_ns",elapsed/calls},{"final_exact_reference_passed",true},
       {"scope",scope=="cold"?"fresh_buffers_transfer_inclusive_no_intermediate_reference":"resident_same_buffers_no_intermediate_poison_or_reference"}}}};
   if(scope=="resident"){report["retained_public_device_payload_bytes"]=resident.matrix->hip_residue_bytes+resident.matrix->hip_export_bytes+resident.matrix->hip_status_bytes+resident.matrix->hip_upload_bytes;
+    if(resident.checked)checked_info=resident.checked_info();
     if(resident.quarter){rns8_quarter_crt_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_get_quarter_crt_info(resident.quarter,&info));
       report["quarter_owner_payload_bytes"]=info.retained_payload_bytes;report["quarter_certificate_sha256"]=info.certificate_sha256;report["delayed_digits"]=info.delayed_digits;}}
+  if(algorithm>=0){report["checked_owner"]=checked_info;report["checked_owner_info_scope"]=scope=="resident"?"final_resident_owner":"separate_untimed_cold_audit_owner";
+    report["checked_owner_payload_reservation_bytes"]=owner_bytes;report["payload_envelope_scope"]="modeled_buffers_and_retained_payloads_excludes_opaque_owner_metadata";}
   resident.close();std::cout<<report.dump(2)<<'\n';return 0;
 }

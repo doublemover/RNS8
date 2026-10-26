@@ -198,3 +198,25 @@ CPU allocation-failure sweeps cover staged publication and quarter-export reader
 unwinding. Focused MSVC and HIP syntax checks pass; execution and matched public
 export/whole-GEMM measurements remain deferred. Existing stage-only gains retain
 their original artifacts and do not qualify this new owner.
+
+
+### Matched public policy calibration
+
+`public_owned_{garner,direct,balanced,group_local,group_split}_{signed,unsigned}`
+controls in the existing `rns8-crt-calibrate` use the prepared checked integer
+owner. They share the same quarter-bounded native dataset, one-limb output and
+complete host publication boundary with `public_garner_*` and
+`public_quarter_*`. `checked-public-exports.json` covers short and large payloads,
+prefixes 1/3/9/20, both signedness contracts and cold/resident ownership.
+
+Cold calls include real context/plan creation, packing, owner preparation,
+export and checked destruction; resident calls include current-proof validation,
+canonical root production, checked decoding, completion, status/output readback
+and caller publication. Independent reference and source audits are outside all
+production intervals, including the sustained burst. The collector independently
+replays the full dataset and verifies algorithm, group channel masks/products,
+retained host/device/group payload, source identity, certificate and completed
+export counts. A separate untimed cold owner supplies cold metadata; it is not
+reported as an owner retained across timed calls. Logical envelopes charge the
+new root/output/group payload, and exclude opaque owner/driver metadata. These
+controls are authored and unexecuted; there are no new performance results.

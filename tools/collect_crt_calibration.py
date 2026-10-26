@@ -24,7 +24,9 @@ BASE_CANDIDATES=("garner", "direct", "balanced", "fixed_dot4", "tile_balanced", 
 QUARTER_CANDIDATES=tuple(kind+sign for kind in ("quarter_","garner_quarter_","direct_quarter_","balanced_quarter_",
     "quarter_narrow_","garner_narrow_","public_quarter_","public_garner_") for sign in ("signed","unsigned"))
 GROUP_CANDIDATES=("group_crt_local","group_crt_split","group_crt_split_shuffled")
-CANDIDATES=BASE_CANDIDATES+QUARTER_CANDIDATES+GROUP_CANDIDATES
+OWNED_POLICIES=("garner","direct","balanced","group_local","group_split")
+OWNED_CANDIDATES=tuple("public_owned_"+policy+"_"+sign for policy in OWNED_POLICIES for sign in ("signed","unsigned"))
+CANDIDATES=BASE_CANDIDATES+QUARTER_CANDIDATES+GROUP_CANDIDATES+OWNED_CANDIDATES
 
 SCOPES=("resident", "cold")
 MASK=(1 << 64)-1
@@ -54,7 +56,7 @@ def load_cases(path):
 def contract(case,run_id,repeats,warmups):
     candidate,cells,prefix,scope=(case[key] for key in ("candidate","cells","prefix","scope"))
     public=candidate.startswith("public_")
-    quarter=candidate in QUARTER_CANDIDATES;narrow="narrow" in candidate or public
+    quarter=candidate in QUARTER_CANDIDATES+OWNED_CANDIDATES;narrow="narrow" in candidate or public
     importing=candidate.startswith("import_");tile=candidate.startswith("tile_")
     cols=256 if cells%256==0 else cells;rows=cells//cols
     padded="_padded_" in candidate;ld=cols+(7 if padded else 0);native_bytes=rows*ld*8
@@ -122,13 +124,20 @@ def contract(case,run_id,repeats,warmups):
             input_contract="engine_current_quarter_bound_residue_matrix",logical_rows=1,logical_cols=cells,logical_ld=cells,
             logical_payload_envelope_bytes=plain*3+output*5+cells*8+16384,
             timing_scope="public_context_plan_pack_prepare_export_checked_free" if scope=="cold" else "public_current_source_checked_export_stage_readback_publish")
+        if candidate in OWNED_CANDIDATES:
+            policy=OWNED_POLICIES.index(candidate[len("public_owned_"):].rsplit("_",1)[0])
+            owner_bytes=cells*(40+(8*group_count if policy==4 else 0))+4
+            result.update(checked_owner_payload_reservation_bytes=owner_bytes,
+                checked_owner_info_scope="final_resident_owner" if scope=="resident" else "separate_untimed_cold_audit_owner",
+                payload_envelope_scope="modeled_buffers_and_retained_payloads_excludes_opaque_owner_metadata")
+            result["logical_payload_envelope_bytes"]+=owner_bytes
     return result
 
 
 def dataset(case):
     """Independent integer replay of every input/output byte, including canaries."""
     importing=case["candidate"].startswith("import_");signed=case["candidate"].endswith("_signed")
-    quarter=case["candidate"] in QUARTER_CANDIDATES;narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
+    quarter=case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES;narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
     cells,prefix=case["cells"],case["prefix"];state=3903;product=math.prod(DEFAULT_MODULI[:prefix])
     cols=256 if cells%256==0 else cells;rows=cells//cols;ld=cols+(7 if "_padded_" in case["candidate"] else 0)
     native=bytearray([99])*(rows*ld*8);plain=bytearray(cells*prefix)
@@ -204,7 +213,7 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         demand(same(capture.get('resident_completion_count'),warmups+2*repeats+sustained['calls'] if case['scope']=='resident' else 0),"missing completed resident calls")
     demand(sustained.get("scope")==("fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else
         "resident_same_buffers_no_intermediate_poison_or_reference"),"sustained scope mismatch")
-    if case["candidate"] in QUARTER_CANDIDATES:
+    if case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES:
         narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
         bound=math.prod(DEFAULT_MODULI[:case["prefix"]])//4
         if narrow:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
@@ -225,8 +234,36 @@ def validate_capture(capture,case,run_id,repeats,warmups):
                 and q.get("error_numerator")==168940 and q.get("error_denominator")==33554432
                 and q.get("target_execution")=="not_run" and q.get("source_scope")=="private_fixture_immutable_for_process"
                 and positive(q.get("setup_ns")) and re.fullmatch(r"[0-9a-f]{64}",q.get("sha256","")),"quarter proof contract mismatch")
+    if case["candidate"] in OWNED_CANDIDATES:
+        validate_checked_owner(capture,case,warmups+2*repeats+sustained["calls"] if case["scope"]=="resident" else 1)
     validate_provenance(capture.get("build_manifest"))
     return {key:capture[key] for key in ("build_manifest","device","target","runtime_version")}
+
+
+def checked_owner_contract(case):
+    policy=OWNED_POLICIES.index(case["candidate"][len("public_owned_"):].rsplit("_",1)[0])
+    prefix,cells=case["prefix"],case["cells"];count=(prefix+7)//8
+    groups=[]
+    if policy>=3:
+        for group in range(count):
+            channels=[p for p in range(prefix) if p*count//prefix==group]
+            groups.append(dict(id=group,channel_mask=sum(1 << p for p in channels),
+                canonical_modulus=str(math.prod(DEFAULT_MODULI[p] for p in channels))))
+    scratch=cells*8*count if policy==4 else 0
+    return dict(algorithm=policy,mode=0 if case["candidate"].endswith("_signed") else 1,
+        limb_count=1,prefix=prefix,groups=groups,producer_order=0,
+        retained_host_bytes=cells*8,retained_device_bytes=cells*32+scratch+4,group_scratch_bytes=scratch)
+
+
+def validate_checked_owner(capture,case,exports):
+    info=capture.get("checked_owner")
+    demand(type(info) is dict,"missing prepared integer owner identity")
+    for key,value in checked_owner_contract(case).items():
+        demand(key in info and same(info[key],value),f"checked owner mismatch: {key}")
+    for key in ("source_instance","source_generation"):
+        demand(integer(info.get(key),1,MASK),f"missing checked source identity: {key}")
+    demand(same(info.get("successful_exports"),exports),"checked owner completed export count mismatch")
+    demand(re.fullmatch(r"[0-9a-f]{64}",info.get("certificate_sha256","")),"checked owner certificate missing")
 
 
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()

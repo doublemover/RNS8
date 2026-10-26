@@ -1055,6 +1055,14 @@
             "src/backend_hip_direct/hip_direct_group_crt_kernels.cuh",
             "src/backend_hip_direct/hip_backend_group_crt.inc"
           ]
+        },
+        {
+          "summary": "Authored matched public prepared Garner/direct/balanced/group-local/group-split narrow-export calibration in the existing executable and collector. Both signedness contracts, cold/resident ownership, independent full-byte replay and exact retained-payload/group/source/certificate/export-count validation. Syntax only; no measurements or qualification.",
+          "files": [
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/checked-public-exports.json"
+          ]
         }
       ],
       "regressions": [
@@ -2927,6 +2935,14 @@
             "benchmarks/rns8_crt_calibrate.cpp",
             "tools/collect_crt_calibration.py",
             "benchmarks/conversion-calibration/signed-pack-crossovers.json"
+          ]
+        },
+        {
+          "summary": "Authored matched public prepared Garner/direct/balanced/group-local/group-split narrow-export calibration in the existing executable and collector. Both signedness contracts, cold/resident ownership, independent full-byte replay and exact retained-payload/group/source/certificate/export-count validation. Syntax only; no measurements or qualification.",
+          "files": [
+            "benchmarks/rns8_crt_public_cases.inc",
+            "tools/collect_crt_calibration.py",
+            "benchmarks/conversion-calibration/checked-public-exports.json"
           ]
         }
       ],

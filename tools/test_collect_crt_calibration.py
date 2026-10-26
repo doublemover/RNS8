@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,OWNED_CANDIDATES,SCOPES,checked_owner_contract,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
@@ -23,7 +23,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
             exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
         sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,elapsed_ns=320000000,mean_call_ns=20000000.,final_exact_reference_passed=True,
             scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else "resident_same_buffers_no_intermediate_poison_or_reference"))
-    if case["candidate"] in QUARTER_CANDIDATES:
+    if case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES:
         import math
         from modulus_set_search import DEFAULT_MODULI
         narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
@@ -40,6 +40,9 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
             output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
             target_execution="not_run",source_scope="private_fixture_immutable_for_process")
     if not case['candidate'].startswith('public_'):capture['resident_completion_count']=warmups+2*repeats+16 if case['scope']=='resident' else 0
+    if case["candidate"] in OWNED_CANDIDATES:
+        capture["checked_owner"]=dict(checked_owner_contract(case),source_instance=11,source_generation=2,
+            successful_exports=warmups+2*repeats+16 if case["scope"]=="resident" else 1,certificate_sha256="b"*64)
     if case['candidate'] in GROUP_CANDIDATES:capture['group_plan_setup_ns']=1000
     return capture
 
@@ -56,6 +59,26 @@ def successful(command,**kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_checked_public_policies_share_the_public_garner_dataset_and_charge_retained_payloads(self):
+        for candidate in OWNED_CANDIDATES:
+            for prefix in (1,8,9,16,17,20):
+                for scope in SCOPES:
+                    case=dict(BASE,candidate=candidate,prefix=prefix,scope=scope)
+                    capture=fixture(case);validate_capture(capture,case,'fixture-run',2,1)
+                    baseline=dict(case,candidate='public_garner_'+('signed' if candidate.endswith('_signed') else 'unsigned'))
+                    self.assertEqual(dataset(case),dataset(baseline))
+                    info=capture['checked_owner']
+                    self.assertEqual(info['retained_host_bytes']+info['retained_device_bytes'],capture['checked_owner_payload_reservation_bytes'])
+                    self.assertEqual(capture['logical_payload_envelope_bytes']-contract(baseline,'fixture-run',2,1)['logical_payload_envelope_bytes'],capture['checked_owner_payload_reservation_bytes'])
+                    for key,value in [('algorithm',8),('mode',2),('retained_host_bytes',0),('retained_device_bytes',0),
+                                      ('group_scratch_bytes',True),('source_generation',0),('successful_exports',0),('certificate_sha256','')]:
+                        bad=deepcopy(capture);bad['checked_owner'][key]=value
+                        with self.subTest(candidate=candidate,prefix=prefix,scope=scope,key=key),self.assertRaises(ValueError):
+                            validate_capture(bad,case,'fixture-run',2,1)
+                    if info['groups']:
+                        bad=deepcopy(capture);bad['checked_owner']['groups'][0]['channel_mask']=0
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
     def test_group_crt_retains_canonical_group_ids_physical_scratch_and_root_semantics(self):
         for candidate in GROUP_CANDIDATES:
             case=dict(BASE,candidate=candidate,prefix=20)
@@ -71,6 +94,14 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
             bad=deepcopy(c);bad.pop('group_plan_setup_ns')
             with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
+    def test_checked_public_manifest_includes_matched_maintained_controls(self):
+        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        cases=load_cases(root/"checked-public-exports.json")
+        self.assertEqual(len(cases),224)
+        self.assertEqual({c['candidate'] for c in cases},set(OWNED_CANDIDATES)|{'public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'})
+        self.assertEqual({c['cells'] for c in cases},{257,1048576})
+        self.assertEqual({c['prefix'] for c in cases},{1,3,9,20})
 
     def test_enqueue_only_resident_times_cannot_be_complete_conversion_costs(self):
         c=fixture();validate_capture(c,BASE,'fixture-run',2,1)
