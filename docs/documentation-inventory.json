@@ -5286,6 +5286,10 @@
           "reference": "local-validation-20261025.md"
         },
         {
+          "source": "docs/native-device-interop.md",
+          "reference": "local-validation-20261025.md#generation-bound-adaptive-summaries"
+        },
+        {
           "source": "docs/out-of-core-panels.md",
           "reference": "local-validation-20261025.md#allocation-and-global-control-integration-retry"
         },

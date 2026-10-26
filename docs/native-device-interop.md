@@ -107,7 +107,8 @@ The installed `examples/device-native` consumer supplies custom HIP producer and
 consumer kernels around public exact GEMM. It independently checks all output
 and padding and separately labels validation-only host payload readback. Its
 standalone CMake recipe uses explicit hipcc object compilation and exported
-static/shared targets; build/runtime qualification is pending the final batch.
+static/shared targets. These installed consumers pass the **4e21e9c** qualification
+recorded in [local validation](local-validation-20261025.md#generation-bound-adaptive-summaries).
 
 ## Copy-owned read leases
 
@@ -157,10 +158,10 @@ staging allocation; four-byte status observation precedes logical-row D2D
 commit. Padding stays untouched. Ownership, failed-drain retention and external
 consumer readiness follow the scalar lease contract.
 
-Authored descriptor and GPU/Boost fixtures cover widths 1, 2, 3 and 32,
+Descriptor and GPU/Boost fixtures cover widths 1, 2, 3 and 32,
 full-width input products, signed negative results, range rejection, padding,
-owner release and exact payload/status transfer counters. Execution is deferred
-to the consolidated campaign.
+owner release and exact payload/status transfer counters. The applicable native
+GPU cases pass the full **4e21e9c** local qualification.
 
 
 ## Prepared import/export and producer readiness
@@ -215,10 +216,12 @@ verified-bound mode, prefix and width. Cancellation never authorizes consumption
 The installed device-native example's `--prepared` mode demonstrates this path
 using five borrowed streams, custom device producer/consumer kernels, current
 readiness events, captured import/GEMM/export bodies and one final host observation.
-Its setup and validation traffic are labeled separately. New all-prefix/width,
+Its setup and validation traffic are labeled separately. All-prefix/width,
 small-bound rejection, graph-generation, independent reader, alias, padding,
-lease lifetime and failure-propagation fixtures are authored, **not executed**.
-No overlap, latency or throughput benefit is claimed from this source work.
+lease lifetime and safe status-failure propagation fixtures pass the seven native
+GPU cases at **4e21e9c**. Real failed-drain device-fault qualification remains
+separate from those safe failures and deterministic cleanup mocks. Correctness
+tests alone do not establish an overlap, latency or throughput benefit.
 
 
 ## Matched application cost experiments
@@ -234,6 +237,13 @@ Compare against the strongest same-work host control; an eager-only comparison
 can charge host metadata propagation that conservative device import does not
 produce. Normal host pack still constructs its documented input facts, so a
 whole-transaction benefit includes conversion/proof work as well as payload copies.
+All five routes also use the same grouped-prefix prepared compute provider,
+with borrowed-stream submission or owned-graph replay. Ordinary synchronous
+GEMM can select a different persistent-small kernel, so it is not used to isolate
+interop cost. The resident floor pipelines its product/export with one final
+observation. Captures distinguish the ordinary plan's default kernel identity
+from this source-bound provider; a dynamically observed symbol remains unknown
+until traced.
 Every timed call advances participating external owner generations, including
 unchanged values; import independently verifies its envelope. The consumer digests every
 output limb. An independent Boost product and padding/digest audit run outside
@@ -254,7 +264,8 @@ device candidates, one for the resident floor, zero for the host control).
 The two true device candidates issue imports, product, and export across
 nondefault streams and observe only the final dependency completion.
 
-Version-three captures name the proof policy, payload transfers, compact status bytes (12 per
+Version-four captures name the proof policy, compute provider and execution mode,
+payload transfers, compact status bytes (12 per
 device candidate, 4 for the resident export), validation-only readback,
 conservative all-route preflight payload estimates, and separate plan workspace.
 Four same-epoch public allocation snapshots observe RNS8-owned requested device
@@ -285,8 +296,15 @@ resident control also retained unnecessary eager product proof propagation.
 The [reviewed v2 evidence](../metadata/native-interop-eager-controls-20261025.json)
 retains all observations, the initial failure, setup/first-call costs, payload
 peaks and this limit. The distinct v3 experiment adds the scalar-first host
-control, repairs the resident floor, and awaits measurement. No threshold was
-widened and the v2 captures will not be pooled into it.
+control and passes **100/100 captures / 58,715 transactions** at **433b89b**;
+both target builds and nine collector checks pass. None passes the fixed
+independent-process variance gate. Source review also identifies a remaining
+compute difference: its host/resident calls used synchronous dispatch while
+device calls used grouped prepared dispatch. The
+[mixed-compute record](../metadata/native-interop-mixed-compute-controls-20261025.json)
+retains every observation and qualifies no gain. The v4 experiment uses common
+prepared compute and awaits measurement. Neither earlier cohort will be pooled
+into it, and the fixed timing thresholds remain unchanged.
 
 The collector counterbalances independent processes, refuses reused process
 identities, checks immutable executable/build/environment provenance, requires

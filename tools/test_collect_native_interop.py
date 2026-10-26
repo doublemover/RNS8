@@ -13,13 +13,15 @@ class NativeInteropContracts(unittest.TestCase):
         empty=dict(live_bytes=0,peak_bytes=0,live_allocations=0,peak_allocations=0,allocation_calls=0,free_calls=0,allocated_bytes=0)
         live=dict(live_bytes=4096,peak_bytes=4096,live_allocations=1,peak_allocations=1,allocation_calls=1,free_calls=0,allocated_bytes=4096)
         retired=dict(live,live_bytes=0,live_allocations=0,free_calls=1)
-        return dict(schema='rns8_native_interop_microcase_v3',case=c,run_id='fixture',exact_proof_policy='scalar_first',output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,
+        return dict(schema='rns8_native_interop_microcase_v4',case=c,run_id='fixture',exact_proof_policy='scalar_first',output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,
+            compute_provider='public_prepared_direct_HIP_grouped_prefix',compute_execution_mode='owned_graph',
+            compute_provider_scope='source_bound_enqueue_prepared_to_hip_direct_enqueue_rns_no_publish_to_launch_rns_grouped_prefix_gemm',dynamic_compute_symbol=None,
             resident_control_excludes_input_binding=False,host_payload_bytes_per_call=0,compact_status_bytes_per_call=12,consumer_validation_bytes=8,validation_payload_bytes=cc*8,
             preflight_device_payload_estimate_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,preflight_host_payload_estimate_bytes=(ac+bc)*8+2*cc*8+12,
             memory_scope='conservative_all_route_logical_preflight_excludes_Boost_library_heap_driver_opaque_events_graphs_workspace_separate',launch_count=None,launch_count_scope='not_inferred_from_api_calls',
             participating_external_owners=3,owner_acquire_callbacks=3,owner_release_callbacks=3,
             timing_source='steady_clock_complete_host_observed_transaction',phase_scope='enqueue_and_observation_not_disjoint_device_kernel_durations',exact_reference_passed=True,owner_callbacks_exactly_once=True,promotion_eligible=False,
-            plan_workspace_bytes=4096,build_manifest={},target='gfx1100',device='fixture',execution_id='process1',artifact_capture=dict(unchanged_during_run=True,executable_sha256='a'*64),setup_us=20.,
+            plan_workspace_bytes=4096,plan_default_compute_kernel='fixture-plan',build_manifest={},target='gfx1100',device='fixture',execution_id='process1',artifact_capture=dict(unchanged_during_run=True,executable_sha256='a'*64),setup_us=20.,
             first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)],
             observed_allocation_scope='RNS8_owned_requested_device_and_pinned_payload_excludes_app_allocations_host_heap_allocator_and_driver',
             all_owned_payload_retired=True,external_application_device_requested_bytes=(ac+bc)*8+cc*8+8,
@@ -77,6 +79,7 @@ class NativeInteropContracts(unittest.TestCase):
         for mode,count in [('device-stream',3),('device-graph',3),('resident-control',1),('host-roundtrip',0),('host-scalar-first',0)]:
             c=self.capture();c['case']['mode']=mode;c['resident_control_excludes_input_binding']=mode=='resident-control'
             c['exact_proof_policy']='default_eager' if mode=='host-roundtrip' else 'scalar_first'
+            c['compute_execution_mode']='owned_graph' if mode=='device-graph' else 'borrowed_stream'
             c['compact_status_bytes_per_call']=12 if mode.startswith('device-') else 4
             m,n,k=(c['case'][x] for x in ('m','n','k'))
             c['host_payload_bytes_per_call']=2*(m*k+k*n)*8+m*n*24+m*(n+3)*24 if mode.startswith('host-') else 0
@@ -109,6 +112,7 @@ class NativeInteropContracts(unittest.TestCase):
             for run in range(2):
                 c=self.capture();c['case']['mode']=mode;c['execution_id']=f'{mode}-{run}'
                 c['exact_proof_policy']='default_eager' if mode=='host-roundtrip' else 'scalar_first'
+                c['compute_execution_mode']='owned_graph' if mode=='device-graph' else 'borrowed_stream'
                 if mode.startswith('host-'):
                     m,n,k=(c['case'][x] for x in ('m','n','k'))
                     c.update(compact_status_bytes_per_call=4,host_payload_bytes_per_call=2*(m*k+k*n)*8+m*n*24+m*(n+3)*24,

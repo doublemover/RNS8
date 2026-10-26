@@ -45,8 +45,10 @@ def validate_case(c):
 def validate_capture(c, entry):
     case=validate_case(entry['case']);m,n,k,p=(case[x] for x in ('m','n','k','prefix'));mode=case['mode'];device=mode.startswith('device-');resident=mode=='resident-control'
     ac,bc,cc=m*k,k*n,m*(n+3)*3
-    fixed=dict(schema='rns8_native_interop_microcase_v3',case=case,run_id=entry['run_id'],
+    fixed=dict(schema='rns8_native_interop_microcase_v4',case=case,run_id=entry['run_id'],
         exact_proof_policy='default_eager' if mode=='host-roundtrip' else 'scalar_first',
+        compute_provider='public_prepared_direct_HIP_grouped_prefix',compute_execution_mode='owned_graph' if mode=='device-graph' else 'borrowed_stream',
+        compute_provider_scope='source_bound_enqueue_prepared_to_hip_direct_enqueue_rns_no_publish_to_launch_rns_grouped_prefix_gemm',dynamic_compute_symbol=None,
         output_boundary='external_producer_to_external_consumer_padded_three_limbs',dataset_replayed_unchanged=True,external_generations_advanced=True,resident_control_excludes_input_binding=resident,
         host_payload_bytes_per_call=0 if device or resident else 2*(ac+bc)*8+m*n*24+cc*8,compact_status_bytes_per_call=12 if device else 4,
         consumer_validation_bytes=8,validation_payload_bytes=cc*8,preflight_device_payload_estimate_bytes=(ac+bc+m*n)*p+(ac+bc)*8+cc*8+8+(ac+bc)*p+32+m*n*24+4,
@@ -65,7 +67,7 @@ def validate_capture(c, entry):
     if type(capacity) is not int or capacity < (ac+bc+2*cc)*8 or capacity%8:
         raise ValueError('ordinary native-vector capacity')
     validate_owned_observations(c)
-    if type(c.get('plan_workspace_bytes')) is not int or c['plan_workspace_bytes']<0 or not manifest_provenance_complete(c.get('build_manifest')) or not c.get('target') or not c.get('device') or not c.get('execution_id'):
+    if type(c.get('plan_workspace_bytes')) is not int or c['plan_workspace_bytes']<0 or not manifest_provenance_complete(c.get('build_manifest')) or not c.get('target') or not c.get('device') or not c.get('execution_id') or not isinstance(c.get('plan_default_compute_kernel'),str) or not c['plan_default_compute_kernel']:
         raise ValueError('build/device/workspace/process identity')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:

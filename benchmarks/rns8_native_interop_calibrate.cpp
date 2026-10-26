@@ -62,7 +62,7 @@ int main(int argc,char** argv){try {
   // Gold construction and every full validation readback are outside timings in ALL modes.
   const auto setup_start=Clock::now();hipcheck(hipSetDevice(0));std::array<void*,4> allocations{};
   hipcheck(hipMalloc(&allocations[0],ac*8));hipcheck(hipMalloc(&allocations[1],bc*8));hipcheck(hipMalloc(&allocations[2],output_bytes));hipcheck(hipMalloc(&allocations[3],8));
-  std::array<hipStream_t,5> streams{};for(unsigned i=0;i<streams.size();++i)if(device || i==0 || i==4)hipcheck(hipStreamCreateWithFlags(&streams[i],hipStreamNonBlocking));
+  std::array<hipStream_t,5> streams{};for(unsigned i=0;i<streams.size();++i)if(device || i==0 || i==3 || i==4)hipcheck(hipStreamCreateWithFlags(&streams[i],hipStreamNonBlocking));
   hipcheck(static_cast<hipError_t>(rns8_interop_application_produce(allocations[0],allocations[1],allocations[2],ac,bc,cc,seed,u,full,streams[0])));hipcheck(hipStreamSynchronize(streams[0]));
   rns8_context* ctx=nullptr;rns8_plan* plan=nullptr;rns8_workspace* work=nullptr;std::array<rns8_matrix*,3> matrices{};std::array<rns8_native_device_lease*,3> leases{};std::array<ExternalOwner,3> owners{};std::array<rns8_prepared_execution*,4> operations{};
   rns8_context_options co{};co.struct_size=sizeof(co);co.abi_version=RNS8_ABI_VERSION;co.requested_backend=RNS8_BACKEND_HIP_DIRECT;check(rns8_create_context(0,&co,&ctx));
@@ -79,8 +79,10 @@ int main(int argc,char** argv){try {
   if(device){for(unsigned i=0;i<2;++i){check(rns8_prepare_native_transfer_hip(ctx,matrices[i],leases[i],&o,&operations[i]));rns8_completion_token initial{};check(rns8_execute_prepared(operations[i],&initial));}}
   else pack();
   check(rns8_prepare_gemm(ctx,plan,matrices[0],matrices[1],matrices[2],work,&operations[2]));
+  check(rns8_prepare_hip_submission(operations[2]));
   // Native export preparation freezes a proven output envelope, requiring one setup product.
-  if(device || resident){rns8_completion_token initial{};check(rns8_execute_prepared(operations[2],&initial));o.import_values=0;o.verify_input_bound=0;o.max_input_magnitude=0;check(rns8_prepare_native_transfer_hip(ctx,matrices[2],leases[2],&o,&operations[3]));}
+  // Bootstrap through the same grouped prepared kernel used by every timed route.
+  if(device || resident){rns8_completion_token initial{};check(rns8_submit_prepared_hip(operations[2],streams[3],&initial));rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;check(rns8_wait_prepared_hip(operations[2],initial,&info));check(info.operation_status);if(!info.output_is_current)throw std::runtime_error("bootstrap result");o.import_values=0;o.verify_input_bound=0;o.max_input_magnitude=0;check(rns8_prepare_native_transfer_hip(ctx,matrices[2],leases[2],&o,&operations[3]));}
   // Stream submission needs an explicit completion-event preparation too;
   // graph capture performs that preparation internally.
   if(device)for(auto* e:operations)check(graph?rns8_capture_prepared_hip_graph(e):rns8_prepare_hip_submission(e));
@@ -92,16 +94,16 @@ int main(int argc,char** argv){try {
     hipcheck(static_cast<hipError_t>(rns8_interop_application_produce(allocations[0],allocations[1],allocations[2],ac,bc,cc,seed,u,full,streams[0])));
     for(auto* lease:leases)if(lease)check(rns8_end_native_device_write_hip(lease,generation,streams[0]));const auto produced=Clock::now();
     std::array<rns8_completion_token,4> tokens{};
-    if(device){check(rns8_refresh_prepared_inputs(operations[3]));for(unsigned i=0;i<2;++i){check(rns8_refresh_prepared_inputs(operations[i]));check(graph?rns8_submit_prepared_hip_graph(operations[i],streams[i+1],&tokens[i]):rns8_submit_prepared_hip(operations[i],streams[i+1],&tokens[i]));}
-      check(rns8_bind_prepared_dependencies(operations[2],operations.data(),tokens.data(),2));
-      check(graph?rns8_submit_prepared_hip_graph_pipeline(operations[2],streams[3],&tokens[2]):rns8_submit_prepared_hip_pipeline(operations[2],streams[3],&tokens[2]));
+    if(device || resident){check(rns8_refresh_prepared_inputs(operations[3]));
+      if(device){for(unsigned i=0;i<2;++i){check(rns8_refresh_prepared_inputs(operations[i]));check(graph?rns8_submit_prepared_hip_graph(operations[i],streams[i+1],&tokens[i]):rns8_submit_prepared_hip(operations[i],streams[i+1],&tokens[i]));}
+        check(rns8_bind_prepared_dependencies(operations[2],operations.data(),tokens.data(),2));
+        check(graph?rns8_submit_prepared_hip_graph_pipeline(operations[2],streams[3],&tokens[2]):rns8_submit_prepared_hip_pipeline(operations[2],streams[3],&tokens[2]));}
+      else{check(rns8_refresh_prepared_inputs(operations[2]));check(rns8_submit_prepared_hip(operations[2],streams[3],&tokens[2]));}
       check(rns8_bind_prepared_dependency(operations[3],operations[2],tokens[2]));
       check(graph?rns8_submit_prepared_hip_graph_pipeline(operations[3],streams[4],&tokens[3]):rns8_submit_prepared_hip_pipeline(operations[3],streams[4],&tokens[3]));
-    }else if(!resident){hipcheck(hipStreamSynchronize(streams[0]));hipcheck(hipMemcpy(ha.data(),allocations[0],ac*8,hipMemcpyDeviceToHost));hipcheck(hipMemcpy(hb.data(),allocations[1],bc*8,hipMemcpyDeviceToHost));pack();check(rns8_refresh_prepared_inputs(operations[2]));check(rns8_execute_prepared(operations[2],&tokens[2]));}
-    else{check(rns8_refresh_prepared_inputs(operations[2]));check(rns8_execute_prepared(operations[2],&tokens[2]));}
+    }else{hipcheck(hipStreamSynchronize(streams[0]));hipcheck(hipMemcpy(ha.data(),allocations[0],ac*8,hipMemcpyDeviceToHost));hipcheck(hipMemcpy(hb.data(),allocations[1],bc*8,hipMemcpyDeviceToHost));pack();check(rns8_refresh_prepared_inputs(operations[2]));check(rns8_submit_prepared_hip(operations[2],streams[3],&tokens[2]));wait(2,tokens[2]);}
     const auto computed=Clock::now();
-    if(device){wait(3,tokens[3]);}
-    else if(resident){check(rns8_refresh_prepared_inputs(operations[3]));check(rns8_submit_prepared_hip(operations[3],streams[4],&tokens[3]));wait(3,tokens[3]);}
+    if(device || resident){wait(3,tokens[3]);}
     else{if(u)check(rns8_export_exact_wide_unsigned_limbs(ctx,plan,matrices[2],hc.data(),n+3,3));else check(rns8_export_exact_wide_signed_limbs(ctx,plan,matrices[2],hc.data(),n+3,3));hipcheck(hipMemcpy(allocations[2],hc.data(),output_bytes,hipMemcpyHostToDevice));}
     const auto exported=Clock::now();hipcheck(hipMemsetAsync(allocations[3],0,8,streams[4]));hipcheck(static_cast<hipError_t>(rns8_interop_application_consume(allocations[2],allocations[3],cc,streams[4])));hipcheck(hipStreamSynchronize(streams[4]));const auto end=Clock::now();
     return json{{"producer_enqueue_us",us(start,produced)},{"input_compute_us",us(produced,computed)},{"export_observation_us",us(computed,exported)},{"consumer_us",us(exported,end)},{"total_us",us(start,end)}};};
@@ -120,7 +122,10 @@ int main(int argc,char** argv){try {
       owned_after_cleanup.epoch!=allocation_epoch || !same_live_payload(owned_before.device,owned_after_cleanup.device) ||
       !same_live_payload(owned_before.pinned_host,owned_after_cleanup.pinned_host))throw std::runtime_error("owned payload did not retire to baseline");
   check(rns8_destroy_context(ctx));for(auto s:streams)if(s)hipcheck(hipStreamDestroy(s));for(auto a:allocations)hipcheck(hipFree(a));
-  std::cout<<json({{"schema","rns8_native_interop_microcase_v3"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"selected_compute_kernel",pi.selected_kernel},
+  std::cout<<json({{"schema","rns8_native_interop_microcase_v4"},{"case",c},{"run_id",argv[2]},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},{"target",di.gcn_arch},{"device",di.name},{"runtime_version",di.hip_runtime_version},{"plan_default_compute_kernel",pi.selected_kernel},
+    {"compute_provider","public_prepared_direct_HIP_grouped_prefix"},{"compute_execution_mode",graph?"owned_graph":"borrowed_stream"},
+    {"compute_provider_scope","source_bound_enqueue_prepared_to_hip_direct_enqueue_rns_no_publish_to_launch_rns_grouped_prefix_gemm"},
+    {"dynamic_compute_symbol",nullptr},
     {"exact_proof_policy",mode=="host-roundtrip"?"default_eager":"scalar_first"},
     {"output_boundary","external_producer_to_external_consumer_padded_three_limbs"},{"dataset_replayed_unchanged",true},{"external_generations_advanced",true},{"resident_control_excludes_input_binding",resident},
     {"host_payload_bytes_per_call",device||resident?0:2*input_bytes+uint64_t(m)*n*24+output_bytes},{"compact_status_bytes_per_call",device?12:resident?4:4},{"consumer_validation_bytes",8},{"validation_payload_bytes",output_bytes},
