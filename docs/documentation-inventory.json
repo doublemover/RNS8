@@ -5339,6 +5339,7 @@
       "anchors": [
         "address-domain-and-algorithm-identity-integration",
         "allocation-and-global-control-integration-retry",
+        "environment-admission-repair-on-2026-10-26",
         "failures-repaired",
         "first-invocation-hipblaslt-metadata-setup",
         "generation-bound-adaptive-summaries",

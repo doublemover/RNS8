@@ -187,6 +187,12 @@ arrays, statistical thresholds or installed-cache policy are changed by this
 identity repair. Its real-emitter integration fixtures use synthetic timings;
 they establish admission behavior, not hardware performance.
 
+At **15ce333**, all **6 real-emitter integration tests**, **5 diagnostic-companion
+tests** and **111 configured Python self-tests** pass. The new suites are also
+registered in CTest. The [source-bound validation receipt](../metadata/environment-cohort-qualification-20261026.json)
+records the inventory preflight, actual commands/log hashes and unchanged C++
+source boundary; no performance campaign or logical-proof rerun was required.
+
 FHE workload reports keep the backend-specific export selector in each
 implementation receipt. It is excluded from the cross-backend work key: CPU and
 GPU selectors can implement the same public output. Semantic, signedness, layout,

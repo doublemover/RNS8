@@ -3,6 +3,8 @@
 The [group-CRT continuation](#group-crt-continuation-on-2026-10-26) records the
 latest **287737d** complete rebuild and test batch. Earlier tables retain their
 original artifact boundaries; correctness validation alone qualifies no timing gain.
+The later [environment-admission repair](#environment-admission-repair-on-2026-10-26)
+has a separate Python/CLI validation scope.
 
 This record covers the consolidated correctness and tooling pass after the
 frontloaded implementation on PR #15. The host is Windows with an RX 7900 XTX
@@ -564,3 +566,25 @@ The independent **150/150 capture** group/classical comparison and exact embedde
 gfx1100 ISA review retain their own timing qualification and resource evidence.
 See the [combined receipt](../metadata/group-crt-qualification-20261026.json) and
 [matched observations](conversion-calibration.md#matched-group-crt-observations).
+
+## Environment-admission repair on 2026-10-26
+
+At **15ce333**, the reopened #27 emitter/consumer mismatch is repaired and
+validated. **Six real-emitter integration tests, five diagnostic-companion tests
+and all 111 configured Python self-tests pass**, with zero failures. A preflight
+found the existing diagnostic suite was unregistered before executing tests;
+both new registrations were exercised directly alongside the configured suite.
+The shared synthetic provenance fixture now carries a complete request record.
+
+The real collector environment object and explicit overrides form a versioned
+canonical identity after request-seal/executable validation. Command/report paths
+do not split cohorts. Changed relevant controls, missing/malformed legacy
+evidence, tampered seals, duplicate IDs and stale/forged variance bindings fail
+closed through report aggregation and ledger admission. The test timings are
+synthetic; they qualify admission behavior, not hardware speed.
+
+C++/kernel sources remain unchanged from **287737d**. The batch includes existing
+compiled-CLI correctness smokes; it does not rebuild those artifacts, resume a
+performance campaign or rerun the unchanged logical checker. The
+[validation receipt](../metadata/environment-cohort-qualification-20261026.json)
+records exact source, commands, individual configured entries and log hashes.

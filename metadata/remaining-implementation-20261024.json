@@ -195,7 +195,7 @@
       "issue": 27,
       "title": "[P2] Count independent same-environment executions in the performance variance gate",
       "url": "https://github.com/doublemover/RNS8/issues/27",
-      "state": "in_progress",
+      "state": "validated_closed",
       "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
       "implementation": [
         {
@@ -231,9 +231,7 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73",
         "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
-      "remaining": [
-        "Bind variance and observation aggregation to the actual canonical relevant-environment object, fail closed on missing/malformed legacy evidence, and add real-emitter report/aggregation/ledger regressions. No hardware campaign is required."
-      ],
+      "remaining": [],
       "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": [
         19,
@@ -241,7 +239,7 @@
       ],
       "reopened_followup": {
         "source_commit": "287737d917d412fc8daf777189a146182a359d67",
-        "status": "implemented_validation_pending",
+        "status": "validated_ready_to_close",
         "scope": "The real collector emits request_identity.environment; execution_cohort reads a nonexistent environment_sha256 field. Preserve all prior duplicate-ID/artifact repairs and fix the environment emitter/consumer contract.",
         "implementation": "Derive a versioned identity from the actual environment object and explicit overrides, verify the complete request seal and executable binding, exclude arguments/output paths from the cohort, and share it with resume/variance/observation comparisons. Ledger rejects unavailable/stale cohort bindings.",
         "regressions": [
@@ -249,7 +247,12 @@
           "tools/test_perf_variance_report.py",
           "tools/test_observation_cohorts.py",
           "tools/test_tooling_contracts.py"
-        ]
+        ],
+        "receipt": "metadata/environment-cohort-qualification-20261026.json",
+        "validated_checkpoint": "15ce33393a1ad0c300fa998db88eff9e8bf0f18c",
+        "real_emitter_tests": 6,
+        "diagnostic_tests": 5,
+        "configured_python_self_tests": 111
       }
     },
     {
