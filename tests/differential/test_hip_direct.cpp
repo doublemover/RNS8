@@ -20,6 +20,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hip_direct/native_wmma_prepared.hpp"
 #include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/group_crt.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
 #include "core/hip_resources.hpp"
@@ -74,6 +75,7 @@ namespace {
 #include "test_hip_direct_block_sparse_cases.inc"
 #include "test_hip_direct_layout_cases.inc"
 #include "test_hip_direct_direct_crt_cases.inc"
+#include "test_hip_direct_group_crt_cases.inc"
 #include "test_hip_direct_strassen_cases.inc"
 #include "test_hip_direct_integrity_cases.inc"
 

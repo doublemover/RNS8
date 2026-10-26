@@ -168,6 +168,11 @@ rns8_status hip_direct_export_quarter_crt_device(int device_id,const void* resid
     int64_t cells,uint32_t prefix,uint32_t digits,uint32_t limb_count,uint32_t mode);
 rns8_status hip_direct_export_canonical_balanced_crt_device(
     int device_id, const void* residues, void* limbs, int64_t cells, uint32_t prefix);
+// Research group-CRT bridge; canonical root only, with no subgroup centering.
+// Local mode has no scratch. Split mode consumes the exact queried caller-owned
+// group-word workspace and preserves logical group IDs across producer order.
+rns8_status hip_direct_export_canonical_group_crt_device(int device_id,const void* residues,
+    void* limbs,int64_t cells,uint32_t prefix,bool split,void* scratch,std::size_t scratch_bytes,uint32_t order=0);
 
 // Direct descriptor-aware consumer: no intermediate modulus-major allocation.
 // Logical row-major cells become three canonical limbs; physical padding is ignored.

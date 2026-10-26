@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,SCOPES,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
 from test_capture_identity_support import synthetic_identity
 
 BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
@@ -40,6 +40,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
             output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
             target_execution="not_run",source_scope="private_fixture_immutable_for_process")
     if not case['candidate'].startswith('public_'):capture['resident_completion_count']=warmups+2*repeats+16 if case['scope']=='resident' else 0
+    if case['candidate'] in GROUP_CANDIDATES:capture['group_plan_setup_ns']=1000
     return capture
 
 
@@ -55,6 +56,22 @@ def successful(command,**kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_group_crt_retains_canonical_group_ids_physical_scratch_and_root_semantics(self):
+        for candidate in GROUP_CANDIDATES:
+            case=dict(BASE,candidate=candidate,prefix=20)
+            c=fixture(case);validate_capture(c,case,'fixture-run',2,1)
+            groups=c['group_crt']['groups']
+            self.assertEqual([g['channels'] for g in groups],[7,7,6])
+            self.assertEqual([g['channel_mask'] for g in groups],[127,127 << 7,63 << 14])
+            self.assertEqual(c['group_crt']['scratch_bytes'],0 if candidate=='group_crt_local' else 17*3*8)
+            for key,value in [('signed_centering_before_root',True),('producer_order',7),('scratch_bytes',1),('merge_bits',64)]:
+                bad=deepcopy(c);bad['group_crt'][key]=value
+                with self.subTest(candidate=candidate,key=key),self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+            bad=deepcopy(c);bad['group_crt']['groups'][1]['id']=0
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+            bad=deepcopy(c);bad.pop('group_plan_setup_ns')
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
     def test_enqueue_only_resident_times_cannot_be_complete_conversion_costs(self):
         c=fixture();validate_capture(c,BASE,'fixture-run',2,1)
         for key,value in [('completion_inside_interval',False),('completion_scope','enqueue_only'),('resident_completion_count',0),('resident_completion_count',22)]:

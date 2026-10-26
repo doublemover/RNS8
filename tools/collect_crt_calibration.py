@@ -23,7 +23,8 @@ BASE_CANDIDATES=("garner", "direct", "balanced", "fixed_dot4", "tile_balanced", 
             "import_public_padded_signed", "import_fixed_padded_signed", "import_generic_padded_signed")
 QUARTER_CANDIDATES=tuple(kind+sign for kind in ("quarter_","garner_quarter_","direct_quarter_","balanced_quarter_",
     "quarter_narrow_","garner_narrow_","public_quarter_","public_garner_") for sign in ("signed","unsigned"))
-CANDIDATES=BASE_CANDIDATES+QUARTER_CANDIDATES
+GROUP_CANDIDATES=("group_crt_local","group_crt_split","group_crt_split_shuffled")
+CANDIDATES=BASE_CANDIDATES+QUARTER_CANDIDATES+GROUP_CANDIDATES
 
 SCOPES=("resident", "cold")
 MASK=(1 << 64)-1
@@ -72,6 +73,10 @@ def contract(case,run_id,repeats,warmups):
         plain=plain if not importing and candidate!="tile_balanced" else 0,tile=tile_bytes,
         output=output,status=4 if candidate in ("garner","tile_convert_garner") or candidate.startswith("garner_") else 0,
         probe=4 if "dot4" in candidate or "wmma" in candidate else 0)
+    grouped=candidate in GROUP_CANDIDATES
+    group_count=(prefix+7)//8
+    group_bytes=cells*group_count*8 if grouped and candidate!="group_crt_local" else 0
+    if grouped:buffers['group_words']=group_bytes
     envelope=native_bytes+plain+output*3+tile_bytes+source+sum(buffers.values())+16384
     result={"schema":"rns8_crt_microcase_v5", "run_id":run_id, **case,
         "completion_inside_interval":True,"completion_scope":"public_checked_export_readback_and_publication" if public else "explicit_device_synchronize" if scope=="resident" else "checked_output_readback_and_free",
@@ -97,6 +102,18 @@ def contract(case,run_id,repeats,warmups):
         "timing_scope":"allocate_upload_convert_readback_checked_free" if scope=="cold" else "resident_checked_convert_with_sync_no_upload_or_readback",
         "cache_state":"fresh_buffers_each_call" if scope=="cold" else "repeated_same_buffers",
         "actual_hbm_bytes":None,"timing_resolution_ns":None,"isa_verified":False,"promotion_eligible":False}
+    if grouped:
+        groups=[]
+        for group in range(group_count):
+            channels=[p for p in range(prefix) if p*group_count//prefix==group]
+            groups.append(dict(id=group,channel_mask=sum(1 << p for p in channels),channels=len(channels),
+                               canonical_modulus=str(math.prod(DEFAULT_MODULI[p] for p in channels))))
+        result['group_crt']=dict(plan_version=1,groups=groups,root_prefix=prefix,subgroup_bits=64,merge_bits=192,
+            subgroup_semantics="canonical_unsigned_mod_group_product_only",root_semantics="canonical_unsigned_mod_complete_product",
+            materialization="local_groups_then_merge" if candidate=="group_crt_local" else "separate_group_words_then_merge",
+            producer_order=group_count if candidate=="group_crt_split_shuffled" else 0,scratch_bytes=group_bytes,
+            physical_completion_order_measured=False,signed_centering_before_root=False,
+            plan_setup_scope="immutable_host_plan_cache_all_prefixes_reported_separately")
     if public:
         for key in ("device_buffer_bytes","probe_bytes","common_status_capacity_bytes"):
             result.pop(key)
@@ -155,6 +172,8 @@ def validate_capture(capture,case,run_id,repeats,warmups):
     demand(type(capture) is dict,"capture must be object")
     for key,value in contract(case,run_id,repeats,warmups).items():
         demand(key in capture and same(capture[key],value), f"metadata mismatch: {key}")
+    if case['candidate'] in GROUP_CANDIDATES:
+        demand(positive(capture.get('group_plan_setup_ns')),"missing immutable group plan setup cost")
     for key in ("device","target"):
         demand(type(capture.get(key)) is str and bool(capture[key].strip()),f"missing identity: {key}")
     demand(re.fullmatch(r"gfx[0-9a-f]+(?::[A-Za-z0-9_+:-]+)?",capture["target"]),"invalid target")

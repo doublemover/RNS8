@@ -39,6 +39,15 @@ inline OperationSupport query_canonical_crt_support(int64_t cells, uint32_t pref
   out.payload_bytes=uint64_t(cells)*24;
   return out;
 }
+inline OperationSupport query_group_crt_support(int64_t cells,uint32_t prefix,bool split,uint64_t budget) {
+  auto out=query_canonical_crt_support(cells,prefix);
+  if(out.status!=RNS8_SUCCESS)return out;
+  // Canonical address admission already bounds these products. Group words
+  // may exceed the original byte planes: report their actual physical payload.
+  out.scratch_bytes=split?uint64_t(cells)*((prefix+7)/8)*sizeof(uint64_t):0;
+  if(out.scratch_bytes>budget){out.status=RNS8_WORKSPACE_TOO_SMALL;out.constraint=OperationConstraint::scratch_budget;}
+  return out;
+}
 inline OperationSupport query_finite_verify_support(int64_t m, int64_t n, int64_t k,
     uint32_t modulus, bool gpu, uint64_t budget) {
   OperationSupport out;

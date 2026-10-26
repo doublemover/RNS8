@@ -1,4 +1,7 @@
 #include "backend_common/balanced_crt.hpp"
+#include "backend_common/group_crt.hpp"
+#include "backend_common/garner_constants.hpp"
+#include "backend_common/operation_support.hpp"
 #include "backend_common/direct_crt_constants.hpp"
 #include "backend_common/strassen_program.hpp"
 #include "backend_common/rank23_reference.hpp"
@@ -6,6 +9,9 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <random>
+#include <algorithm>
+#include <array>
+#include <stdexcept>
 
 TEST_CASE("bilinear resource queries separate full-stack offsets from sub-GEMM indexing") {
   using namespace rns8::detail;
@@ -195,3 +201,4 @@ TEST_CASE("balanced CRT levels and bounded arithmetic match Boost") {
   REQUIRE_THROWS_AS(balanced_crt::plan(0), std::invalid_argument);
   REQUIRE_THROWS_AS(balanced_crt::plan(21), std::invalid_argument);
 }
+#include "test_group_crt_cases.inc"

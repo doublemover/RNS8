@@ -2082,3 +2082,29 @@ reduces before global storage. Failed work cannot publish an eligible output;
 uncertain device completion retains reservations and scratch for cleanup retry.
 See [split-K ownership](native-split-k.md). This does not promote split-K into
 AUTO or imply that the private native matrix-engine route shares this owner.
+
+
+## Research group-CRT bridge
+
+The internal default-basis candidate partitions active channels into nonempty
+canonical groups. Each group has at most eight byte moduli, a checked product
+below 2^64 and checked local Garner inverses. Group outputs are unsigned
+residues in [0, P_group); they have no independent signed-integer uniqueness
+claim. A checked merge tree consumes stable group IDs and reconstructs the root
+in [0, P). Every root product is below 2^160; checked merge intermediates use
+three 64-bit limbs. Signed centering and destination-width interpretation belong
+after the complete root, never to a subgroup.
+
+One implementation reconstructs groups locally before merging. A second writes
+one uint64 per group/cell, then launches a separate merge. Producer rotations
+and reversals preserve logical slots/tree positions. Default groups require
+ceil(prefix/8) words per cell: P20 uses 24 bytes versus 20 residue bytes, so this
+bridge does not inherently reduce storage. The static provider query reports
+the exact scratch payload and rejects short budgets before writes. Raw input,
+output and scratch aliases reject before launch. Public dispatch is unchanged;
+this is synchronous research code, not a multi-GPU or fused-GEMM qualification.
+
+CPU/Boost and real-HIP differentials, shuffled/irregular partitions, all prefixes,
+root extrema, source/canary preservation and rejection cases are authored for
+this addition. Full builds, execution, emitted resources and matched completed-call
+measurements remain pending for its own source checkpoint.

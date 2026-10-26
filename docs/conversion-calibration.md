@@ -294,3 +294,35 @@ The earlier 425-capture v4 raw-resident timing cohort remains quarantined by the
 neither overwritten nor pooled into this fresh v5 collection. Group-CRT bridge,
 complete-GEMM/prefix effects, hardware traffic and broader-target qualification
 remain distinct gates for the open research issues.
+
+
+## Group-CRT bridge controls
+
+`group_crt_local`, `group_crt_split` and `group_crt_split_shuffled` add matched
+canonical three-limb controls. Every local group reconstructs an unsigned value
+modulo its own product, with at most eight byte channels. The checked complete
+merge tree identifies the root before any signed interpretation. Immutable
+metadata records channel masks, group products and logical tree slots. A
+shuffled producer writes those stable slots; its block ordering is not a measured
+physical-completion trace.
+
+Local mode retains groups inside the root kernel. Split mode allocates exactly
+`cells * ceil(prefix/8) * 8` group-word bytes and measures both producer and merge,
+including completion. Instrumented samples identify the two kernels separately;
+production samples disable timing hooks. The allocation belongs to the measured
+candidate, including allocate/free in cold calls. At P20 the intermediate is
+24 bytes per value, larger than the original 20 residue bytes. Host immutable-plan
+cache initialization is timed and reported separately from buffer setup and
+steady calls. Group IDs, widths, scratch and canonical-only semantics are checked
+by the collector; stale or centered-subgroup metadata rejects.
+
+The [bounded group profile](../benchmarks/conversion-calibration/group-crt-closeout-20261025.json)
+contains 30 cases: all three group controls and Garner/direct/balanced baselines
+at small P3, large P9/P20, one-million-value P20 and cold P20 boundaries. Five
+fresh processes per case would produce 150 captures. CPU syntax and isolated
+gfx1100 kernel compilation pass using the configured toolchain. Full project
+builds, differential execution and performance qualification remain pending.
+The earlier 763a948 results above
+retain their measured artifact and do not qualify the new group paths. No
+production selector changes; any gain must beat the strongest same-boundary
+classical control with the original independent-process gate.

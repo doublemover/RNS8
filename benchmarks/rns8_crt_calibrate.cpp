@@ -2,6 +2,7 @@
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "backend_common/quarter_crt_certificate.hpp"
+#include "backend_common/group_crt.hpp"
 #include <charconv>
 #include <chrono>
 #include <cstring>
@@ -38,24 +39,25 @@ std::string checksum(const void* data,size_t size) {
   std::ostringstream out;out<<std::hex<<std::setfill('0')<<std::setw(16)<<value;return out.str();
 }
 struct Buffers {
-  hip_direct_device_buffer native,plain,tile,output,status;
+  hip_direct_device_buffer native,plain,tile,output,status,groups;
   void allocate(uint64_t native_bytes,uint64_t plain_bytes,uint64_t tile_bytes,
-                uint64_t output_bytes,uint64_t status_bytes) {
+                uint64_t output_bytes,uint64_t status_bytes,uint64_t group_bytes=0) {
     if(native_bytes) check(native.allocate(0,native_bytes));
     if(plain_bytes) check(plain.allocate(0,plain_bytes));
     if(tile_bytes) check(tile.allocate(0,tile_bytes));
     check(output.allocate(0,output_bytes));
     if(status_bytes) check(status.allocate(0,status_bytes));
+    if(group_bytes) check(groups.allocate(0,group_bytes));
   }
   void release() {
-    check(status.reset());check(output.reset());check(tile.reset());check(plain.reset());check(native.reset());
+    check(groups.reset());check(status.reset());check(output.reset());check(tile.reset());check(plain.reset());check(native.reset());
   }
 };
 }
 #include "rns8_crt_public_cases.inc"
 int main(int argc,char** argv) {
   try {
-    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned|import_public_signed|import_fixed_signed|import_generic_signed|import_public_padded_signed|import_fixed_padded_signed|import_generic_padded_signed|quarter_signed|quarter_unsigned|garner_quarter_signed|garner_quarter_unsigned|direct_quarter_signed|direct_quarter_unsigned|balanced_quarter_signed|balanced_quarter_unsigned|quarter_narrow_signed|quarter_narrow_unsigned|garner_narrow_signed|garner_narrow_unsigned|public_quarter_signed|public_quarter_unsigned|public_garner_signed|public_garner_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes candidate-specific buffer allocation, active-input upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
+    const char* usage="usage: rns8-crt-calibrate <garner|direct|balanced|group_crt_local|group_crt_split|group_crt_split_shuffled|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned|import_public_signed|import_fixed_signed|import_generic_signed|import_public_padded_signed|import_fixed_padded_signed|import_generic_padded_signed|quarter_signed|quarter_unsigned|garner_quarter_signed|garner_quarter_unsigned|direct_quarter_signed|direct_quarter_unsigned|balanced_quarter_signed|balanced_quarter_unsigned|quarter_narrow_signed|quarter_narrow_unsigned|garner_narrow_signed|garner_narrow_unsigned|public_quarter_signed|public_quarter_unsigned|public_garner_signed|public_garner_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold]\nresident is default; cold includes candidate-specific buffer allocation, active-input upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
     if(argc==2 && std::string(argv[1])=="--help") {std::cout<<usage<<'\n';return 0;}
     if(argc!=7 && argc!=8) throw std::invalid_argument(usage);
     const std::string candidate=argv[1],run_id=argv[6],scope=argc==8?argv[7]:"resident";
@@ -75,11 +77,13 @@ int main(int argc,char** argv) {
     const bool dot4=candidate=="fixed_dot4" || candidate=="import_dot4_signed" || candidate=="import_dot4_unsigned";
     const bool wmma=candidate=="fixed_wmma" || candidate=="import_wmma_signed" || candidate=="import_wmma_unsigned";
     const bool tile_input=candidate.rfind("tile_",0)==0;
+    const bool grouped=candidate=="group_crt_local" || candidate=="group_crt_split" || candidate=="group_crt_split_shuffled";
+    const bool split_group=grouped && candidate!="group_crt_local";
     const bool quarter_candidate=candidate=="quarter_signed" || candidate=="quarter_unsigned" ||
         candidate=="garner_quarter_signed" || candidate=="garner_quarter_unsigned" || candidate=="direct_quarter_signed" || candidate=="direct_quarter_unsigned" ||
         candidate=="balanced_quarter_signed" || candidate=="balanced_quarter_unsigned" || candidate=="quarter_narrow_signed" || candidate=="quarter_narrow_unsigned" ||
         candidate=="garner_narrow_signed" || candidate=="garner_narrow_unsigned";
-    if((!quarter_candidate && candidate!="garner" && candidate!="direct" && candidate!="balanced" && candidate!="fixed_dot4" && candidate!="fixed_wmma" &&
+    if((!quarter_candidate && !grouped && candidate!="garner" && candidate!="direct" && candidate!="balanced" && candidate!="fixed_dot4" && candidate!="fixed_wmma" &&
         candidate!="tile_balanced" && candidate!="tile_convert_balanced" && candidate!="tile_convert_garner" &&
         candidate!="import_scalar_signed" && candidate!="import_scalar_unsigned" && candidate!="import_dot4_signed" && candidate!="import_dot4_unsigned" && candidate!="import_wmma_signed" && candidate!="import_wmma_unsigned" &&
         candidate!="import_public_signed" && candidate!="import_fixed_signed" && candidate!="import_generic_signed" &&
@@ -102,7 +106,8 @@ int main(int argc,char** argv) {
     const uint64_t device_plain_bytes=!importing && candidate!="tile_balanced"?plain.bytes:0;
     const uint64_t status_bytes=candidate=="garner" || candidate=="tile_convert_garner" || candidate.rfind("garner_",0)==0?4:0;
     const uint64_t probe_bytes=dot4 || wmma?4:0;
-    const uint64_t device_payload=device_native_bytes+device_plain_bytes+tile_bytes+output_bytes+status_bytes+probe_bytes;
+    const uint64_t group_bytes=split_group?uint64_t(cells)*((prefix+7)/8)*8:0;
+    const uint64_t device_payload=device_native_bytes+device_plain_bytes+tile_bytes+output_bytes+status_bytes+probe_bytes+group_bytes;
     // Actual retained host vectors plus candidate-specific device buffers.
     // Includes poison/canaries, input audit and probe; excludes runtime metadata.
     const uint64_t envelope=native_bytes+plain.bytes+output_bytes*3+tile_bytes+source_bytes+device_payload+16384;
@@ -140,6 +145,9 @@ int main(int argc,char** argv) {
     const void* host_source=importing?static_cast<const void*>(native.data()):tile_input?static_cast<const void*>(tile_residues.data()):static_cast<const void*>(residues.data());
     const auto input_checksum=checksum(host_source,source_bytes),output_checksum=checksum(expected.data(),expected.size());
     const double oracle_ns=std::chrono::duration<double,std::nano>(Clock::now()-oracle_start).count();
+    const auto group_plan_start=Clock::now();
+    if(grouped)(void)group_crt::plan(prefix);
+    const double group_plan_ns=std::chrono::duration<double,std::nano>(Clock::now()-group_plan_start).count();
     rns8_device_info device{};check(hip_direct_probe(0,device));
     quarter_crt::Certificate quarter_certificate;
     const auto proof_start=Clock::now();
@@ -150,13 +158,18 @@ int main(int argc,char** argv) {
       quarter_certificate=quarter_crt::certify(std::move(quarter_certificate));if(!quarter_certificate.admitted)throw std::runtime_error(quarter_certificate.failure);}
     const double proof_ns=std::chrono::duration<double,std::nano>(Clock::now()-proof_start).count();
     const auto initialize=[&](Buffers& buffers) {
-      buffers.allocate(device_native_bytes,device_plain_bytes,tile_bytes,output_bytes,status_bytes);
+      buffers.allocate(device_native_bytes,device_plain_bytes,tile_bytes,output_bytes,status_bytes,group_bytes);
       if(device_native_bytes) check(hip_direct_copy_host_to_device(0,buffers.native.get(),native.data(),native_bytes));
       if(device_plain_bytes && !tile_input) check(hip_direct_copy_host_to_device(0,buffers.plain.get(),residues.data(),residues.size()));
       if(tile_input) check(hip_direct_copy_host_to_device(0,buffers.tile.get(),tile_residues.data(),tile_residues.size()));
       check(hip_direct_copy_host_to_device(0,buffers.output.get(),poison.data(),poison.size()));
     };
     const auto convert=[&](Buffers& buffers) {
+      if(grouped) {
+        const auto order=candidate=="group_crt_split_shuffled"?(prefix+7)/8:0u;
+        check(hip_direct_export_canonical_group_crt_device(0,buffers.plain.get(),buffers.output.get(),cells,prefix,
+            split_group,buffers.groups.get(),size_t(group_bytes),order));return;
+      }
       if(pack_control) {check(hip_direct_pack_i64_variant_device(0,buffers.native.get(),buffers.output.get(),rows,cols,ld,prefix,pack_variant));return;}
       if(dot4 || wmma) {bool started=false;const auto status=hip_direct_fixed_conversion_device(0,
           importing?buffers.native.get():buffers.plain.get(),buffers.output.get(),cells,prefix,(importing?(signed_values?0:1):2)+(wmma?3:0),4,started);
@@ -254,6 +267,19 @@ int main(int argc,char** argv) {
       {"timing_resolution_ns",nullptr},{"isa_verified",false},{"promotion_eligible",false},
       {"samples",samples},{"sustained",{{"calls",calls},{"minimum_calls",16},{"maximum_calls",4096},{"target_ns",250000000},{"independent_audit_inside_interval",false},{"elapsed_ns",elapsed},{"mean_call_ns",elapsed/calls},{"final_exact_reference_passed",true},
         {"scope",scope=="cold"?"fresh_buffers_transfer_inclusive_no_intermediate_reference":"resident_same_buffers_no_intermediate_poison_or_reference"}}}};
+    if(grouped) {
+      const auto& plan=group_crt::plan(prefix);nlohmann::json groups=nlohmann::json::array();
+      for(uint32_t g=0;g<plan.group_count;++g)groups.push_back({{"id",g},{"channel_mask",plan.groups[g].channel_mask},
+          {"channels",plan.groups[g].count},{"canonical_modulus",std::to_string(plan.groups[g].product)}});
+      report["device_buffer_bytes"]["group_words"]=group_bytes;
+      report["group_plan_setup_ns"]=group_plan_ns;
+      report["group_crt"]={{"plan_version",1},{"groups",groups},{"root_prefix",prefix},{"subgroup_bits",64},{"merge_bits",192},
+          {"subgroup_semantics","canonical_unsigned_mod_group_product_only"},{"root_semantics","canonical_unsigned_mod_complete_product"},
+          {"materialization",split_group?"separate_group_words_then_merge":"local_groups_then_merge"},
+          {"producer_order",candidate=="group_crt_split_shuffled"?plan.group_count:0u},{"scratch_bytes",group_bytes},
+          {"physical_completion_order_measured",false},{"signed_centering_before_root",false},
+          {"plan_setup_scope","immutable_host_plan_cache_all_prefixes_reported_separately"}};
+    }
     if(quarter)report["quarter_certificate"]={{"sha256",quarter_certificate.sha256},{"magnitude_bound",quarter_bound.str()},
       {"digits",quarter_certificate.digits},{"output_mode",quarter_certificate.mode},{"setup_ns",proof_ns},
       {"error_numerator",quarter_crt::kErrorNumerator},{"error_denominator",quarter_crt::kErrorDenominator},

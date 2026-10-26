@@ -6,7 +6,8 @@ namespace rns8::detail {
 // bound operands, arithmetic evidence and reviewed AUTO promotion.
 enum class DirectOperation : uint32_t {
   residue_gemm, exact_axpby, exact_lift, narrow_scalar, narrow_byte_wmma,
-  canonical_direct_crt, canonical_balanced_crt, finite_verify
+  canonical_direct_crt, canonical_balanced_crt, finite_verify,
+  canonical_group_local_crt, canonical_group_split_crt
 };
 enum class DirectExecution : uint32_t { synchronous, borrowed_stream, owned_capture, distributed };
 struct DirectOperationRecord {
@@ -18,7 +19,7 @@ struct DirectOperationRecord {
   bool native_value_scan;
   bool matrix_instruction_probe;
 };
-inline constexpr std::array<DirectOperationRecord,8> direct_operation_records{{
+inline constexpr std::array<DirectOperationRecord,10> direct_operation_records{{
   {DirectOperation::residue_gemm,"hip_direct_gemm_rns_device","default_rns_centered","default_rns_centered",32,false,false},
   {DirectOperation::exact_axpby,"hip_direct_gemm_rns_axpby_device","default_rns_centered","default_rns_centered",32,false,false},
   {DirectOperation::exact_lift,"hip_direct_lift_exact_suffix","default_rns_unique_integer","default_rns_suffix",32,false,false},
@@ -26,7 +27,9 @@ inline constexpr std::array<DirectOperationRecord,8> direct_operation_records{{
   {DirectOperation::narrow_byte_wmma,"hip_direct_gemm_narrow_rns_device.byte","native_i64_or_u64_byte_domain","default_rns_centered",32,true,true},
   {DirectOperation::canonical_direct_crt,"hip_direct_export_canonical_direct_crt_device","default_rns_centered","canonical_u192",32,false,false},
   {DirectOperation::canonical_balanced_crt,"hip_direct_export_canonical_balanced_crt_device","default_rns_centered","canonical_u192",32,false,false},
-  {DirectOperation::finite_verify,"hip_finite_verify_trial","finite_centered_ring","verification_status",64,false,false}
+  {DirectOperation::finite_verify,"hip_finite_verify_trial","finite_centered_ring","verification_status",64,false,false},
+  {DirectOperation::canonical_group_local_crt,"hip_direct_export_canonical_group_crt_device.local","default_rns_centered","canonical_u192",32,false,false},
+  {DirectOperation::canonical_group_split_crt,"hip_direct_export_canonical_group_crt_device.split","default_rns_centered","canonical_u192",32,false,false}
 }};
 struct DirectOperationProblem {
   uint32_t version=1;
@@ -74,6 +77,9 @@ inline DirectOperationQuery query_direct_operation(const DirectOperationProblem&
       out.static_support=query_canonical_crt_support(p.m,p.prefix); break;
     case DirectOperation::finite_verify:
       out.static_support=query_finite_verify_support(p.m,p.n,p.k,p.modulus,true,p.budget); break;
+    case DirectOperation::canonical_group_local_crt: case DirectOperation::canonical_group_split_crt:
+      out.static_support=query_group_crt_support(p.m,p.prefix,
+          p.operation==DirectOperation::canonical_group_split_crt,p.budget); break;
   }
   return out;
 }

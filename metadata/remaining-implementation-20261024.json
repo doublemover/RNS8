@@ -998,12 +998,23 @@
             "benchmarks/conversion-calibration/quarter-every-prefix.json",
             "benchmarks/conversion-calibration/quarter-tails.json"
           ]
+        },
+        {
+          "summary": "Add checked canonical group-CRT plans, local and separate producer/merge HIP paths, stable subgroup slots and exact scratch-budget admission. No subgroup signed interpretation or default dispatch change.",
+          "files": [
+            "src/backend_common/group_crt.hpp",
+            "src/reconstruct/group_crt.cpp",
+            "src/backend_hip_direct/hip_direct_group_crt_kernels.cuh",
+            "src/backend_hip_direct/hip_backend_group_crt.inc"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_quarter_crt_cases.inc",
         "tools/test_quarter_crt.py",
-        "tools/test_collect_crt_calibration.py"
+        "tools/test_collect_crt_calibration.py",
+        "tests/unit/test_group_crt_cases.inc",
+        "tests/differential/test_hip_direct_group_crt_cases.inc"
       ],
       "commits": [
         "89df5c64a1074cca30de8300f4b0daa12dfdb9fe",
@@ -1034,6 +1045,16 @@
         "qualified_stage_comparisons": 5,
         "selection_promoted": false,
         "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
+      },
+      "group_crt_closeout": {
+        "status": "implemented_validation_pending",
+        "cases": "benchmarks/conversion-calibration/group-crt-closeout-20261025.json",
+        "planned_cases": 30,
+        "planned_processes": 150,
+        "cpu_syntax": "passed",
+        "isolated_gfx1100_compile": "passed with configured HIP/MSVC compatibility overlay; no execution",
+        "full_build_tests_and_measurements": "not yet run",
+        "scope": "Canonical-root research bridge only; fused GEMM, distributed ownership and public signed export integration are separate."
       }
     },
     {

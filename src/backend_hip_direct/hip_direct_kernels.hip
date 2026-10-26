@@ -19,6 +19,7 @@
 #include "../backend_common/direct_crt_constants.hpp"
 #include "../backend_common/quarter_crt.hpp"
 #include "../backend_common/balanced_crt.hpp"
+#include "../backend_common/group_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank23_program.hpp"
 #include "../backend_common/rank23_slp.hpp"
@@ -59,6 +60,7 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 #include "hip_direct_layout_kernels.cuh"
 #include "hip_direct_direct_crt_kernels.cuh"
 #include "hip_direct_balanced_crt_kernels.cuh"
+#include "hip_direct_group_crt_kernels.cuh"
 #include "hip_direct_strassen_kernels.cuh"
 #include "hip_direct_rank23_slp_kernels.cuh"
 #include "hip_direct_integrity_kernels.cuh"
@@ -194,6 +196,20 @@ extern "C" int rns8_hip_export_canonical_balanced_crt(
     hipLaunchKernelGGL((rns8_export_canonical_balanced_crt_kernel<true>),dim3((cells+255)/256),dim3(256),0,nullptr,
         residues,limbs,cells,*plan,source);
   }
+  return static_cast<int>(hipGetLastError());
+}
+
+extern "C" int rns8_hip_export_canonical_group_crt(const int8_t* residues,uint64_t* output,
+    uint64_t* partials,int cells,const rns8::detail::group_crt::Plan* plan,uint32_t order,uint32_t stage) {
+  const dim3 grid((cells+255)/256);
+  if(stage==0) {
+    hipLaunchKernelGGL(rns8_export_group_crt_local_kernel,grid,dim3(256),0,nullptr,residues,output,cells,*plan);
+  } else if(stage==1) {
+    hipLaunchKernelGGL(rns8_produce_group_crt_kernel,dim3(grid.x,plan->group_count),dim3(256),0,nullptr,
+        residues,partials,cells,*plan,order);
+  } else if(stage==2) {
+    hipLaunchKernelGGL(rns8_merge_group_crt_kernel,grid,dim3(256),0,nullptr,partials,output,cells,*plan);
+  } else return static_cast<int>(hipErrorInvalidValue);
   return static_cast<int>(hipGetLastError());
 }
 

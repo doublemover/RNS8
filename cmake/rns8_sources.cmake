@@ -47,6 +47,7 @@ set(RNS8_SOURCES
   src/cpu/block_sparse.cpp
   src/reconstruct/crt.cpp
   src/reconstruct/balanced_crt.cpp
+  src/reconstruct/group_crt.cpp
   src/reconstruct/ragged_residues.cpp
   src/backend_hip_direct/hip_backend.cpp
   src/backend_hip_direct/hip_grouped_descriptor.cpp

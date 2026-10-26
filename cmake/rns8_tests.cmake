@@ -326,7 +326,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       ENVIRONMENT "RNS8_CRT_CALIBRATION_EXE=$<TARGET_FILE:rns8-crt-calibrate>"
       LABELS "tools;conversion;cli")
     if(RNS8_ENABLE_HIP)
-      foreach(_conversion_candidate IN ITEMS garner direct balanced fixed_dot4 tile_balanced tile_convert_balanced tile_convert_garner import_scalar_signed import_scalar_unsigned import_dot4_signed import_dot4_unsigned fixed_wmma import_wmma_signed import_wmma_unsigned)
+      foreach(_conversion_candidate IN ITEMS garner direct balanced group_crt_local group_crt_split group_crt_split_shuffled fixed_dot4 tile_balanced tile_convert_balanced tile_convert_garner import_scalar_signed import_scalar_unsigned import_dot4_signed import_dot4_unsigned fixed_wmma import_wmma_signed import_wmma_unsigned)
         foreach(_conversion_scope IN ITEMS resident cold)
           add_test(NAME conversion_${_conversion_candidate}_${_conversion_scope}_smoke
             COMMAND rns8-crt-calibrate ${_conversion_candidate} 17 3 2 1
