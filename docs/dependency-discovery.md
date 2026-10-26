@@ -41,6 +41,9 @@ HTTPS, bounded streaming and atomic publication; extraction uses Python's tar
 data filter plus path/member/expanded-size checks in a new staging directory.
 Internal Linux library links are permitted, escaping links and special files
 are rejected. An interrupted extraction never becomes an installed prefix.
+Links resolve after streamed payloads, including forward references; Windows
+file links can become internal hard links/copies when symlink privileges are
+unavailable. Expanded-byte limits also cover fallback copies.
 Successful installations record source URL, archive SHA-256, family, version
 and SDK-relative root in `rns8-sdk.json`. Reuse rechecks SDK coherence/version.
 
@@ -62,6 +65,13 @@ process-local SDK paths; Windows loads the VS developer environment through
 `windows_dev.py`. No tests or benchmark campaigns are started by provisioning.
 The JSON output records the actual commands; in a dry run the archive's internal
 SDK subdirectory is not yet known, so the planned root is the destination prefix.
+
+Run Windows CTest through the developer wrapper as well, so installed-consumer
+checks inherit the Windows SDK linker/resource-compiler environment:
+
+```powershell
+python tools/windows_dev.py ctest --test-dir build/rocm-sdk/windows-gfx110X-all-10.1.0 --output-on-failure -j 1
+```
 
 ## Inspect or configure
 

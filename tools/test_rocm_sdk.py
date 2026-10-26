@@ -108,6 +108,25 @@ class SDKTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(tarfile.TarError):
                 sdk.extract(archive, self.base / "unpack", "Linux")
 
+    def test_internal_library_links_preserve_contents(self):
+        archive = self.base / "libraries.tar.gz"
+        with tarfile.open(archive, "w:gz") as stream:
+            member = tarfile.TarInfo("sdk/lib/libfixture.so.1")
+            member.size = 7
+            stream.addfile(member, io.BytesIO(b"fixture"))
+            member = tarfile.TarInfo("sdk/lib/libfixture-copy.so.1")
+            member.type = tarfile.LNKTYPE; member.linkname = "sdk/lib/libfixture.so.1"
+            stream.addfile(member)
+            member = tarfile.TarInfo("sdk/lib/libfixture.so")
+            member.type = tarfile.SYMTYPE; member.linkname = "libfixture.so.1"
+            stream.addfile(member)
+        destination = self.base / "unpack"
+        sdk.extract(archive, destination, sdk.platform.system())
+        self.assertEqual((destination / "sdk/lib/libfixture-copy.so.1").read_bytes(), b"fixture")
+        # tarfile may copy a link on Windows hosts lacking symlink privileges;
+        # native Linux retains the relative library link through the data filter.
+        self.assertEqual((destination / "sdk/lib/libfixture.so").read_bytes(), b"fixture")
+
     def test_provision_promotes_and_reuses_without_network(self):
         archive = self.archive()
         digest = sdk.sha256(archive)
@@ -177,6 +196,24 @@ class SDKTests(unittest.TestCase):
             capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(result.stdout)["schema"], "rns8_rocm_sdk_init_v1")
         self.assertFalse((self.base / "sdk").exists())
+
+    def test_build_handoff_keeps_sdk_bindings_and_child_environment(self):
+        root = self.base / "sdk with spaces"
+        args = self.args("--sdk-root", str(root), "--sdk-target", "gfx1100", "--sdk-build",
+            "--sdk-build-root", str(self.base / "build"), "--sdk-cmake-arg=-DRNS8_ENABLE_CK=ON",
+            "--sdk-cmake-arg=-DRNS8_HIP_ROOT=unrelated")
+        resolution = {"cmake_bindings": {"RNS8_HIP_ROOT": str(root),
+            "RNS8_HIP_CLANG": str(root / "lib/llvm/bin/amdclang++.exe")},
+            "compiler_environment": {"HIP_PATH": str(root), "ROCM_PATH": str(root)}}
+        with patch.object(sdk, "inspect", return_value=resolution), patch.object(sdk.subprocess, "run") as run:
+            result = sdk.run(args)
+        self.assertEqual(run.call_count, 2)
+        configure = run.call_args_list[0].args[0]
+        choices = [value for value in configure if value.startswith("-DRNS8_HIP_ROOT=")]
+        self.assertEqual(choices[-1], "-DRNS8_HIP_ROOT=" + str(root))
+        self.assertIn("-DRNS8_CK_ROOT=" + str(root), configure)
+        self.assertEqual(run.call_args.kwargs["env"]["HIP_PATH"], str(root))
+        self.assertIn("windows-gfx110X-all-10.1.0" if sdk.platform.system() == "Windows" else "linux-gfx110X-all-10.1.0", result["lanes"][0]["build_dir"])
 
 
 if __name__ == "__main__":

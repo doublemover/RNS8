@@ -161,7 +161,9 @@ def download(lane: dict, cache: Path, expected: str | None) -> tuple[Path, str]:
             raise ValueError("SDK archive SHA-256 does not match supplied pin")
         if archive.exists():
             raise ValueError("Another SDK installer published this archive; retry to reuse it")
-        partial.rename(archive)
+        # Exclusive publication on Windows and POSIX; rename() could overwrite
+        # a concurrent cache entry on POSIX after the existence check.
+        os.link(partial, archive)
         record.write_text(json.dumps(dict(url=lane["url"], sha256=observed,
                                         integrity="pinned_sha256" if expected else "https_observed_sha256"), indent=2) + "\n")
         return archive, observed
@@ -173,6 +175,7 @@ def extract(archive: Path, destination: Path, host: str) -> None:
     """Bounded tar extraction into a new empty staging directory, never overlays."""
     count = size = 0
     seen: set[str] = set()
+    links = []
     with tarfile.open(archive, "r|gz") as source:
         for member in source:
             count += 1
@@ -196,7 +199,51 @@ def extract(archive: Path, destination: Path, host: str) -> None:
                 raise ValueError("Unsafe SDK archive link: " + member.name)
             # Python's data filter rejects escaping/absolute links and device
             # nodes, and checks the resolved path again at extraction time.
-            source.extract(member, destination, filter="data")
+            if member.issym() or member.islnk():
+                links.append(member)
+            else:
+                source.extract(member, destination, filter="data")
+    # Resolve links after streaming all payloads. tarfile's fallback for hosts
+    # without symlink privilege seeks backwards into the compressed stream;
+    # forward references need the payload to exist before link creation too.
+    root = destination.resolve()
+    depth = 0
+    while links:
+        depth += 1
+        if depth > 64:
+            raise ValueError("SDK archive link dependency depth exceeds 64")
+        pending = []
+        for member in links:
+            filtered = tarfile.data_filter(member, destination)
+            path = destination / filtered.name
+            target = ((path.parent if member.issym() else destination) / filtered.linkname).resolve()
+            if not target.is_relative_to(root) or not path.resolve().is_relative_to(root):
+                raise ValueError("SDK link escapes extraction root")
+            if not target.exists():
+                pending.append(member)
+                continue
+            if path.exists() or path.is_symlink():
+                raise ValueError("SDK link collides with an extracted path")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if member.issym():
+                try:
+                    path.symlink_to(filtered.linkname, target_is_directory=target.is_dir())
+                    continue
+                except OSError:
+                    if host != "Windows" or not target.is_file():
+                        raise
+            if not target.is_file():
+                raise ValueError("SDK hard links require a regular file")
+            try:
+                os.link(target, path)
+            except OSError:
+                size += target.stat().st_size
+                if size > MAX_EXTRACT:
+                    raise ValueError("SDK link materialization exceeds expanded-byte limit")
+                shutil.copy2(target, path)
+        if len(pending) == len(links):
+            raise ValueError("SDK archive contains dangling or cyclic links")
+        links = pending
 
 
 def inspect(root: Path, host: str, version: str | None = None) -> dict:
