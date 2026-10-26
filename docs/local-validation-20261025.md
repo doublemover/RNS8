@@ -588,3 +588,21 @@ compiled-CLI correctness smokes; it does not rebuild those artifacts, resume a
 performance campaign or rerun the unchanged logical checker. The
 [validation receipt](../metadata/environment-cohort-qualification-20261026.json)
 records exact source, commands, individual configured entries and log hashes.
+
+
+## October 26 DAG discovery/owner parity
+
+Source `36568f505e77836bc79c21301a33efab60e15631` builds all enabled native Windows
+gfx1100 optional backends and the CPU clang-cl sanitizer lane on their first
+attempt. The [source-bound receipt](../metadata/dag-owner-parity-validation-20261026.json)
+records 972 GPU passes / 16 skips and 562 CPU-ASan passes / 23 skips, zero failures,
+and 12 installed static/shared consumer checks. The new nine-backend/two-operation
+DAG regression passes in both lanes. The logical checker ran afresh once because
+its promotion-ledger dependency changed: 1,006.60 seconds, passing. It is excluded
+from the two CTest counts rather than duplicated or silently reused.
+
+The separate explicit scalar/dot4 research configurations exposed a calibrator
+scheduled-descriptor error (one failure in each six-case smoke batch). Ten other
+checks passed. No timing collection started. This is distinct from the passing
+full default/optional-backend suites above; its initial failures and repair scope
+are retained in the [initial research receipt](../metadata/residue-dot-initial-validation-20261026.json).

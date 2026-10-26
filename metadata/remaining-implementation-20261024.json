@@ -461,7 +461,7 @@
         "promotion_eligible": false
       },
       "resident_dag_owner_parity": {
-        "status": "implemented_validation_pending",
+        "status": "validated_local",
         "scope": "Share one concrete backend-owner predicate between GEMM/prepared operation discovery and resident graph creation; stop advertising DAG mode for synchronous-only providers.",
         "files": [
           "src/core/api_internal.hpp",
@@ -471,7 +471,9 @@
         "regression": "tests/unit/test_api_operation_provider_cases.inc",
         "backends": 9,
         "operations": 2,
-        "arithmetic_or_routing_policy_changed": false
+        "arithmetic_or_routing_policy_changed": false,
+        "compiled_source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "receipt": "metadata/dag-owner-parity-validation-20261026.json"
       }
     },
     {
@@ -2201,6 +2203,13 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "fresh_logical_recheck_20261026": {
+        "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "seconds": 1006.6031684875488,
+        "exit_code": 0,
+        "receipt": "metadata/dag-owner-parity-validation-20261026.json",
+        "reason": "promotion ledger dependency changed; ran once afresh"
       }
     },
     {
@@ -3005,6 +3014,13 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "research_initial_validation_20261026": {
+        "receipt": "metadata/residue-dot-initial-validation-20261026.json",
+        "passed": 10,
+        "failed": 2,
+        "timing_captures": 0,
+        "status": "descriptor_and_timing_body_repaired_retry_pending"
       }
     },
     {

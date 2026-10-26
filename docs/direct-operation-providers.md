@@ -54,5 +54,7 @@ A table-driven regression compares both operation families with actual owner
 admission across all nine concrete backends, without GPU probes or device
 allocations. Positive source-mode declarations still require runtime binding and
 do not assert target correctness/performance qualification. The parity repair's
-full build/test batch is pending; earlier arithmetic measurements retain their
-original artifacts and do not qualify this source checkpoint.
+[36568f5 validation receipt](../metadata/dag-owner-parity-validation-20261026.json)
+records 972 GPU and 562 CPU-ASan passes, 16/23 explicit skips, no failures, 12
+installed-consumer passes and a fresh 1,006.60-second logical checker pass. Earlier
+arithmetic measurements retain their original artifacts.

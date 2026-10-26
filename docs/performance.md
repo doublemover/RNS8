@@ -300,3 +300,20 @@ unique label/phase/backend-status triples; observer overflow is explicit. Such a
 capture still fails event-timing and promotion admission. AUTO-cache and packing
 correctness smokes accept this explicit loss while retaining their numerical,
 selection and reuse assertions; silent loss and fabricated zero timings fail.
+
+
+## Residue-dot calibration ownership and timing body
+
+The residue-dot microcase v2 records the created plan's global bound, per-tile
+bound count, schedule-entry count and selected-prefix range. Scheduled cases use
+only per-tile bounds (`global_bound=0`); fixed-prefix selection preserves the same
+residue-channel workload across ordinary, grouped, scheduled and region cases.
+Capture validation rejects mismatched schedule ownership or prefix coverage.
+
+Individual samples return fixed-size timing values; JSON serialization happens
+after the measured phase. Sustained bodies execute compute plus full host export,
+with Boost, every-plane residue checks and padding audits outside the interval.
+The outer wall timer still includes its loop/termination bookkeeping. The v1
+contract is retained as historical evidence and is not admitted as v2. Scalar
+controls and dot4 candidates must differ only in their recorded arithmetic
+options; CRT-table, compiler, dependency and other build settings must match.

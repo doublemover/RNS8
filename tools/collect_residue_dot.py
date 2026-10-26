@@ -43,9 +43,9 @@ def validate_capture(c,e,diagnostic=False):
     case=validate_case(e['case']);region=case['mode']=='region';finite=case['domain']=='finite';arithmetic=e['arithmetic']
     if arithmetic not in ('scalar','dot4'):raise ValueError('arithmetic')
     cells=(case['m']-int(region))*(case['n']-int(region))*case['tasks']*(1 if finite else case['prefix'])
-    fixed=dict(schema='rns8_residue_dot_microcase_v1',case=case,run_id=e['run_id'],arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=diagnostic,oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
+    fixed=dict(schema='rns8_residue_dot_microcase_v2',case=case,run_id=e['run_id'],arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=diagnostic,oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
         source_logical_scalar_updates=cells*case['k'] if arithmetic=='scalar' else 0,source_logical_dot4_updates=cells*((case['k']+3)//4) if arithmetic=='dot4' else 0,
-        source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None)
+        source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None,sustained_body='compute_export_only_no_oracle_or_json')
     for k,v in fixed.items():
         if type(c.get(k)) is not type(v) or c.get(k)!=v:raise ValueError('capture '+k)
     if c.get('diagnostic_event_scope')!='separate_final_hook_enabled_invocation_group_spans_not_dynamic_launch_or_instruction_counts':raise ValueError('diagnostic scope')
@@ -53,6 +53,13 @@ def validate_capture(c,e,diagnostic=False):
         events=c.get('diagnostic_events')
         if type(events) is not list or not events or any(not isinstance(x.get('label'),str) or not x['label'] or not positive(x.get('microseconds'),True) for x in events):raise ValueError('diagnostic spans')
     elif c.get('diagnostic_events') is not None:raise ValueError('production instrumentation')
+    contract=c.get('plan_contract');scheduled=case['mode']=='scheduled';bounded=case['domain']=='bounded'
+    expected_tiles=((case['m']+63)//64)*((case['n']+63)//64) if scheduled else 0
+    expected_prefix=0 if finite else case['prefix']
+    if type(contract) is not dict or set(contract)!={'global_bound','per_tile_bound_count','schedule_entries','min_selected_prefix','max_selected_prefix'}:raise ValueError('plan contract ABI')
+    if any(type(v) is not int or v<0 for v in contract.values()) or contract['global_bound']>1<<63:raise ValueError('plan contract values')
+    if contract['per_tile_bound_count']!=expected_tiles or contract['schedule_entries']!=expected_tiles or contract['min_selected_prefix']!=expected_prefix or contract['max_selected_prefix']!=expected_prefix:raise ValueError('plan schedule ownership')
+    if (scheduled or not bounded) and contract['global_bound']!=0:raise ValueError('plan bound placement')
     paired_manifest(c.get('build_manifest'),arithmetic)
     if not c.get('execution_id') or not c.get('target') or not c.get('device') or not c.get('selected_kernel'):raise ValueError('selected identity')
     artifact=c.get('artifact_capture') or {}

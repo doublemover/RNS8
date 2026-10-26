@@ -10,8 +10,8 @@ class ResidueDotContracts(unittest.TestCase):
     def case(self):return dict(schema='residue_dot_case_v1',m=17,n=19,k=65,prefix=9,modulus=0,tasks=3,repeats=3,warmups=1,mode='independent',domain='bounded',dataset='centered')
     def capture(self,arithmetic='scalar',mode='independent'):
         c=self.case();c['mode']=mode;region=mode=='region';cells=(17-int(region))*(19-int(region))*3*9;phase=dict(compute_us=2.,export_us=1.,total_us=3.)
-        return dict(schema='rns8_residue_dot_microcase_v1',case=c,run_id='fixture',arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=False,diagnostic_events=None,diagnostic_event_scope='separate_final_hook_enabled_invocation_group_spans_not_dynamic_launch_or_instruction_counts',oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
-            source_logical_scalar_updates=cells*65 if arithmetic=='scalar' else 0,source_logical_dot4_updates=cells*17 if arithmetic=='dot4' else 0,source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None,
+        return dict(schema='rns8_residue_dot_microcase_v2',case=c,run_id='fixture',arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=False,diagnostic_events=None,diagnostic_event_scope='separate_final_hook_enabled_invocation_group_spans_not_dynamic_launch_or_instruction_counts',oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
+            source_logical_scalar_updates=cells*65 if arithmetic=='scalar' else 0,source_logical_dot4_updates=cells*17 if arithmetic=='dot4' else 0,source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None,sustained_body='compute_export_only_no_oracle_or_json',plan_contract=dict(global_bound=0 if mode=='scheduled' else 1,per_tile_bound_count=int(mode=='scheduled'),schedule_entries=int(mode=='scheduled'),min_selected_prefix=9,max_selected_prefix=9),
             build_manifest=dict(configuration='residue_dot4='+('ON' if arithmetic=='dot4' else 'OFF')+'\nresidue_scalar_control='+('OFF' if arithmetic=='dot4' else 'ON')+'\nflags=-O3\n'),execution_id='process1',target='gfx1100',device='fixture',selected_kernel=mode,artifact_capture=dict(unchanged_during_run=True,executable_sha256=('a' if arithmetic=='scalar' else 'b')*64),setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
     def test_all_authored_cases_and_scope_rejections(self):
         for path in (Path(__file__).resolve().parent.parent/'benchmarks/residue-dot').glob('*.json'):validate_case(json.loads(path.read_text()))
@@ -44,6 +44,15 @@ class ResidueDotContracts(unittest.TestCase):
         result=summarize(observations);self.assertEqual(len(result),1);self.assertEqual(set(result[0]['same_scheduler_arithmetic_cost_ratios']),{'independent','grouped','region'});self.assertEqual(set(result[0]['same_arithmetic_scheduler_cost_ratios']),{'scalar:grouped','dot4:grouped'})
         with self.assertRaises(ValueError):summarize(observations+[observations[0]])
         with self.assertRaises(ValueError):summarize(observations[:1])
+    @patch('collect_residue_dot.manifest_provenance_complete',return_value=True)
+    def test_scheduled_bound_ownership_and_allocation_free_timing_contract(self,_):
+        c=self.capture(mode='scheduled');e=dict(case=c['case'],run_id='fixture',arithmetic='scalar');validate_capture(c,e)
+        for key,value in [('global_bound',1),('per_tile_bound_count',0),('schedule_entries',0),('min_selected_prefix',1),('max_selected_prefix',20),('schedule_entries',True)]:
+            bad=copy.deepcopy(c);bad['plan_contract'][key]=value
+            with self.assertRaises(ValueError):validate_capture(bad,e)
+        for key,value in [('schema','rns8_residue_dot_microcase_v1'),('sustained_body','json_sample_allocation'),('plan_contract',None)]:
+            bad=copy.deepcopy(c);bad[key]=value
+            with self.assertRaises(ValueError):validate_capture(bad,e)
     def test_static_dot_gather_counts_not_matrix_or_dynamic_work(self):
         counts=scan_disassembly('v_dot4_i32_iu8 v0, v1, v2, v0 neg_lo:[1,1,0]\nv_bfe_i32 v3, v4, 8, 8\nv_mul_lo_u32 v5, v6, v7\nds_read_b32 v1, v2\nds_write_b8 v1, v2\n')
         self.assertEqual(counts['packed_dot4'],1);self.assertEqual(counts['byte_extract_permute'],1);self.assertEqual(counts['scalar_integer_multiply_add'],1);self.assertEqual(counts['lds_read'],1);self.assertEqual(counts['lds_write'],1);self.assertEqual(counts['matrix_instruction_count'],0)

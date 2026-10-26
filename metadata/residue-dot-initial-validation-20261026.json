@@ -1,0 +1,77 @@
+{
+  "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+  "records": [
+    {
+      "name": "scalar-smokes",
+      "argv": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+        "--test-dir",
+        "build/validation-20261026-residue-scalar",
+        "--output-on-failure",
+        "-j",
+        "1",
+        "-R",
+        "^residue_dot_.*_smoke$",
+        "--output-junit",
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\residue-dot-study\\scalar-ctest.xml"
+      ],
+      "exit_code": 8,
+      "seconds": 7.185107469558716
+    },
+    {
+      "name": "dot4-smokes",
+      "argv": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+        "--test-dir",
+        "build/validation-20261026-residue-dot4",
+        "--output-on-failure",
+        "-j",
+        "1",
+        "-R",
+        "^residue_dot_.*_smoke$",
+        "--output-junit",
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\residue-dot-study\\dot4-ctest.xml"
+      ],
+      "exit_code": 8,
+      "seconds": 7.191724061965942
+    }
+  ],
+  "status": "failed",
+  "campaign_resumed": false,
+  "logical_exit_code": 0,
+  "schema": "rns8_residue_dot_initial_validation_v1",
+  "scope": "Explicit arithmetic research configurations, distinct from passing full default/optional backend and CPU sanitizer lanes",
+  "passed": 10,
+  "failed": 2,
+  "planned_timing_captures": 660,
+  "timing_captures_executed": 0,
+  "failure": "Scheduled fixtures set both a nonzero global bound and per-tile bounds; public descriptor validation correctly rejects this",
+  "repair": "Place the envelope in tile bounds only, report and validate actual plan ownership; keep per-call JSON work outside sustained bodies; expand scheduled/long-K regression cases",
+  "retry_limit": 1,
+  "files": [
+    {
+      "path": "temp/validation-20261026/residue-dot-study/scalar-ctest.log",
+      "sha256": "313906931adf3b2ad24d1f7e3af176533a045e403f3de12b1ccb0d333bd33478"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study/scalar-ctest.xml",
+      "sha256": "4bf00017f7b3a2948ce9914d8b58e5d1920597dc6fe2094917d39daa9661278a"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study/dot4-ctest.log",
+      "sha256": "5021a6538af9b34d039f55fef78ab8b9be4bb70c36b869fd0dcf1123419bcc65"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study/dot4-ctest.xml",
+      "sha256": "d39233aa35786fdd0a5ff5a932dc24bbfb57ec8e96427b6b73c34eb5ba282397"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study/qualification-plan.json",
+      "sha256": "9fad26e8c18bf60521039bf009ff7e0b994be7edfa83c6c3c21e4bb9dbac03d0"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study/validation-launch.json",
+      "sha256": "29628d106ebb76aea5ef42587801dbe83d6f320cdd6f1d3350ae529376c0c301"
+    }
+  ]
+}

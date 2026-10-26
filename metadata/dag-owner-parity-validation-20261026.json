@@ -1,0 +1,482 @@
+{
+  "schema": "rns8_dag_owner_parity_validation_v1",
+  "compiled_source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+  "reviewed_utc": "2026-10-26T05:39:26.126602+00:00",
+  "scope": "Backend owner/discovery conformance, all configured HIP/optional-backend and CPU sanitizer tests, tooling, installed static/shared consumer checks; no performance or unavailable-target qualification",
+  "regression": {
+    "name": "DAG discovery agrees with concrete resident graph backend ownership",
+    "concrete_backends": 9,
+    "operations": 2,
+    "lanes": [
+      "gpu",
+      "asan"
+    ],
+    "device_probe": false,
+    "device_allocation": false
+  },
+  "lanes": {
+    "gpu": {
+      "build_receipt": {
+        "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "lane": "gpu",
+        "phase": "dag-owner-parity-build",
+        "records": [
+          {
+            "name": "configure",
+            "exit_code": 0,
+            "seconds": 19.177077293395996,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-build\\gpu\\configure.log",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "-S",
+              ".",
+              "-B",
+              "build/validation-20261025-gpu",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+              "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
+              "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
+              "-DVCPKG_MANIFEST_INSTALL=OFF",
+              "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+              "-DRNS8_BUILD_TESTS=ON",
+              "-DRNS8_BUILD_EXAMPLES=ON",
+              "-DRNS8_BUILD_TOOLS=ON",
+              "-DRNS8_BUILD_BENCHMARKS=ON",
+              "-DRNS8_BUILD_SHARED=ON",
+              "-DRNS8_AMDGPU_TARGETS=gfx1100",
+              "-DRNS8_HIP_ROOT=C:/Program Files/AMD/ROCm/7.1",
+              "-DRNS8_HIPBLASLT_ROOT=C:/Program Files/AMD/ROCm/7.1",
+              "-DRNS8_CK_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel",
+              "-DRNS8_ROCWMMA_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA",
+              "-DRNS8_GMP_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
+              "-DRNS8_FLINT_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
+              "-DRNS8_ENABLE_HIP=ON",
+              "-DRNS8_ENABLE_CPU_PARALLEL=ON",
+              "-DRNS8_ENABLE_HIPBLASLT=ON",
+              "-DRNS8_ENABLE_CK=ON",
+              "-DRNS8_ENABLE_ROCWMMA=ON",
+              "-DRNS8_ENABLE_AMDGPU_BUILTINS=ON",
+              "-DRNS8_ENABLE_GMP=ON",
+              "-DRNS8_ENABLE_FLINT=ON",
+              "-DRNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=ON",
+              "-DRNS8_EXPERIMENTAL_GARNER_TABLE=OFF",
+              "-DRNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=ON",
+              "-DRNS8_WORKLOAD_GPU_TESTS=ON",
+              "-DCMAKE_CXX_COMPILER=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe"
+            ]
+          },
+          {
+            "name": "build",
+            "exit_code": 0,
+            "seconds": 355.6878170967102,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-build\\gpu\\build.log",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "--build",
+              "build/validation-20261025-gpu",
+              "--parallel",
+              "3",
+              "--",
+              "-k",
+              "0"
+            ]
+          }
+        ],
+        "campaign_resumed": false
+      },
+      "test_receipt": {
+        "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "lane": "gpu",
+        "phase": "dag-owner-parity-tests",
+        "records": [
+          {
+            "name": "ctest",
+            "exit_code": 0,
+            "seconds": 665.2801477909088,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-tests\\gpu\\ctest.log",
+            "argv": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "-E",
+              "^native_wmma_logical_checker_self_test$",
+              "--test-dir",
+              "build/validation-20261025-gpu",
+              "--output-on-failure",
+              "-j",
+              "1",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-tests\\gpu\\ctest.xml"
+            ]
+          }
+        ],
+        "campaign_resumed": false
+      },
+      "total": 988,
+      "passed": 972,
+      "skipped": 16,
+      "failed": 0,
+      "skip_names": [
+        "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+        "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+        "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+        "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+        "budgeted finite controls read real device addresses beyond signed 32-bit range",
+        "word_mod_asymmetric_fp64_mfma_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+      ],
+      "files": [
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/gpu/receipt.json",
+          "sha256": "c6b0fcb80595f048930662713c0e1be8eac5dae362a0f48a3b790b0ebd6f4bd0"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/gpu/receipt.json",
+          "sha256": "f01c1f06d0c469a621f97776836c924af41b36581e2ce43cb8e25f36151b63d1"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/gpu/ctest.xml",
+          "sha256": "f0e6fed3034adae4cfcd3fe385d348004c73dbb55e4a87451ad95d4878f3491d"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/gpu/build.log",
+          "sha256": "3a1ca744be111c1e3f9e19b450382500149065572aed510b533e3c2f0df035ce"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/gpu/configure.log",
+          "sha256": "27c2cdc279d057557f502d55d298e47d5c48ec3e0b747612026df00c48389ebd"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/gpu/ctest.log",
+          "sha256": "78304c3aef748a757530d276c1ca92c67423d9ed2de9ba6fe2d41ca3c217925a"
+        }
+      ]
+    },
+    "asan": {
+      "build_receipt": {
+        "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "lane": "asan",
+        "phase": "dag-owner-parity-build",
+        "records": [
+          {
+            "name": "configure",
+            "exit_code": 0,
+            "seconds": 5.123438358306885,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-build\\asan\\configure.log",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "-S",
+              ".",
+              "-B",
+              "build/validation-20261025-asan",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+              "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
+              "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
+              "-DVCPKG_MANIFEST_INSTALL=OFF",
+              "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+              "-DRNS8_BUILD_TESTS=ON",
+              "-DRNS8_BUILD_EXAMPLES=ON",
+              "-DRNS8_BUILD_TOOLS=ON",
+              "-DRNS8_BUILD_BENCHMARKS=ON",
+              "-DRNS8_BUILD_SHARED=OFF",
+              "-DCMAKE_CXX_COMPILER=C:/Users/sneak/AppData/Local/RNS8/dependencies/llvm-23.1.4/clang+llvm-23.1.4-x86_64-pc-windows-msvc/bin/clang-cl.exe",
+              "-DRNS8_ENABLE_HIP=OFF",
+              "-DRNS8_ENABLE_CPU_PARALLEL=OFF",
+              "-DRNS8_ENABLE_WINDOWS_CLANG_ASAN=ON",
+              "-DRNS8_BUILD_FUZZERS=ON",
+              "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
+              "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+              "-DVCPKG_TARGET_TRIPLET=x64-windows-static",
+              "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/fsanitize=address /Zi /O1"
+            ]
+          },
+          {
+            "name": "build",
+            "exit_code": 0,
+            "seconds": 220.72270441055298,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-build\\asan\\build.log",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "--build",
+              "build/validation-20261025-asan",
+              "--parallel",
+              "3",
+              "--",
+              "-k",
+              "0"
+            ]
+          }
+        ],
+        "campaign_resumed": false
+      },
+      "test_receipt": {
+        "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+        "lane": "asan",
+        "phase": "dag-owner-parity-tests",
+        "records": [
+          {
+            "name": "ctest",
+            "exit_code": 0,
+            "seconds": 288.9134078025818,
+            "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-tests\\asan\\ctest.log",
+            "argv": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "-E",
+              "^native_wmma_logical_checker_self_test$",
+              "--test-dir",
+              "build/validation-20261025-asan",
+              "--output-on-failure",
+              "-j",
+              "1",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-tests\\asan\\ctest.xml"
+            ]
+          }
+        ],
+        "campaign_resumed": false
+      },
+      "total": 585,
+      "passed": 562,
+      "skipped": 23,
+      "failed": 0,
+      "skip_names": [
+        "HIP batches admit all members before reserving shared readers",
+        "HIP event-dependent joins submit before producer observation",
+        "HIP graphs retain one shared operand and preserve full-width semantics",
+        "HIP owned device and pinned allocations reconcile public live and peak observations",
+        "HIP prefix-nine decline seals signed and unsigned oneshots exactly once",
+        "HIP submissions reserve shared readers and publish only after observed completion",
+        "bounded event-dependent GEMM reserves pending operands without host publication",
+        "exact-wide moment admission exports exact resident HIP chains",
+        "generated HIP values invalidate downstream result cache after upstream mutation",
+        "native sentinel gates ordinary, graph and native-group publication",
+        "one completion system composes GEMM, value-preserving lift and dependent GEMM",
+        "owned pinned imports and exports share prepared dependency and graph publication",
+        "pending prepared dependencies publish before consumer launch and propagate cancellation",
+        "prepared HIP epilogues bind addends and preserve capture expression identity",
+        "prepared bounded HIP preserves declared ranges and checked exports",
+        "prepared finite HIP streams and graphs publish explicit ring results",
+        "prepared wrap HIP streams and graphs preserve full width byte semantics",
+        "public HIP product recipe rebinds owners without reallocating its arena",
+        "public HIP split-K owner reuses scratch and publishes complete exact products",
+        "public finite INT4 preparation owns generation-bound B and preserves stale rejection",
+        "quarter CRT HIP signed canonical and tail exports use the public owner",
+        "three HIP producer publications feed an exact epilogue in reverse observation order",
+        "unsupported sparse target preserves an existing public output"
+      ],
+      "files": [
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/asan/receipt.json",
+          "sha256": "3190b745d2e963e128ccf5dea8e3dbdced39d1e9841d10374a1af7fc7d26ebc7"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/asan/receipt.json",
+          "sha256": "ef65150cd25522bb5138d1d354d8fc45492831a3d347f4d02bd99568aba6b6bb"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/asan/ctest.xml",
+          "sha256": "ed25d805b5041aa536841c78cca3a6d5be2fdf1ce6c52d002de6bcaef5bf1388"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/asan/build.log",
+          "sha256": "89e102acef2423d0420fc1c188d5847a02028fc5ef767c8c604c510533886a7e"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-build/asan/configure.log",
+          "sha256": "bfcf84cc5858a04221278555519ee071da750e2705cad1c7b783150b6fb42cf1"
+        },
+        {
+          "path": "temp/validation-20261025/dag-owner-parity-tests/asan/ctest.log",
+          "sha256": "88c1e6ff41f37e7326c7cf3ec939517b5ba4b327c7da5bac0aed73ca8fd8eaf3"
+        }
+      ]
+    }
+  },
+  "fresh_shared_logical_checker": {
+    "receipt": {
+      "source_commit": "36568f505e77836bc79c21301a33efab60e15631",
+      "argv": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "tools/test_native_wmma_logic.py"
+      ],
+      "input_sha256": {
+        "tools/test_native_wmma_logic.py": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+        "tools/check_native_wmma_logic.py": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+        "tools/native_wmma_lowering.py": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+        "tools/generate_native_wmma.py": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+        "tools/promotion_ledger.py": "533ad2f13abb31d74915161c6d2facdc1eb12c51b45a9036b8189ac1cf2c69a2"
+      },
+      "timeout_seconds": 1500,
+      "campaign_resumed": false,
+      "exit_code": 0,
+      "seconds": 1006.6031684875488
+    },
+    "files": [
+      {
+        "path": "temp/validation-20261026/dag-owner-parity-logical/receipt.json",
+        "sha256": "b0d38049e9929040900bc9c598a45a5163fef54e04fd2f129eb47eb5438b69c9"
+      },
+      {
+        "path": "temp/validation-20261026/dag-owner-parity-logical/logical.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "count": 1,
+    "reused_old_proof": false,
+    "reason": "promotion_ledger.py changed in the real-environment cohort repair"
+  },
+  "installed": {
+    "receipts": {
+      "build": {
+        "source_checkout": "36568f505e77836bc79c21301a33efab60e15631",
+        "records": [
+          {
+            "name": "install",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "--install",
+              "build/validation-20261025-gpu",
+              "--prefix",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\stage"
+            ],
+            "exit_code": 0,
+            "seconds": 3.5998692512512207
+          },
+          {
+            "name": "static-configure",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "-S",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\stage\\share\\RNS8\\examples\\downstream-cmake",
+              "-B",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\static",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+              "-DCMAKE_PREFIX_PATH=C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\stage",
+              "-DCMAKE_CXX_COMPILER=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+              "-DRNS8_DOWNSTREAM_USE_SHARED=OFF"
+            ],
+            "exit_code": 0,
+            "seconds": 4.837333917617798
+          },
+          {
+            "name": "static-build",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "--build",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\static",
+              "--parallel",
+              "2"
+            ],
+            "exit_code": 0,
+            "seconds": 12.515774965286255
+          },
+          {
+            "name": "shared-configure",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "-S",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\stage\\share\\RNS8\\examples\\downstream-cmake",
+              "-B",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\shared",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+              "-DCMAKE_PREFIX_PATH=C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\stage",
+              "-DCMAKE_CXX_COMPILER=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+              "-DRNS8_DOWNSTREAM_USE_SHARED=ON"
+            ],
+            "exit_code": 0,
+            "seconds": 5.220839738845825
+          },
+          {
+            "name": "shared-build",
+            "argv": [
+              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+              "--build",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\shared",
+              "--parallel",
+              "2"
+            ],
+            "exit_code": 0,
+            "seconds": 9.797628164291382
+          }
+        ]
+      },
+      "test": {
+        "source_checkout": "36568f505e77836bc79c21301a33efab60e15631",
+        "records": [
+          {
+            "name": "static-test",
+            "argv": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\static",
+              "--output-on-failure",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\static.xml"
+            ],
+            "exit_code": 0,
+            "seconds": 1.3444437980651855
+          },
+          {
+            "name": "shared-test",
+            "argv": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\shared",
+              "--output-on-failure",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\dag-owner-parity-installed\\materialized-consumers\\shared.xml"
+            ],
+            "exit_code": 0,
+            "seconds": 1.5847663879394531
+          }
+        ]
+      }
+    },
+    "passed": 12,
+    "checks": [
+      "static:rns8-downstream-smoke",
+      "static:rns8-downstream-continuation",
+      "static:rns8-downstream-sparse-finite-ring",
+      "static:rns8-downstream-sparse-bounded-i64",
+      "static:rns8-downstream-stream-bounded-i64",
+      "static:rns8-downstream-materialized-product-recipe",
+      "shared:rns8-downstream-smoke",
+      "shared:rns8-downstream-continuation",
+      "shared:rns8-downstream-sparse-finite-ring",
+      "shared:rns8-downstream-sparse-bounded-i64",
+      "shared:rns8-downstream-stream-bounded-i64",
+      "shared:rns8-downstream-materialized-product-recipe"
+    ],
+    "files": [
+      {
+        "path": "temp/validation-20261025/dag-owner-parity-installed/materialized-consumers/shared.xml",
+        "sha256": "3f4263e76c24ef706fc11f22349381d50562ff30b4451f82c59539da2839184a"
+      },
+      {
+        "path": "temp/validation-20261025/dag-owner-parity-installed/materialized-consumers/static.xml",
+        "sha256": "93a2c7dbb74177e555dcd2073866b5f5042311f7f7ca9f9a748b00ecab0a84b5"
+      }
+    ]
+  },
+  "attempts": {
+    "build": 1,
+    "tests": 1,
+    "repairs": 0
+  },
+  "campaign_resumed": false,
+  "performance_results_retain_original_artifacts": true
+}
