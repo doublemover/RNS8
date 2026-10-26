@@ -9,8 +9,9 @@ separates installed tools from compiled and device-validated paths.
 Use the selected Python 3.15.1 and exact non-GPU tool/package candidates from the
 [version policy](dependency-versions.md). Their upgrade qualification remains
 pending across the full platform matrix. The user authorized the ROCm Core SDK
-10.1 migration on 2026-10-26. Its local bring-up uses `C:/TheRock/build` and
-explicit `lib/llvm/bin/amdclang++.exe` selection in a fresh Release build.
+10.1 migration on 2026-10-26. The fresh local Release validation below uses
+`C:/TheRock/build` and automatically selects its
+`lib/llvm/bin/amdclang++.exe` compiler.
 Use [SDK initialization](dependency-discovery.md#sdk-initialization) to download
 the correct family archive or reuse an existing extraction.
 
@@ -35,6 +36,15 @@ missing optional tools do not all block a direct-HIP build. It runs no installer
 and system changes are explicit administrative tasks.
 
 ## Configure and build
+
+Run `python tools/init.py` to select the exact repository Python, detect GPU
+targets, reuse or provision the matching SDK, resolve compiler/LLVM/bitcode,
+VS, CMake/Ninja and prepared vcpkg package paths, and build Release. Use
+`--dry-run --json` to inspect the plan or `--sdk-test` to run registered tests
+after building. Selection is scoped to child processes; no manual `HIP_PATH`,
+`LLVM_PATH` or PATH edits are needed. See
+[SDK initialization](dependency-discovery.md#sdk-initialization) for overrides
+and optional-backend flags.
 
 The shared pre-project [selection contract](dependency-discovery.md) resolves an
 unambiguous existing SDK/vcpkg stack. Explicit roots take precedence and invalid
@@ -116,3 +126,47 @@ for libFuzzer: its static CRT and `x64-windows-static` packages must agree with
 LLVM's shipped fuzzer library. A dynamic-CRT fuzzer configuration is rejected
 before building. Installed workload checks copy the selected ASan DLL beside
 consumer executables and preserve instrumentation and CRT selection.
+
+## October 26 Core SDK 10.1 local Release validation
+
+The [source-bound record](../metadata/hip101-validation-20261026.json) reports
+the complete fresh Windows x64 Release run at `059fa45`: **1,080 passed,
+30 skipped, zero failures across 1,110 registered tests**, in 963.43 seconds.
+The skipped tests require unavailable sparse/CDNA/FP8/TDM/AMX features. The
+build enables direct HIP, AMDGPU builtins, CK, rocWMMA, hipBLASLt, OpenMP,
+GMP/FLINT, static/shared libraries, tools, benchmarks and examples. Installed
+public consumers are included in the suite; the installed native-device
+example also passes synchronous and prepared-graph execution with both static
+and shared RNS8 packages, **four additional checks**.
+
+The selected stack is Core SDK10.1.0, HIP7.16.26385, AMD Clang24.0.0git,
+CK1.3.0, rocWMMA2.2.1, hipBLASLt1.4.1, VS2026 18.11.2/MSVC19.51,
+Python3.15.1, CMake4.4.4 and Ninja1.13.2. Manifest packages use
+Boost1.92.0, Catch2 3.16.1, GMP6.3.0, FLINT3.6.0 and MPFR4.2.2.
+The RX7900XTX reports `gfx1100` and 25,753,026,560 device bytes; its Windows
+display driver is 32.0.31041.5005. HIP's API driver version is a separate value.
+
+Windows System32 DLL search precedence initially loaded HIP71626384 despite
+the selected SDK being on PATH. That partial run was stopped. Build/install
+runtime staging now places the selected HIP DLL and `rocm_kpack.dll` beside
+executables; a loaded-module regression requires their exact SDK hashes.
+The final complete rerun and sampled hipBLASLt/compiler modules use the selected
+SDK. Earlier failures, their repairs and the stopped run remain in the record.
+The 3 GiB-budget address regression physically allocates and checks a
+2,147,549,184-byte device input, crossing signed 32-bit addressing; this check
+is separate from the historical over-VRAM capacity study.
+
+The automatic no-location initializer was also exercised from PATH Python3.13.3:
+it selected Python3.15.1, the nested SDK compiler and the matching managed
+vcpkg installation, then completed a fresh static Release build. Optional
+GMP/FLINT bindings follow that selected prefix rather than mixing headers and
+libraries from another installation. CK's detected signed-input contract
+selects centered packing on CK1.3, with exact CPU/HIP differential coverage
+including K=65,536 and 65,537.
+
+The same SDK compiles the gfx942 FP8 path and emits
+`v_mfma_f32_16x16x32_fp8_fp8`; this is compile/ISA evidence only. Its compiler
+lacks `__builtin_amdgcn_s_wait_dscnt`, so the guarded gfx1250 TDM path remains
+unavailable. Linux, other GPU families, multi-GPU, Debug/ASan and matched
+new-stack performance retain their own qualification gates. No stopped
+performance campaign was resumed.

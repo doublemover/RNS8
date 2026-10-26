@@ -8,6 +8,15 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
+The [October 26 Core SDK10.1 local Release validation](platform-windows.md#october-26-core-sdk-101-local-release-validation)
+records a fresh automatically resolved Windows/gfx1100 stack at `059fa45`:
+1,080 passes, 30 target/feature skips and zero failures in 1,110 registered
+tests, plus four installed static/shared native-device checks. Selected HIP
+runtime hashes are verified after loading. This supersedes pending local
+SDK10.1 Release bring-up, while broader hardware/configuration and matched
+performance gates remain. Historical measurements below retain their original
+source and toolchain boundaries.
+
 The [October 26 selected implementation audit](selected-implementation-20261026.md)
 records source and fixtures for all 25 requested issue slices, including the new
 real modulus-sharded HIP owner and standalone system/LDS/memory probes. Only

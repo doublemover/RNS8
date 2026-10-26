@@ -40,7 +40,7 @@ class Policy(unittest.TestCase):
         selected = {item["name"]: item for item in self.policy["components"]}
         self.assertEqual(selected["ck"]["selected"]["version"], "1.1.0")
         self.assertEqual(selected["rocwmma"]["selected"]["version"], "2.1.0")
-        self.assertEqual(self.policy["gpu_sdk_candidate"]["status"], "user_authorized_local_qualification_in_progress")
+        self.assertEqual(self.policy["gpu_sdk_candidate"]["status"], "local_release_validated_broader_platforms_pending")
         self.assertTrue(self.policy["gpu_sdk_candidate"]["installed"])
         self.assertFalse(self.policy["gpu_sdk_candidate"]["qualified"])
         invalid = deepcopy(self.policy)

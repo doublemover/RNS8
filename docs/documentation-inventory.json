@@ -2030,6 +2030,10 @@
         },
         {
           "source": "docs/platform-windows.md",
+          "reference": "dependency-discovery.md#sdk-initialization"
+        },
+        {
+          "source": "docs/platform-windows.md",
           "reference": "dependency-discovery.md"
         },
         {
@@ -3697,6 +3701,10 @@
           "reference": "platform-windows.md"
         },
         {
+          "source": "docs/dependency-versions.md",
+          "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-windows.md"
         },
@@ -3707,6 +3715,10 @@
         {
           "source": "docs/platform-readiness.md",
           "reference": "platform-windows.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "platform-windows.md#october-26-core-sdk-101-local-release-validation"
         },
         {
           "source": "examples/workloads/README.md",
@@ -3723,6 +3735,7 @@
       ],
       "anchors": [
         "configure-and-build",
+        "october-26-core-sdk-101-local-release-validation",
         "optional-accelerators",
         "prerequisites",
         "tests-packaging-and-evidence",

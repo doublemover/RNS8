@@ -1,0 +1,952 @@
+{
+  "schema": "rns8_hip101_local_validation_v1",
+  "recorded_utc": "2026-10-26T23:29:32.724038+00:00",
+  "artifact_source": "059fa4580d19a50b7f44430fb7b4c6d3dc9e513c",
+  "source_dirty": false,
+  "scope": "Windows x64 Release, Radeon RX 7900 XTX gfx1100; applicable registered CPU/HIP/optional-accelerator/tooling/install tests. No performance campaign resumed.",
+  "automatic_setup": {
+    "command": [
+      "python",
+      "tools/init.py"
+    ],
+    "preview": [
+      "python",
+      "tools/init.py",
+      "--dry-run",
+      "--json"
+    ],
+    "build_and_tests": [
+      "python",
+      "tools/init.py",
+      "--sdk-test",
+      "--json"
+    ],
+    "proof": "Launched by PATH Python 3.13.3; automatically selected exact Python 3.15.1, SDK/compiler, VS environment, CMake/Ninja and matching vcpkg manifest prefix.",
+    "records": [
+      {
+        "path": "temp/hip101-20261026/auto-init-build.json",
+        "bytes": 50965,
+        "sha256": "f4d3de6d23b1536e3cc555f483505de4386f0f00f4ccd87acff45a8bc7f02e40"
+      },
+      {
+        "path": "temp/hip101-20261026/auto-init-build.log",
+        "bytes": 14141,
+        "sha256": "83812cf8794817e9607ebe93250cf2a058a7d0ae92a1f45d3c177468c0b7c1c6"
+      },
+      {
+        "path": "temp/hip101-20261026/app-local-sdk-build.json",
+        "bytes": 115005,
+        "sha256": "39ae17781a75a370efcc97a7631c7fede242bd387dcea9c9840295c83eaeb133"
+      },
+      {
+        "path": "temp/hip101-20261026/app-local-sdk-build.log",
+        "bytes": 35104,
+        "sha256": "65581bb8ce48b17db35f5383657ca04f54bf108f4c8663ea9e3df3192174e9d4"
+      }
+    ]
+  },
+  "stack": {
+    "core_sdk": "10.1.0",
+    "hip_headers": "7.16.26385",
+    "hip_runtime_api": 71626385,
+    "compiler": "AMD Clang 24.0.0git d6f6cb691863e9258034ab48c1dfce21689d5606",
+    "sdk_root": "C:/TheRock/build",
+    "compiler_path": "C:/TheRock/build/lib/llvm/bin/amdclang++.exe",
+    "sdk_archive_url": "https://stable.repo.amd.com/rocm/core/tarball/therock-dist-windows-gfx110X-all-10.1.0.tar.gz",
+    "archive_origin": "User-extracted SDK adopted; no publisher archive digest independently verified.",
+    "host": "VS2026 18.11.2 / MSVC 19.51.36260.0",
+    "python": "3.15.1",
+    "cmake": "4.4.4",
+    "ninja": "1.13.2",
+    "packages": {
+      "boost": "1.92.0",
+      "catch2": "3.16.1",
+      "nlohmann_json": "3.12.0#2",
+      "gmp": "6.3.0",
+      "flint": "3.6.0",
+      "mpfr": "4.2.2",
+      "ck": "1.3.0",
+      "rocwmma": "2.2.1",
+      "hipblaslt": "1.4.1"
+    },
+    "vcpkg_baseline": "b42e8ed051d17a7f95b9d2a3140c1f9296423712",
+    "gpu_driver": {
+      "Name": "AMD Radeon RX 7900 XTX",
+      "DriverVersion": "32.0.31041.5005",
+      "DriverDate": "2026-09-29T20:00:00-04:00",
+      "PNPDeviceID": "PCI\\VEN_1002&DEV_744C&SUBSYS_79011EAE&REV_C8\\6&28CF2CBF&0&00000019"
+    },
+    "device": {
+      "backend": "hip-direct",
+      "device_id": 0,
+      "name": "AMD Radeon RX 7900 XTX",
+      "gcn_arch": "gfx1100",
+      "hip_available": 1,
+      "hip_runtime_version": 71626385,
+      "hip_driver_version": 71626385,
+      "global_mem_bytes": 25753026560,
+      "detail": "direct HIP runtime detected",
+      "capability": {
+        "backend": "hip-direct",
+        "backend_name": "hip-direct",
+        "status": "implemented_correctness_backend",
+        "detail": "Direct HIP correctness backend; not an optimized matrix-engine accelerator.",
+        "selected_kernel": "direct_hip_tiled_rns_gemm_v1",
+        "accelerator_backend": false,
+        "correctness_backend": true,
+        "matrix_engine_backend": false,
+        "requires_feature_detection": false,
+        "enable_flag_fail_fast": false,
+        "candidate_evidence_only": false,
+        "compiled_kernel_available": true,
+        "exact_differential_validated": false,
+        "performance_validated": false,
+        "library_name": "HIP runtime",
+        "library_version": "",
+        "enable_flag": "",
+        "epilogue_mode": "fused_centered_residue_correctness",
+        "workspace_mode": "resident_device_buffers",
+        "isa_evidence": "rns8_hip_direct_reciprocal_isa_gate"
+      }
+    },
+    "loaded_modules": [
+      {
+        "Name": "amdhip64_7.dll",
+        "Path": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\amdhip64_7.dll",
+        "Sha256": "4eb7eb90294cb4c3c9046efae93e51d5d16e9fd81c4161433ed56d5d092ed6f9"
+      },
+      {
+        "Name": "libhipblaslt.dll",
+        "Path": "C:\\TheRock\\build\\bin\\libhipblaslt.dll",
+        "Sha256": "c108531bd92e0c88422c86294acd46e5a4c9f56e5436f5572f7f4c847cd234d4"
+      },
+      {
+        "Name": "rocm_kpack.dll",
+        "Path": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\rocm_kpack.dll",
+        "Sha256": "922db0d5797a54c24d2be5b9cb229a8fd66203ce2b7f2caca0e0d33803e0f151"
+      },
+      {
+        "Name": "amd_comgr.dll",
+        "Path": "C:\\TheRock\\build\\bin\\amd_comgr.dll",
+        "Sha256": "19727784b8e0146dd61b11d4619ac29cace70a242feaafbc3e3d441661dadbe0"
+      }
+    ]
+  },
+  "build_manifest": {
+    "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=OFF\ngarner_table=OFF\nconfig=Release\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /O2 /Ob2 /DNDEBUG\nhip=ON\nhip_compiler=C:/TheRock/build/bin/hipcc.exe\nhip_version=HIP version: 7.16.26385-7da43026e4 | AMD clang version 24.0.0git (https://github.com/ROCm/llvm-project.git d6f6cb691863e9258034ab48c1dfce21689d5606) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/TheRock/build/lib/llvm/bin\nhip_stl_overlay_sha256=none\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed\nruntime_amdhip64_7.dll_sha256=4eb7eb90294cb4c3c9046efae93e51d5d16e9fd81c4161433ed56d5d092ed6f9\nruntime_rocm_kpack.dll_sha256=922db0d5797a54c24d2be5b9cb229a8fd66203ce2b7f2caca0e0d33803e0f151\nck_wmma_signed_inputs=1\ndependency_policy_sha256=b01e67350e8e6ffe95ca50b8050440a33047dd28ef36887bacabdd51fff5a1a7\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=ef7ef2afe75f3b91afa7df12ccbe07fff0ef2312071a1f8f303fc84599d7c5f7\ndependency_tree.ROCWMMA=C:/TheRock/build/include\ndependency_tree.CK=C:/TheRock/build/include\ndependency_tree.HIPBLASLT=C:/TheRock/build/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_ck_wmma_no_divide_include\n",
+    "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+    "external_dependencies": {
+      "BOOST": {
+        "bytes": 31958612,
+        "files": 2292,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+        "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+      },
+      "CATCH2_1": {
+        "bytes": 640342,
+        "files": 183,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+        "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+      },
+      "CK": {
+        "bytes": 86611279,
+        "files": 5633,
+        "root": "C:\\TheRock\\build\\include",
+        "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+      },
+      "HIPBLASLT": {
+        "bytes": 86611279,
+        "files": 5633,
+        "root": "C:\\TheRock\\build\\include",
+        "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+      },
+      "JSON_1": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "JSON_2": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "RNS8_CK_GENERATED_INCLUDE_DIR": {
+        "bytes": 2114,
+        "files": 2,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\accelerator-dependency-probes\\ck-generated\\include",
+        "sha256": "e113cc11d5db19556658d354e2ab5d88719c10c994fd6db82f030a3d3d3a7e53"
+      },
+      "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
+        "bytes": 54299,
+        "files": 1,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\rns8_ck_wmma_no_divide_include",
+        "sha256": "30a361a50a2832cb4148bb239f3e5712c2aaf92552521d0ab3aab8748d885345"
+      },
+      "ROCWMMA": {
+        "bytes": 86611279,
+        "files": 5633,
+        "root": "C:\\TheRock\\build\\include",
+        "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+      }
+    },
+    "identity_scope": "source-config-and-external-headers",
+    "linkage": "static-rns8",
+    "source_commit": "059fa4580d19a50b7f44430fb7b4c6d3dc9e513c",
+    "source_digest": "c88ff174af124bebda99b2df485125480088757051695f3a419717c6b4d1940f",
+    "source_dirty": false,
+    "version": 2
+  },
+  "build_manifest_artifact": {
+    "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/generated/Release/rns8_build_manifest.json",
+    "bytes": 5137,
+    "sha256": "9d46120cfb2eb925a50c7e751bcdfa82a334f58442d2e0269bf240717bfbf5b7"
+  },
+  "validation": {
+    "registered": 1110,
+    "passed": 1080,
+    "failed": 0,
+    "skipped": 30,
+    "skipped_tests": [
+      "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+      "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+      "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+      "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+      "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+      "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+      "CDNA5 TDM and multicast transfer litmus preserves full words and zero tails",
+      "CDNA5 two-stage RNS consumers match Boost across cluster and slab tails",
+      "gfx942 FP8 finite research matches independent complete padded products",
+      "quarter owner accepts CPU AMX residue producers",
+      "fp8_fp8_capture_smoke",
+      "fp8_fp8-materialized_capture_smoke",
+      "tdm_tdm_capture_smoke",
+      "tdm_multicast2_capture_smoke",
+      "tdm_multicast4_capture_smoke",
+      "tdm_ordinary-wmma_capture_smoke",
+      "tdm_tdm-wmma_capture_smoke",
+      "tdm_multicast2-wmma_capture_smoke",
+      "tdm_multicast4-wmma_capture_smoke",
+      "tdm_multicast2-wmma-neighbor_capture_smoke",
+      "tdm_multicast4-wmma-neighbor_capture_smoke",
+      "word_mod_asymmetric_fp64_mfma_resident_smoke",
+      "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+      "word_mod_asymmetric_fp64_mfma_cold_smoke",
+      "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+      "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+      "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+      "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+      "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+      "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+    ],
+    "run": {
+      "label": "app-local-qualified-ctest",
+      "command": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "tools/windows_dev.py",
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+        "--test-dir",
+        "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0",
+        "--output-on-failure",
+        "--output-junit",
+        "C:/Users/sneak/Development/RNS8/temp/hip101-20261026/app-local-qualified-ctest.xml",
+        "-j",
+        "1",
+        "--timeout",
+        "600"
+      ],
+      "exit_code": 0,
+      "seconds": 963.4334678649902,
+      "log": {
+        "path": "temp/hip101-20261026/app-local-qualified-ctest.log",
+        "bytes": 258711,
+        "sha256": "f3c9fe0bbe16df8ee69f2582b63853aca40821c16294f05c3b39390a575d57c5"
+      }
+    },
+    "junit": {
+      "path": "temp/hip101-20261026/app-local-qualified-ctest.xml",
+      "bytes": 800671,
+      "sha256": "1a2b95b9c1bab02833df963203323a3d17d8f8110fad00c1094064e0ddf4e147"
+    },
+    "ctest_details": {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/Testing/Temporary/LastTest.log",
+      "bytes": 4654664,
+      "sha256": "eba96435c6fd1bbddb8f44fb8820882549459bc22c23eb49efa47dc6e128bb6e"
+    },
+    "large_address_budget_bytes": 3221225472,
+    "large_address_receipts": [
+      {
+        "a_allocation_bytes": 2147549184,
+        "all_owned_device_bytes_retired": true,
+        "all_rows_and_padding_exact": true,
+        "available_device_bytes_before": 25596395520,
+        "b_allocation_bytes": 65536,
+        "backend": "hip-direct",
+        "build_manifest": {
+          "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=OFF\ngarner_table=OFF\nconfig=Release\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /O2 /Ob2 /DNDEBUG\nhip=ON\nhip_compiler=C:/TheRock/build/bin/hipcc.exe\nhip_version=HIP version: 7.16.26385-7da43026e4 | AMD clang version 24.0.0git (https://github.com/ROCm/llvm-project.git d6f6cb691863e9258034ab48c1dfce21689d5606) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/TheRock/build/lib/llvm/bin\nhip_stl_overlay_sha256=none\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed\nruntime_amdhip64_7.dll_sha256=4eb7eb90294cb4c3c9046efae93e51d5d16e9fd81c4161433ed56d5d092ed6f9\nruntime_rocm_kpack.dll_sha256=922db0d5797a54c24d2be5b9cb229a8fd66203ce2b7f2caca0e0d33803e0f151\nck_wmma_signed_inputs=1\ndependency_policy_sha256=b01e67350e8e6ffe95ca50b8050440a33047dd28ef36887bacabdd51fff5a1a7\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=ef7ef2afe75f3b91afa7df12ccbe07fff0ef2312071a1f8f303fc84599d7c5f7\ndependency_tree.ROCWMMA=C:/TheRock/build/include\ndependency_tree.CK=C:/TheRock/build/include\ndependency_tree.HIPBLASLT=C:/TheRock/build/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_ck_wmma_no_divide_include\n",
+          "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+          "external_dependencies": {
+            "BOOST": {
+              "bytes": 31958612,
+              "files": 2292,
+              "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+              "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+            },
+            "CATCH2_1": {
+              "bytes": 640342,
+              "files": 183,
+              "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+              "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+            },
+            "CK": {
+              "bytes": 86611279,
+              "files": 5633,
+              "root": "C:\\TheRock\\build\\include",
+              "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+            },
+            "HIPBLASLT": {
+              "bytes": 86611279,
+              "files": 5633,
+              "root": "C:\\TheRock\\build\\include",
+              "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+            },
+            "JSON_1": {
+              "bytes": 953872,
+              "files": 46,
+              "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+              "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+            },
+            "JSON_2": {
+              "bytes": 953872,
+              "files": 46,
+              "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+              "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+            },
+            "RNS8_CK_GENERATED_INCLUDE_DIR": {
+              "bytes": 2114,
+              "files": 2,
+              "root": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\accelerator-dependency-probes\\ck-generated\\include",
+              "sha256": "e113cc11d5db19556658d354e2ab5d88719c10c994fd6db82f030a3d3d3a7e53"
+            },
+            "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
+              "bytes": 54299,
+              "files": 1,
+              "root": "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\rns8_ck_wmma_no_divide_include",
+              "sha256": "30a361a50a2832cb4148bb239f3e5712c2aaf92552521d0ab3aab8748d885345"
+            },
+            "ROCWMMA": {
+              "bytes": 86611279,
+              "files": 5633,
+              "root": "C:\\TheRock\\build\\include",
+              "sha256": "7952dd9d2b67d35c88fe859585d24e0c8157ef2ecd59081f972f105a85c3091b"
+            }
+          },
+          "identity_scope": "source-config-and-external-headers",
+          "linkage": "static-rns8",
+          "source_commit": "059fa4580d19a50b7f44430fb7b4c6d3dc9e513c",
+          "source_digest": "c88ff174af124bebda99b2df485125480088757051695f3a419717c6b4d1940f",
+          "source_dirty": false,
+          "version": 2
+        },
+        "c_allocation_bytes": 98307,
+        "centered_output_weighted_checksum": "2853906",
+        "compiled_source_commit": "059fa4580d19a50b7f44430fb7b4c6d3dc9e513c",
+        "compute_host_pointer_rebasing": false,
+        "dataset": "affine_17_13_7_5_mod253_centered126_v1",
+        "device": "AMD Radeon RX 7900 XTX",
+        "device_allocation_calls": 3,
+        "device_budget_bytes": 3221225472,
+        "device_free_calls": 3,
+        "first_a_offset_above_int32": 2147483648,
+        "h2d_payload_bytes_process_counter": 2148007951,
+        "hip_driver_version": 71626385,
+        "hip_runtime_version": 71626385,
+        "host_input_chunk_bytes": 16777216,
+        "input_generation_upload_ns": 279749800.0,
+        "k": 65536,
+        "ldc": 3,
+        "m": 32769,
+        "matched_first_row": 32639,
+        "matched_i32_host_ns": [
+          5553600.0,
+          4835300.0,
+          4879500.0,
+          4837700.0,
+          4840000.0,
+          4840700.0,
+          5464300.0,
+          4956100.0,
+          4840000.0
+        ],
+        "matched_m": 32767,
+        "matched_repeats": 9,
+        "matched_timing_hooks_enabled": false,
+        "matched_u64_host_ns": [
+          5141100.0,
+          5138900.0,
+          5138500.0,
+          5148900.0,
+          5137700.0,
+          5171800.0,
+          5149300.0,
+          5147600.0,
+          5133400.0
+        ],
+        "matched_warmups": 2,
+        "n": 1,
+        "narrow_rejected_before_write": [
+          32768,
+          32769
+        ],
+        "nominal_clock_tick_ns": 1.0,
+        "observed_requested_device_peak_delta": 2147713027,
+        "prefix_count": 1,
+        "promotion_eligible": false,
+        "qualification_phases": [
+          {
+            "address_width": "signed32",
+            "host_completed_ns": 1481337200.0,
+            "rows": 32767,
+            "windows": 256
+          },
+          {
+            "address_width": "unsigned64",
+            "host_completed_ns": 1373053200.0,
+            "rows": 32769,
+            "windows": 257
+          }
+        ],
+        "reserve_bytes": 536870912,
+        "schema": "rns8_large_address_qualification_v1",
+        "semantic_contract": "finite_ring_mod253_centered_i8",
+        "separate_event_diagnostics": [
+          {
+            "address_width": "signed32",
+            "events": [
+              {
+                "label": "finite_gemm_i32_index_window_kernel",
+                "microseconds": 4942.500114440918
+              }
+            ],
+            "failure_observer_complete": true,
+            "failures": []
+          },
+          {
+            "address_width": "unsigned64",
+            "events": [
+              {
+                "label": "finite_gemm_u64_index_window_kernel",
+                "microseconds": 5202.199935913086
+              }
+            ],
+            "failure_observer_complete": true,
+            "failures": []
+          }
+        ],
+        "sparse_existing_u64_control_modulus": 256,
+        "sparse_existing_u64_high_offset": 2147483649,
+        "synchronization": "hipDeviceSynchronize_in_each_backend_wrapper",
+        "target": "gfx1100",
+        "timing_includes": [
+          "backend_wrapper",
+          "required_sync",
+          "owner_pending_tracking",
+          "status_assertion"
+        ],
+        "timing_source": "host_monotonic_completed_backend_window",
+        "total_device_bytes": 25753026560,
+        "window_rows": 128
+      }
+    ],
+    "address_scope": "Physical >2 GiB device-address regression; not an over-VRAM capacity claim.",
+    "explicit_smokes": [
+      {
+        "label": "app-local-runtime-regression",
+        "command": [
+          "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_tests.exe",
+          "loaded HIP runtime matches the selected app-local SDK artifacts",
+          "--reporter",
+          "compact"
+        ],
+        "exit_code": 0,
+        "seconds": 0.22383689880371094,
+        "log": {
+          "path": "temp/hip101-20261026/app-local-runtime-regression.log",
+          "bytes": 151,
+          "sha256": "d3734d6bb20276be5844e2aaa6c192460f69cdb2f13c28997864e8e3ac1e9908"
+        }
+      },
+      {
+        "label": "app-local-hipblaslt-smoke",
+        "command": [
+          "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_tests.exe",
+          "hipBLASLt bounded baseline one-shot matches CPU and direct HIP",
+          "--reporter",
+          "compact"
+        ],
+        "exit_code": 0,
+        "seconds": 0.47096872329711914,
+        "log": {
+          "path": "temp/hip101-20261026/app-local-hipblaslt-smoke.log",
+          "bytes": 269,
+          "sha256": "e43026a83a3bbdba275db5d96c8b64e284fd5a1e95aeb551c157ab795af2d37a"
+        }
+      },
+      {
+        "label": "app-local-ck-smoke",
+        "command": [
+          "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_tests.exe",
+          "CK fused bounded RNS backend matches CPU and direct HIP",
+          "--reporter",
+          "compact"
+        ],
+        "exit_code": 0,
+        "seconds": 0.4199187755584717,
+        "log": {
+          "path": "temp/hip101-20261026/app-local-ck-smoke.log",
+          "bytes": 264,
+          "sha256": "150ef48fc41fd20a8ff2185a0d8d71ab202ac7d3f7bc2a4cb86bdc8f8b2efb90"
+        }
+      }
+    ],
+    "installed_native_device_consumers": [
+      {
+        "linkage": "static",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "test_names": [
+          "native-device-producer-consumer",
+          "native-device-prepared-graph-pipeline"
+        ],
+        "runs": [
+          {
+            "label": "native-static-configure",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\cmake.exe",
+              "-S",
+              "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\install-smoke\\prefix\\share\\RNS8\\examples\\device-native",
+              "-B",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-static",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DCMAKE_PREFIX_PATH=C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\install-smoke\\prefix",
+              "-DRNS8_NATIVE_HIP_ROOT=C:\\TheRock\\build",
+              "-DRNS8_NATIVE_GPU_TARGET=gfx1100",
+              "-DRNS8_NATIVE_USE_SHARED=OFF"
+            ],
+            "exit_code": 0,
+            "seconds": 5.798261404037476,
+            "log": {
+              "path": "temp/hip101-20261026/native-static-configure.log",
+              "bytes": 1055,
+              "sha256": "42f85fc1c0648a100a9945d6d1393bda0211e9b850e90329d7075df184c57697"
+            }
+          },
+          {
+            "label": "native-static-build",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\cmake.exe",
+              "--build",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-static",
+              "--parallel",
+              "2"
+            ],
+            "exit_code": 0,
+            "seconds": 8.146711826324463,
+            "log": {
+              "path": "temp/hip101-20261026/native-static-build.log",
+              "bytes": 567,
+              "sha256": "e29d1b9c9c5810fc39452a69de7922beb2f98e62469692a0d706847605a39424"
+            }
+          },
+          {
+            "label": "native-static-test",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-static",
+              "--no-tests=error",
+              "--output-on-failure",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-static\\results.xml",
+              "-j",
+              "1"
+            ],
+            "exit_code": 0,
+            "seconds": 3.469881534576416,
+            "log": {
+              "path": "temp/hip101-20261026/native-static-test.log",
+              "bytes": 924,
+              "sha256": "f116564bcc4794512d7b6479b432e112b5a40743fbb26fe434ce8fef60612244"
+            }
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "temp/hip101-20261026/native-consumer-static/results.xml",
+            "bytes": 1231,
+            "sha256": "453812f11a18ede34cab969212d74fbb79da90580db406c8ba05688a58f35efc"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-static/rns8-native-device-consumer.exe",
+            "bytes": 10925056,
+            "sha256": "0fe93d4e5b6087b5b397c7f19aeb596baa840b8a10023284479ee8956e0ec7ce"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-static/amdhip64_7.dll",
+            "bytes": 16391120,
+            "sha256": "4eb7eb90294cb4c3c9046efae93e51d5d16e9fd81c4161433ed56d5d092ed6f9"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-static/rocm_kpack.dll",
+            "bytes": 191952,
+            "sha256": "922db0d5797a54c24d2be5b9cb229a8fd66203ce2b7f2caca0e0d33803e0f151"
+          }
+        ]
+      },
+      {
+        "linkage": "shared",
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "test_names": [
+          "native-device-producer-consumer",
+          "native-device-prepared-graph-pipeline"
+        ],
+        "runs": [
+          {
+            "label": "native-shared-configure",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\cmake.exe",
+              "-S",
+              "C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\install-smoke\\prefix\\share\\RNS8\\examples\\device-native",
+              "-B",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-shared",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DCMAKE_PREFIX_PATH=C:\\Users\\sneak\\Development\\RNS8\\build\\hip101-qualified-20261026\\windows-gfx110X-all-10.1.0\\install-smoke\\prefix",
+              "-DRNS8_NATIVE_HIP_ROOT=C:\\TheRock\\build",
+              "-DRNS8_NATIVE_GPU_TARGET=gfx1100",
+              "-DRNS8_NATIVE_USE_SHARED=ON"
+            ],
+            "exit_code": 0,
+            "seconds": 4.93049693107605,
+            "log": {
+              "path": "temp/hip101-20261026/native-shared-configure.log",
+              "bytes": 1055,
+              "sha256": "f7b35d0889c4b99f46af727fe7ca1bad156a92c25783e2b1282078cadebc6b27"
+            }
+          },
+          {
+            "label": "native-shared-build",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\cmake.exe",
+              "--build",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-shared",
+              "--parallel",
+              "2"
+            ],
+            "exit_code": 0,
+            "seconds": 7.614931583404541,
+            "log": {
+              "path": "temp/hip101-20261026/native-shared-build.log",
+              "bytes": 567,
+              "sha256": "e29d1b9c9c5810fc39452a69de7922beb2f98e62469692a0d706847605a39424"
+            }
+          },
+          {
+            "label": "native-shared-test",
+            "command": [
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+              "C:\\Users\\sneak\\Development\\RNS8\\tools\\windows_dev.py",
+              "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+              "--test-dir",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-shared",
+              "--no-tests=error",
+              "--output-on-failure",
+              "--output-junit",
+              "C:\\Users\\sneak\\Development\\RNS8\\temp\\hip101-20261026\\native-consumer-shared\\results.xml",
+              "-j",
+              "1"
+            ],
+            "exit_code": 0,
+            "seconds": 3.659688711166382,
+            "log": {
+              "path": "temp/hip101-20261026/native-shared-test.log",
+              "bytes": 924,
+              "sha256": "37be9c948f741aadf830e8ac4b43ad1d7991e0098bf503a2b498de8410b21879"
+            }
+          }
+        ],
+        "artifacts": [
+          {
+            "path": "temp/hip101-20261026/native-consumer-shared/results.xml",
+            "bytes": 1231,
+            "sha256": "e5015ef1cd2316023a9033392c4d53ab38236bc4f7b41f71f91a967f9aedf724"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-shared/rns8-native-device-consumer.exe",
+            "bytes": 39936,
+            "sha256": "60bf973a85af35043bef7e5524cb67ec77eb003f525f53c51f8fcf1143bd6dd4"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-shared/amdhip64_7.dll",
+            "bytes": 16391120,
+            "sha256": "4eb7eb90294cb4c3c9046efae93e51d5d16e9fd81c4161433ed56d5d092ed6f9"
+          },
+          {
+            "path": "temp/hip101-20261026/native-consumer-shared/rocm_kpack.dll",
+            "bytes": 191952,
+            "sha256": "922db0d5797a54c24d2be5b9cb229a8fd66203ce2b7f2caca0e0d33803e0f151"
+          }
+        ]
+      }
+    ]
+  },
+  "compiled_artifacts": [
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_tests.exe",
+      "bytes": 20439040,
+      "sha256": "ae746131e6681744f84930c2452bd20e6a9d3a3259fe81094560707660bb71bd"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8.dll",
+      "bytes": 11855360,
+      "sha256": "98947f58e35cb75f22522e7cb1e4ec4e883866484b029da5e360dc6378931205"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/rns8_static.lib",
+      "bytes": 54859156,
+      "sha256": "b1b06f857e97f3e022bc4c6e5c1ed7440e6bfd5a2ba5564a96c292d49a82a2d9"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/hip/hip_direct_kernels.obj",
+      "bytes": 8030812,
+      "sha256": "e70472a5ea23c94cae1d149ecd8de9968f8a80e176f1caf3716f9a0d6115d0c4"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/hip/ck_backend_kernels.obj",
+      "bytes": 3141427,
+      "sha256": "fd2baf277bb96fb956c8bd1c3ade12613dcf726f205e896fd936c6f4884279e8"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/hip/rocwmma_backend_kernels.obj",
+      "bytes": 115923,
+      "sha256": "56a77709b78b8a90d48bacf39e4b44ed54dc65b12808f5942a9f0ba154611495"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/hip/hipblaslt_kernels.obj",
+      "bytes": 36791,
+      "sha256": "8fae170a0dfd7babead3a5eba9b5e41d3c844327632a4a314d9bb0d5516a9a3e"
+    },
+    {
+      "path": "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0/hip/amdgpu_builtins_kernels.obj",
+      "bytes": 139160,
+      "sha256": "7610e766581a14e9b8ba63f4ef6dc539cc1a426b2bc5cc7896287ec129339430"
+    }
+  ],
+  "repaired_failures": [
+    "Clang24 cluster_dims guarded by actual TDM target support.",
+    "hipBLASLt1.4.1 MSVC E5M3 clz compatibility scoped to vendor header inclusion.",
+    "Distributed completion polls recorded terminal events and retains resources until drain; idle-owner accounting uses aligned storage.",
+    "Logical checker reuses bounded successful contraction proofs without skipping per-case ownership/guard checks.",
+    "CK signed input defaults detected; signed WMMA uses centered residues, unsigned CK uses canonical residues; differential coverage includes K=65536/65537.",
+    "Optional GMP/FLINT discovery bound to selected manifest prefix, preventing new-header/old-library mixing.",
+    "Selected HIP DLL and rocm_kpack staged app-local in build/install consumers; loaded-module hashes checked, avoiding System32 precedence over PATH."
+  ],
+  "earlier_runs": [
+    {
+      "label": "baseline-ctest",
+      "command": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+        "--test-dir",
+        "build/hip101-release-20261026",
+        "--output-on-failure",
+        "-j",
+        "1",
+        "--timeout",
+        "300"
+      ],
+      "exit_code": 8,
+      "seconds": 1072.6658153533936,
+      "log": {
+        "path": "temp/hip101-20261026/baseline-ctest.log",
+        "bytes": 287615,
+        "sha256": "c39b454770cd7f0ec7782428e9ee1fb3411ca25a76b62257743043af8775d61f"
+      },
+      "status": "failed_before_repairs",
+      "registered": 1042,
+      "failed": 8
+    },
+    {
+      "label": "final-direct-repair-batch-fixed",
+      "command": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "tools/windows_dev.py",
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+        "--test-dir",
+        "build/hip101-release-20261026",
+        "--output-on-failure",
+        "-j",
+        "1",
+        "--tests-from-file",
+        "C:/Users/sneak/Development/RNS8/temp/hip101-20261026/direct-repair-cases.txt"
+      ],
+      "exit_code": 0,
+      "seconds": 159.89325881004333,
+      "log": {
+        "path": "temp/hip101-20261026/final-direct-repair-batch-fixed.log",
+        "bytes": 2955,
+        "sha256": "ce6d6eb43c41d1349745596d793e87ebb677090b06fe7c482559784f508ce4cc"
+      },
+      "status": "passed_repaired_batch",
+      "registered": 11
+    },
+    {
+      "label": "final-all-enabled-ctest",
+      "command": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "tools/windows_dev.py",
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+        "--test-dir",
+        "build/hip101-all-enabled-20261026",
+        "--output-on-failure",
+        "-j",
+        "1",
+        "--timeout",
+        "300"
+      ],
+      "exit_code": 8,
+      "seconds": 1020.5397703647614,
+      "log": {
+        "path": "temp/hip101-20261026/final-all-enabled-ctest.log",
+        "bytes": 2441342,
+        "sha256": "20d52c156769a22afcde2f22f685bebd8c5039a3680b0bb30c66858f9cce5913"
+      },
+      "status": "failed_before_ck_and_package_repairs",
+      "registered": 1105,
+      "failed": 26
+    },
+    {
+      "label": "final-qualified-ctest",
+      "command": [
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+        "tools/windows_dev.py",
+        "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+        "--test-dir",
+        "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0",
+        "--output-on-failure",
+        "--output-junit",
+        "C:/Users/sneak/Development/RNS8/temp/hip101-20261026/final-qualified-ctest.xml",
+        "-j",
+        "1",
+        "--timeout",
+        "600"
+      ],
+      "exit_code": 4294967295,
+      "seconds": 175.63202571868896,
+      "log": {
+        "path": "temp/hip101-20261026/final-qualified-ctest.log",
+        "bytes": 101333,
+        "sha256": "48fe6be0a28020e9d4c68ae241ec8cde1f4fb565d5ecc9d9bb1f317ad70c5dc2"
+      },
+      "status": "stopped_runtime_mismatch",
+      "reason": "Detected System32 HIP71626384 rather than selected SDK71626385; stopped before completion and fixed runtime staging."
+    }
+  ],
+  "cross_target_compile": {
+    "gfx942": {
+      "run": {
+        "label": "compile-gfx942-repaired-probe",
+        "command": [
+          "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+          "tools/windows_dev.py",
+          "C:/TheRock/build/lib/llvm/bin/amdclang++.exe",
+          "-x",
+          "hip",
+          "--offload-arch=gfx942",
+          "--cuda-device-only",
+          "-std=c++17",
+          "-O2",
+          "-Iinclude",
+          "-Isrc",
+          "-c",
+          "temp/hip101-20261026/target_compile.hip",
+          "-o",
+          "temp/hip101-20261026/gfx942.o"
+        ],
+        "exit_code": 0,
+        "seconds": 54.35122299194336,
+        "log": {
+          "path": "temp/hip101-20261026/compile-gfx942-repaired-probe.log",
+          "bytes": 308,
+          "sha256": "099ebf4fd15f0ebec5a0bd534b4fad97e7f32e40d2eb561c3a11ddad5f81d72c"
+        }
+      },
+      "device_object": {
+        "path": "temp/hip101-20261026/gfx942-device.o",
+        "bytes": 4789088,
+        "sha256": "a383bdc26ea42f566eb4bb9e9653513f3a018f974b110967d2ec44c67fd362d3"
+      },
+      "isa": {
+        "path": "temp/hip101-20261026/gfx942-isa.txt",
+        "bytes": 65662982,
+        "sha256": "f8e824859dcc1eae97b9a3eb7bf94210a402ec3c7287ca040bba0fc3a3a854c3"
+      },
+      "instruction": "v_mfma_f32_16x16x32_fp8_fp8",
+      "scope": "Compile/ISA only; no gfx942 hardware execution."
+    },
+    "gfx1250": {
+      "run": {
+        "label": "compile-gfx1250-repaired-probe",
+        "command": [
+          "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+          "tools/windows_dev.py",
+          "C:/TheRock/build/lib/llvm/bin/amdclang++.exe",
+          "-x",
+          "hip",
+          "--offload-arch=gfx1250",
+          "--cuda-device-only",
+          "-std=c++17",
+          "-O2",
+          "-Iinclude",
+          "-Isrc",
+          "-c",
+          "temp/hip101-20261026/target_compile.hip",
+          "-o",
+          "temp/hip101-20261026/gfx1250.o"
+        ],
+        "exit_code": 1,
+        "seconds": 7.555816173553467,
+        "log": {
+          "path": "temp/hip101-20261026/compile-gfx1250-repaired-probe.log",
+          "bytes": 1156,
+          "sha256": "45e9a2e6bc23887d8a0da813866689b0698a3797490d81898764d50b685822f6"
+        }
+      },
+      "status": "blocked_compiler_feature",
+      "missing_builtin": "__builtin_amdgcn_s_wait_dscnt",
+      "scope": "SDK lacks a required TDM builtin; guarded path remains unavailable. No gfx1250 hardware execution."
+    }
+  },
+  "remaining_gates": [
+    "Linux and other operating systems; multi-GPU, Instinct/CDNA and other Radeon targets on actual hardware.",
+    "Debug/ASan, OpenMP-OFF and broader configuration matrix with this exact SDK.",
+    "Matched new-stack performance qualification; historical speedups retain their original source/toolchain boundaries.",
+    "Independent device-fault recovery checks and issue-specific hardware/performance gates."
+  ]
+}

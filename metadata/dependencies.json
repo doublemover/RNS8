@@ -1913,7 +1913,7 @@
       "ck": "1.3.0",
       "rocwmma": "2.2.1"
     },
-    "status": "user_authorized_local_qualification_in_progress",
+    "status": "local_release_validated_broader_platforms_pending",
     "installed_or_qualified": true,
     "installed": true,
     "qualified": false,
@@ -1925,6 +1925,7 @@
       "target": "gfx1100",
       "root": "C:/TheRock/build"
     },
-    "scope": "Local installation and fresh build/smoke observed; full qualification results recorded separately"
+    "local_validation": "metadata/hip101-validation-20261026.json",
+    "scope": "Windows x64 Release gfx1100 registered suite validated; full platform/configuration and matched performance qualification remain pending"
   }
 }

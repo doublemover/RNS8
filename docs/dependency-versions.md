@@ -57,6 +57,15 @@ header instead of a hardcoded version. Matching AMD compiler/runtime/driver and
 target qualification remain required for each candidate lane; stock upstream LLVM
 is not a replacement for AMD's HIP compiler.
 
+The [October 26 Windows/gfx1100 Release record](platform-windows.md#october-26-core-sdk-101-local-release-validation)
+now qualifies the applicable local registered suite with this exact SDK and
+manifest stack: 1,080 passes, 30 feature/target skips and zero failures, plus
+four installed native-device consumer checks. Python3.15.1 runs the registered
+tooling checks. Runtime module hashes, optional GMP/FLINT prefix consistency,
+compiler identities and compiled-source hashes are recorded. This local result
+does not promote the full platform/configuration matrix or replace matched
+performance qualification; retained source fallback pins remain unchanged.
+
 NumPy, pandas, Matplotlib, pytest, SciPy, NTL, FFLAS-FFPACK and LinBox remain
 unused optional inventories. PyYAML only enables one optional documentation
 schema test. Their latest releases are recorded without selecting or installing
