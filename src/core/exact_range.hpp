@@ -2,6 +2,9 @@
 #define RNS8_CORE_EXACT_RANGE_HPP
 
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <type_traits>
 
 #include "core/internal.hpp"
 
@@ -31,55 +34,93 @@ inline cpp_int exact_axis_deviation_max(const rns8_exact_axis_range& axis, const
   return std::max(low, high);
 }
 
-inline void add_exact_native_value(rns8_exact_axis_range& axis, const cpp_int& value, bool first) {
-  const cpp_int magnitude = boost::multiprecision::abs(value);
-  axis.max_magnitude = std::max(axis.max_magnitude, magnitude);
-  axis.absolute_sum += magnitude;
-  axis.sum += value;
-  axis.squared_sum += value * value;
-  axis.squared_sum_known = true;
-  if (first) {
-    axis.minimum = value;
-    axis.maximum = value;
-  } else {
-    axis.minimum = std::min(axis.minimum, value);
-    axis.maximum = std::max(axis.maximum, value);
-  }
-  axis.sum_known = true;
-}
+// An axis contains at most INT64_MAX native values. Its absolute/signed/deviation
+// sums are below 2^127, and its squared sum is below 2^191, even for UINT64_MAX.
+// Fixed accumulators therefore lose no information and allocate no limb storage
+// per input value. Publish the same arbitrary-precision facts once per axis.
+template <typename T>
+struct NativeAxisAccumulator {
+  using u128 = boost::multiprecision::uint128_t;
+  using i128 = boost::multiprecision::int128_t;
+  using u256 = boost::multiprecision::uint256_t;
+  static_assert(std::is_integral_v<T> && sizeof(T)<=sizeof(uint64_t),"native integer width");
+  T minimum=std::numeric_limits<T>::max(),maximum=std::numeric_limits<T>::lowest(),center=0;
+  uint64_t max_magnitude=0;
+  u128 absolute_sum=0,deviation_sum=0;
+  i128 sum=0;
+  u256 squared_sum=0;
+  bool nonempty=false;
 
-// All arithmetic is multiprecision, including sums exceeding UINT64_MAX.
-// Stage before packing; logical padding never contributes to the proof.
+  void add(T value) {
+    const auto bits=static_cast<uint64_t>(value);
+    uint64_t magnitude=bits;
+    if constexpr(std::is_signed_v<T>)if(value<0)magnitude=uint64_t(0)-bits;
+    max_magnitude=std::max(max_magnitude,magnitude);
+    minimum=std::min(minimum,value);maximum=std::max(maximum,value);nonempty=true;
+    absolute_sum+=magnitude;sum+=value;
+    const u128 square=u128(magnitude)*magnitude;
+    squared_sum+=square;
+  }
+  void set_center() {
+    if(nonempty) {
+      const i128 midpoint=(i128(minimum)+i128(maximum))/2;
+      center=midpoint.template convert_to<T>();
+    }
+  }
+  void add_deviation(T value) {
+    // Unsigned subtraction gives the exact nonnegative distance, including the
+    // complete signed INT64_MIN..INT64_MAX span, without signed overflow.
+    const auto a=static_cast<uint64_t>(value),b=static_cast<uint64_t>(center);
+    deviation_sum+=value>=center?a-b:b-a;
+  }
+  rns8_exact_axis_range finish() const {
+    rns8_exact_axis_range out;
+    if(nonempty) {
+      out.max_magnitude=max_magnitude;out.absolute_sum=absolute_sum;out.sum=sum;
+      out.minimum=minimum;out.maximum=maximum;out.deviation_sum=deviation_sum;
+      out.squared_sum=squared_sum;out.squared_sum_known=out.sum_known=true;
+    }
+    return out;
+  }
+};
+
+// Stage before packing; logical padding never contributes to the proof. Rows
+// and bounded column blocks each scan twice. This avoids an O(rows+cols) native
+// scratch mirror and keeps the retained proof representation unchanged.
 template <typename T>
 rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
                                              cpp_int& maximum) {
   rns8_exact_matrix_ranges ranges;
   ranges.rows.resize(static_cast<std::size_t>(rows));
   ranges.cols.resize(static_cast<std::size_t>(cols));
-  maximum = 0;
+  if(rows==0 || cols==0){maximum=0;return ranges;}
+  uint64_t maximum_native=0;
   for (int64_t row = 0; row < rows; ++row) {
-    for (int64_t col = 0; col < cols; ++col) {
-      const cpp_int value = src[row * ld + col];
-      add_exact_native_value(ranges.rows[row], value, col == 0);
-      add_exact_native_value(ranges.cols[col], value, row == 0);
-    }
-    maximum = std::max(maximum, ranges.rows[row].max_magnitude);
+    NativeAxisAccumulator<T> axis;
+    const T* input=src+row*ld;
+    for(int64_t col=0;col<cols;++col)axis.add(input[col]);
+    axis.set_center();
+    for(int64_t col=0;col<cols;++col)axis.add_deviation(input[col]);
+    maximum_native=std::max(maximum_native,axis.max_magnitude);
+    ranges.rows[static_cast<size_t>(row)]=axis.finish();
   }
-  // Axis extrema are final after the first scan. Compute each column midpoint
-  // once rather than repeating multiprecision addition/division for every row.
-  std::vector<cpp_int> column_centers;
-  column_centers.reserve(static_cast<std::size_t>(cols));
-  for (const auto& column : ranges.cols) column_centers.push_back(exact_axis_center(column));
-  // A second linear scan supplies the L1 distance from each axis midpoint.
-  for (int64_t row = 0; row < rows; ++row) {
-    const cpp_int row_center = exact_axis_center(ranges.rows[row]);
-    for (int64_t col = 0; col < cols; ++col) {
-      const cpp_int value = src[row * ld + col];
-      ranges.rows[row].deviation_sum += boost::multiprecision::abs(value - row_center);
-      ranges.cols[col].deviation_sum +=
-          boost::multiprecision::abs(value - column_centers[col]);
+  constexpr int64_t block_columns=16;
+  for(int64_t first=0;first<cols;) {
+    const auto count=std::min(block_columns,cols-first);
+    std::array<NativeAxisAccumulator<T>,block_columns> axes;
+    for(int64_t row=0;row<rows;++row) {
+      const T* input=src+row*ld+first;
+      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add(input[lane]);
     }
+    for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].set_center();
+    for(int64_t row=0;row<rows;++row) {
+      const T* input=src+row*ld+first;
+      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add_deviation(input[lane]);
+    }
+    for(int64_t lane=0;lane<count;++lane)ranges.cols[static_cast<size_t>(first+lane)]=axes[static_cast<size_t>(lane)].finish();
+    first+=count;
   }
+  maximum=maximum_native;
   return ranges;
 }
 

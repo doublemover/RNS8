@@ -370,6 +370,16 @@ for signed reconstruction. Missing summaries retain the scalar proof; prepacked
 and sparse routes currently use it. Insufficient range or unwritten input planes
 return `RNS8_RANGE_ERROR` before output mutation. No automatic prefix growth is
 performed. Repacking replaces the proof.
+For native inputs through 64 bits, moment construction may use fixed exact
+accumulators before publishing those same multiprecision facts. An axis has at
+most `INT64_MAX` elements: absolute/signed/deviation sums are below `2^127` and
+squared sums below `2^191`. Signed midpoint division retains truncation toward
+zero, and distances use unsigned subtraction to cover the full native span.
+Bounded column blocks keep scratch independent of matrix dimensions. This
+implementation visits each logical cell four times across row/column scans;
+it removes per-value variable-precision operations and the temporary column
+midpoint vector without discarding any retained facts. Performance requires its
+own matched measurements; the arithmetic bound alone establishes no speedup.
 An explicit `rns8_lift_exact_wide_cpu` operation now stages missing CPU residue
 planes within an existing matrix's allocated prefix ceiling. The source proof
 must already identify the integer uniquely; centered source reconstruction cannot
