@@ -1696,7 +1696,9 @@
       ],
       "anchors": [
         "balanced-crt-device-baseline",
+        "complete-gemm-and-export-calls",
         "explicit-quarter-range-fma--delayed-carry-export",
+        "matched-public-policy-calibration",
         "prepared-checked-integer-exports",
         "tile-major-consumer-candidate"
       ]
@@ -3499,6 +3501,10 @@
       "reason": "Keep explicit certificates, identities, modeled/measured distinctions and remaining integration gates.",
       "inbound_links": [
         {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "planning-recipes.md#prepared-integer-crt-policies-in-the-shortlist"
+        },
+        {
           "source": "docs/archive/implementation-checkpoints-2026-10-23.md",
           "reference": "../planning-recipes.md"
         },
@@ -3515,10 +3521,14 @@
         "cost-planned-product-materializations",
         "dependency-proven-arena-reuse",
         "explicit-current-value-fixed-basis-plans",
+        "explicit-native-to-rns-producer-planning",
+        "export-provider-parity-and-resource-lower-bounds",
         "layout-aware-materialization-primitives",
         "matched-materialization-controls",
         "measured-resident-stage-prices",
         "offline-typed-recipe-admission",
+        "prepared-integer-crt-policies-in-the-shortlist",
+        "retained-topology-bookkeeping",
         "runtime-discovery-and-shortlist-implementation-not-qualification"
       ]
     },

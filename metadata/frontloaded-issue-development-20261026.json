@@ -1,6 +1,6 @@
 {
   "schema": "rns8_frontloaded_issue_development_v1",
-  "recorded_utc": "2026-10-26T14:08:41.291250+00:00",
+  "recorded_utc": "2026-10-26T14:27:42.189352+00:00",
   "source_commits": [
     "237c8b9aa0f965e1f919e08702f24a38cb32940f",
     "461356613f2259dff69e6cd1e5859069ae10e44c",
@@ -8,7 +8,8 @@
     "0e719774f9c02210e479f42c33376c1805d1c2bc",
     "f062c3a2d8323658a913c325c3c925c6ce81fb64",
     "83b109fa821c03c97ed053b8984190f82db7fe7d",
-    "cf9c24fa82d5623aca41889db9d44d7b3f33edd6"
+    "cf9c24fa82d5623aca41889db9d44d7b3f33edd6",
+    "7257ccd032b3cf31f8d525e6a1aefcfe45d24010"
   ],
   "open_issue_count": 40,
   "open_issues": [
@@ -61,7 +62,8 @@
     "Complete GEMM/export cold and resident scopes",
     "Concrete checked policies in runtime shortlist",
     "CPU export staging, padded output and quarter producer admission parity",
-    "Retained resident recipe topology/alias/reservation/proof metadata and GPU lift words; pointer/count output views"
+    "Retained resident recipe topology/alias/reservation/proof metadata and GPU lift words; pointer/count output views",
+    "Explicit existing narrow-native producer planning, compact-retained representation and unpriced complete-producer stages"
   ],
   "authored_cases": {
     "public_policy_exports": 224,
@@ -127,6 +129,24 @@
           "exit_code": 0
         }
       ]
+    },
+    {
+      "path": "temp/native-pipeline-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs syntax only; no objects, linking, tests or GPU execution",
+      "records": [
+        {
+          "source": "src/core/api_plan.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/unit/test_api.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/differential/test_hip_direct.cpp",
+          "exit_code": 0
+        }
+      ]
     }
   ],
   "python_scope": "compile(source, filename, exec) syntax only; tools and fixtures were not executed",
@@ -143,16 +163,16 @@
     "Unavailable hardware/platform gates remain deferred"
   ],
   "source_sha256": {
-    "include/rns8/rns8.h": "6da9c607509c71b52bc7bb57a8a937d4e39dd5ec630fae8911603e09fee0a535",
-    "src/core/api_operation_provider.inc": "1dcf8c73351a3fbce8c36c1e7c5edeb7b7a87b061866c86ee074b2d6b58bde01",
-    "src/core/api_pipeline_planner.inc": "3fc23883c2c45008c5ba3d9bc430ea89d4422da82be82d78e25e03dd29de2c3c",
+    "include/rns8/rns8.h": "e83197553eec7d34d1f0f183ea069f108653bb744dc6fc5c0262602b3c04876a",
+    "src/core/api_operation_provider.inc": "75923bc321fc651f52190a8eb19f2ac4beb6b916864fcc1573ee5b37281406b7",
+    "src/core/api_pipeline_planner.inc": "54f178f32b6ed46d6f2a7f139837910a3e15f645178cd8021f9b0843553e60e2",
     "src/core/api_export_checked_crt.inc": "872eaeb99ed2c60f475cd66f84c4e0b6385270061be92c5a9864bbe92cfacd18",
     "src/core/api_export_quarter_crt.inc": "e0138a1d926bd0f4769b63cbd871441932dca4f4ea780fd18415ece522d516bd",
     "benchmarks/rns8_crt_public_cases.inc": "45759110a76f7afee242b0717789258b7147f4600d5d19cbe741c8adb75d372a",
     "benchmarks/rns8_crt_calibrate.cpp": "b8b2bd67ee424817fc974ca6f114880c11bad9484d3679450a742cdc06017ce1",
     "tools/collect_crt_calibration.py": "7e776a05bca7ad5e8829f282982e6b56ba9936b381953ef6e33b2234f2b6f5d1",
     "tools/test_collect_crt_calibration.py": "2db452a938ec1da302dffaf3aeec23bf361545201a0e120773706864f45edaa9",
-    "tests/unit/test_api_operation_provider_cases.inc": "c8b0d4a8133bafec1be395ed8060d64cd73382fcd65e7ba10f9f1713ffb13338",
+    "tests/unit/test_api_operation_provider_cases.inc": "cf4fb62bca743febab125e0efe5f1872db45a3703fead9c27d9ab676676b1441",
     "tests/unit/test_checked_crt_cases.inc": "678d52e8ed723b2e2bea8bc8404e7004b271ff45b5fe425408dc7edaea860518",
     "tests/unit/test_quarter_crt_cases.inc": "b497ae5b91d3ab103a8c8232c890e738e052b9f14961d42dbd62c5f6331fdb11",
     "benchmarks/conversion-calibration/checked-public-exports.json": "203ecf25f121e7bf5ae6008b5750803ba55a1e973c33dc44606508994115ffcf",
@@ -160,9 +180,28 @@
     "src/core/runtime_product_recipe.cpp": "bdfb51564004fbf77159766b464e7f87fa8c3167053796192b10fcde986a58ee",
     "src/core/runtime_product_recipe.hpp": "c7bc66388e0829e9100a2047344acb1f545e7cd19d1bdcbdef652da33f1b8714",
     "tests/unit/test_exact_cpu_allocation_faults.cpp": "837f1a46fa85853f842cbab2cfff4e1371f81d3e3cbd7a9d42045cf9acf20f5e",
-    "tests/support/product_recipe_rebind_fixture.hpp": "f9658f7676014893f0315bc9f094677ca6750b517c5bb401c9df66c9b3e6e5f3"
+    "tests/support/product_recipe_rebind_fixture.hpp": "f9658f7676014893f0315bc9f094677ca6750b517c5bb401c9df66c9b3e6e5f3",
+    "tests/differential/test_hip_direct_narrow_cases.inc": "8f8f8a1ba000dea7350a401e48c6cf13e77f826cdb60fd0d666cfbe4b18b3a46"
   },
   "development_status": "in_progress_unqualified",
   "last_executed_full_suite_source": "36568f5",
-  "new_recipe_assertion_scope": "Authored but unexecuted: small-proof full-prefix CPU steady calls intercept zero C++ allocations; not an allocation-free promise for arbitrary proof/ragged/HIP paths"
+  "new_recipe_assertion_scope": "Authored but unexecuted: small-proof full-prefix CPU steady calls intercept zero C++ allocations; not an allocation-free promise for arbitrary proof/ragged/HIP paths",
+  "documentation_lint": {
+    "scope": "local paths/anchors and regenerated inventory only; no HTTP checks, platform command rehearsals or runtime tests",
+    "receipt": "temp/frontload40-documentation-20261026.json",
+    "sha256": "0a2c523dfb97572ca3629e16503d5604072783009e6e2d7256a67cba1811c3b5",
+    "result_keys": [
+      "schema",
+      "documents",
+      "errors",
+      "external_urls",
+      "inbound_links",
+      "anchors",
+      "command_check",
+      "external_results",
+      "external_scope"
+    ],
+    "errors": [],
+    "document_count": 134
+  }
 }
