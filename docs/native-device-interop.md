@@ -367,3 +367,30 @@ compiled manifest is stored once and referenced by each normalized capture.
 The two earlier diagnostic studies and original failed attempt remain separate.
 Real failed-drain device-fault and native Linux GPU qualification remain open;
 optional DLPack integration is a follow-on.
+
+## Native moment implementation comparison
+
+An additional **40 fresh captures** compare the preserved clean **5e554b5**
+executable with **763a948**, counterbalancing adjacent old/new processes across
+four workloads. The only production-source difference is `exact_range.hpp`.
+The public scalar-first host route, complete external producer/consumer boundary,
+prepared grouped compute, dataset, proof facts and full output audits match.
+Native moment accumulation uses fixed stack accumulators and publishes the same
+unbounded axis facts. Arbitrary-width imports retain the original unbounded scan.
+
+| Workload | Before → after sustained ms | Baseline / candidate process spread | Timing gate |
+|---|---:|---:|---|
+| 17×19×31, i64, fullwidth | 2.457380 → 2.287015 | 11.6558% / 6.5863% | Not passed |
+| 128×128×128, i64, small | 6.629849 → 3.574154 | 21.1248% / 17.8914% | Not passed |
+| 1×3×65537, u64, fullwidth | 87.902829 → 57.468688 | 19.3839% / 9.8518% | Not passed |
+| 257×3×4097, u64, small | 201.551165 → 42.425196 | 6.0823% / 10.0199% | Not passed |
+
+All forty exact-output, callback, generation and owned-payload retirement checks
+pass. All bursts reach the minimum duration, and requested device/pinned peaks
+match between implementations for each workload. Medians decrease in all four
+workloads, but none passes the predeclared disjoint-range and at-most-10% spread
+gate for both implementations. No ratio enters the qualified-gains table, and no
+favorable rerun or threshold relaxation is applied. This study does not remeasure
+the older device-stream/device-graph comparisons or transfer their speedups to
+the changed source. Setup, first-call and process ranges remain in the
+[complete receipt](../metadata/native-moment-qualification-20261025.json).

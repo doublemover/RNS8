@@ -1,8 +1,8 @@
 # Windows and gfx1100 validation — 2026-10-25
 
-The [subsequent materialization integration](#subsequent-materialization-integration)
-records the latest `6ce489b` rebuild and complete retry. The earlier tables retain
-their original artifact boundaries; neither checkpoint qualifies unmeasured gains.
+The [native moment and completion-boundary validation](#native-moment-and-completion-boundary-validation)
+records the latest `763a948` complete rebuild and test batch. Earlier tables retain
+their original artifact boundaries; correctness validation alone qualifies no timing gain.
 
 This record covers the consolidated correctness and tooling pass after the
 frontloaded implementation on PR #15. The host is Windows with an RX 7900 XTX
@@ -485,9 +485,10 @@ and [source/artifact-bound receipt](../metadata/adaptive-summary-qualification-2
 ## Separate resident-output route comparison
 
 Benchmark source **3532e57** compiles in the GPU and CPU-ASan targets; all six
-collector regressions pass. No production library/kernel/public-header source
-changes follow **4e21e9c**, whose full 556-pass sanitizer / 942-pass GPU lanes
-remain the production qualification. The focused build leaves the earlier
+collector regressions pass. At that benchmark checkpoint, production library/kernel/public-header sources
+were unchanged from **4e21e9c**, whose 556-pass sanitizer / 942-pass GPU lanes
+qualified that implementation. The later native moment change has its own
+complete validation below. The focused build leaves the earlier
 qualified general benchmark executable unchanged.
 
 All **95/95 new captures** pass, five fresh processes for each applicable route
@@ -509,3 +510,33 @@ the scalar control has no matrix instruction and 17 VGPR / 18 SGPR. This does
 not measure achieved occupancy or hardware traffic. See the
 [complete comparison](adaptive-native-product.md#separate-resident-output-boundary)
 and [95-capture/ISA receipt](../metadata/adaptive-resident-qualification-20261025.json).
+
+## Native moment and completion-boundary validation
+
+Production source **763a948** passes the complete available CPU-ASan and
+full-feature gfx1100 batches after one build repair and one full rebuild retry.
+The first build found that arbitrary-width limb import shares the range-proof
+builder with native packing. Fixed accumulators now apply only to integral
+inputs through 64 bits; wider values retain unbounded arithmetic. The regression
+compares every retained fact and known flag against an independent Boost oracle,
+including 130-bit values, squared moments beyond 256 bits, excluded padding,
+native extrema, negative odd midpoints, empty axes and blocked-column tails.
+
+| Gate | Result |
+|---|---|
+| Complete CPU-ASan batch | **557 passed, 23 explicit skips, 0 failures** |
+| Complete full-feature HIP batch | **959 passed, 16 explicit skips, 0 failures** |
+| Installed static/shared consumers | **12/12 passed** |
+| New short-prefix public export smokes | **16/16 passed**, P3/P9, signed/unsigned, resident/cold |
+| Existing logical WMMA proof | Prior 1,020.41 s pass reused after comparing all five source inputs |
+
+Every new arithmetic and timing-contract test executes in this batch. The single
+unchanged logical checker is the only excluded entry. The HIP skip set retains
+the separately qualified opt-in address fixture and 15 unavailable sparse/CDNA
+cases. No missing hardware execution is counted as a pass. The receipt binds
+both clean compiled manifests, executable hashes, all test names, the failed
+first build and the successful retry.
+
+[Complete source-bound validation](../metadata/native-moment-validation-20261025.json)
+· [Forty paired public packing observations](../metadata/native-moment-qualification-20261025.json)
+· [Completed conversion collection](../metadata/conversion-completed-qualification-20261025.json)

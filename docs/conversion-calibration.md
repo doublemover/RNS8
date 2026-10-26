@@ -3,8 +3,9 @@
 `rns8-crt-calibrate` exposes matched raw-buffer conversion and public exact-export controls. It uses direct
 HIP on explicitly recorded device0; there is no CPU or accelerator fallback.
 The underlying paths retain their source-bound local correctness qualification.
-The v4 benchmark repair and focused measurement retry below await execution;
-authored cases alone establish no performance or ISA result.
+The completed **763a948** collection below validates all **425 captures** with
+explicit GPU completion inside every raw resident interval. Earlier attempts
+retain their original numeric and timing-qualification boundaries.
 
 | Operation | Candidates | Exact output |
 |---|---|---|
@@ -176,7 +177,9 @@ representations have identical object bytes; padding is neither uploaded nor
 written. The public generation/write transaction is unchanged. Modulus255 and
 other moduli still execute their conversion kernels. The authored differential
 checks all256 byte values, compact/padded rows, repacks, traffic counters and
-absence of conversion events. It has not been executed for this change.
+absence of conversion events. That differential passes in the complete
+**763a948** gfx1100 batch recorded in the
+[current validation receipt](../metadata/native-moment-validation-20261025.json).
 
 The shared reciprocal reducer uses one conditional correction: with
 `R=2^32`, `q=floor(x*floor(R/m)/R)` is at most one below `floor(x/m)` for
@@ -225,8 +228,9 @@ native allocation/upload; direct tile CRT has no uniform staging allocation;
 only Garner owns a status word. Output allocation is its logical payload plus
 64 canary bytes. The receipt includes the full candidate-specific capacity map
 and aggregate host/device/probe envelope. These changed ownership semantics
-must not be compared as v2 captures. Execution and crossover evidence are still
-deferred; no production selector is promoted by this implementation.
+must not be compared as v2 captures. The focused v5 collection below measures
+the 65,536-value P20 compact/padded controls; the complete cutoff/prefix grid
+retains its separate qualification gate. No production selector is promoted.
 
 
 ### Source arithmetic controls and actual emission
@@ -242,3 +246,51 @@ The ISA scanner now recognizes both `ds_read`/`ds_write` and
 `ds_load`/`ds_store` spellings. These bins count static instructions; vector
 width does not multiply the count, and LDS atomics remain outside plain
 load/store bins. They do not establish dynamically executed traffic.
+
+## Completed conversion observations on RX 7900 XTX
+
+The repaired v5 executable at **763a948** completes **425/425 captures**, five
+fresh processes for each of 85 fixed cases. All independent integer-recipe,
+complete output/canary, input-preservation, provenance and completion-counter
+checks pass. Warmups are 3, latency samples 9, and sustained intervals target
+250 ms with at least 16 calls and a 4,096-call cap. Censored intervals cannot
+qualify a timing gain. Resident and cold, raw and public, signed and unsigned,
+input layouts and proof domains remain separate.
+
+The following rows pass disjoint observed process ranges and at most 10%
+process spread for both implementations, against the strongest available named
+matched control. These are conversion/export boundaries, not whole-GEMM gains.
+
+| Candidate / control | Values / prefix / scope | Control → candidate ms | Speedup |
+|---|---|---:|---:|
+| `direct` / `garner` | 65,536 / P20 / resident | 0.568810 → 0.089586 | 6.349× |
+| `public_quarter_signed` / `public_garner_signed` | 65,536 / P9 / resident | 0.930604 → 0.351726 | 2.646× |
+| `direct` / `garner` | 1,048,576 / P20 / resident | 3.965150 → 0.231109 | 17.157× |
+| `quarter_narrow_signed` / `garner_narrow_signed` | 65,536 / P20 / resident | 0.474406 → 0.106010 | 4.475× |
+| `direct` / `garner` | 257 / P20 / resident | 0.402585 → 0.079582 | 5.059× |
+
+All other process ranges, setup costs, censored intervals and negative outcomes
+remain in the [complete receipt](../metadata/conversion-completed-qualification-20261025.json).
+No production selector changes. Public quarter/Garner controls complete checked
+host publication; their cold calls also include context/plan creation, native
+packing, export-owner preparation and destruction. Raw resident calls end at
+completed device output. Capability checks and mandatory status work stay inside
+the calls; independent Boost/canary audits stay outside.
+
+The measured executable embeds the exact inspected gfx1100 code object. Thirteen
+source-selected symbols cover direct/balanced CRT, quarter reconstruction,
+packed-dot/WMMA transforms and the generic/fixed narrow Garner controls. Quarter
+code emits FP32 FMA plus round-to-nearest-even; its actual HSA descriptor selects
+F32 round-to-nearest-even and preserves denormals, with no mode-register writes.
+Its 19 VGPR / 19 SGPR / 96-byte private segment contrasts with balanced CRT's
+33 VGPR / 43 SGPR / 528-byte private segment and 48 KiB LDS. The packed-dot
+transforms have no LDS/private segment; WMMA CRT uses 1,536 bytes LDS. These are
+static emitted resources, not achieved occupancy, dynamic launch counts or
+hardware memory traffic. Descriptor decoding follows the
+[LLVM AMDGPU ABI](https://llvm.org/docs/AMDGPUUsage.html#kernel-descriptor).
+
+The earlier 425-capture v4 raw-resident timing cohort remains quarantined by the
+[completion audit](../metadata/conversion-completion-audit-20261025.json). It is
+neither overwritten nor pooled into this fresh v5 collection. Group-CRT bridge,
+complete-GEMM/prefix effects, hardware traffic and broader-target qualification
+remain distinct gates for the open research issues.

@@ -127,6 +127,18 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "native_moment_closeout_validation": {
+        "receipt": "metadata/native-moment-validation-20261025.json",
+        "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "scope": "Complete available CPU-ASan/gfx1100 and installed static/shared validation; arithmetic and completion-boundary repair. Issue-specific remaining gates retain their own scope."
+      },
+      "native_moment_observations": {
+        "receipt": "metadata/native-moment-qualification-20261025.json",
+        "captures": 40,
+        "qualified_gains": 0,
+        "all_facts_preserved": true,
+        "scope": "Native packing proof construction, not a new lazy GEMM-refinement policy; arbitrary-width imports remain unbounded."
       }
     },
     {
@@ -521,6 +533,18 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "native_moment_closeout_validation": {
+        "receipt": "metadata/native-moment-validation-20261025.json",
+        "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "scope": "Complete available CPU-ASan/gfx1100 and installed static/shared validation; arithmetic and completion-boundary repair. Issue-specific remaining gates retain their own scope."
+      },
+      "completed_conversion_observations": {
+        "receipt": "metadata/conversion-completed-qualification-20261025.json",
+        "captures": 425,
+        "qualified_stage_comparisons": 5,
+        "selection_promoted": false,
+        "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
       }
     },
     {
@@ -986,7 +1010,7 @@
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [
-        "Reconstruction candidate ISA/rounding/resource review, independent matched full-export/GEMM measurements and prefix-specific promotion decisions remain. Negative measured outcomes are acceptable."
+        "Completed v5 stage/public-export measurements and binary-bound ISA/rounding/resource review are recorded. Group-CRT bridge comparisons, complete-GEMM/prefix effects, hardware traffic, broader targets and any production selection remain separate gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -998,6 +1022,18 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "native_moment_closeout_validation": {
+        "receipt": "metadata/native-moment-validation-20261025.json",
+        "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "scope": "Complete available CPU-ASan/gfx1100 and installed static/shared validation; arithmetic and completion-boundary repair. Issue-specific remaining gates retain their own scope."
+      },
+      "completed_conversion_observations": {
+        "receipt": "metadata/conversion-completed-qualification-20261025.json",
+        "captures": 425,
+        "qualified_stage_comparisons": 5,
+        "selection_promoted": false,
+        "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
       }
     },
     {
@@ -1114,6 +1150,18 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "native_moment_closeout_validation": {
+        "receipt": "metadata/native-moment-validation-20261025.json",
+        "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "scope": "Complete available CPU-ASan/gfx1100 and installed static/shared validation; arithmetic and completion-boundary repair. Issue-specific remaining gates retain their own scope."
+      },
+      "completed_conversion_observations": {
+        "receipt": "metadata/conversion-completed-qualification-20261025.json",
+        "captures": 425,
+        "qualified_stage_comparisons": 5,
+        "selection_promoted": false,
+        "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
       }
     },
     {
@@ -2753,7 +2801,7 @@
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "Independent packed-transform/conversion crossover measurements and emitted resource/traffic evidence remain; no default promotion."
+        "Completed paired transform/conversion stage measurements and binary-bound emitted resources are recorded. Whole-GEMM crossover, hardware traffic and measured production selection remain; no default promotion."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2766,6 +2814,18 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "native_moment_closeout_validation": {
+        "receipt": "metadata/native-moment-validation-20261025.json",
+        "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "scope": "Complete available CPU-ASan/gfx1100 and installed static/shared validation; arithmetic and completion-boundary repair. Issue-specific remaining gates retain their own scope."
+      },
+      "completed_conversion_observations": {
+        "receipt": "metadata/conversion-completed-qualification-20261025.json",
+        "captures": 425,
+        "qualified_stage_comparisons": 5,
+        "selection_promoted": false,
+        "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
       }
     },
     {

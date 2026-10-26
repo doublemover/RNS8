@@ -1892,6 +1892,7 @@
       ],
       "anchors": [
         "byte-identity-and-packed-dot-controls",
+        "completed-conversion-observations-on-rx-7900-xtx",
         "data-verification-and-resources",
         "exact-import-and-crt-conversion-calibration",
         "public-signed-pack-selection-and-minimal-cold-ownership",
@@ -4953,6 +4954,7 @@
         "explicit-multiword-device-output",
         "matched-application-cost-experiments",
         "native-hip-buffer-leases-and-prepared-transfers",
+        "native-moment-implementation-comparison",
         "prepared-importexport-and-producer-readiness"
       ]
     },
@@ -5335,6 +5337,7 @@
         "generation-bound-adaptive-summaries",
         "issue-closeout-and-remaining-gates",
         "matched-hipblaslt-metadata-policy-observations",
+        "native-moment-and-completion-boundary-validation",
         "physical-beyond-vram-streaming-capacity",
         "reproduction",
         "results-and-coverage",
