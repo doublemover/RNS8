@@ -43,7 +43,7 @@ def validate_capture(c,e,diagnostic=False):
     case=validate_case(e['case']);region=case['mode']=='region';finite=case['domain']=='finite';arithmetic=e['arithmetic']
     if arithmetic not in ('scalar','dot4'):raise ValueError('arithmetic')
     cells=(case['m']-int(region))*(case['n']-int(region))*case['tasks']*(1 if finite else case['prefix'])
-    fixed=dict(schema='rns8_residue_dot_microcase_v2',case=case,run_id=e['run_id'],arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=diagnostic,oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
+    fixed=dict(schema='rns8_residue_dot_microcase_v3',case=case,run_id=e['run_id'],arithmetic=arithmetic,output_boundary='public_incremental_nonzero_rectangle_with_full_padded_export' if region else 'public_complete_products_with_full_padded_export',dataset_seed=7171,residency='unchanged_packed_inputs',hooks_enabled=diagnostic,oracle_inside_interval=False,all_residue_planes_checked=True,exact_reference_passed=True,promotion_eligible=False,
         source_logical_scalar_updates=cells*case['k'] if arithmetic=='scalar' else 0,source_logical_dot4_updates=cells*((case['k']+3)//4) if arithmetic=='dot4' else 0,
         source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None,sustained_body='compute_export_only_no_oracle_or_json')
     for k,v in fixed.items():
@@ -56,9 +56,20 @@ def validate_capture(c,e,diagnostic=False):
     contract=c.get('plan_contract');scheduled=case['mode']=='scheduled';bounded=case['domain']=='bounded'
     expected_tiles=((case['m']+63)//64)*((case['n']+63)//64) if scheduled else 0
     expected_prefix=0 if finite else case['prefix']
-    if type(contract) is not dict or set(contract)!={'global_bound','per_tile_bound_count','schedule_entries','min_selected_prefix','max_selected_prefix'}:raise ValueError('plan contract ABI')
-    if any(type(v) is not int or v<0 for v in contract.values()) or contract['global_bound']>1<<63:raise ValueError('plan contract values')
-    if contract['per_tile_bound_count']!=expected_tiles or contract['schedule_entries']!=expected_tiles or contract['min_selected_prefix']!=expected_prefix or contract['max_selected_prefix']!=expected_prefix:raise ValueError('plan schedule ownership')
+    numeric={'global_bound','per_tile_bound_count','schedule_entries','min_selected_prefix','max_selected_prefix','min_required_prefix','max_required_prefix'}
+    if type(contract) is not dict or set(contract)!=numeric|{'effective_dispatch'}:raise ValueError('plan contract ABI')
+    if any(type(contract[k]) is not int or contract[k]<0 for k in numeric) or contract['global_bound']>1<<63:raise ValueError('plan contract values')
+    minimum,maximum=contract['min_required_prefix'],contract['max_required_prefix']
+    if finite:
+        if minimum or maximum:raise ValueError('finite plan prefix')
+    elif not 1<=minimum<=maximum<=expected_prefix:raise ValueError('required prefix range')
+    # The core legitimately folds a uniform no-skip schedule when every tile's
+    # required basis already equals the selected fixed basis. Retain its actual
+    # owner instead of attributing an ordinary launch to a scheduled kernel.
+    folded=scheduled and minimum==maximum==expected_prefix
+    physical_entries=0 if folded else expected_tiles
+    effective='folded_uniform' if folded else case['mode']
+    if contract['effective_dispatch']!=effective or contract['per_tile_bound_count']!=expected_tiles or contract['schedule_entries']!=physical_entries or contract['min_selected_prefix']!=expected_prefix or contract['max_selected_prefix']!=expected_prefix:raise ValueError('plan schedule ownership')
     if (scheduled or not bounded) and contract['global_bound']!=0:raise ValueError('plan bound placement')
     paired_manifest(c.get('build_manifest'),arithmetic)
     if not c.get('execution_id') or not c.get('target') or not c.get('device') or not c.get('selected_kernel'):raise ValueError('selected identity')
@@ -78,7 +89,7 @@ def summarize(observations):
         validate_capture(c,e)
         if c['execution_id'] in seen:raise ValueError('reused process')
         seen.add(c['execution_id']);identity=dict(case={k:v for k,v in e['case'].items() if k!='mode'},manifest=paired_manifest(c['build_manifest'],e['arithmetic']),target=c['target'],device=c['device'],runtime=c.get('runtime_version'),environment=(c.get('request_identity') or {}).get('environment'))
-        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(arithmetic=e['arithmetic'],mode=e['case']['mode'],run=e['independent_run'],execution_id=c['execution_id'],path=e['output'],artifact=c['artifact_capture'],selected_kernel=c['selected_kernel'],p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),compute_p50_us=quantile([s['compute_us'] for s in c['samples']],.5),sustained_us=statistics.median(b['per_call_us'] for b in c['sustained'])))
+        cohorts.setdefault(json.dumps(identity,sort_keys=True),[]).append(dict(arithmetic=e['arithmetic'],mode=('scheduled:folded_uniform' if c['plan_contract']['effective_dispatch']=='folded_uniform' else e['case']['mode']),requested_mode=e['case']['mode'],run=e['independent_run'],execution_id=c['execution_id'],path=e['output'],artifact=c['artifact_capture'],selected_kernel=c['selected_kernel'],p50_us=quantile([s['total_us'] for s in c['samples']],.5),p95_us=quantile([s['total_us'] for s in c['samples']],.95),compute_p50_us=quantile([s['compute_us'] for s in c['samples']],.5),sustained_us=statistics.median(b['per_call_us'] for b in c['sustained'])))
     result=[]
     for key,rows in cohorts.items():
         cells={}
@@ -86,13 +97,13 @@ def summarize(observations):
             # Paths/timestamps may differ; compare immutable content identity only.
             hashes={tuple(r['artifact'].get(k) for k in ('executable_sha256','rns8_linkage','shared_library_sha256')) for r in rows if r['arithmetic']==arithmetic}
             if len(hashes)>1:raise ValueError('arithmetic artifact changed within cohort')
-            for mode in MODES:
+            for mode in (*MODES,'scheduled:folded_uniform'):
                 selected=[r for r in rows if (r['arithmetic'],r['mode'])==(arithmetic,mode)]
                 if not selected:continue
                 if len({r['run'] for r in selected})<2 or len({r['selected_kernel'] for r in selected})!=1:raise ValueError('independent repeats/selected route')
                 cells[arithmetic+':'+mode]={metric:statistics.median(r[metric] for r in selected) for metric in ('p50_us','p95_us','compute_p50_us','sustained_us')}
         paired={};scheduler={}
-        for mode in MODES:
+        for mode in (*MODES,'scheduled:folded_uniform'):
             a=cells.get('scalar:'+mode);b=cells.get('dot4:'+mode)
             if a and b:paired[mode]={metric:b[metric]/a[metric] for metric in a}
         for arithmetic in ('scalar','dot4'):

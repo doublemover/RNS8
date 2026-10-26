@@ -606,3 +606,17 @@ scheduled-descriptor error (one failure in each six-case smoke batch). Ten other
 checks passed. No timing collection started. This is distinct from the passing
 full default/optional-backend suites above; its initial failures and repair scope
 are retained in the [initial research receipt](../metadata/residue-dot-initial-validation-20261026.json).
+
+
+The research-only retry at `05f320341a5e4b12187c85ca83a06b8886a484bb` builds both
+matched arithmetic variants and records **18 passes / 2 failures across 20 checks**.
+The original scheduled P20 fixture passes in both variants. The newly added P1
+fixture reaches a legal uniform plan; the calibrator incorrectly requires a
+physical tile schedule although the core deliberately folds it away. Its
+[source-bound retry receipt](../metadata/residue-dot-validation-retry-20261026.json)
+retains both failures, all outcomes and 30 exact-binary static symbol inventories.
+No timing captures ran. The v3 repair records required/selected prefixes and the
+actual folded-uniform owner separately; it has Python syntax checking only.
+The user's one-retry limit is exhausted, so another test batch and the planned
+660-capture collection remain pending authorization. No new timing gain or
+production promotion is claimed.

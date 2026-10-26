@@ -304,16 +304,20 @@ selection and reuse assertions; silent loss and fabricated zero timings fail.
 
 ## Residue-dot calibration ownership and timing body
 
-The residue-dot microcase v2 records the created plan's global bound, per-tile
-bound count, schedule-entry count and selected-prefix range. Scheduled cases use
+The residue-dot microcase v3 records the created plan's global bound, per-tile
+bound count, physical schedule-entry count, required/selected-prefix ranges and
+effective dispatch. Scheduled requests use
 only per-tile bounds (`global_bound=0`); fixed-prefix selection preserves the same
 residue-channel workload across ordinary, grouped, scheduled and region cases.
-Capture validation rejects mismatched schedule ownership or prefix coverage.
+A uniform no-skip request can legitimately fold to ordinary execution when every
+required prefix equals the selected prefix. Such observations are labelled
+`scheduled:folded_uniform` and never reported as scheduled-kernel batching gains.
+Capture validation checks this distinction and rejects inconsistent ownership.
 
 Individual samples return fixed-size timing values; JSON serialization happens
 after the measured phase. Sustained bodies execute compute plus full host export,
 with Boost, every-plane residue checks and padding audits outside the interval.
-The outer wall timer still includes its loop/termination bookkeeping. The v1
-contract is retained as historical evidence and is not admitted as v2. Scalar
+The outer wall timer still includes its loop/termination bookkeeping. The v1/v2
+contracts remain historical evidence and are not admitted as v3. Scalar
 controls and dot4 candidates must differ only in their recorded arithmetic
 options; CRT-table, compiler, dependency and other build settings must match.

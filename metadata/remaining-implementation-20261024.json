@@ -3020,7 +3020,16 @@
         "passed": 10,
         "failed": 2,
         "timing_captures": 0,
-        "status": "descriptor_and_timing_body_repaired_retry_pending"
+        "status": "original_descriptor_failure_fixed_in_05f3203"
+      },
+      "research_validation_retry_20261026": {
+        "receipt": "metadata/residue-dot-validation-retry-20261026.json",
+        "compiled_source_commit": "05f320341a5e4b12187c85ca83a06b8886a484bb",
+        "passed": 18,
+        "failed": 2,
+        "timing_captures": 0,
+        "status": "folded_uniform_owner_repair_authored_validation_budget_exhausted",
+        "next": "An additional validation batch requires user authorization under the one-retry limit; do not launch the frozen 660-capture collection until it passes"
       }
     },
     {
