@@ -3,9 +3,13 @@
 // are independent dimensions, and opaque graph/library setup is never zero cost.
 rns8_operation_support operation_support(const rns8_context& ctx,const rns8_operation_query& query,rns8_backend_kind backend) {
   rns8_operation_support out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;out.backend=backend;out.operation=query.operation;
-  out.status=RNS8_SUCCESS;out.requires_binding=1;out.alignment=hip_device_backend(backend)?256:alignof(uint64_t);
-  set_text(out.target_id,sizeof(out.target_id),hip_device_backend(backend)?ctx.device_info.gcn_arch:"cpu");
+  const bool device_backend=hip_device_backend_kind(backend);
+  out.status=RNS8_SUCCESS;out.requires_binding=1;out.resource_status=3;out.alignment=device_backend?256:alignof(uint64_t);
+  set_text(out.target_id,sizeof(out.target_id),device_backend?(ctx.device_info.hip_available?ctx.device_info.gcn_arch:""):"cpu");
   const auto reject=[&](rns8_status status,uint32_t reason,const char* field,const char* explanation){out.status=status;out.reason_code=reason;
+    if(status==RNS8_UNSUPPORTED_BACKEND && (reason==RNS8_SUPPORT_OPERATION || reason==RNS8_SUPPORT_SEMANTICS)) {
+      out.source_implemented=0;out.compiled_inventory=0;out.runtime_observed=0;out.supported_execution_modes=0;
+    }
     set_text(out.offending_field,sizeof(out.offending_field),field);set_text(out.explanation,sizeof(out.explanation),explanation);return out;};
   if(!rns8::detail::valid_abi(query.struct_size,query.abi_version,sizeof(query)) || query.operation>=RNS8_OP_COUNT ||
       !query.execution_modes || (query.execution_modes&~127u) || (query.proof_flags&~15u) || query.device_count>64 || query.output_limbs>32 || query.input_domain>5 || query.output_domain>5 || query.orientation>1 || query.source_prefix>20)
@@ -40,12 +44,15 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(amx && query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_PREPARED_GROUP && query.operation!=RNS8_OP_PACK && query.operation!=RNS8_OP_EXPORT)
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","AMX provider integrates dense GEMM, synchronous prepared groups, host pack and shared CRT export only");
   const bool adaptive=is_per_tile_bound_kind(d.bound_kind);
-  if(!backend_supports_semantics(backend,d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","backend has no implementation of these arithmetic semantics");
+  if(!backend_source_supports_semantics(backend,d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","backend has no implementation of these arithmetic semantics");
+  out.source_implemented=1;out.supported_execution_modes=RNS8_EXEC_SYNC;
+  rns8_backend_capability_info capability{};capability.struct_size=sizeof(capability);capability.abi_version=RNS8_ABI_VERSION;
+  fill_backend_capability_info(backend,capability);out.compiled_inventory=capability.compiled_kernel_available!=0;
+  out.runtime_observed=out.compiled_inventory && context_accepts_backend(ctx,backend) && (!device_backend || ctx.device_info.hip_available);
   if((backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS) && finite &&
       !rns8::detail::finite_u8::static_byte_modulus_supported(d.finite_modulus))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_MODULUS,"finite_modulus","selected provider accepts only its exact finite modulus allow-list");
   if(backend==RNS8_BACKEND_HIPBLASLT && adaptive)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SHAPE,"bound_kind","hipBLASLt provider has no adaptive tile lowering");
-  out.source_implemented=1;out.supported_execution_modes=RNS8_EXEC_SYNC;
   const std::string arch=std::string(ctx.device_info.gcn_arch).substr(0,std::string(ctx.device_info.gcn_arch).find(':'));
   const bool rdna3=arch=="gfx1100" || arch=="gfx1101" || arch=="gfx1102";
   switch(query.operation) {
@@ -139,11 +146,9 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"strides","complete padded host address domain overflows");
   if(query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && !amx && !host_transfer && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"strides","complete padded device span exceeds this provider's signed32 index domain");
-  rns8_backend_capability_info capability{};capability.struct_size=sizeof(capability);capability.abi_version=RNS8_ABI_VERSION;
-  fill_backend_capability_info(backend,capability);out.compiled_inventory=capability.compiled_kernel_available && capability.is_available;
-  out.runtime_observed=context_accepts_backend(ctx,backend) && (!hip_device_backend(backend) || ctx.device_info.hip_available);
   if(!out.compiled_inventory)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"backend","provider source exists but is not compiled in this build");
   if(ctx.hip_failure_poisoned)return reject(RNS8_BACKEND_FAILURE,RNS8_SUPPORT_RUNTIME,"context","context has an undrained asynchronous failure");
+  out.resource_status=0;
   rns8_plan temporary{};temporary.desc=d;temporary.prefix=prefix;temporary.backend=backend;
   out.safe_k=accumulator_k_block_size_for_plan(temporary);
   const auto add=[&](uint64_t& total,uint64_t value){if(value>UINT64_MAX-total)return false;total+=value;return true;};
@@ -160,10 +165,10 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     else{const uint64_t output_bytes=uint64_t(d.m)*uint64_t(d.n)*cell_bytes;
       if(query.operation==RNS8_OP_QUARTER_CRT)out.required_host_bytes=output_bytes;
       const bool status_word=query.operation==RNS8_OP_EXPORT && rns && (!rns8::detail::exact_wide_semantics(d.semantics) || limbs<3);
-      if(hip_device_backend(backend) && (!add(scratch,output_bytes) || !add(scratch,status_word?4:0)))out.resource_status=2;
+      if(device_backend && (!add(scratch,output_bytes) || !add(scratch,status_word?4:0)))out.resource_status=2;
       // Ordinary export may use an environment-controlled retained pinned pool;
       // its allocation/current capacity is intentionally not queried here.
-      if(query.operation==RNS8_OP_EXPORT && hip_device_backend(backend) && out.resource_status!=2)out.resource_status=1;}}
+      if(query.operation==RNS8_OP_EXPORT && device_backend && out.resource_status!=2)out.resource_status=1;}}
   if(query.operation==RNS8_OP_NARROW_NATIVE){const auto support=rns8::detail::query_narrow_rns_support(d.m,d.n,d.k,lda,ldb,prefix,bool(query.algorithm&1),UINT64_MAX,query.algorithm>=2);
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"narrow_resources","shared narrow provider rejected complete shape/address domain");scratch=support.scratch_bytes;}
   if(query.operation==RNS8_OP_STRASSEN){const auto algorithm=query.algorithm%5;const auto resources=algorithm>=2?rns8::detail::query_rank23_slp_resources(d.m,d.n,d.k,lda,ldb,ldc,prefix,UINT64_MAX,algorithm==4):
@@ -207,7 +212,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if((query.execution_modes&~uint32_t(RNS8_EXEC_SYNC)) || adaptive ||
       (query.operation!=RNS8_OP_GEMM && query.operation!=RNS8_OP_EXPORT && query.operation!=RNS8_OP_QUARTER_CRT))
     if(out.resource_status!=2)out.resource_status=1;
-  if(hip_device_backend(backend))out.required_device_bytes=scratch;else if(!add(out.required_host_bytes,scratch))out.resource_status=2;
+  if(device_backend)out.required_device_bytes=scratch;else if(!add(out.required_host_bytes,scratch))out.resource_status=2;
   if(out.resource_status==2)return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"resources","checked provider resource arithmetic overflowed");
   uint64_t aggregate=out.required_host_bytes;if(!add(aggregate,out.required_device_bytes))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"resources","host/device aggregate overflowed");
   aggregate=std::max(aggregate,out.setup_bytes_lower_bound);

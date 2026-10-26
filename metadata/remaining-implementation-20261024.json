@@ -474,6 +474,15 @@
         "arithmetic_or_routing_policy_changed": false,
         "compiled_source_commit": "36568f505e77836bc79c21301a33efab60e15631",
         "receipt": "metadata/dag-owner-parity-validation-20261026.json"
+      },
+      "source_compilation_inventory_20261026": {
+        "status": "implemented_validation_deferred",
+        "scope": "Separate pure source arithmetic predicates from preserved executable compilation gates, source-stable GPU family inventory, compiled/matching-context metadata on static rejection and unsupported-resource status before computation.",
+        "regression": "tests/unit/test_api_operation_provider_cases.inc",
+        "backends": 9,
+        "arithmetic_domains": 7,
+        "production_arithmetic_changed": false,
+        "production_selection_changed": false
       }
     },
     {

@@ -836,9 +836,15 @@ typedef struct rns8_operation_support {
   uint64_t struct_size;
   uint32_t abi_version,backend,operation,reason_code;
   rns8_status status;
+  /* Source-family support and compiled inventory are independent of later
+   * shape/mode/proof rejection. Runtime observation is matching context/device
+   * availability, not an executed operation or correctness qualification. */
   uint32_t source_implemented,compiled_inventory,runtime_observed,requires_binding;
   uint32_t correctness_qualified,performance_qualified,supported_execution_modes;
-  uint32_t resource_status; /* known0,opaque_setup_unknown1,overflow2,unsupported3 */
+  /* known0,opaque_setup_unknown1,overflow2,unsupported3. Status3 means no
+   * resource query completed; zero-initialized byte fields are not a successful
+   * zero-scratch result. Budget rejections may still carry computed resources. */
+  uint32_t resource_status;
   uint64_t required_device_bytes,required_host_bytes,required_pinned_host_bytes;
   uint64_t setup_bytes_lower_bound,alignment,safe_k;
   char offending_field[48],explanation[160],target_id[128],provider_identity_sha256[65];

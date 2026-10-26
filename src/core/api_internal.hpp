@@ -166,6 +166,7 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_ki
 inline bool host_rns_backend(rns8_backend_kind backend) {
   return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_CPU_AMX;
 }
+bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 
 bool known_backend_kind(rns8_backend_kind backend);
@@ -183,6 +184,7 @@ bool hip_resident_rns_backend(rns8_backend_kind backend);
 bool native_vector_backend(rns8_backend_kind backend);
 
 bool hip_device_backend(rns8_backend_kind backend);
+bool hip_device_backend_kind(rns8_backend_kind backend);
 
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend);
 

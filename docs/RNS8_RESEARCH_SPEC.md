@@ -2121,3 +2121,14 @@ direct-HIP and wrap64-byte-limb backend predicate. Other synchronous dense GEMM
 providers do not implicitly support resident DAGs. This source-mode declaration
 is independent of compilation/runtime availability and still requires concrete
 operand, context, semantic and lifetime binding before execution.
+
+
+### Orthogonal operation inventory
+
+Static source semantics, compiled operation inventory, matching-context runtime
+availability and correctness/performance qualification are separate facts.
+Compilation-gated helpers must not erase a provider's source arithmetic domain
+from discovery. Ordinary executable admission retains compilation requirements.
+A rejected query with no completed resource computation reports unsupported
+resources, never an apparently known zero-byte requirement. Device-family
+classification is independent of compilation; an unobserved target stays unknown.

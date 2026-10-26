@@ -101,9 +101,10 @@ bool accelerator_backend_compiled(rns8_backend_kind backend) {
 }
 
 bool accelerator_backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
-  if (!accelerator_backend_compiled(backend)) {
-    return false;
-  }
+  return accelerator_backend_compiled(backend) && accelerator_backend_source_supports_semantics(backend, semantics);
+}
+
+bool accelerator_backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
   const accelerator_backend_descriptor* descriptor = accelerator_backend_descriptor_for(backend);
   if (!descriptor) {
     return false;

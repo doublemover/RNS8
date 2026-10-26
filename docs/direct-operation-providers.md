@@ -58,3 +58,24 @@ do not assert target correctness/performance qualification. The parity repair's
 records 972 GPU and 562 CPU-ASan passes, 16/23 explicit skips, no failures, 12
 installed-consumer passes and a fresh 1,006.60-second logical checker pass. Earlier
 arithmetic measurements retain their original artifacts.
+
+
+## Source inventory and rejected queries
+
+Source arithmetic support is independent of compilation. Optional hipBLASLt,
+CK, rocWMMA, builtins and native-vector providers retain their actual semantic
+subsets in CPU-only inventory. Executable admission uses the same source
+predicate plus its existing compilation gate. CK's bounded-unsigned exclusion
+and the CPU wrap64 owner remain explicit.
+
+Operation queries report compiled inventory before shape/mode/proof rejection.
+Matching context/device availability is an observation of that context, not a
+kernel execution or target qualification. An optional device family queried from
+a CPU context has an unknown (empty) GPU target rather than a fabricated CPU
+target. Missing operation/semantic implementations clear operation inventory.
+
+Before a resource query has completed, `resource_status=3` marks byte fields as
+unsupported. Their zero initialization is not evidence of a zero-scratch route.
+Known resource results can survive a hard-budget rejection. These changes and
+the authored nine-backend/seven-domain conformance cases await the deferred
+validation batch; existing source-bound arithmetic receipts retain their scope.

@@ -66,6 +66,65 @@ TEST_CASE("DAG discovery agrees with concrete resident graph backend ownership",
   REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
 
+TEST_CASE("operation inventory separates source semantics compilation and unknown resources", "[api][provider]") {
+  struct Row {rns8_backend_kind backend;bool semantics[7];bool device;};
+  const Row rows[]={
+    {RNS8_BACKEND_CPU_REFERENCE,{true,true,true,true,false,true,true},false},
+    {RNS8_BACKEND_CPU_AMX,{true,true,true,true,false,true,true},false},
+    {RNS8_BACKEND_HIP_DIRECT,{true,true,true,true,true,true,true},true},
+    {RNS8_BACKEND_HIP_VECTOR_ALU_INT64,{true,true,false,false,false,false,false},true},
+    {RNS8_BACKEND_HIPBLASLT,{true,true,true,true,false,true,true},true},
+    {RNS8_BACKEND_CK,{true,false,true,true,false,true,true},true},
+    {RNS8_BACKEND_ROCWMMA,{true,true,true,true,false,true,true},true},
+    {RNS8_BACKEND_AMDGPU_BUILTINS,{true,true,true,true,false,true,true},true},
+    {RNS8_BACKEND_WRAP64_BYTE_LIMB,{false,false,false,false,true,false,false},false}};
+  const rns8_semantics semantics[]={RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_EXACT_WIDE_SIGNED,
+      RNS8_EXACT_WIDE_UNSIGNED,RNS8_WRAP_U64_MOD_2_64,RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8};
+  auto* ctx=create_cpu_context();
+  for(const auto& row:rows)for(unsigned i=0;i<7;++i) {
+    CAPTURE(row.backend,semantics[i]);
+    CHECK(rns8::detail::api::backend_source_supports_semantics(row.backend,semantics[i])==row.semantics[i]);
+    CHECK(rns8::detail::api::hip_device_backend_kind(row.backend)==row.device);
+    rns8_backend_capability_info capability{};capability.struct_size=sizeof(capability);capability.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_backend_capability_info(row.backend,&capability)==RNS8_SUCCESS);
+    rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+    q.operation=RNS8_OP_GEMM;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;
+    q.problem=i<2?bounded_gemm_desc(semantics[i],1,1,1):i==4?wrap_gemm_desc(1,1,1):
+        i>=5?finite_gemm_desc(semantics[i],1,1,1,251):exact_desc(semantics[i],1,1,1);
+    q.problem.requested_backend=row.backend;
+    rns8_operation_support support{};uint32_t count=0;
+    REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);REQUIRE(count==1);
+    CHECK(bool(support.source_implemented)==row.semantics[i]);
+    if(!row.semantics[i]) {
+      CHECK(support.reason_code==RNS8_SUPPORT_SEMANTICS);CHECK(support.resource_status==3);
+      CHECK_FALSE(support.compiled_inventory);CHECK_FALSE(support.runtime_observed);
+    } else {
+      CHECK(bool(support.compiled_inventory)==bool(capability.compiled_kernel_available));
+      CHECK(std::string(support.target_id)==(row.device?"":"cpu"));
+      if(!capability.compiled_kernel_available) {
+        CHECK(support.reason_code==RNS8_SUPPORT_NOT_COMPILED);CHECK(support.resource_status==3);
+        CHECK(support.required_device_bytes==0);CHECK(support.required_host_bytes==0);
+        CHECK_FALSE(support.runtime_observed);
+      }
+      if(row.device)CHECK_FALSE(support.runtime_observed);
+      q.execution_modes=RNS8_EXEC_CALLER_CAPTURE;
+      REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
+      CHECK(support.reason_code==RNS8_SUPPORT_EXECUTION_MODE);CHECK(support.resource_status==3);
+      CHECK(support.source_implemented==1);
+      CHECK(bool(support.compiled_inventory)==bool(capability.compiled_kernel_available));
+    }
+  }
+  rns8_operation_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
+  q.operation=RNS8_OP_FP8;q.execution_modes=RNS8_EXEC_SYNC;q.scratch_budget=UINT64_MAX;
+  q.problem=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);
+  rns8_operation_support support{};uint32_t count=0;
+  REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
+  CHECK(support.reason_code==RNS8_SUPPORT_OPERATION);CHECK(support.resource_status==3);
+  CHECK_FALSE(support.source_implemented);CHECK_FALSE(support.compiled_inventory);
+  CHECK_FALSE(support.runtime_observed);CHECK(support.supported_execution_modes==0);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
 TEST_CASE("runtime shortlist separates quarter headroom from ordinary minimum and stale costs", "[api][planner]") {
   auto* ctx=create_cpu_context();rns8_pipeline_query q{};q.struct_size=sizeof(q);q.abi_version=RNS8_ABI_VERSION;
   q.operation.struct_size=sizeof(q.operation);q.operation.abi_version=RNS8_ABI_VERSION;q.operation.operation=RNS8_OP_GEMM;

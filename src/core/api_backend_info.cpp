@@ -6,7 +6,7 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_ki
   return requested == RNS8_BACKEND_AUTO ? default_backend : requested;
 }
 
-bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
   switch (backend) {
     case RNS8_BACKEND_CPU_AMX:
     case RNS8_BACKEND_CPU_REFERENCE:
@@ -19,29 +19,34 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
              semantics == RNS8_WRAP_U64_MOD_2_64 || semantics == RNS8_FINITE_RING_U8 ||
              semantics == RNS8_FINITE_FIELD_U8;
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
-#else
-      return false;
-#endif
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return semantics == RNS8_WRAP_U64_MOD_2_64;
     case RNS8_BACKEND_HIPBLASLT:
-#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
              semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
              semantics == RNS8_FINITE_RING_U8 || semantics == RNS8_FINITE_FIELD_U8;
-#else
-      return false;
-#endif
     case RNS8_BACKEND_AUTO:
       return false;
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_ROCWMMA:
     case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return rns8::detail::accelerator_backend_supports_semantics(backend, semantics);
+      return rns8::detail::accelerator_backend_source_supports_semantics(backend, semantics);
   }
   return false;
+}
+
+bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+  if (!backend_source_supports_semantics(backend, semantics)) return false;
+  switch (backend) {
+    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64: return direct_hip_compiled() != 0;
+    case RNS8_BACKEND_HIPBLASLT: return hipblaslt_backend_compiled() != 0;
+    case RNS8_BACKEND_CK:
+    case RNS8_BACKEND_ROCWMMA:
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return rns8::detail::accelerator_backend_compiled(backend);
+    default: return true;
+  }
 }
 
 bool known_backend_kind(rns8_backend_kind backend) {
@@ -120,6 +125,14 @@ bool native_vector_backend(rns8_backend_kind backend) {
 
 bool hip_device_backend(rns8_backend_kind backend) {
   return hip_resident_rns_backend(backend) || native_vector_backend(backend);
+}
+
+bool hip_device_backend_kind(rns8_backend_kind backend) {
+  // The separate wrap64 byte-limb backend is a CPU owner. Direct HIP supplies
+  // its own wrap64 implementation; optional providers remain device families
+  // even when this build does not compile them.
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
+      native_vector_backend(backend) || rns8::detail::accelerator_backend_kind(backend);
 }
 
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend) {
