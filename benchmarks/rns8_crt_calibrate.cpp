@@ -217,7 +217,7 @@ int main(int argc,char** argv) {
     hip_direct_timing_set_enabled(false);prepare();uint32_t calls=0;double elapsed=0;const auto start=Clock::now();
     do {execute();++calls;elapsed=std::chrono::duration<double,std::nano>(Clock::now()-start).count();}
     while(calls<4096 && (calls<16 || elapsed<250000000));verify();
-    nlohmann::json report={{"schema","rns8_crt_microcase_v3"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
+    nlohmann::json report={{"schema","rns8_crt_microcase_v4"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
       {"cells",cells},{"prefix",prefix},{"seed",3903},{"dataset_recipe",quarter?(narrow?"splitmix64_quarter_native64_seed3903_v1":"splitmix64_quarter_wide_seed3903_v1"):"splitmix64_conversion_seed3903_extrema_v1"},
       {"repeats",repeats},{"warmups",warmups},{"device_requested",0},{"device_actual",0},
       {"backend_requested","hip-direct"},{"backend_actual","hip-direct"},{"device",device.name},{"target",device.gcn_arch},

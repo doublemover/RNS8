@@ -10,7 +10,9 @@ struct PublicCrtOwner {
     rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
     check(rns8_create_context(0,&options,&ctx));rns8_gemm_desc d{};d.struct_size=sizeof(d);d.abi_version=RNS8_ABI_VERSION;
     d.semantics=sign?RNS8_EXACT_WIDE_SIGNED:RNS8_EXACT_WIDE_UNSIGNED;d.requested_backend=RNS8_BACKEND_HIP_DIRECT;
-    d.m=1;d.n=native.size();d.k=1;d.max_prefix=prefix;check(rns8_create_plan(ctx,&d,&plan));
+    // This owner exports an already certified value; it never computes AB.
+    // A short prefix need not cover the product of two full native type envelopes.
+    d.m=1;d.n=native.size();d.k=1;d.max_prefix=prefix;d.flags=RNS8_PLAN_FORCE_FIXED_PREFIX|RNS8_PLAN_EXACT_VALUE_BOUND;check(rns8_create_plan(ctx,&d,&plan));
     rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;md.semantics=d.semantics;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;md.logical_ld=native.size();
     md.rows=1;md.cols=native.size();md.max_prefix=prefix;check(rns8_create_matrix(ctx,&md,&matrix));
     if(sign)check(rns8_pack_i64(ctx,matrix,reinterpret_cast<const int64_t*>(native.data()),native.size(),1));
@@ -65,7 +67,8 @@ int public_crt_case(const std::string& candidate,uint32_t cells,uint32_t prefix,
     samples.push_back({{"host_call_ns",instrumented},{"uninstrumented_host_call_ns",production},{"events",events},{"exact_reference_passed",true},{"uninstrumented_exact_reference_passed",true}});}
   prepare();uint32_t calls=0;double elapsed=0;const auto start=Clock::now();do{execute();++calls;elapsed=std::chrono::duration<double,std::nano>(Clock::now()-start).count();}
     while(calls<4096 && (calls<16 || elapsed<250000000));verify();
-  nlohmann::json report={{"schema","rns8_crt_microcase_v3"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},{"cells",cells},{"prefix",prefix},
+  nlohmann::json report={{"schema","rns8_crt_microcase_v4"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},{"cells",cells},{"prefix",prefix},
+    {"plan_admission_policy","fixed_prefix_current_value_bound_export_only"},{"gemm_measured",false},
     {"seed",3903},{"dataset_recipe","splitmix64_quarter_native64_seed3903_v1"},{"repeats",repeats},{"warmups",warmups},
     {"device_requested",0},{"device_actual",0},{"backend_requested","hip-direct"},{"backend_actual","hip-direct"},{"device",device.name},{"target",device.gcn_arch},
     {"runtime_version",device.hip_runtime_version},{"build_manifest",nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON)},{"timer","std_chrono_steady_clock_nanoseconds"},

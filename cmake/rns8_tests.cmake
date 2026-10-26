@@ -335,6 +335,17 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
             LABELS "hip;conversion;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
         endforeach()
       endforeach()
+      foreach(_public_crt_candidate IN ITEMS public_garner_signed public_garner_unsigned public_quarter_signed public_quarter_unsigned)
+        foreach(_public_crt_prefix IN ITEMS 3 9)
+          foreach(_public_crt_scope IN ITEMS resident cold)
+            add_test(NAME conversion_${_public_crt_candidate}_p${_public_crt_prefix}_${_public_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_public_crt_candidate} 17 ${_public_crt_prefix} 2 1
+                ctest-${_public_crt_candidate}-p${_public_crt_prefix}-${_public_crt_scope} ${_public_crt_scope})
+            set_tests_properties(conversion_${_public_crt_candidate}_p${_public_crt_prefix}_${_public_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
     endif()
   endif()
   add_test(NAME crt_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_crt_research.py")

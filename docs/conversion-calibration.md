@@ -1,9 +1,10 @@
 # Exact import and CRT conversion calibration
 
-`rns8-crt-calibrate` exposes matched private conversion controls. It uses direct
+`rns8-crt-calibrate` exposes matched raw-buffer conversion and public exact-export controls. It uses direct
 HIP on explicitly recorded device0; there is no CPU or accelerator fallback.
-The changes and fixtures below are authored and await the consolidated build,
-correctness and measurement batch. They establish no timing or ISA result.
+The underlying paths retain their source-bound local correctness qualification.
+The v4 benchmark repair and focused measurement retry below await execution;
+authored cases alone establish no performance or ISA result.
 
 | Operation | Candidates | Exact output |
 |---|---|---|
@@ -11,6 +12,7 @@ correctness and measurement batch. They establish no timing or ISA result.
 | Unsigned native import | `import_scalar_unsigned`, `import_dot4_unsigned`, `import_wmma_unsigned` | The same centered default-basis residue planes |
 | Plain residue CRT | `garner`, `direct`, `balanced`, `fixed_dot4`, `fixed_wmma` | The same canonical unsigned three-limb values |
 | Tile-major CRT | `tile_balanced`, `tile_convert_balanced`, `tile_convert_garner` | The same canonical values; the latter two include conversion |
+| Public exact export | `public_quarter_signed/unsigned`, `public_garner_signed/unsigned` | Verified current values exported to the same padded signed/unsigned native host words |
 
 Scalar imports use the existing resident native-to-RNS helper used by the native
 packing controls. `fixed_dot4`, `fixed_wmma` and their import variants use the
@@ -19,7 +21,8 @@ capability probe, admission, allocation and synchronization on every call.
 Only gfx1100/1101/1102 with the actual builtin are admitted. Unsupported paths
 return77; the collector retains that process as unsuccessful rather than
 substituting another implementation. These raw-buffer experiments do not measure
-public matrix ownership or change default dispatch.
+public matrix ownership or change default dispatch. The separately labeled
+`public_*` cases do cross the public plan/matrix/proof/export-owner boundary.
 
 Arguments are candidate, cells, prefix, repetitions, warmups, unique run ID and
 an optional `resident` or `cold` scope. Existing six-argument calls default to
@@ -27,7 +30,22 @@ an optional `resident` or `cold` scope. Existing six-argument calls default to
 warmups1..1000. A run ID is1..128 ASCII letters, digits, dots, underscores or
 hyphens. Unsupported candidates, scopes, malformed numbers and irrelevant extra
 arguments reject before probing a device. The capture schema is explicitly
-`rns8_crt_microcase_v3`; collectors reject old captures rather than relabel them.
+`rns8_crt_microcase_v4`; collectors reject old captures rather than relabel them.
+
+Public export-only plans select an explicit fixed prefix and
+`RNS8_PLAN_EXACT_VALUE_BOUND`. Packing independently establishes the current
+value bound, and export checks the actual proof and destination width. A short
+prefix does not have to cover a hypothetical full-native-type GEMM that this
+benchmark never executes. V4 captures name this admission policy and require
+`gemm_measured=false` for public controls.
+
+The first [focused closeout profile](../benchmarks/conversion-calibration/focused-closeout-20261025.json)
+completed 23 v3 captures before a P9 public control correctly rejected its old
+type-product plan. The failure was in benchmark setup. The
+[preserved initial attempt](../metadata/conversion-closeout-initial-attempt-20261025.json)
+qualifies no timing result. V4 repairs the export-only admission, adds sixteen
+short-prefix signed/unsigned public GPU smoke cases at P3/P9, and requires one
+fresh complete collection. The original stopped large campaign is unrelated.
 
 ## Timing boundaries
 
@@ -45,6 +63,11 @@ Boost oracle and host staging allocations remain setup. Cold captures end at a
 host output; resident captures end at a device output. Compare candidates within
 the same scope. Inactive controls are not allocated or uploaded; the explicit
 capacity map records every live candidate-specific device buffer.
+For `public_*` cold cases, context/plan creation, actual input packing, optional
+export-owner preparation, checked export and owner destruction are inside the
+call. Their resident counterparts retain those owners and report setup
+separately. These public boundaries are not pooled with raw-buffer cold or
+resident conversion observations.
 Cold input preservation is checked by one separate resident audit before
 warmups; its inputs are read-only during subsequent calls, but a per-cold-call
 input readback is not charged or claimed.

@@ -54,6 +54,15 @@ def successful(command,**kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_public_exports_bind_current_values_instead_of_a_full_native_product(self):
+        for candidate in ('public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'):
+            for prefix in (1,3,9,20):
+                case=dict(BASE,candidate=candidate,prefix=prefix)
+                c=fixture(case);validate_capture(c,case,'fixture-run',2,1)
+                for key,value in [('plan_admission_policy','full_native_type_product'),('gemm_measured',True)]:
+                    bad=deepcopy(c);bad[key]=value
+                    with self.subTest(candidate=candidate,prefix=prefix,key=key),self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
     def test_tracked_manifests_cover_all_controls_and_prefixes(self):
         root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
         for name,count in (("smoke",40),("every-prefix",800),("large",160)):

@@ -73,7 +73,7 @@ def contract(case,run_id,repeats,warmups):
         output=output,status=4 if candidate in ("garner","tile_convert_garner") or candidate.startswith("garner_") else 0,
         probe=4 if "dot4" in candidate or "wmma" in candidate else 0)
     envelope=native_bytes+plain+output*3+tile_bytes+source+sum(buffers.values())+16384
-    result={"schema":"rns8_crt_microcase_v3", "run_id":run_id, **case,
+    result={"schema":"rns8_crt_microcase_v4", "run_id":run_id, **case,
         "seed":3903,"dataset_recipe":("splitmix64_quarter_native64_seed3903_v1" if narrow else "splitmix64_quarter_wide_seed3903_v1") if quarter else "splitmix64_conversion_seed3903_extrema_v1", "repeats":repeats,"warmups":warmups,
         "device_requested":0,"device_actual":0,"backend_requested":"hip-direct","backend_actual":"hip-direct",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,
@@ -100,6 +100,7 @@ def contract(case,run_id,repeats,warmups):
         for key in ("device_buffer_bytes","probe_bytes","common_status_capacity_bytes"):
             result.pop(key)
         result.update(public_ownership_measured=True,operation="public_narrow_crt",output_boundary="host",
+            plan_admission_policy="fixed_prefix_current_value_bound_export_only",gemm_measured=False,
             input_contract="engine_current_quarter_bound_residue_matrix",logical_rows=1,logical_cols=cells,logical_ld=cells,
             logical_payload_envelope_bytes=plain*3+output*5+cells*8+16384,
             timing_scope="public_context_plan_pack_prepare_export_checked_free" if scope=="cold" else "public_current_source_checked_export_stage_readback_publish")
