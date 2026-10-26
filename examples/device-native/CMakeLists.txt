@@ -35,6 +35,7 @@ target_compile_features(rns8-native-device-consumer PRIVATE cxx_std_17)
 target_compile_definitions(rns8-native-device-consumer PRIVATE __HIP_PLATFORM_AMD__)
 target_include_directories(rns8-native-device-consumer SYSTEM PRIVATE "${RNS8_NATIVE_HIP_INCLUDE}")
 target_link_libraries(rns8-native-device-consumer PRIVATE ${_rns8} "${RNS8_NATIVE_HIP_LIBRARY}")
+rns8_copy_runtime_dependencies(rns8-native-device-consumer)
 if(WIN32 AND RNS8_NATIVE_USE_SHARED)
   add_custom_command(TARGET rns8-native-device-consumer POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${_rns8}>" "$<TARGET_FILE_DIR:rns8-native-device-consumer>")

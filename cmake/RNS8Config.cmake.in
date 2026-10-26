@@ -1,6 +1,12 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
+include("${CMAKE_CURRENT_LIST_DIR}/RNS8Runtime.cmake")
+set(RNS8_WINDOWS_RUNTIME_DLLS "")
+set(_rns8_runtime_names "@RNS8_WINDOWS_RUNTIME_NAMES@")
+foreach(_runtime IN LISTS _rns8_runtime_names)
+  list(APPEND RNS8_WINDOWS_RUNTIME_DLLS "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_BINDIR@/${_runtime}")
+endforeach()
 
 set(RNS8_ENABLE_HIP @RNS8_ENABLE_HIP@)
 set(RNS8_ENABLE_HIPBLASLT @RNS8_ENABLE_HIPBLASLT@)

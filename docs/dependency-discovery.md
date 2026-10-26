@@ -56,6 +56,15 @@ revisions; explicit `VCPKG_INSTALLED_DIR` choices can retain reported version
 drift. Matching repository packages take precedence; other ambiguous matches
 fail. No package manager is run implicitly. All child build/test commands get
 the chosen SDK/LLVM/tool paths; CTest also loads the VS/Windows SDK environment.
+Windows builds stage the selected HIP runtime and its SDK-owned `rocm_kpack`
+loader beside executables, with hashes in the build manifest. This is necessary
+because System32 precedes PATH in ordinary DLL loading. Installed packages
+include those selected files; the shipped consumers call
+`rns8_copy_runtime_dependencies(target)` to stage them beside each executable.
+Custom Windows CMake consumers can use the same exported helper without SDK path
+arguments. Parallel targets sharing an output directory serialize staging;
+missing selected files fail the build. Runtime module paths/hashes remain part
+of qualification evidence, independently of compiler selection.
 Shared discovery accepts `VCPKG_INSTALLED_DIR` directly and binds enabled
 GMP/FLINT headers and libraries to that selected manifest triplet. A missing
 enabled reference fails instead of borrowing it from an older classic install;

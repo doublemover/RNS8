@@ -60,6 +60,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME documentation_links COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_documentation.py")
   add_test(NAME dependency_resolution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_resolution.py")
   add_test(NAME rocm_sdk_init_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rocm_sdk.py")
+  add_test(NAME runtime_staging_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_runtime_staging.py")
   add_test(NAME ck_input_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_input_contract.py")
   set_tests_properties(rocm_sdk_init_self_test PROPERTIES LABELS "tools;dependencies;sdk")
   add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
@@ -1107,6 +1108,19 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
     VERBATIM)
   add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  # Stage before Catch's POST_BUILD discovery can execute this binary.
+  rns8_copy_runtime_dependencies(rns8_tests)
+  if(WIN32 AND RNS8_ENABLE_HIP)
+    target_sources(rns8_tests PRIVATE tests/unit/test_hip_runtime_identity.cpp)
+    get_filename_component(_hip_dll_name "${RNS8_HIP_RUNTIME}" NAME)
+    file(SHA256 "${RNS8_HIP_RUNTIME}" _hip_dll_hash)
+    target_compile_definitions(rns8_tests PRIVATE
+      "RNS8_TEST_HIP_DLL_NAME=\"${_hip_dll_name}\"" "RNS8_TEST_HIP_DLL_SHA256=\"${_hip_dll_hash}\"")
+    if(EXISTS "${_rns8_hip_runtime_dir}/rocm_kpack.dll")
+      file(SHA256 "${_rns8_hip_runtime_dir}/rocm_kpack.dll" _kpack_hash)
+      target_compile_definitions(rns8_tests PRIVATE "RNS8_TEST_KPACK_SHA256=\"${_kpack_hash}\"")
+    endif()
+  endif()
   rns8_bind_manifest(rns8_tests)
   target_include_directories(
     rns8_tests

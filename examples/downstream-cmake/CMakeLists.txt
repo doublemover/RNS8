@@ -27,6 +27,7 @@ foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
     rns8-downstream-sparse-finite-ring rns8-downstream-sparse-bounded-i64 rns8-downstream-stream-bounded-i64
     rns8-downstream-materialized-product-recipe rns8-downstream-checked-crt)
   target_link_libraries(${consumer} PRIVATE ${RNS8_DOWNSTREAM_TARGET})
+  rns8_copy_runtime_dependencies(${consumer})
   target_compile_features(${consumer} PRIVATE cxx_std_17)
   if(MSVC)
     target_compile_options(${consumer} PRIVATE /W4 /WX /permissive-)
