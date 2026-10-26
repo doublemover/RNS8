@@ -711,6 +711,7 @@
         "concrete-resident-dag-admission",
         "existing-codebases-and-libraries",
         "native-hip-interoperability-source-implementation-pending-qualification",
+        "orthogonal-operation-inventory",
         "ozaki-rns-and-exact-matrix-multiplication",
         "phase-0-portable-foundation",
         "phase-1-windows-direct-hip-bring-up",
@@ -722,6 +723,7 @@
         "phase-7-architecture-hot-kernels",
         "phase-8-instinct-production",
         "phase-9-secondary-semantics",
+        "prepared-integer-crt-publication",
         "research-group-crt-bridge",
         "reusable-explicit-split-k-ownership-pending-qualification",
         "rns8-technical-specification",
@@ -1684,6 +1686,10 @@
           "reference": "../balanced-crt.md"
         },
         {
+          "source": "docs/correctness.md",
+          "reference": "balanced-crt.md#prepared-checked-integer-exports"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../balanced-crt.md"
         }
@@ -1691,6 +1697,7 @@
       "anchors": [
         "balanced-crt-device-baseline",
         "explicit-quarter-range-fma--delayed-carry-export",
+        "prepared-checked-integer-exports",
         "tile-major-consumer-candidate"
       ]
     },
@@ -4636,6 +4643,7 @@
         }
       ],
       "anchors": [
+        "checked-integer-crt-policy-exports",
         "consume-the-rns8-package",
         "cpu-continuation-workflow",
         "experimental-materialized-product-consumer",
@@ -4869,7 +4877,8 @@
       ],
       "anchors": [
         "direct-operation-providers",
-        "resident-dag-owner-parity"
+        "resident-dag-owner-parity",
+        "source-inventory-and-rejected-queries"
       ]
     },
     {

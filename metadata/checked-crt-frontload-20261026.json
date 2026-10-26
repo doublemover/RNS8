@@ -1,0 +1,115 @@
+{
+  "schema": "rns8_checked_crt_development_checkpoint_v1",
+  "parent_commit": "237c8b9aa0f965e1f919e08702f24a38cb32940f",
+  "recorded_utc": "2026-10-26T13:10:05.549098+00:00",
+  "status": "source_authored_syntax_checked_execution_deferred",
+  "source_sha256": {
+    "cmake/rns8_install.cmake": "01e2b665b41b248df9efd6d03842afd3d8641819785daf09c6e0e493b508c0c3",
+    "docs/RNS8_RESEARCH_SPEC.md": "5275e6b7f7e8ddfa0ff499f9afcb9364bd158047bf45b6c5d74ae44dddcb74c4",
+    "docs/balanced-crt.md": "a2b9afca48c4e3e46facd55040364bc72a67be58b85c526b3bb108e5e7d26336",
+    "docs/correctness.md": "f769c47a0de34e64ac8d50be9179f469280e1d612663cb806cb54a315899a23b",
+    "docs/documentation-inventory.json": "e3b7060f45610ed4efb15ce49e5123325a0a497257ae7c2732f703db383ba023",
+    "examples/downstream-cmake/CMakeLists.txt": "4a179c53762c5265246f2423132334da546ff23d19809dbce0283d246986d737",
+    "examples/downstream-cmake/README.md": "85e3bf8998ba261855f2e6dd41f98506a3240494662cac80d00fce6195b0ea2c",
+    "examples/downstream-cmake/checked_crt_export.cpp": "b05fb294a3f0f72875456682e8ee96a01001fb373dd1255e2ddfd5feb175a22f",
+    "include/rns8/rns8.h": "bf0376886a38bc5ea7628548d936e13525ebe24a0cf41ef97a9d820d7284d15b",
+    "metadata/remaining-implementation-20261024.json": "895d65c7bb235d3e2a807592a862f17896c6a3b5d193394aca7e2e113c1d09d9",
+    "src/backend_common/checked_crt_export.hpp": "21cea7172a501b9e3f62439f9ae6c87180d112b8a0f2ef41ea7384930ea90f4d",
+    "src/backend_hip_direct/hip_backend.cpp": "273a9ec41b601b9dfd3b5b17536fb7859b63cda3afc99d9a11e4f6adaf8d238c",
+    "src/backend_hip_direct/hip_backend.hpp": "6d7918ac0c376393ef621c5c1b333d2bad2c52977647e6546852e995a6734094",
+    "src/backend_hip_direct/hip_backend_checked_crt.inc": "9fec6d75ced2bceacf598e2d5835415b37f8c507952ba1d3de70a71c1db62f9c",
+    "src/backend_hip_direct/hip_direct_checked_crt.cuh": "779f4447763eda11d6cb848e8b49be8e696665a5f32cd8de850cbb6faf86db4b",
+    "src/backend_hip_direct/hip_direct_kernels.hip": "1ee1127ed6a17c54b759a2f72158fcdc87fe889f987cc8fe46d8b45b5714150c",
+    "src/core/api_export.cpp": "3c75ae817e2d7082f769c1d9a1a8da5728fc9724ea0931552fcba995b803e85c",
+    "src/core/api_export_checked_crt.inc": "872eaeb99ed2c60f475cd66f84c4e0b6385270061be92c5a9864bbe92cfacd18",
+    "src/core/api_export_quarter_crt.inc": "599925e4f02c1275e324fd7c8b99f634e4812f67682a840ceeb332dedbfb174f",
+    "src/core/api_internal.hpp": "7326637af2db8df6ae3c13ef8734d516d9dba8881519e42b2a9e670b2ef03581",
+    "src/core/api_operation_provider.inc": "c5dc93e30d5fc9f8ad12a1a2655bd4cf6a698900bc995192f277d9cb692604a2",
+    "src/core/api_plan.cpp": "8bcb2cb00890a3de5fc59527e514d2783a31b154c4344171d9ca8ae851d4334b",
+    "src/core/prepared_export_read.hpp": "d6e0d88042e9ad9836f5f8407752ac4b91f848ee044b0f3531513fb19421f14c",
+    "tests/unit/test_api.cpp": "510af3ca3d45e13a86cbb96582974341d54d8069022c13d65330c4abfc442ea7",
+    "tests/unit/test_checked_crt_cases.inc": "678d52e8ed723b2e2bea8bc8404e7004b271ff45b5fe425408dc7edaea860518",
+    "tests/unit/test_exact_cpu_allocation_faults.cpp": "2e084f81ce8ef90db7db8c4816ac72a8a2c442feec04a1dd9cd7928673b89010"
+  },
+  "syntax": [
+    {
+      "source": "src/core/api_export.cpp",
+      "log": "temp/frontload40-syntax-20261026/api_export.log",
+      "log_sha256": "5854e831abfd75bb4878525e5fcec67a1df7842243d0b48d0ce5230ad6633f8f",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "src/core/api_plan.cpp",
+      "log": "temp/frontload40-syntax-20261026/api_plan.log",
+      "log_sha256": "5592cf5826eec4637a5e912338eca6ddeaa0c58d38329c1b8a02167b1abe63a2",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "src/core/api_backend_info.cpp",
+      "log": "temp/frontload40-syntax-20261026/api_backend_info.log",
+      "log_sha256": "281421aa0356ad1c5d1bf735917e0333c006ad91a2fce3047a72e8eb3ac3ed19",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "src/core/accelerator_backend.cpp",
+      "log": "temp/frontload40-syntax-20261026/accelerator_backend.log",
+      "log_sha256": "949bce1616c039b5d1020e8e625d85120988f2dc15ac2516119c6c4266aab0ef",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "tests/unit/test_api.cpp",
+      "log": "temp/frontload40-syntax-20261026/test_api.log",
+      "log_sha256": "830ac1bba3bd683ced20f5e747212dd56fa8068d24a02e89954f9bf6d5c7236e",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "tests/unit/test_exact_cpu_allocation_faults.cpp",
+      "log": "temp/frontload40-syntax-20261026/test_exact_cpu_allocation_faults.log",
+      "log_sha256": "c9d20542cd816b70e27bafdb1fd9b33f7c813f05e60aa865d3035b75eebc9929",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "source": "src/backend_hip_direct/hip_backend.cpp",
+      "log": "temp/frontload40-syntax-20261026/hip_backend.log",
+      "log_sha256": "02f9bfe1a3e6bc885475a68489e245171b45e8dda02ccf0177a33f0972f80c1d",
+      "exit_code": 0,
+      "mode": "MSVC /Zs",
+      "result_evidence": "reviewed successful tool result and retained per-source compiler log"
+    },
+    {
+      "log": "temp/frontload40-syntax-20261026/checked-crt-hip.log",
+      "log_sha256": "3bd453cc57728e05909825016d03215d0cce04b403bc4d13397bb9b439117fd0",
+      "mode": "HIP7.1 gfx1100 -fsyntax-only",
+      "exit_code": 0
+    },
+    {
+      "log": "temp/frontload40-syntax-20261026/checked-crt-c17.log",
+      "log_sha256": "8507cfe114d2938f569a5ebf721d2c41c1c281dd20adfcfd2e8165e37c361f77",
+      "mode": "strict C17 /Zs /W4 /WX",
+      "exit_code": 0
+    },
+    {
+      "log": "temp/frontload40-syntax-20261026/checked-crt-consumer.log",
+      "log_sha256": "aafaa0361803557a4766ba11e352d397ff79e702f29c13aa92bc645d89f0a96f",
+      "mode": "installed-header consumer C++17 /Zs /W4 /WX",
+      "exit_code": 0
+    }
+  ],
+  "tests_executed": false,
+  "gpu_execution": false,
+  "performance_collected": false,
+  "arithmetic_defaults_changed": false,
+  "runner_receipt_note": "The later backend-only syntax runner reused the summary filename; all seven per-source logs remain intact. This checkpoint records the individually observed zero exit codes rather than claiming a preserved original multi-source runner receipt."
+}

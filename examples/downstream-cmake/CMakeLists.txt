@@ -20,11 +20,12 @@ add_executable(rns8-downstream-sparse-finite-ring sparse_finite_ring.cpp)
 add_executable(rns8-downstream-sparse-bounded-i64 sparse_bounded_i64.cpp)
 add_executable(rns8-downstream-stream-bounded-i64 stream_bounded_i64.cpp)
 add_executable(rns8-downstream-materialized-product-recipe materialized_product_recipe.cpp)
-option(RNS8_DOWNSTREAM_GPU_TESTS "Run installed direct HIP streaming example" OFF)
+add_executable(rns8-downstream-checked-crt checked_crt_export.cpp)
+option(RNS8_DOWNSTREAM_GPU_TESTS "Run installed direct-HIP examples" OFF)
 enable_testing()
 foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
     rns8-downstream-sparse-finite-ring rns8-downstream-sparse-bounded-i64 rns8-downstream-stream-bounded-i64
-    rns8-downstream-materialized-product-recipe)
+    rns8-downstream-materialized-product-recipe rns8-downstream-checked-crt)
   target_link_libraries(${consumer} PRIVATE ${RNS8_DOWNSTREAM_TARGET})
   target_compile_features(${consumer} PRIVATE cxx_std_17)
   if(MSVC)
@@ -42,6 +43,8 @@ foreach(consumer IN ITEMS rns8-downstream-smoke rns8-downstream-continuation
 endforeach()
 
 if(RNS8_DOWNSTREAM_GPU_TESTS)
+  add_test(NAME rns8-downstream-checked-crt-hip COMMAND rns8-downstream-checked-crt --hip)
+  set_tests_properties(rns8-downstream-checked-crt-hip PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77 LABELS "package;hip;crt")
   add_test(NAME rns8-downstream-stream-bounded-i64-hip COMMAND rns8-downstream-stream-bounded-i64 --hip)
   set_tests_properties(rns8-downstream-stream-bounded-i64-hip PROPERTIES TIMEOUT 120 LABELS "package;hip;stream")
 endif()

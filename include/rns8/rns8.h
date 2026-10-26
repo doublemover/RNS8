@@ -17,6 +17,7 @@ extern "C" {
 typedef struct rns8_context rns8_context;
 typedef struct rns8_plan rns8_plan;
 typedef struct rns8_quarter_crt_export rns8_quarter_crt_export;
+typedef struct rns8_crt_export rns8_crt_export;
 typedef struct rns8_matrix rns8_matrix;
 typedef struct rns8_sparse_matrix rns8_sparse_matrix;
 typedef struct rns8_workspace rns8_workspace;
@@ -797,7 +798,8 @@ typedef enum rns8_operation_kind RNS8_ENUM_BASE {
   RNS8_OP_STRUCTURED_SPARSE_A=7,RNS8_OP_BLOCK_SPARSE=8,RNS8_OP_INT4=9,
   RNS8_OP_STRASSEN=10,RNS8_OP_GRAM=11,RNS8_OP_MULTI_DEVICE=12,RNS8_OP_NATIVE_LEASE=13,
   RNS8_OP_NARROW_NATIVE=14,RNS8_OP_QUARTER_CRT=15,RNS8_OP_EXPERIMENTAL_BASIS=16,RNS8_OP_FP8=17,RNS8_OP_NATIVE_INTEGRITY=18,
-  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_HOST_IMPORT=21,RNS8_OP_HOST_EXPORT=22,RNS8_OP_COUNT=23
+  RNS8_OP_NATIVE_IMPORT=19,RNS8_OP_NATIVE_EXPORT=20,RNS8_OP_HOST_IMPORT=21,RNS8_OP_HOST_EXPORT=22,
+  RNS8_OP_CHECKED_CRT=23,RNS8_OP_COUNT=24
 } rns8_operation_kind;
 typedef enum rns8_execution_mode_flags RNS8_ENUM_BASE {
   RNS8_EXEC_SYNC=1,RNS8_EXEC_BORROWED_STREAM=2,RNS8_EXEC_OWNED_GRAPH=4,
@@ -2598,6 +2600,44 @@ RNS8_API rns8_status rns8_prepare_quarter_crt_export(rns8_context*,const rns8_pl
 RNS8_API rns8_status rns8_get_quarter_crt_info(const rns8_quarter_crt_export*,rns8_quarter_crt_info*);
 RNS8_API rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export*,uint64_t* dst,int64_t ld);
 RNS8_API rns8_status rns8_destroy_quarter_crt_export(rns8_quarter_crt_export*);
+
+/* Explicit integer CRT policies; no AUTO/default selection is changed. These
+ * prepared synchronous CPU-reference/direct-HIP owners reconstruct the complete
+ * canonical root before signed centering and destination-width checks. The
+ * source needs a current engine-owned exact-wide range proof. Mode signed0,
+ * unsigned1,canonical2 is explicit; scalar/native type inference is not used.
+ * All output is staged and published only after every cell and device drain
+ * succeeds. max_scratch_bytes bounds retained host+device payloads. Rebinding
+ * requires the same shape/basis/semantics and a proof within the prepared range
+ * envelope; it refreshes source identity without reallocating payload storage.
+ * Handles require external host-thread exclusion. Destroy/rebind return BUSY
+ * for pending work; failed cleanup retains ownership. */
+/* For RNS8_OP_CHECKED_CRT discovery, query.algorithm = policy + 5*mode;
+ * use K=1, input stride N, ldb=0, and output_limbs for the requested width. */
+typedef enum rns8_crt_algorithm RNS8_ENUM_BASE {
+  RNS8_CRT_GARNER=0,RNS8_CRT_DIRECT=1,RNS8_CRT_BALANCED=2,
+  RNS8_CRT_GROUP_LOCAL=3,RNS8_CRT_GROUP_SPLIT=4
+} rns8_crt_algorithm;
+typedef struct rns8_crt_export_desc {
+  uint64_t struct_size;
+  uint32_t abi_version,algorithm,mode,limb_count,producer_order;
+  uint64_t max_scratch_bytes;
+} rns8_crt_export_desc;
+typedef struct rns8_crt_export_info {
+  uint64_t struct_size;
+  uint32_t abi_version,algorithm,mode,limb_count,prefix,group_count,producer_order;
+  uint64_t source_instance,source_generation,successful_exports;
+  uint64_t retained_host_bytes,retained_device_bytes,group_scratch_bytes;
+  uint64_t magnitude_bound[3],group_products[4];
+  uint32_t group_channel_masks[4];
+  char certificate_sha256[65];
+} rns8_crt_export_info;
+RNS8_API rns8_status rns8_prepare_crt_export(rns8_context*,const rns8_plan*,const rns8_matrix*,
+    const rns8_crt_export_desc*,rns8_crt_export**);
+RNS8_API rns8_status rns8_rebind_crt_export(rns8_crt_export*,const rns8_matrix*);
+RNS8_API rns8_status rns8_get_crt_export_info(const rns8_crt_export*,rns8_crt_export_info*);
+RNS8_API rns8_status rns8_export_crt_limbs(rns8_crt_export*,uint64_t*,int64_t);
+RNS8_API rns8_status rns8_destroy_crt_export(rns8_crt_export*);
 
 RNS8_API rns8_status rns8_export_exact_wide_signed_limbs(
     rns8_context* ctx,

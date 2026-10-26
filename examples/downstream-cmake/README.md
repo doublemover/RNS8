@@ -25,7 +25,7 @@ The default link target is `rns8::rns8_static`. To consume an installed shared
 package, configure with `-DRNS8_DOWNSTREAM_USE_SHARED=ON`; that selects
 `rns8::rns8`. Windows builds copy the imported RNS8 DLL next to the programs.
 The shared option fails clearly if the package has no shared target. All
-four consumer targets compile with strict warnings and have ten-second CTest limits.
+consumer targets compile with strict warnings and have ten-second CTest limits.
 The private runtime helper routes Windows errors/assertions to stderr using
 process-local settings. It does not turn failures into passes.
 
@@ -160,3 +160,19 @@ B readers even while only a smaller prefix has been packed. Unpriced cells
 remain `UINT64_MAX`. Its CPU estimates exercise selection and are not measured
 performance data. The same standalone CMake consumer tests static and
 shared linkage; the schema 2 consumer awaits integrated validation.
+
+
+## Checked integer CRT policy exports
+
+`checked_crt_export.cpp` uses only installed public headers and targets. It runs
+Garner, direct, balanced, local-group and split-group policies with signed
+one-limb output, padded destinations and stale-source rejection. Explicit
+rebinding accepts a new source generation within the retained range envelope;
+the owner retains its payload reservation. The installed static and shared
+consumer projects include this example. `RNS8_DOWNSTREAM_GPU_TESTS=ON` adds its
+`--hip` run alongside streaming; an uncompiled HIP backend returns a visible skip.
+
+These new cases are authored and syntax-checked, with execution deferred. The
+[CRT guide](https://github.com/doublemover/RNS8/blob/codex/runtime-cache-transactions-20261011/docs/balanced-crt.md#prepared-checked-integer-exports) describes
+the contracts and payload accounting; installed users can read the same guide
+in the source repository. Explicit policy selection does not change defaults.

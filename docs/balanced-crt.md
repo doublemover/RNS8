@@ -137,3 +137,64 @@ scopes. These are **harness/fixture implementations, not collected results**.
 VGPR/spill/ISA inspection, hardware counters and target-specific profitability
 remain unverified. Public logical-payload budgets exclude runtime/plan metadata;
 reported retained payload is not asserted to equal physical process memory.
+
+
+## Prepared checked integer exports
+
+The public `rns8_prepare_crt_export` owner gives five integer policies the same
+signed, unsigned or canonical publication boundary: maintained Garner, direct
+CRT, balanced CRT, local group CRT and split group CRT. CPU-reference and direct
+HIP are the initial owners. Source arithmetic is exact-wide with an engine-owned
+current uniqueness proof. This API is an explicit research choice; default
+export and AUTO routing remain unchanged.
+
+A descriptor supplies `algorithm`, explicit `mode` (signed 0, unsigned 1,
+canonical 2), `limb_count` (1–32), split producer order and a retained payload
+budget. Group roots stay canonical until the complete basis has merged. Signed
+centering, magnitude-envelope validation and destination narrowing happen only
+at that root. Signed native minimum is admitted by the actual negative-width
+check; an equally large positive value rejects for signed output. All cells are
+staged before any caller publication, including when a later cell fails width.
+
+Preparation holds source/plan/context references and reserves exact-size host
+arrays. HIP owners reserve one contiguous allocation containing a three-limb
+canonical root, requested decoded output, optional group words and a status
+word. Every policy uses the same checked root-decoding kernel and status drain.
+The host payload is the requested limb output; CPU split mode additionally
+retains group words. The query and owner share checked payload/address arithmetic.
+Allocator bookkeeping, driver granularity and opaque metadata are additional
+setup, not physical VRAM measurements.
+
+For N cells, L output limbs and G=ceil(prefix/8), retained host/device payloads are:
+
+| Owner | Host bytes | Device bytes |
+|---|---:|---:|
+| CPU local integer policy | 8NL | 0 |
+| CPU split group policy | 8NL + 8NG | 0 |
+| HIP local integer policy | 8NL | 24N + 8NL + 4 |
+| HIP split group policy | 8NL | 24N + 8NL + 8NG + 4 |
+
+`rns8_get_crt_export_info` reports these domains, the fixed range envelope,
+group products/channel masks, source identity, certificate digest and successful
+export count. Each export checks currentness and generation. After compatible
+mutation or substitution, `rns8_rebind_crt_export` accepts a current proof no
+larger than the prepared envelope, updates binding identity and retains storage.
+A rejected rebind leaves the old binding intact. A failed GPU drain keeps its
+read lease and allocation with the owner until a successful close; CPU exceptions
+release read leases automatically. The same exception guard protects quarter CRT.
+These synchronous handles require external host-thread exclusion.
+
+Operation discovery uses `RNS8_OP_CHECKED_CRT`, K=1, tight resident source planes,
+no B stride, an optional padded output stride and `output_limbs`. Encode the
+explicit output mode as `query.algorithm = policy + 5*mode`. A current-range-proof
+flag describes hypothetical admission; actual preparation rechecks engine facts.
+Borrowed streams, capture, DAG execution and other backends reject explicitly.
+
+The [installed consumer](../examples/downstream-cmake/checked_crt_export.cpp)
+shows creation, padded publication and rebinding. CPU/Boost and real-HIP
+fixtures are authored for every prefix, all five policies, signed/unsigned and
+canonical roots, 1/3/4/32-limb output, canaries and allocation reuse. Dedicated
+CPU allocation-failure sweeps cover staged publication and quarter-export reader
+unwinding. Focused MSVC and HIP syntax checks pass; execution and matched public
+export/whole-GEMM measurements remain deferred. Existing stage-only gains retain
+their original artifacts and do not qualify this new owner.

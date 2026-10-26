@@ -54,6 +54,7 @@ install(
     examples/downstream-cmake/main.cpp
     examples/downstream-cmake/exact_wide_cpu_continuation.cpp
     examples/downstream-cmake/materialized_product_recipe.cpp
+    examples/downstream-cmake/checked_crt_export.cpp
     examples/downstream-cmake/sparse_finite_ring.cpp
     examples/downstream-cmake/stream_bounded_i64.cpp
     examples/downstream-cmake/sparse_bounded_i64.cpp

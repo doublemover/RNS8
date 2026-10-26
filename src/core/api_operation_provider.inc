@@ -10,6 +10,8 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     if(status==RNS8_UNSUPPORTED_BACKEND && (reason==RNS8_SUPPORT_OPERATION || reason==RNS8_SUPPORT_SEMANTICS)) {
       out.source_implemented=0;out.compiled_inventory=0;out.runtime_observed=0;out.supported_execution_modes=0;
     }
+    if(reason==RNS8_SUPPORT_RESOURCE_OVERFLOW)out.resource_status=2;
+    else if(reason==RNS8_SUPPORT_ADDRESS)out.resource_status=3;
     set_text(out.offending_field,sizeof(out.offending_field),field);set_text(out.explanation,sizeof(out.explanation),explanation);return out;};
   if(!rns8::detail::valid_abi(query.struct_size,query.abi_version,sizeof(query)) || query.operation>=RNS8_OP_COUNT ||
       !query.execution_modes || (query.execution_modes&~127u) || (query.proof_flags&~15u) || query.device_count>64 || query.output_limbs>32 || query.input_domain>5 || query.output_domain>5 || query.orientation>1 || query.source_prefix>20)
@@ -19,10 +21,11 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const bool host_transfer=query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_HOST_EXPORT;
   const bool native_transfer=query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_NATIVE_EXPORT;
   const bool exact_lift=query.operation==RNS8_OP_BASE_EXTEND;
+  const bool checked_export=query.operation==RNS8_OP_CHECKED_CRT;
   // Transfer range comes from its bound/current-value proof, not an unrelated
   // full-native GEMM envelope. The concrete owner checks the strict actual bound.
   auto validation_problem=d;uint32_t validation_prefix=prefix;
-  if((exact_lift || ((host_transfer || native_transfer) && (query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))) && rns8::detail::exact_wide_semantics(d.semantics)){
+  if((exact_lift || checked_export || ((host_transfer || native_transfer) && (query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))) && rns8::detail::exact_wide_semantics(d.semantics)){
     if(!prefix || prefix>20 || d.k!=1)return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"transfer_shape","transfer query requires K=1 and a concrete 1..20 active basis");
     validation_problem.max_prefix=20;validation_prefix=20;
   }
@@ -31,10 +34,10 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t default_domain=finite?2:d.semantics==RNS8_WRAP_U64_MOD_2_64?3:1;
   const bool native=query.operation==RNS8_OP_NATIVE_GROUP || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_NATIVE_LEASE || query.operation==RNS8_OP_NATIVE_INTEGRITY || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || (query.operation==RNS8_OP_GRAM && query.algorithm/4==1);
   const uint32_t input_domain=query.operation==RNS8_OP_PACK?(finite?2:4):(native?4:default_domain);
-  const uint32_t output_domain=(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):(query.operation==RNS8_OP_QUARTER_CRT?5:default_domain);
+  const uint32_t output_domain=(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):((query.operation==RNS8_OP_QUARTER_CRT || checked_export)?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
+  const uint32_t max_algorithm=checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   if((query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT) && query.output_limbs)
@@ -124,6 +127,15 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if((query.algorithm&1) && !rdna3)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"algorithm","current byte-WMMA narrow provider requires gfx11");
       if(!(query.proof_flags&RNS8_QUERY_NATIVE_RETAINED))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"native_storage","narrow input requires retained current native storage");
       if(!(query.proof_flags&RNS8_QUERY_NARROW_INPUT_PROOF))return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"input_range","narrow arithmetic requires an actual input partial-sum proof");break;
+    case RNS8_OP_CHECKED_CRT:
+      if(!checked_crt_backend_supported(backend) || !rns8::detail::exact_wide_semantics(d.semantics))
+        return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","checked integer CRT has CPU-reference/direct-HIP exact-wide owners only");
+      if((query.algorithm/5==0 && d.semantics!=RNS8_EXACT_WIDE_SIGNED) ||
+          (query.algorithm/5==1 && d.semantics!=RNS8_EXACT_WIDE_UNSIGNED))
+        return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"algorithm","checked CRT signed/unsigned output mode must match its explicit source semantics");
+      if(!(query.proof_flags&RNS8_QUERY_CURRENT_RANGE_PROOF))
+        return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_MISSING_PROOF,"source_bound","checked CRT requires a current engine-owned uniqueness proof");
+      break;
     case RNS8_OP_QUARTER_CRT:
       if(!cpu && !hip)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","quarter owner supports CPU or direct HIP only");
       if(!rns8::detail::exact_wide_semantics(d.semantics))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","quarter CRT requires exact-wide sources");
@@ -140,12 +152,15 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(query.device_count>1 || (query.execution_modes&RNS8_EXEC_MULTI_DEVICE))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TOPOLOGY,"device_count","this provider owns one device and does not imply transport support");
   if(query.execution_modes&~out.supported_execution_modes)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_EXECUTION_MODE,"execution_modes","requested execution/capture mode has no matching owner; no silent synchronous fallback");
   const bool importing_native=query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT;
-  const int64_t lda=query.lda?query.lda:(importing_native?d.n:d.k),ldb=query.ldb?query.ldb:d.n,ldc=query.ldc?query.ldc:d.n;
+  const int64_t lda=query.lda?query.lda:((importing_native || checked_export)?d.n:d.k),ldb=query.ldb?query.ldb:d.n,ldc=query.ldc?query.ldc:d.n;
   const uint32_t planes=finite?1:d.semantics==RNS8_WRAP_U64_MOD_2_64?8:std::max(1u,prefix);
-  if(query.operation!=RNS8_OP_GRAM && (!valid_matrix_access(d.m,d.k,lda,1) || !valid_matrix_access(d.k,d.n,ldb,1) || !valid_matrix_access(d.m,d.n,ldc,1)))
+  if(!checked_export && query.operation!=RNS8_OP_GRAM && (!valid_matrix_access(d.m,d.k,lda,1) || !valid_matrix_access(d.k,d.n,ldb,1) || !valid_matrix_access(d.m,d.n,ldc,1)))
     return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"strides","complete padded host address domain overflows");
-  if(query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && !amx && !host_transfer && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
+  if(!checked_export && query.operation!=RNS8_OP_GRAM && query.operation!=RNS8_OP_STRASSEN && !cpu && !amx && !host_transfer && backend!=RNS8_BACKEND_WRAP64_BYTE_LIMB && !rns8::detail::qualified_i32_gemm_address(d.m,d.n,d.k,lda,ldb,ldc,planes))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_ADDRESS,"strides","complete padded device span exceeds this provider's signed32 index domain");
+  if(checked_export && (query.ldb || lda!=d.n || !valid_matrix_access(d.m,d.n,lda,1) ||
+      !valid_limb_export_access(d.m,d.n,ldc,query.output_limbs?query.output_limbs:3)))
+    return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_ADDRESS,"matrix_export_layout","checked CRT requires tight resident source planes, no B stride, and a valid padded limb destination");
   if(!out.compiled_inventory)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"backend","provider source exists but is not compiled in this build");
   if(ctx.hip_failure_poisoned)return reject(RNS8_BACKEND_FAILURE,RNS8_SUPPORT_RUNTIME,"context","context has an undrained asynchronous failure");
   out.resource_status=0;
@@ -158,6 +173,14 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   else if(gemm_workspace && backend==RNS8_BACKEND_HIPBLASLT){if(!rns8::detail::hipblaslt_baseline_workspace_requirements(d.m,d.n,d.k,a,b) || !add(scratch,a) || !add(scratch,b))out.resource_status=2;}
   else if(gemm_workspace && backend==RNS8_BACKEND_CK){if(!rns8::detail::ck_workspace_requirements(d.m,d.n,d.k,a,b,c,total))out.resource_status=2;else scratch=total;}
   else if(gemm_workspace && backend==RNS8_BACKEND_ROCWMMA){if(!rns8::detail::rocwmma_workspace_requirements(d.m,d.n,d.k,a,b,total))out.resource_status=2;else scratch=total;}
+  if(checked_export) {
+    if(d.m>INT64_MAX/d.n)return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_RESOURCE_OVERFLOW,"cells","checked CRT cell count overflow");
+    const auto resources=rns8::detail::checked_crt::resources(d.m*d.n,prefix,query.output_limbs?query.output_limbs:3,query.algorithm%5,hip,UINT64_MAX);
+    if(resources.status!=RNS8_SUCCESS)return reject(resources.status,resources.status==RNS8_RANGE_ERROR?RNS8_SUPPORT_RESOURCE_OVERFLOW:RNS8_SUPPORT_ADDRESS,"crt_resources","shared checked CRT owner rejected complete root/output/workspace spans");
+    if(hip) {scratch=resources.device_bytes;out.required_host_bytes=resources.host_bytes;}
+    else scratch=resources.host_bytes;
+    out.safe_k=1;
+  }
   if(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_QUARTER_CRT){
     const uint64_t limbs=query.output_limbs?query.output_limbs:(rns8::detail::exact_wide_semantics(d.semantics)?3:1);
     const uint64_t cell_bytes=finite?1:limbs*8;

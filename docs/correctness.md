@@ -288,3 +288,10 @@ remains eager and preserves existing tight-chain admissibility. This policy has
 no retained proof DAG, borrowed matrix references or hidden cache, and its plan
 fingerprint/selection key is distinct. GPU event timers do not measure its host
 proof cost; compare host helper/public-call timing separately.
+
+
+Prepared integer CRT exports use explicit signed/unsigned/canonical modes and
+validate destination width at the complete root. Their retained generation-bound
+range envelope, transactional output publication and rebind contract are defined
+in [the CRT guide](balanced-crt.md#prepared-checked-integer-exports). This authored
+extension has syntax checking; source-bound execution evidence is pending.

@@ -394,6 +394,53 @@ void bounded_writer_faults(bool profile_only) {
   std::printf("PASS bounded allocation_points=%zu bytes=%zu\n",profile.calls,profile.bytes);
 }
 
+
+void prepared_crt_export_faults(bool profile_only) {
+  rns8::Context ctx;auto d=gemm_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);
+  rns8::Plan plan(ctx,d);rns8::Matrix source(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,3));
+  const int64_t values[]={-63,0,63,-1,17,2};
+  rns8::check(rns8_pack_i64(ctx.get(),source.get(),values,3,1));
+  for(uint32_t policy=0;policy<=5;++policy) {
+    current_case=policy==5?"quarter-export-reader-unwind":"checked-crt-export-publication";
+    rns8_crt_export* checked=nullptr;rns8_quarter_crt_export* quarter=nullptr;
+    if(policy==5) {
+      rns8_quarter_crt_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
+      config.mode=2;config.limb_count=3;config.max_scratch_bytes=UINT64_MAX;
+      rns8::check(rns8_prepare_quarter_crt_export(ctx.get(),plan.get(),source.get(),&config,&quarter));
+    } else {
+      rns8_crt_export_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
+      config.algorithm=policy;config.mode=2;config.limb_count=3;config.max_scratch_bytes=UINT64_MAX;
+      rns8::check(rns8_prepare_crt_export(ctx.get(),plan.get(),source.get(),&config,&checked));
+    }
+    std::array<uint64_t,30> output{};
+    const auto invoke=[&] {return quarter?rns8_export_quarter_crt_limbs(quarter,output.data(),5):
+        rns8_export_crt_limbs(checked,output.data(),5);};
+    const auto verify=[&] {
+      const auto product=rns8::detail::modulus_product(20);
+      for(unsigned row=0;row<2;++row)for(unsigned col=0;col<5;++col)for(unsigned limb=0;limb<3;++limb) {
+        if(col>=3) {require(output[(row*5+col)*3+limb]==99,"prepared CRT caller padding");continue;}
+        cpp_int expected=values[row*3+col];if(expected<0)expected+=product;
+        require(output[(row*5+col)*3+limb]==static_cast<uint64_t>((expected>>(64*limb))&UINT64_MAX),"prepared CRT exact canonical output");
+      }
+    };
+    output.fill(99);fault::begin();const auto status=invoke();const auto profile=fault::end();
+    require(status==RNS8_SUCCESS,"prepared CRT profile succeeds");verify();
+    MatrixSnapshot snapshot(*source.get());
+    if(!profile_only)for(std::size_t point=0;point<profile.calls;++point) {
+      current_point=point;output.fill(99);const auto live=fault::live_allocations();
+      fault::begin(point);const auto failed=invoke();const auto injected=fault::end();
+      require(injected.triggered && failed==RNS8_INTERNAL_ERROR,"prepared CRT catches every allocation failure");
+      require(source.get()->in_flight_readers==0,"prepared CRT releases CPU readers on exception");
+      for(auto word:output)require(word==99,"prepared CRT publishes no partial caller output on failure");
+      require(fault::live_allocations()==live,"prepared CRT failure leaks no allocation");snapshot.check(*source.get());
+      require(invoke()==RNS8_SUCCESS,"prepared CRT retry succeeds");verify();
+    }
+    if(quarter)rns8::check(rns8_destroy_quarter_crt_export(quarter));
+    if(checked)rns8::check(rns8_destroy_crt_export(checked));
+    std::printf("PASS prepared-crt policy=%u allocation_points=%zu bytes=%zu\n",policy,profile.calls,profile.bytes);
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -418,6 +465,7 @@ int main(int argc, char** argv) {
     rns8::detail::configure_cpu_parallel(1,UINT64_MAX,false);
     std::printf("PASS bounded OpenMP two-worker allocation sweep\n");
   }
+  prepared_crt_export_faults(profile_only);
   std::size_t points = 0;
   Fixture signed_dual(RNS8_EXACT_WIDE_SIGNED);
   points += exercise("signed-dual-2x13", signed_dual, profile_only);

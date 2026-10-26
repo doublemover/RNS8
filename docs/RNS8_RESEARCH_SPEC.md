@@ -2132,3 +2132,17 @@ from discovery. Ordinary executable admission retains compilation requirements.
 A rejected query with no completed resource computation reports unsupported
 resources, never an apparently known zero-byte requirement. Device-family
 classification is independent of compilation; an unobserved target stays unknown.
+
+
+### Prepared integer CRT publication
+
+Explicit integer CRT policies share one complete-root validation and publication
+contract. Reconstruct canonical values over the entire ordered default basis
+before centering or narrowing; subgroup values are never signed partial answers.
+Prepared owners reserve their full host/device payload envelope and use current
+engine-owned source proofs. Rebinding changes source identity only after all
+fallible admission/certificate work succeeds, and retains allocated payloads.
+No policy performs caller writes until every cell and GPU completion succeeds.
+Failed drains retain read references with the live owner; CPU unwinding releases
+them. Policy-specific algebra, default routing and target qualification remain
+separate. Local source availability is not a measured performance promotion.

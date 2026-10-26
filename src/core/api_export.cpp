@@ -1,6 +1,10 @@
 #include "core/api_internal.hpp"
 #include "core/export_metadata_transaction.hpp"
 #include "backend_common/quarter_crt_certificate.hpp"
+#include "backend_common/checked_crt_export.hpp"
+#include "backend_common/direct_crt_constants.hpp"
+#include "backend_common/group_crt.hpp"
+#include "core/prepared_export_read.hpp"
 
 namespace rns8::detail::api {
 
@@ -807,3 +811,5 @@ rns8_status rns8_export_exact_wide_unsigned_limbs(
 }
 
 #include "api_export_quarter_crt.inc"
+
+#include "api_export_checked_crt.inc"

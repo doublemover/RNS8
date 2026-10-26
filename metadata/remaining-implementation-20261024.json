@@ -38,6 +38,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "prepared_export_cpu_reader_unwind_20261026": {
+        "status": "implemented_execution_validation_deferred",
+        "scope": "Release prepared-export readers on CPU exceptions while retaining pending GPU readers on failed drain; dedicated allocation-fault sweeps authored.",
+        "file": "src/core/prepared_export_read.hpp",
+        "real_device_fault_qualification": false
       }
     },
     {
@@ -1102,6 +1108,52 @@
         "completed_captures": 150,
         "qualified_group_gain_count": 0,
         "source_selection": "Strongest matched classical control; no default promotion."
+      },
+      "checked_integer_export_owner_20261026": {
+        "status": "implemented_execution_validation_deferred",
+        "policies": [
+          "garner",
+          "direct",
+          "balanced",
+          "group_local",
+          "group_split"
+        ],
+        "source_owners": [
+          "cpu_reference",
+          "hip_direct"
+        ],
+        "modes": [
+          "signed",
+          "unsigned",
+          "canonical"
+        ],
+        "prefixes": [
+          1,
+          20
+        ],
+        "limbs": [
+          1,
+          32
+        ],
+        "features": [
+          "root-only centering and checked narrowing",
+          "staged whole-output publication",
+          "generation-bound rebind within retained envelope",
+          "shared payload/address query",
+          "retained exact-size host arrays and one GPU allocation"
+        ],
+        "files": [
+          "src/core/api_export_checked_crt.inc",
+          "src/backend_common/checked_crt_export.hpp",
+          "src/backend_hip_direct/hip_direct_checked_crt.cuh"
+        ],
+        "regressions": [
+          "tests/unit/test_checked_crt_cases.inc",
+          "tests/unit/test_exact_cpu_allocation_faults.cpp",
+          "examples/downstream-cmake/checked_crt_export.cpp"
+        ],
+        "arithmetic_defaults_changed": false,
+        "performance_qualified": false
       }
     },
     {
@@ -1706,6 +1758,12 @@
         "receipt": "metadata/allocation-global-control-validation-20261025.json",
         "compiled_source_commit": "2fcb91c",
         "scope": "Applicable local CPU-ASan/gfx1100 checks; numerical controls and installed consumers retain their own 168a160 artifacts. Issue-specific performance, hardware, capacity and unfinished-source gates remain separate."
+      },
+      "prepared_export_cpu_reader_unwind_20261026": {
+        "status": "implemented_execution_validation_deferred",
+        "scope": "Release prepared-export readers on CPU exceptions while retaining pending GPU readers on failed drain; dedicated allocation-fault sweeps authored.",
+        "file": "src/core/prepared_export_read.hpp",
+        "real_device_fault_qualification": false
       }
     },
     {
@@ -2585,6 +2643,12 @@
         "all_exact_checks_passed": true,
         "held_out_passed": false,
         "promotion_eligible": false
+      },
+      "prepared_crt_payload_reuse_20261026": {
+        "status": "implemented_execution_validation_deferred",
+        "scope": "Exact-size host reservation and one retained GPU payload block for public checked integer policies; compatible rebind has authored no-additional-device-allocation assertions.",
+        "resource_query": "src/backend_common/checked_crt_export.hpp",
+        "physical_memory_qualified": false
       }
     },
     {
@@ -2901,6 +2965,52 @@
         "qualified_stage_comparisons": 5,
         "selection_promoted": false,
         "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
+      },
+      "checked_integer_export_owner_20261026": {
+        "status": "implemented_execution_validation_deferred",
+        "policies": [
+          "garner",
+          "direct",
+          "balanced",
+          "group_local",
+          "group_split"
+        ],
+        "source_owners": [
+          "cpu_reference",
+          "hip_direct"
+        ],
+        "modes": [
+          "signed",
+          "unsigned",
+          "canonical"
+        ],
+        "prefixes": [
+          1,
+          20
+        ],
+        "limbs": [
+          1,
+          32
+        ],
+        "features": [
+          "root-only centering and checked narrowing",
+          "staged whole-output publication",
+          "generation-bound rebind within retained envelope",
+          "shared payload/address query",
+          "retained exact-size host arrays and one GPU allocation"
+        ],
+        "files": [
+          "src/core/api_export_checked_crt.inc",
+          "src/backend_common/checked_crt_export.hpp",
+          "src/backend_hip_direct/hip_direct_checked_crt.cuh"
+        ],
+        "regressions": [
+          "tests/unit/test_checked_crt_cases.inc",
+          "tests/unit/test_exact_cpu_allocation_faults.cpp",
+          "examples/downstream-cmake/checked_crt_export.cpp"
+        ],
+        "arithmetic_defaults_changed": false,
+        "performance_qualified": false
       }
     },
     {

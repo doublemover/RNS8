@@ -24,6 +24,8 @@
 #include "backend_common/native_narrow.hpp"
 
 namespace rns8::detail {
+namespace checked_crt {struct Decode;}
+rns8_status hip_direct_decode_crt_roots_device(int,const void*,void*,int64_t,const checked_crt::Decode&,void*);
 rns8_status hip_direct_basis_pack(int,const void*,void*,uint64_t,const void*,uint32_t,bool);
 rns8_status hip_direct_basis_gemm(int,const void*,const void*,void*,int64_t,int64_t,int64_t,const uint16_t*,uint32_t);
 rns8_status hip_direct_basis_export(int,const void*,void*,uint64_t,const void*,uint32_t,bool,uint32_t,BasisMagnitude,void*,int*);

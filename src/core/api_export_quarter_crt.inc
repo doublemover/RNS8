@@ -56,7 +56,7 @@ rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export* owner,uint64_
         source.matrix_instance_id!=c.source_instance || source.content_generation!=c.source_generation)return RNS8_INVALID_ARGUMENT;
     const auto valid=validate_export_matrix(*owner->ctx,plan,source,plan.desc.semantics,RNS8_BOUND_NONE,plan.prefix);if(valid!=RNS8_SUCCESS)return valid;
     if(source.in_flight_readers==UINT64_MAX)return RNS8_RANGE_ERROR;
-    ++source.in_flight_readers;
+    PreparedExportReadLease read(source,owner->pending);
     const int64_t cells=plan.desc.m*plan.desc.n;
     if(owner->device.get()) {
       owner->pending=true;
@@ -64,17 +64,16 @@ rns8_status rns8_export_quarter_crt_limbs(rns8_quarter_crt_export* owner,uint64_
       if(status==RNS8_SUCCESS)status=hip_direct_copy_device_to_host(owner->ctx->device_id,owner->staged.data(),owner->device.get(),owner->staged.size()*8);
       if(status!=RNS8_SUCCESS) {
         if(hip_direct_synchronize(owner->ctx->device_id)!=RNS8_SUCCESS){owner->ctx->hip_failure_poisoned=true;return status;}
-        owner->pending=false;--source.in_flight_readers;return status;
+        owner->pending=false;return status;
       }
       owner->pending=false;
     } else {
       uint32_t residues[20]{};
       for(int64_t cell=0;cell<cells;++cell) {
         for(uint32_t p=0;p<c.prefix;++p){const int value=source.residues[size_t(p)*cells+cell];residues[p]=value<0?uint32_t(value+garner::kConstants.moduli[p]):uint32_t(value);}
-        if(!quarter_crt::reconstruct_host(c,residues,owner->staged.data()+size_t(cell)*c.limbs)){--source.in_flight_readers;return RNS8_RANGE_ERROR;}
+        if(!quarter_crt::reconstruct_host(c,residues,owner->staged.data()+size_t(cell)*c.limbs)){return RNS8_RANGE_ERROR;}
       }
     }
-    --source.in_flight_readers;
     // Caller publication is last, after the complete staged result and drain.
     for(int64_t row=0;row<plan.desc.m;++row)std::copy_n(owner->staged.data()+size_t(row*plan.desc.n)*c.limbs,
         size_t(plan.desc.n)*c.limbs,dst+size_t(row*ld)*c.limbs);

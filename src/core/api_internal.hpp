@@ -37,6 +37,9 @@ inline bool resident_graph_backend_supported(rns8_backend_kind backend) {
   return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT ||
       backend==RNS8_BACKEND_WRAP64_BYTE_LIMB;
 }
+inline bool checked_crt_backend_supported(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT;
+}
 rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
 rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
 bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;

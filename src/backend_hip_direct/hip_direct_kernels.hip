@@ -496,5 +496,6 @@ extern "C" int rns8_hip_native_bound_status(const void* maximum,uint64_t limit,i
 }
 
 #include "hip_direct_cache_displace.cuh"
+#include "hip_direct_checked_crt.cuh"
 
 #include "hip_direct_experimental_basis.cuh"

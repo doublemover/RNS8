@@ -5,6 +5,7 @@
 #include "backend_common/bilinear_resources.hpp"
 #include "backend_common/rank23_slp_resources.hpp"
 #include "backend_common/gram_plan.hpp"
+#include "backend_common/checked_crt_export.hpp"
 #include "backend_common/pinned_host_contract.hpp"
 
 namespace rns8::detail::api {
