@@ -84,44 +84,100 @@ struct NativeAxisAccumulator {
   }
 };
 
+inline void add_exact_native_value(rns8_exact_axis_range& axis, const cpp_int& value, bool first) {
+  const cpp_int magnitude = boost::multiprecision::abs(value);
+  axis.max_magnitude = std::max(axis.max_magnitude, magnitude);
+  axis.absolute_sum += magnitude;
+  axis.sum += value;
+  axis.squared_sum += value * value;
+  axis.squared_sum_known = true;
+  if (first) {
+    axis.minimum = value;
+    axis.maximum = value;
+  } else {
+    axis.minimum = std::min(axis.minimum, value);
+    axis.maximum = std::max(axis.maximum, value);
+  }
+  axis.sum_known = true;
+}
+
+// Arbitrary-width limb imports retain unbounded values and squared moments.
+// Stage before packing; logical padding never contributes to the proof.
+template <typename T>
+rns8_exact_matrix_ranges wide_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
+                                             cpp_int& maximum) {
+  rns8_exact_matrix_ranges ranges;
+  ranges.rows.resize(static_cast<std::size_t>(rows));
+  ranges.cols.resize(static_cast<std::size_t>(cols));
+  maximum = 0;
+  for (int64_t row = 0; row < rows; ++row) {
+    for (int64_t col = 0; col < cols; ++col) {
+      const cpp_int value = src[row * ld + col];
+      add_exact_native_value(ranges.rows[row], value, col == 0);
+      add_exact_native_value(ranges.cols[col], value, row == 0);
+    }
+    maximum = std::max(maximum, ranges.rows[row].max_magnitude);
+  }
+  // Axis extrema are final after the first scan. Compute each column midpoint
+  // once rather than repeating multiprecision addition/division for every row.
+  std::vector<cpp_int> column_centers;
+  column_centers.reserve(static_cast<std::size_t>(cols));
+  for (const auto& column : ranges.cols) column_centers.push_back(exact_axis_center(column));
+  // A second linear scan supplies the L1 distance from each axis midpoint.
+  for (int64_t row = 0; row < rows; ++row) {
+    const cpp_int row_center = exact_axis_center(ranges.rows[row]);
+    for (int64_t col = 0; col < cols; ++col) {
+      const cpp_int value = src[row * ld + col];
+      ranges.rows[row].deviation_sum += boost::multiprecision::abs(value - row_center);
+      ranges.cols[col].deviation_sum +=
+          boost::multiprecision::abs(value - column_centers[col]);
+    }
+  }
+  return ranges;
+}
+
 // Stage before packing; logical padding never contributes to the proof. Rows
 // and bounded column blocks each scan twice. This avoids an O(rows+cols) native
 // scratch mirror and keeps the retained proof representation unchanged.
 template <typename T>
 rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
                                              cpp_int& maximum) {
-  rns8_exact_matrix_ranges ranges;
-  ranges.rows.resize(static_cast<std::size_t>(rows));
-  ranges.cols.resize(static_cast<std::size_t>(cols));
-  if(rows==0 || cols==0){maximum=0;return ranges;}
-  uint64_t maximum_native=0;
-  for (int64_t row = 0; row < rows; ++row) {
-    NativeAxisAccumulator<T> axis;
-    const T* input=src+row*ld;
-    for(int64_t col=0;col<cols;++col)axis.add(input[col]);
-    axis.set_center();
-    for(int64_t col=0;col<cols;++col)axis.add_deviation(input[col]);
-    maximum_native=std::max(maximum_native,axis.max_magnitude);
-    ranges.rows[static_cast<size_t>(row)]=axis.finish();
-  }
-  constexpr int64_t block_columns=16;
-  for(int64_t first=0;first<cols;) {
-    const auto count=std::min(block_columns,cols-first);
-    std::array<NativeAxisAccumulator<T>,block_columns> axes;
-    for(int64_t row=0;row<rows;++row) {
-      const T* input=src+row*ld+first;
-      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add(input[lane]);
+  if constexpr(!std::is_integral_v<T> || sizeof(T)>sizeof(uint64_t)) {
+    return wide_exact_ranges(src,rows,cols,ld,maximum);
+  } else {
+    rns8_exact_matrix_ranges ranges;
+    ranges.rows.resize(static_cast<std::size_t>(rows));
+    ranges.cols.resize(static_cast<std::size_t>(cols));
+    if(rows==0 || cols==0){maximum=0;return ranges;}
+    uint64_t maximum_native=0;
+    for (int64_t row = 0; row < rows; ++row) {
+      NativeAxisAccumulator<T> axis;
+      const T* input=src+row*ld;
+      for(int64_t col=0;col<cols;++col)axis.add(input[col]);
+      axis.set_center();
+      for(int64_t col=0;col<cols;++col)axis.add_deviation(input[col]);
+      maximum_native=std::max(maximum_native,axis.max_magnitude);
+      ranges.rows[static_cast<size_t>(row)]=axis.finish();
     }
-    for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].set_center();
-    for(int64_t row=0;row<rows;++row) {
-      const T* input=src+row*ld+first;
-      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add_deviation(input[lane]);
+    constexpr int64_t block_columns=16;
+    for(int64_t first=0;first<cols;) {
+      const auto count=std::min(block_columns,cols-first);
+      std::array<NativeAxisAccumulator<T>,block_columns> axes;
+      for(int64_t row=0;row<rows;++row) {
+        const T* input=src+row*ld+first;
+        for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add(input[lane]);
+      }
+      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].set_center();
+      for(int64_t row=0;row<rows;++row) {
+        const T* input=src+row*ld+first;
+        for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add_deviation(input[lane]);
+      }
+      for(int64_t lane=0;lane<count;++lane)ranges.cols[static_cast<size_t>(first+lane)]=axes[static_cast<size_t>(lane)].finish();
+      first+=count;
     }
-    for(int64_t lane=0;lane<count;++lane)ranges.cols[static_cast<size_t>(first+lane)]=axes[static_cast<size_t>(lane)].finish();
-    first+=count;
+    maximum=maximum_native;
+    return ranges;
   }
-  maximum=maximum_native;
-  return ranges;
 }
 
 inline cpp_int exact_axis_product_bound(const rns8_exact_axis_range& a, const rns8_exact_axis_range& b,

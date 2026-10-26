@@ -380,6 +380,8 @@ implementation visits each logical cell four times across row/column scans;
 it removes per-value variable-precision operations and the temporary column
 midpoint vector without discarding any retained facts. Performance requires its
 own matched measurements; the arithmetic bound alone establishes no speedup.
+Arbitrary-width limb imports retain the unbounded multiprecision scan; the
+native accumulator ceiling never constrains their values or squared moments.
 An explicit `rns8_lift_exact_wide_cpu` operation now stages missing CPU residue
 planes within an existing matrix's allocated prefix ceiling. The source proof
 must already identify the integer uniquely; centered source reconstruction cannot

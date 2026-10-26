@@ -66,4 +66,10 @@ TEST_CASE("native moment fixed accumulators preserve every arbitrary precision a
     native_moment_reference::check(values,1,2,2);
     native_moment_reference::check(values,2,1,1);
   }
+  // Limb imports share the entry point, but their moments can exceed the fixed
+  // native accumulator widths. Oversized padding must still be excluded.
+  const boost::multiprecision::cpp_int big=boost::multiprecision::cpp_int(1)<<130;
+  const boost::multiprecision::cpp_int padding=boost::multiprecision::cpp_int(1)<<300;
+  const std::vector<boost::multiprecision::cpp_int> wide={big,-big+1,padding,-2*big,big+1,padding};
+  native_moment_reference::check(wide,2,2,3);
 }
