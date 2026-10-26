@@ -1,13 +1,14 @@
 {
   "schema": "rns8_frontloaded_issue_development_v1",
-  "recorded_utc": "2026-10-26T13:53:26.260588+00:00",
+  "recorded_utc": "2026-10-26T14:08:41.291250+00:00",
   "source_commits": [
     "237c8b9aa0f965e1f919e08702f24a38cb32940f",
     "461356613f2259dff69e6cd1e5859069ae10e44c",
     "d34b247007737fb8753d7d73478d563899e5ac1f",
     "0e719774f9c02210e479f42c33376c1805d1c2bc",
     "f062c3a2d8323658a913c325c3c925c6ce81fb64",
-    "83b109fa821c03c97ed053b8984190f82db7fe7d"
+    "83b109fa821c03c97ed053b8984190f82db7fe7d",
+    "cf9c24fa82d5623aca41889db9d44d7b3f33edd6"
   ],
   "open_issue_count": 40,
   "open_issues": [
@@ -59,7 +60,8 @@
     "Matched public policy export controls",
     "Complete GEMM/export cold and resident scopes",
     "Concrete checked policies in runtime shortlist",
-    "CPU export staging, padded output and quarter producer admission parity"
+    "CPU export staging, padded output and quarter producer admission parity",
+    "Retained resident recipe topology/alias/reservation/proof metadata and GPU lift words; pointer/count output views"
   ],
   "authored_cases": {
     "public_policy_exports": 224,
@@ -107,6 +109,24 @@
           "exit_code": 0
         }
       ]
+    },
+    {
+      "path": "temp/recipe-topology-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs syntax only; no objects, linking, tests or GPU execution",
+      "records": [
+        {
+          "source": "src/core/runtime_product_recipe.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/unit/test_api.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/unit/test_exact_cpu_allocation_faults.cpp",
+          "exit_code": 0
+        }
+      ]
     }
   ],
   "python_scope": "compile(source, filename, exec) syntax only; tools and fixtures were not executed",
@@ -136,6 +156,13 @@
     "tests/unit/test_checked_crt_cases.inc": "678d52e8ed723b2e2bea8bc8404e7004b271ff45b5fe425408dc7edaea860518",
     "tests/unit/test_quarter_crt_cases.inc": "b497ae5b91d3ab103a8c8232c890e738e052b9f14961d42dbd62c5f6331fdb11",
     "benchmarks/conversion-calibration/checked-public-exports.json": "203ecf25f121e7bf5ae6008b5750803ba55a1e973c33dc44606508994115ffcf",
-    "benchmarks/conversion-calibration/checked-gemm-exports.json": "f3c01b790069b817acc1ebe1456c1a2a5eef321b129c6b1aac7aeca1865ccc3b"
-  }
+    "benchmarks/conversion-calibration/checked-gemm-exports.json": "f3c01b790069b817acc1ebe1456c1a2a5eef321b129c6b1aac7aeca1865ccc3b",
+    "src/core/runtime_product_recipe.cpp": "bdfb51564004fbf77159766b464e7f87fa8c3167053796192b10fcde986a58ee",
+    "src/core/runtime_product_recipe.hpp": "c7bc66388e0829e9100a2047344acb1f545e7cd19d1bdcbdef652da33f1b8714",
+    "tests/unit/test_exact_cpu_allocation_faults.cpp": "837f1a46fa85853f842cbab2cfff4e1371f81d3e3cbd7a9d42045cf9acf20f5e",
+    "tests/support/product_recipe_rebind_fixture.hpp": "f9658f7676014893f0315bc9f094677ca6750b517c5bb401c9df66c9b3e6e5f3"
+  },
+  "development_status": "in_progress_unqualified",
+  "last_executed_full_suite_source": "36568f5",
+  "new_recipe_assertion_scope": "Authored but unexecuted: small-proof full-prefix CPU steady calls intercept zero C++ allocations; not an allocation-free promise for arbitrary proof/ragged/HIP paths"
 }
