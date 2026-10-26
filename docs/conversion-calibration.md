@@ -30,13 +30,13 @@ an optional `resident` or `cold` scope. Existing six-argument calls default to
 warmups1..1000. A run ID is1..128 ASCII letters, digits, dots, underscores or
 hyphens. Unsupported candidates, scopes, malformed numbers and irrelevant extra
 arguments reject before probing a device. The capture schema is explicitly
-`rns8_crt_microcase_v4`; collectors reject old captures rather than relabel them.
+`rns8_crt_microcase_v5`; collectors reject old captures rather than relabel them.
 
 Public export-only plans select an explicit fixed prefix and
 `RNS8_PLAN_EXACT_VALUE_BOUND`. Packing independently establishes the current
 value bound, and export checks the actual proof and destination width. A short
 prefix does not have to cover a hypothetical full-native-type GEMM that this
-benchmark never executes. V4 captures name this admission policy and require
+benchmark never executes. Captures name this admission policy and require
 `gemm_measured=false` for public controls.
 
 The first [focused closeout profile](../benchmarks/conversion-calibration/focused-closeout-20261025.json)
@@ -45,13 +45,29 @@ type-product plan. The failure was in benchmark setup. The
 [preserved initial attempt](../metadata/conversion-closeout-initial-attempt-20261025.json)
 qualifies no timing result. V4 repairs the export-only admission, adds sixteen
 short-prefix signed/unsigned public GPU smoke cases at P3/P9, and requires one
-fresh complete collection. The original stopped large campaign is unrelated.
+fresh complete collection. That retry passes all **425 numeric captures** at
+**eec122f**, both target builds, 45 affected CTest entries and two CPU-ASan CLI
+checks. The [reviewed timing audit](../metadata/conversion-completion-audit-20261025.json)
+then identifies an incomplete boundary in raw resident three-limb Garner:
+the helper may return after enqueue because no overflow status readback is
+needed. An outside-timing validation copy waits for completion, hiding that gap.
+Its enqueue latency cannot be compared with completed direct/balanced calls.
+All raw resident timing comparisons from this collection are conservatively
+quarantined; their numeric checks remain valid. Public export/readback and raw
+cold readback finish inside their intervals and are distinguished in the audit.
+The original stopped large campaign is unrelated.
 
 ## Timing boundaries
 
 `resident` allocates and uploads the selected candidate's active input once, then
 keeps their storage and the output allocation across calls. Timed calls include
 the candidate's checks, capability/status work, conversion and synchronization.
+V5 adds a common explicit device completion fence after every raw resident
+conversion, even when a helper already synchronizes internally. Its completed
+call counter must equal warmups, both calls per latency sample, and all sustained
+calls. This common fence cost stays inside production timing. Public controls
+already complete through checked readback and host publication. Source-bound
+completion scope is explicit in every v5 capture.
 Poisoning, complete output/canary readback and active-input preservation checks
 occur outside each timed call. The setup duration is reported separately.
 

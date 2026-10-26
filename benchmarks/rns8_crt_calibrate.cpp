@@ -185,8 +185,15 @@ int main(int argc,char** argv) {
       check(hip_direct_copy_device_to_host(0,source_observed.data(),source,source_bytes));
       if(std::memcmp(source_observed.data(),host_source,source_bytes)) throw std::runtime_error("conversion changed active input");
     };
+    uint64_t resident_completions=0;
     const auto execute=[&]() {
-      if(scope=="resident") convert(resident);
+      if(scope=="resident") {
+        convert(resident);
+        // Some device-output helpers intentionally return after enqueue (e.g.
+        // three-limb Garner needs no status readback). Every control must finish
+        // its GPU work before the host-observed production interval ends.
+        check(hip_direct_synchronize(0));++resident_completions;
+      }
       else {Buffers cold;initialize(cold);convert(cold);
         check(hip_direct_copy_device_to_host(0,observed.data(),cold.output.get(),observed.size()));
         // Input preservation readback remains outside the production interval:
@@ -217,7 +224,9 @@ int main(int argc,char** argv) {
     hip_direct_timing_set_enabled(false);prepare();uint32_t calls=0;double elapsed=0;const auto start=Clock::now();
     do {execute();++calls;elapsed=std::chrono::duration<double,std::nano>(Clock::now()-start).count();}
     while(calls<4096 && (calls<16 || elapsed<250000000));verify();
-    nlohmann::json report={{"schema","rns8_crt_microcase_v4"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
+    nlohmann::json report={{"schema","rns8_crt_microcase_v5"},{"run_id",run_id},{"candidate",candidate},{"scope",scope},
+      {"completion_inside_interval",true},{"completion_scope",scope=="resident"?"explicit_device_synchronize":"checked_output_readback_and_free"},
+      {"resident_completion_count",resident_completions},
       {"cells",cells},{"prefix",prefix},{"seed",3903},{"dataset_recipe",quarter?(narrow?"splitmix64_quarter_native64_seed3903_v1":"splitmix64_quarter_wide_seed3903_v1"):"splitmix64_conversion_seed3903_extrema_v1"},
       {"repeats",repeats},{"warmups",warmups},{"device_requested",0},{"device_actual",0},
       {"backend_requested","hip-direct"},{"backend_actual","hip-direct"},{"device",device.name},{"target",device.gcn_arch},

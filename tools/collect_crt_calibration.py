@@ -73,7 +73,8 @@ def contract(case,run_id,repeats,warmups):
         output=output,status=4 if candidate in ("garner","tile_convert_garner") or candidate.startswith("garner_") else 0,
         probe=4 if "dot4" in candidate or "wmma" in candidate else 0)
     envelope=native_bytes+plain+output*3+tile_bytes+source+sum(buffers.values())+16384
-    result={"schema":"rns8_crt_microcase_v4", "run_id":run_id, **case,
+    result={"schema":"rns8_crt_microcase_v5", "run_id":run_id, **case,
+        "completion_inside_interval":True,"completion_scope":"public_checked_export_readback_and_publication" if public else "explicit_device_synchronize" if scope=="resident" else "checked_output_readback_and_free",
         "seed":3903,"dataset_recipe":("splitmix64_quarter_native64_seed3903_v1" if narrow else "splitmix64_quarter_wide_seed3903_v1") if quarter else "splitmix64_conversion_seed3903_extrema_v1", "repeats":repeats,"warmups":warmups,
         "device_requested":0,"device_actual":0,"backend_requested":"hip-direct","backend_actual":"hip-direct",
         "timer":"std_chrono_steady_clock_nanoseconds","production_timing_hooks_enabled":False,
@@ -180,6 +181,8 @@ def validate_capture(capture,case,run_id,repeats,warmups):
         and same(sustained.get("target_ns"),250000000) and sustained.get("independent_audit_inside_interval") is False,"invalid sustained bounds/audit scope")
     demand(math.isclose(sustained["mean_call_ns"]*sustained["calls"],sustained["elapsed_ns"],rel_tol=1e-12)
         and (sustained["calls"]==4096 or sustained["elapsed_ns"]>=250000000),"invalid sustained duration")
+    if not case['candidate'].startswith('public_'):
+        demand(same(capture.get('resident_completion_count'),warmups+2*repeats+sustained['calls'] if case['scope']=='resident' else 0),"missing completed resident calls")
     demand(sustained.get("scope")==("fresh_buffers_transfer_inclusive_no_intermediate_reference" if case["scope"]=="cold" else
         "resident_same_buffers_no_intermediate_poison_or_reference"),"sustained scope mismatch")
     if case["candidate"] in QUARTER_CANDIDATES:

@@ -39,6 +39,7 @@ def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
         else:capture["quarter_certificate"]=dict(sha256="a"*64,magnitude_bound=str(bound),digits=max(1,(bound.bit_length()+1+15)//16) if narrow else 12,
             output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
             target_execution="not_run",source_scope="private_fixture_immutable_for_process")
+    if not case['candidate'].startswith('public_'):capture['resident_completion_count']=warmups+2*repeats+16 if case['scope']=='resident' else 0
     return capture
 
 
@@ -54,6 +55,12 @@ def successful(command,**kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_enqueue_only_resident_times_cannot_be_complete_conversion_costs(self):
+        c=fixture();validate_capture(c,BASE,'fixture-run',2,1)
+        for key,value in [('completion_inside_interval',False),('completion_scope','enqueue_only'),('resident_completion_count',0),('resident_completion_count',22)]:
+            bad=deepcopy(c);bad[key]=value
+            with self.subTest(key=key,value=value),self.assertRaises(ValueError):validate_capture(bad,BASE,'fixture-run',2,1)
+
     def test_public_exports_bind_current_values_instead_of_a_full_native_product(self):
         for candidate in ('public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'):
             for prefix in (1,3,9,20):
