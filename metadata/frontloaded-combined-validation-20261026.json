@@ -116,10 +116,6 @@
     "errors": [],
     "scope": "Independent Python dataset/checksum/owner/resource/manifest replay of retained current CTest output; no additional GPU calls or timing campaign"
   },
-  "pending_test_only_changes": [
-    "Correct the stale fixture to retain four distinct bounds sharing the full prefix.",
-    "Cover prepared exports at selected and fixed P20 bases and explicitly inject a throwing allocation inside the shared reader lease."
-  ],
   "pending_fixture_syntax": [
     {
       "source": "tests/unit/test_bounded_gemm.cpp",
@@ -130,8 +126,7 @@
       "exit_code": 0
     }
   ],
-  "pending_fixture_execution": false,
-  "additional_test_allowance_required": true,
+  "additional_test_allowance_required": false,
   "dedicated_residue_harness_repeated": false,
   "residue_timing_captures_launched": 0,
   "campaign_resumed": false,
@@ -139,7 +134,7 @@
   "remaining_open_issues": 40,
   "evidence_limits": [
     "Main suites retain one stale-assertion failure each; no all-green claim.",
-    "Prepared CRT policy executions allocated zero times; their empty injection loops do not prove exception cleanup. The new direct lease-exception fixture is syntax-only.",
+    "Prepared CRT policy calls allocated zero times; a separate direct shared-reader-lease exception test now passes at selected P17 and fixed P20 in both configurations. This is not real failed-drain GPU fault qualification.",
     "Requested payload is not measured hardware traffic; no new timing gain or routing promotion.",
     "Unavailable hardware/platform and issue-specific measurement gates remain separate."
   ],
@@ -187,5 +182,17 @@
       "tools/promotion_ledger.py": true
     },
     "checked_utc": "2026-10-26T16:31:33.189518+00:00"
+  },
+  "test_only_followup_changes": [
+    "Correct the stale fixture to retain four distinct bounds sharing the full prefix.",
+    "Cover prepared exports at selected and fixed P20 bases and explicitly inject a throwing allocation inside the shared reader lease."
+  ],
+  "test_only_fixtures_executed": true,
+  "subsequent_targeted_followup": {
+    "receipt": "metadata/frontloaded-targeted-validation-20261026.json",
+    "artifact_source": "84b4d9c",
+    "passed": 4,
+    "failed": 0,
+    "full_suites_repeated": false
   }
 }

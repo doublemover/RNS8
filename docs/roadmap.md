@@ -13,9 +13,11 @@ records successful full builds at `f406c29`, 1,038 GPU passes / 17 skips and
 572 CPU-ASan passes / 32 skips, with one stale fixture assertion failing in each
 lane. The folded per-tile HIP export repair and new CPU/HIP regressions pass;
 18 installed consumers, two strict C17 probes and all 98 independently replayed
-CRT outputs pass. The stale assertion is corrected and direct reader-exception
-coverage is added in source; those test-only changes have syntax checks and
-await an additional execution allowance. No research campaign resumed.
+CRT outputs pass. The stale assertion correction and direct reader-exception
+coverage subsequently pass the explicitly authorized
+[four-check targeted follow-up](../metadata/frontloaded-targeted-validation-20261026.json)
+at `84b4d9c`. Both historical full-suite failures remain in the receipt; the
+full suites were not repeated again. No research campaign resumed.
 
 The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
 passed at `6ce489b`; subsequent address/metadata qualification brings the total

@@ -660,7 +660,14 @@ recipe replay. Its prepared CRT policies themselves allocate zero times; empty
 fault-injection loops do not prove exception cleanup. A subsequent test-only
 change directly injects a throwing allocation inside the reader lease and covers
 both selected and fixed P20 bases. That change and the stale-assertion correction
-pass MSVC syntax checks but have not executed within the exhausted retry budget.
+pass MSVC syntax checks, followed by an explicitly authorized additional targeted
+run at `84b4d9c`: **2/2 checks pass in CPU-ASan and 2/2 in the full GPU build**.
+The allocation log confirms actual exception injection at selected P17 and fixed
+P20. These are CPU cases in both configurations; the real HIP export regressions
+retain their earlier full-batch evidence. The
+[targeted receipt](../metadata/frontloaded-targeted-validation-20261026.json)
+preserves commands, outputs and binary hashes. Both earlier full-suite failures
+remain recorded; the full suites are not repeated again.
 
 The unchanged five-input logical/mutation checker is reused only from its
 1,006.60-second `36568f5` run. The separate residue harness is not repeated,

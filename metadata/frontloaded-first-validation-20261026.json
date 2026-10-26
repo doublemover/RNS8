@@ -77,7 +77,7 @@
     "user_freed_space": true,
     "compression_recovery": false
   },
-  "combined_retest": "metadata/frontloaded-combined-validation-20261026.json: one stale fixture assertion per lane; repaired test source has syntax checks only",
+  "combined_retest": "metadata/frontloaded-combined-validation-20261026.json retains one stale fixture failure per full lane; metadata/frontloaded-targeted-validation-20261026.json records the explicitly authorized 4/4 passing follow-up at 84b4d9c.",
   "campaign_resumed": false,
   "residue_timing_captures_launched": 0,
   "issues_closed": []

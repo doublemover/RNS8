@@ -222,10 +222,13 @@
     "installed_consumers_passed": 18,
     "c17_passed": 2,
     "crt_metadata_validated": 98,
-    "pending_test_only_changes": [
-      "Correct the stale fixture to retain four distinct bounds sharing the full prefix.",
-      "Cover prepared exports at selected and fixed P20 bases and explicitly inject a throwing allocation inside the shared reader lease."
-    ],
-    "issues_closed": []
+    "pending_test_only_changes": [],
+    "issues_closed": [],
+    "targeted_followup": {
+      "artifact_source": "84b4d9c",
+      "receipt": "metadata/frontloaded-targeted-validation-20261026.json",
+      "passed": 4,
+      "failed": 0
+    }
   }
 }
