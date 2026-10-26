@@ -540,6 +540,10 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_execution_environment_identity.py"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
   set_tests_properties(execution_environment_identity_self_test PROPERTIES LABELS "tools;benchmark;evidence;perf")
+  add_test(NAME diagnostic_companion_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_diagnostic_companion.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_tests_properties(diagnostic_companion_self_test PROPERTIES LABELS "tools;benchmark;evidence;perf")
 
   add_test(
     NAME error_detection_policy_report_self_test
