@@ -466,3 +466,31 @@ Budget comparisons use each route's real storage floor rather than assuming a
 stronger prefix must always need more memory: CPU ordinary per-cell status can
 outweigh an extra residue plane in quarter reconstruction. Unknown metadata and
 worker storage remain explicit additional requirements.
+
+
+### Retained topology bookkeeping
+
+A prepared resident product recipe now owns its current-prefix and packed-prefix
+work arrays, sorted output-alias scratch, deduplicated input list, reader/writer
+reservation capacities and staged publication-proof vector. Input rebinding
+builds a replacement deduplicated list before changing any retained references.
+Single- and multi-output submission pass pointer/count views directly to the
+executor; they do not construct an output vector at the public boundary.
+
+HIP lift magnitude words are lowered from the prepared conservative envelopes
+once. Rebinding smaller values keeps that envelope and its arithmetic admission.
+CPU extension uses a fixed twenty-byte residue scratch array while retaining the
+independent multiprecision reconstruction. Output proofs are still copied before
+work and swapped only after all publications succeed; unusually wide or changed
+caller proofs can require multiprecision preflight storage. Host control metadata
+is additional to the explicit residue-arena/lift payload budget. No blanket
+allocation-free guarantee is made for ragged preflight, CPU multiprecision lift,
+HIP runtime internals or arbitrary proof/publication histories.
+
+Authored allocation-fault cases target small-proof, full-prefix CPU single and
+multi-output calls, including shared-to-distinct-to-shared inputs, all-plane
+oracles, duplicate-output rejection, and every preparation allocation failure.
+Their steady-call assertions require zero intercepted host allocations; they
+have not run yet. Existing CPU/HIP rebind fixtures also exercise growth from one
+unique source to two without resizing retained device arenas. This is source
+work, not a measured latency gain or a broader materialization-route promotion.

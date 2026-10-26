@@ -23,6 +23,7 @@ class RuntimeProductRecipe {
       const ProductMaterializationProfile* materializations = nullptr);
   rns8_status execute(rns8_matrix* output);
   rns8_status execute(const std::vector<rns8_matrix*>& outputs);
+  rns8_status execute(rns8_matrix* const* outputs,size_t count);
   rns8_status close();
   rns8_status rebind(const std::vector<const rns8_matrix*>& inputs);
   const ProductArenaPlan& allocation() const;

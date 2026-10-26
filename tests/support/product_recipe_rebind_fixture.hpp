@@ -65,6 +65,8 @@ inline void check_product_recipe_rebind(rns8_backend_kind backend) {
   REQUIRE(rns8_execute_product_recipe(recipe,matrices[4])==RNS8_INVALID_ARGUMENT);REQUIRE(matrices[4]->content_generation==generation);
   REQUIRE(rns8_rebind_product_recipe_inputs(recipe,replacement,2)==RNS8_SUCCESS);check_value(1);
   REQUIRE(matrices[4]->exact_max_magnitude==15); // compiled envelope remains conservative
+  replacement[1]=matrices[3];REQUIRE(rns8_rebind_product_recipe_inputs(recipe,replacement,2)==RNS8_SUCCESS);check_value(1);
+  REQUIRE(matrices[2]->prepared_references==1);REQUIRE(matrices[3]->prepared_references==1);
   rns8_product_recipe_resources after{};after.struct_size=sizeof(after);after.abi_version=RNS8_ABI_VERSION;
   REQUIRE(rns8_get_product_recipe_resources(recipe,&after)==RNS8_SUCCESS);
   REQUIRE(after.arena_bytes==before.arena_bytes);REQUIRE(after.lift_scratch_bytes==before.lift_scratch_bytes);

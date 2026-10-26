@@ -102,6 +102,15 @@
             "tools/perf_variance_report.py",
             "tools/timing_eligibility.py"
           ]
+        },
+        {
+          "summary": "Prepared resident recipes retain topology/alias/reservation/publication-proof metadata, use pointer/count output views, cache deduplicated rebind sources and prelower GPU lift magnitude words. CPU lift residue scratch is fixed-size. Authored exact small-proof steady-allocation and complete preparation-failure sweeps plus CPU/HIP unique-reader growth cases; syntax only and no performance claim.",
+          "files": [
+            "src/core/runtime_product_recipe.cpp",
+            "src/core/runtime_product_recipe.hpp",
+            "tests/unit/test_exact_cpu_allocation_faults.cpp",
+            "tests/support/product_recipe_rebind_fixture.hpp"
+          ]
         }
       ],
       "regressions": [
@@ -1595,6 +1604,15 @@
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_quarter_crt_cases.inc"
           ]
+        },
+        {
+          "summary": "Prepared resident recipes retain topology/alias/reservation/publication-proof metadata, use pointer/count output views, cache deduplicated rebind sources and prelower GPU lift magnitude words. CPU lift residue scratch is fixed-size. Authored exact small-proof steady-allocation and complete preparation-failure sweeps plus CPU/HIP unique-reader growth cases; syntax only and no performance claim.",
+          "files": [
+            "src/core/runtime_product_recipe.cpp",
+            "src/core/runtime_product_recipe.hpp",
+            "tests/unit/test_exact_cpu_allocation_faults.cpp",
+            "tests/support/product_recipe_rebind_fixture.hpp"
+          ]
         }
       ],
       "regressions": [
@@ -1795,6 +1813,15 @@
             "tools/test_collect_host_transfers.py",
             "cmake/rns8_targets.cmake",
             "cmake/rns8_tests.cmake"
+          ]
+        },
+        {
+          "summary": "Prepared resident recipes retain topology/alias/reservation/publication-proof metadata, use pointer/count output views, cache deduplicated rebind sources and prelower GPU lift magnitude words. CPU lift residue scratch is fixed-size. Authored exact small-proof steady-allocation and complete preparation-failure sweeps plus CPU/HIP unique-reader growth cases; syntax only and no performance claim.",
+          "files": [
+            "src/core/runtime_product_recipe.cpp",
+            "src/core/runtime_product_recipe.hpp",
+            "tests/unit/test_exact_cpu_allocation_faults.cpp",
+            "tests/support/product_recipe_rebind_fixture.hpp"
           ]
         }
       ],
@@ -2705,6 +2732,15 @@
             "src/core/api_export_quarter_crt.inc",
             "tests/unit/test_api_operation_provider_cases.inc",
             "tests/unit/test_quarter_crt_cases.inc"
+          ]
+        },
+        {
+          "summary": "Prepared resident recipes retain topology/alias/reservation/publication-proof metadata, use pointer/count output views, cache deduplicated rebind sources and prelower GPU lift magnitude words. CPU lift residue scratch is fixed-size. Authored exact small-proof steady-allocation and complete preparation-failure sweeps plus CPU/HIP unique-reader growth cases; syntax only and no performance claim.",
+          "files": [
+            "src/core/runtime_product_recipe.cpp",
+            "src/core/runtime_product_recipe.hpp",
+            "tests/unit/test_exact_cpu_allocation_faults.cpp",
+            "tests/support/product_recipe_rebind_fixture.hpp"
           ]
         }
       ],
