@@ -277,7 +277,10 @@ def inspect_hip(candidate: Candidate, request: Request) -> None:
 def default_hip_roots(host: str, environment: Mapping[str, str]) -> list[Path]:
     if host == "Windows":
         parent = Path(environment.get("ProgramFiles", r"C:\Program Files")) / "AMD/ROCm"
-        return sorted(path for path in parent.glob("*") if path.is_dir()) if parent.is_dir() else []
+        roots = sorted(path for path in parent.glob("*") if path.is_dir()) if parent.is_dir() else []
+        therock = Path(environment.get("SystemDrive", "C:") + "/") / "TheRock/build"
+        if therock.is_dir(): roots.append(therock)
+        return roots
     if host == "Linux":
         roots = [Path("/opt/rocm")]
         roots += sorted(path for path in Path("/opt").glob("rocm-*") if path.is_dir())

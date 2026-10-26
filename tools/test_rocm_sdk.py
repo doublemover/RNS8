@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import patch
 
 import rocm_sdk as sdk
+import init as init_entry
 
 
 class SDKTests(unittest.TestCase):
@@ -205,7 +206,8 @@ class SDKTests(unittest.TestCase):
         resolution = {"cmake_bindings": {"RNS8_HIP_ROOT": str(root),
             "RNS8_HIP_CLANG": str(root / "lib/llvm/bin/amdclang++.exe")},
             "compiler_environment": {"HIP_PATH": str(root), "ROCM_PATH": str(root)}}
-        with patch.object(sdk, "inspect", return_value=resolution), patch.object(sdk.subprocess, "run") as run:
+        with patch.object(sdk, "inspect", return_value=resolution), \
+                patch.object(sdk, "package_installation", return_value={}), patch.object(sdk.subprocess, "run") as run:
             result = sdk.run(args)
         self.assertEqual(run.call_count, 2)
         configure = run.call_args_list[0].args[0]
@@ -214,6 +216,72 @@ class SDKTests(unittest.TestCase):
         self.assertIn("-DRNS8_CK_ROOT=" + str(root), configure)
         self.assertEqual(run.call_args.kwargs["env"]["HIP_PATH"], str(root))
         self.assertIn("windows-gfx110X-all-10.1.0" if sdk.platform.system() == "Windows" else "linux-gfx110X-all-10.1.0", result["lanes"][0]["build_dir"])
+
+    def test_auto_reuses_exact_standard_sdk_without_network(self):
+        sdk.extract(self.archive(), self.base / "unpack", "Windows")
+        root = self.base / "unpack/sdk"
+        lane = sdk.plan(["gfx1100"], "Windows", "10.1.0", self.base / "managed")[0]
+        with patch.dict(sdk.os.environ, {}, clear=True), \
+                patch.object(sdk, "default_hip_roots", return_value=[root]), \
+                patch.object(sdk, "official_inventory", side_effect=AssertionError("network")):
+            chosen, _ = sdk.existing_sdk(lane)
+            self.assertEqual(chosen, root.resolve())
+            (root / ".info/version").write_text("10.0.0")
+            self.assertIsNone(sdk.existing_sdk(lane)[0])
+
+    def test_init_entry_selects_pinned_python_and_forwards_without_shell(self):
+        selected = self.base / "Python with spaces/python.exe"
+        with patch.object(init_entry, "selected_python", return_value=selected), \
+                patch.object(init_entry.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            self.assertEqual(init_entry.main(["--sdk-test", "--dry-run"]), 0)
+        command = run.call_args.args[0]
+        self.assertEqual(command[0], str(selected))
+        self.assertIn("--sdk-auto", command)
+        self.assertIn("--sdk-build", command)
+        self.assertIn("--sdk-test", command)
+        self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_init_interpreter_is_exact_and_rejects_store_aliases(self):
+        root = self.base / "source"
+        root.mkdir(); (root / ".python-version").write_text("3.15.1")
+        selected = root / ".venv/Scripts/python.exe"
+        selected.parent.mkdir(parents=True); selected.write_bytes(b"fixture")
+        with patch.object(init_entry.sys, "version_info", (3, 13, 3)), \
+                patch.object(init_entry.sys, "platform", "win32"), \
+                patch.object(init_entry.shutil, "which", return_value=None), \
+                patch.dict(init_entry.os.environ, {}, clear=True), \
+                patch.object(init_entry.subprocess, "run") as run:
+            run.return_value.stdout = "Python 3.15.1\n"; run.return_value.stderr = ""
+            self.assertEqual(init_entry.selected_python(root), selected)
+            run.return_value.stdout = "Python 3.15.0\n"
+            with self.assertRaises(ValueError):
+                init_entry.selected_python(root)
+
+    def test_auto_selects_prepared_pinned_packages_and_rejects_missing_files(self):
+        root = self.base / "repo"
+        local = self.base / "profile"
+        installed = local / "RNS8/dependencies/installed-fixture"
+        ports = {"boost-multiprecision": {"version": "1.92.0", "port_version": 0},
+                 "nlohmann-json": {"version": "3.12.0", "port_version": 2},
+                 "catch2": {"version": "3.16.1", "port_version": 0}}
+        (root / "metadata").mkdir(parents=True)
+        (root / "metadata/dependencies.json").write_text(json.dumps({"vcpkg": {"ports": ports}}))
+        headers = ("boost/multiprecision/cpp_int.hpp", "nlohmann/json.hpp", "catch2/catch_test_macros.hpp")
+        for name in headers:
+            path = installed / "x64-windows/include" / name
+            path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b"fixture")
+        (installed / "vcpkg").mkdir()
+        status = "\n\n".join(f"Package: {name}\nVersion: {item['version']}\nPort-Version: {item['port_version']}\nArchitecture: x64-windows\nStatus: install ok installed" for name, item in ports.items())
+        (installed / "vcpkg/status").write_text(status)
+        resolution = {"cmake_bindings": {"CMAKE_TOOLCHAIN_FILE": str(self.base / "vcpkg/scripts/buildsystems/vcpkg.cmake")}}
+        with patch.object(sdk, "ROOT", root), patch.object(sdk.platform, "system", return_value="Windows"), \
+                patch.dict(sdk.os.environ, {"LOCALAPPDATA": str(local)}, clear=True):
+            found = sdk.package_installation(resolution, {})
+            self.assertEqual(Path(found["bindings"]["VCPKG_INSTALLED_DIR"]), installed.resolve())
+            (installed / "x64-windows/include" / headers[0]).unlink()
+            with self.assertRaises(ValueError):
+                sdk.package_installation(resolution, {})
 
 
 if __name__ == "__main__":

@@ -24,6 +24,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Discovery(unittest.TestCase):
+    def test_standard_therock_root_follows_system_drive(self):
+        therock = self.base / "TheRock/build"
+        therock.mkdir(parents=True)
+        roots = r.default_hip_roots("Windows", {"SystemDrive": str(self.base), "ProgramFiles": str(self.base / "Programs")})
+        self.assertIn(therock, roots)
+
     def test_therock_nested_amd_compiler_layout(self):
         sdk = self.sdk()
         (sdk / "bin/clang++.exe").unlink()

@@ -113,12 +113,14 @@ set paths to your actual installations; spaces and nondefault roots are supporte
 The preset uses shared discovery; explicit overrides below select the intended
 stack when several installations exist.
 
-To provision the matching ROCm Core SDK from AMD's stable tarballs, use the
-existing initializer. It detects installed GPU targets, supports repeated
+To reuse or provision the matching ROCm Core SDK and build with automatically
+selected paths, run `python tools/init.py`. Add `--dry-run` to preview or
+`--sdk-test` to run the registered suite after building. This entry point finds
+the exact Python selected in `.python-version`, even when `python` is older.
+It detects installed GPU targets, supports repeated
 `--sdk-target gfxNNNN` overrides, and keeps each family in its own SDK/build
-directory. Preview with `--sdk-install --sdk-build --dry-run`; remove `--dry-run`
-to download, extract, configure and build. Reuse an extraction with
-`--sdk-root C:/TheRock/build --sdk-build`. See
+directory. SDK/compiler/LLVM/bitcode, CMake/Ninja, VS and prepared vcpkg package
+paths are selected automatically; explicit root/package overrides remain available. See
 [SDK initialization](docs/dependency-discovery.md#sdk-initialization) for full
 commands, integrity pins and platform boundaries.
 

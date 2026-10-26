@@ -328,9 +328,9 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args()
 
-    if args.sdk_install or args.sdk_root or args.sdk_build:
-        if not (args.sdk_install or args.sdk_root):
-            parser.error("--sdk-build requires --sdk-install or --sdk-root")
+    if args.sdk_auto or args.sdk_install or args.sdk_root or args.sdk_build or args.sdk_test:
+        if not (args.sdk_auto or args.sdk_install or args.sdk_root):
+            parser.error("--sdk-build/--sdk-test requires --sdk-auto, --sdk-install or --sdk-root")
         if args.init or args.probe:
             parser.error("SDK provisioning/build and repo-local submodule probes are separate explicit invocations")
         try:

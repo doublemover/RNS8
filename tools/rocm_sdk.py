@@ -19,7 +19,8 @@ import tarfile
 import tempfile
 import urllib.request
 
-from check_dependencies_lib.resolution import Request, resolve
+from check_dependencies_lib.resolution import Request, default_hip_roots, resolve, truth
+from check_dependencies_lib.version_policy import installed_vcpkg_receipt
 
 BASE_URL = "https://stable.repo.amd.com/rocm/core/tarball/"
 VERSION = "10.1.0"
@@ -258,6 +259,102 @@ def inspect(root: Path, host: str, version: str | None = None) -> dict:
     return resolution
 
 
+def existing_sdk(lane: dict, expected: str | None = None) -> tuple[Path | None, list[dict]]:
+    """Reuse an exact release, never guess a 'latest' version from directory names."""
+    destination = Path(lane["destination"])
+    if destination.exists():
+        root, _ = provision(lane, destination.parent / "unused-cache", expected)
+        return root, [{"root": str(root), "origin": "managed_receipt", "selected": True}]
+    if expected:
+        return None, [{"origin": "unmanaged_sdk", "rejected": "a pinned archive requires managed installation"}]
+    candidates = [(os.environ[key], "environment:" + key) for key in ("RNS8_HIP_ROOT", "HIP_PATH", "ROCM_PATH") if os.environ.get(key)]
+    candidates.extend((str(root), "platform_default") for root in default_hip_roots(lane["host"], os.environ))
+    report = []
+    usable: dict[Path, str] = {}
+    for value, origin in candidates:
+        root = Path(value).expanduser().resolve()
+        if any(item["root"] == str(root) for item in report):
+            continue
+        version_file = root / ".info/version"
+        if not version_file.is_file() or version_file.read_text().strip() != lane["version"]:
+            report.append(dict(root=str(root), origin=origin, rejected="Core SDK version is not the exact requested release"))
+            continue
+        try:
+            inspect(root, lane["host"], lane["version"])
+        except (OSError, ValueError) as error:
+            report.append(dict(root=str(root), origin=origin, rejected=str(error)))
+            continue
+        usable[root] = origin
+        report.append(dict(root=str(root), origin=origin, eligible=True))
+    if len(usable) > 1:
+        raise ValueError("Multiple coherent SDKs match this exact release; select --sdk-root: " + ", ".join(map(str, usable)))
+    selected = next(iter(usable), None)
+    return selected, report
+
+
+def build_tools() -> dict[str, str]:
+    # Keep the selected interpreter's pinned tools together, then consult PATH.
+    search = os.pathsep.join((str(Path(sys.executable).parent / "Scripts"),
+                             str(Path(sys.executable).parent), os.environ.get("PATH", "")))
+    result = {name: shutil.which(name, path=search) for name in ("cmake", "ninja", "ctest")}
+    if any(not path for path in result.values()):
+        raise ValueError("Missing CMake/Ninja/CTest; install scripts/requirements-build-tools.txt with the selected Python")
+    return result
+
+
+def package_installation(resolution: dict, definitions: dict[str, str]) -> dict:
+    """Choose an already installed manifest/triplet; never run a package manager."""
+    if platform.system() != "Windows":
+        return {}
+    bindings = resolution["cmake_bindings"]
+    toolchain = definitions.get("CMAKE_TOOLCHAIN_FILE", bindings.get("CMAKE_TOOLCHAIN_FILE", ""))
+    if not toolchain:
+        raise ValueError("No vcpkg toolchain discovered; install/bootstrap vcpkg or select -DCMAKE_TOOLCHAIN_FILE")
+    if Path(toolchain).name.lower() != "vcpkg.cmake":
+        return {"provider": "explicit_external_toolchain"}
+    triplet = definitions.get("VCPKG_TARGET_TRIPLET", bindings.get("VCPKG_TARGET_TRIPLET", "x64-windows"))
+    explicit = definitions.get("VCPKG_INSTALLED_DIR") or os.environ.get("VCPKG_INSTALLED_DIR")
+    policy = json.loads((ROOT / "metadata/dependencies.json").read_text())
+    required = {"boost-multiprecision", "nlohmann-json"}
+    if truth(definitions.get("RNS8_BUILD_TESTS", "ON")):
+        required.add("catch2")
+    for flag, packages in (("RNS8_ENABLE_GMP", ("gmp",)), ("RNS8_ENABLE_FLINT", ("flint", "gmp", "mpfr"))):
+        if truth(definitions.get(flag, "OFF")):
+            required.update(packages)
+    roots = [Path(explicit)] if explicit else [ROOT / "vcpkg_installed", Path(toolchain).resolve().parents[2] / "installed"]
+    if not explicit and os.environ.get("LOCALAPPDATA"):
+        managed = Path(os.environ["LOCALAPPDATA"]) / "RNS8/dependencies"
+        roots.extend(sorted(managed.glob("installed-*"))[:128])
+    reports = []
+    eligible = []
+    for root in dict.fromkeys(path.expanduser().resolve() for path in roots):
+        receipt = installed_vcpkg_receipt(root)
+        packages = {item["name"]: item for item in receipt["packages"]
+                    if item["triplet"] == triplet and item["feature"] == "core"}
+        missing = sorted(required - packages.keys())
+        headers = {"boost-multiprecision": "boost/multiprecision/cpp_int.hpp", "nlohmann-json": "nlohmann/json.hpp",
+                   "catch2": "catch2/catch_test_macros.hpp", "gmp": "gmp.h", "flint": "flint/flint.h", "mpfr": "mpfr.h"}
+        missing_files = [headers[name] for name in sorted(required) if not (root / triplet / "include" / headers[name]).is_file()]
+        drift = [name for name in sorted(required & packages.keys()) if
+                 (packages[name]["version"], packages[name]["port_version"]) !=
+                 (policy["vcpkg"]["ports"][name]["version"], policy["vcpkg"]["ports"][name]["port_version"])]
+        report = dict(root=str(root), triplet=triplet, missing=missing, missing_files=missing_files, version_drift=drift)
+        reports.append(report)
+        if not missing and not missing_files and (not drift or explicit):
+            eligible.append(report)
+    if not eligible:
+        raise ValueError("No prepared vcpkg installation matches required packages/triplet/pins. Run vcpkg install --triplet "
+                         + triplet + " from the repository or explicitly select an existing VCPKG_INSTALLED_DIR. Candidates: "
+                         + json.dumps(reports))
+    # Prefer the standard repository manifest install when it matches. Multiple
+    # other matching installations require an explicit selection, not recency.
+    local = next((item for item in eligible if Path(item["root"]) == (ROOT / "vcpkg_installed").resolve()), None)
+    selected = local or (eligible[0] if len(eligible) == 1 else None)
+    if not selected:
+        raise ValueError("Multiple matching vcpkg installations; select VCPKG_INSTALLED_DIR explicitly")
+    return dict(selected=selected, candidates=reports, bindings={"VCPKG_INSTALLED_DIR": selected["root"], "VCPKG_TARGET_TRIPLET": triplet})
+
+
 def provision(lane: dict, cache: Path, expected: str | None = None) -> tuple[Path, dict]:
     destination = Path(lane["destination"])
     receipt = destination / "rns8-sdk.json"
@@ -298,6 +395,7 @@ def provision(lane: dict, cache: Path, expected: str | None = None) -> tuple[Pat
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--sdk-auto", action="store_true", help="reuse the exact installed SDK or provision it when absent; discover build/package paths")
     parser.add_argument("--sdk-install", action="store_true", help="explicitly download and extract AMD stable SDK tarballs")
     parser.add_argument("--sdk-root", type=Path, help="reuse an existing coherent SDK instead of downloading")
     parser.add_argument("--sdk-target", action="append", default=[], help="exact gfx target; repeat for multiple GPU families; otherwise detect devices")
@@ -306,6 +404,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sdk-cache", type=Path, default=ROOT / "temp/rocm-sdk-downloads")
     parser.add_argument("--sdk-sha256", action="append", default=[], metavar="FAMILY=HEX", help="independently supplied archive hash pin")
     parser.add_argument("--sdk-build", action="store_true", help="configure/build a separate Release directory per selected family")
+    parser.add_argument("--sdk-test", action="store_true", help="after --sdk-build run the registered suite in the selected SDK/VS environment")
     parser.add_argument("--sdk-build-root", type=Path, default=ROOT / "build/rocm-sdk")
     parser.add_argument("--sdk-jobs", type=int, default=4)
     parser.add_argument("--sdk-cmake-arg", action="append", default=[], help="additional CMake option, use --sdk-cmake-arg=-DKEY=VALUE")
@@ -313,8 +412,10 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 def run(args: argparse.Namespace) -> dict:
     host = platform.system()
-    if args.sdk_install and args.sdk_root:
-        raise ValueError("Choose --sdk-install or --sdk-root")
+    if sum(bool(value) for value in (args.sdk_install, args.sdk_root, args.sdk_auto)) != 1:
+        raise ValueError("Choose exactly one of --sdk-auto, --sdk-install or --sdk-root")
+    if args.sdk_test and not args.sdk_build:
+        raise ValueError("--sdk-test requires --sdk-build")
     if args.sdk_jobs < 1:
         raise ValueError("--sdk-jobs must be positive")
     if any(not value.startswith("-D") or "=" not in value for value in args.sdk_cmake_arg):
@@ -331,14 +432,21 @@ def run(args: argparse.Namespace) -> dict:
     lanes = plan(targets, host, args.sdk_version, args.sdk_prefix)
     if set(pins) - {lane["family"] for lane in lanes}:
         raise ValueError("SDK hash pin supplied for an unselected family")
+    if pins and args.sdk_root:
+        raise ValueError("Archive SHA-256 pins cannot verify an adopted extraction; use --sdk-install or --sdk-auto")
     if args.sdk_root and len(lanes) != 1:
         raise ValueError("An existing --sdk-root must select exactly one GPU family")
     results = []
     for lane in lanes:
         result = dict(lane, dry_run=args.dry_run)
         root = args.sdk_root.resolve() if args.sdk_root else Path(lane["destination"])
+        if args.sdk_auto:
+            found, result["sdk_candidates"] = existing_sdk(lane, pins.get(lane["family"]))
+            if found:
+                root = found
+                result["reused_existing_sdk"] = True
         if not args.dry_run:
-            if args.sdk_root:
+            if args.sdk_root or result.get("reused_existing_sdk"):
                 inspect(root, host, args.sdk_version)
                 result["integrity"] = "existing_extraction_archive_origin_unverified"
             else:
@@ -350,20 +458,39 @@ def run(args: argparse.Namespace) -> dict:
         bindings = dict(resolution["cmake_bindings"]) if resolution else {"RNS8_HIP_ROOT": str(root)}
         bindings.update(RNS8_ENABLE_HIP="ON", RNS8_AMDGPU_TARGETS=";".join(lane["targets"]))
         bindings.update(RNS8_CK_ROOT=str(root), RNS8_ROCWMMA_ROOT=str(root), RNS8_HIPBLASLT_ROOT=str(root))
+        definitions = {}
+        for value in args.sdk_cmake_arg:
+            key, setting = value[2:].split("=", 1)
+            definitions[key.split(":", 1)[0]] = setting
+        if args.sdk_test and not truth(definitions.get("RNS8_BUILD_TESTS", "ON")):
+            raise ValueError("--sdk-test requires RNS8_BUILD_TESTS=ON")
+        for key in ("CMAKE_TOOLCHAIN_FILE", "VCPKG_ROOT", "VCPKG_TARGET_TRIPLET"):
+            if key in definitions:
+                bindings[key] = definitions[key]
+        tools = build_tools() if args.sdk_build and not args.dry_run else {name: name for name in ("cmake", "ninja", "ctest")}
+        if args.sdk_build and not args.dry_run:
+            result["packages"] = package_installation(resolution, definitions)
+            bindings.update(result["packages"].get("bindings", {}))
+            bindings.update(CMAKE_MAKE_PROGRAM=tools["ninja"], Python3_EXECUTABLE=sys.executable)
         build = args.sdk_build_root.resolve() / f"{host.lower()}-{lane['family']}-{lane['version']}"
         wrapper = [sys.executable, str(ROOT / "tools/windows_dev.py")] if host == "Windows" else []
         # Discovery bindings are appended last so caller options cannot mix SDKs
         # or silently select a different target within this build lane.
-        configure = [*wrapper, "cmake", "-S", str(ROOT), "-B", str(build), "-G", "Ninja",
+        configure = [*wrapper, tools["cmake"], "-S", str(ROOT), "-B", str(build), "-G", "Ninja",
                      "-DCMAKE_BUILD_TYPE=Release", "-DVCPKG_MANIFEST_INSTALL=OFF", *args.sdk_cmake_arg,
                      *(f"-D{key}={value}" for key, value in sorted(bindings.items()))]
-        commands = [configure, [*wrapper, "cmake", "--build", str(build), "--parallel", str(args.sdk_jobs)]]
+        commands = [configure, [*wrapper, tools["cmake"], "--build", str(build), "--parallel", str(args.sdk_jobs)]]
+        if args.sdk_test:
+            commands.append([*wrapper, tools["ctest"], "--test-dir", str(build), "--output-on-failure", "--no-tests=error", "-j", "1"])
         result.update(sdk_root=str(root), build_dir=str(build), build_requested=args.sdk_build, commands=commands)
         if args.sdk_build and not args.dry_run:
             env = dict(os.environ)
             env.update(resolution["compiler_environment"])
             env["HIP_PLATFORM"] = "amd"
-            env["PATH"] = os.pathsep.join((str(root / "bin"), str(Path(bindings["RNS8_HIP_CLANG"]).parent), env.get("PATH", "")))
+            env["LLVM_PATH"] = str(Path(bindings["RNS8_HIP_CLANG"]).parent.parent)
+            tool_dirs = list(dict.fromkeys(str(Path(value).parent) for value in tools.values()))
+            env["PATH"] = os.pathsep.join((str(root / "bin"), str(Path(bindings["RNS8_HIP_CLANG"]).parent),
+                                           *tool_dirs, str(Path(sys.executable).parent), env.get("PATH", "")))
             for command in commands:
                 subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=sys.stderr, stderr=sys.stderr)
         results.append(result)

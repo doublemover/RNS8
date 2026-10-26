@@ -16,8 +16,14 @@ a driver, change system PATH, install vcpkg packages or qualify a GPU backend.
 AMD documents the [tarball layout and extraction](https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html).
 
 ```powershell
+# Find the selected Python, exact SDK, tools and packages; configure/build.
+python tools/init.py --json
+
 # Preview detected targets and one SDK/build lane per family; no network/writes.
-python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-build --dry-run --json
+python tools/init.py --dry-run --json
+
+# Build and run the registered suite in the selected SDK/VS environment.
+python tools/init.py --sdk-test --json
 
 # Explicit target also works before any SDK is installed, or on a headless host.
 python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-target gfx1100 --json
@@ -25,6 +31,31 @@ python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-target gfx1100 -
 # Reuse an existing extraction; explicitly select the vcpkg installation already prepared.
 python tools/bootstrap_rocm_accelerators.py --sdk-root C:/TheRock/build --sdk-target gfx1100 --sdk-build --sdk-cmake-arg=-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake --sdk-cmake-arg=-DVCPKG_INSTALLED_DIR=C:/Users/sneak/Development/RNS8/vcpkg_installed --json
 ```
+
+`tools/init.py` dispatches to the existing accelerator bootstrap with `--sdk-auto`
+and `--sdk-build`. It preserves an already matching interpreter, otherwise
+searches the active/project virtual environment, managed NuGet Python prefix,
+conventional user Python install and PATH for the exact `.python-version`.
+Windows Store execution aliases are excluded. Missing selected Python fails
+with an installation instruction; an older interpreter is never silently used.
+`--no-build` performs SDK preparation only.
+
+`--sdk-auto` checks managed receipts, environment roots and bounded platform
+locations including AMD's `C:/TheRock/build` layout. It reuses only a coherent
+SDK with the exact `.info/version` requested, otherwise provisions the family
+archive. Ambiguous matching installations require an explicit root. Existing
+unmanaged extractions retain unverified archive-origin status; supplying a hash
+pin forces a managed archive installation instead of pretending to verify them.
+
+Build setup prefers CMake/Ninja/CTest beside the selected Python, then PATH,
+and passes their actual paths and `Python3_EXECUTABLE` explicitly. On Windows it
+also finds a prepared vcpkg manifest installation in the repository, selected
+vcpkg root or managed dependency cache. Automatic package choices require the
+requested triplet, installed status, headers and matching policy versions/port
+revisions; explicit `VCPKG_INSTALLED_DIR` choices can retain reported version
+drift. Matching repository packages take precedence; other ambiguous matches
+fail. No package manager is run implicitly. All child build/test commands get
+the chosen SDK/LLVM/tool paths; CTest also loads the VS/Windows SDK environment.
 
 Native Linux uses the same Python entry point. AMD architecture enumeration is
 preferred; Windows also recognizes common desktop RX 7000/9000 adapter names
