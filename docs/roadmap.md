@@ -8,12 +8,14 @@ preserves earlier work without duplicating current status.
 
 ## Recorded baseline
 
-The [frontloaded first-pass receipt](../metadata/frontloaded-first-validation-20261026.json)
-records successful full builds at `f5ce75b`, disk-censored CPU/GPU suites,
-18 passing installed consumers and two passing strict C17 probes. The additional
-residue harness allowance found a folded per-tile HIP export bound defect;
-its source repair and new ordinary CPU/HIP regressions await the combined retest.
-These partial results do not qualify the remaining research issues.
+The [frontloaded combined retest](../metadata/frontloaded-combined-validation-20261026.json)
+records successful full builds at `f406c29`, 1,038 GPU passes / 17 skips and
+572 CPU-ASan passes / 32 skips, with one stale fixture assertion failing in each
+lane. The folded per-tile HIP export repair and new CPU/HIP regressions pass;
+18 installed consumers, two strict C17 probes and all 98 independently replayed
+CRT outputs pass. The stale assertion is corrected and direct reader-exception
+coverage is added in source; those test-only changes have syntax checks and
+await an additional execution allowance. No research campaign resumed.
 
 The latest [materialization integration](local-validation-20261025.md#subsequent-materialization-integration)
 passed at `6ce489b`; subsequent address/metadata qualification brings the total

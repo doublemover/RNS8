@@ -203,5 +203,29 @@
     ],
     "errors": [],
     "document_count": 134
+  },
+  "frontloaded_execution_20261026": {
+    "artifact_source": "f406c29522b36ce8cb6c4f23acb6fdb0b56eeec1",
+    "receipt": "metadata/frontloaded-combined-validation-20261026.json",
+    "gpu": {
+      "total": 1056,
+      "passed": 1038,
+      "skipped": 17,
+      "failed": 1
+    },
+    "cpu_asan": {
+      "total": 605,
+      "passed": 572,
+      "skipped": 32,
+      "failed": 1
+    },
+    "installed_consumers_passed": 18,
+    "c17_passed": 2,
+    "crt_metadata_validated": 98,
+    "pending_test_only_changes": [
+      "Correct the stale fixture to retain four distinct bounds sharing the full prefix.",
+      "Cover prepared exports at selected and fixed P20 bases and explicitly inject a throwing allocation inside the shared reader lease."
+    ],
+    "issues_closed": []
   }
 }

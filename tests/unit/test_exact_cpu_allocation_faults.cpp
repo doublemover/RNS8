@@ -10,6 +10,7 @@
 #include "../support/allocation_fault.hpp"
 #include "../support/noninteractive_errors.hpp"
 #include "core/internal.hpp"
+#include "core/prepared_export_read.hpp"
 #include "rns8/rns8.hpp"
 
 namespace {
@@ -449,10 +450,37 @@ void prepared_product_topology_faults(bool profile_only) {
 }
 
 void prepared_crt_export_faults(bool profile_only) {
-  rns8::Context ctx;auto d=gemm_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);
+  rns8::Context ctx;
+  for (bool fixed : {false, true}) {
+  auto d=gemm_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);
+  d.flags=fixed?RNS8_PLAN_FORCE_FIXED_PREFIX:0;
   rns8::Plan plan(ctx,d);rns8::Matrix source(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,3));
+  const auto prefix=plan.get()->prefix;
   const int64_t values[]={-63,0,63,-1,17,2};
   rns8::check(rns8_pack_i64(ctx.get(),source.get(),values,3,1));
+  // Fixed-word exports can allocate nothing after acquiring their reader.
+  // Exercise the shared guard's exception branch explicitly instead of treating
+  // an empty allocation-point loop as evidence that exception cleanup ran.
+  if (!profile_only) {
+    current_case="prepared-export-reader-exception";
+    current_point=0;
+    bool pending=false,threw=false;
+    const auto live=fault::live_allocations();
+    try {
+      rns8::detail::api::PreparedExportReadLease read(*source.get(),pending);
+      require(source.get()->in_flight_readers==1,"prepared export reader acquired before exception");
+      fault::begin(0);
+      void* unexpected=::operator new(8);
+      fault::end();::operator delete(unexpected);
+      require(false,"reader exception hook must throw");
+    } catch (const std::bad_alloc&) {
+      const auto injected=fault::end();
+      require(injected.triggered,"reader exception test reached injected allocation");threw=true;
+    }
+    require(threw && source.get()->in_flight_readers==0 && fault::live_allocations()==live,
+        "reader lease unwinds an actual CPU exception without leaking");
+    std::printf("PASS prepared-export-reader prefix=%u injected_exceptions=1\n",prefix);
+  }
   for(uint32_t policy=0;policy<=5;++policy) {
     current_case=policy==5?"quarter-export-reader-unwind":"checked-crt-export-publication";
     rns8_crt_export* checked=nullptr;rns8_quarter_crt_export* quarter=nullptr;
@@ -493,7 +521,8 @@ void prepared_crt_export_faults(bool profile_only) {
     }
     if(quarter)rns8::check(rns8_destroy_quarter_crt_export(quarter));
     if(checked)rns8::check(rns8_destroy_crt_export(checked));
-    std::printf("PASS prepared-crt policy=%u allocation_points=%zu bytes=%zu\n",policy,profile.calls,profile.bytes);
+    std::printf("PASS prepared-crt prefix=%u policy=%u allocation_points=%zu bytes=%zu\n",prefix,policy,profile.calls,profile.bytes);
+  }
   }
 }
 

@@ -620,3 +620,55 @@ actual folded-uniform owner separately; it has Python syntax checking only.
 The user's one-retry limit is exhausted, so another test batch and the planned
 660-capture collection remain pending authorization. No new timing gain or
 production promotion is claimed.
+
+## October 26 frontloaded source and combined retest
+
+The [first pass](../metadata/frontloaded-first-validation-20261026.json) built
+the complete GPU and CPU-ASan configurations at `f5ce75b`. Disk exhaustion
+caused 47 GPU failures and one CPU failure; each lane also exposed an incorrect
+canonical CRT fixture oracle using capacity P20 instead of the selected basis.
+The user freed disk space. Generated objects were preserved because automatic
+approval review rejected their deletion, including after explicit user approval.
+
+The additional authorized scalar/dot4 harness pass completed 18/20 checks.
+Both P1 scheduled cases reached HIP export but failed its range check: a folded
+per-tile plan passed its zero global descriptor bound to uniform reconstruction.
+The `f406c29` repair uses the retained common tile bound and permits folding only
+for equal bounds. Different bounds sharing a prefix retain tiled checks.
+
+The [combined retest](../metadata/frontloaded-combined-validation-20261026.json)
+records successful full builds and the following executed results at `f406c29`:
+
+| Lane | Passed | Explicit skips | Failed |
+|---|---:|---:|---:|
+| Full-feature gfx1100 | 1,038 | 17 | 1 |
+| CPU AddressSanitizer | 572 | 32 | 1 |
+| Installed static/shared consumers, including GPU | 18 | 0 | 0 |
+| Strict C17 static/shared probes | 2 | 0 | 0 |
+
+Both main-suite failures are the same older fixture assertion expecting four
+distinct bounds to fold merely because they share a full prefix. All 47 other
+assertions in that fixture pass. The new signed/unsigned CPU/HIP regressions
+pass zero, unit, full-width and heterogeneous bounds, padded output and failed
+publication preservation. All **98** current CRT outputs pass independent
+Python dataset/checksum/owner/resource/compiled-source replay. This is smoke
+validation, not a new independent performance study.
+
+The allocation-fault executable passes 45 recipe preparation failure points,
+756 other exact failure points, and zero-allocation small-proof full-prefix
+recipe replay. Its prepared CRT policies themselves allocate zero times; empty
+fault-injection loops do not prove exception cleanup. A subsequent test-only
+change directly injects a throwing allocation inside the reader lease and covers
+both selected and fixed P20 bases. That change and the stale-assertion correction
+pass MSVC syntax checks but have not executed within the exhausted retry budget.
+
+The unchanged five-input logical/mutation checker is reused only from its
+1,006.60-second `36568f5` run. The separate residue harness is not repeated,
+the planned 660 captures are not launched, and the stopped large campaign stays
+stopped. No issues close and no new timing gains or default routes are claimed.
+
+An initial replay accidentally read the older completed `LastTest.log` after disk
+exhaustion left the new run in a separate incomplete temporary log. Its 50 valid
+CRT outputs belong to `36568f5`, not `f5ce75b`; the corrected receipt preserves
+that boundary. The separate residue raw-log replay also lacked wrapper-added
+execution/artifact identities and supplies no collector qualification.

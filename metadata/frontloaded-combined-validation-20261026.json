@@ -1,0 +1,191 @@
+{
+  "schema": "rns8_frontloaded_combined_retest_v1",
+  "recorded_utc": "2026-10-26T17:31:35.825844+00:00",
+  "artifact_source": "f406c29522b36ce8cb6c4f23acb6fdb0b56eeec1",
+  "main_builds": {
+    "gpu": {
+      "source": "f406c29522b36ce8cb6c4f23acb6fdb0b56eeec1",
+      "steps": [
+        {
+          "name": "configure",
+          "exit_code": 0,
+          "seconds": 20.612499475479126
+        },
+        {
+          "name": "build",
+          "exit_code": 0,
+          "seconds": 356.41497015953064
+        }
+      ]
+    },
+    "asan": {
+      "source": "f406c29522b36ce8cb6c4f23acb6fdb0b56eeec1",
+      "steps": [
+        {
+          "name": "configure",
+          "exit_code": 0,
+          "seconds": 5.179795980453491
+        },
+        {
+          "name": "build",
+          "exit_code": 0,
+          "seconds": 222.6013855934143
+        }
+      ]
+    }
+  },
+  "main_tests": {
+    "gpu": {
+      "counts": {
+        "total": 1056,
+        "passed": 1038,
+        "skipped": 17,
+        "failed": 1
+      },
+      "failed_tests": [
+        "bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix"
+      ],
+      "junit_sha256": "39cde423a143d1a97c569c85a5ee9abe12b42fe2a51c6e4b02d2d80d9125bcc7",
+      "commands": [
+        [
+          "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+          "-E",
+          "^native_wmma_logical_checker_self_test$",
+          "--test-dir",
+          "build/validation-20261025-gpu",
+          "--output-on-failure",
+          "--test-output-size-passed",
+          "65536",
+          "-j",
+          "1",
+          "--output-junit",
+          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\frontloaded-repaired-tests\\gpu\\ctest.xml"
+        ]
+      ],
+      "seconds": 698.7998571395874
+    },
+    "asan": {
+      "counts": {
+        "total": 605,
+        "passed": 572,
+        "skipped": 32,
+        "failed": 1
+      },
+      "failed_tests": [
+        "bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix"
+      ],
+      "junit_sha256": "bfd5ce3f4fa7c4acb701a90b7d3eec1263fbec1b9801f7bdfdb78cf18750a90f",
+      "commands": [
+        [
+          "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+          "-E",
+          "^native_wmma_logical_checker_self_test$",
+          "--test-dir",
+          "build/validation-20261025-asan",
+          "--output-on-failure",
+          "--test-output-size-passed",
+          "65536",
+          "-j",
+          "1",
+          "--output-junit",
+          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\frontloaded-repaired-tests\\asan\\ctest.xml"
+        ]
+      ],
+      "seconds": 243.35057139396667
+    }
+  },
+  "installed_consumers": {
+    "static": {
+      "total": 9,
+      "failed": 0,
+      "skipped": 0
+    },
+    "shared": {
+      "total": 9,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "installed_c17": {
+    "passed": 2,
+    "failed": 0,
+    "receipt_sha256": "62f96782b3523e07e73ead13e7d9cbf22c2044f291c63431d3f06ce431f6e79d"
+  },
+  "crt_metadata": {
+    "validated": 98,
+    "errors": [],
+    "scope": "Independent Python dataset/checksum/owner/resource/manifest replay of retained current CTest output; no additional GPU calls or timing campaign"
+  },
+  "pending_test_only_changes": [
+    "Correct the stale fixture to retain four distinct bounds sharing the full prefix.",
+    "Cover prepared exports at selected and fixed P20 bases and explicitly inject a throwing allocation inside the shared reader lease."
+  ],
+  "pending_fixture_syntax": [
+    {
+      "source": "tests/unit/test_bounded_gemm.cpp",
+      "exit_code": 0
+    },
+    {
+      "source": "tests/unit/test_exact_cpu_allocation_faults.cpp",
+      "exit_code": 0
+    }
+  ],
+  "pending_fixture_execution": false,
+  "additional_test_allowance_required": true,
+  "dedicated_residue_harness_repeated": false,
+  "residue_timing_captures_launched": 0,
+  "campaign_resumed": false,
+  "issues_closed": [],
+  "remaining_open_issues": 40,
+  "evidence_limits": [
+    "Main suites retain one stale-assertion failure each; no all-green claim.",
+    "Prepared CRT policy executions allocated zero times; their empty injection loops do not prove exception cleanup. The new direct lease-exception fixture is syntax-only.",
+    "Requested payload is not measured hardware traffic; no new timing gain or routing promotion.",
+    "Unavailable hardware/platform and issue-specific measurement gates remain separate."
+  ],
+  "binary_sha256": {
+    "build/validation-20261025-gpu/rns8-crt-calibrate.exe": "d5aacd8992c0f17bceba61e065edc257d305372856cdae75f20540540d9b2c1c",
+    "build/validation-20261025-gpu/rns8_tests.exe": "ab0e72305b7091c6adf395a67eaffab5b6b70774c203a0c8b2a78f2c288c731d",
+    "build/validation-20261025-asan/rns8-crt-calibrate.exe": "f4fe9fe1ce89f0205a288b3f0a517ddceec074f901b66b7f152ae50436fb5d13",
+    "build/validation-20261025-asan/rns8_tests.exe": "2755b2e91b91fbd491f815fa8cf6b9e0a43e1a1c79a47a741cc2d14969867f90"
+  },
+  "cpu_fault_sweep": {
+    "status": "passed",
+    "prepared_topology_preparation_failure_points": 45,
+    "small_proof_full_prefix_steady_allocations": 0,
+    "other_exact_failure_points": 756,
+    "output": [
+      "PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0",
+      "PASS bounded allocation_points=2 bytes=32",
+      "PASS prepared-crt policy=0 allocation_points=0 bytes=0",
+      "PASS prepared-crt policy=1 allocation_points=0 bytes=0",
+      "PASS prepared-crt policy=2 allocation_points=0 bytes=0",
+      "PASS prepared-crt policy=3 allocation_points=0 bytes=0",
+      "PASS prepared-crt policy=4 allocation_points=0 bytes=0",
+      "PASS prepared-crt policy=5 allocation_points=0 bytes=0",
+      "PASS prepared-product topology allocation_points=45 small_proof_steady_allocations=0 authored_scope=cpu_full_prefix",
+      "case=signed-dual-2x13 selected=19 allocations=242 requested_bytes=19066 fault_points=242",
+      "case=unsigned-dual-2x13 selected=20 allocations=224 requested_bytes=17955 fault_points=224",
+      "case=signed-asymmetric-2x13 selected=19 allocations=223 requested_bytes=17935 fault_points=223",
+      "case=unsigned-shared-2x2 selected=20 allocations=53 requested_bytes=4053 fault_points=53",
+      "case=signed-lift selected=20 allocations=8 requested_bytes=407 fault_points=8",
+      "case=unsigned-lift selected=20 allocations=6 requested_bytes=279 fault_points=6",
+      "PASS scenarios=6 allocation_failures=756 mode=faults"
+    ]
+  },
+  "logical_checker": {
+    "scope": "Prior logical/mutation suite only; not new kernels or owner qualification",
+    "reused": true,
+    "original_source": "36568f505e77836bc79c21301a33efab60e15631",
+    "original_exit_code": 0,
+    "original_seconds": 1006.6031684875488,
+    "inputs_unchanged": {
+      "tools/test_native_wmma_logic.py": true,
+      "tools/check_native_wmma_logic.py": true,
+      "tools/native_wmma_lowering.py": true,
+      "tools/generate_native_wmma.py": true,
+      "tools/promotion_ledger.py": true
+    },
+    "checked_utc": "2026-10-26T16:31:33.189518+00:00"
+  }
+}
