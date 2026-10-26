@@ -81,7 +81,9 @@ int main(int argc,char** argv){try {
   check(rns8_prepare_gemm(ctx,plan,matrices[0],matrices[1],matrices[2],work,&operations[2]));
   // Native export preparation freezes a proven output envelope, requiring one setup product.
   if(device || resident){rns8_completion_token initial{};check(rns8_execute_prepared(operations[2],&initial));o.import_values=0;o.verify_input_bound=0;o.max_input_magnitude=0;check(rns8_prepare_native_transfer_hip(ctx,matrices[2],leases[2],&o,&operations[3]));}
-  if(graph)for(auto* e:operations)check(rns8_capture_prepared_hip_graph(e));
+  // Stream submission needs an explicit completion-event preparation too;
+  // graph capture performs that preparation internally.
+  if(device)for(auto* e:operations)check(graph?rns8_capture_prepared_hip_graph(e):rns8_prepare_hip_submission(e));
   rns8_device_info di{};di.struct_size=sizeof(di);di.abi_version=RNS8_ABI_VERSION;check(rns8_get_device_info(ctx,&di));rns8_plan_backend_info pi{};pi.struct_size=sizeof(pi);pi.abi_version=RNS8_ABI_VERSION;check(rns8_get_plan_backend_info(plan,&pi));
   const double setup=us(setup_start,Clock::now());
   const auto owned_after_setup=observe(ctx);

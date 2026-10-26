@@ -263,7 +263,11 @@ remain unmeasured. The preflight estimate is not an observed retained-byte count
 or a physical memory limit. Wall subphases
 include overlapping enqueues/observations; they are **not** per-kernel GPU
 durations. Hardware launch counts and physical memory peaks still require a
-named-target profiler. The updated benchmark has not yet been measured.
+named-target profiler. The first updated collection stopped after two passing
+captures when the stream candidate omitted explicit GEMM submission preparation.
+Graph capture supplies this preparation internally. The stream setup now calls
+`rns8_prepare_hip_submission` for its four operations; a fresh complete retry
+remains pending. The incomplete first collection cannot qualify a speedup.
 
 The collector counterbalances independent processes, refuses reused process
 identities, checks immutable executable/build/environment provenance, requires
