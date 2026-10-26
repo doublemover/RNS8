@@ -1,0 +1,141 @@
+{
+  "schema": "rns8_frontloaded_issue_development_v1",
+  "recorded_utc": "2026-10-26T13:53:26.260588+00:00",
+  "source_commits": [
+    "237c8b9aa0f965e1f919e08702f24a38cb32940f",
+    "461356613f2259dff69e6cd1e5859069ae10e44c",
+    "d34b247007737fb8753d7d73478d563899e5ac1f",
+    "0e719774f9c02210e479f42c33376c1805d1c2bc",
+    "f062c3a2d8323658a913c325c3c925c6ce81fb64",
+    "83b109fa821c03c97ed053b8984190f82db7fe7d"
+  ],
+  "open_issue_count": 40,
+  "open_issues": [
+    18,
+    20,
+    30,
+    31,
+    32,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    71
+  ],
+  "issues_closed_by_this_pass": [],
+  "development_scope": [
+    "Source inventory/compilation/resource separation",
+    "Prepared checked integer CRT owners and source-read unwind",
+    "Matched public policy export controls",
+    "Complete GEMM/export cold and resident scopes",
+    "Concrete checked policies in runtime shortlist",
+    "CPU export staging, padded output and quarter producer admission parity"
+  ],
+  "authored_cases": {
+    "public_policy_exports": 224,
+    "public_gemm_exports": 364
+  },
+  "syntax_only": [
+    {
+      "path": "temp/checked-public-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs and Python compile syntax only; no objects, linking, tests or GPU execution",
+      "records": [
+        {
+          "source": "benchmarks/rns8_crt_calibrate.cpp",
+          "exit_code": 0
+        }
+      ]
+    },
+    {
+      "path": "temp/checked-pipeline-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs syntax only; no objects, linking, tests or GPU execution",
+      "records": [
+        {
+          "source": "src/core/api_plan.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/unit/test_api.cpp",
+          "exit_code": 0
+        }
+      ]
+    },
+    {
+      "path": "temp/export-provider-parity-syntax-20261026/receipt.json",
+      "scope": "MSVC /Zs syntax only; no objects, linking, tests or GPU execution",
+      "records": [
+        {
+          "source": "src/core/api_plan.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "src/core/api_export.cpp",
+          "exit_code": 0
+        },
+        {
+          "source": "tests/unit/test_api.cpp",
+          "exit_code": 0
+        }
+      ]
+    }
+  ],
+  "python_scope": "compile(source, filename, exec) syntax only; tools and fixtures were not executed",
+  "tests_run": false,
+  "objects_or_link_run": false,
+  "gpu_execution_run": false,
+  "benchmarks_run": false,
+  "qualification_claimed": false,
+  "deferred": [
+    "Batch build/link/test and installed consumer execution",
+    "Fresh matched measurements and profiler/traffic/ISA gates",
+    "Additional residue-dot retry remains unapproved; planned 660 captures not started",
+    "Stopped large campaign remains stopped",
+    "Unavailable hardware/platform gates remain deferred"
+  ],
+  "source_sha256": {
+    "include/rns8/rns8.h": "6da9c607509c71b52bc7bb57a8a937d4e39dd5ec630fae8911603e09fee0a535",
+    "src/core/api_operation_provider.inc": "1dcf8c73351a3fbce8c36c1e7c5edeb7b7a87b061866c86ee074b2d6b58bde01",
+    "src/core/api_pipeline_planner.inc": "3fc23883c2c45008c5ba3d9bc430ea89d4422da82be82d78e25e03dd29de2c3c",
+    "src/core/api_export_checked_crt.inc": "872eaeb99ed2c60f475cd66f84c4e0b6385270061be92c5a9864bbe92cfacd18",
+    "src/core/api_export_quarter_crt.inc": "e0138a1d926bd0f4769b63cbd871441932dca4f4ea780fd18415ece522d516bd",
+    "benchmarks/rns8_crt_public_cases.inc": "45759110a76f7afee242b0717789258b7147f4600d5d19cbe741c8adb75d372a",
+    "benchmarks/rns8_crt_calibrate.cpp": "b8b2bd67ee424817fc974ca6f114880c11bad9484d3679450a742cdc06017ce1",
+    "tools/collect_crt_calibration.py": "7e776a05bca7ad5e8829f282982e6b56ba9936b381953ef6e33b2234f2b6f5d1",
+    "tools/test_collect_crt_calibration.py": "2db452a938ec1da302dffaf3aeec23bf361545201a0e120773706864f45edaa9",
+    "tests/unit/test_api_operation_provider_cases.inc": "c8b0d4a8133bafec1be395ed8060d64cd73382fcd65e7ba10f9f1713ffb13338",
+    "tests/unit/test_checked_crt_cases.inc": "678d52e8ed723b2e2bea8bc8404e7004b271ff45b5fe425408dc7edaea860518",
+    "tests/unit/test_quarter_crt_cases.inc": "b497ae5b91d3ab103a8c8232c890e738e052b9f14961d42dbd62c5f6331fdb11",
+    "benchmarks/conversion-calibration/checked-public-exports.json": "203ecf25f121e7bf5ae6008b5750803ba55a1e973c33dc44606508994115ffcf",
+    "benchmarks/conversion-calibration/checked-gemm-exports.json": "f3c01b790069b817acc1ebe1456c1a2a5eef321b129c6b1aac7aeca1865ccc3b"
+  }
+}

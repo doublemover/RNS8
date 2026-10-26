@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-25T18:41:48.994378+00:00",
+  "scope_refreshed_utc": "2026-10-26T13:53:25.912528+00:00",
   "issues": [
     {
       "issue": 18,
@@ -1133,7 +1133,7 @@
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [
-        "Local direct/quarter/group CRT stage measurements, CPU/real-HIP differentials and binary-bound ISA/rounding/resources are recorded. Complete-GEMM/prefix effects, fused/distributed group consumers, public group signed/narrow ownership, hardware traffic and broader-target qualification remain separate gates."
+        "Local stage observations and binary-bound ISA/rounding/resources remain recorded. The new five-policy public signed/narrow owner, matched full-export controls and complete-GEMM/prefix cases are authored with syntax checks only; their execution and measurements, fused/distributed consumers, hardware traffic and broader-target qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -3071,7 +3071,7 @@
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "Completed paired transform/conversion stage measurements and binary-bound emitted resources are recorded. Whole-GEMM crossover, hardware traffic and measured production selection remain; no default promotion."
+        "Completed paired transform/conversion stage observations remain recorded. Matched public prepared-policy and complete-GEMM/prefix controls are now authored but unexecuted. Whole-GEMM crossover, hardware traffic and measured production selection remain; no default promotion."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
