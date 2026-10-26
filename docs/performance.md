@@ -168,6 +168,25 @@ submitted hashes/paths, distinct-run counts and process spread. Raw capture
 arrays are not rewritten. Legacy observations remain descriptive, with no
 performance qualification or promotion implication.
 
+Environment cohorts use `rns8_relevant_environment_v1`, derived from the actual
+versioned collector request's `environment` object and explicit-override digest.
+The request seal and executable binding must validate; a claimed standalone
+`environment_sha256` never replaces the recorded values. Relevant OMP, HIP,
+ROCR, HSA, KMP, RNS8 and loader controls separate cohorts. An explicitly recorded
+empty object is valid. Missing/malformed environment evidence, unsupported request
+versions and tampered seals remain readable but cannot supply independent runs.
+Command arguments and report/output paths remain outside this environment key,
+so different destinations do not split otherwise matching process observations.
+
+The collector, resume validator, variance report and observation aggregator share
+the same canonical identity routine. Report entries expose its version/digest and
+specific blockers. Comparison environments, including CPU anchors, preserve the
+same recorded controls. Ledger consumers recompute the cohort and reject stale
+variance bindings or a forged ready entry with an unavailable cohort. No timing
+arrays, statistical thresholds or installed-cache policy are changed by this
+identity repair. Its real-emitter integration fixtures use synthetic timings;
+they establish admission behavior, not hardware performance.
+
 FHE workload reports keep the backend-specific export selector in each
 implementation receipt. It is excluded from the cross-backend work key: CPU and
 GPU selectors can implement the same public output. Semantic, signedness, layout,

@@ -13,6 +13,7 @@ from measurement_contract import exact_proof_policy, host_batch_contract, host_i
 from perf_variance_report import execution_cohort, execution_id, DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD, DEFAULT_MAX_WITHIN_CAPTURE_REL_SPREAD, DEFAULT_MIN_REPEATS
 from result_compare import CONTRACT_KEYS, contract_value
 from timing_eligibility import capture_identity, phase_blockers
+from benchmark_request import request_environment_identity
 
 
 def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
@@ -27,6 +28,7 @@ def canonical_work(capture: dict, *, exclude: Iterable[str] = ()) -> str:
 def comparison_environment(capture: dict, *, cpu_anchor: bool = False) -> str:
     manifest = capture.get("build_manifest") or {}
     identity = {"source_commit": manifest.get("source_commit"), "source_digest": manifest.get("source_digest"),
+                "environment_identity": request_environment_identity(capture.get("request_identity"))[0],
                 "exact_proof_policy": exact_proof_policy(capture),
                 "host_instrumentation_state": host_instrumentation(capture),
                 "host_observation_contract": host_observation_contract(capture),
@@ -98,6 +100,8 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
         if independent < minimum_runs: blockers.add("insufficient_independent_processes")
         if conflicts: blockers.add("conflicting_reused_execution_id")
         for capture in observations:
+            environment_error = request_environment_identity(capture.get("request_identity"))[1]
+            if environment_error: blockers.add(environment_error)
             blockers.update(phase_blockers(capture))
             samples = (capture.get("raw_timings_us") or {}).get("end_to_end", [])
             if host_observation_count(capture) < DEFAULT_MIN_REPEATS: blockers.add("insufficient_repeat_samples")
@@ -128,6 +132,7 @@ def aggregate_captures(captures: list[dict], *, minimum_runs: int = 2) -> list[d
             blockers.add("process_spread_exceeds_ten_percent")
         view = deepcopy(items[0])
         view["_observation_aggregate"] = {"schema": "rns8_process_observations_v1", "cohort": cohort,
+            "environment_identity": request_environment_identity(items[0].get("request_identity"))[0],
             "implementation_key": hashlib.sha256(key.encode()).hexdigest(), "submitted_records": len(items),
             "unique_records": len({capture_identity(c) for c in items}), "independent_runs": independent, "minimum_runs": minimum_runs,
             "maximum_process_relative_range": DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD,

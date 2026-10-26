@@ -241,8 +241,15 @@
       ],
       "reopened_followup": {
         "source_commit": "287737d917d412fc8daf777189a146182a359d67",
-        "status": "repair_pending",
-        "scope": "The real collector emits request_identity.environment; execution_cohort reads a nonexistent environment_sha256 field. Preserve all prior duplicate-ID/artifact repairs and fix the environment emitter/consumer contract."
+        "status": "implemented_validation_pending",
+        "scope": "The real collector emits request_identity.environment; execution_cohort reads a nonexistent environment_sha256 field. Preserve all prior duplicate-ID/artifact repairs and fix the environment emitter/consumer contract.",
+        "implementation": "Derive a versioned identity from the actual environment object and explicit overrides, verify the complete request seal and executable binding, exclude arguments/output paths from the cohort, and share it with resume/variance/observation comparisons. Ledger rejects unavailable/stale cohort bindings.",
+        "regressions": [
+          "tools/test_execution_environment_identity.py",
+          "tools/test_perf_variance_report.py",
+          "tools/test_observation_cohorts.py",
+          "tools/test_tooling_contracts.py"
+        ]
       }
     },
     {

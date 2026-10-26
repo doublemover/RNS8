@@ -1,5 +1,8 @@
 """Complete, explicitly synthetic provenance for authored test captures only."""
 import uuid
+import hashlib
+import json
+from benchmark_request import REQUEST_SCHEMA
 
 
 def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
@@ -16,6 +19,13 @@ def synthetic_identity(capture: dict, *, commit: str = "c" * 40) -> None:
             "root": f"synthetic/{name}", "sha256": "e" * 64, "files": 1, "bytes": 1}
     capture["artifact_capture"] = {"executable_sha256": "b" * 64, "unchanged_during_run": True,
                                    "rns8_linkage": "static", "fixture_only": True}
+    # Authored provenance only. The integration regression separately exercises
+    # the real filesystem-backed request emitter, including environment changes.
+    request = {"schema": REQUEST_SCHEMA, "arguments": ["synthetic-fixture-only"],
+               "executable_sha256": "b" * 64, "environment": {},
+               "overrides_sha256": hashlib.sha256(b"{}").hexdigest()}
+    request["identity_sha256"] = hashlib.sha256(json.dumps(request, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    capture["request_identity"] = request
 
 
 def synthetic_host_measurements(capture: dict) -> None:

@@ -293,9 +293,11 @@ def capture_entry(
         blockers.append("missing_variance_gate_entry")
     elif variance_entry is not None:
         from perf_variance_report import capture_digest, execution_cohort, execution_id
-        if (variance_entry.get("capture_sha256") != capture_digest(capture)
-                or variance_entry.get("execution_id") != execution_id(capture)
-                or variance_entry.get("execution_cohort") != execution_cohort(capture)):
+        cohort, run = execution_cohort(capture), execution_id(capture)
+        if (cohort is None or run is None
+                or variance_entry.get("capture_sha256") != capture_digest(capture)
+                or variance_entry.get("execution_id") != run
+                or variance_entry.get("execution_cohort") != cohort):
             blockers.append("variance_capture_provenance_mismatch")
         variance_ready = variance_entry.get("promotion_ready") is True
         variance_required_margin = variance_entry.get("required_speedup_margin")

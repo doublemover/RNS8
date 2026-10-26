@@ -14,6 +14,7 @@ from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
 from build_manifest import manifest_provenance_complete
+from benchmark_request import request_environment_identity
 from timing_eligibility import phase_blockers
 from measurement_contract import exact_proof_policy, host_batch_contract, host_instrumentation, host_observation_contract, host_observation_count, streaming_executed
 from benchmark_sweep_lib.capture_metadata import (
@@ -76,7 +77,10 @@ def execution_cohort(capture: dict[str, Any]) -> str | None:
                 ("build_manifest", "compiler", "hip_toolchain", "configured_amdgpu_targets",
                  "device", "cpu_parallel", "clock_policy", "warmups")}
     timing = capture.get("timing_metadata") or {}
-    identity["captured_environment_sha256"] = (capture.get("request_identity") or {}).get("environment_sha256")
+    environment, environment_error = request_environment_identity(capture.get("request_identity"))
+    if environment_error or capture["request_identity"]["executable_sha256"] != artifact["executable_sha256"]:
+        return None
+    identity["captured_environment_identity"] = environment
     identity["host_instrumentation_state"] = host_instrumentation(capture)
     identity["host_observation_contract"] = host_observation_contract(capture)
     identity["streaming_schedule"] = (capture.get("streaming_overlap") or {}).get("schedule") if streaming_executed(capture) else None
@@ -168,6 +172,9 @@ def _capture_entry(
         blockers.append("execution_identity_missing")
     if execution_cohort(capture) is None:
         blockers.append("execution_cohort_unqualified")
+    environment, environment_error = request_environment_identity(capture.get("request_identity"))
+    if environment_error:
+        blockers.append(environment_error)
     blockers.extend(phase_blockers(capture))
     if median_us is None or median_us <= 0.0:
         blockers.append("missing_end_to_end_median")
@@ -197,6 +204,7 @@ def _capture_entry(
         "capture_sha256": capture_digest(capture),
         "execution_id": execution_id(capture),
         "execution_cohort": execution_cohort(capture),
+        "environment_identity": environment,
         "distinct_run_count": group_count,
         "group_key": variance_group_key(capture),
         "backend": backend_id(capture),
