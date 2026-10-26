@@ -2104,7 +2104,11 @@ the exact scratch payload and rejects short budgets before writes. Raw input,
 output and scratch aliases reject before launch. Public dispatch is unchanged;
 this is synchronous research code, not a multi-GPU or fused-GEMM qualification.
 
-CPU/Boost and real-HIP differentials, shuffled/irregular partitions, all prefixes,
-root extrema, source/canary preservation and rejection cases are authored for
-this addition. Full builds, execution, emitted resources and matched completed-call
-measurements remain pending for its own source checkpoint.
+At **287737d**, both full builds and complete CPU-ASan/gfx1100 suites pass,
+including CPU/Boost and real-HIP root/subgroup differentials, all default prefixes,
+irregular group sizes, shuffled producer assignments, source/canary preservation
+and rejection cases. CPU tests additionally cover noncontiguous partitions.
+The 150-capture matched study retains all outcomes and exact static resources in
+[its source-bound receipt](../metadata/group-crt-qualification-20261026.json).
+No production policy or broader-target qualification follows from this local
+canonical-root experiment.

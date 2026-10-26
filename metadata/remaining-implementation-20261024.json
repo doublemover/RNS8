@@ -195,7 +195,7 @@
       "issue": 27,
       "title": "[P2] Count independent same-environment executions in the performance variance gate",
       "url": "https://github.com/doublemover/RNS8/issues/27",
-      "state": "validated_closed",
+      "state": "in_progress",
       "base_gap": "Distinct execution IDs/cohorts implemented in main variance gate; latest comments remain in adaptive/finite/layout/profiler/FHE report aggregation and result_compare host batch identity.",
       "implementation": [
         {
@@ -231,12 +231,19 @@
         "4f8b1298916ea19211e5035fc660dd8dd9904d73",
         "abea2f217e4c4b0da04e827b47ba8c237610b540"
       ],
-      "remaining": [],
+      "remaining": [
+        "Bind variance and observation aggregation to the actual canonical relevant-environment object, fail closed on missing/malformed legacy evidence, and add real-emitter report/aggregation/ledger regressions. No hardware campaign is required."
+      ],
       "validation": "Passed the issue-specific CPU/tooling and applicable real-object CLI checks in the October 25 consolidated validation; see metadata/local-validation-20261025.json.",
       "dependencies": [
         19,
         20
-      ]
+      ],
+      "reopened_followup": {
+        "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+        "status": "repair_pending",
+        "scope": "The real collector emits request_identity.environment; execution_cohort reads a nonexistent environment_sha256 field. Preserve all prior duplicate-ID/artifact repairs and fix the environment emitter/consumer contract."
+      }
     },
     {
       "issue": 29,
@@ -1021,7 +1028,7 @@
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [
-        "Completed v5 stage/public-export measurements and binary-bound ISA/rounding/resource review are recorded. Group-CRT bridge comparisons, complete-GEMM/prefix effects, hardware traffic, broader targets and any production selection remain separate gates."
+        "Local direct/quarter/group CRT stage measurements, CPU/real-HIP differentials and binary-bound ISA/rounding/resources are recorded. Complete-GEMM/prefix effects, fused/distributed group consumers, public group signed/narrow ownership, hardware traffic and broader-target qualification remain separate gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1047,14 +1054,19 @@
         "scope": "Matched completed conversion/public-export stages and binary-bound static ISA; not whole GEMM or hardware traffic."
       },
       "group_crt_closeout": {
-        "status": "implemented_validation_pending",
+        "status": "locally_validated_negative_measurement",
         "cases": "benchmarks/conversion-calibration/group-crt-closeout-20261025.json",
         "planned_cases": 30,
         "planned_processes": 150,
         "cpu_syntax": "passed",
         "isolated_gfx1100_compile": "passed with configured HIP/MSVC compatibility overlay; no execution",
-        "full_build_tests_and_measurements": "not yet run",
-        "scope": "Canonical-root research bridge only; fused GEMM, distributed ownership and public signed export integration are separate."
+        "full_build_tests_and_measurements": "Both first-attempt full builds, 559 CPU-ASan and 969 GPU passes, 12 installed checks, 150 exact captures and binary-bound ISA complete.",
+        "scope": "Canonical-root research bridge only; fused GEMM, distributed ownership and public signed export integration are separate.",
+        "receipt": "metadata/group-crt-qualification-20261026.json",
+        "compiled_source_commit": "287737d917d412fc8daf777189a146182a359d67",
+        "completed_captures": 150,
+        "qualified_group_gain_count": 0,
+        "source_selection": "Strongest matched classical control; no default promotion."
       }
     },
     {

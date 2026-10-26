@@ -319,10 +319,54 @@ by the collector; stale or centered-subgroup metadata rejects.
 The [bounded group profile](../benchmarks/conversion-calibration/group-crt-closeout-20261025.json)
 contains 30 cases: all three group controls and Garner/direct/balanced baselines
 at small P3, large P9/P20, one-million-value P20 and cold P20 boundaries. Five
-fresh processes per case would produce 150 captures. CPU syntax and isolated
-gfx1100 kernel compilation pass using the configured toolchain. Full project
-builds, differential execution and performance qualification remain pending.
+fresh processes per case produce **150/150 validated captures** at **287737d**.
+Both full builds, the complete 559-pass CPU-ASan / 969-pass GPU suites and 12
+installed static/shared checks pass on the first attempt.
 The earlier 763a948 results above
 retain their measured artifact and do not qualify the new group paths. No
 production selector changes; any gain must beat the strongest same-boundary
 classical control with the original independent-process gate.
+
+
+### Matched group-CRT observations
+
+Five fresh processes per case use the same v5 completed-call boundary and exact
+recipe as the classical controls. Full output/canaries, active-input preservation,
+frozen artifact/validator/profile identities and setup costs are retained. The
+primary control is the fastest measured classical Garner/direct/balanced route
+for each identical cells/prefix/input/output/scope. The fixed gate requires
+disjoint ranges, both process spreads at most 10% and uncensored sustained
+intervals. No selection policy is promoted.
+
+| Values / prefix / scope | Strongest classical control, ms | Local groups, ms | Split groups, ms | Reversed producer slots, ms |
+|---|---:|---:|---:|---:|
+| 257 / P3 / resident | `direct` 0.071099 | 0.072606 | 0.084133 | 0.082354 |
+| 65,536 / P9 / resident | `direct` 0.079945 | 0.373297 | 0.378850 | 0.381728 |
+| 65,536 / P20 / cold | `direct` 0.889193 | 1.432339 | 1.490311 | 1.427320 |
+| 65,536 / P20 / resident | `direct` 0.101614 | 0.674100 | 0.681881 | 0.698062 |
+| 1,048,576 / P20 / resident | `direct` 0.224568 | 7.645076 | 7.659809 | 7.637903 |
+
+**No group comparison passes** the timing gate against its strongest classical control. This negative experiment is retained without favorable reruns or weaker baselines.
+
+The classical direct-CRT positive control independently passes at 1,048,576 P20
+values: **3.957845 → 0.224568 ms**, **17.624×** over Garner and **4.669 Gvalues/s**.
+This is a completed canonical conversion boundary at 287737d; it does not extend
+the result to a group mode or a complete GEMM.
+
+The real gfx1100 code object embedded in the measured executable is inspected
+at sixteen source-selected symbols. The new producer uses 18 VGPR / 18 SGPR,
+zero private segment and zero LDS. Both local/root-merge kernels use 33 VGPR /
+43 SGPR, a 144-byte private segment and 48 KiB LDS. The smaller private segment
+than the fully balanced kernel does not establish a throughput gain; LDS remains
+large. These static resources do not measure occupancy, spills versus addressable
+locals, dynamic traffic or physical block completion order.
+
+All default prefixes pass CPU/Boost and real-HIP complete-root/subgroup/source/
+canary differentials, including irregular group sizes and reversed logical
+producer assignment. CPU tests additionally cover noncontiguous partitions and
+all rotations/reversals. Static budget/alias/order rejections preserve prior
+destination bytes. The canonical root bridge remains a synchronous research
+primitive; fused tiles, distributed ownership and public signed/narrow integration
+retain separate acceptance gates.
+
+[All 150 captures, source identities, stage/setup costs, complete validation and binary-bound ISA](../metadata/group-crt-qualification-20261026.json)

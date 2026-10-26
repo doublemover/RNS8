@@ -1887,6 +1887,10 @@
           "reference": "conversion-calibration.md"
         },
         {
+          "source": "docs/local-validation-20261025.md",
+          "reference": "conversion-calibration.md#matched-group-crt-observations"
+        },
+        {
           "source": "docs/documentation-inventory.json",
           "reference": "../docs/conversion-calibration.md"
         }
@@ -1897,6 +1901,7 @@
         "data-verification-and-resources",
         "exact-import-and-crt-conversion-calibration",
         "group-crt-bridge-controls",
+        "matched-group-crt-observations",
         "public-signed-pack-selection-and-minimal-cold-ownership",
         "reproducible-collection",
         "source-arithmetic-controls-and-actual-emission",
@@ -5337,6 +5342,7 @@
         "failures-repaired",
         "first-invocation-hipblaslt-metadata-setup",
         "generation-bound-adaptive-summaries",
+        "group-crt-continuation-on-2026-10-26",
         "issue-closeout-and-remaining-gates",
         "matched-hipblaslt-metadata-policy-observations",
         "native-moment-and-completion-boundary-validation",

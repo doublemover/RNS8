@@ -1,8 +1,8 @@
 # Windows and gfx1100 validation — 2026-10-25
 
-The [native moment and completion-boundary validation](#native-moment-and-completion-boundary-validation)
-records the latest `763a948` complete rebuild and test batch. Earlier tables retain
-their original artifact boundaries; correctness validation alone qualifies no timing gain.
+The [group-CRT continuation](#group-crt-continuation-on-2026-10-26) records the
+latest **287737d** complete rebuild and test batch. Earlier tables retain their
+original artifact boundaries; correctness validation alone qualifies no timing gain.
 
 This record covers the consolidated correctness and tooling pass after the
 frontloaded implementation on PR #15. The host is Windows with an RX 7900 XTX
@@ -540,3 +540,27 @@ first build and the successful retry.
 [Complete source-bound validation](../metadata/native-moment-validation-20261025.json)
 · [Forty paired public packing observations](../metadata/native-moment-qualification-20261025.json)
 · [Completed conversion collection](../metadata/conversion-completed-qualification-20261025.json)
+
+
+## Group-CRT continuation on 2026-10-26
+
+Both complete builds at **287737d** pass on the first attempt. The CPU-ASan suite
+passes **559 tests with 23 explicit skips**; the full-feature gfx1100 suite passes
+**969 tests with 16 explicit skips**. Both have zero failures. The separately
+installed static/shared consumers pass **12/12** checks. The same five-input
+logical checker is unchanged and retains its prior source-bound execution.
+GitHub's CPU/OpenMP matrix also passes **18/18** checks at this code checkpoint;
+this does not qualify native Linux GPU execution.
+
+The new CPU/Boost tests validate leaf products/inverses, checked complete merge
+trees, all prefixes, irregular/noncontiguous partitions, canonical extrema,
+producer rotations/reversals and exact workspace budgets. Real HIP tests check
+every complete root and subgroup word, reversed stable slots, source/tail
+preservation and static rejection before destination writes. All six new
+resident/cold CLI smoke tests pass; collector fixtures reject forged group IDs,
+widths, scratch, setup and premature signed-centering declarations.
+
+The independent **150/150 capture** group/classical comparison and exact embedded
+gfx1100 ISA review retain their own timing qualification and resource evidence.
+See the [combined receipt](../metadata/group-crt-qualification-20261026.json) and
+[matched observations](conversion-calibration.md#matched-group-crt-observations).
