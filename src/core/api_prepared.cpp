@@ -225,9 +225,11 @@ static rns8_status prepared_range(const rns8_prepared_execution& e,
 }
 static rns8_status enqueue_prepared(const rns8_prepared_execution& e, void* stream) {
   if(e.transfer)return e.transfer->enqueue(stream);
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if(e.plan->backend==RNS8_BACKEND_HIPBLASLT)
     return rns8::detail::hipblaslt_enqueue_async(e.hipblaslt_async,e.a->hip_residues,e.b->hip_residues,e.c->hip_residues,
         e.a->desc.cols,e.b->desc.cols,e.c->desc.cols,stream);
+#endif
   if(e.plan->backend==RNS8_BACKEND_CK || e.plan->backend==RNS8_BACKEND_ROCWMMA) {
     const auto fn=e.plan->backend==RNS8_BACKEND_CK?rns8::detail::ck_enqueue_dense:rns8::detail::rocwmma_enqueue_dense;
     return fn(e.ctx->device_id,e.a->hip_residues,e.b->hip_residues,e.c->hip_residues,
@@ -399,8 +401,10 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
   if (!e) return RNS8_SUCCESS;
   if (e->running || e->group_references || e->dependent_references || e->caller_graph_references) return RNS8_BUSY;
   e->closing=true;
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if(e->hipblaslt_async){const auto closed=rns8::detail::hipblaslt_destroy_async(e->hipblaslt_async);
     if(closed!=RNS8_SUCCESS)return closed;e->hipblaslt_async=nullptr;}
+#endif
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if(e->graph_executable || e->graph || e->completion_event.get()) {
     rns8::detail::hip_scoped_device selected(e->ctx->device_id);if(selected.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;

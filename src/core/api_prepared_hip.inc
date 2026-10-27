@@ -146,10 +146,12 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
       return RNS8_BACKEND_FAILURE;
     if (!e->completion_event && e->completion_event.create() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
+#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
     if(e->plan && e->plan->backend==RNS8_BACKEND_HIPBLASLT && !e->hipblaslt_async){
       const auto prepared=rns8::detail::hipblaslt_prepare_async(e->ctx,e->plan,e->workspace,&e->hipblaslt_async);
       if(prepared!=RNS8_SUCCESS)return prepared;
     }
+#endif
     e->hip_submission_prepared = true;
     return RNS8_SUCCESS;
 #else
