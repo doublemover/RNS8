@@ -28,7 +28,7 @@ void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& 
                                         const std::vector<uint64_t>& c, BenchmarkResult& result) {
   if (args.residue_chain_length != 1) return;
   const auto start = std::chrono::steady_clock::now();
-  if(!args.reference_cache_directory.empty() || args.verify_native_output) {
+  if(!args.reference_cache_directory.empty()) {
     using namespace rns8::bench;using boost::multiprecision::cpp_int;
     const bool sign=args.semantics==BenchSemantics::ExactWideSigned;
     const uint32_t limbs=args.exact_wide_limb_count;const uint64_t ld=output_logical_ld(args);
@@ -53,7 +53,12 @@ void verify_exact_wide_benchmark_output(const Args& args, const std::vector<T>& 
   }
   rns8::bench::verify_exact_wide_fixture(a, b, c, args.m, args.n, args.k, output_logical_ld(args),
                                         args.exact_wide_limb_count, result.exact_wide_magnitude);
-  result.exact_wide_magnitude.oracle_us += elapsed_us(start, std::chrono::steady_clock::now());
+  const auto duration=elapsed_us(start,std::chrono::steady_clock::now());
+  result.exact_wide_magnitude.oracle_us+=duration;
+  if(args.verify_native_output) {
+    result.native_reference.method="boost_cpp_int_full_integer_reference";
+    result.native_reference.checked_cells+=uint64_t(args.m)*args.n;result.native_reference.elapsed_us+=duration;
+  }
 }
 
 #include "rns8_bench_exact_wide_batch_lanes.inc"

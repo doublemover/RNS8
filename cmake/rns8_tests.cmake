@@ -1,4 +1,15 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
+  if(WIN32 AND RNS8_ENABLE_HIP)
+    get_filename_component(_rns8_test_compiler_bin "${RNS8_HIP_CLANG}" DIRECTORY)
+    get_filename_component(_rns8_test_llvm_root "${_rns8_test_compiler_bin}" DIRECTORY)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/WindowsTestSDK.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/rns8-test-sdk.cmake" @ONLY)
+    # CTest evaluates this before Catch's discovered cases and child directories.
+    # Bind runtime helpers to the same resolved SDK used for compilation even
+    # when a plain shell still has another HIP_PATH or compiler on PATH.
+    set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+      "${CMAKE_CURRENT_BINARY_DIR}/rns8-test-sdk.cmake")
+  endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   set(RNS8_BENCHMARK_CASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/benchmark-cases")
   file(GLOB_RECURSE _rns8_case_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.json")

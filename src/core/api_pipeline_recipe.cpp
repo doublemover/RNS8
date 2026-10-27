@@ -356,7 +356,8 @@ rns8_status rns8_execute_pipeline_recipe(rns8_pipeline_recipe* p,uint64_t* dst,i
     else status=rns8_execute_prepared(p->execution,&p->latest);
     if(status!=RNS8_SUCCESS || !dst)return status;
     if(p->options.output_mode==4)return p->plan->desc.semantics==RNS8_BOUNDED_I64?
-        rns8_export_i64(p->ctx,p->plan,p->c,reinterpret_cast<int64_t*>(dst),ld):rns8_export_u64(p->ctx,p->plan,p->c,dst,ld);
+        rns8_export_i64(p->ctx,p->plan,p->c,reinterpret_cast<int64_t*>(dst),ld):
+        p->plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64?rns8_export_wrap_u64(p->ctx,p->plan,p->c,dst,ld):rns8_export_u64(p->ctx,p->plan,p->c,dst,ld);
     if(p->options.output_mode==5) {
       std::vector<uint8_t> values(size_t(p->plan->desc.m*p->plan->desc.n));
       status=rns8_export_finite_u8(p->ctx,p->plan,uint16_t(p->plan->desc.finite_modulus),p->c,values.data(),p->plan->desc.n);
@@ -404,7 +405,11 @@ rns8_status rns8_cancel_pipeline_recipe_hip(rns8_pipeline_recipe* p,rns8_complet
   if(!p || !p->latest_owner || !p->async_issued)return RNS8_INVALID_ARGUMENT;return rns8_cancel_prepared_hip(p->latest_owner,token);
 }
 rns8_status rns8_begin_pipeline_recipe_host_read(rns8_pipeline_recipe* p,const uint64_t** data,uint64_t* bytes) {
-  if(!p || !p->host_output || !data || !bytes)return RNS8_INVALID_ARGUMENT;
+  if(!p || !p->usable || !p->host_output || !data || !bytes || p->latest_owner!=p->host_export)return RNS8_INVALID_ARGUMENT;
+  rns8_completion_info completion{};completion.struct_size=sizeof(completion);completion.abi_version=RNS8_ABI_VERSION;
+  const auto completed=rns8_get_prepared_completion(p->host_export,p->latest,&completion);
+  if(completed!=RNS8_SUCCESS)return completed;
+  if(completion.operation_status!=RNS8_SUCCESS || !completion.output_is_current)return RNS8_INVALID_ARGUMENT;
   const void* pointer=nullptr;const auto status=rns8_begin_pinned_host_read(p->host_output,&pointer,bytes);
   if(status==RNS8_SUCCESS)*data=static_cast<const uint64_t*>(pointer);return status;
 }

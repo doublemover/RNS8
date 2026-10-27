@@ -14,6 +14,7 @@ rns8_status materialize_ragged_residues_host(
   try {
     std::vector<int8_t> staged(destination, destination + target.bytes), residues(20);
     const auto& basis = layout.basis;
+    const bool default_basis=ordered_basis_identity(basis)==OrderedBasisIdentity{};
     const uint64_t area = uint64_t{layout.tile_rows} * layout.tile_cols;
     using boost::multiprecision::cpp_int;
     for (uint64_t row = 0; row < layout.rows; ++row)
@@ -30,7 +31,7 @@ rns8_status materialize_ragged_residues_host(
         const cpp_int product = cpp_int(product_bits[0]) + (cpp_int(product_bits[1]) << 64) +
                                 (cpp_int(product_bits[2]) << 128);
         cpp_int value=0;
-        if(ordered_basis_identity(basis)==OrderedBasisIdentity{})value=reconstruct_canonical(residues,tile.prefix);
+        if(default_basis)value=reconstruct_canonical(residues,tile.prefix);
         else for(uint32_t p=0;p<tile.prefix;++p) {
           const auto q=basis.moduli[p];int canonical=residues[p];if(canonical<0)canonical+=q;
           const auto digit=uint32_t((canonical+q-(value%q).convert_to<uint32_t>())*uint32_t(basis.inverse_prefix[p])%q);

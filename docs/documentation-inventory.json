@@ -4459,6 +4459,7 @@
         "2-rx-7900-xtx--gfx1100-gate",
         "3-mi300x--gfx942-gate",
         "4-release-decision",
+        "current-implementation-pass",
         "current-materialization-and-provider-boundary",
         "current-roadmap-and-release-gates",
         "current-validation-and-remaining-work",
@@ -5825,6 +5826,40 @@
       "anchors": [
         "five-issue-source-follow-through-october26",
         "static-source-checks"
+      ]
+    },
+    {
+      "path": "docs/materialized-replay-lifetimes.md",
+      "purpose": "Explicit materialization lifetime costs and immutable packed-B replay retention",
+      "audience": "Exact arithmetic API and calibration contributors",
+      "disposition": "keep",
+      "canonical": "docs/materialized-replay-lifetimes.md",
+      "owner": "include/rns8/experimental_product.h",
+      "reason": "Owns schema3 cold/steady/training payback terms, persistent cache invalidation and broader dataset/held-out boundary contracts.",
+      "inbound_links": [
+        {
+          "source": "docs/RNS8_RESEARCH_SPEC.md",
+          "reference": "materialized-replay-lifetimes.md"
+        },
+        {
+          "source": "docs/product-prefix-cost-planning.md",
+          "reference": "materialized-replay-lifetimes.md"
+        },
+        {
+          "source": "docs/roadmap.md",
+          "reference": "materialized-replay-lifetimes.md"
+        },
+        {
+          "source": "docs/runtime-product-arena.md",
+          "reference": "materialized-replay-lifetimes.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/materialized-replay-lifetimes.md"
+        }
+      ],
+      "anchors": [
+        "materialized-replay-lifetimes"
       ]
     }
   ]

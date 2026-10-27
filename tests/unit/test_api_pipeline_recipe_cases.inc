@@ -70,6 +70,7 @@ TEST_CASE("bound whole routes execute checked exports and reject stale or forged
 
 TEST_CASE("bound uniform recipes preserve bounded finite and wrap contracts", "[api][pipeline-recipe]") {
   for(bool hip:{false,true})for(auto semantics:{RNS8_BOUNDED_I64,RNS8_BOUNDED_U64,RNS8_FINITE_RING_U8,RNS8_FINITE_FIELD_U8,RNS8_WRAP_U64_MOD_2_64}) {
+    INFO("HIP=" << hip << ", semantics=" << semantics);
     if(hip && !rns8::detail::api::direct_hip_compiled())continue;
     const bool finite=semantics==RNS8_FINITE_RING_U8 || semantics==RNS8_FINITE_FIELD_U8;
     const bool wrap=semantics==RNS8_WRAP_U64_MOD_2_64;

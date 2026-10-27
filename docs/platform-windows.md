@@ -205,3 +205,9 @@ The follow-up totals **2,480 passes, 96 skips and zero failures in the supported
 final configurations**. Loaded HIP/core-loader hashes and sampled hipBLASLt and
 compiler DLL paths match the selected SDK. The new performance observations are
 documented in [performance evidence](performance.md#october-26-sdk101-bounded-measurements).
+
+For configured HIP builds, CTest initializes its child process environment from
+the resolved SDK root, compiler directory and device libraries. A stale HIP_PATH
+or an older compiler on the calling shell PATH cannot select another SDK for
+the tests. The user and system environment remain unchanged; runtime DLL staging
+and loaded-module identity checks still apply.

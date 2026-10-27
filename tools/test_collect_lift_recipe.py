@@ -84,7 +84,6 @@ class LiftRecipeContracts(unittest.TestCase):
     @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
     def test_native_roundtrip_logical_and_actual_transfer_receipts(self,_manifest):
         c=self.capture('native-roundtrip');e=dict(case=c['case'],run_id='fixture')
-        replay_receipt(c)
         self.assertEqual(validate_capture(c,e),c)
         self.assertNotEqual(c['replay_hip_h2d_bytes'],c['native_roundtrip_h2d_payload_bytes_per_replay'])
         for key,value in [('native_roundtrip_control',False),('extra_intermediate_observations',True),

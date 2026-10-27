@@ -989,6 +989,22 @@ void verify_sustained_native_output(const Args& args, const std::vector<T>& a, c
     case BenchSemantics::FiniteFieldU8:contract={ReferenceSemantics::finite_field,args.finite_modulus,1};break;
     default:throw std::invalid_argument("unsupported native reference semantic");
   }
-  result.native_reference=verify_integer_reference(args.m,args.n,args.k,output_logical_ld(args),a,b,c,
-      contract,args.reference_cache_directory,args.populate_reference_cache);
+  if(!args.reference_cache_directory.empty()) {
+    result.native_reference=verify_integer_reference(args.m,args.n,args.k,output_logical_ld(args),a,b,c,
+        contract,args.reference_cache_directory,args.populate_reference_cache);return;
+  }
+  // Uncached/composed collectors retain streaming comparison and aggregation;
+  // the cache's bounded payload allocation must not restrict their geometry.
+  const auto start=std::chrono::steady_clock::now();using boost::multiprecision::cpp_int;
+  const int64_t ld=output_logical_ld(args);
+  for(int64_t row=0;row<args.m;++row)for(int64_t col=0;col<args.n;++col) {
+    cpp_int expected=0;
+    for(int64_t q=0;q<args.k;++q)expected+=cpp_int(a[row*args.k+q])*b[q*args.n+col];
+    if(finite_benchmark_semantics(args.semantics))expected%=args.finite_modulus;
+    if(args.semantics==BenchSemantics::WrapU64Mod2_64)expected&=(cpp_int(1)<<64)-1;
+    if(expected!=cpp_int(c[row*ld+col]))throw std::runtime_error("public output disagrees with complete integer oracle");
+  }
+  result.native_reference.method="boost_cpp_int_full_integer_reference";
+  result.native_reference.checked_cells+=uint64_t(args.m)*args.n;
+  result.native_reference.elapsed_us+=elapsed_us(start,std::chrono::steady_clock::now());
 }
