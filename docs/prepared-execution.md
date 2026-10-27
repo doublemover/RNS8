@@ -622,14 +622,16 @@ Caller embedding is a separate four-step interface:
    prepared token. Destroy the binding after completion and before destroying
    the prepared execution.
 
-Only one RNS8 body per caller capture is admitted. A capture-ID registry rejects
-additional bodies, because independently reserving one owner cannot protect the
-other bodies. Multi-operation RNS8 composition continues to use resident DAGs.
-Other caller nodes must preserve RNS8's input/lease contracts and may not read
-unpublished results: a later node is not a substitute for host-observed exactness
-status. Their own external pointers must remain alive through execution. Do not
-mutate/remove captured RNS8 nodes, independently instantiate/launch the original
-graph, or recycle its addresses behind the binding.
+A caller capture has one reservation binding. Use
+`rns8_capture_prepared_group_in_caller_hip_graph` to bind up to 64 independent
+prepared bodies together, and `rns8_submit_caller_hip_graph_batch` to issue one
+existing completion token per member. All addresses, input proofs, reader-count
+capacity, output collisions, workspace collisions and external lease hazards
+are checked before reservation. All members reserve before the one graph launch;
+accepted enqueue/record failures mark every member affected. A failed drain
+retains all unsafe reservations. A capture-ID registry rejects a second binding
+for the same capture. Dependent operations use the resident DAG or token pipeline.
+Other caller nodes retain their documented ownership obligations.
 
 Finalization preserves an existing executable on replacement failure. Submission
 rechecks stable addresses, generations, ranges and stream state before reserving
@@ -637,3 +639,39 @@ storage and issuing its epoch. Cancellation, deadlines, failure diagnostics and
 quarantine use the existing prepared state machine. A partial capture failure
 can return a cleanup-only binding; discard the caller capture/graph before
 releasing it. The caller stream and graph are never destroyed by RNS8.
+
+
+## Bounded concurrent epochs and ring pipelines
+
+`rns8_create_prepared_pool` retains 1-64 distinct prepared owners, each with its
+own output, workspace, completion event and epoch. Immutable input matrices may
+be shared. The mode is fixed at creation: ordinary stream execution or an
+already captured owned graph. Host access to shared handles remains serialized.
+The pool does not create a second completion system or reuse one output/event
+for simultaneous epochs. The caller supplies every payload allocation; pool
+metadata is bounded by slot count, with ordinary range-proof work at admission.
+
+`rns8_submit_prepared_pool_hip` selects an available slot in round-robin order.
+A full pool returns BUSY without changing the output token, slot index, values
+or epochs. An accepted epoch returns its existing prepared token and slot even
+if enqueue subsequently fails. Query/wait/cancel use the same publication,
+deadline and quarantine machinery as an individual submission. Terminal
+observation does not recycle a slot: `rns8_release_prepared_pool_slot` acknowledges
+that its completion has been consumed. Release rejects pending work and retained
+dependents. Refresh is explicit for an unleased slot; ordinary execution/refresh
+on a pool-owned handle is BUSY. Pool destruction is BUSY while any slot is leased.
+Destroy the pool before destroying its prepared owners and their resources.
+
+Pending-token pipelines support finite ring/field GEMM with matching explicit
+moduli and strict wrap64 using eight unsigned byte limbs. A producer's actual
+semantic contract, modulus, storage prefix, instance and epoch must agree with
+the consumer. Writer exclusions are relaxed only for those token-bound inputs;
+unbound writers still reject. Finite and wrap results use their ordinary
+publication rules and carry no invented CRT range proof. Producer failure or
+cancellation prevents consumer publication even if the device kernel finished.
+
+Authored fixtures cover three-member caller capture, whole-batch reservation,
+reverse observation, stream/graph pools, full-capacity BUSY, consumed-slot
+release, repeated epochs, cancellation, prime/composite byte moduli, full-width
+wraparound and Boost reference comparisons. These new fixtures have received
+syntax checks only; the final consolidated execution batch remains pending.

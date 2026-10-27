@@ -98,3 +98,46 @@ TEST_CASE("prepared wrap HIP streams and graphs preserve full width byte semanti
   SKIP("HIP support is not compiled");
 #endif
 }
+
+TEST_CASE("wrap pending tokens compose byte limbs without CRT", "[api][async][wrap][pipeline]") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  for(bool canceled:{false,true}) {
+    rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    rns8_context* ctx=nullptr;REQUIRE(rns8_create_context(0,&options,&ctx)==RNS8_SUCCESS);
+    auto desc=wrap_desc(2,2,2);desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+    auto md=wrap_matrix_desc(2,2);std::array<rns8_matrix*,3> matrix{};
+    const uint64_t values[]{UINT64_MAX,UINT64_C(1)<<63,3,UINT64_MAX-1};
+    for(auto& m:matrix){REQUIRE(rns8_create_matrix(ctx,&md,&m)==RNS8_SUCCESS);REQUIRE(rns8_pack_u64(ctx,m,values,2,0)==RNS8_SUCCESS);}
+    std::array<rns8_workspace*,2> work{};std::array<rns8_prepared_execution*,2> prepared{};
+    for(auto& w:work)REQUIRE(rns8_create_workspace(ctx,plan,&w)==RNS8_SUCCESS);
+    REQUIRE(rns8_prepare_gemm(ctx,plan,matrix[0],matrix[0],matrix[1],work[0],&prepared[0])==RNS8_SUCCESS);
+    REQUIRE(rns8_prepare_gemm(ctx,plan,matrix[1],matrix[0],matrix[2],work[1],&prepared[1])==RNS8_SUCCESS);
+    std::array<rns8::detail::hip_unique_stream,2> stream;
+    for(size_t i=0;i<2;++i){REQUIRE(stream[i].create_non_blocking()==hipSuccess);REQUIRE(rns8_capture_prepared_hip_graph(prepared[i])==RNS8_SUCCESS);}
+    rns8_completion_token p{},q{};REQUIRE(rns8_submit_prepared_hip(prepared[0],stream[0].get(),&p)==RNS8_SUCCESS);
+    REQUIRE(rns8_bind_prepared_dependency(prepared[1],prepared[0],p)==RNS8_SUCCESS);
+    REQUIRE(rns8_submit_prepared_hip_graph_pipeline(prepared[1],stream[1].get(),&q)==RNS8_SUCCESS);
+    if(canceled)REQUIRE(rns8_cancel_prepared_hip(prepared[0],p)==RNS8_SUCCESS);
+    rns8_completion_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    REQUIRE(rns8_wait_prepared_hip(prepared[1],q,&info)==RNS8_SUCCESS);
+    REQUIRE(info.operation_status==(canceled?RNS8_CANCELED:RNS8_SUCCESS));REQUIRE(bool(info.output_is_current)==!canceled);
+    if(!canceled) {
+      uint64_t result[4]{};REQUIRE(rns8_export_wrap_u64(ctx,plan,matrix[2],result,2)==RNS8_SUCCESS);
+      for(unsigned r=0;r<2;++r)for(unsigned c=0;c<2;++c) {
+        boost::multiprecision::cpp_int expected=0;
+        for(unsigned a=0;a<2;++a)for(unsigned b=0;b<2;++b)
+          expected+=boost::multiprecision::cpp_int(values[r*2+a])*values[a*2+b]*values[b*2+c];
+        REQUIRE(result[r*2+c]==low64(expected));
+      }
+      REQUIRE(matrix[2]->exact_range_prefix==0);REQUIRE_FALSE(matrix[2]->device_residues_current);
+    }
+    for(int i:{1,0})REQUIRE(rns8_destroy_prepared_execution(prepared[i])==RNS8_SUCCESS);
+    for(auto* m:matrix)REQUIRE(rns8_destroy_matrix(m)==RNS8_SUCCESS);
+    for(auto* w:work)REQUIRE(rns8_destroy_workspace(w)==RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_plan(plan)==RNS8_SUCCESS);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+  }
+#else
+  SKIP("HIP wrap pipelines unavailable in this build");
+#endif
+}

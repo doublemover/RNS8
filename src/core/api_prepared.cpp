@@ -38,6 +38,7 @@ struct rns8_prepared_execution {
   uint64_t group_references = 0;
   uint64_t dependent_references = 0;
   uint64_t caller_graph_references = 0;
+  bool pool_owned=false,pool_dispatch=false;
   struct Dependency {rns8_prepared_execution* producer=nullptr;rns8_completion_token token{};};
   std::array<Dependency,3> producers{};
   uint32_t producer_count=0;
@@ -101,6 +102,7 @@ uint64_t next_prepared_id() {
 }
 rns8_status validate_prepared(const rns8_prepared_execution& e) {
   if(e.closing)return RNS8_INVALID_ARGUMENT;
+  if(e.pool_owned && !e.pool_dispatch)return RNS8_BUSY;
   if(e.transfer){boost::multiprecision::cpp_int bound;return e.transfer->validate(nullptr,0,bound);}
   auto status = validate_plan_context_workspace(*e.ctx, *e.plan, *e.workspace);
   if (status != RNS8_SUCCESS) return status;
@@ -320,7 +322,7 @@ static rns8_status resolve_prepared_dependency(rns8_prepared_execution& e) {
 rns8_status rns8_refresh_prepared_inputs(rns8_prepared_execution* e) {
   return guard_api([&]() -> rns8_status {
     if (!e) return RNS8_INVALID_ARGUMENT;
-    if (e->running || e->producer_count) return RNS8_BUSY;
+    if (e->running || e->producer_count || (e->pool_owned && !e->pool_dispatch)) return RNS8_BUSY;
     if(e->closing)return RNS8_INVALID_ARGUMENT;
     const auto status = e->transfer?e->transfer->refresh():validate_prepared(*e);
     if (status != RNS8_SUCCESS) return status;
@@ -427,6 +429,7 @@ rns8_status rns8_destroy_prepared_execution(rns8_prepared_execution* e) {
 #include "api_prepared_hip.inc"
 #include "api_prepared_caller_graph.inc"
 #include "api_prepared_native_group.inc"
+#include "api_prepared_pool.inc"
 
 rns8_status rns8_create_prepared_group(
     rns8_prepared_execution* const* executions, uint32_t count, rns8_prepared_group** out) {

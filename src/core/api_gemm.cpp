@@ -124,16 +124,16 @@ rns8_status validate_finite_gemm_operands(
     uint16_t modulus,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C, bool require_current_inputs) {
-  if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
+    const rns8_matrix& C, bool require_current_inputs, bool allow_pending_input_writers) {
+  if ((!allow_pending_input_writers && (A.in_flight_writer || B.in_flight_writer)) || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (!uses_finite_storage(plan.desc.semantics) ||
       !rns8::detail::valid_finite_modulus_for_semantics(plan.desc.semantics, modulus) ||
       plan.desc.finite_modulus != modulus) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
-      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend, allow_pending_input_writers) ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend, allow_pending_input_writers) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -171,14 +171,14 @@ rns8_status validate_wrap_gemm_operands(
     const rns8_matrix& A,
     const rns8_matrix& B,
     const rns8_matrix& C,
-    bool require_current_inputs) {
-  if (A.in_flight_writer || B.in_flight_writer || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
+    bool require_current_inputs, bool allow_pending_input_writers) {
+  if ((!allow_pending_input_writers && (A.in_flight_writer || B.in_flight_writer)) || C.in_flight_writer || C.in_flight_readers) return RNS8_BUSY;
   if (&A == &C || &B == &C) return RNS8_INVALID_ARGUMENT;
   if (plan.desc.semantics != RNS8_WRAP_U64_MOD_2_64 || plan.prefix != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend) ||
-      !matrix_backend_compatible_with_plan(ctx, B, plan.backend) ||
+  if (!matrix_backend_compatible_with_plan(ctx, A, plan.backend, allow_pending_input_writers) ||
+      !matrix_backend_compatible_with_plan(ctx, B, plan.backend, allow_pending_input_writers) ||
       !matrix_backend_compatible_with_plan(ctx, C, plan.backend)) {
     return RNS8_INVALID_ARGUMENT;
   }

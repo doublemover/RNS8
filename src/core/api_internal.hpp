@@ -637,7 +637,7 @@ rns8_status validate_finite_gemm_operands(
     uint16_t modulus,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C, bool require_current_inputs = true);
+    const rns8_matrix& C, bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_wrap_gemm_operands(
     const rns8_context& ctx,
@@ -645,7 +645,7 @@ rns8_status validate_wrap_gemm_operands(
     const rns8_matrix& A,
     const rns8_matrix& B,
     const rns8_matrix& C,
-    bool require_current_inputs = true);
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_export_matrix(
     const rns8_context& ctx,

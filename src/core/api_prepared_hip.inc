@@ -170,7 +170,7 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
                                              PreparedHipProof &proof) {
   if (!e || !stream || e->closing)
     return RNS8_INVALID_ARGUMENT;
-  if (e->running || e->dependent_references)
+  if (e->running || e->dependent_references || (e->pool_owned && !e->pool_dispatch))
     return RNS8_BUSY;
   if(!proof.pipeline) {
     const auto dependency = resolve_prepared_dependency(*e);
@@ -233,15 +233,9 @@ static rns8_status prove_prepared_submission(rns8_prepared_execution *e,
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-static rns8_status start_prepared_submission(rns8_prepared_execution *e,
-                                             void *stream,
-                                             rns8_completion_token *token,
-                                             bool graph,
-                                             PreparedHipProof &proof,
-                                             void* caller_executable=nullptr) {
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  rns8::detail::hip_scoped_device device(e->ctx->device_id);
-  if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
+// All fallible admission and allocations precede this nonthrowing reservation.
+static void begin_prepared_submission(rns8_prepared_execution* e,void* stream,
+    rns8_completion_token* token,PreparedHipProof& proof) {
   e->pending_bound.swap(proof.bound);
   e->pending_ranges = std::move(proof.ranges);
   if(e->transfer)e->transfer->reserve();
@@ -268,6 +262,17 @@ static rns8_status start_prepared_submission(rns8_prepared_execution *e,
   if(proof.pipeline) for(uint32_t i=0;i<e->producer_count;++i)
     e->event_dependency_depth=std::max(e->event_dependency_depth,e->producers[i].producer->event_dependency_depth+1);
   if(!proof.pipeline) release_prepared_dependency(*e); // readers retain already published values
+}
+static rns8_status start_prepared_submission(rns8_prepared_execution *e,
+                                             void *stream,
+                                             rns8_completion_token *token,
+                                             bool graph,
+                                             PreparedHipProof &proof,
+                                             void* caller_executable=nullptr) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  rns8::detail::hip_scoped_device device(e->ctx->device_id);
+  if (device.status() != hipSuccess) return RNS8_BACKEND_FAILURE;
+  begin_prepared_submission(e,stream,token,proof);
   hipError_t launch_error = hipSuccess;
   rns8_status status=RNS8_SUCCESS;
   if(proof.pipeline) {
@@ -447,11 +452,11 @@ submit_prepared_group_hip_impl(rns8_prepared_group *group, void *const *streams,
           prove_prepared_submission(e, streams[i], graph, proofs[i]);
       if (status != RNS8_SUCCESS)
         return status;
-      if(!e->transfer || !e->transfer->writes_matrix())++readers[e->a];
-      if (e->b != e->a)
-        ++readers[e->b];
-      if (e->d && e->d != e->a && e->d != e->b)
-        ++readers[e->d];
+      if(!e->transfer || e->transfer->reads_matrix()) {
+        ++readers[e->a];
+        if(e->b!=e->a)++readers[e->b];
+        if(e->d && e->d!=e->a && e->d!=e->b)++readers[e->d];
+      }
     }
     for (const auto &[matrix, reservations] : readers)
       if (matrix->in_flight_readers > UINT64_MAX - reservations)

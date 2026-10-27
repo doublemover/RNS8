@@ -1,5 +1,7 @@
 static uint32_t prepared_output_prefix(const rns8_prepared_execution& e) {
-  return e.transfer?e.transfer->output_prefix():e.plan->prefix;
+  if(e.transfer)return e.transfer->output_prefix();
+  if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64)return 8;
+  return uses_finite_storage(e.plan->desc.semantics)?1:e.plan->prefix;
 }
 static rns8_semantics prepared_semantics(const rns8_prepared_execution& e) {
   return e.transfer?e.c->desc.semantics:e.plan->desc.semantics;
@@ -32,7 +34,8 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
     boost::multiprecision::cpp_int& bound,rns8_exact_matrix_ranges& ranges) {
   if(e.transfer)return prove_transfer_pipeline(e,bound,ranges);
   if(!e.producer_count || (!rns8::detail::exact_wide_semantics(e.plan->desc.semantics) &&
-      e.plan->desc.semantics!=RNS8_BOUNDED_I64 && e.plan->desc.semantics!=RNS8_BOUNDED_U64))
+      e.plan->desc.semantics!=RNS8_BOUNDED_I64 && e.plan->desc.semantics!=RNS8_BOUNDED_U64 &&
+      !uses_finite_storage(e.plan->desc.semantics) && e.plan->desc.semantics!=RNS8_WRAP_U64_MOD_2_64))
     return RNS8_UNSUPPORTED_BACKEND;
   auto status=validate_plan_context_workspace(*e.ctx,*e.plan,*e.workspace);
   if(status!=RNS8_SUCCESS) return status;
@@ -40,7 +43,9 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
     const auto& binding=e.producers[i];const auto& p=*binding.producer;
     if(p.ctx!=e.ctx || binding.token.prepared_id!=p.id || binding.token.epoch!=p.epoch || !p.epoch)
       return RNS8_INVALID_ARGUMENT;
-    if(prepared_semantics(p)!=e.plan->desc.semantics || prepared_output_prefix(p)<e.plan->prefix) return RNS8_INVALID_ARGUMENT;
+    if(prepared_semantics(p)!=e.plan->desc.semantics || prepared_output_prefix(p)<prepared_output_prefix(e)) return RNS8_INVALID_ARGUMENT;
+    if(uses_finite_storage(e.plan->desc.semantics) &&
+        (p.transfer || p.plan->desc.finite_modulus!=e.plan->desc.finite_modulus))return RNS8_INVALID_ARGUMENT;
     if(p.event_dependency_depth>=64) return RNS8_RANGE_ERROR;
     if(p.running) {
       if(!p.hip_submission_prepared || !p.pending_stream || !p.completion_event.get()) return RNS8_UNSUPPORTED_BACKEND;
@@ -69,8 +74,14 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
       return RNS8_INVALID_ARGUMENT;
     if(!producer || !producer->running) {
       if(input->in_flight_writer) return RNS8_BUSY;
-      if(!rns_residue_state_current_for_backend(*input,e.plan->backend)) return RNS8_INVALID_ARGUMENT;
-      if(!materialized_rns_prefix_covers(*input,e.plan->prefix)) return RNS8_RANGE_ERROR;
+      if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
+        if(!wrap_byte_limb_state_current_for_backend(*input,e.plan->backend))return RNS8_INVALID_ARGUMENT;
+      } else {
+        if(!rns_residue_state_current_for_backend(*input,e.plan->backend))return RNS8_INVALID_ARGUMENT;
+        if(uses_finite_storage(e.plan->desc.semantics)) {
+          if(input->finite_modulus!=e.plan->desc.finite_modulus)return RNS8_INVALID_ARGUMENT;
+        } else if(!materialized_rns_prefix_covers(*input,e.plan->prefix))return RNS8_RANGE_ERROR;
+      }
       proof_inputs[slot].exact_range_prefix=input->exact_range_prefix;
       proof_inputs[slot].exact_max_magnitude=input->exact_max_magnitude;
       proof_inputs[slot].exact_axis_ranges=input->exact_axis_ranges;
@@ -81,6 +92,14 @@ rns8_status prove_pipeline_inputs(rns8_prepared_execution& e,
     }
   }
   if(e.c->generation_exhausted) return RNS8_RANGE_ERROR;
+  if(uses_finite_storage(e.plan->desc.semantics)) {
+    bound=0;ranges={};
+    return validate_finite_gemm_operands(*e.ctx,*e.plan,static_cast<uint16_t>(e.plan->desc.finite_modulus),*e.a,*e.b,*e.c,false,true);
+  }
+  if(e.plan->desc.semantics==RNS8_WRAP_U64_MOD_2_64) {
+    bound=0;ranges={};
+    return validate_wrap_gemm_operands(*e.ctx,*e.plan,*e.a,*e.b,*e.c,false,true);
+  }
   // Writer exceptions were tied to live, same-context producer tokens above.
   status=e.d?validate_exact_axpby_operands(*e.ctx,*e.plan,*e.a,*e.b,*e.d,*e.c,e.alpha,e.beta,false,true):
       validate_rns_gemm_operands(*e.ctx,*e.plan,*e.a,*e.b,*e.c,false,true);

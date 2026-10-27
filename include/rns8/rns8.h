@@ -420,14 +420,20 @@ RNS8_API rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution* ex
  * Keep all other captured pointers/host endpoints alive and immutable as their
  * operations require. Do not alter/remove RNS8 nodes or independently launch
  * a graph containing them. Caller nodes must not consume unpublished results
- * or violate retained input/lease contracts. One RNS8 prepared body per caller capture is allowed;
- * multiple RNS8 operations use the retained resident DAG contract. Shared
+ * or violate retained input/lease contracts. Use a single binding for every RNS8 body in the capture; independent
+ * bodies use the group capture API, and dependent bodies use the resident DAG. Shared
  * handles require external serialization.
  * Failed body capture can return a nonnull cleanup-only binding: first discard
  * the caller graph/capture, then destroy that binding. No payload executes at
  * capture and no completion token is issued until a real submission. */
 typedef struct rns8_caller_hip_graph rns8_caller_hip_graph;
 RNS8_API rns8_status rns8_capture_prepared_in_caller_hip_graph(rns8_prepared_execution*,void* capturing_stream,rns8_caller_hip_graph**);
+/* Capture up to 64 independent bodies in one reservation owner. Distinct
+ * outputs/workspaces are required; dependencies use the prepared DAG API. */
+RNS8_API rns8_status rns8_capture_prepared_group_in_caller_hip_graph(
+    rns8_prepared_execution* const*,uint32_t count,void* capturing_stream,rns8_caller_hip_graph**);
+RNS8_API rns8_status rns8_submit_caller_hip_graph_batch(rns8_caller_hip_graph*,void* stream,
+    rns8_completion_token*,uint32_t capacity,uint32_t* out_submitted);
 RNS8_API rns8_status rns8_finalize_caller_hip_graph(rns8_caller_hip_graph*,void* captured_graph);
 RNS8_API rns8_status rns8_submit_caller_hip_graph(rns8_caller_hip_graph*,void* stream,rns8_completion_token*);
 RNS8_API rns8_status rns8_destroy_caller_hip_graph(rns8_caller_hip_graph*);
@@ -464,6 +470,24 @@ RNS8_API rns8_status rns8_submit_prepared_group_hip(
 RNS8_API rns8_status rns8_submit_prepared_group_hip_graph(
     rns8_prepared_group* group, void* const* streams, uint32_t count,
     rns8_completion_token* tokens, uint32_t token_capacity, uint32_t* out_submitted);
+/* Bounded in-flight epochs, up to 64 distinct prepared outputs/workspaces.
+ * Slots retain completion records until explicitly released. Caller serializes
+ * host access; ordinary execution/refresh on pool-owned handles returns BUSY.
+ * use_owned_graph is 0 (stream) or 1 (already captured owned graph).
+ * BUSY admission preserves token and slot outputs. Any accepted epoch, including
+ * enqueue failure, leases its returned slot until terminal observation/release. */
+typedef struct rns8_prepared_pool rns8_prepared_pool;
+RNS8_API rns8_status rns8_create_prepared_pool(rns8_prepared_execution* const*,uint32_t count,
+    uint32_t use_owned_graph,rns8_prepared_pool**);
+RNS8_API rns8_status rns8_submit_prepared_pool_hip(rns8_prepared_pool*,void* stream,
+    uint32_t* out_slot,rns8_completion_token*);
+RNS8_API rns8_status rns8_refresh_prepared_pool_slot(rns8_prepared_pool*,uint32_t slot);
+RNS8_API rns8_status rns8_query_prepared_pool_hip(rns8_prepared_pool*,rns8_completion_token,rns8_completion_info*);
+RNS8_API rns8_status rns8_wait_prepared_pool_hip_for(rns8_prepared_pool*,rns8_completion_token,
+    uint64_t timeout_us,rns8_completion_info*);
+RNS8_API rns8_status rns8_cancel_prepared_pool_hip(rns8_prepared_pool*,rns8_completion_token);
+RNS8_API rns8_status rns8_release_prepared_pool_slot(rns8_prepared_pool*,rns8_completion_token);
+RNS8_API rns8_status rns8_destroy_prepared_pool(rns8_prepared_pool*);
 RNS8_API rns8_status rns8_destroy_prepared_group(rns8_prepared_group* group);
 
 typedef struct rns8_context_options {
