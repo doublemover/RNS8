@@ -3,7 +3,7 @@
   "base_branch": "codex/runtime-cache-transactions-20261011",
   "base_commit": "5a6c757dc7ecb3a7711248ae8b1de0406a2a8c70",
   "branch": "codex/remaining-implementation-20261024",
-  "scope_refreshed_utc": "2026-10-26T21:10:55.879767+00:00",
+  "scope_refreshed_utc": "2026-10-27T00:12:47.403806+00:00",
   "issues": [
     {
       "issue": 18,
@@ -495,7 +495,7 @@
         "185543a89b8eec07078788b2da3343374b98a928"
       ],
       "remaining": [
-        "Execute authored query/dispatch, stale-generation, lifetime and stream/graph/export fixtures; qualify whole-route prediction/regret, opaque resource peaks and matching provider/target modes."
+        "Applicable Windows/gfx1100 registered correctness, dispatch, lifetime and export checks pass in the SDK10.1 Release suite. Qualify whole-route prediction/regret, opaque physical resource peaks and broader provider/target modes."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -662,7 +662,7 @@
         "0b936a7c42fcd867518b0e557af42ba53b89c7b2"
       ],
       "remaining": [
-        "All requested bounded calibration source and capture/parameter/discrepancy interfaces are present. Named-target ISA/resources/counters/clocks, execution of new system probes, independent collection and accepted held-out prediction remain; previous four models failed their predeclared tolerance."
+        "Registered instruction/conversion/CRT/system-probe smokes pass in the SDK10.1 Release suite. Sustained named-target measurements, ISA/resources/counters/clocks and accepted held-out prediction remain; the four previous models failed their predeclared tolerance."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -1245,7 +1245,7 @@
         "bbdde3cd63c1e805bfc2c164da3157540b28ed72"
       ],
       "remaining": [
-        "Local stage observations and binary-bound ISA/rounding/resources remain recorded. The new five-policy public signed/narrow owner, matched full-export controls and complete-GEMM/prefix cases are authored with syntax checks only; their execution and measurements, fused/distributed consumers, hardware traffic and broader-target qualification remain."
+        "Applicable public prepared CRT/export correctness passes in the SDK10.1 Release suite. Matched five-policy public export and complete-GEMM/prefix measurements, fused/distributed consumer qualification, hardware traffic and broader targets remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2041,7 +2041,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Run actual gfx942 lane/accumulator/ISA/adversarial arithmetic and complete public differential/cost fixtures. The acknowledged conditional model is not hardware qualification. Other FP4/FP6/OCP/dynamic-scale forms are outside this initial one-format implementation."
+        "SDK10.1 compiles the gfx942 FP8 path and emits the expected FP8 MFMA instruction. Actual gfx942 lane/accumulator/adversarial arithmetic, public differentials and complete-route costs require hardware. Other FP4/FP6/OCP/dynamic-scale forms remain outside the initial one-format implementation."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2292,7 +2292,7 @@
         "64d8184a77af93e25a13b01f3158bc96d6a49065"
       ],
       "remaining": [
-        "Execute distributed corruption/invisibility and failure-publication fixtures; qualify actual multi-device fault coverage and complete-route integrity overhead."
+        "Applicable local registered integrity and publication fixtures pass in the SDK10.1 Release suite. Actual multi-device fault coverage and complete-route integrity overhead remain unqualified."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2348,7 +2348,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Execution and qualification of the written M1/M2 runtime on native Linux gfx942/gfx950 and native Windows supported transport paths; real device-fault/cleanup, topology/NUMA/traffic and independent 8192-square scaling gates remain. Optional M3 distributions/transports remain separately scoped by the issue."
+        "Applicable single-device Windows/gfx1100 regressions pass. Actual multi-GPU Windows transport and native Linux gfx942/gfx950 M1/M2 runtime, device-fault/cleanup, topology/NUMA/traffic and independent scaling qualification remain. Optional M3 distributions/transports retain their own implementation gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2455,7 +2455,7 @@
       ],
       "commits": [],
       "remaining": [
-        "Qualify matching supported compiler/runtime/device, real transfer/cluster/fragment differentials, wait/barrier stress, emitted instructions, actual traffic/stalls/occupancy/spills and matched end-to-end costs. LLVM23 active-body syntax does not prove these gates."
+        "Core SDK10.1 AMD Clang24 lacks __builtin_amdgcn_s_wait_dscnt, so the guarded TDM path remains unavailable. Qualify a supporting compiler/runtime/device, real transfer/cluster/fragment differentials, wait/barrier stress, emitted instructions, traffic/stalls/occupancy/spills and matched end-to-end costs."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2647,7 +2647,7 @@
         "042153279a4a40f41b42ef00dfb4ed49a64f59a6"
       ],
       "remaining": [
-        "The complete logical/mutation regression passed and its unchanged sources are reused. Actual compiled lane/resource equivalence, measured pruning and promotion remain target-specific gates."
+        "Logical/mutation regression passes in the SDK10.1 Release suite. Actual compiled lane/resource equivalence, measured pruning and promotion remain target-specific gates."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2685,7 +2685,7 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Umbrella completion still depends on unfinished child implementations and their hardware/performance gates."
+        "Umbrella acceptance depends on the remaining child measurement, failure, configuration and hardware gates, plus explicitly unsupported provider/conditional extensions; a local Release pass does not complete the whole roadmap."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2753,7 +2753,7 @@
         "319a7f5"
       ],
       "remaining": [
-        "Actual Linux discovery/setup and applicable GPU preset qualification remain; local Windows tooling regressions pass."
+        "Automatic Windows Python/SDK/GPU-family/compiler/VS/tool/package selection and loaded-runtime binding pass locally. Actual Linux discovery/setup and applicable GPU preset qualification remain."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
@@ -2861,7 +2861,7 @@
       "regressions": [],
       "commits": [],
       "remaining": [
-        "Lock consistency passes, but installed Git2.52.0.windows.1 differs from selected2.56.0.windows.3; installer approval review blocked its update. ROCm10.1 remains explicitly deferred."
+        "SDK10.1 Windows/gfx1100 Release with the selected Python/C++ package stack passes the complete registered suite and installed native-device consumers. Debug/ASan, OpenMP-OFF, Linux and broader compiler/ABI/runner compatibility, plus matched new-stack performance remain. Installed Git2.52.0.windows.1 still differs from selected2.56.0.windows.3; no successful Git upgrade is claimed."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [
@@ -2908,7 +2908,7 @@
         "319a7f5"
       ],
       "remaining": [
-        "Matching-platform command rehearsals remain unrun. Local inventory/path/anchor/command checks cover the updated source; external URL checks are not rerun in this pass."
+        "Current local documentation inventory/path/anchor/command checks pass. Windows initializer and archive/case materialization commands have been exercised; remaining platform-specific command rehearsals, especially Linux, stay unqualified."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [],
@@ -3246,7 +3246,7 @@
         "5e554b5541c9e45ac893b4b54f514bcb1a0f768a"
       ],
       "remaining": [
-        "Installed static/shared consumers and the seven native-device GPU fixtures pass at 4e21e9c. Common-compute v4 passes 100 captures / 62112 transactions at 5e554b5; the full-width unsigned long-K pipeline passes the fixed timing gate at 28.66x versus the fastest tested host control. Hardware launch/traffic and physical-memory observations, real failed-drain device-fault qualification and native Linux GPU coverage remain; DLPack is optional."
+        "SDK10.1 installed static/shared native-device consumers pass all four synchronous/prepared-graph checks; registered applicable interoperability checks also pass. The historical full-width unsigned long-K 28.66x result remains bound to source5e554b5. Hardware launch/traffic and physical-memory observations, real failed-drain device-fault qualification and native Linux GPU coverage remain; DLPack is optional."
       ],
       "validation": "Both v4 target builds, nine collector contracts, exact output/padding/digest checks, ownership callbacks and allocation retirement pass. Earlier 80- and 100-capture studies remain diagnostic because their proof/compute controls differed; they establish no interop gain.",
       "dependencies": [
@@ -3439,7 +3439,7 @@
         "833ae93c551bed50a5f65abcef2eac201ea7fcac"
       ],
       "remaining": [
-        "Completed paired transform/conversion stage observations remain recorded. Matched public prepared-policy and complete-GEMM/prefix controls are now authored but unexecuted. Whole-GEMM crossover, hardware traffic and measured production selection remain; no default promotion."
+        "Applicable transform/conversion and prepared-policy correctness passes in the SDK10.1 Release suite. Matched complete-GEMM/prefix crossover, hardware traffic and measured production selection remain; no default promotion."
       ],
       "validation": "Applicable local checks passed in the dated validation receipts. Unavailable-target code/instructions and issue-specific measurements are not thereby qualified.",
       "dependencies": [

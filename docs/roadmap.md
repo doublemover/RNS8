@@ -101,7 +101,8 @@ selected physical GPU before expanding to per-device checks.
 
 Independent per-GPU shard scripts do not implement distributed GEMM. The new
 [private modulus-sharded HIP owner](distributed-hip.md) supplies real runtime
-source and opt-in qualification fixtures, with syntax checks only. RDNA2,
+source and applicable single-device Windows/gfx1100 regression coverage. Native
+Linux and actual multi-device execution retain their qualification gates. RDNA2,
 RDNA4, CDNA2 and CDNA4 require their own per-device/OS/backend campaigns using
 AMD-supported stacks; the [hardware matrix](../README.md#hardware-tested-and-hardware-wanted)
 lists validation requests.
@@ -143,11 +144,28 @@ GPU sessions [#58](https://github.com/doublemover/RNS8/issues/58) now author bou
 plans, isolated environments, checkpoints and resume through the existing runner;
 Linux rehearsal remains deferred. Public application examples and
 independent baselines are implemented under [#62](https://github.com/doublemover/RNS8/issues/62);
-the paired-complex fifth workload is authored, while sustained production-boundary
-measurements remain in the final validation batch. Documentation consolidation
+the paired-complex fifth workload passes applicable local registered checks,
+while sustained production-boundary measurements remain unqualified. Documentation consolidation
 [#61](https://github.com/doublemover/RNS8/issues/61) consumes those concrete boundaries.
 
 ### Current validation and remaining work
+
+Core SDK10.1 Windows/gfx1100 Release validation is complete at `059fa45`:
+1,080 registered passes, 30 target/feature skips and zero failures, plus four
+installed static/shared native-device checks. The automatic initializer and
+loaded SDK runtime identities are verified. Subsequent repository cleanup
+preserves every benchmark input and measurement record; its final integration
+batch passes 52 tests with 11 expected FP8/TDM hardware skips. See the
+[SDK record](../metadata/hip101-validation-20261026.json) and
+[cleanup record](../metadata/repository-cleanup-20261026.json).
+
+The next local performance work is a fresh bounded SDK10.1 comparison against
+the strongest same-contract controls, followed by qualified stage prices for
+the planner and resident DAG. Keep exact-reference audits outside timed
+production intervals and include setup/reuse/export costs at the claimed
+boundary. The stopped campaign remains stopped; historical timing results do
+not establish new-stack performance. Local Debug/ASan, OpenMP-OFF and broader
+dependency/configuration qualification remain separate release work.
 
 The [October 25 allocation/global-control retry](local-validation-20261025.md#allocation-and-global-control-integration-retry)
 records clean `2fcb91c` artifacts: 547 CPU AddressSanitizer passes and 931 full-feature
@@ -164,11 +182,13 @@ arenas have applicable local regression evidence. Their issue-specific timing,
 profiler, capacity and broader-platform gates remain separate. A pushed source
 implementation or passing local test is not blanket hardware qualification.
 
-The user explicitly deferred ROCm 10.1 and unavailable Linux multi-GPU,
-Instinct/CDNA and instruction-family qualification. HIP 7.1 remains the local
-accelerator pin. VS2026 and the isolated non-GPU stack passed the named project
-builds/tests; the selected Git upgrade remains blocked by its installer approval
-review. All 44 official dependency/documentation URLs now respond successfully under #61;
+Unavailable Linux multi-GPU, Instinct/CDNA and instruction-family qualification
+remain deferred. SDK10.1 is the locally validated Release stack; retained HIP7.1
+source fallback pins and historical measurements keep their original scope.
+The selected Git candidate remains uninstalled (local2.52.0.windows.1 versus
+selected2.56.0.windows.3). Broader OS/compiler/package/runner qualification is
+still required under #57/#58/#60. All 44 official dependency/documentation URLs
+responded successfully in the recorded #61 check;
 actual matching-platform command rehearsals remain separate.
 The [focused measurements](focused-closeout-measurements-20261025.md) completed
 560 captures on the explicitly authorized shared host, including 20 independent

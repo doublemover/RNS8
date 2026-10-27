@@ -159,6 +159,7 @@ Explicit GMP/FLINT enablement now performs a compile/link API probe against the
 selected imported targets, including when project tests are disabled. The probe
 uses the same small signed multiprecision arithmetic program as the runtime smoke;
 configure never executes it. Compiler/link diagnostics are retained in
-`exact-reference-link-probe.log` under the build directory. Successful linkage
-is distinct from the runtime arithmetic check in the final campaign. These newly
-authored probes have not yet qualified the upgraded stack.
+`exact-reference-link-probe.log` under the build directory. The selected-prefix
+compile/link probes and runtime arithmetic checks pass in the local SDK10.1
+Release record. Broader OS/compiler/configuration and matched-performance
+qualification remain required for the upgraded stack.
