@@ -1,4 +1,4 @@
-# Distributed modulus plan and CPU mock
+# Distributed exact-product plan and CPU mock
 
 The [experimental HIP executor](distributed-hip.md) now consumes this shared
 plan/input contract for real device work. This page describes the independent
@@ -7,7 +7,8 @@ CPU mock; its observations remain mock evidence.
 The private [plan](../src/backend_common/distributed_plan.hpp) and
 [mock owner](../src/backend_common/distributed_mock.hpp) implement the
 hardware-independent M0 slice of issue #50. They compute one exact product
-through disjoint logical modulus planes and gather before reconstruction.
+through explicitly owned modulus, output-region or K-fragment work and gather
+before reconstruction.
 They do not launch HIP, create device contexts, allocate pinned memory, use
 RCCL, or qualify a multi-GPU backend. Independent device smoke jobs remain a
 different workload.
@@ -26,7 +27,8 @@ bounded ASCII. The mock does not discover or authenticate supplied identities.
 
 Supported semantics are bounded signed/unsigned 64-bit and exact-wide
 signed/unsigned under the ordered default basis. Finite rings, fields, wrap64,
-M/N/K partitioning and hybrid axes return unsupported. Tiles supply prefix and
+remain unsupported. Explicit M/N, 2-D output and disjoint K axes share the same
+coverage verifier. Tiles supply prefix and
 magnitude proofs or inherit the uniform request. Signed tiles require P>2B,
 unsigned tiles P>B. Prefix zero requires a zero bound. A local shard is never
 exported as a short global prefix: byte ranges explicitly map to tile and
@@ -144,3 +146,25 @@ topology, failure, traffic and scaling evidence.
 Stable public C-ABI integration, RCCL, M/N/K distributions and multi-process or
 multi-node execution are separately scoped follow-ons to the private M1/M2
 modulus owner. No hardware, installation or promotion follows from this mock.
+
+## Explicit output and contraction axes
+
+`Axis::rows` and `Axis::columns` assign complete tile rows/columns to weighted
+rank intervals; every owned region retains all its active basis planes and K.
+`Axis::hybrid` is the separately named block-cyclic 2-D output grid, requiring
+`rank_grid_rows*rank_grid_cols == ranks.size()`. It does not imply SUMMA, panel
+broadcasts or a distributed K reduction. The grid, axis and all K intervals
+participate in immutable plan identity.
+
+`Axis::contraction` creates1..64 disjoint nonempty K intervals for each active
+tile/plane. `k_fragments=0` selects the explicit rank count; a positive value is
+an independent fragmentation choice. Packing capacity follows each rank's largest
+fragment, while retained local outputs and owner partial-gather bytes include
+every fragment. Descriptor limits and hard budgets are checked before allocation.
+
+CPU delivery combines canonical partial residues using a widened integer sum
+and modular reduction. Each fragment's exact work ID, interval and identity must
+match once; arrival order cannot change the result. A missing, repeated, changed
+or stale fragment cannot contribute publication. The final output bound never
+bounds an unreduced partial dot. Every local dot independently uses safe modular
+accumulation, and CRT runs only after complete per-channel K coverage.

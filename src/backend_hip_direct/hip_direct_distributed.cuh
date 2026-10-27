@@ -2,12 +2,12 @@
 __global__ void rns8_distributed_pack_kernel(const uint64_t* native_a,
     const uint64_t* native_b, int8_t* a, int8_t* b, uint64_t row, uint64_t col,
     uint64_t rows, uint64_t cols, uint64_t k, uint64_t lda, uint64_t ldb,
-    bool signed_value, rns8::detail::finite_u8::Native64Reducer reducer) {
+    bool signed_value, rns8::detail::finite_u8::Native64Reducer reducer,uint64_t k_begin) {
   const uint64_t ac = rows * k, bc = k * cols;
   for (uint64_t cell = uint64_t(blockIdx.x) * blockDim.x + threadIdx.x;
        cell < ac + bc; cell += uint64_t(gridDim.x) * blockDim.x) {
-    const uint64_t bits = cell < ac ? native_a[(row + cell / k) * lda + cell % k]
-        : native_b[((cell - ac) / cols) * ldb + col + (cell - ac) % cols];
+    const uint64_t bits = cell < ac ? native_a[(row + cell / k) * lda + k_begin+cell % k]
+        : native_b[(k_begin+(cell - ac) / cols) * ldb + col + (cell - ac) % cols];
     int residue = int(rns8::detail::finite_u8::canonical_native_u64(bits, reducer));
     if (signed_value && (bits >> 63)) {
       residue -= int(reducer.signed_bias); if (residue < 0) residue += int(reducer.modulus);
@@ -40,6 +40,22 @@ __global__ void rns8_distributed_export_kernel(const int8_t* residues, uint64_t*
   }
   if (negative) rns8_store_u192_negative_twos_complement_limbs_device(output + uint64_t(cell) * 3, magnitude, 3);
   else rns8_store_u192_unsigned_limbs_device(output + uint64_t(cell) * 3, root, 3);
+}
+
+// K fragments remain separate until complete transfer membership is established
+// by the owner. Sum centered byte partials in INT32 (at most64*128), reduce in
+// their actual channel, and reconstruct only the fully combined residues.
+__global__ void rns8_distributed_reduce_partials_kernel(const int8_t* partials,int8_t* residues,
+    const rns8::detail::distributed::DeviceTile* tiles,uint64_t rows,uint64_t cols) {
+  const auto& tile=tiles[blockIdx.x];const auto plane=uint32_t(blockIdx.y);
+  if(plane>=tile.prefix)return;const uint64_t cells=tile.rows*tile.cols;
+  const int modulus=rns8_default_moduli_device[plane];
+  for(uint64_t cell=threadIdx.x;cell<cells;cell+=blockDim.x){
+    int sum=0;for(uint32_t part=0;part<tile.fragments;++part)
+      sum+=partials[tile.partial_offset+(uint64_t(plane)*tile.fragments+part)*cells+cell];
+    sum%=modulus;if(sum<0)sum+=modulus;if(sum>=(modulus+1)/2)sum-=modulus;
+    residues[(uint64_t(plane)*rows+tile.row+cell/tile.cols)*cols+tile.col+cell%tile.cols]=int8_t(sum);
+  }
 }
 
 __device__ uint32_t rns8_distributed_check_native(uint64_t bits,bool signed_value,uint32_t q) {

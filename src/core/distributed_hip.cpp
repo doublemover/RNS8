@@ -10,7 +10,8 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 extern "C" int rns8_hip_distributed_pack(const uint64_t*, const uint64_t*, int8_t*, int8_t*,
-    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, bool, uint32_t, void*);
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, bool, uint32_t, uint64_t, void*);
+extern "C" int rns8_hip_distributed_reduce_partials(const int8_t*,int8_t*,const rns8::detail::distributed::DeviceTile*,uint64_t,uint64_t,uint32_t,uint32_t,void*);
 extern "C" int rns8_hip_distributed_export(const int8_t*, uint64_t*, int, int, uint32_t,
     uint32_t, const rns8::detail::distributed::DeviceTile*, bool, bool, int*, void*);
 extern "C" int rns8_hip_distributed_materialize(const uint64_t*, int8_t*, int, uint32_t, bool, void*);
@@ -62,7 +63,7 @@ struct HipExecution::Impl {
   std::vector<Device> devices;
   hip_unique_stream gather_stream;
   hip_unique_event completion, stage_arrived;
-  hip_direct_device_buffer gather, result, directory, status;
+  hip_direct_device_buffer gather, partials, result, directory, status;
   hip_direct_device_buffer uniform, uniform_pending;
   uint32_t uniform_prefix = 0;
   hip_pinned_host_buffer staging, host_status;
@@ -91,7 +92,7 @@ struct HipExecution::Impl {
       set(device.a); set(device.b); set(device.output);
       for (auto& slot : device.slots) set(slot.packed);
     }
-    set(gather); set(result); set(directory); set(status); set(staging); set(host_status); set(uniform); set(uniform_pending);
+    set(gather); set(partials); set(result); set(directory); set(status); set(staging); set(host_status); set(uniform); set(uniform_pending);
   }
   Admission allocate(hip_direct_device_buffer& buffer, int device, uint64_t bytes) {
     if (!bytes) return {};
@@ -134,7 +135,7 @@ struct HipExecution::Impl {
       instruction.compiler_build = "unavailable-direct-build-manifest";
 #endif
       instruction.compiler_flags = instruction.compiler_build;
-      instruction.lowering_identity = "distributed-modulus-v1;native-centered-reducer;three-limb-gather-crt;plan=" + plan_hash;
+      instruction.lowering_identity = "distributed-axes-v2;integer-modular-K-reduction;native-centered-reducer;three-limb-gather-crt;plan=" + plan_hash;
       instruction.safe_k = 65536; instruction.lhs_abs = instruction.rhs_abs = 128; instruction.prior_abs = 128;
       for (auto modulus : c.basis) {
         const auto base = uint32_t(c.dag.size());
@@ -166,8 +167,10 @@ struct HipExecution::Impl {
     for (const auto& work : plan->work()) devices[work.rank].work.push_back(work.id);
     auto& tiles = tile_records;
     tiles.reserve(plan->tiles().size());
+    uint64_t partial_offset=0;
     for (const auto& tile : plan->tiles()) {
-      DeviceTile record;
+      DeviceTile record;record.partial_offset=partial_offset;record.fragments=plan->k_fragments();
+      partial_offset+=tile.rows*tile.cols*tile.prefix*record.fragments;
       record.row = tile.row; record.col = tile.col; record.rows = tile.rows; record.cols = tile.cols; record.prefix = tile.prefix;
       Integer magnitude = tile.magnitude;
       for (auto& word : record.bound) { word = static_cast<uint64_t>(magnitude & UINT64_MAX); magnitude >>= 64; }
@@ -185,7 +188,7 @@ struct HipExecution::Impl {
       device.slots.resize(r.pipeline_slots);
       for (auto id : device.work) {
         const auto& tile = plan->tiles()[plan->work()[id].tile];
-        device.packed_bytes = std::max(device.packed_bytes, (tile.rows + tile.cols) * r.k);
+        device.packed_bytes = std::max(device.packed_bytes, (tile.rows + tile.cols) * (plan->work()[id].k_end-plan->work()[id].k_begin));
       }
       if (!(admission = allocate(device.a, device.ordinal, inputs->lhs().size() * 8)) ||
           !(admission = allocate(device.b, device.ordinal, inputs->rhs().size() * 8)) ||
@@ -215,7 +218,8 @@ struct HipExecution::Impl {
       else if (code != hipSuccess) return error(code, "peer_enable", rank);
       // Peer access is primary-context state; never disable another user's access.
     }
-    if (!(admission = allocate(gather, root, plan->resources().ranks[r.owner].gather)) ||
+    if (!(admission=allocate(partials,root,plan->resources().ranks[r.owner].partial_gather)) ||
+        !(admission = allocate(gather, root, plan->resources().ranks[r.owner].gather)) ||
         !(admission = allocate(result, root, r.m * r.n * 24)) ||
         !(admission = allocate(directory, root, tiles.size() * sizeof(DeviceTile))) ||
         !(admission = allocate(status, root, 4))) return admission;
@@ -240,13 +244,14 @@ struct HipExecution::Impl {
     hip_scoped_device selected(device.ordinal);
     if (selected.status() != hipSuccess) return error(selected.status(), "rank_selection", rank, id);
     slot.work = id; slot.ready_observed = false;
-    auto* a = static_cast<int8_t*>(slot.packed.get()); auto* b = a + tile.rows * r.k;
+    const uint64_t local_k=work.k_end-work.k_begin;
+    auto* a = static_cast<int8_t*>(slot.packed.get()); auto* b = a + tile.rows * local_k;
     auto* c = static_cast<int8_t*>(device.output.get()) + work.byte_offset;
     auto code = hipError_t(rns8_hip_distributed_pack(static_cast<const uint64_t*>(device.a.get()),
         static_cast<const uint64_t*>(device.b.get()), a, b, tile.row, tile.col, tile.rows, tile.cols,
-        r.k, r.lda, r.ldb, plan->signed_value(), work.modulus, slot.stream.get()));
+        local_k, r.lda, r.ldb, plan->signed_value(), work.modulus,work.k_begin, slot.stream.get()));
     if (code == hipSuccess) code = hipError_t(rns8_hip_direct_ring_gemm_i8_device_on_stream(a, b, c,
-        int(tile.rows), int(tile.cols), int(r.k), int(r.k), int(tile.cols), int(tile.cols), int(work.modulus),
+        int(tile.rows), int(tile.cols), int(local_k), int(local_k), int(tile.cols), int(tile.cols), int(work.modulus),
         uint32_t((uint64_t{1} << 32) / work.modulus), int(work.logical_plane), int(r.prefix), 65536, slot.stream.get()));
     if (code == hipSuccess) code = hipEventRecord(slot.ready.get(), slot.stream.get());
     if (code != hipSuccess) return error(code, "shard_enqueue", rank, id);
@@ -268,13 +273,15 @@ struct HipExecution::Impl {
     }
     const int root = int(r.ranks[r.owner].ordinal); hip_scoped_device selected(root);
     if (selected.status() != hipSuccess) return error(selected.status(), "gather_device", work.rank, id);
-    auto* destination = static_cast<int8_t*>(gather.get()) + uint64_t(work.logical_plane) * r.m * r.n + tile.row * r.n + tile.col;
+    auto* destination = partials?static_cast<int8_t*>(partials.get())+work.gather_offset:
+        static_cast<int8_t*>(gather.get())+uint64_t(work.logical_plane)*r.m*r.n+tile.row*r.n+tile.col;
+    const uint64_t destination_pitch=partials?tile.cols:r.n;
     hipError_t code = hipSuccess;
     if (work.transport == Transport::local)
-      code = hipMemcpy2DAsync(destination, size_t(r.n), source, size_t(tile.cols), size_t(tile.cols),
+      code = hipMemcpy2DAsync(destination, size_t(destination_pitch), source, size_t(tile.cols), size_t(tile.cols),
           size_t(tile.rows), hipMemcpyDeviceToDevice, gather_stream.get());
     else for (uint64_t row = 0; row < tile.rows && code == hipSuccess; ++row)
-      code = hipMemcpyPeerAsync(destination + row * r.n, root, source + row * tile.cols,
+      code = hipMemcpyPeerAsync(destination + row * destination_pitch, root, source + row * tile.cols,
           device.ordinal, size_t(tile.cols), gather_stream.get());
     if (code != hipSuccess) return error(code, "gather_copy", work.rank, id);
     queued[id] = 1; ++progress.transfers_queued; return {};
@@ -291,8 +298,10 @@ struct HipExecution::Impl {
       if (code != hipSuccess) return error(code, "staging_source_completion", work.rank, work.id);
       hip_scoped_device owner(root);
       if (owner.status() != hipSuccess) return error(owner.status(), "staging_destination_device", work.rank, work.id);
-      auto* destination = static_cast<int8_t*>(gather.get()) + uint64_t(work.logical_plane) * r.m * r.n + tile.row * r.n + tile.col;
-      code = hipMemcpy2DAsync(destination, size_t(r.n), staging.get(), size_t(tile.cols),
+      auto* destination = partials?static_cast<int8_t*>(partials.get())+work.gather_offset:
+        static_cast<int8_t*>(gather.get())+uint64_t(work.logical_plane)*r.m*r.n+tile.row*r.n+tile.col;
+    const uint64_t destination_pitch=partials?tile.cols:r.n;
+      code = hipMemcpy2DAsync(destination, size_t(destination_pitch), staging.get(), size_t(tile.cols),
           size_t(tile.cols), size_t(tile.rows), hipMemcpyHostToDevice, gather_stream.get());
       if (code == hipSuccess) code = hipEventRecord(stage_arrived.get(), gather_stream.get());
       if (code != hipSuccess) return error(code, "staging_destination_copy", work.rank, work.id);
@@ -379,7 +388,10 @@ struct HipExecution::Impl {
     const auto& r = plan->request(); hip_scoped_device selected(int(r.ranks[r.owner].ordinal));
     if (selected.status() != hipSuccess) { error(selected.status(), "owner_poll"); return {}; }
     if (!final_queued && progress.transfers_queued == plan->work().size()) {
-      auto code = hipError_t(rns8_hip_distributed_export(static_cast<const int8_t*>(gather.get()),
+      auto code=hipSuccess;
+      if(partials)code=hipError_t(rns8_hip_distributed_reduce_partials(static_cast<const int8_t*>(partials.get()),static_cast<int8_t*>(gather.get()),
+          static_cast<const DeviceTile*>(directory.get()),r.m,r.n,uint32_t(plan->tiles().size()),r.prefix,gather_stream.get()));
+      if(code==hipSuccess)code = hipError_t(rns8_hip_distributed_export(static_cast<const int8_t*>(gather.get()),
           static_cast<uint64_t*>(result.get()), int(r.m * r.n), int(r.n), r.tile_rows, r.tile_cols,
           static_cast<const DeviceTile*>(directory.get()), plan->signed_value(), plan->bounded(),
           static_cast<int*>(status.get()), gather_stream.get()));
@@ -442,7 +454,7 @@ struct HipExecution::Impl {
       for (auto* buffer : {&device.a, &device.b, &device.output})
         if (buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_rank_storage");
     }
-    if (!gather && !result && !directory && !status && !uniform && !uniform_pending &&
+    if (!gather && !partials && !result && !directory && !status && !uniform && !uniform_pending &&
         !gather_stream && !completion && !stage_arrived && !staging.get() && !host_status.get()) {
       closed = true; return {};
     }
@@ -452,7 +464,7 @@ struct HipExecution::Impl {
       return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_event_stream");
     if (staging.reset() != hipSuccess || host_status.reset() != hipSuccess)
       return reject(RNS8_BACKEND_FAILURE, "cleanup_host_storage");
-    for (auto* buffer : {&gather, &result, &directory, &status, &uniform, &uniform_pending})
+    for (auto* buffer : {&gather, &partials, &result, &directory, &status, &uniform, &uniform_pending})
       if (buffer->reset() != RNS8_SUCCESS) return reject(RNS8_BACKEND_FAILURE, "cleanup_owner_storage");
     closed = true; return {};
   }

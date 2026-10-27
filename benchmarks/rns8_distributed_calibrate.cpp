@@ -31,11 +31,16 @@ uint64_t elapsed(Clock::time_point start) {
 int main(int argc, char** argv) { try {
   if (argc != 3) throw std::invalid_argument("usage: rns8-distributed-calibrate CASE.json unique-run-id");
   json c; std::ifstream(argv[1]) >> c;
-  if (c.at("schema") != "rns8_distributed_case_v1" || c.size() != (c.contains("native_integrity")?16:15) || std::string(argv[2]).empty())
+  const bool axes=c.at("schema")=="rns8_distributed_case_v2";
+  if ((!axes && c.at("schema") != "rns8_distributed_case_v1") || c.size() != 15+4*unsigned(axes)+unsigned(c.contains("native_integrity")) || std::string(argv[2]).empty())
     throw std::invalid_argument("case/run identity");
   d::Request r; r.operation = 5001; r.semantics = RNS8_BOUNDED_I64; r.host_storage = d::HostStorage::limbs_only;
   if(c.contains("native_integrity")){if(!c["native_integrity"].is_boolean())throw std::invalid_argument("integrity policy");r.native_integrity=c["native_integrity"].get<bool>();}
   r.m = integer(c, "m", 1, 8192); r.n = integer(c, "n", 1, 8192); r.k = integer(c, "k", 1, 131073);
+  if(axes){const std::string axis=c.at("axis");
+    if(axis=="modulus")r.axis=d::Axis::modulus;else if(axis=="rows")r.axis=d::Axis::rows;else if(axis=="columns")r.axis=d::Axis::columns;
+    else if(axis=="2d")r.axis=d::Axis::hybrid;else if(axis=="contraction")r.axis=d::Axis::contraction;else throw std::invalid_argument("axis");
+    r.k_fragments=uint32_t(integer(c,"k_fragments",0,64));r.rank_grid_rows=uint32_t(integer(c,"rank_grid_rows",0,64));r.rank_grid_cols=uint32_t(integer(c,"rank_grid_cols",0,64));}
   r.lda = r.k; r.ldb = r.n; r.prefix = uint32_t(integer(c, "prefix", 1, 20));
   r.tile_rows = r.tile_cols = uint32_t(integer(c, "tile", 1, 256));
   r.pipeline_slots = uint32_t(integer(c, "slots", 1, 3)); r.magnitude_bound = 6 * r.k;
@@ -138,7 +143,7 @@ int main(int argc, char** argv) { try {
         {"memory_partition", r.ranks[rank].memory_partition}, {"target", r.ranks[rank].target},
         {"runtime_version", device.hip_runtime_version}, {"driver_version", device.hip_driver_version},
         {"requested_device_reservation", bytes.peak}, {"native_inputs", bytes.native_inputs},
-        {"packed_inputs", bytes.packed_inputs}, {"local_output", bytes.local_outputs}, {"gather", bytes.gather}});
+        {"packed_inputs", bytes.packed_inputs}, {"local_output", bytes.local_outputs}, {"gather", bytes.gather},{"partial_gather",bytes.partial_gather}});
   }
   json manifest = nullptr;
   const char* host_platform = "other";
@@ -155,7 +160,7 @@ int main(int argc, char** argv) { try {
       {"host_platform", host_platform}, {"host_hardware_threads", std::thread::hardware_concurrency()},
       {"affinity_policy", "inherited_not_modified"}, {"numa_placement_observed", false},
       {"physical_card_count_known", false}, {"plan_sha256", rns8::detail::sha256(plan->identity())},
-      {"arithmetic_certificates", certificates}, {"expected_work", plan->work().size()},
+      {"arithmetic_certificates", certificates},{"distribution_axis",unsigned(r.axis)},{"k_fragments",plan->k_fragments()}, {"expected_work", plan->work().size()},
       {"local_completed", last.local_completed}, {"transfers_queued", last.transfers_queued},
       {"published", last.output_current}, {"calls", calls}, {"setup_ns", setup_ns}, {"first_ns", first_ns},
       {"integrity_requested",last.integrity_requested},{"integrity_completed",last.integrity_completed},

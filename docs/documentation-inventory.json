@@ -2231,8 +2231,9 @@
         }
       ],
       "anchors": [
-        "distributed-modulus-plan-and-cpu-mock",
+        "distributed-exact-product-plan-and-cpu-mock",
         "epoch-and-resource-ownership",
+        "explicit-output-and-contraction-axes",
         "immutable-plan",
         "receipt-and-authored-coverage",
         "transport-and-publication"
@@ -5582,8 +5583,9 @@
         }
       ],
       "anchors": [
-        "experimental-modulus-sharded-hip-execution",
+        "experimental-distributed-hip-execution",
         "future-qualification-commands",
+        "mn-2-d-output-and-k-fragment-source-paths",
         "optional-independent-integrity-before-commit",
         "preparation-and-arithmetic",
         "progress-publication-and-lifetime",

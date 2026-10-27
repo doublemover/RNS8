@@ -107,6 +107,38 @@ TEST_CASE("distributed modulus mock matches independent full-width Boost product
     }
 }
 
+TEST_CASE("distributed output and contraction axes own exact complete fragment coverage", "[distributed][cpu]") {
+  for(uint32_t ranks:{1u,2u,3u,4u})for(auto axis:{d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})
+  for(auto semantics:{RNS8_EXACT_WIDE_SIGNED,RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto r=distributed_request(ranks);r.axis=axis;r.semantics=semantics;
+    if(axis==d::Axis::hybrid){r.rank_grid_rows=ranks==4?2:1;r.rank_grid_cols=ranks/r.rank_grid_rows;}
+    if(axis==d::Axis::contraction)r.k_fragments=3;
+    auto plan=distributed_plan(r);const auto inputs=distributed_inputs(r);const auto expected=distributed_oracle(r,*inputs);
+    for(uint64_t tile=0;tile<plan->tiles().size();++tile)for(uint32_t plane=0;plane<r.prefix;++plane){
+      uint64_t end=0;uint32_t count=0,owner=UINT32_MAX;
+      for(const auto& work:plan->work())if(work.tile==tile && work.logical_plane==plane){
+        CHECK(work.k_begin==end);CHECK(work.k_end>work.k_begin);end=work.k_end;++count;
+        if(axis!=d::Axis::contraction){if(owner==UINT32_MAX)owner=work.rank;CHECK(work.rank==owner);}
+        if(axis==d::Axis::contraction)CHECK(work.gather_offset+work.bytes<=plan->resources().ranks[r.owner].partial_gather);
+      }
+      CHECK(end==r.k);CHECK(count==plan->k_fragments());
+    }
+    for(uint32_t seed:{3u,97u}){d::MockExecution execution(plan);uint64_t clock=10;
+      REQUIRE(execution.begin(1,inputs,clock,1000000));finish(execution,clock,seed);
+      REQUIRE(execution.result());CHECK(*execution.result()==expected);}
+    CHECK(plan->identity()!=distributed_plan(distributed_request(ranks))->identity());
+  }
+}
+TEST_CASE("distributed K fragments reduce enormous canceling partials without using the final bound", "[distributed][cpu]") {
+  auto r=distributed_request(2);r.m=r.n=1;r.k=2;r.lda=2;r.ldb=1;r.tile_rows=r.tile_cols=1;r.axis=d::Axis::contraction;r.k_fragments=2;r.magnitude_bound=0;
+  auto plan=distributed_plan(r);auto inputs=std::make_shared<const d::Inputs>(r.a,r.b,
+      std::vector<uint64_t>{uint64_t(INT64_MAX),uint64_t(INT64_MAX)},std::vector<uint64_t>{uint64_t(INT64_MAX),uint64_t(-INT64_MAX)});
+  d::MockExecution execution(plan);uint64_t clock=10;REQUIRE(execution.begin(1,inputs,clock,1000000));
+  d::Fragment fragment;REQUIRE(execution.produce(0,fragment));auto altered=fragment;altered.work.k_end=2;
+  CHECK(execution.local_complete(std::move(altered),++clock).status==RNS8_INVALID_ARGUMENT);
+  finish(execution,clock,7);REQUIRE(execution.result());CHECK(execution.result()->at(0)==0);
+}
+
 TEST_CASE("distributed immutable coverage owns each tile plane and full K exactly once", "[distributed][cpu]") {
   auto r = distributed_request(4);
   r.prefix = 4; r.magnitude_bound = 100;
@@ -259,9 +291,9 @@ TEST_CASE("distributed transactional plan admission rejects malformed coverage t
     const auto admission = d::Plan::create(request, output);
     CHECK(admission.status == expected); CHECK(output == original);
   };
-  for (auto axis : {d::Axis::rows, d::Axis::columns, d::Axis::contraction, d::Axis::hybrid}) {
-    auto r = valid; r.axis = axis; rejected(r, RNS8_UNSUPPORTED_BACKEND);
-  }
+  {auto invalid=valid;invalid.axis=d::Axis::hybrid;rejected(invalid,RNS8_INVALID_ARGUMENT);}
+  {auto invalid=valid;invalid.k_fragments=2;rejected(invalid,RNS8_INVALID_ARGUMENT);}
+  {auto invalid=valid;invalid.axis=d::Axis::contraction;invalid.k_fragments=65;rejected(invalid,RNS8_INVALID_ARGUMENT);}
   for (auto semantics : {RNS8_FINITE_RING_U8, RNS8_FINITE_FIELD_U8, RNS8_WRAP_U64_MOD_2_64}) {
     auto r = valid; r.semantics = semantics; rejected(r, RNS8_UNSUPPORTED_BACKEND);
   }

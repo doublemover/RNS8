@@ -108,6 +108,155 @@
           "pinned"
         ]
       ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "m",
+        "n",
+        "k",
+        "prefix",
+        "tile",
+        "slots",
+        "devices",
+        "transport",
+        "scope",
+        "host_budget",
+        "pinned_budget",
+        "device_budget",
+        "warmups",
+        "repeats",
+        "axis",
+        "k_fragments",
+        "rank_grid_rows",
+        "rank_grid_cols"
+      ],
+      "defaults": {
+        "schema": "rns8_distributed_case_v2",
+        "slots": 2,
+        "scope": "resident-device-limbs",
+        "host_budget": 8589934592,
+        "pinned_budget": 1048576,
+        "device_budget": 17179869184,
+        "warmups": 3,
+        "repeats": 5,
+        "m": 17,
+        "n": 19,
+        "k": 65,
+        "prefix": 3,
+        "tile": 16
+      },
+      "columns": [
+        "devices",
+        "transport",
+        "axis",
+        "k_fragments",
+        "rank_grid_rows",
+        "rank_grid_cols"
+      ],
+      "rows": [
+        [
+          "axes-1-rows.json",
+          "30de408bdc44b2e22ab85d8988af1a4c1de8e399d702f68c1c6cea6fc1bc776c",
+          [
+            0
+          ],
+          "local",
+          "rows",
+          0,
+          0,
+          0
+        ],
+        [
+          "axes-1-columns.json",
+          "e50eb67f86bc114785d2205adf99d57b8c2eb2df0a4d955bdb1020e9ee2a143a",
+          [
+            0
+          ],
+          "local",
+          "columns",
+          0,
+          0,
+          0
+        ],
+        [
+          "axes-1-2d.json",
+          "51804746d93b07b3a604d9aebdd5e43cffc5185d18aee486901930a5d674a56d",
+          [
+            0
+          ],
+          "local",
+          "2d",
+          0,
+          1,
+          1
+        ],
+        [
+          "axes-1-contraction.json",
+          "c1c25fc3d1435f332d049cb9b1334ac631307fd30da8f38eb4126eb4d9dc3891",
+          [
+            0
+          ],
+          "local",
+          "contraction",
+          3,
+          0,
+          0
+        ],
+        [
+          "axes-2-rows.json",
+          "204400be734d897dba74ba57c0255f1ad037d5f5410c5819facd79067b0a9db0",
+          [
+            0,
+            1
+          ],
+          "pinned",
+          "rows",
+          0,
+          0,
+          0
+        ],
+        [
+          "axes-2-columns.json",
+          "c145227ce25b03678e561bdf704030784217df801167a4f1cf7f3984444060eb",
+          [
+            0,
+            1
+          ],
+          "pinned",
+          "columns",
+          0,
+          0,
+          0
+        ],
+        [
+          "axes-2-2d.json",
+          "6bbfa5eb6734756e2212ac1c8207421f3a72eb1eaddf7743b7d0c8fd75017322",
+          [
+            0,
+            1
+          ],
+          "pinned",
+          "2d",
+          0,
+          1,
+          2
+        ],
+        [
+          "axes-2-contraction.json",
+          "811e1422559a4ad1a296f9c0169f02d2fde3c5362b839ed5b3dc4dc9e8d1beb9",
+          [
+            0,
+            1
+          ],
+          "pinned",
+          "contraction",
+          3,
+          0,
+          0
+        ]
+      ]
     }
   ]
 }

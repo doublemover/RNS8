@@ -13,7 +13,7 @@ struct HipProgress {
   bool integrity_requested = false, integrity_completed = false;
   uint32_t integrity_failure_mask = 0;
 };
-// One process, explicit modulus shards and caller-serialized host operations.
+// One process, explicit modulus/M/N/2-D/K shards and serialized host operations.
 // No RCCL, cross-device event timing, partial-result export or implicit fallback.
 class HipExecution {
  public:

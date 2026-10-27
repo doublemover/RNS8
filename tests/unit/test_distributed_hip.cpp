@@ -79,7 +79,7 @@ TEST_CASE("distributed integrity distinguishes native checks from range and invi
   CHECK(d::distributed_commit_status(0)==RNS8_SUCCESS);
   r.native_integrity=false;auto unchecked=make_plan(r);CHECK(plan->identity()!=unchecked->identity());
 }
-static void check_real_modulus_shards(uint64_t k) {
+static void check_real_modulus_shards(uint64_t k,d::Axis axis=d::Axis::modulus) {
   if (!d::HipExecution::compiled()) SKIP("direct HIP not compiled");
   rns8_device_info info{};
   if (rns8::detail::hip_direct_probe(0, info) != RNS8_SUCCESS) SKIP("HIP device unavailable");
@@ -101,12 +101,14 @@ static void check_real_modulus_shards(uint64_t k) {
   REQUIRE((!requested_transport || peer || std::string(requested_transport) == "pinned"));
   for (auto semantics : {RNS8_BOUNDED_I64, RNS8_BOUNDED_U64, RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) for (bool ragged : {false, true}) {
     CAPTURE(semantics, selected, peer, ragged);
-    auto r = live_request(); r.semantics = semantics; r.k = k; r.lda = k + 2;
+    auto r = live_request(); r.semantics = semantics; r.k = k; r.lda = k + 2;r.axis=axis;
+    if(axis==d::Axis::contraction)r.k_fragments=3;
     const bool narrow = semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
     if (narrow) { r.prefix = k < 128 ? 1 : 9; r.magnitude_bound = r.k; }
     const bool full_bounded = narrow && ragged;
     if (full_bounded) { r.prefix = 20; r.magnitude_bound = semantics == RNS8_BOUNDED_I64 ? d::Integer(INT64_MAX) : d::Integer(UINT64_MAX); }
     REQUIRE(d::HipExecution::discover(ordinals, r.ranks, r.edges));
+    if(axis==d::Axis::hybrid){r.rank_grid_rows=r.ranks.size()==4?2:1;r.rank_grid_cols=uint32_t(r.ranks.size())/r.rank_grid_rows;}
     r.transport = ordinals.size() == 1 ? d::Transport::local : peer ? d::Transport::peer : d::Transport::pinned_host;
     if (peer && ordinals.size() > 1) for (const auto& edge : r.edges)
       if (edge.peer != d::Support::supported) SKIP("explicit peer transport unsupported on selected devices");
@@ -203,3 +205,7 @@ TEST_CASE("HIP distributed integrity compares complete limbs against independent
   }
 }
 #endif
+
+TEST_CASE("real HIP explicit output and contraction distributions retain complete exact results", "[distributed][hip]") {
+  for(auto axis:{d::Axis::rows,d::Axis::columns,d::Axis::hybrid,d::Axis::contraction})check_real_modulus_shards(65,axis);
+}

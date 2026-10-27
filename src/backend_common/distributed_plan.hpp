@@ -4,6 +4,7 @@
 // Runtime discovery, transport and target qualification remain with the owner.
 #include "address_domain.hpp"
 #include "garner_constants.hpp"
+#include "distributed_device.hpp"
 #include "rns8/rns8.h"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <algorithm>
@@ -83,6 +84,7 @@ struct TileProof {
 struct Request {
   uint64_t operation = 0;
   Axis axis = Axis::modulus;
+  uint32_t k_fragments=0,rank_grid_rows=0,rank_grid_cols=0;
   rns8_semantics semantics = RNS8_EXACT_WIDE_SIGNED;
   uint64_t m = 0, n = 0, k = 0, lda = 0, ldb = 0;
   uint32_t prefix = 0, tile_rows = 16, tile_cols = 16, owner = 0;
@@ -111,16 +113,17 @@ struct Work {
   uint32_t rank = 0, logical_plane = 0, modulus = 0;
   uint64_t k_begin = 0, k_end = 0, byte_offset = 0, bytes = 0;
   Transport transport = Transport::local;
+  uint64_t gather_offset=0;
   bool operator==(const Work& rhs) const {
     return id == rhs.id && tile == rhs.tile && rank == rhs.rank &&
         logical_plane == rhs.logical_plane && modulus == rhs.modulus &&
         k_begin == rhs.k_begin && k_end == rhs.k_end && byte_offset == rhs.byte_offset &&
-        bytes == rhs.bytes && transport == rhs.transport;
+        bytes == rhs.bytes && transport == rhs.transport && gather_offset==rhs.gather_offset;
   }
 };
 struct RankResources {
   uint64_t native_inputs = 0, packed_inputs = 0, local_outputs = 0;
-  uint64_t gather = 0, crt_workspace = 0, export_output = 0;
+  uint64_t gather = 0, partial_gather=0, crt_workspace = 0, export_output = 0;
   uint64_t descriptors = 0, scratch = 0, overhead_reserve = 0, peak = 0;
 };
 struct Resources {
@@ -139,6 +142,7 @@ class Plan {
   const std::vector<Work>& work() const { return work_; }
   const Resources& resources() const { return resources_; }
   const std::string& identity() const { return identity_; }
+  uint32_t k_fragments() const {return request_.axis==Axis::contraction?(request_.k_fragments?request_.k_fragments:uint32_t(request_.ranks.size())):1;}
   bool signed_value() const {
     return request_.semantics == RNS8_BOUNDED_I64 || request_.semantics == RNS8_EXACT_WIDE_SIGNED;
   }
@@ -169,7 +173,7 @@ class Plan {
     std::ostringstream key;
     const auto& r = request_;
     const auto text = [&](const std::string& value) { key << value.size() << ':' << value << ';'; };
-    key << "distributed_modulus_v1;" << r.operation << ';' << unsigned(r.semantics) << ';'
+    key << "distributed_axes_v2;" << unsigned(r.axis) << ';' << k_fragments() << ';' << r.rank_grid_rows << ';' << r.rank_grid_cols << ';' << r.operation << ';' << unsigned(r.semantics) << ';'
         << r.m << ';' << r.n << ';' << r.k << ';' << r.lda << ';' << r.ldb << ';'
         << r.prefix << ';' << r.owner << ';' << r.a.instance << ';' << r.a.generation << ';'
         << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';'
@@ -186,12 +190,18 @@ class Plan {
     for (const auto& work : work_)
       key << work.id << ';' << work.rank << ';' << work.tile << ';' << work.logical_plane << ';'
           << work.modulus << ';' << work.k_begin << ';' << work.k_end << ';' << work.byte_offset << ';'
-          << work.bytes << ';' << unsigned(work.transport) << ';';
+          << work.bytes << ';' << unsigned(work.transport) << ';' << work.gather_offset << ';';
     identity_ = key.str();
   }
   Admission build() {
     const auto& r = request_;
-    if (r.axis != Axis::modulus) return reject(RNS8_UNSUPPORTED_BACKEND, "only_modulus_split_implemented");
+    if(unsigned(r.axis)>unsigned(Axis::hybrid))return reject(RNS8_INVALID_ARGUMENT,"distribution_axis");
+    if((r.axis!=Axis::contraction && r.k_fragments) || (r.axis!=Axis::hybrid && (r.rank_grid_rows || r.rank_grid_cols)))
+      return reject(RNS8_INVALID_ARGUMENT,"inactive_axis_parameters");
+    if(r.axis==Axis::hybrid && (!r.rank_grid_rows || !r.rank_grid_cols || uint64_t(r.rank_grid_rows)*r.rank_grid_cols!=r.ranks.size()))
+      return reject(RNS8_INVALID_ARGUMENT,"rank_grid_membership");
+    const uint32_t fragments=k_fragments();
+    if(!fragments || fragments>64 || (r.axis==Axis::contraction && fragments>r.k))return reject(RNS8_INVALID_ARGUMENT,"contraction_fragments");
     if (r.semantics != RNS8_BOUNDED_I64 && r.semantics != RNS8_BOUNDED_U64 &&
         r.semantics != RNS8_EXACT_WIDE_SIGNED && r.semantics != RNS8_EXACT_WIDE_UNSIGNED)
       return reject(RNS8_UNSUPPORTED_BACKEND, "integer_semantics_required");
@@ -214,7 +224,7 @@ class Plan {
     const uint64_t grid_rows = 1 + (r.m - 1) / r.tile_rows;
     const uint64_t grid_cols = 1 + (r.n - 1) / r.tile_cols;
     uint64_t tile_count = 0, max_work = 0;
-    if (!multiply(grid_rows, grid_cols, tile_count) || !multiply(tile_count, r.prefix, max_work) ||
+    if (!multiply(grid_rows, grid_cols, tile_count) || !multiply(tile_count, r.prefix, max_work) || !multiply(max_work,fragments,max_work) ||
         max_work > r.maximum_work_items || tile_count > SIZE_MAX)
       return reject(RNS8_RANGE_ERROR, "coverage_descriptor_limit");
     if (!r.tile_proofs.empty() && r.tile_proofs.size() != tile_count)
@@ -265,13 +275,22 @@ class Plan {
             std::min<uint64_t>(r.tile_cols, r.n - col * r.tile_cols), proof.prefix, proof.magnitude};
         tiles_.push_back(tile);
         const uint64_t cells = tile.rows * tile.cols;
-        for (uint32_t plane = 0; plane < tile.prefix; ++plane) {
+        uint32_t region_owner=0;
+        if(r.axis==Axis::rows || r.axis==Axis::columns){
+          uint64_t weights=0;for(const auto& rank:r.ranks)weights+=rank.weight;
+          const Integer point=Integer(r.axis==Axis::rows?row:col)*weights/(r.axis==Axis::rows?grid_rows:grid_cols);
+          uint64_t end=r.ranks[0].weight;while(region_owner+1<r.ranks.size() && point>=end)end+=r.ranks[++region_owner].weight;
+        }else if(r.axis==Axis::hybrid)region_owner=uint32_t(row%r.rank_grid_rows)*r.rank_grid_cols+uint32_t(col%r.rank_grid_cols);
+        for (uint32_t plane = 0; plane < tile.prefix; ++plane) for(uint32_t fragment=0;fragment<fragments;++fragment) {
+          const uint64_t begin=(r.k/fragments)*fragment+std::min<uint64_t>(r.k%fragments,fragment);
+          const uint64_t end=(r.k/fragments)*(fragment+1)+std::min<uint64_t>(r.k%fragments,fragment+1);
           uint32_t selected = 0;
           // Compare rational normalized loads exactly, stable lower-rank tie.
           // Arbitrary precision keeps weighted comparisons exact for long K.
           for (uint32_t rank = 1; rank < r.ranks.size(); ++rank)
             if (load[rank] * r.ranks[selected].weight < load[selected] * r.ranks[rank].weight) selected = rank;
-          load[selected] += Integer(cells) * r.k * (r.plane_costs.empty() ? 1 : r.plane_costs[plane]);
+          if(r.axis==Axis::rows || r.axis==Axis::columns || r.axis==Axis::hybrid)selected=region_owner;
+          load[selected] += Integer(cells) * (end-begin) * (r.plane_costs.empty() ? 1 : r.plane_costs[plane]);
           ++counts[selected];
           auto& memory = resources_.ranks[selected];
           Transport transport = selected == r.owner ? Transport::local : r.transport;
@@ -287,13 +306,15 @@ class Plan {
           }
           const uint64_t offset = memory.local_outputs;
           uint64_t packed_a = 0, packed_b = 0;
-          if (!multiply(tile.rows, r.k, packed_a) || !multiply(r.k, tile.cols, packed_b) ||
+          if (!multiply(tile.rows, end-begin, packed_a) || !multiply(end-begin, tile.cols, packed_b) ||
               !add_bytes(packed_a, packed_b) ||
               !add_bytes(memory.local_outputs, cells))
             return reject(RNS8_RANGE_ERROR, "rank_buffer_overflow", selected);
           memory.packed_inputs = std::max(memory.packed_inputs, packed_a);
           work_.push_back({work_.size(), id, selected, plane, garner::kConstants.moduli[plane],
-              0, r.k, offset, cells, transport});
+              begin, end, offset, cells, transport});
+          if(r.axis==Axis::contraction){auto& partial=resources_.ranks[r.owner].partial_gather;
+            work_.back().gather_offset=partial;if(!add_bytes(partial,cells))return reject(RNS8_RANGE_ERROR,"partial_gather_overflow");}
           if (transport != Transport::local) {
             if (!add_bytes(resources_.transfer_bytes, cells)) return reject(RNS8_RANGE_ERROR, "transfer_overflow");
             if (transport == Transport::pinned_host) resources_.pinned_staging =
@@ -318,7 +339,7 @@ class Plan {
       if (rank == r.owner) {
         memory.gather = c_span.byte_extent;
         uint64_t tile_metadata = 0;
-        if (!multiply(tile_count, 64, tile_metadata) || !add_bytes(tile_metadata, 4) ||
+        if (!multiply(tile_count, sizeof(DeviceTile), tile_metadata) || !add_bytes(tile_metadata, 4) ||
             !add_bytes(memory.descriptors, tile_metadata))
           return reject(RNS8_RANGE_ERROR, "owner_descriptor_overflow", rank);
         if (!multiply(cells, 24, memory.crt_workspace) ||
@@ -326,7 +347,7 @@ class Plan {
           return reject(RNS8_RANGE_ERROR, "owner_output_overflow", rank);
       }
       for (auto bytes : {memory.native_inputs, memory.packed_inputs, memory.local_outputs,
-          memory.gather, memory.crt_workspace, memory.export_output, memory.descriptors,
+          memory.gather, memory.partial_gather, memory.crt_workspace, memory.export_output, memory.descriptors,
           memory.scratch, memory.overhead_reserve}) {
         uint64_t aligned = 0;
         if (!aligned_bytes(bytes, aligned) || !add_bytes(memory.peak, aligned))

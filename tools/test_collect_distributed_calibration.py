@@ -11,6 +11,17 @@ def case():
         pinned_budget=2**20,device_budget=2**30,warmups=3,repeats=5)
 
 class DistributedCases(unittest.TestCase):
+    def test_explicit_axes_and_fragment_membership(self):
+        for axis in ('modulus','rows','columns','2d','contraction'):
+            c=case();c.update(schema='rns8_distributed_case_v2',axis=axis,
+                k_fragments=3 if axis=='contraction' else 0,
+                rank_grid_rows=1 if axis=='2d' else 0,rank_grid_cols=1 if axis=='2d' else 0)
+            self.assertEqual(validate_case(c),c)
+            bad=dict(c,k_fragments=66)
+            with self.assertRaises(ValueError):validate_case(bad)
+        for grid in ((0,1),(2,2)):
+            c.update(axis='2d',k_fragments=0,rank_grid_rows=grid[0],rank_grid_cols=grid[1])
+            with self.assertRaises(ValueError):validate_case(c)
     def fixture(self,run=0,multi=False):
         request=case();request.update(devices=[0,1] if multi else [0],transport='pinned' if multi else 'local')
         entry=dict(case=request,run_id=f'synthetic-{run}-{multi}',independent_run=run,command=['synthetic-binary','synthetic-case',f'synthetic-{run}-{multi}'])

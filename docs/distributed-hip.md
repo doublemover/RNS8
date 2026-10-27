@@ -1,4 +1,4 @@
-# Experimental modulus-sharded HIP execution
+# Experimental distributed HIP execution
 
 `src/core/distributed_hip.hpp` implements one exact product across explicitly
 selected runtime devices. It extends the [shared plan and CPU mock](distributed-mock.md)
@@ -161,10 +161,38 @@ No collector or timing campaign has been launched for this source pass.
 
 Native Linux gfx942 2/4/8-device tests, native Windows supported transport tests,
 real failed-drain fault injection, topology/NUMA/counter traces and the existing
-1.55x 8192-square Linux release gate remain external qualification. M/N/K splits,
-RCCL, multi-process/multi-node and device-initiated transport remain explicitly
-separate experiments, as scoped by issue #50's M3 milestone.
+1.55x 8192-square Linux release gate remain external qualification. RCCL,
+multi-process/multi-node and device-initiated transport remain separately gated
+M3 transport experiments; issue #50 does not require them before a correct M1.
 
 The runtime sequencing follows AMD's versioned
 [HIP multi-device reference](https://rocm.docs.amd.com/projects/HIP/en/docs-7.1.1/how-to/hip_runtime_api/multi_device.html).
 API documentation does not establish performance or execution on another target.
+
+## M/N, 2-D output and K-fragment source paths
+
+The real owner consumes the same explicit axes as the CPU plan. Output-region
+axes reuse its existing replicated native snapshots, bounded packing slots,
+peer/pinned transfer ordering and final complete CRT owner. A tile region owns
+its whole active basis. The2-D option is block-cyclic output ownership with
+replicated inputs; it is not a panel-broadcast implementation.
+
+K-fragment packing reads only the descriptor's nonempty `[k_begin,k_end)` interval.
+Each shard runs the maintained65536-term centered INT8/INT32 slab primitive.
+All fragment bytes have separate retained storage and unique owner gather spans.
+After every expected transfer has been enqueued on the ordered owner stream, a
+separate kernel sums at most64 centered bytes per cell in INT32, reduces modulo
+the actual channel, and writes the complete residue matrix before CRT. It never
+uses ordinary byte allreduce or a small final bound to justify partial sums.
+
+The80-byte device tile record freezes partial offsets and counts alongside the
+range proof. Host/device resources, pending flags and retryable cleanup include
+the entire partial gather. Existing cancellation, missing-coverage, failed-drain
+and retained-reader rules still apply. Authored CPU/Boost and HIP fixtures cover
+all axes, odd tiles, adaptive zero-prefix regions and cancellation across huge
+partial integers; execution remains deferred for this new source.
+
+The calibrator accepts the explicit version2 case fields `axis`, `k_fragments`,
+`rank_grid_rows` and `rank_grid_cols`. The compact catalogue contains single-device
+and two-device staged controls. Capture validation checks actual axis/count,
+all fragment work and partial-gather bytes. These cases have not been executed.

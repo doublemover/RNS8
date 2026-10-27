@@ -82,12 +82,12 @@ constexpr int rns8_default_moduli_host[kRns8DefaultModulusCount] = {
 
 extern "C" int rns8_hip_distributed_pack(const uint64_t* native_a, const uint64_t* native_b,
     int8_t* a, int8_t* b, uint64_t row, uint64_t col, uint64_t rows, uint64_t cols,
-    uint64_t k, uint64_t lda, uint64_t ldb, bool signed_value, uint32_t modulus, void* stream) {
+    uint64_t k, uint64_t lda, uint64_t ldb, bool signed_value, uint32_t modulus,uint64_t k_begin, void* stream) {
   const uint64_t blocks = ((rows + cols) * k + 255) / 256;
   hipLaunchKernelGGL(rns8_distributed_pack_kernel, dim3(unsigned(blocks > 4096 ? 4096 : blocks)),
       dim3(256), 0, static_cast<hipStream_t>(stream), native_a, native_b, a, b,
       row, col, rows, cols, k, lda, ldb, signed_value,
-      rns8::detail::finite_u8::native64_reducer(modulus));
+      rns8::detail::finite_u8::native64_reducer(modulus),k_begin);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_distributed_export(const int8_t* residues, uint64_t* output,
@@ -97,6 +97,13 @@ extern "C" int rns8_hip_distributed_export(const int8_t* residues, uint64_t* out
   hipLaunchKernelGGL(rns8_distributed_export_kernel, dim3((uint64_t(elements) + 255) / 256),
       dim3(256), 0, static_cast<hipStream_t>(stream), residues, output, elements, cols,
       tile_rows, tile_cols, tiles, signed_value, bounded, status);
+  return int(hipGetLastError());
+}
+extern "C" int rns8_hip_distributed_reduce_partials(const int8_t* partials,int8_t* output,
+    const rns8::detail::distributed::DeviceTile* tiles,uint64_t rows,uint64_t cols,uint32_t tile_count,uint32_t prefix,void* stream) {
+  if(!partials || !output || !tiles || !rows || !cols || !tile_count || !prefix || prefix>20)return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_distributed_reduce_partials_kernel,dim3(tile_count,prefix),dim3(256),0,
+      static_cast<hipStream_t>(stream),partials,output,tiles,rows,cols);
   return int(hipGetLastError());
 }
 extern "C" int rns8_hip_distributed_materialize(const uint64_t* limbs, int8_t* residues,

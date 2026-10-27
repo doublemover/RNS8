@@ -122,7 +122,7 @@ class MockExecution {
       for (uint64_t row = 0; row < tile.rows; ++row)
         for (uint64_t col = 0; col < tile.cols; ++col) {
           uint32_t sum = 0;
-          for (uint64_t k = 0; k < r.k; ++k) {
+          for (uint64_t k = work.k_begin; k < work.k_end; ++k) {
             const auto a = native_residue(inputs_->lhs()[(tile.row + row) * r.lda + k], plan_->signed_value(), work.modulus);
             const auto b = native_residue(inputs_->rhs()[k * r.ldb + tile.col + col], plan_->signed_value(), work.modulus);
             sum = (sum + a * b) % work.modulus; // <=255^2+255; independent of K
@@ -171,8 +171,8 @@ class MockExecution {
     const auto& tile = plan_->tiles()[work.tile];
     for (uint64_t row = 0; row < tile.rows; ++row)
       for (uint64_t col = 0; col < tile.cols; ++col)
-        gather_[(work.logical_plane * r.m + tile.row + row) * r.n + tile.col + col] =
-            source[row * tile.cols + col];
+        {auto& destination=gather_[(work.logical_plane * r.m + tile.row + row) * r.n + tile.col + col];
+          destination=plan_->request().axis==Axis::contraction?uint8_t((uint32_t(destination)+source[row*tile.cols+col])%work.modulus):source[row*tile.cols+col];}
     // A staging slot is reusable only after its destination copy completed.
     if (staged) staging_owner_ = UINT64_MAX;
     slots_[id].phase = Phase::transfer_complete; return {};
@@ -279,6 +279,7 @@ class MockExecution {
   }
   ExecutionReport report() const {
     ExecutionReport report;
+    if(plan_ && plan_->request().axis!=Axis::modulus)report.execution_kind="cpu_mock_explicit_axes";
     report.state = state_; report.epoch = epoch_; report.operation = plan_ ? plan_->request().operation : 0;
     report.expected = plan_ ? plan_->work().size() : 0;
     report.outcome = outcome_; report.deadline_ns = deadline_ns_;
@@ -367,6 +368,8 @@ inline std::string report_json(const MockExecution& execution) {
       << ",\"layout_sha256\":" << json_string(r.layout_sha256)
       << ",\"plan_identity\":" << json_string(plan.identity())
       << ",\"semantics\":" << unsigned(r.semantics)
+      << ",\"distribution_axis\":" << unsigned(r.axis) << ",\"k_fragments\":" << plan.k_fragments()
+      << ",\"rank_grid_rows\":" << r.rank_grid_rows << ",\"rank_grid_cols\":" << r.rank_grid_cols
       << ",\"basis\":\"rns8_default_ordered_v1\",\"residue_encoding\":\"canonical_u8\",\"prefix\":" << r.prefix
       << ",\"expected\":" << report.expected << ",\"local_complete\":" << report.local_complete
       << ",\"transfer_complete\":" << report.transfer_complete << ",\"destination_visible\":" << report.visible
@@ -398,6 +401,7 @@ inline std::string report_json(const MockExecution& execution) {
         << ",\"logical_plane\":" << work.logical_plane << ",\"modulus\":" << work.modulus
         << ",\"k_begin\":" << work.k_begin << ",\"k_end\":" << work.k_end
         << ",\"byte_offset\":" << work.byte_offset << ",\"bytes\":" << work.bytes
+        << ",\"gather_offset\":" << work.gather_offset
         << ",\"transport\":" << json_string(work.transport == Transport::local ? "local" :
             work.transport == Transport::peer ? "peer" : "pinned_host") << '}';
   }
