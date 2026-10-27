@@ -110,3 +110,44 @@ rns8_status hip_direct_gram_export_once(int device_id,const void* residues,void*
   (void)device_id;return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_gram_five_transform(const int8_t*,int8_t*,int8_t*,GramFivePacket,int);
+extern "C" int rns8_hip_gram_five_finish(const int8_t*,const int8_t*,int8_t*,GramFivePacket);
+#endif
+rns8_status hip_direct_gram_five_product(int device,const void* source,void* output,const GramFiveResources& r,
+    void* scratch,uint64_t bytes,bool matrix,bool& commit_started) {
+  commit_started=false;
+  if(r.status!=RNS8_SUCCESS)return r.status;
+  const auto& packet=r.packet;
+  const uint64_t source_bytes=uint64_t(packet.rows)*packet.ld*packet.prefix;
+  if(!source || !output || !scratch || bytes<r.total ||
+      !nonoverlapping_byte_ranges(source,source_bytes,output,r.output) ||
+      !nonoverlapping_byte_ranges(source,source_bytes,scratch,r.total) ||
+      !nonoverlapping_byte_ranges(output,r.output,scratch,r.total))return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  auto status=set_hip_device(device);if(status!=RNS8_SUCCESS)return status;
+  if(matrix && !amdgpu_builtins_compiled())return RNS8_UNSUPPORTED_BACKEND;
+  const auto& p=r.packet;auto* left=static_cast<int8_t*>(scratch);auto* right=left+r.panel;
+  auto* products=left+r.products_offset;auto* stage=left+r.output_offset;
+  for(int term=0;term<5;++term) {
+    const auto transform=timed_hip_operation("gram_five_skew_transform",[&]() {
+      const auto issued=static_cast<hipError_t>(rns8_hip_gram_five_transform(static_cast<const int8_t*>(source),left,right,p,term));
+      const auto drained=hipDeviceSynchronize();return issued==hipSuccess?drained:issued;
+    });
+    if(transform!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    auto* destination=products+uint64_t(term)*r.product;
+    status=matrix?(p.prefix==1?amdgpu_builtins_gemm_finite_u8_device(device,left,right,destination,p.h,p.h,p.hk,p.hk,p.h,p.h,p.moduli[0]):
+        amdgpu_builtins_gemm_rns_device(device,left,right,destination,p.h,p.h,p.hk,p.hk,p.h,p.h,p.prefix)):
+        hip_direct_basis_gemm(device,left,right,destination,p.h,p.h,p.hk,p.moduli,p.prefix);
+    if(status!=RNS8_SUCCESS)return status;
+  }
+  const auto finish=timed_hip_operation("gram_five_recombine_and_classical_channels",[&]() {
+    const auto issued=static_cast<hipError_t>(rns8_hip_gram_five_finish(static_cast<const int8_t*>(source),products,stage,p));
+    const auto drained=hipDeviceSynchronize();return issued==hipSuccess?drained:issued;
+  });
+  if(finish!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  commit_started=true;return hip_direct_copy_device_to_device(device,output,stage,r.output);
+#else
+  (void)device;(void)matrix;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}

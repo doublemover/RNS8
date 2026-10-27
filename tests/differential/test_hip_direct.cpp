@@ -97,6 +97,7 @@ TEST_CASE("public ragged owner extends compact tiles before a HIP GEMM consumer"
 }
 
 #include "../support/gram_fixture.hpp"
+#include "../support/gram_five_fixture.hpp"
 TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
   if (!hip_available()) SKIP("no HIP device for Gram");
   check_public_gram(RNS8_BACKEND_HIP_DIRECT);
@@ -128,6 +129,16 @@ TEST_CASE("direct HIP ragged producer binds retained multi-output recipe consume
 TEST_CASE("direct HIP Gram native, transpose and independent reconstruction ablations") {
   if(!hip_available()){SKIP("HIP direct unavailable");}
   check_gram_prepared_ablations(RNS8_BACKEND_HIP_DIRECT);
+}
+TEST_CASE("direct HIP five-product Gram preserves prime and composite channels") {
+  if(!hip_available())SKIP("no HIP device for five-product Gram");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,false);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+TEST_CASE("matrix five-product Gram executes qualified builtin subproducts") {
+  if(!hip_available() || !rns8::detail::amdgpu_builtins_compiled())SKIP("requires actual compiled AMDGPU matrix provider");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,true);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
 }
 
 TEST_CASE("experimental direct-HIP ordered bases match Boost products and conversion") {

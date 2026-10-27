@@ -81,8 +81,33 @@ execution without GPU allocation, stale generations, refresh, retained lifetimes
 and rejection of an expanded proof envelope. Compilation and execution remain pending.
 Hardware compilation, regression execution, ISA inspection and measured sustained
 profitability remain deferred. No source result qualifies a target or speedup.
-The prime-channel five-product experiment remains separately gated on classical
-hardware qualification; it is not enabled for the composite/even default basis.
+The prime-channel five-product experiment is implemented through
+`rns8_prepare_gram_five_product`, followed by the ordinary prepared Gram execute,
+refresh, info and destroy calls. It executes one level of
+[Algorithm2](https://arxiv.org/pdf/2001.04109v4). Each eligible prime channel has
+a checked block-diagonal matrix Y with Y*transpose(Y)=-I. Half-K panels are
+zero-padded to an even dimension so the actual two-column Y blocks are valid
+even for odd logical K. Transforms recenter every intermediate before INT8
+products. Original-input range proofs still govern the complete integer output.
+
+Five block products and their explicit recombination execute on the CPU or
+direct HIP; composite channels use the original classical triangular product.
+No prime-field identity is applied to those channels. Matrix subproducts require
+the actual compiled AMDGPU provider, its target/K admission and either the
+default RNS basis or finite modulus251. An unavailable matrix provider rejects
+without a scalar substitution. The owner retains one transformed operand pair,
+five product buffers and a whole-output stage under its hard payload budget.
+The info record reports each region and algebraic/classical channel counts.
+Replays allocate no algebraic payload; changed inputs require ordinary generation
+refresh. Publication, undrainable failure and cleanup use the existing Gram
+owner rules. Native/transpose input adapters, reconstruction-once export and
+async capture are not implicitly attached to this new explicit recipe.
+
+Independent CPU/Boost fixtures cover every admitted prime, skew certificates,
+both orientations, padded inputs, odd dimensions and original full-width values.
+HIP fixtures cover mixed prime/composite bases, real matrix subproducts, K-slab
+tails, retained lifetimes, budgets and stale-generation rejection. Host and
+gfx1100 HIP syntax checks pass; execution and performance gates remain deferred.
 
 ## Independent prepared input and output ablations
 

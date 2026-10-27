@@ -1,4 +1,5 @@
 #include "core/gram_contract.hpp"
+#include "backend_common/gram_five_product.hpp"
 #include <mutex>
 #include <cstring>
 using namespace rns8::detail;
@@ -12,6 +13,7 @@ struct rns8_prepared_gram {
   rns8_gram_input_policy input_policy=RNS8_GRAM_RESIDENT_RESIDUES;uint32_t export_limbs=0;
   int export_status=0;
   bool separate_mirror=false,wmma=false,jobs_ready=false,adapter_ready=false,active=false,commit_started=false,quarantined=false;
+  bool five_product=false,five_matrix=false;GramFiveResources five_resources;std::vector<int8_t> five_host;
   mutable std::mutex mutex;
 };
 namespace {
@@ -87,6 +89,26 @@ rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rns8_matrix
 rns8_status rns8_prepare_gram_ex(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,rns8_gram_orientation orientation,rns8_gram_method method,rns8_gram_input_policy policy,uint32_t limbs,uint64_t budget,rns8_prepared_gram** out){
   return guard_api([&]{return prepare_gram_impl(ctx,x,c,orientation,method,policy,limbs,budget,out);});
 }
+rns8_status rns8_prepare_gram_five_product(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
+    rns8_gram_orientation orientation,uint32_t matrix,uint64_t budget,rns8_prepared_gram** out) {
+  return guard_api([&]() -> rns8_status {
+    if(!out)return RNS8_INVALID_ARGUMENT;*out=nullptr;if(matrix>1)return RNS8_INVALID_ARGUMENT;
+    auto owner=std::make_unique<rns8_prepared_gram>();
+    auto status=validate_gram_contract(ctx,x,c,orientation,RNS8_GRAM_SCALAR,owner->problem,owner->bound);
+    if(status!=RNS8_SUCCESS)return status;
+    const bool hip=x->backend==RNS8_BACKEND_HIP_DIRECT;
+    if(matrix && !amdgpu_builtins_compiled())return RNS8_UNSUPPORTED_BACKEND;
+    owner->five_resources=query_gram_five_product(owner->problem,kDefaultModuli,budget,hip,matrix!=0);
+    if(owner->five_resources.status!=RNS8_SUCCESS)return owner->five_resources.status;
+    if(ctx->prepared_references==UINT64_MAX || x->prepared_references==UINT64_MAX || c->prepared_references==UINT64_MAX || c->content_generation==UINT64_MAX)return RNS8_RANGE_ERROR;
+    owner->ctx=ctx;owner->x=x;owner->c=c;owner->five_product=true;owner->five_matrix=matrix!=0;
+    owner->owned_bytes=owner->five_resources.total;
+    if(hip){status=hip_direct_allocate(ctx->device_id,size_t(owner->owned_bytes),&owner->device_jobs);if(status!=RNS8_SUCCESS)return status;
+      owner->device_total_bytes=owner->owned_bytes;}
+    else {owner->five_host.resize(size_t(owner->owned_bytes));if(owner->five_host.capacity()>budget)return RNS8_WORKSPACE_TOO_SMALL;owner->owned_bytes=owner->five_host.capacity();}
+    ++ctx->prepared_references;++x->prepared_references;++c->prepared_references;*out=owner.release();return RNS8_SUCCESS;
+  });
+}
 rns8_status rns8_refresh_prepared_gram(rns8_prepared_gram* owner){
   return guard_api([&]() -> rns8_status{
     if(!owner)return RNS8_INVALID_ARGUMENT;std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
@@ -116,7 +138,14 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner){
     }
     const bool native=owner->input_policy==RNS8_GRAM_RETAINED_NATIVE_I64;
     if(native)source=hip?x->hip_native_i64:x->native_i64.data();
-    if(hip){status=hip_direct_gram_prepared_device(owner->ctx->device_id,source,c->hip_residues,p,owner->jobs.data(),owner->device_jobs,owner->device_job_bytes,owner->wmma,owner->jobs_ready,owner->commit_started,native,owner->separate_mirror);if(status!=RNS8_SUCCESS)return status;mark_output_device_residues_current(*c);}
+    if(owner->five_product) {
+      if(hip){status=hip_direct_gram_five_product(owner->ctx->device_id,source,c->hip_residues,owner->five_resources,
+          owner->device_jobs,owner->device_total_bytes,owner->five_matrix,owner->commit_started);if(status!=RNS8_SUCCESS)return status;mark_output_device_residues_current(*c);}
+      else {gram_five_product_cpu(static_cast<const int8_t*>(source),owner->five_host.data(),owner->five_resources);
+        owner->commit_started=true;std::copy_n(owner->five_host.data()+owner->five_resources.output_offset,
+            size_t(owner->five_resources.output),c->residues.data());mark_output_host_residues_current(*c);}
+    }
+    else if(hip){status=hip_direct_gram_prepared_device(owner->ctx->device_id,source,c->hip_residues,p,owner->jobs.data(),owner->device_jobs,owner->device_job_bytes,owner->wmma,owner->jobs_ready,owner->commit_started,native,owner->separate_mirror);if(status!=RNS8_SUCCESS)return status;mark_output_device_residues_current(*c);}
     else {owner->commit_started=true;if(native){const int64_t n=c->desc.rows,k=p.orientation==GramOrientation::transpose_times_self?p.rows:p.cols;const auto* values=static_cast<const int64_t*>(source);
         for(auto tile:owner->jobs)for(unsigned r=0;r<16;++r)for(unsigned t=0;t<16;++t){const int64_t row=int64_t(tile.row)*16+r,col=int64_t(tile.col)*16+t;if(row>=n || col>=n || row>col)continue;
           cpp_int sum=0;for(int64_t q=0;q<k;++q){const auto at=[&](int64_t index){return p.orientation==GramOrientation::transpose_times_self?q*p.source_ld+index:index*p.source_ld+q;};sum+=cpp_int(values[at(row)])*values[at(col)];}
@@ -125,7 +154,7 @@ rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner){
       if(native && owner->separate_mirror)for(uint32_t plane=0;plane<p.prefix;++plane)for(int64_t row=0;row<c->desc.rows;++row)for(int64_t col=0;col<row;++col)
         c->residues[(int64_t(plane)*c->desc.rows+row)*c->desc.cols+col]=c->residues[(int64_t(plane)*c->desc.rows+col)*c->desc.cols+row];
       mark_output_host_residues_current(*c);}
-    c->finite_modulus=owner->problem.modulus;c->exact_axis_ranges.rows.clear();c->exact_axis_ranges.cols.clear();
+    c->finite_modulus=uint16_t(owner->problem.modulus);c->exact_axis_ranges.rows.clear();c->exact_axis_ranges.cols.clear();
     if(!uses_finite_storage(c->desc.semantics)){c->materialized_rns_prefix=c->prefix;c->exact_max_magnitude.swap(bound);c->exact_range_prefix=c->prefix;}
     owner->output_generation=c->content_generation;reservation.finish();return RNS8_SUCCESS;
   });
@@ -161,10 +190,13 @@ rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,rns8_pre
   return guard_api([&]() -> rns8_status{
     if(!owner || !info || !valid_abi(info->struct_size,info->abi_version,sizeof(*info)))return RNS8_INVALID_ARGUMENT;
     std::unique_lock<std::mutex> lock(owner->mutex,std::try_to_lock);if(!lock.owns_lock())return RNS8_BUSY;
-    *info={};info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;info->input_policy=owner->input_policy;info->method=uint32_t(owner->wmma)+2*uint32_t(owner->separate_mirror);info->export_limbs=owner->export_limbs;
+    *info={};info->struct_size=sizeof(*info);info->abi_version=RNS8_ABI_VERSION;info->input_policy=owner->input_policy;info->method=owner->five_product?4+uint32_t(owner->five_matrix):uint32_t(owner->wmma)+2*uint32_t(owner->separate_mirror);info->export_limbs=owner->export_limbs;
     info->source_instance=owner->problem.source_instance;info->source_generation=owner->problem.source_generation;info->output_generation=owner->output_generation;
     info->host_job_bytes=owner->jobs.capacity()*sizeof(GramTile);info->device_job_bytes=owner->device_job_bytes;info->orientation_adapter_bytes=owner->adapter_bytes;
     info->host_export_bytes=owner->host_export.capacity()*8;info->device_export_bytes=owner->device_export?owner->export_bytes+4:0;info->owned_payload_bytes=owner->owned_bytes;
+    if(owner->five_product){const auto& r=owner->five_resources;info->algebraic_product_count=5;
+      for(uint32_t p=0;p<r.packet.prefix;++p)if(r.packet.certified[p])++info->algebraic_prime_planes;else ++info->classical_planes;
+      info->algebraic_operand_bytes=2*r.panel;info->algebraic_product_bytes=5*r.product;info->algebraic_staging_bytes=r.output;}
     const uint64_t n=owner->c->desc.rows;info->dense_cells=n*n;info->independent_cells=n*(n+1)/2;return RNS8_SUCCESS;
   });
 }

@@ -1063,6 +1063,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_cpu_amx.cpp
     tests/unit/test_cpu_i8mm.cpp
     tests/unit/test_rank48.cpp
+    tests/unit/test_gram_five.cpp
     tests/unit/test_residue_dot.cpp
     tests/unit/test_residue_epilogue.cpp
     tests/unit/test_exact_lift_workspace.cpp

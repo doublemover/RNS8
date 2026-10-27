@@ -22,6 +22,7 @@
 #include "../backend_common/group_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
 #include "../backend_common/rank48_program.hpp"
+#include "../backend_common/gram_five_product.hpp"
 #include "../backend_common/rank23_program.hpp"
 #include "../backend_common/rank23_slp.hpp"
 #include "../backend_common/rank23_october55.hpp"
@@ -506,6 +507,7 @@ extern "C" int rns8_hip_finite_indexed_window(const int8_t* a,const int8_t* b,in
 #include "hip_direct_wrap_mfma.cuh"
 
 #include "hip_direct_gram.cuh"
+#include "hip_direct_gram_five.cuh"
 
 #include "hip_direct_fixed_conversion.cuh"
 

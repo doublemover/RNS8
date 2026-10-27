@@ -24,6 +24,7 @@ typedef struct rns8_workspace rns8_workspace;
 typedef struct rns8_prepack_cache rns8_prepack_cache;
 typedef struct rns8_result_cache rns8_result_cache;
 typedef struct rns8_prepared_execution rns8_prepared_execution;
+typedef struct rns8_prepared_gram rns8_prepared_gram;
 typedef struct rns8_prepared_group rns8_prepared_group;
 typedef struct rns8_resident_graph rns8_resident_graph;
 typedef struct rns8_native_device_lease rns8_native_device_lease;
@@ -1269,6 +1270,15 @@ typedef enum rns8_gram_method {
 RNS8_API rns8_status rns8_gram_residues(rns8_context* ctx,const rns8_matrix* source,
     rns8_matrix* output,rns8_gram_orientation orientation,rns8_gram_method method,
     uint64_t max_workspace_bytes);
+/* One-level five-product Gram experiment on certified prime channels;
+ * composite channels execute classical triangular products. Retains the whole
+ * original basis and original-input range proof. matrix_subproducts=0 selects
+ * CPU/direct-HIP scalar products;1 requires an actual compiled GPU matrix
+ * provider (default RNS basis or finite251), with no scalar substitution.
+ * The returned ordinary prepared Gram owner supports execute/refresh/destroy.
+ * Budget covers retained operand/product panels and whole-output staging. */
+RNS8_API rns8_status rns8_prepare_gram_five_product(rns8_context*,const rns8_matrix*,rns8_matrix*,
+    rns8_gram_orientation,uint32_t matrix_subproducts,uint64_t max_workspace_bytes,rns8_prepared_gram**);
 
 /* Requested allocation capacities, excluding allocator metadata and proof objects.
  * Current bytes are subsets of payload capacity; staging never denotes a value.
@@ -1984,7 +1994,6 @@ typedef struct rns8_product_recipe rns8_product_recipe;
  * first execution uploads jobs and probes WMMA; subsequent calls reuse them.
  * X is generation-bound. Explicit refresh admits only the original range envelope
  * and finite modulus. C is fixed and must remain a distinct compatible matrix. */
-typedef struct rns8_prepared_gram rns8_prepared_gram;
 RNS8_API rns8_status rns8_prepare_gram(rns8_context* ctx,const rns8_matrix* x,rns8_matrix* c,
     rns8_gram_orientation orientation,rns8_gram_method method,uint64_t max_job_bytes,
     rns8_prepared_gram** out);
@@ -2014,6 +2023,10 @@ typedef struct rns8_prepared_gram_info {
   uint64_t host_job_bytes,device_job_bytes,orientation_adapter_bytes;
   uint64_t host_export_bytes,device_export_bytes,owned_payload_bytes;
   uint64_t independent_cells,dense_cells;
+  /* method4/5 identify prepared five-product direct/matrix execution. These
+   * additional retained payloads are included in owned_payload_bytes. */
+  uint32_t algebraic_product_count,algebraic_prime_planes,classical_planes,reserved;
+  uint64_t algebraic_operand_bytes,algebraic_product_bytes,algebraic_staging_bytes;
 } rns8_prepared_gram_info;
 RNS8_API rns8_status rns8_get_prepared_gram_info(const rns8_prepared_gram* owner,rns8_prepared_gram_info* info);
 RNS8_API rns8_status rns8_execute_prepared_gram(rns8_prepared_gram* owner);
