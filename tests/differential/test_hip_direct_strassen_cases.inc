@@ -5,10 +5,11 @@ TEST_CASE(
   using boost::multiprecision::cpp_int;
   if (!hip_available())
     SKIP("no HIP device for Strassen");
-  for (int route : {0,1,2,3}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
-    for (int k : {1, 2, 3, 17, route==3?262145:route ? 196609 : 131073}) {
+  for (int route : {0,1,2,3,4,5}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
+    for (int k : {1, 2, 3, 17, route>=3?262145:route ? 196609 : 131073}) {
       const bool rank23 = route==1 || route==2;
-      const auto multiply = route==3?hip_direct_gemm_rank48_device:route == 2 ? hip_direct_gemm_rank23_slp_device :
+      const auto multiply = route==5?hip_direct_gemm_rank48_slp_recompute_device:route==4?hip_direct_gemm_rank48_slp_device:
+                            route==3?hip_direct_gemm_rank48_device:route == 2 ? hip_direct_gemm_rank23_slp_device :
                             rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
       // The 3x3 case exercises individual rank-23 output blocks, including
       // skipped zero-coefficient contributions and a padded K block.

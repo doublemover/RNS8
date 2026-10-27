@@ -45,9 +45,9 @@ class CatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "cases"
             report = materialize(output)
-            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2109, 25, 38))
+            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2125, 25, 38))
             files = sorted(output.rglob("*.json"))
-            self.assertEqual(len(files), 2109)
+            self.assertEqual(len(files), 2125)
             before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
             materialize(output)
             self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files})

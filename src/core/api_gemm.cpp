@@ -1635,7 +1635,8 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
     struct LeaseGuard {rns8_context& ctx;size_t token;bool& written;bool active=true;
       ~LeaseGuard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} lease{*ctx,lease_token,commit_started};
-    const auto multiply=algorithm==5?hip_direct_gemm_rank48_device:algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
+    const auto multiply=algorithm==6?(selected.recompute?hip_direct_gemm_rank48_slp_recompute_device:hip_direct_gemm_rank48_slp_device):
+        algorithm==5?hip_direct_gemm_rank48_device:algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
         algorithm==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:
         algorithm==RNS8_BILINEAR_RANK23_SLP?hip_direct_gemm_rank23_slp_device:
         algorithm==RNS8_BILINEAR_RANK23_OCTOBER55?hip_direct_gemm_rank23_oct55_device:hip_direct_gemm_rank23_oct55_recompute_device;

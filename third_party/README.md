@@ -119,8 +119,10 @@ tests/examples; neither the core library nor ordinary consumers depend on it.
 The header adapter rejects unsupported version/format/ownership contracts.
 
 `third_party/rank48/` retains three unmodified sparse rational coefficient
-matrices from [PLinOpt](https://github.com/jgdumas/plinopt) revision
+matrices and their canonical arithmetic SLP artifacts from [PLinOpt](https://github.com/jgdumas/plinopt) revision
 `7c2006504a67caf3071ed4bd34ed772f6ed1a1a6`, their CeCILL-B license and
 SHA256/Git-blob provenance. The first-party importer independently checks the
 4096 rational tensor equations before emitting a compact twice-coefficient
-table. Only mathematical matrices are consumed; no upstream code is executed.
+table. The SLP importer additionally proves each linear map and the204-operation
+schedule before emitting live-slot tables. Licensed SLP text is parsed through a
+restricted arithmetic grammar; it is never evaluated as general upstream code.

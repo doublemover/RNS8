@@ -13,7 +13,7 @@ class BilinearCollection(unittest.TestCase):
         sample=dict(prepare_us=1,execute_us=2,export_us=3,cleanup_us=0,total_us=6)
         c=dict(schema='rns8_bilinear_microcase_v1',case=case,run_id=entry['run_id'],dataset='period15_native_small_v1',selected_prefix=3,algorithm='october55-retained',subproduct_backend='direct',matrix_family_override='not_applicable',subproduct_launch_schedule='serial',
             required_bilinear_scratch_bytes=scratch,resident_residue_payload_bytes=residue,ordinary_workspace_bytes=0,known_peak_device_payload_bytes=residue+scratch+17*19*24,host_payload_envelope_bytes=host,
-            memory_scope='logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead',transform_binary_nodes=55,input_transform_evaluations_per_cell=1,
+            memory_scope='logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead',transform_binary_nodes=55,transform_halving_nodes=0,input_transform_evaluations_per_cell=1,
             output_boundary='complete_public_product_and_padded_three_limb_export',host_instrumentation_state='hooks_disabled',diagnostic_events=[],setup_us=1,first_call=sample,samples=[copy.deepcopy(sample) for _ in range(3)],
             sustained=[dict(calls=16,total_us=250000,per_call_us=15625) for _ in range(3)],exact_reference_passed=True,all_residue_planes_audited=True,residue_audit_scope='post_timing_public_product',oracle_inside_production_interval=False,promotion_eligible=False,native_useful_products=17*19*31)
         synthetic_identity(c);return c,entry
@@ -38,6 +38,17 @@ class BilinearCollection(unittest.TestCase):
         self.assertEqual(scratch,3*(5*9+9*5+5*5+17*19))
         self.assertEqual(validate_case(c),c)
         c['max_scratch_bytes']=scratch-1
+        with self.assertRaises(ValueError):validate_case(c)
+
+    def test_rank48_slp_prices_all_products_and_recomputed_transforms(self):
+        c=self.case();c.update(mode='rank48-slp-retained',m=17,n=19,k=33)
+        retained=resources(c)[0]
+        self.assertEqual(retained,3*(48*(5*9+9*5+5*5)+17*19))
+        c['mode']='rank48-slp-recompute';recomputed=resources(c)[0]
+        self.assertEqual(recomputed,3*(5*9+9*5+48*5*5+17*19))
+        self.assertLess(recomputed,retained)
+        c['max_scratch_bytes']=recomputed;self.assertEqual(validate_case(c),c)
+        c['max_scratch_bytes']-=1
         with self.assertRaises(ValueError):validate_case(c)
 
     def test_diagnostics_never_enter_latency_medians(self):

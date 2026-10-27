@@ -10,7 +10,7 @@ from collect_native_calibration import strict_json, DEFAULT_MODULI
 from build_manifest import manifest_provenance_complete
 from benchmark_sweep_lib.execution import run_command
 
-MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic')
+MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic','rank48-slp-retained','rank48-slp-recompute')
 
 
 def resources(c):
@@ -18,10 +18,11 @@ def resources(c):
     residue=p*(m*k+k*n+m*n)
     host=8*(m*(k+1)+k*(n+2)+m*n)+24*m*(n+3)+residue+p*m*n
     if mode=='classical':return 0,residue,host
-    blocks=2 if mode=='strassen' else 4 if mode=='rank48-dyadic' else 3;hm,hn,hk=((x+blocks-1)//blocks for x in (m,n,k))
+    blocks=2 if mode=='strassen' else 4 if mode.startswith('rank48') else 3;hm,hn,hk=((x+blocks-1)//blocks for x in (m,n,k))
     a,b,product=hm*hk*p,hk*hn*p,hm*hn*p
-    retained=mode in ('september-slp','october55-retained')
-    scratch=(23 if retained else 1)*(a+b)+(23 if mode in ('september-slp','october55-retained','october55-recompute') else 1)*product+p*m*n
+    retained=mode in ('september-slp','october55-retained','rank48-slp-retained')
+    products=48 if mode.startswith('rank48-slp') else 23 if mode in ('september-slp','october55-retained','october55-recompute') else 1
+    scratch=(products if retained else 1)*(a+b)+products*product+p*m*n
     return scratch,residue,host
 
 
@@ -33,7 +34,7 @@ def validate_case(c):
     if type(c['unsigned_inputs']) is not bool or type(c['instrumented']) is not bool or c['mode'] not in MODES or c['subproduct_backend'] not in ('direct','matrix') or c['residency'] not in ('cold','resident','repack'):raise ValueError('route')
     if c['subproduct_backend']=='direct' and c['matrix_variant']:raise ValueError('matrix variant on direct route')
     if math.prod(DEFAULT_MODULI[:c['prefix']])<=c['k']*49*(1 if c['unsigned_inputs'] else 2):raise ValueError('strict CRT capacity')
-    blocks=1 if c['mode']=='classical' else 2 if c['mode']=='strassen' else 4 if c['mode']=='rank48-dyadic' else 3
+    blocks=1 if c['mode']=='classical' else 2 if c['mode']=='strassen' else 4 if c['mode'].startswith('rank48') else 3
     if c['subproduct_backend']=='matrix' and (c['k']+blocks-1)//blocks>65536:raise ValueError('matrix K cap')
     scratch,_,host=resources(c)
     if scratch>c['max_scratch_bytes'] or host>c['max_host_bytes']:raise ValueError('declared payload budget')
@@ -49,16 +50,17 @@ def validate_capture(c,entry):
     expected=dict(schema='rns8_bilinear_microcase_v1',case=case,run_id=entry['run_id'],dataset='period15_native_small_v1',
         selected_prefix=case['prefix'],algorithm=mode,subproduct_backend=case['subproduct_backend'],
         matrix_family_override=('auto','cdna3_16x16x32_or_target_wmma','cdna3_32x32x16_or_target_wmma')[case['matrix_variant']] if case['subproduct_backend']=='matrix' else 'not_applicable',
-        subproduct_launch_schedule='batched23' if case['subproduct_backend']=='matrix' and mode in ('september-slp','october55-retained') else 'serial',
+        subproduct_launch_schedule='batched48' if case['subproduct_backend']=='matrix' and mode=='rank48-slp-retained' else 'batched23' if case['subproduct_backend']=='matrix' and mode in ('september-slp','october55-retained') else 'serial',
         required_bilinear_scratch_bytes=scratch,resident_residue_payload_bytes=residue,host_payload_envelope_bytes=host,
         memory_scope='logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead',
-        transform_binary_nodes=56 if mode=='september-slp' else 55 if mode.startswith('october55') else 0,
-        input_transform_evaluations_per_cell=48 if mode=='rank48-dyadic' else 23 if mode=='october55-recompute' else 1,
+        transform_binary_nodes=200 if mode.startswith('rank48-slp') else 56 if mode=='september-slp' else 55 if mode.startswith('october55') else 0,
+        transform_halving_nodes=4 if mode.startswith('rank48-slp') else 0,
+        input_transform_evaluations_per_cell=48 if mode in ('rank48-dyadic','rank48-slp-recompute') else 23 if mode=='october55-recompute' else 1,
         output_boundary='complete_public_product_and_padded_three_limb_export',host_instrumentation_state='diagnostic_hooks_enabled' if diagnostic else 'hooks_disabled',
         exact_reference_passed=True,all_residue_planes_audited=True,residue_audit_scope='post_timing_public_product',oracle_inside_production_interval=False,promotion_eligible=False,native_useful_products=case['m']*case['n']*case['k'])
     for key,value in expected.items():
         if type(c.get(key)) is not type(value) or c[key]!=value:raise ValueError('capture '+key)
-    if mode=='rank48-dyadic' and c.get('dyadic_channel_policy')!='odd_rank48_even_classical':raise ValueError('rank48 complete-basis channel policy')
+    if mode.startswith('rank48') and c.get('dyadic_channel_policy')!='odd_rank48_even_classical':raise ValueError('rank48 complete-basis channel policy')
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id'):raise ValueError('compiled/process provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact binding')

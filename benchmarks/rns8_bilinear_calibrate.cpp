@@ -27,10 +27,10 @@ int main(int argc,char** argv){try{
   const uint64_t budget=number(c,"max_scratch_bytes",1,UINT64_C(1)<<40),host_budget=number(c,"max_host_bytes",1,UINT64_C(1)<<40);
   const uint32_t matrix_variant=number(c,"matrix_variant",0,2);
   const bool u=c.at("unsigned_inputs"),instrumented=c.at("instrumented");const std::string mode=c.at("mode"),backend=c.at("subproduct_backend"),residency=c.at("residency");
-  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute","rank48-dyadic"};
+  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute","rank48-dyadic","rank48-slp-retained","rank48-slp-recompute"};
   const auto found=std::find(modes.begin(),modes.end(),mode);if(found==modes.end() || (backend!="direct" && backend!="matrix") || (residency!="cold" && residency!="resident" && residency!="repack"))throw std::invalid_argument("route");
   const int algorithm=int(found-modes.begin())-1;const bool matrix=backend=="matrix";if(!matrix && matrix_variant)throw std::invalid_argument("matrix variant on direct route");
-  const auto method=static_cast<rns8_bilinear_method>(algorithm==5?10+int(matrix):algorithm+(matrix?5:0));
+  const auto method=static_cast<rns8_bilinear_method>(algorithm>=6?12+2*(algorithm-6)+int(matrix):algorithm==5?10+int(matrix):algorithm+(matrix?5:0));
   cpp_int capacity=1;for(uint32_t p=0;p<prefix;++p)capacity*=rns8_default_modulus(p);
   if(capacity<=uint64_t(k)*49*(u?1:2))throw std::invalid_argument("strict CRT capacity");
   BilinearResources resources{};
@@ -77,10 +77,10 @@ int main(int argc,char** argv){try{
   for(uint32_t p=0;p<prefix;++p)for(size_t cell=0;cell<size_t(m)*n;++cell){const int modulus=rns8_default_modulus(p);int64_t expected=reference[cell]%modulus;if(expected<0)expected+=modulus;if(expected>=(modulus+1)/2)expected-=modulus;if(residues[size_t(p)*m*n+cell]!=expected)throw std::runtime_error("all-plane residue audit mismatch");}
   checked(owner->close());const uint64_t export_stage=uint64_t(m)*n*24,known_peak=residue_payload+ordinary_workspace+resources.total_bytes+export_stage;
   std::cout<<json({{"schema","rns8_bilinear_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
-    {"dataset","period15_native_small_v1"},{"selected_prefix",prefix},{"algorithm",mode},{"subproduct_backend",backend},{"matrix_family_override",matrix?(matrix_variant==0?"auto":matrix_variant==1?"cdna3_16x16x32_or_target_wmma":"cdna3_32x32x16_or_target_wmma"):"not_applicable"},{"subproduct_launch_schedule",matrix && (algorithm==2 || algorithm==3)?"batched23":"serial"},{"ordinary_plan_kernel",plan_kernel},
+    {"dataset","period15_native_small_v1"},{"selected_prefix",prefix},{"algorithm",mode},{"subproduct_backend",backend},{"matrix_family_override",matrix?(matrix_variant==0?"auto":matrix_variant==1?"cdna3_16x16x32_or_target_wmma":"cdna3_32x32x16_or_target_wmma"):"not_applicable"},{"subproduct_launch_schedule",matrix && algorithm==6?"batched48":matrix && (algorithm==2 || algorithm==3)?"batched23":"serial"},{"ordinary_plan_kernel",plan_kernel},
     {"required_bilinear_scratch_bytes",resources.total_bytes},{"resident_residue_payload_bytes",residue_payload},{"ordinary_workspace_bytes",ordinary_workspace},{"known_peak_device_payload_bytes",known_peak},{"host_payload_envelope_bytes",host_payload},
-    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm==2?56:algorithm==3 || algorithm==4?55:0},{"input_transform_evaluations_per_cell",algorithm==5?48:algorithm==4?23:1},
-    {"dyadic_channel_policy",algorithm==5?"odd_rank48_even_classical":"not_applicable"},
+    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm>=6?200:algorithm==2?56:algorithm==3 || algorithm==4?55:0},{"transform_halving_nodes",algorithm>=6?4:0},{"input_transform_evaluations_per_cell",algorithm==5 || algorithm==7?48:algorithm==4?23:1},
+    {"dyadic_channel_policy",algorithm>=5?"odd_rank48_even_classical":"not_applicable"},
     {"output_boundary","complete_public_product_and_padded_three_limb_export"},{"host_instrumentation_state",instrumented?"diagnostic_hooks_enabled":"hooks_disabled"},{"diagnostic_events",events},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
     {"exact_reference_passed",true},{"all_residue_planes_audited",true},{"residue_audit_scope","post_timing_public_product"},{"oracle_inside_production_interval",false},{"promotion_eligible",false},{"native_useful_products",uint64_t(m)*n*k}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

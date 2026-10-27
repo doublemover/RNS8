@@ -52,8 +52,28 @@ work succeeds. Existing retained-workspace, budget, address, lifetime and failed
 commit rules apply. Matrix subproducts keep their own K cap and target probe.
 The collector accepts `rank48-dyadic` and charges four-block padding, all 48
 transform evaluations, even-channel work, reconstruction and final output.
-This coefficient implementation does not claim the paper's204-operation SLP
-count. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
+The coefficient implementation remains a separate control. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
 full-width/tail fixtures pass the [October27 implementation validation](../metadata/implementation-closeout-20261027.json), including
 actual direct and matrix subproducts on gfx1100. Broader-target execution and
 measured routing remain deferred; no default route changes.
+
+## Canonical rank48 straight-line execution
+
+Methods12/13 execute the pinned canonical PLinOpt programs with direct/matrix
+subproducts; methods14/15 recompute their input transforms per product to reduce
+global operand storage. The strict importer accepts only named arithmetic,
+addition/subtraction, negation and division by two. It symbolically expands all
+three maps with rational arithmetic and compares them to the independently
+tensor-checked coefficients. The source program has200 binary additions or
+subtractions and four halvings. Generated live-slot schedules and their hashes
+bind the actual evaluation order; all local values are reduced to centered bytes
+at every node. Halving is multiplication by the actual odd modulus's inverse
+of two. Even planes execute their original classical product into the common
+private output stage before publication.
+
+Retained mode holds48 transformed A/B pairs and products. Recompute mode holds
+one pair and48 products; its repeated transforms are counted in captures.
+Both reserve their full output stage, original integer range proof and explicit
+payload budget. The204-operation count describes the canonical logical program;
+recomputation and modular reduction add actual work. New CPU and HIP fixtures and
+collector controls are implemented; their consolidated execution is pending.
