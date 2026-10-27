@@ -19,5 +19,17 @@ class Fp8Models(unittest.TestCase):
             self.assertTrue(verify(wrong)['proof_failures'])
             wrong_format=replace(c,instruction=replace(c.instruction,floating=replace(c.instruction.floating,element_format='ocp_e4m3')))
             self.assertTrue(verify(wrong_format)['proof_failures'])
+    def test_three_product_formats_and_corrupted_weight(self):
+        for format, name in ((1,'amd_e4m3_fnuz'),(2,'ocp_e4m3')):
+            for value in range(-16,17):
+                self.assertEqual(decode_element(name,encode(value,format==2)),Fraction(value))
+            for method in (0,1,2,3):
+                c=certificate(256,'synthetic-compiler','a'*64,format=format,method=method)
+                self.assertEqual(verify(c)['proof_failures'],[])
+                self.assertEqual(len(c.planes),3 if method>=2 else 4)
+                wrong=replace(c,planes=(replace(c.planes[0],weight=c.planes[0].weight+1),)+c.planes[1:])
+                self.assertTrue(verify(wrong)['proof_failures'])
+        for value in (17,-17,1.5):
+            with self.assertRaises(ValueError):encode(value)
 
 if __name__=='__main__':unittest.main()

@@ -5755,8 +5755,9 @@
         }
       ],
       "anchors": [
-        "explicit-gfx942-fp8-modular-research",
-        "matched-capture-source"
+        "explicit-fp8-modular-research",
+        "matched-capture-source",
+        "rdna4-and-three-product-source-extension"
       ]
     },
     {

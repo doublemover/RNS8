@@ -68,6 +68,17 @@ class ResearchCapture(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_case(bad)
 
+    def test_ocp_three_product_accounting_and_format_binding(self):
+        c, entry=self.fixture(True)
+        entry['case']['mode']='fp8-ocp-three-materialized'
+        c.update(target='gfx1201',format='ocp_e4m3',method_actual=3,
+                 retained_recipe_device_bytes=4+12*17*19)
+        self.assertEqual(validate_capture(c,entry),c)
+        for key,value in (('format','amd_e4m3_fnuz'),('target','gfx942'),
+                          ('method_actual',1),('retained_recipe_device_bytes',4+16*17*19)):
+            bad=copy.deepcopy(c);bad[key]=value
+            with self.assertRaises(ValueError):validate_capture(bad,entry)
+
 
 if __name__ == '__main__':
     unittest.main()

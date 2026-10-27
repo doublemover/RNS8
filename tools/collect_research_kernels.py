@@ -28,7 +28,7 @@ def validate_case(c):
     if c['m']*c['n']*c['k'] > 134217728:
         raise ValueError('complete oracle work budget')
     if fp8:
-        if c['mode'] not in ('int8', 'fp8', 'fp8-materialized') or c['residency'] not in ('cold', 'repeated-ab', 'repeated-b'):
+        if c['mode'] not in ('int8', 'fp8', 'fp8-materialized', 'fp8-three', 'fp8-three-materialized', 'fp8-ocp', 'fp8-ocp-materialized', 'fp8-ocp-three', 'fp8-ocp-three-materialized') or c['residency'] not in ('cold', 'repeated-ab', 'repeated-b'):
             raise ValueError('FP8 mode/residency')
     elif c['mode'] not in ('ordinary', 'tdm', 'multicast2', 'multicast4') or c['group'] not in (1, 2, 4) or type(c['signed_input']) is not bool:
         raise ValueError('TDM mode/group/domain')
@@ -60,15 +60,17 @@ def validate_capture(c, entry):
         raise ValueError('setup/sample count')
     if fp8:
         candidate = case['mode'] != 'int8'
-        _equal(c, dict(format='amd_e4m3_fnuz' if candidate else 'signed_int8', conditional_instruction_model=candidate,
-                       method_actual=1 if case['mode'] == 'fp8-materialized' else 0, retained_recipe_device_bytes=(4+(16*case['m']*case['n'] if case['mode'] == 'fp8-materialized' else 0)) if candidate else 0, dataset='affine_finite_bytes_v1',
+        ocp = 'ocp' in case['mode']; three = 'three' in case['mode']; materialized = 'materialized' in case['mode']
+        method = 2*int(three)+int(materialized)
+        _equal(c, dict(format=('ocp_e4m3' if ocp else 'amd_e4m3_fnuz') if candidate else 'signed_int8', conditional_instruction_model=candidate,
+                       method_actual=method, retained_recipe_device_bytes=(4+((12 if three else 16)*case['m']*case['n'] if materialized else 0)) if candidate else 0, dataset='affine_finite_bytes_v1',
                        host_instrumentation_state='hooks_disabled', native_useful_products=case['m']*case['n']*case['k'],
                        output_boundary='complete_public_finite_product_and_padded_export', backend_actual='hip-direct'))
         for key in ('a_checksum', 'b_checksum', 'output_checksum'):
             if re.fullmatch('[0-9a-f]{64}', c.get(key, '')) is None:
                 raise ValueError('complete data checksum')
-        if candidate and (c['target'].split(':')[0] != 'gfx942' or re.fullmatch('[0-9a-f]{64}', c.get('certificate_sha256', '')) is None):
-            raise ValueError('specific FNUZ target/model identity')
+        if candidate and (c['target'].split(':')[0] != ('gfx1201' if ocp else 'gfx942') or re.fullmatch('[0-9a-f]{64}', c.get('certificate_sha256', '')) is None):
+            raise ValueError('specific FP8 target/format/model identity')
         for sample in [c.get('first_call', {}), *c['samples']]:
             phases = [sample.get(k) for k in ('prepare_us', 'execute_us', 'export_us', 'cleanup_us')]
             if not all(positive(v, True) for v in phases) or not positive(sample.get('total_us')) or not math.isclose(sum(phases), sample['total_us'], rel_tol=1e-7, abs_tol=1e-6):

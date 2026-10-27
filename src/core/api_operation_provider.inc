@@ -37,7 +37,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t output_domain=query.operation==RNS8_OP_MULTI_DEVICE?5:(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):((query.operation==RNS8_OP_QUARTER_CRT || checked_export)?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_FP8?1:checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?11:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
+  const uint32_t max_algorithm=query.operation==RNS8_OP_FP8?7:checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?11:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   if((query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT) && query.output_limbs)
@@ -157,7 +157,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
           "bind private HipExecution to explicit Plan/Inputs, selected identities, transport and all rank budgets; one-context query cannot price or admit it");
     case RNS8_OP_FP8:
       if(!hip || !finite)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SEMANTICS,"semantics","explicit FP8 research owner accepts direct-HIP finite rings only");
-      if(arch!="gfx942")return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"target","FP8 research implementation requires gfx942 E4M3 FNUZ; no OCP format substitution");
+      if(arch!=(query.algorithm<4?"gfx942":"gfx1201"))return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"target","FP8 research format binds gfx942 FNUZ or gfx1201 OCP explicitly; formats are not interchangeable");
       out.safe_k=65536;break;
     default:return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"operation","unknown operation");
   }
@@ -247,7 +247,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   if(query.operation==RNS8_OP_NATIVE_INTEGRITY){scratch=4;out.required_host_bytes=4;out.required_pinned_host_bytes=4;out.safe_k=1;}
   if(query.operation==RNS8_OP_FP8){scratch=4;out.safe_k=65536;
     const uint64_t cells=uint64_t(d.m)*uint64_t(d.n);
-    if(query.algorithm){if(cells>(uint64_t(PTRDIFF_MAX)-4)/16)out.resource_status=2;else scratch+=cells*16;}
+    if(query.algorithm&1){const uint64_t per_cell=(query.algorithm%4>=2?12:16);if(cells>(uint64_t(PTRDIFF_MAX)-4)/per_cell)out.resource_status=2;else scratch+=cells*per_cell;}
     out.setup_bytes_lower_bound=scratch;}
   if(query.operation==RNS8_OP_INT4){out.safe_k=65536;out.setup_bytes_lower_bound=4;
     if(query.algorithm){const uint64_t blocks=(uint64_t(d.k)+15)/16;

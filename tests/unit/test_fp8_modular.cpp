@@ -18,6 +18,22 @@ TEST_CASE("FNUZ balanced digits preserve every signed byte and finite ring", "[f
   CHECK(f::algebra());CHECK(uint64_t(f::safe_k)*64<(uint64_t{1}<<24));
   CHECK(f::identity("gfx942","a")!=f::identity("gfx942","b"));
 }
+TEST_CASE("three FP8 products and RDNA4 fragments preserve exact byte arithmetic", "[fp8][cpu]") {
+  namespace f=rns8::detail::fp8_modular;
+  CHECK(f::Rdna4Layout::bijective());CHECK(f::three_algebra());
+  for(bool ocp:{false,true})for(int x=-128;x<=127;++x)for(unsigned term=0;term<3;++term){
+    const int digit=f::component(x,term,true);CHECK(f::decode(f::encode(digit,ocp),ocp)==digit);
+  }
+  for(int x=-128;x<=127;++x)for(int y=-128;y<=127;++y){
+    int sum=0;for(unsigned term=0;term<3;++term)sum+=f::component(x,term,true)*f::component(y,term,true)*f::weight(term,true);
+    REQUIRE(sum==x*y);
+  }
+  CHECK(f::encode(1,true)==0x38);CHECK(f::encode(15,true)==0x57);
+  CHECK(f::identity("gfx1201","a",2,2)!=f::identity("gfx942","a",1,2));
+  CHECK(f::identity("gfx942","a",1,0)!=f::identity("gfx942","a",1,2));
+  int result=123;CHECK(f::integer_partial(14745600.0f,result,f::partial_bound(1,true)));
+  CHECK_FALSE(f::integer_partial(14745601.0f,result,f::partial_bound(1,true)));
+}
 #include <limits>
 TEST_CASE("FP8 publication guard rejects nonfinite fractional and out-of-model partials") {
   int result=123;

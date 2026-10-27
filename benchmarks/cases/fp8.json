@@ -23,7 +23,25 @@
         ["16x16x65537-int8.json", "b1aa9eab79854945224b4ef90c3a3f86eecdff806e85b463122d80d0ac15e0f8", 16, 16, 65537, "int8"],
         ["17x19x33-fp8-materialized.json", "3004c88741460dee98fb35f6d01cb0c4e5f24fad309c3074ee27e980619cdd1f", 17, 19, 33, "fp8-materialized"],
         ["17x19x33-fp8.json", "8600e1f287d9bdcde1ef8c1d71fb3f9f5e026bfe758a9e12a7ff5230dbf64be2", 17, 19, 33, "fp8"],
-        ["17x19x33-int8.json", "5dbafcb8f33c2f37720b0b7551a0220d4148ddc8e2abc93d78fbd7e178b6c474", 17, 19, 33, "int8"]
+        ["17x19x33-int8.json", "5dbafcb8f33c2f37720b0b7551a0220d4148ddc8e2abc93d78fbd7e178b6c474", 17, 19, 33, "int8"],
+        ["17x19x33-fp8-three.json", "35127defd887d7f8de5176a155bd6e96ed7db6b3cc8b2d7d2f9c1cb6e49efdcf", 17, 19, 33, "fp8-three"],
+        ["17x19x33-fp8-three-materialized.json", "7936d77e4ac6f91d805b24f56de47e56e7032ec7f6d4d12d0c078518d4a81c32", 17, 19, 33, "fp8-three-materialized"],
+        ["17x19x33-fp8-ocp.json", "5bc387fd4d6bab3f0aef45d002ed9e3317de38a1c4d8119c84f1f1889b20c30c", 17, 19, 33, "fp8-ocp"],
+        ["17x19x33-fp8-ocp-materialized.json", "4f32cceb83cd192ae6728160a8dcd351a3e946434205dc88015508b99b355c63", 17, 19, 33, "fp8-ocp-materialized"],
+        ["17x19x33-fp8-ocp-three.json", "590cd76dc38419dabef9c048f6cb5404637036bf0786bab3a3468cfc99f5404d", 17, 19, 33, "fp8-ocp-three"],
+        ["17x19x33-fp8-ocp-three-materialized.json", "b2dab4c91619a40fb651fc5d3095b149138e53f79a32b823297e83d06b765219", 17, 19, 33, "fp8-ocp-three-materialized"],
+        ["16x16x65537-fp8-three.json", "b268bd2f839024455e5a51d9a8fd4161817a2dd9cd371b82b6c381b17d53557e", 16, 16, 65537, "fp8-three"],
+        ["16x16x65537-fp8-three-materialized.json", "a670a31d4f6d2f951effce11580af82ac3617e80c0e94ab3046d88243a3a63c9", 16, 16, 65537, "fp8-three-materialized"],
+        ["16x16x65537-fp8-ocp.json", "b547dd9f76e2901c20d2d31ba3944299259749a559a154c3b7527eac8dec862f", 16, 16, 65537, "fp8-ocp"],
+        ["16x16x65537-fp8-ocp-materialized.json", "58395e0fa4370a55045b47afc13b648a910ae001422aaf49b3502a63de775e77", 16, 16, 65537, "fp8-ocp-materialized"],
+        ["16x16x65537-fp8-ocp-three.json", "02eb1ddf77dabf1b4ff6519f3530cff503a40d82c13144d722f4fcd61427580a", 16, 16, 65537, "fp8-ocp-three"],
+        ["16x16x65537-fp8-ocp-three-materialized.json", "5db839dd2998bd4a7c964147a9b1483972adcd8394a90c449a60180d4171dd57", 16, 16, 65537, "fp8-ocp-three-materialized"],
+        ["128x128x4096-fp8-three.json", "49ff64aae8d7e28f730e76142c552b645252229abd063de1e54169e1c0f4f2ed", 128, 128, 4096, "fp8-three"],
+        ["128x128x4096-fp8-three-materialized.json", "81c1a7dc667860a1d177e52f146fa4294a373b83a8a2875633215ec790c33d19", 128, 128, 4096, "fp8-three-materialized"],
+        ["128x128x4096-fp8-ocp.json", "a4d52be1289ed437f666d2bf4fca19851b4b4c0430d7eff64334b21cc6cd9884", 128, 128, 4096, "fp8-ocp"],
+        ["128x128x4096-fp8-ocp-materialized.json", "089ed22e114a4497f7276f084886ca148a1eaddbec5cb82b41448a3fca69230f", 128, 128, 4096, "fp8-ocp-materialized"],
+        ["128x128x4096-fp8-ocp-three.json", "bf3d2746560988f48c99209fb82248b56b1e24ab3b824a3e2b4658d5773917da", 128, 128, 4096, "fp8-ocp-three"],
+        ["128x128x4096-fp8-ocp-three-materialized.json", "05c13262f15b2eb1eb7548e3252eb5d167ae27e630ff7776914b8a4b770705d0", 128, 128, 4096, "fp8-ocp-three-materialized"]
       ]
     }
   ]

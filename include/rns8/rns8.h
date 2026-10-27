@@ -829,6 +829,8 @@ typedef struct rns8_operation_query {
    * 2 September SLP,3 October55 retained,4 October55 recompute; add 5 for
    * explicit matrix-engine subproducts; checked CRT policy + 5*output mode.
    * Other families require zero. */
+  /* FP8 algorithm = method + 4*(format-1); methods 0/1 four-product
+   * fused/materialized,2/3 three-product fused/materialized. */
   uint32_t algorithm,orientation,source_prefix;
   /* Domain 0 infers the concrete family's default; 1 centered RNS,
    * 2 finite byte,3 wrap byte limbs,4 native64,5 integer limbs. */
@@ -954,18 +956,19 @@ RNS8_API rns8_status rns8_get_int4_info(const rns8_int4_recipe*,rns8_int4_info*)
 RNS8_API rns8_status rns8_gemm_int4(rns8_int4_recipe*,const rns8_matrix* a,rns8_matrix* c,rns8_workspace*);
 RNS8_API rns8_status rns8_destroy_int4_recipe(rns8_int4_recipe*);
 
-/* Explicit research finite-ring FP8 owner. Only gfx942 E4M3 FNUZ is
+/* Explicit research finite-ring FP8 owner. Named gfx942 FNUZ and gfx1201 OCP are
  * implemented. Four exact balanced-radix16 products cover every signed byte;
  * no default exact API selects it. The caller must explicitly acknowledge
  * the named instruction model; that acknowledgement is not qualification.
  * Preparation probes the actual code object, not its numerical behavior.
  * Failed undrainable preparation may return a cleanup-only owner. */
 #define RNS8_FP8_GFX942_E4M3_FNUZ 1u
+#define RNS8_FP8_GFX1201_E4M3_OCP 2u
 #define RNS8_FP8_ASSUME_NAMED_INSTRUCTION_MODEL 1u
 typedef struct rns8_fp8_recipe rns8_fp8_recipe;
 typedef struct rns8_fp8_desc {
   uint64_t struct_size;
-  uint32_t abi_version,format,flags,method; /* fused0; materialized product-residue planes1 */
+  uint32_t abi_version,format,flags,method; /* 0/1 four-product fused/materialized; 2/3 three-product fused/materialized */
   uint64_t max_preparation_bytes;
 } rns8_fp8_desc;
 typedef struct rns8_fp8_info {
