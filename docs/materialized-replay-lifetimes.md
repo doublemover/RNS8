@@ -41,8 +41,10 @@ Each graph's constant values have independent exact closed-form references;
 shape, signed constants and dataset identity must match frozen prices. Recipe
 cases may also supply `replay_policy` using the public cost terms. Measured
 training and publication charges cannot disappear behind smaller overrides.
-Held-out checks compare execution plus final export against the same predicted
-boundary, with declared common overhead identified as modeled. Independent
+Held-out checks compare resident recipe execution, including its final resident
+publication copy, against the same priced boundary. Host CRT export is timed
+separately and included in whole-call comparisons. Declared common overhead is
+identified as modeled. Independent
 process checks remain scoped to the same graph, dataset and build; neighboring
 shapes or datasets require their own calibration and held-out observations.
 

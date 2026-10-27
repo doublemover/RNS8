@@ -164,17 +164,19 @@ def held_out_report(bundle,observations,relative_tolerance):
         demand(len(nodes)+1,p);add((len(nodes)-1,'publish',0,0,p))
         overhead=policy['orchestration_ns']+max(0,policy['publication_ns']-costs[(len(nodes)-1,'publish',0,0,p)]['cost_ns'])
         lower+=overhead;upper+=overhead
-        measured_ns=statistics.mean((s['execute_lift_us']+s['final_export_us'])*1000 for s in c['samples'])
+        # "publish" prices the final resident D2D copy, already inside execute.
+        # Host CRT export has no cell in this price schema and stays separate.
+        measured_ns=statistics.mean(s['execute_lift_us']*1000 for s in c['samples'])
         rows.append(dict(execution_id=c['execution_id'],predicted_lower_ns=lower,predicted_upper_ns=upper,measured_mean_ns=measured_ns,
             within_tolerance=lower*(1-relative_tolerance)<=measured_ns<=upper*(1+relative_tolerance)))
     cohorts={json.dumps({**{k:c[k] for k in ('case','build_manifest','target','device','runtime_version','selected_compute_prefixes')},
         'materialization_plan':{k:v for k,v in c['materialization_plan'].items() if k not in ('completed_packing_calls','completed_replays','reused_external_packing_calls')}},sort_keys=True) for _,c in observations}
     if len(cohorts)!=1:raise ValueError('held-out prediction cohort changed')
-    measured=independent_run_interval([[(s['execute_lift_us']+s['final_export_us'])*1000 for s in c['samples']] for _,c in observations],max(c['nominal_clock_tick_ns'] for _,c in observations))
+    measured=independent_run_interval([[s['execute_lift_us']*1000 for s in c['samples']] for _,c in observations],max(c['nominal_clock_tick_ns'] for _,c in observations))
     lower,upper=rows[0]['predicted_lower_ns'],rows[0]['predicted_upper_ns']
     interval_passed=measured['lower_ns']>=lower*(1-relative_tolerance) and measured['upper_ns']<=upper*(1+relative_tolerance)
     return dict(schema='rns8_product_stage_held_out_v1',relative_tolerance=relative_tolerance,cases=rows,measured_process_interval=measured,
-        held_out_passed=interval_passed and all(row['within_tolerance'] for row in rows),scope='independent_processes_same_graph_dataset_and_build',prediction_boundary='producer_execution_plus_final_export',common_cost_scope='declared_orchestration_and_publication_override_are_modeled',promotion_eligible=False)
+        held_out_passed=interval_passed and all(row['within_tolerance'] for row in rows),scope='independent_processes_same_graph_dataset_and_build',prediction_boundary='resident_recipe_execution_including_publication',separate_boundary='final_host_crt_export',common_cost_scope='declared_orchestration_and_publication_override_are_modeled',promotion_eligible=False)
 
 
 def main():

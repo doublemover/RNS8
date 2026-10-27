@@ -45,8 +45,13 @@ post-restart comparisons that pass that timing gate:
 | Costed recipe vs scalar-first control: signed 256³, three-product chain, P20 host output | 1.646298 → **1.625372 ms** | **1.013×** | **0.061932 useful integer TOPS** |
 
 The three-product graph fixtures use signed all-one inputs and one final checked
-P20 host export. The costed 128³ plan still fails the fixed 25% held-out interval
-gate; 256³ passes in both original and post-restart cohorts. Held-out means
+P20 host export. The costed 128³ resident-recipe model still fails the fixed 25% held-out
+interval gate; the 256³ resident model passes in both original and post-restart
+cohorts. The priced publication stage is a resident GPU copy; host CRT export is
+timed separately and remains included in complete-call speedup comparisons.
+[Boundary review](../metadata/resident-model-boundary-review-20261027.json)
+reproduces the archived resident-model outcomes without new GPU observations or
+a changed tolerance. Held-out means
 independent processes on the same graph/dataset/build, not unseen workloads.
 In the idle cohort the training charges are 2.693 s and 4.070 s; median-based
 setup/training break-even projections are 144,672 and 194,549 replays. These are

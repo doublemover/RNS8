@@ -91,7 +91,7 @@ class ProductStageContracts(unittest.TestCase):
         capture.update(stage_price_identity=price_identity(bundle),stage_price_training_charge_ns=bundle['training_charge_ns'],stage_price_graph_identity=identity,selected_compute_prefixes=[20]*3,recipe_retained_lift_bytes=0,
             cost_model=dict(kind='measured-stage-prices-unqualified',cost_schema_version=3,price_sha256=price_identity(bundle),qualified=False),
             materialization_plan=dict(packed_b=[0,0,0],packed_values=[],evaluated=4,exhaustive=False,chain_dynamic_programming=True,cost_optimal=False,estimated_ns=350,completed_packing_calls=0))
-        phase=dict(producer_us=1.,execute_lift_us=.30,final_export_us=.05,total_us=1.35)
+        phase=dict(producer_us=1.,execute_lift_us=.35,final_export_us=3.,total_us=4.35)
         capture.update(first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)])
         from test_collect_lift_recipe import replay_receipt
         replay_receipt(capture,50)
@@ -131,8 +131,21 @@ class ProductStageContracts(unittest.TestCase):
         bad=copy.deepcopy(observations);bad[0][1]['stage_price_identity']='e'*64
         with self.assertRaises(ValueError):held_out_report(bundle,bad,.1)
         bad=copy.deepcopy(observations)
-        for sample in bad[0][1]['samples']:sample.update(execute_lift_us=100.,total_us=101.05)
+        for sample in bad[0][1]['samples']:sample.update(execute_lift_us=100.,total_us=104.)
         self.assertFalse(held_out_report(bundle,bad,.1)['held_out_passed'])
+
+    @patch('collect_lift_recipe.manifest_provenance_complete',return_value=True)
+    def test_resident_prediction_keeps_unpriced_host_export_separate(self,_manifest):
+        bundle,observations=self.held_out_fixture()
+        original=held_out_report(bundle,observations,.1)
+        self.assertEqual(original['prediction_boundary'],'resident_recipe_execution_including_publication')
+        self.assertEqual(original['separate_boundary'],'final_host_crt_export')
+        for _,capture in observations:
+            for sample in capture['samples']:
+                sample.update(final_export_us=3000.,total_us=3001.35)
+        changed=held_out_report(bundle,observations,.1)
+        self.assertTrue(changed['held_out_passed'])
+        self.assertEqual(original['measured_process_interval'],changed['measured_process_interval'])
 
 
 if __name__=='__main__':unittest.main()

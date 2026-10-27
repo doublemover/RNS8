@@ -132,5 +132,17 @@
     "Constant-input calibration and declared lifetime models do not qualify unseen graph/dataset prediction or observed amortization.",
     "Broader hardware, real-device fault recovery and profitable measured routing remain separate acceptance gates."
   ],
-  "evidence_manifest": "metadata/replay-extension-archive-20261027.json"
+  "evidence_manifest": "metadata/replay-extension-archive-20261027.json",
+  "validated_source_scope": "Compiled CPU/HIP implementations; the subsequent Python-only resident-model boundary correction is identified separately below.",
+  "resident_model_boundary_review": {
+    "report": "metadata/resident-model-boundary-review-20261027.json",
+    "prediction_boundary": "resident_recipe_execution_including_publication",
+    "separate_boundary": "final_host_crt_export",
+    "new_regression_suite_tests": 7,
+    "failed": 0,
+    "source_sha256": {
+      "tools/collect_product_stages.py": "6f22ddb72fc5958ddf7489373e3fb1ef6a3149929e8dbbaaca4a045b2bb18906",
+      "tools/test_collect_product_stages.py": "6aa14717bf5659416653884194da7f335ab1621e55d7d905724216e47d2822e0"
+    }
+  }
 }
