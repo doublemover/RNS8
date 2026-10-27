@@ -143,9 +143,9 @@ the mock requires `exact_reference` storage for its independent integer oracle.
 Source readiness remains separate from native Linux/Windows execution,
 topology, failure, traffic and scaling evidence.
 
-Stable public C-ABI integration, RCCL, M/N/K distributions and multi-process or
-multi-node execution are separately scoped follow-ons to the private M1/M2
-modulus owner. No hardware, installation or promotion follows from this mock.
+Stable public C-ABI integration remains separately scoped. Private real HIP
+M/N/K distributions and the [process/network owner](distributed-process.md)
+implement the subsequent source paths; the mock does not qualify their hardware. No hardware, installation or promotion follows from this mock.
 
 ## Explicit output and contraction axes
 

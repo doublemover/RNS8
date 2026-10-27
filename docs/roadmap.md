@@ -16,14 +16,19 @@ consumers and compile-only instruction evidence. No new performance campaign ran
 
 | Issue | Implemented extension | Remaining qualification |
 |---|---|---|
-| #32 | Prepared ordered-basis native transfers and exact basis conversion/lift | Broader targets, measured complete-pipeline basis/form selection |
-| #43 | Individually bound library/builtins streams and explicit caller graphs | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
-| #45 | gfx942 FNUZ/gfx1201 OCP four/three-product FP8 recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
-| #48 | Certified one-level rank48 coefficient execution with classical even channels | Large-shape strongest-control performance/memory gates |
-| #50 | Modulus, M/N, 2-D output and exact K-fragment HIP partitioning | Actual multi-GPU transport/failure/scaling qualification |
+| #32 | Ordered-basis transfers/lift, library and distributed providers, opt-in costed basis selection | Broader targets, measured complete-pipeline basis/form selection |
+| #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs and bounded in-flight pools | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
+| #45 | gfx942/gfx1201 FP8 and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
+| #48 | Coefficient control plus canonical 200-addition/four-halving rank48 SLP, retained/recomputed matrix/direct forms | Large-shape strongest-control performance/memory gates |
+| #50 | All partition axes plus explicit MPI/RCCL/rocSHMEM process transports and exact membership epochs | Actual multi-GPU transport/failure/scaling qualification |
 | #54 | Optional isolated Linux AArch64 I8MM owner beside AMX | Actual supported CPU/OS execution and end-to-end measurements |
 | #63 | Prime-channel five-product Gram with composite-channel preservation | Broader targets and measured preparation/reuse/export benefit |
 | #67 | Optional installed DLPack1.2 adapter and standalone HIP consumer | Native Linux, real failed drains and matched interoperability timing |
+
+The subsequent source extension adds the remaining library-basis, async pool,
+canonical rank48 SLP, scaled sub-byte and process-transport code. Its fixtures
+have received syntax/compile checks only so far; the older receipt above does
+not validate this newer source. Consolidated validation is pending.
 
 The [replay extension receipt](../metadata/replay-extension-validation-20261027.json)
 separately records lifetime cost models, external packed-B reuse, bound recipes,
@@ -147,7 +152,8 @@ Broader compiler/ABI/package/runner checks and native Linux command/session
 rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
 uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
-pending. M3 distributed transports remain a separately gated extension. There are 40 open issues;
+pending. M3 distributed transports are implemented as explicit optional source
+paths, with physical cluster/memory-ordering/failure qualification pending. There are 40 open issues;
 child acceptance gates remain the roadmap's retirement criterion.
 
 ## Stop conditions for hardware work

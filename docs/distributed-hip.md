@@ -6,7 +6,9 @@ with real allocations, streams, events, source replication, per-modulus GEMM,
 peer or pinned-host transfers, owner-device CRT and publication. It is a private
 experimental C++ owner, not a stable public C ABI or a qualified production route.
 The source is written for native Windows HIP and Linux ROCm; their runtime and
-hardware qualification remain separate. No RCCL dependency is introduced.
+hardware qualification remain separate. This single-process owner has no RCCL
+dependency; the optional [process owner](distributed-process.md) supplies MPI,
+RCCL and device-initiated transports under separate explicit build flags.
 The ordinary operation inventory now reports that source/compiled availability,
 but returns an explicit topology/binding rejection: a single-context query lacks
 the selected-rank transport and complete budgets needed to admit this owner.
@@ -162,9 +164,10 @@ No collector or timing campaign has been launched for this source pass.
 
 Native Linux gfx942 2/4/8-device tests, native Windows supported transport tests,
 real failed-drain fault injection, topology/NUMA/counter traces and the existing
-1.55x 8192-square Linux release gate remain external qualification. RCCL,
-multi-process/multi-node and device-initiated transport remain separately gated
-M3 transport experiments; issue #50 does not require them before a correct M1.
+1.55x 8192-square Linux release gate remain external qualification. The
+[process/network source extension](distributed-process.md) implements separately
+admitted M3 MPI, RCCL and device-initiated transports; its physical execution
+and failure/memory-ordering qualification remain open.
 
 The runtime sequencing follows AMD's versioned
 [HIP multi-device reference](https://rocm.docs.amd.com/projects/HIP/en/docs-7.1.1/how-to/hip_runtime_api/multi_device.html).

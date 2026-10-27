@@ -402,8 +402,7 @@ inline std::string report_json(const MockExecution& execution) {
         << ",\"k_begin\":" << work.k_begin << ",\"k_end\":" << work.k_end
         << ",\"byte_offset\":" << work.byte_offset << ",\"bytes\":" << work.bytes
         << ",\"gather_offset\":" << work.gather_offset
-        << ",\"transport\":" << json_string(work.transport == Transport::local ? "local" :
-            work.transport == Transport::peer ? "peer" : "pinned_host") << '}';
+        << ",\"transport\":" << json_string(transport_label(work.transport)) << '}';
   }
   out << "],\"ranks\":[";
   for (uint32_t rank = 0; rank < r.ranks.size(); ++rank) {

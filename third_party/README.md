@@ -126,3 +126,24 @@ SHA256/Git-blob provenance. The first-party importer independently checks the
 table. The SLP importer additionally proves each linear map and the204-operation
 schedule before emitting live-slot tables. Licensed SLP text is parsed through a
 restricted arithmetic grammar; it is never evaluated as general upstream code.
+
+
+## Optional process transport dependencies
+
+`RNS8_ENABLE_DISTRIBUTED_MPI` requires an actual MPI3+ C++ development package and
+HIP kernels. `RNS8_ENABLE_RCCL` additionally requires a native Linux RCCL library
+with linked nonblocking init/progress/abort and grouped P2P APIs.
+`RNS8_ENABLE_ROCSHMEM` requires native Linux rocSHMEM headers/library and a
+HIP compiler capable of device-linking its RDC symbols. These flags default OFF;
+ordinary exact arithmetic has no MPI/RCCL/rocSHMEM requirement. Header/library
+content hashes and MPI version join the build manifest; installed optional
+packages must satisfy the same dependency contract.
+
+No upstream transport source or binary is vendored. The small first-party
+rocSHMEM shared helper links the selected installed library and exposes one
+runtime/arena instance, preventing unrelated static runtime contexts. Its
+explicit collective initialization and symmetric allocation require an external
+bounded job runner. See the [process transport contract](../docs/distributed-process.md)
+for build flags, arena leases, unknown opaque headroom and the authored runner.
+Native Windows rejects RCCL/rocSHMEM enablement; source checks against upstream
+headers are not installed-library or native Linux GPU qualification.

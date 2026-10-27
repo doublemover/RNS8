@@ -41,6 +41,7 @@ set(RNS8_SOURCES
   src/core/api_resident_graph.cpp
   src/core/runtime_product_recipe.cpp
   src/core/distributed_hip.cpp
+  src/core/distributed_process.cpp
   src/core/api_sparse.cpp
   src/core/backend_common.cpp
   src/core/export_plan.cpp

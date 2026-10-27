@@ -1,3 +1,5 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_distributed_transports.cmake)
+
 function(rns8_configure_library target_name)
   rns8_bind_manifest(${target_name})
   target_compile_features(${target_name} PUBLIC cxx_std_17)
@@ -29,6 +31,21 @@ function(rns8_configure_library target_name)
       RNS8_CK_USE_XDL=${RNS8_CK_USE_XDL}
       RNS8_CK_SHAPE_ALIGNMENT=${RNS8_CK_SHAPE_ALIGNMENT}
   )
+  if(RNS8_ENABLE_DISTRIBUTED_MPI)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_DISTRIBUTED_MPI=1)
+    target_link_libraries(${target_name} PRIVATE MPI::MPI_CXX)
+  endif()
+  if(RNS8_ENABLE_RCCL)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_RCCL=1)
+    target_include_directories(${target_name} PRIVATE "${RNS8_RCCL_INCLUDE_DIR}")
+    target_link_libraries(${target_name} PRIVATE RNS8::rccl_transport)
+  endif()
+  if(RNS8_ENABLE_ROCSHMEM)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_ROCSHMEM=1)
+    target_include_directories(${target_name} PRIVATE "${RNS8_ROCSHMEM_INCLUDE_DIR}")
+    target_link_libraries(${target_name} PRIVATE RNS8::rocshmem_transport)
+    set_property(TARGET ${target_name} APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
+  endif()
   if(MSVC)
     target_compile_options(${target_name} PRIVATE /W4 /permissive-)
     if(RNS8_ENABLE_HIP)
@@ -325,3 +342,14 @@ if(RNS8_BUILD_FUZZERS)
   target_link_libraries(rns8_fuzz_metadata_json PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
+
+
+if(RNS8_BUILD_BENCHMARKS AND RNS8_ENABLE_DISTRIBUTED_MPI)
+  add_executable(rns8-process-smoke benchmarks/rns8_distributed_process_smoke.cpp)
+  rns8_bind_manifest(rns8-process-smoke)
+  target_compile_features(rns8-process-smoke PRIVATE cxx_std_17)
+  target_include_directories(rns8-process-smoke PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}" ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS} ${RNS8_HIP_INCLUDE_DIRS})
+  target_compile_definitions(rns8-process-smoke PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+  target_link_libraries(rns8-process-smoke PRIVATE rns8_static MPI::MPI_CXX ${RNS8_HIP_LIBRARIES})
+endif()

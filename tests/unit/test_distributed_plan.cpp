@@ -497,3 +497,42 @@ TEST_CASE("independent commit checking charges native inputs to an otherwise idl
   request.ranks[1].memory_budget=checked->resources().ranks[1].peak-1;
   std::shared_ptr<const d::Plan> rejected;CHECK(d::Plan::create(request,rejected).status==RNS8_WORKSPACE_TOO_SMALL);
 }
+
+
+#include "backend_common/distributed_protocol.hpp"
+#include "core/distributed_process.hpp"
+TEST_CASE("network plans bind node-local ordinals and exact fragment membership", "[distributed][process][cpu]") {
+  for(auto transport:{d::Transport::mpi_host,d::Transport::rccl,d::Transport::rocshmem}) {
+    auto request=distributed_request(3);request.transport=transport;
+    for(size_t i=0;i<request.ranks.size();++i){request.ranks[i].ordinal=0;request.ranks[i].node_id="node-"+std::to_string(i);}
+    for(auto& edge:request.edges){edge.mpi_host=edge.rccl=edge.rocshmem=d::Support::supported;}
+    auto plan=distributed_plan(request);auto inputs=distributed_inputs(request);
+    const auto binding=d::process_binding(*plan,*inputs,1);
+    REQUIRE(binding.size()==64);REQUIRE(binding!=d::process_binding(*plan,*inputs,2));
+    d::CoverageLedger ledger(*plan);REQUIRE_FALSE(ledger.complete());
+    for(auto it=plan->work().rbegin();it!=plan->work().rend();++it) {
+      auto envelope=d::fragment_envelope(*plan,binding,1,*it);uint64_t id=UINT64_MAX;
+      REQUIRE(d::validate_envelope(*plan,binding,1,it->rank,envelope,id));REQUIRE(id==it->id);
+      auto bad=envelope;bad[48]^=1;id=77;
+      REQUIRE_FALSE(d::validate_envelope(*plan,binding,1,it->rank,bad,id));REQUIRE(id==77);
+      REQUIRE_FALSE(d::validate_envelope(*plan,binding,2,it->rank,envelope,id));
+      REQUIRE_FALSE(d::validate_envelope(*plan,binding,1,(it->rank+1)%3,envelope,id));
+      bad=envelope;d::wire_u64(bad.data()+40,it->bytes+1);REQUIRE_FALSE(d::validate_envelope(*plan,binding,1,it->rank,bad,id));
+      REQUIRE(ledger.accept(it->id,it->rank));REQUIRE_FALSE(ledger.accept(it->id,it->rank));
+    }
+    REQUIRE_FALSE(ledger.complete());for(uint32_t rank=0;rank<3;++rank)REQUIRE(ledger.acknowledge(rank));REQUIRE(ledger.complete());
+    REQUIRE_FALSE(ledger.acknowledge(0));
+    auto changed=request;changed.ranks[2].node_id=changed.ranks[1].node_id;
+    std::shared_ptr<const d::Plan> rejected;REQUIRE(d::Plan::create(changed,rejected).status==RNS8_INVALID_ARGUMENT);
+    changed=request;changed.ranks[2].node_id="different-node";auto other=distributed_plan(changed);
+    REQUIRE(d::process_binding(*other,*inputs,1)!=binding);
+    d::ProcessBinding budget;d::ProcessResources resources;resources.device_payload_bytes=77;
+    if(transport!=d::Transport::mpi_host) {
+      REQUIRE(d::ProcessSession::resources(*plan,0,budget,resources).status==RNS8_UNSUPPORTED_BACKEND);REQUIRE(resources.device_payload_bytes==77);
+      budget.acknowledge_unknown_transport_overhead=true;budget.transport_headroom_bytes=1u<<20;
+    }
+    REQUIRE(d::ProcessSession::resources(*plan,0,budget,resources));REQUIRE(resources.device_payload_bytes>0);
+    if(transport==d::Transport::rocshmem)REQUIRE(resources.symmetric_arena_bytes%256==0);
+    budget.transport_headroom_bytes=UINT64_MAX;REQUIRE(d::ProcessSession::resources(*plan,0,budget,resources).status==RNS8_RANGE_ERROR);
+  }
+}

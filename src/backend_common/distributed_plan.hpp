@@ -24,7 +24,10 @@
 namespace rns8::detail::distributed {
 using Integer = boost::multiprecision::cpp_int;
 enum class Axis { modulus, rows, columns, contraction, hybrid };
-enum class Transport { local, peer, pinned_host };
+enum class Transport { local, peer, pinned_host, mpi_host, rccl, rocshmem };
+inline bool process_transport(Transport t){return t==Transport::mpi_host || t==Transport::rccl || t==Transport::rocshmem;}
+inline const char* transport_label(Transport t){switch(t){case Transport::local:return "local";case Transport::peer:return "peer";
+  case Transport::pinned_host:return "pinned_host";case Transport::mpi_host:return "mpi_host";case Transport::rccl:return "rccl";case Transport::rocshmem:return "rocshmem";}return "invalid";}
 enum class Support { unknown, unsupported, supported };
 enum class HostStorage { exact_reference, limbs_only };
 enum class Phase { expected, local_complete, host_staged, transfer_complete, visible, proof_ready };
@@ -75,10 +78,12 @@ struct Rank {
   std::string compute_partition = "unknown", memory_partition = "unknown";
   uint32_t weight = 1; // caller supplied relative plane cost; not a measured rate
   uint64_t memory_budget = 0, scratch_bytes = 0, overhead_reserve = 4096;
+  std::string node_id="local"; // rank-local ordinals may repeat on different nodes
 };
 struct Edge {
   uint32_t source = 0, destination = 0;
   Support peer = Support::unknown, pinned_host = Support::unknown;
+  Support mpi_host=Support::unknown,rccl=Support::unknown,rocshmem=Support::unknown;
 };
 struct TileProof {
   uint32_t prefix = 0;
@@ -179,7 +184,7 @@ class Plan {
     std::ostringstream key;
     const auto& r = request_;
     const auto text = [&](const std::string& value) { key << value.size() << ':' << value << ';'; };
-    key << "distributed_basis_v3;" << unsigned(r.axis) << ';' << k_fragments() << ';' << r.rank_grid_rows << ';' << r.rank_grid_cols << ';' << r.operation << ';' << unsigned(r.semantics) << ';'
+    key << "distributed_process_v4;" << unsigned(r.axis) << ';' << k_fragments() << ';' << r.rank_grid_rows << ';' << r.rank_grid_cols << ';' << r.operation << ';' << unsigned(r.semantics) << ';'
         << r.m << ';' << r.n << ';' << r.k << ';' << r.lda << ';' << r.ldb << ';'
         << r.prefix << ';' << r.owner << ';' << r.a.instance << ';' << r.a.generation << ';'
         << r.b.instance << ';' << r.b.generation << ';' << unsigned(r.transport) << ';'
@@ -188,7 +193,7 @@ class Plan {
     key<<r.basis.size()<<';';for(auto q:r.basis)key<<q<<';';
     for (const auto& rank : r.ranks) {
       key << rank.ordinal << ';' << rank.weight << ';';
-      text(rank.physical_id); text(rank.target); text(rank.physical_package_id);
+      text(rank.node_id); text(rank.physical_id); text(rank.target); text(rank.physical_package_id);
       text(rank.compute_partition); text(rank.memory_partition);
     }
     for (const auto& tile : tiles_)
@@ -235,7 +240,7 @@ class Plan {
         !r.pipeline_slots || r.pipeline_slots > 3 || unsigned(r.host_storage) > 1)
       return reject(RNS8_INVALID_ARGUMENT, "malformed_contract");
     if (r.magnitude_bound >= (Integer(1) << 160)) return reject(RNS8_RANGE_ERROR, "proof_width_limit");
-    if (r.transport != Transport::peer && r.transport != Transport::pinned_host &&
+    if (!process_transport(r.transport) && r.transport != Transport::peer && r.transport != Transport::pinned_host &&
         !(r.transport == Transport::local && r.ranks.size() == 1))
       return reject(RNS8_INVALID_ARGUMENT, "explicit_transport_required");
     AddressDomain a_span, b_span, c_span;
@@ -257,20 +262,22 @@ class Plan {
       return reject(RNS8_INVALID_ARGUMENT, "plane_cost_profile");
     for (uint32_t rank = 0; rank < r.ranks.size(); ++rank) {
       const auto& item = r.ranks[rank];
-      if (!item.weight || item.weight > 65535 || item.physical_id.empty() ||
+      if (item.node_id.empty() || item.node_id.size()>128 || !ascii_label(item.node_id) || !item.weight || item.weight > 65535 || item.physical_id.empty() ||
           item.physical_id.size() > 128 || item.target.empty() || item.target.size() > 64 ||
           item.physical_package_id.size() > 128 || item.compute_partition.size() > 64 || item.memory_partition.size() > 64 ||
           !ascii_label(item.physical_id) || !ascii_label(item.target) || !ascii_label(item.physical_package_id) ||
           !ascii_label(item.compute_partition) || !ascii_label(item.memory_partition))
         return reject(RNS8_INVALID_ARGUMENT, "rank_identity_or_weight", rank);
       for (uint32_t prior = 0; prior < rank; ++prior)
-        if (item.ordinal == r.ranks[prior].ordinal || item.physical_id == r.ranks[prior].physical_id)
+        if ((item.node_id==r.ranks[prior].node_id && item.ordinal==r.ranks[prior].ordinal) ||
+            (item.node_id==r.ranks[prior].node_id && item.physical_id==r.ranks[prior].physical_id))
           return reject(RNS8_INVALID_ARGUMENT, "duplicate_selected_device", rank);
     }
     for (std::size_t i = 0; i < r.edges.size(); ++i) {
       const auto& e = r.edges[i];
       if (e.source >= r.ranks.size() || e.destination >= r.ranks.size() || e.source == e.destination ||
-          static_cast<unsigned>(e.peer) > 2 || static_cast<unsigned>(e.pinned_host) > 2)
+          static_cast<unsigned>(e.peer) > 2 || static_cast<unsigned>(e.pinned_host) > 2 ||
+          unsigned(e.mpi_host)>2 || unsigned(e.rccl)>2 || unsigned(e.rocshmem)>2)
         return reject(RNS8_INVALID_ARGUMENT, "malformed_transport_edge");
       for (std::size_t prior = 0; prior < i; ++prior)
         if (r.edges[prior].source == e.source && r.edges[prior].destination == e.destination)
@@ -321,7 +328,8 @@ class Plan {
               return e.source == selected && e.destination == r.owner;
             });
             const Support support = edge == r.edges.end() ? Support::unknown :
-                (transport == Transport::peer ? edge->peer : edge->pinned_host);
+                (transport == Transport::peer ? edge->peer : transport==Transport::mpi_host?edge->mpi_host:
+                    transport==Transport::rccl?edge->rccl:transport==Transport::rocshmem?edge->rocshmem:edge->pinned_host);
             if (support != Support::supported)
               return reject(RNS8_UNSUPPORTED_BACKEND, support == Support::unknown ?
                   "transport_capability_unknown" : "transport_unsupported", selected);
@@ -339,7 +347,7 @@ class Plan {
             work_.back().gather_offset=partial;if(!add_bytes(partial,cells))return reject(RNS8_RANGE_ERROR,"partial_gather_overflow");}
           if (transport != Transport::local) {
             if (!add_bytes(resources_.transfer_bytes, cells)) return reject(RNS8_RANGE_ERROR, "transfer_overflow");
-            if (transport == Transport::pinned_host) resources_.pinned_staging =
+            if (transport == Transport::pinned_host || transport==Transport::mpi_host) resources_.pinned_staging =
                 std::max(resources_.pinned_staging, cells); // one explicitly serialized staging slot
           }
         }

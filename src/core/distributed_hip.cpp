@@ -108,6 +108,8 @@ struct HipExecution::Impl {
   }
   Admission initialize() {
     const auto& r = plan->request();
+    if(process_transport(r.transport) || std::any_of(r.ranks.begin(),r.ranks.end(),[](const Rank& rank){return rank.node_id!="local";}))
+      return reject(RNS8_UNSUPPORTED_BACKEND,"use_process_session_for_network_transport");
     if (r.m > INT32_MAX || r.n > INT32_MAX || r.k > INT32_MAX ||
         r.lda > INT32_MAX || r.ldb > INT32_MAX || r.m * r.n > INT32_MAX)
       return reject(RNS8_UNSUPPORTED_BACKEND, "local_kernel_address_width");

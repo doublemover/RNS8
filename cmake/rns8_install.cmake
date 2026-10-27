@@ -1,3 +1,8 @@
+if(RNS8_ENABLE_ROCSHMEM)
+  foreach(_component IN ITEMS Runtime Development)
+    install(FILES "${RNS8_ROCSHMEM_HELPER}" DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT ${_component})
+  endforeach()
+endif()
 set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
 foreach(_rns8_license_component IN ITEMS Runtime Development)
   install(FILES third_party/rank48/Licence_CeCILL-B_V1-en.txt NOTICE

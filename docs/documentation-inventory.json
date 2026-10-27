@@ -3613,6 +3613,10 @@
           "reference": "platform-linux.md"
         },
         {
+          "source": "docs/distributed-process.md",
+          "reference": "platform-linux.md"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "platform-linux.md"
         },
@@ -3815,6 +3819,7 @@
       ],
       "anchors": [
         "bounded-completion-observation",
+        "bounded-concurrent-epochs-and-ring-pipelines",
         "bounded-prepared-submissions",
         "cleanup-and-retry-ownership",
         "cooperative-result-discard",
@@ -4921,6 +4926,7 @@
         "dependencies-and-third-party-policy",
         "october-rank-23-mathematical-artifact",
         "optional-exact-references-and-accelerator-pins",
+        "optional-process-transport-dependencies",
         "shared-prerequisites"
       ]
     },
@@ -5528,6 +5534,10 @@
           "reference": "distributed-hip.md"
         },
         {
+          "source": "docs/distributed-process.md",
+          "reference": "distributed-hip.md"
+        },
+        {
           "source": "docs/five-issue-implementation-20261026.md",
           "reference": "distributed-hip.md#optional-independent-integrity-before-commit"
         },
@@ -5725,6 +5735,7 @@
         }
       ],
       "anchors": [
+        "cdna4-fp4-fp6-dynamic-scales-and-mixed-formats",
         "explicit-fp8-modular-research",
         "matched-capture-source",
         "rdna4-and-three-product-source-extension"
@@ -5828,6 +5839,44 @@
       ],
       "anchors": [
         "materialized-replay-lifetimes"
+      ]
+    },
+    {
+      "path": "docs/distributed-process.md",
+      "purpose": "Explicit optional MPI RCCL and device-initiated distributed source contract",
+      "audience": "Compute developers and native Linux qualification operators",
+      "disposition": "keep",
+      "canonical": "docs/distributed-process.md",
+      "owner": "src/core/distributed_process.hpp",
+      "reason": "Owns rank-local device identity, epoch membership, exact payload movement, bounded progress, symmetric-arena leases and deferred physical qualification.",
+      "inbound_links": [
+        {
+          "source": "docs/distributed-hip.md",
+          "reference": "distributed-process.md"
+        },
+        {
+          "source": "docs/distributed-hip.md",
+          "reference": "distributed-process.md"
+        },
+        {
+          "source": "docs/distributed-mock.md",
+          "reference": "distributed-process.md"
+        },
+        {
+          "source": "third_party/README.md",
+          "reference": "../docs/distributed-process.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/distributed-process.md"
+        }
+      ],
+      "anchors": [
+        "authored-qualification-path",
+        "binding-resources-and-ownership",
+        "build-and-dependencies",
+        "epochs-visibility-and-failures",
+        "explicit-process-and-network-transports"
       ]
     }
   ]
