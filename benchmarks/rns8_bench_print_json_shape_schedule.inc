@@ -116,6 +116,11 @@
   std::cout << "  \"exact_wide_export_status_check\": ";
   print_json_string_or_null(exact_wide_export_status_check_name(args));
   std::cout << ",\n";
+  const auto& reference = result.native_reference;
+  std::cout << "  \"native_reference_verification\": {\"method\": \"" << reference.method
+            << "\", \"cache_key\": \"" << reference.key << "\", \"payload_sha256\": \"" << reference.payload_sha256
+            << "\", \"checked_cells\": " << reference.checked_cells << ", \"elapsed_us\": " << reference.elapsed_us
+            << ", \"inside_production_interval\": false},\n";
   std::cout << "  \"sustained_production\": {\"requested_batches\": " << args.sustained_batches
             << ", \"min_calls\": " << args.sustained_min_calls << ", \"max_calls\": " << args.sustained_max_calls
             << ", \"min_duration_us\": " << args.sustained_min_ms * 1000.0

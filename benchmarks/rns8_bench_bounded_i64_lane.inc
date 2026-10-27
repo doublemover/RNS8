@@ -606,7 +606,7 @@ BenchmarkResult run_bounded_i64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_export_i64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(final chain checksum)", status);
   }
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);

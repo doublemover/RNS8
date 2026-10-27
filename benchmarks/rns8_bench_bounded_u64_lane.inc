@@ -577,7 +577,7 @@ BenchmarkResult run_bounded_u64(rns8_context* ctx, const Args& args, uint64_t bo
     status = rns8_export_u64(ctx, plan, latest_output_matrix, C.data(), ldc);
     if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(final chain checksum)", status);
   }
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
 
   if (b_prepack_cache) {

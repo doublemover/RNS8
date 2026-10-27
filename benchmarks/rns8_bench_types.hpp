@@ -8,6 +8,7 @@
 
 #include "exact_wide_magnitude.hpp"
 #include "public_sustained.hpp"
+#include "native_reference_cache.hpp"
 #include "streaming_measurement.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
@@ -81,6 +82,9 @@ struct Args {
   bool production_host_timing = false;
   uint32_t sustained_batches = 0, sustained_min_calls = 16, sustained_max_calls = 4096, sustained_min_ms = 250;
   std::string cpu_reference_mode = "timed-baseline";
+  std::string reference_cache_directory;
+  bool populate_reference_cache = false;
+  bool verify_native_output = false;
   uint64_t seed = 1;
   uint32_t tile_m = 128;
   uint32_t tile_n = 128;
@@ -176,6 +180,7 @@ enum class PrepackReuseStrategy {
 };
 
 struct BenchmarkResult {
+  NativeReferenceVerification native_reference;
   rns8_auto_trace_info auto_trace{};
   std::vector<rns8_auto_decision> auto_decisions;
   bool auto_trace_available=false;

@@ -259,6 +259,13 @@ Args parse_args(int argc, char** argv) {
       args.cpu_parallel_threshold = parse_u64(argv[++i], "--cpu-parallel-threshold");
     } else if (arg == "--cpu-reference-mode" && i + 1 < argc) {
       args.cpu_reference_mode = parse_cpu_reference_mode(argv[++i]);
+    } else if (arg == "--reference-cache-dir" && i + 1 < argc) {
+      args.reference_cache_directory = argv[++i];
+      if (args.reference_cache_directory.empty()) usage_error("reference cache directory must not be empty");
+    } else if (arg == "--populate-reference-cache") {
+      args.populate_reference_cache = true;
+    } else if (arg == "--verify-native-output") {
+      args.verify_native_output = true;
     } else if (arg == "--progress") {
       args.progress = true;
     } else if (arg == "--seed" && i + 1 < argc) {
@@ -469,6 +476,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--error-detection-policy NAME]\n"
           << "                  [--cpu-small-shape-selector NAME]\n"
           << "                  [--incremental-result-cache NAME]\n"
+          << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
@@ -982,6 +990,14 @@ Args parse_args(int argc, char** argv) {
       args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
       args.semantics==BenchSemantics::WrapU64Mod2_64))
     usage_error("rocWMMA packing controls require explicit rocwmma bounded or exact-wide RNS GEMM");
+  if (args.populate_reference_cache && args.reference_cache_directory.empty())
+    usage_error("--populate-reference-cache requires --reference-cache-dir");
+  if ((!args.reference_cache_directory.empty() || args.verify_native_output) &&
+      (!bounded_benchmark_semantics(args.semantics) || args.residue_chain_length != 1 ||
+       args.host_api_batch_size != 1 || args.grouped_dispatch_tasks != 1 ||
+       args.native_to_rns_bridge || args.vector_to_rns_chain || args.transient_uniform_small_inputs ||
+       args.residue_channel_fusion || args.streaming_overlap || args.hip_graph_replay))
+    usage_error("reference cache supports ordinary single-product bounded-i64/u64 host output only");
   return args;
 }
 

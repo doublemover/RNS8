@@ -43,7 +43,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   }
   record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -93,7 +93,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   }
   record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -290,7 +290,7 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index]);
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -492,7 +492,7 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index]);
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);

@@ -119,7 +119,7 @@ BenchmarkResult run_finite_u8_oneshot(rns8_context* ctx, const Args& args, uint6
   }
   record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -320,7 +320,7 @@ BenchmarkResult run_finite_u8_host_api_batch(rns8_context* ctx, const Args& args
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index]);
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch finite C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -566,7 +566,7 @@ BenchmarkResult run_finite_u8(rns8_context* ctx, const Args& args, uint64_t boun
     record_allocation_after_repeats(result);
   run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
-  verify_sustained_native_output(args, A, B, C);
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);

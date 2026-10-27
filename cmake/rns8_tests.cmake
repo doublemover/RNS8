@@ -12,7 +12,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
   add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
   add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
-  set_tests_properties(benchmark_catalog_contracts research_evidence_archive_contracts PROPERTIES LABELS "tools;artifacts" TIMEOUT 60)
+  add_test(NAME benchmark_reference_cache_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_references.py")
+  set_tests_properties(benchmark_catalog_contracts research_evidence_archive_contracts benchmark_reference_cache_contracts PROPERTIES LABELS "tools;artifacts" TIMEOUT 60)
   add_test(NAME research_kernel_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_research_kernels.py")
   foreach(_research_family IN ITEMS fp8 tdm)
     if(TARGET rns8-${_research_family}-calibrate AND RNS8_ENABLE_HIP)
@@ -1077,6 +1078,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_hipblaslt_metadata.cpp
     tests/unit/test_streaming_measurement.cpp
     tests/unit/test_public_sustained.cpp
+    tests/unit/test_native_reference_cache.cpp
     tests/unit/test_wide_magnitude_fixture.cpp
     tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp

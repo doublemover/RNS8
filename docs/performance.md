@@ -38,6 +38,49 @@ Schema v4 validates capture structure and consistency; it is not a proof that a
 GPU instruction was executed or that a declaration is true. Keep raw JSON,
 stdout/stderr, build logs, exact commands, and disassembly together.
 
+### Reusable exact reference fixtures
+
+The public collector restores the compressed fixtures in
+`tests/fixtures/native-reference/` into ignored `temp/benchmark-references/` and
+passes that directory to ordinary single-product bounded-i64/u64 runs. Every
+logical output element is compared outside production timing. A cache miss
+computes the complete Boost.Multiprecision reference; a malformed existing
+fixture fails the run. `--no-reference-cache` requests fresh computation in the
+collector. Other arithmetic/composition modes keep their existing oracles.
+
+Fixture identity hashes the arithmetic contract, M/N/K and every actual input
+word in canonical little-endian order. The file also binds the complete expected
+output by SHA256. Backend, prefix, timing hooks and device identity do not change
+the exact mathematical answer. Input-generator or C++ distribution differences
+produce a different input digest and a cache miss. No correctness claim rests
+on the seed or output checksum alone. Captures report the method, content key,
+payload digest, checked-cell count and time spent outside production intervals.
+
+Restore the reviewed fixtures for direct benchmark invocation:
+
+```sh
+python tools/benchmark_references.py
+build/rns8-bench --backend hip-direct --semantics bounded-i64 --m 1024 --n 1024 --k 1024 --seed 3135 --reference-cache-dir temp/benchmark-references
+```
+
+On Windows use the corresponding build path and `.exe` suffix. Fixture
+population is a separate explicit operation: point `--reference-cache-dir` at a
+new ignored directory and pass `--populate-reference-cache`. The benchmark
+computes the independent full Boost result, checks its output and atomically
+publishes the reference. Normal collection never populates a cache. Package
+reviewed generation receipts and raw references with
+`tools/benchmark_references.py --pack DIR --provenance RECEIPT --output tests/fixtures/native-reference`;
+the indexed gzip files are deterministic, and expanded data stays ignored.
+
+The [cache validation](../metadata/native-reference-cache-validation-20261027.json)
+records three reviewed fixtures, 14 GPU cache-hit cases, a non-populating miss,
+clean corrupt-file rejection, two C++ cases, five Python cases and four automatic
+collector observations. The fixtures occupy 3.13 MiB compressed. For the 1024³
+case, one full Boost reference takes 24.29 seconds; six cached full-element
+checks take 139.6–142.3 ms each. These are observations of reference work outside
+production intervals. The library's arithmetic and routing are unchanged, and
+the helper remains C++17-compatible.
+
 ## Commands
 
 A bounded smoke is prepared by [gpu_qualification.py](../tools/gpu_qualification.py).

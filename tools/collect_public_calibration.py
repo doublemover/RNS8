@@ -12,6 +12,18 @@ from pathlib import Path
 from benchmark_sweep_lib.execution import run_command, validate_paths
 from observation_cohorts import aggregate_captures
 from benchmark_schema.wide_magnitude import MODULI
+from benchmark_references import DEFAULT_INDEX, DEFAULT_CACHE, prepare as prepare_references
+
+
+def reference_cache_supported(arguments):
+    def option(flag, default):
+        return arguments[arguments.index(flag) + 1] if flag in arguments else default
+    return (option("--semantics", "bounded-i64") in ("bounded-i64", "bounded-u64") and
+        all(option(flag, "1") == "1" for flag in ("--residue-chain-length", "--host-api-batch-size", "--grouped-dispatch")) and
+        not any(flag in arguments for flag in ("--native-to-rns-bridge", "--vector-to-rns-chain",
+            "--force-native-to-rns-bridge", "--vector-native-to-rns-chain", "--vector-to-rns-chain-host-repack-control",
+            "--vector-native-to-rns-chain-host-repack-control", "--transient-uniform-small-inputs",
+            "--transient-uniform-small-i8-inputs", "--residue-channel-fusion", "--streaming-overlap", "--hip-graph-replay")))
 
 
 def validate_initial_plan_capacity(arguments, name):
@@ -42,7 +54,7 @@ def validate_initial_plan_capacity(arguments, name):
         raise ValueError(f"{name}: prefix {prefix} cannot admit the initial full-native-type exact-wide plan at K={k}")
 
 
-def commands(binary, cases, runs, seed, output, *, first_call=False):
+def commands(binary, cases, runs, seed, output, *, first_call=False, reference_directory=None, verify_native_output=False):
     if not 2 <= runs <= 100: raise ValueError("need 2..100 independent processes per case/mode")
     result=[]
     names=set()
@@ -54,13 +66,17 @@ def commands(binary, cases, runs, seed, output, *, first_call=False):
         arguments=case["arguments"]
         if not isinstance(arguments,list) or not all(isinstance(x,str) for x in arguments): raise ValueError("arguments list")
         validate_initial_plan_capacity(arguments, name)
-        if any(x.startswith(("--host-timing","--sustained-","--warmups","--repeats","--write-autotune")) for x in arguments):
+        if any(x.startswith(("--host-timing","--sustained-","--warmups","--repeats","--write-autotune","--reference-cache","--populate-reference","--verify-native-output")) for x in arguments):
             raise ValueError("collector owns timing/sampling controls and never writes a cache")
         first=int(hashlib.sha256(f"{seed}:{name}".encode()).hexdigest(),16)&1
         for run in range(runs):
             modes=("production",) if first_call else (("instrumented","production") if (first+run)%2==0 else ("production","instrumented"))
             for position,mode in enumerate(modes):
                 command=[str(binary),*arguments,"--warmups","0" if first_call else "3","--repeats","1" if first_call else "9","--host-timing",mode]
+                if reference_directory is not None and reference_cache_supported(arguments):
+                    command += ["--reference-cache-dir", str(reference_directory)]
+                elif verify_native_output and reference_cache_supported(arguments):
+                    command += ["--verify-native-output"]
                 if not first_call and mode=="production" and "--streaming-overlap" not in arguments:command += ["--sustained-batches","3","--sustained-min-calls","16","--sustained-max-calls","4096","--sustained-min-ms","250"]
                 result.append(dict(case=name,run=run,position=position,mode=mode,command=command,
                                    output=str(output/f"{name}-run{run:03d}-{mode}.json")))
@@ -96,15 +112,23 @@ def main():
     parser.add_argument("--output",type=Path,required=True);parser.add_argument("--runs",type=int,default=2)
     parser.add_argument("--order-seed",type=int,default=1);parser.add_argument("--timeout-seconds",type=float,default=600)
     parser.add_argument("--plan-only",action="store_true")
+    parser.add_argument("--reference-cache", action=argparse.BooleanOptionalAction, default=True,
+                        help="reuse repository exact fixtures for supported native products; cache misses compute a full reference")
+    parser.add_argument("--reference-cache-index", type=Path, default=DEFAULT_INDEX)
     parser.add_argument("--first-call",action="store_true",help="fresh-process hook-disabled first invocation; zero warmups/one sample, no sustained bursts")
     args=parser.parse_args()
     case_bytes=args.cases.read_bytes()
     collector_identity=dict(source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         case_manifest_sha256=hashlib.sha256(case_bytes).hexdigest())
-    plan=commands(args.binary,json.loads(case_bytes)["cases"],args.runs,args.order_seed,args.output,first_call=args.first_call)
+    reference_directory = DEFAULT_CACHE if args.reference_cache else None
+    reference_receipt = None
+    if reference_directory is not None and not args.plan_only:
+        reference_receipt = prepare_references(args.reference_cache_index, reference_directory)
+    plan=commands(args.binary,json.loads(case_bytes)["cases"],args.runs,args.order_seed,args.output,first_call=args.first_call,
+                  reference_directory=reference_directory, verify_native_output=True)
     args.output.mkdir(parents=True,exist_ok=True)
     order="reversed_case_order_by_independent_run_production_first_invocation_only" if args.first_call else "seeded_AB_BA_instrumentation_and_reversed_case_order_by_independent_run"
-    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy=order,sampling="first_call" if args.first_call else "steady",collector_identity=collector_identity,commands=plan,promotion_eligible=False),indent=2)+"\n")
+    (args.output/"collection-plan.json").write_text(json.dumps(dict(schema="public_calibration_plan_v1",order_policy=order,sampling="first_call" if args.first_call else "steady",collector_identity=collector_identity,reference_fixtures=reference_receipt,commands=plan,promotion_eligible=False),indent=2)+"\n")
     if args.plan_only:return 0
     captures=[]
     for entry in plan:

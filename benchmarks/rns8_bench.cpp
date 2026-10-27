@@ -234,7 +234,7 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 #include "rns8_bench_print_json.inc"
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
   (void)rns8::bench::host_clock_calibration(); // Outside every workload timing interval.
   const Args args = parse_args(argc, argv);
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
@@ -408,4 +408,7 @@ int main(int argc, char** argv) {
   }
   print_json(args, info, result, effective_bound, cmdline);
   return 0;
+} catch (const std::exception& error) {
+  std::cerr << "rns8-bench: " << error.what() << '\n';
+  return 1;
 }

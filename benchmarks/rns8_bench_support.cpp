@@ -90,6 +90,7 @@ const HostClockCalibration& host_clock_calibration() {
       << "                  [--cpu-threads N]\n"
       << "                  [--cpu-parallel-threshold OPS]\n"
       << "                  [--cpu-reference-mode timed-baseline|correctness-anchor]\n"
+      << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
       << "                  [--progress]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
