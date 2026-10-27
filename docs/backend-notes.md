@@ -50,7 +50,7 @@ a reviewed exact-match cache. Admission binds semantics, target/runtime, kernel,
 workspace and the full plan key. Missing/rejected entries retain the baseline
 context backend. There is no runtime timing search or shape interpolation.
 
-`implementation_revision=2` participates in that key. Earlier cache entries do
+`implementation_revision=8` participates in that key. Earlier cache entries do
 not carry validation across implementation repairs. Reviewed caches are routing
 inputs, not cryptographic attestations; retain the original capture, artifact
 hash and build provenance. [Performance review](performance.md) owns promotion.

@@ -12,6 +12,13 @@ namespace rns8::detail::finite_u8 {
 
 constexpr uint64_t kReciprocalScale = 1ull << 32u;
 
+struct ByteModulusReciprocals {
+  uint32_t values[257]{};
+  constexpr ByteModulusReciprocals() {
+    for(uint32_t q=2;q<=256;++q)values[q]=uint32_t(kReciprocalScale/q);
+  }
+};
+
 RNS8_FINITE_U8_INLINE uint32_t modulus_reciprocal_u32(uint32_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / modulus);
 }
@@ -209,22 +216,7 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_accelerator_i32(
     int32_t value,
     uint32_t modulus,
     uint32_t reciprocal) {
-  if (modulus == 256u) {
-    return reduce_to_centered_mod256_i32(value);
-  }
-  if (modulus == 255u) {
-    return reduce_to_centered_mod255_i32(value);
-  }
-  if (modulus == 251u) {
-    return reduce_to_centered_mod251_i32(value);
-  }
-  const uint32_t magnitude = abs_i32_to_u32(value);
-  uint32_t residue = reduce_u32_small_modulus(magnitude, modulus, reciprocal);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((modulus - residue) & negative_mask);
-  return center_unsigned_residue(residue, modulus);
+  return reduce_to_centered_i32(value, modulus, reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(
@@ -322,9 +314,9 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t 
 
 // The runtime-basis path also admits small/composite channels outside the
 // specialized default-ladder switch. The reciprocal proof covers every byte q.
-RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value,uint32_t modulus) {
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value,uint32_t modulus,uint32_t reciprocal) {
   if(static_byte_modulus_supported(modulus))return reduce_to_centered_static_byte_modulus_i32(value,modulus);
-  return reduce_to_centered_i32(value,modulus,modulus_reciprocal_u32(modulus));
+  return reduce_to_centered_i32(value,modulus,reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t center_u8(uint8_t value, uint32_t modulus) {

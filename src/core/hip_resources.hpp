@@ -7,6 +7,7 @@
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "backend_common/allocation_observations.hpp"
+#include "core/hip_runtime_handles.hpp"
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
@@ -14,26 +15,7 @@
 
 namespace rns8::detail {
 
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-class hip_scoped_device {
- public:
-  explicit hip_scoped_device(int device) noexcept {
-    status_ = hipGetDevice(&previous_);
-    if (status_ == hipSuccess && previous_ != device) {
-      status_ = hipSetDevice(device);
-      changed_ = status_ == hipSuccess;
-    }
-  }
-  hip_scoped_device(const hip_scoped_device&) = delete;
-  hip_scoped_device& operator=(const hip_scoped_device&) = delete;
-  ~hip_scoped_device() { if (changed_) (void)hipSetDevice(previous_); }
-  hipError_t status() const noexcept { return status_; }
- private:
-  int previous_ = -1;
-  bool changed_ = false;
-  hipError_t status_ = hipSuccess;
-};
-#endif
+
 
 // Failed frees keep their allocation identity. Destruction/move replacement
 // transfers that identity to the existing device-drain retry queue; allocation
@@ -82,7 +64,7 @@ class basic_hip_device_buffer {
   void* get() const noexcept {return cleanup_?cleanup_->pointer:nullptr;}
   std::size_t bytes() const noexcept {return bytes_;}
   explicit operator bool() const noexcept {return get()!=nullptr;}
-  // Keep legacy dispatch aliases non-owning while retaining exception-safe
+  // Keep dispatch aliases non-owning while retaining exception-safe
   // allocation records in their enclosing API owner.
   rns8_status allocate_alias(int device_id, std::size_t bytes, void*& alias) {
     const auto status = allocate(device_id, bytes);
@@ -142,171 +124,6 @@ class hip_probe_buffer {
 };
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-class hip_unique_event {
- public:
-  hip_unique_event() = default;
-  explicit hip_unique_event(hipEvent_t event) : event_(event) {}
-  hip_unique_event(const hip_unique_event&) = delete;
-  hip_unique_event& operator=(const hip_unique_event&) = delete;
-
-  hip_unique_event(hip_unique_event&& other) noexcept : event_(other.release()) {}
-
-  hip_unique_event& operator=(hip_unique_event&& other) noexcept {
-    if (this != &other) {
-      reset(other.release());
-    }
-    return *this;
-  }
-
-  ~hip_unique_event() {
-    reset();
-  }
-
-  hipError_t create() {
-    reset();
-    return hipEventCreate(&event_);
-  }
-
-  void reset(hipEvent_t event = nullptr) noexcept {
-    if (event_) {
-      (void)hipEventDestroy(event_);
-    }
-    event_ = event;
-  }
-
-  hipEvent_t release() noexcept {
-    hipEvent_t event = event_;
-    event_ = nullptr;
-    return event;
-  }
-
-  hipEvent_t get() const noexcept {
-    return event_;
-  }
-
-  explicit operator bool() const noexcept {
-    return event_ != nullptr;
-  }
-
- private:
-  hipEvent_t event_ = nullptr;
-};
-
-class hip_unique_event_pair {
- public:
-  hip_unique_event_pair() = default;
-  hip_unique_event_pair(const hip_unique_event_pair&) = delete;
-  hip_unique_event_pair& operator=(const hip_unique_event_pair&) = delete;
-  hip_unique_event_pair(hip_unique_event_pair&&) noexcept = default;
-  hip_unique_event_pair& operator=(hip_unique_event_pair&&) noexcept = default;
-
-  hipError_t create() {
-    reset();
-    hipError_t status = start_.create();
-    if (status != hipSuccess) {
-      return status;
-    }
-    status = stop_.create();
-    if (status != hipSuccess) {
-      reset();
-    }
-    return status;
-  }
-
-  hipError_t create_and_record_start(hipStream_t stream = nullptr) {
-    hipError_t status = create();
-    if (status != hipSuccess) {
-      return status;
-    }
-    status = record_start(stream);
-    if (status != hipSuccess) {
-      reset();
-    }
-    return status;
-  }
-
-  hipError_t record_start(hipStream_t stream = nullptr) const {
-    return hipEventRecord(start_.get(), stream);
-  }
-
-  hipError_t record_stop(hipStream_t stream = nullptr) const {
-    return hipEventRecord(stop_.get(), stream);
-  }
-
-  hipEvent_t start() const noexcept {
-    return start_.get();
-  }
-
-  hipEvent_t stop() const noexcept {
-    return stop_.get();
-  }
-
-  hipEvent_t release_start() noexcept {
-    return start_.release();
-  }
-
-  hipEvent_t release_stop() noexcept {
-    return stop_.release();
-  }
-
-  void reset() noexcept {
-    stop_.reset();
-    start_.reset();
-  }
-
- private:
-  hip_unique_event start_;
-  hip_unique_event stop_;
-};
-
-class hip_unique_stream {
- public:
-  hip_unique_stream() = default;
-  hip_unique_stream(const hip_unique_stream&) = delete;
-  hip_unique_stream& operator=(const hip_unique_stream&) = delete;
-
-  hip_unique_stream(hip_unique_stream&& other) noexcept : stream_(other.release()) {}
-
-  hip_unique_stream& operator=(hip_unique_stream&& other) noexcept {
-    if (this != &other) {
-      reset(other.release());
-    }
-    return *this;
-  }
-
-  ~hip_unique_stream() {
-    reset();
-  }
-
-  hipError_t create_non_blocking() {
-    reset();
-    return hipStreamCreateWithFlags(&stream_, hipStreamNonBlocking);
-  }
-
-  void reset(hipStream_t stream = nullptr) noexcept {
-    if (stream_) {
-      (void)hipStreamDestroy(stream_);
-    }
-    stream_ = stream;
-  }
-
-  hipStream_t release() noexcept {
-    hipStream_t stream = stream_;
-    stream_ = nullptr;
-    return stream;
-  }
-
-  hipStream_t get() const noexcept {
-    return stream_;
-  }
-
-  explicit operator bool() const noexcept {
-    return stream_ != nullptr;
-  }
-
- private:
-  hipStream_t stream_ = nullptr;
-};
 
 class hip_pinned_host_buffer {
  public:

@@ -92,14 +92,10 @@ rns8_status rns8_finalize_caller_hip_graph(rns8_caller_hip_graph* owner,void* gr
     hipStreamCaptureStatus state=hipStreamCaptureStatusNone;
     if(hipStreamIsCapturing(static_cast<hipStream_t>(owner->capture_stream),&state)!=hipSuccess)return RNS8_BACKEND_FAILURE;
     if(state!=hipStreamCaptureStatusNone)return RNS8_BUSY;
-    hipGraphExec_t replacement=nullptr;
-    if(hipGraphInstantiate(&replacement,static_cast<hipGraph_t>(graph),nullptr,nullptr,0)!=hipSuccess){
-      if(replacement)(void)hipGraphExecDestroy(replacement);return RNS8_BACKEND_FAILURE;
-    }
-    if(owner->executable && hipGraphExecDestroy(owner->executable)!=hipSuccess){
-      (void)hipGraphExecDestroy(replacement);return RNS8_BACKEND_FAILURE;
-    }
-    owner->executable=replacement;return RNS8_SUCCESS;
+    rns8::detail::hip_unique_graph_exec replacement;
+    if(replacement.instantiate(static_cast<hipGraph_t>(graph))!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    if(owner->executable && hipGraphExecDestroy(owner->executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    owner->executable=replacement.release();return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif

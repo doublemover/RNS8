@@ -1,5 +1,6 @@
 #pragma once
 #include "address_domain.hpp"
+#include "deferred_resource.hpp"
 #include "rns8/rns8.h"
 #include <algorithm>
 #include <array>
@@ -75,8 +76,9 @@ inline bool stream_panel_storage(uint64_t m,uint64_t n,uint64_t k,uint32_t p,Str
       if(span>limit-pinned)return false;pinned+=span;
     }
     // Payload allowance for eleven opaque handle slots, two export records and
-    // ring flags. Driver-internal stream/event allocation overhead is opaque.
-    out.control_bytes=256;out.pinned_bytes=pinned;out.ordinary_bytes=out.control_bytes;
+    // ring flags, plus a retry record for every stream/event. Driver-internal
+    // allocation overhead remains opaque.
+    out.control_bytes=256+11*sizeof(hip_deferred_buffer_cleanup);out.pinned_bytes=pinned;out.ordinary_bytes=out.control_bytes;
     if(pinned>limit-out.control_bytes)return false;
     out.host_bytes=pinned+out.control_bytes;out.streams=3;out.events=8;
   }

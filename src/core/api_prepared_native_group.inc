@@ -260,21 +260,19 @@ rns8_status rns8_capture_native_group_hip_graph(rns8_prepared_group* group) {
     auto* ctx=group->executions.front()->ctx;
     rns8::detail::hip_scoped_device device(ctx->device_id);if(device.status()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     // Own the capture stream; public borrowed-stream submission rejects external capture.
-    if(hipStreamBeginCapture(group->native_stream,hipStreamCaptureModeThreadLocal)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_unique_graph replacement;
+    if(replacement.reserve()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_capture_scope capture(group->native_stream,replacement);
+    if(capture.begin()!=hipSuccess)return RNS8_BACKEND_FAILURE;
     bool written=false;status=group->native_queue->enqueue_borrowed_stream(group->native_stream,
         group->native_desc.ordinary_grid_control!=0,written);
-    hipGraph_t replacement=nullptr;const auto end=hipStreamEndCapture(group->native_stream,&replacement);
-    if(status!=RNS8_SUCCESS || end!=hipSuccess) {
-      if(replacement)(void)hipGraphDestroy(replacement);
-      return status!=RNS8_SUCCESS?status:RNS8_BACKEND_FAILURE;
-    }
-    hipGraphExec_t executable=nullptr;
-    if(hipGraphInstantiate(&executable,replacement,nullptr,nullptr,0)!=hipSuccess) {
-      if(executable)(void)hipGraphExecDestroy(executable);(void)hipGraphDestroy(replacement);return RNS8_BACKEND_FAILURE;
-    }
+    const auto end=capture.end();
+    if(status!=RNS8_SUCCESS || end!=hipSuccess)return status!=RNS8_SUCCESS?status:RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_unique_graph_exec executable;
+    if(executable.instantiate(replacement.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
     status=close_native_group_graph(*group);
-    if(status!=RNS8_SUCCESS) {(void)hipGraphExecDestroy(executable);(void)hipGraphDestroy(replacement);return status;}
-    group->native_graph=replacement;group->native_executable=executable;return RNS8_SUCCESS;
+    if(status!=RNS8_SUCCESS)return status;
+    group->native_graph=replacement.release();group->native_executable=executable.release();return RNS8_SUCCESS;
 #else
     return RNS8_UNSUPPORTED_BACKEND;
 #endif

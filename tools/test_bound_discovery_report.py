@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+import tempfile
+
+from report_inputs import expand_inputs, load_validated_capture
 
 import bound_discovery_report
 from test_capture_identity_support import synthetic_independent_runs
@@ -167,6 +170,23 @@ def proof_mask_capture(static_capture: dict, end_to_end: int, setup_us: int, *, 
 
 
 def main() -> int:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        invalid = root / "invalid.json"
+        invalid.write_text('{}', encoding="utf-8")
+        nested = root / "nested"
+        nested.mkdir()
+        valid = nested / "capture.json"
+        valid.write_bytes((FIXTURE_DIR / "v4_bounded_i64_ck.json").read_bytes())
+        assert expand_inputs([root, valid]) == [invalid, valid, valid]
+        capture = load_validated_capture(valid)
+        assert capture["_path"] == str(valid)
+        try:
+            load_validated_capture(invalid)
+        except SystemExit as exc:
+            assert str(invalid) in str(exc)
+        else:
+            raise AssertionError("invalid report evidence must be rejected")
     static = static_global_capture()
     input_scan_win = input_scan_global_capture(static, 700, 100)
     proof_mask_win = proof_mask_capture(static, 650, 100)

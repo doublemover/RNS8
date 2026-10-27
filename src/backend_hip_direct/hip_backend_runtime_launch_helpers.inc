@@ -18,7 +18,7 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   if (op_status == hipSuccess) {
     event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+      hip_direct_timing_record_pending_event(label, std::move(events));
       return op_status;
     }
     hip_direct_timing_record_failure(label,"record_stop",static_cast<int>(event_status));

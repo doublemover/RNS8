@@ -1,4 +1,5 @@
 #pragma once
+#include "checked_arithmetic.hpp"
 
 // Shared hardware-independent contract for the CPU mock and real HIP owner.
 // Runtime discovery, transport and target qualification remain with the owner.
@@ -43,14 +44,10 @@ inline Admission reject(rns8_status status, const char* reason,
                         uint32_t rank = UINT32_MAX, uint64_t work = UINT64_MAX) {
   return {status, reason, rank, work};
 }
-inline bool add_bytes(uint64_t& value, uint64_t increment) {
-  if (increment > UINT64_MAX - value) return false;
-  value += increment; return true;
+inline bool add_bytes(uint64_t& value,uint64_t increment) {
+  return checked::add(value,increment,value);
 }
-inline bool multiply(uint64_t a, uint64_t b, uint64_t& result) {
-  if (b && a > UINT64_MAX / b) return false;
-  result = a * b; return true;
-}
+using checked::multiply;
 inline bool aligned_bytes(uint64_t bytes, uint64_t& result) {
   if (bytes > UINT64_MAX - 255) return false;
   result = (bytes + 255) & ~uint64_t{255}; return true;

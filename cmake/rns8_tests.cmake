@@ -1058,6 +1058,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
     tests/unit/test_integer_split.cpp
+    tests/unit/test_hip_handle_owner.cpp
     tests/unit/test_moduli.cpp
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp

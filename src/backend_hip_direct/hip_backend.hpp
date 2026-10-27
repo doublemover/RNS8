@@ -1,6 +1,8 @@
 #ifndef RNS8_BACKEND_HIP_DIRECT_HPP
 #define RNS8_BACKEND_HIP_DIRECT_HPP
 
+#include "backend_common/deferred_resource.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include "backend_common/basis_packet.hpp"
@@ -404,13 +406,6 @@ struct hip_direct_grouped_device_resources {
 
 // Preallocated cleanup record for private scratch whose device completion is
 // uncertain. Queue insertion cannot allocate; successful device drains reclaim it.
-enum class hip_deferred_allocation_kind { device, pinned_host };
-struct hip_deferred_buffer_cleanup {
-  hip_deferred_allocation_kind kind=hip_deferred_allocation_kind::device;
-  int device_id=-1;
-  void* pointer=nullptr;
-  hip_deferred_buffer_cleanup* next=nullptr;
-};
 void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup*) noexcept;
 rns8_status hip_direct_collect_deferred_buffers(int device_id);
 
@@ -420,12 +415,8 @@ bool hip_direct_timing_enabled();
 void hip_direct_timing_reset();
 void hip_direct_timing_flush_pending_events();
 void hip_direct_timing_record_sample(const char* label, double microseconds);
-void hip_direct_timing_record_pending_event(const char* label, void* start_event, void* stop_event);
-void hip_direct_timing_record_pending_event_with_alias(
-    const char* label,
-    const char* alias,
-    void* start_event,
-    void* stop_event);
+class hip_unique_event_pair;
+void hip_direct_timing_record_pending_event(const char* label, hip_unique_event_pair&& events);
 std::vector<hip_direct_timing_sample> hip_direct_timing_snapshot();
 void hip_direct_timing_record_failure(const char* label,const char* phase,int backend_status) noexcept;
 bool hip_direct_timing_failures_complete() noexcept;

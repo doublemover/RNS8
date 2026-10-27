@@ -281,7 +281,7 @@ rns8_status rns8_prepare_resident_graph_hip(rns8_resident_graph *graph) {
     if (device_scope.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     if (!graph->completion_event &&
-        graph->completion_event.create() != hipSuccess)
+        graph->completion_event.create(hipEventDisableTiming) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
     if (!graph->hip_prepared) {
       std::vector<rns8::detail::ComplexResidueScratch> resources;
@@ -475,32 +475,20 @@ rns8_status rns8_capture_resident_graph_hip(rns8_resident_graph *graph) {
     rns8::detail::hip_unique_stream capture_stream;
     if (capture_stream.create_non_blocking() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    if (hipStreamBeginCapture(capture_stream.get(),
-                              hipStreamCaptureModeThreadLocal) != hipSuccess)
-      return RNS8_BACKEND_FAILURE;
-    rns8_status body = RNS8_SUCCESS;
-    for (size_t i = 0; i < graph->nodes.size(); ++i) {
-      body = enqueue_resident_node(*graph, i, capture_stream.get());
-      if (body != RNS8_SUCCESS)
-        break;
+    rns8::detail::hip_unique_graph captured;
+    if(captured.reserve()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_capture_scope capture(capture_stream.get(),captured);
+    if(capture.begin()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    rns8_status body=RNS8_SUCCESS;
+    for(size_t i=0;i<graph->nodes.size();++i) {
+      body=enqueue_resident_node(*graph,i,capture_stream.get());
+      if(body!=RNS8_SUCCESS)break;
     }
-    hipGraph_t captured = nullptr;
-    const auto ended = hipStreamEndCapture(capture_stream.get(), &captured);
-    if (body != RNS8_SUCCESS || ended != hipSuccess) {
-      if (captured)
-        (void)hipGraphDestroy(captured);
-      return body != RNS8_SUCCESS ? body : RNS8_BACKEND_FAILURE;
-    }
-    hipGraphExec_t executable = nullptr;
-    if (hipGraphInstantiate(&executable, captured, nullptr, nullptr, 0) !=
-        hipSuccess) {
-      if (executable)
-        (void)hipGraphExecDestroy(executable);
-      (void)hipGraphDestroy(captured);
-      return RNS8_BACKEND_FAILURE;
-    }
-    graph->captured_graph = captured;
-    graph->captured_executable = executable;
+    const auto ended=capture.end();
+    if(body!=RNS8_SUCCESS || ended!=hipSuccess)return body!=RNS8_SUCCESS?body:RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_unique_graph_exec executable;
+    if(executable.instantiate(captured.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    graph->captured_graph=captured.release();graph->captured_executable=executable.release();
     graph->captured_addresses.swap(addresses);
     return RNS8_SUCCESS;
 #else

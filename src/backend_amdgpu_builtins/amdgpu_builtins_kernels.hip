@@ -26,6 +26,10 @@ __device__ __constant__ int rns8_amdgpu_default_moduli[kRns8DefaultModulusCount]
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
+// q is uniform per plane. Keep its reciprocal out of per-output arithmetic,
+// including arbitrary byte channels admitted by the explicit-basis owner.
+__device__ __constant__ rns8::detail::finite_u8::ByteModulusReciprocals rns8_amdgpu_reciprocals{};
+
 enum class rns8_amdgpu_arch_kind {
   unsupported,
   cdna3,
@@ -88,7 +92,8 @@ __device__ __forceinline__ int8_t center_canonical_u8(uint8_t value, int modulus
   if (modulus == 256) {
     return static_cast<int8_t>(value);
   }
-  const uint32_t residue = static_cast<uint32_t>(value % static_cast<uint8_t>(modulus));
+  const uint32_t residue = rns8::detail::finite_u8::reduce_u32_small_modulus(
+      value,uint32_t(modulus),rns8_amdgpu_reciprocals.values[modulus]);
   return rns8::detail::finite_u8::center_unsigned_residue(residue, static_cast<uint32_t>(modulus));
 }
 
@@ -129,7 +134,10 @@ __device__ __forceinline__ uint32_t sparse_index_for_group(
 }
 
 __device__ __forceinline__ int8_t reduce_centered(int32_t value, int modulus) {
-  return rns8::detail::finite_u8::reduce_to_centered_byte_modulus_i32(value, static_cast<uint32_t>(modulus));
+  using namespace rns8::detail::finite_u8;
+  const auto q=static_cast<uint32_t>(modulus);
+  if(static_byte_modulus_supported(q))return reduce_to_centered_static_byte_modulus_i32(value,q);
+  return reduce_to_centered_i32(value,q,rns8_amdgpu_reciprocals.values[q]);
 }
 
 __device__ __forceinline__ void store_rns_accumulator(

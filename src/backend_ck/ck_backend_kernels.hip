@@ -1,3 +1,5 @@
+#include "../core/hip_runtime_handles.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <cstddef>
@@ -37,11 +39,7 @@ bool hip_direct_timing_enabled();
 void hip_direct_timing_flush_pending_events();
 void hip_direct_timing_record_sample(const char* label, double microseconds);
 void hip_direct_timing_record_failure(const char* label, const char* phase, int backend_status) noexcept;
-void hip_direct_timing_record_pending_event_with_alias(
-    const char* label,
-    const char* alias,
-    void* start_event,
-    void* stop_event);
+
 }  // namespace rns8::detail
 
 #include "ck_backend_timing_workspace.inc"

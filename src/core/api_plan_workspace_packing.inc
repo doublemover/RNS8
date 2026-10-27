@@ -305,7 +305,7 @@ bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& byte
 std::string build_autotune_key(const rns8_plan& plan) {
   std::string key = "backend=";
   key += backend_name(plan.backend);
-  key += ";implementation_revision=7";
+  key += ";implementation_revision=8";
   if(plan.desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND)key+=";range_admission=current_value_fixed_basis_v1";
   if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0) key += ";exact_proof=scalar_first_v1";
   key += ";target_id=";

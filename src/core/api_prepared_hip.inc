@@ -144,7 +144,7 @@ rns8_status rns8_prepare_hip_submission(rns8_prepared_execution *e) {
     rns8::detail::hip_scoped_device device(e->ctx->device_id);
     if (device.status() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    if (!e->completion_event && e->completion_event.create() != hipSuccess)
+    if (!e->completion_event && e->completion_event.create(hipEventDisableTiming) != hipSuccess)
       return RNS8_BACKEND_FAILURE;
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
     if(e->plan && e->plan->backend==RNS8_BACKEND_HIPBLASLT && !e->hipblaslt_async){
@@ -361,34 +361,26 @@ rns8_status rns8_capture_prepared_hip_graph(rns8_prepared_execution *e) {
     rns8::detail::hip_unique_stream capture_stream;
     if (capture_stream.create_non_blocking() != hipSuccess)
       return RNS8_BACKEND_FAILURE;
-    if (hipStreamBeginCapture(capture_stream.get(),
-                              hipStreamCaptureModeThreadLocal) != hipSuccess)
-      return RNS8_BACKEND_FAILURE;
-    const auto body = enqueue_prepared(*e, capture_stream.get());
-    hipGraph_t graph = nullptr;
-    const auto end = hipStreamEndCapture(capture_stream.get(), &graph);
-    if (body != RNS8_SUCCESS || end != hipSuccess) {
-      if (graph)
-        (void)hipGraphDestroy(graph);
-      return body != RNS8_SUCCESS ? body : RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_unique_graph graph;
+    if(graph.reserve()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_capture_scope capture(capture_stream.get(),graph);
+    if(capture.begin()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    const auto body=enqueue_prepared(*e,capture_stream.get());
+    const auto end=capture.end();
+    if(body!=RNS8_SUCCESS || end!=hipSuccess)return body!=RNS8_SUCCESS?body:RNS8_BACKEND_FAILURE;
+    rns8::detail::hip_unique_graph_exec executable;
+    if(executable.instantiate(graph.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
+    // Retain each old handle until its own checked destruction succeeds.
+    // A failed second destruction leaves capture unavailable but cleanup retryable.
+    if(e->graph_executable) {
+      if(hipGraphExecDestroy(e->graph_executable)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+      e->graph_executable=nullptr;
     }
-    hipGraphExec_t executable = nullptr;
-    const auto instantiated =
-        hipGraphInstantiate(&executable, graph, nullptr, nullptr, 0);
-    if (instantiated != hipSuccess) {
-      if (executable)
-        (void)hipGraphExecDestroy(executable);
-      (void)hipGraphDestroy(graph);
-      return RNS8_BACKEND_FAILURE;
+    if(e->graph) {
+      if(hipGraphDestroy(e->graph)!=hipSuccess)return RNS8_BACKEND_FAILURE;
+      e->graph=nullptr;
     }
-    // Keep the old graph intact until replacement capture/instantiation
-    // succeeds.
-    if (e->graph_executable)
-      (void)hipGraphExecDestroy(e->graph_executable);
-    if (e->graph)
-      (void)hipGraphDestroy(e->graph);
-    e->graph = graph;
-    e->graph_executable = executable;
+    e->graph=graph.release();e->graph_executable=executable.release();
     e->graph_a = prepared_device_storage(*e->a);
     e->graph_b = prepared_device_storage(*e->b);
     e->graph_c = prepared_device_storage(*e->c);

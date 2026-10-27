@@ -11,9 +11,7 @@ static rns8_status create_stream_overlap(rns8_stream_gemm_plan& plan) {
       state->upload.create_non_blocking()!=hipSuccess || state->compute.create_non_blocking()!=hipSuccess ||
       state->download.create_non_blocking()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   for(auto* events:{&state->uploaded,&state->consumed,&state->export_ready,&state->downloaded})for(auto& event:*events) {
-    hipEvent_t handle=nullptr;
-    if(hipEventCreateWithFlags(&handle,hipEventDisableTiming)!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    event.reset(handle);
+    if(event.create(hipEventDisableTiming)!=hipSuccess)return RNS8_BACKEND_FAILURE;
   }
   plan.overlap=std::move(state);return RNS8_SUCCESS;
 }
@@ -30,14 +28,9 @@ static rns8_status close_stream_overlap(rns8_stream_gemm_plan& plan) {
   auto& state=*plan.overlap;
   if(!drain_stream_overlap(state))return RNS8_BACKEND_FAILURE;
   for(auto* events:{&state.uploaded,&state.consumed,&state.export_ready,&state.downloaded})for(auto& event:*events)
-    if(event) {
-      if(hipEventDestroy(event.get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
-      (void)event.release();
-    }
-  for(auto* stream:{&state.upload,&state.compute,&state.download})if(*stream) {
-    if(hipStreamDestroy(stream->get())!=hipSuccess)return RNS8_BACKEND_FAILURE;
-    (void)stream->release();
-  }
+    if(event.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
+  for(auto* stream:{&state.upload,&state.compute,&state.download})
+    if(stream->reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   if(state.pinned.reset()!=hipSuccess)return RNS8_BACKEND_FAILURE;
   plan.overlap.reset();return RNS8_SUCCESS;
 }

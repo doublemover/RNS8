@@ -3,6 +3,32 @@
   "scope": "All first-party Markdown/HTML/RST/legal/template files known to Git, including new untracked docs; generated output and submodule contents excluded",
   "documents": [
     {
+      "path": "docs/branch-code-audit-20261027.md",
+      "purpose": "Risk-directed branch code audit and bounded correctness/refactoring repairs",
+      "audience": "RNS8 maintainers and reviewers",
+      "disposition": "keep",
+      "canonical": "docs/branch-code-audit-20261027.md",
+      "owner": "src/core/hip_runtime_handles.hpp",
+      "reason": "Dated findings, ownership and capture fixes, shared exact helpers, validation boundaries and unmeasured performance opportunities.",
+      "inbound_links": [
+        {
+          "source": "docs/README.md",
+          "reference": "branch-code-audit-20261027.md"
+        },
+        {
+          "source": "docs/documentation-inventory.json",
+          "reference": "../docs/branch-code-audit-20261027.md"
+        }
+      ],
+      "anchors": [
+        "branch-code-audit-october-27-2026",
+        "findings-and-repairs",
+        "opportunities-requiring-evidence",
+        "review-and-validation-boundaries",
+        "shared-helpers-and-comments"
+      ]
+    },
+    {
       "path": "docs/ragged-calibration.md",
       "purpose": "Public ragged ownership and matched host materialization calibration",
       "audience": "Exact arithmetic researchers and calibration contributors",

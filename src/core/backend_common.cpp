@@ -53,7 +53,7 @@ int run_timed_device_code(const char* label, const std::function<int()>& fn) {
   if (code == 0) {
     event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+      hip_direct_timing_record_pending_event(label, std::move(events));
       return code;
     }
     hip_direct_timing_record_failure(label,"record_stop",static_cast<int>(event_status));

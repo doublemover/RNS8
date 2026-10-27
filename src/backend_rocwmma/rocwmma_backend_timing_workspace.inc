@@ -34,62 +34,7 @@ void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* 
   std::snprintf(buffer, size, "rocwmma_prefix_%02d_%s", prefix_index, suffix);
 }
 
-class timing_event_pair {
- public:
-  timing_event_pair() = default;
-  timing_event_pair(const timing_event_pair&) = delete;
-  timing_event_pair& operator=(const timing_event_pair&) = delete;
-  ~timing_event_pair() {
-    reset();
-  }
 
-  bool create_and_record_start() {
-    reset();
-    for (int attempt = 0; attempt < 8; ++attempt) {
-      hipError_t status = hipEventCreate(&start_);
-      if (status == hipSuccess) {
-        status = hipEventCreate(&stop_);
-      }
-      if (status == hipSuccess) {
-        status = hipEventRecord(start_, nullptr);
-      }
-      if (status == hipSuccess) {
-        return true;
-      }
-      reset();
-      if (attempt == 0) {
-        rns8::detail::hip_direct_timing_flush_pending_events();
-      }
-      if (attempt + 1 < 8) {
-        (void)hipDeviceSynchronize();
-      }
-    }
-    return false;
-  }
-
-  hipEvent_t start() const {
-    return start_;
-  }
-
-  hipEvent_t stop() const {
-    return stop_;
-  }
-
- private:
-  void reset() {
-    if (stop_) {
-      (void)hipEventDestroy(stop_);
-      stop_ = nullptr;
-    }
-    if (start_) {
-      (void)hipEventDestroy(start_);
-      start_ = nullptr;
-    }
-  }
-
-  hipEvent_t start_ = nullptr;
-  hipEvent_t stop_ = nullptr;
-};
 
 void record_synchronized_host_timing(
     const char* label,
@@ -112,8 +57,8 @@ hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,hipStr
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
-  timing_event_pair events;
-  if (!events.create_and_record_start()) {
+  rns8::detail::hip_unique_event_pair events;
+  if (!rns8::detail::hip_create_timing_events_with_retry(events)) {
     const hipError_t status = fn();
     if (status == hipSuccess) {
       record_synchronized_host_timing(label, alias, host_start);

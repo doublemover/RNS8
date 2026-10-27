@@ -46,8 +46,9 @@ def resources(case):
     result.update(pinned_host_bytes=0,ordinary_host_bytes=result['host_bytes'],control_reservation_bytes=0,stream_count=0,event_count=0)
     if overlap:
         pinned=2*sum(map(align,(8*m*k,8*k*n,8*m*n,4)))
-        result.update(host_bytes=pinned+256,pinned_host_bytes=pinned,ordinary_host_bytes=256,
-            control_reservation_bytes=256,stream_count=3,event_count=8,minimum_device_bytes=3584,minimum_host_bytes=2304)
+        control=256+11*24  # Eleven stream/event retry records on the supported 64-bit ABI.
+        result.update(host_bytes=pinned+control,pinned_host_bytes=pinned,ordinary_host_bytes=control,
+            control_reservation_bytes=control,stream_count=3,event_count=8,minimum_device_bytes=3584,minimum_host_bytes=2048+control)
     stride=align(k*n*p);panels=((case["n"]+n-1)//n)*result["k_panels_per_tile"]
     entries=max(0,min(panels,case["retained_b_budget_bytes"]//stride,
         (case["device_budget_bytes"]-result["device_bytes"])//stride,

@@ -121,54 +121,20 @@ void hip_direct_timing_record_sample(const char* label, double microseconds) {
   g_hip_direct_timing_samples.push_back({label, microseconds});
 }
 
-void hip_direct_timing_record_pending_event(const char* label, void* start_event, void* stop_event) {
+void hip_direct_timing_record_pending_event(const char* label,hip_unique_event_pair&& events) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  hip_unique_event start(reinterpret_cast<hipEvent_t>(start_event));
-  hip_unique_event stop(reinterpret_cast<hipEvent_t>(stop_event));
-  if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
-    if(g_hip_direct_timing_enabled && label)hip_direct_timing_record_failure(label,"invalid_event_pair",static_cast<int>(hipErrorInvalidValue));
+  auto start=events.take_start(),stop=events.take_stop();
+  if(!g_hip_direct_timing_enabled || !label || !start || !stop) {
+    if(g_hip_direct_timing_enabled && label)hip_direct_timing_record_failure(label,"invalid_event_pair",int(hipErrorInvalidValue));
     return;
   }
   flush_pending_timing_events_if_full();
   hip_direct_pending_timing_sample sample;
   sample.labels.push_back(label);
-  sample.start = std::move(start);
-  sample.stop = std::move(stop);
+  sample.start=std::move(start);sample.stop=std::move(stop);
   g_hip_direct_pending_timing_samples.push_back(std::move(sample));
 #else
-  (void)label;
-  (void)start_event;
-  (void)stop_event;
-#endif
-}
-
-void hip_direct_timing_record_pending_event_with_alias(
-    const char* label,
-    const char* alias,
-    void* start_event,
-    void* stop_event) {
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  hip_unique_event start(reinterpret_cast<hipEvent_t>(start_event));
-  hip_unique_event stop(reinterpret_cast<hipEvent_t>(stop_event));
-  if (!g_hip_direct_timing_enabled || !label || !start || !stop) {
-    if(g_hip_direct_timing_enabled && label)hip_direct_timing_record_failure(label,"invalid_event_pair",static_cast<int>(hipErrorInvalidValue));
-    return;
-  }
-  std::vector<std::string> labels{label};
-  if (alias && alias[0] != '\0') {
-    labels.push_back(alias);
-  }
-  flush_pending_timing_events_if_full();
-  hip_direct_pending_timing_sample sample;
-  sample.labels = std::move(labels);
-  sample.start = std::move(start);
-  sample.stop = std::move(stop);
-  g_hip_direct_pending_timing_samples.push_back(std::move(sample));
-#else
-  (void)label;
-  (void)alias;
-  (void)start_event;
-  (void)stop_event;
+  (void)label;(void)events;
 #endif
 }
 

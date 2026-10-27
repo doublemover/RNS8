@@ -43,6 +43,7 @@ issue links.
 
 ## Benchmark and validate
 
+- [October 27 branch code audit](branch-code-audit-20261027.md): findings, ownership repairs, shared helpers and review limits
 - [Performance methodology](performance.md), [timing admission](timing-admission.md)
 - [Hardware qualification](gpu-qualification.md): test/capture commands and acceptance gates
 - [Calibration and planner rates](calibration.md), [native conversion/queue controls](native-calibration.md)

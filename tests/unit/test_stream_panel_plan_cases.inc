@@ -92,7 +92,7 @@ TEST_CASE("overlapped panel storage reserves both rings and hard-budgeted pinned
   const auto overlap=plan_stream_panels(p);REQUIRE(overlap.status==RNS8_SUCCESS);
   CHECK(overlap.device_bytes>serial.device_bytes);CHECK(overlap.pinned_bytes>0);
   CHECK(overlap.host_bytes==overlap.pinned_bytes+overlap.control_bytes);CHECK(overlap.ordinary_bytes==overlap.control_bytes);
-  CHECK(overlap.streams==3);CHECK(overlap.events==8);CHECK(overlap.minimum_device_bytes==3584);CHECK(overlap.minimum_host_bytes==2304);
+  CHECK(overlap.streams==3);CHECK(overlap.events==8);CHECK(overlap.minimum_device_bytes==3584);CHECK(overlap.minimum_host_bytes==2568);
   CHECK(overlap.total_steps==serial.total_steps);CHECK(overlap.tile_count==serial.tile_count);
   uint64_t end=0;
   for(size_t i=0;i<stream_slot_count;++i) {

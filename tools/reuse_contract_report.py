@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import result_compare
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_inputs import load_validated_capture
 
 
 RELEASE_MIN_WARMUPS = 3
@@ -49,16 +49,6 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
         else:
             expanded.append(path)
     return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        data = load_capture(path)
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def backend_id(capture: dict[str, Any]) -> str:

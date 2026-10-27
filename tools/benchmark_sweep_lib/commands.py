@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import Any
 
 from .capture_metadata import requested_pack_mode
@@ -22,6 +23,7 @@ from .config import (
     PUBLIC_ONESHOT_BACKENDS,
     RNS_CHAIN_SEMANTICS,
     scenario_data_dir,
+    ScenarioItem,
     SweepCase,
     SweepCommand,
     WRAP64_BACKENDS,

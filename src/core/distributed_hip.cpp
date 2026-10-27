@@ -101,10 +101,7 @@ struct HipExecution::Impl {
     return status_code == RNS8_SUCCESS ? Admission{} : reject(status_code, "device_allocation");
   }
   static hipError_t event_create(hip_unique_event& event) {
-    hipEvent_t handle = nullptr;
-    const auto code = hipEventCreateWithFlags(&handle, hipEventDisableTiming);
-    if (code == hipSuccess) event.reset(handle);
-    return code;
+    return event.create(hipEventDisableTiming);
   }
   Admission initialize() {
     const auto& r = plan->request();
@@ -434,11 +431,11 @@ struct HipExecution::Impl {
     // Destroy under each owning device and retain failed handles for retry.
     const auto event = [](hip_unique_event& value) {
       if (!value) return hipSuccess;
-      const auto code = hipEventDestroy(value.get()); if (code == hipSuccess) (void)value.release(); return code;
+      return value.reset();
     };
     const auto stream = [](hip_unique_stream& value) {
       if (!value) return hipSuccess;
-      const auto code = hipStreamDestroy(value.get()); if (code == hipSuccess) (void)value.release(); return code;
+      return value.reset();
     };
     for (auto& device : devices) {
       if (!device.a && !device.b && !device.output && !device.staged &&

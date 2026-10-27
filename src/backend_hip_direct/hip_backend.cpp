@@ -657,6 +657,17 @@ rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup*
         status=hipHostFree(node->pointer)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
         if(status==RNS8_SUCCESS)observation.released(node->pointer,AllocationObservationDomain::pinned_host);
       }
+      else {
+        hipError_t error=hipErrorInvalidValue;
+        switch(node->kind) {
+          case hip_deferred_allocation_kind::event: error=hipEventDestroy(static_cast<hipEvent_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::stream: error=hipStreamDestroy(static_cast<hipStream_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::graph: error=hipGraphDestroy(static_cast<hipGraph_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::graph_exec: error=hipGraphExecDestroy(static_cast<hipGraphExec_t>(node->pointer));break;
+          default: break;
+        }
+        status=error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+      }
 #endif
       if(status==RNS8_SUCCESS) delete node;
       else {if(result==RNS8_SUCCESS) result=status;hip_direct_defer_buffer_cleanup(node);}

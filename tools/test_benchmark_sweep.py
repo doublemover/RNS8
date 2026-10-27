@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import inspect
+import typing
+
+from benchmark_sweep_lib import commands, reports
 
 from test_benchmark_sweep_support import *  # noqa: F401,F403 - compatibility re-export
 
@@ -24,6 +28,11 @@ def _run_case_fragment(name: str, state: dict) -> None:
 
 
 def main() -> int:
+    # Sweep consumers inspect annotations without executing benchmark commands.
+    for module in (commands, reports):
+        for _, function in inspect.getmembers(module, inspect.isfunction):
+            if function.__module__ == module.__name__:
+                typing.get_type_hints(function)
     state = dict(globals())
     for fragment in _CASE_FRAGMENTS:
         _run_case_fragment(fragment, state)

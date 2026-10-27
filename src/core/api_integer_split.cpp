@@ -1,4 +1,5 @@
 #include "rns8/integer_split.h"
+#include "backend_common/checked_arithmetic.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,16 +14,8 @@ struct Layout {
   uint64_t native_bytes, component_bytes;
 };
 
-bool multiply(uint64_t a, uint64_t b, uint64_t& result) noexcept {
-  if (b && a > UINT64_MAX / b) return false;
-  result = a * b;
-  return true;
-}
-bool add(uint64_t a, uint64_t b, uint64_t& result) noexcept {
-  if (a > UINT64_MAX - b) return false;
-  result = a + b;
-  return true;
-}
+using rns8::detail::checked::add;
+using rns8::detail::checked::multiply;
 
 rns8_status layout(const rns8_integer_split_i64_desc* d, Layout& out) noexcept {
   if (!d || d->struct_size != sizeof(*d) || d->abi_version != RNS8_ABI_VERSION ||
