@@ -297,22 +297,22 @@
       "defaults": {"schema": "bilinear_case_v1", "repeats": 3, "warmups": 1, "seed": 4855},
       "columns": ["m", "n", "k", "prefix", "unsigned_inputs", "mode", "subproduct_backend", "residency", "instrumented", "max_scratch_bytes", "max_host_bytes", "matrix_variant"],
       "rows": [
-        ["17x19x33-p20-i-direct-rank48-production.json", "f7e07c512d06ef53728756011b9f65f858fb1df54b1a927b8267595be21b76f3", 17, 19, 33, 20, false, "rank48-slp-retained", "direct", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-direct-rank48-production.json", "1e268c64e600d0dd296dd47ae3c78acc6bf79ef7cc7834b7b7068ec9e470c030", 17, 19, 33, 20, false, "rank48-slp-recompute", "direct", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-direct-rank48-diagnostic.json", "a4dadfc1f2410c5143b7b1ec1ad6bd2699269550d64bf17fc0a216a6cbbde2fe", 17, 19, 33, 20, false, "rank48-slp-retained", "direct", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-direct-rank48-diagnostic.json", "cb68cfd4478c188e34ed25b185aa160509d32afa141b606205c80fdc5de366cd", 17, 19, 33, 20, false, "rank48-slp-recompute", "direct", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-direct-rank48-production.json", "435bb454f0a51fc46e827842be0b07f70193fa6f028a576d05e97b69b1d6a176", 17, 19, 33, 20, true, "rank48-slp-retained", "direct", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-direct-rank48-production.json", "1d6dfad8aa4010857d252db1f06c02c131002c73de8b79d84a21e3dd9805234d", 17, 19, 33, 20, true, "rank48-slp-recompute", "direct", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-direct-rank48-diagnostic.json", "1cb21ca6767bb9ebb5e84185163a684b4cb944b1c05373fcf11b52dd8e005c11", 17, 19, 33, 20, true, "rank48-slp-retained", "direct", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-direct-rank48-diagnostic.json", "ba8589c39642fe8743264791a869b70f5a574ab33f5b8facc926dfb3b8a61073", 17, 19, 33, 20, true, "rank48-slp-recompute", "direct", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-matrix-rank48-production.json", "d352c751389dfe49d52eff31e1bd6505c47067f63116a022a8fa5b591fa5c2e8", 17, 19, 33, 20, false, "rank48-slp-retained", "matrix", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-matrix-rank48-production.json", "3ae33f2f474f21339022c7dcf80311504fd9846b4e8ce84d603286f1c66aed65", 17, 19, 33, 20, false, "rank48-slp-recompute", "matrix", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-matrix-rank48-diagnostic.json", "15d24790f49304d91b9a4109e9cfe60045740e6a2bed0ce0ed98470b096d4363", 17, 19, 33, 20, false, "rank48-slp-retained", "matrix", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-i-matrix-rank48-diagnostic.json", "2b5913cf97cd20fe85072d064abff597e635fbe8364e02b836bdc6c0a10ec369", 17, 19, 33, 20, false, "rank48-slp-recompute", "matrix", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-matrix-rank48-production.json", "7fd2772da1945d757648772e23025d05bd5454577955fca0f8ff79cdcefe0461", 17, 19, 33, 20, true, "rank48-slp-retained", "matrix", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-matrix-rank48-production.json", "5ea2ca3097cfb4457b0a52bfbb297e4d69096c0d4e6fee7fb0e13a3cd0b7d137", 17, 19, 33, 20, true, "rank48-slp-recompute", "matrix", "resident", false, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-matrix-rank48-diagnostic.json", "dda2ea686919a7718b5e09276e096d3bd6cd519cd5f2895f88d872c4f2736c8a", 17, 19, 33, 20, true, "rank48-slp-retained", "matrix", "resident", true, 67108864, 67108864, 0],
-        ["17x19x33-p20-u-matrix-rank48-diagnostic.json", "eff9bb2e3454f209a0c95645d7f5e1fa098ccb351457a085a3d0edc7d7079225", 17, 19, 33, 20, true, "rank48-slp-recompute", "matrix", "resident", true, 67108864, 67108864, 0]
+        ["17x19x33-p20-i-direct-rank48-slp-retained-production.json", "f7e07c512d06ef53728756011b9f65f858fb1df54b1a927b8267595be21b76f3", 17, 19, 33, 20, false, "rank48-slp-retained", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-direct-rank48-slp-recompute-production.json", "1e268c64e600d0dd296dd47ae3c78acc6bf79ef7cc7834b7b7068ec9e470c030", 17, 19, 33, 20, false, "rank48-slp-recompute", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-direct-rank48-slp-retained-diagnostic.json", "a4dadfc1f2410c5143b7b1ec1ad6bd2699269550d64bf17fc0a216a6cbbde2fe", 17, 19, 33, 20, false, "rank48-slp-retained", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-direct-rank48-slp-recompute-diagnostic.json", "cb68cfd4478c188e34ed25b185aa160509d32afa141b606205c80fdc5de366cd", 17, 19, 33, 20, false, "rank48-slp-recompute", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-slp-retained-production.json", "435bb454f0a51fc46e827842be0b07f70193fa6f028a576d05e97b69b1d6a176", 17, 19, 33, 20, true, "rank48-slp-retained", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-slp-recompute-production.json", "1d6dfad8aa4010857d252db1f06c02c131002c73de8b79d84a21e3dd9805234d", 17, 19, 33, 20, true, "rank48-slp-recompute", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-slp-retained-diagnostic.json", "1cb21ca6767bb9ebb5e84185163a684b4cb944b1c05373fcf11b52dd8e005c11", 17, 19, 33, 20, true, "rank48-slp-retained", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-slp-recompute-diagnostic.json", "ba8589c39642fe8743264791a869b70f5a574ab33f5b8facc926dfb3b8a61073", 17, 19, 33, 20, true, "rank48-slp-recompute", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-slp-retained-production.json", "d352c751389dfe49d52eff31e1bd6505c47067f63116a022a8fa5b591fa5c2e8", 17, 19, 33, 20, false, "rank48-slp-retained", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-slp-recompute-production.json", "3ae33f2f474f21339022c7dcf80311504fd9846b4e8ce84d603286f1c66aed65", 17, 19, 33, 20, false, "rank48-slp-recompute", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-slp-retained-diagnostic.json", "15d24790f49304d91b9a4109e9cfe60045740e6a2bed0ce0ed98470b096d4363", 17, 19, 33, 20, false, "rank48-slp-retained", "matrix", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-slp-recompute-diagnostic.json", "2b5913cf97cd20fe85072d064abff597e635fbe8364e02b836bdc6c0a10ec369", 17, 19, 33, 20, false, "rank48-slp-recompute", "matrix", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-slp-retained-production.json", "7fd2772da1945d757648772e23025d05bd5454577955fca0f8ff79cdcefe0461", 17, 19, 33, 20, true, "rank48-slp-retained", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-slp-recompute-production.json", "5ea2ca3097cfb4457b0a52bfbb297e4d69096c0d4e6fee7fb0e13a3cd0b7d137", 17, 19, 33, 20, true, "rank48-slp-recompute", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-slp-retained-diagnostic.json", "dda2ea686919a7718b5e09276e096d3bd6cd519cd5f2895f88d872c4f2736c8a", 17, 19, 33, 20, true, "rank48-slp-retained", "matrix", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-slp-recompute-diagnostic.json", "eff9bb2e3454f209a0c95645d7f5e1fa098ccb351457a085a3d0edc7d7079225", 17, 19, 33, 20, true, "rank48-slp-recompute", "matrix", "resident", true, 67108864, 67108864, 0]
       ]
     }
   ]
