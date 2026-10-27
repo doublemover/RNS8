@@ -54,16 +54,42 @@ weaken exactness or infer wraparound semantics from odd-modulus CRT.
 Targeted Python checks cover undefined names, mutable defaults and delayed-loop
 binding. Dynamic test-fragment namespaces produce many whole-tree undefined-name
 reports, and immediate-use closures need manual triage. LLVM 23 clang-tidy
-core/C++ analyzer and selected bug-prone checks cover 17 distinct CPU-configured
-translation units, including their headers. The pinned-host null report assumes
+core/C++ analyzer and selected bug-prone checks cover all 54 CPU-configured
+library translation units, including their headers. The pinned-host null report assumes
 an unpublished private owner has `published=true`; construction/publication
-does not admit that state. Boost template diagnostics were inspected separately
-and did not establish a reachable project defect. A CPU compilation database
-does not analyze the active HIP-only branches.
+does not admit that state. The CRT return-value leak report retains allocated
+limbs in a `cpp_int` whose destructor deallocates them. Other Boost template
+diagnostics did not establish a reachable project defect. A CPU compilation
+database does not analyze the active HIP-only branches.
 
 Changed host ownership paths and all three changed HIP translation units pass
-syntax compilation with the local SDK. Consolidated CPU-ASan, HIP correctness,
-tooling and installed-consumer results will be recorded after the source commit.
+syntax compilation with the local SDK. Final library binaries come from clean
+`2c713a1`, with matching source digests in the CPU and HIP builds. CTest budget
+registration is corrected separately in `85c40c1`; library binary hashes remain
+unchanged across its grouped recheck.
+
+| Lane | Result |
+| --- | --- |
+| CPU LLVM23 ASan | 633 passed, 45 skipped, zero failures |
+| HIP Release / gfx1100 | 1,122 passed, 34 skipped, zero unresolved failures after the fixture recheck below |
+| Fresh installed native/DLPack consumer | 4/4 passed |
+| Installed strict C17 shared/static consumers | 2/2 passed |
+| Ubuntu24.04/WSL host | Strict GCC13 C17/C++17 split/merge linkage and execution pass |
+| MPI/RCCL/rocSHMEM source | Syntax passes against actual headers; no linked transport execution claim |
+
+The full HIP batch initially passed 1,120 cases and skipped 34, with two overlap
+smokes failing admission because their CTest arguments still budgeted 2,304 host
+bytes. Both pass together after changing only that minimum to 2,568 bytes.
+The [receipt](../metadata/branch-code-audit-validation-20261027.json) preserves
+the original results, explicit aggregation, recheck and artifact identities;
+the [archive manifest](../metadata/branch-code-audit-validation-archive-20261027.json)
+indexes the raw evidence outside Git. An earlier build-only repair updates the
+last benchmark caller of the retired raw timing-event interface.
+
+Compiled unbatched ordinary and finite RDNA3 WMMA symbols contain no reciprocal
+instructions. The batched symbol retains batch-address division; no blanket
+whole-object no-divide or measured throughput claim follows.
+
 Prior stopped residue-dot campaigns remain stopped; the unchanged symbolic
 checker retains its separately identified result. No new throughput results,
 AUTO promotion or transfer of frozen gains to the repaired source is implied.

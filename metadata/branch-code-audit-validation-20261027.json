@@ -1,0 +1,681 @@
+{
+  "schema": "rns8_branch_code_audit_validation_v1",
+  "date": "2026-10-27",
+  "audit_start_commit": "4ca143d01cdb0837bea2d15548e85e9bb89256e9",
+  "implementation_commit": "4c15dbed87952483905d539f11afa32aeffecdb2",
+  "validated_source_commit": "2c713a12572edebfd3db4f1230e5a6278fbaab74",
+  "test_configuration_commit": "85c40c1cd30d62469aad9531005765b2134e7b14",
+  "audit_report": "docs/branch-code-audit-20261027.md",
+  "stack": {
+    "platform": "Windows",
+    "device": "Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "sdk": "TheRock Core10.1",
+    "hip": "7.16.26385",
+    "hip_compiler": "AMDClang24",
+    "host_compiler": "MSVC19.51.36260",
+    "python": "3.15.1",
+    "cpp_standard": 17,
+    "cpu_asan": "LLVM23.1.4 RelWithDebInfo /MD",
+    "openmp": false
+  },
+  "source_complete_before_testing": true,
+  "lanes": {
+    "cpu-asan": {
+      "selected": 678,
+      "passed": 633,
+      "failed": 0,
+      "skipped": 45,
+      "failed_tests": [],
+      "skipped_tests": [
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "HIP batches admit all members before reserving shared readers",
+        "HIP event-dependent joins submit before producer observation",
+        "HIP folded and heterogeneous tile bounds retain exact export contracts",
+        "HIP graphs retain one shared operand and preserve full-width semantics",
+        "HIP owned device and pinned allocations reconcile public live and peak observations",
+        "HIP prefix-nine decline seals signed and unsigned oneshots exactly once",
+        "HIP submissions reserve shared readers and publish only after observed completion",
+        "bound recipes chain checked pinned export without prior output publication",
+        "bounded event-dependent GEMM reserves pending operands without host publication",
+        "caller graph reserves every body and bounded slots retain unconsumed epochs",
+        "checked CRT HIP policies match independent full-width references and canaries",
+        "checked CRT HIP rebind and replay perform no additional device allocations",
+        "exact-wide moment admission exports exact resident HIP chains",
+        "finite token pipelines preserve modulus and cancellation publication",
+        "generated HIP values invalidate downstream result cache after upstream mutation",
+        "named FP8 finite research matches independent complete padded products",
+        "native sentinel gates ordinary, graph and native-group publication",
+        "one completion system composes GEMM, value-preserving lift and dependent GEMM",
+        "owned HIP capture ends on host exception and retains the captured operation",
+        "owned pinned imports and exports share prepared dependency and graph publication",
+        "pending prepared dependencies publish before consumer launch and propagate cancellation",
+        "prepared HIP epilogues bind addends and preserve capture expression identity",
+        "prepared bounded HIP preserves declared ranges and checked exports",
+        "prepared finite HIP streams and graphs publish explicit ring results",
+        "prepared wrap HIP streams and graphs preserve full width byte semantics",
+        "public HIP product recipe rebinds owners without reallocating its arena",
+        "public HIP split-K owner reuses scratch and publishes complete exact products",
+        "public finite INT4 preparation owns generation-bound B and preserves stale rejection",
+        "quarter CRT HIP signed canonical and tail exports use the public owner",
+        "quarter owner accepts CK residue producers",
+        "quarter owner accepts CPU AMX residue producers",
+        "quarter owner accepts builtin residue producers",
+        "quarter owner accepts direct HIP residue producers",
+        "quarter owner accepts hipBLASLt residue producers",
+        "quarter owner accepts rocWMMA residue producers",
+        "real HIP distributed ordered bases retain small composite and reordered channel identities",
+        "real HIP distributed packing and GEMM cross the safe K slab boundary",
+        "real HIP explicit output and contraction distributions retain complete exact results",
+        "real HIP modulus shards gather and publish one exact generation",
+        "three HIP producer publications feed an exact epilogue in reverse observation order",
+        "unsupported sparse target preserves an existing public output",
+        "wrap pending tokens compose byte limbs without CRT"
+      ],
+      "seconds": 117.0,
+      "junit_sha256": "fa592956a6d610db68831da598242fac4d10a61dbc9140fe55dddff8f1faa2c7"
+    },
+    "hip": {
+      "selected": 1156,
+      "passed": 1122,
+      "skipped": 34,
+      "failed": 0,
+      "failed_tests": [],
+      "skipped_tests": [
+        "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+        "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+        "Arm SMMLA covers every byte product in prime composite and even rings",
+        "Arm SMMLA exact products match scalar Boost and retain B generations",
+        "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+        "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+        "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+        "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+        "CDNA5 TDM and multicast transfer litmus preserves full words and zero tails",
+        "CDNA5 two-stage RNS consumers match Boost across cluster and slab tails",
+        "budgeted finite controls read real device addresses beyond signed 32-bit range",
+        "named FP8 finite research matches independent complete padded products",
+        "quarter owner accepts CPU AMX residue producers",
+        "fp8_fp8_capture_smoke",
+        "fp8_fp8-materialized_capture_smoke",
+        "tdm_tdm_capture_smoke",
+        "tdm_multicast2_capture_smoke",
+        "tdm_multicast4_capture_smoke",
+        "tdm_ordinary-wmma_capture_smoke",
+        "tdm_tdm-wmma_capture_smoke",
+        "tdm_multicast2-wmma_capture_smoke",
+        "tdm_multicast4-wmma_capture_smoke",
+        "tdm_multicast2-wmma-neighbor_capture_smoke",
+        "tdm_multicast4-wmma-neighbor_capture_smoke",
+        "word_mod_asymmetric_fp64_mfma_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+        "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+      ],
+      "seconds": 784.0,
+      "aggregation": "Full clean-source suite plus grouped recheck of two corrected minimum-budget fixtures; library binaries unchanged.",
+      "primary_result": {
+        "selected": 1156,
+        "passed": 1120,
+        "failed": 2,
+        "skipped": 34,
+        "failed_tests": [
+          "stream_panel_signed_stream-overlap_smoke",
+          "stream_panel_unsigned_stream-overlap_smoke"
+        ],
+        "skipped_tests": [
+          "AMDGPU builtin explicit sparse-A bounded backend matches dense backend",
+          "AMDGPU builtin explicit sparse-A exact-wide backend matches dense backend",
+          "AMDGPU builtin explicit sparse-A finite u8 backend matches dense backend",
+          "Arm SMMLA covers every byte product in prime composite and even rings",
+          "Arm SMMLA exact products match scalar Boost and retain B generations",
+          "CDNA FP64 MFMA fused and concatenated word-mod schedules match exact slab and tail references",
+          "CDNA MFMA single-hot operands distinguish wave-register coordinate ownership",
+          "CDNA signed radix MFMA wrap64 agrees with independent byte and Boost oracles",
+          "CDNA4 fixed mixed and dynamic-scale finite kernels match complete Boost products",
+          "CDNA5 TDM and multicast transfer litmus preserves full words and zero tails",
+          "CDNA5 two-stage RNS consumers match Boost across cluster and slab tails",
+          "budgeted finite controls read real device addresses beyond signed 32-bit range",
+          "named FP8 finite research matches independent complete padded products",
+          "quarter owner accepts CPU AMX residue producers",
+          "fp8_fp8_capture_smoke",
+          "fp8_fp8-materialized_capture_smoke",
+          "tdm_tdm_capture_smoke",
+          "tdm_multicast2_capture_smoke",
+          "tdm_multicast4_capture_smoke",
+          "tdm_ordinary-wmma_capture_smoke",
+          "tdm_tdm-wmma_capture_smoke",
+          "tdm_multicast2-wmma_capture_smoke",
+          "tdm_multicast4-wmma_capture_smoke",
+          "tdm_multicast2-wmma-neighbor_capture_smoke",
+          "tdm_multicast4-wmma-neighbor_capture_smoke",
+          "word_mod_asymmetric_fp64_mfma_resident_smoke",
+          "word_mod_asymmetric_fp64_mfma_repeated_b_smoke",
+          "word_mod_asymmetric_fp64_mfma_cold_smoke",
+          "word_mod_asymmetric_fp64_mfma_rows_resident_smoke",
+          "word_mod_asymmetric_fp64_mfma_rows_repeated_b_smoke",
+          "word_mod_asymmetric_fp64_mfma_rows_cold_smoke",
+          "word_mod_asymmetric_fp64_mfma_columns_resident_smoke",
+          "word_mod_asymmetric_fp64_mfma_columns_repeated_b_smoke",
+          "word_mod_asymmetric_fp64_mfma_columns_cold_smoke"
+        ],
+        "seconds": 783.0,
+        "junit_sha256": "5920d1f259c78e9a01db2e2bc1ec98d55704b7bdc72432396b4add92222b656c"
+      },
+      "fixture_recheck": {
+        "selected": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "failed_tests": [],
+        "skipped_tests": [],
+        "seconds": 1.0,
+        "junit_sha256": "e61c3bef28afde9dcbc1f2a879d02fe4713361691d13fe8d58be38f66936c8c4"
+      }
+    },
+    "native": {
+      "selected": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "failed_tests": [],
+      "skipped_tests": [],
+      "seconds": 1.0,
+      "junit_sha256": "04ffd5d9435c016892eb4e024748da893d4ac2c3c0635dd8fa4e2fcb0fe6764d"
+    },
+    "split-shared": {
+      "selected": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "failed_tests": [],
+      "skipped_tests": [],
+      "seconds": 0.0,
+      "junit_sha256": "d416931bcf248b2035fa7dbe3a4c53b0fdebd3f306f7dfdda95a4abd844c2cbe"
+    },
+    "split-static": {
+      "selected": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "failed_tests": [],
+      "skipped_tests": [],
+      "seconds": 0.0,
+      "junit_sha256": "7292819227896e56de282155730be8b09e9e41849388479eca8e12b6bc24bc9a"
+    }
+  },
+  "compiled_artifacts": {
+    "cpu-asan": {
+      "source_commit": "2c713a12572edebfd3db4f1230e5a6278fbaab74",
+      "source_digest": "7ebd54976f44f068874fb065966634d19c3e716eedf82c0983b233c26e83dfe7",
+      "source_dirty": false,
+      "manifest_sha256": "ba71c1082cce5f01347c443c3b4179f6a89f1b9e4b7041478dfde6a8f7760e8a",
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "binary_sha256": {
+        "rns8_tests.exe": "b8ab0f9760f14125c94b8090bbc04399f884a4db2b8681ea49ae5cd2ffc9860c",
+        "rns8.dll": "62a5eccd0d24b347d746df1cfd6ed4ab483818f06555d41021a86ff8436b6ede"
+      }
+    },
+    "hip": {
+      "source_commit": "2c713a12572edebfd3db4f1230e5a6278fbaab74",
+      "source_digest": "7ebd54976f44f068874fb065966634d19c3e716eedf82c0983b233c26e83dfe7",
+      "source_dirty": false,
+      "manifest_sha256": "296fea21ae78c02b6751108eff9d3fa3a4abca3af21d04f91b7c76538e001d21",
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "binary_sha256": {
+        "rns8_tests.exe": "a844cfe378c8b0cecd4c06bd28badfd805d1eeaf2936b740e291d7a4730e7e19",
+        "rns8.dll": "6b50b17a73be7024c88fef4160590322307da83350dbdd67db92704fb3259f6c"
+      }
+    }
+  },
+  "test_fixture_correction": {
+    "commit": "85c40c1cd30d62469aad9531005765b2134e7b14",
+    "source_file": "cmake/rns8_tests.cmake",
+    "change": "Minimum host budget 2304 -> 2568 for eleven 24-byte retry records; no runtime source changed.",
+    "compiled_binaries_unchanged": true
+  },
+  "installed_shared_library_sha256": {
+    "installed-native": "6b50b17a73be7024c88fef4160590322307da83350dbdd67db92704fb3259f6c",
+    "installed-split-shared": "6b50b17a73be7024c88fef4160590322307da83350dbdd67db92704fb3259f6c"
+  },
+  "initial_batch": {
+    "source_commit": "4c15dbed87952483905d539f11afa32aeffecdb2",
+    "cpu_asan_selected": 678,
+    "cpu_asan_passed": 633,
+    "cpu_asan_skipped": 45,
+    "cpu_asan_failed": 0,
+    "hip_build_status": "failed_before_runtime_tests",
+    "reason": "One streaming benchmark still called the retired raw-event release interface; replaced by typed pair transfer in the validated source commit.",
+    "repair_frontloaded_before_combined_retest": true
+  },
+  "excluded_registered_tests": [
+    "native_wmma_logical_checker_self_test",
+    "residue_dot_independent-p20-sparse_smoke",
+    "residue_dot_grouped-p20-sparse_smoke",
+    "residue_dot_scheduled-p20-sparse_smoke",
+    "residue_dot_region-p20-sparse_smoke",
+    "residue_dot_grouped-fullwidth-k65_smoke",
+    "residue_dot_grouped-finite247_smoke",
+    "residue_dot_scheduled-p1-sparse_smoke",
+    "residue_dot_scheduled-sustained-4_smoke",
+    "residue_dot_independent-fullwidth-k65537_smoke"
+  ],
+  "carried_symbolic_check": {
+    "name": "native_wmma_logical_checker_self_test",
+    "status": "passed",
+    "source_commit": "9e8d8debd7b2901b1cd16a8a3fb161141f039675",
+    "full_cpu_asan_tests": 645,
+    "full_cpu_asan_failures": 0,
+    "full_cpu_asan_skipped": 36,
+    "unchanged_canonical_git_blob_sha256": {
+      "tools/test_native_wmma_logic.py": "a62f38b9c22ad18977270d26b4d9ad2ee18bf28ccea967acc8c41b73568642d4",
+      "tools/check_native_wmma_logic.py": "1ba28b760beaf0ae47dc5e13d7f9148d76e57ea35c23e6c95e0eba1f083a5d6f",
+      "tools/generate_native_wmma.py": "7c325e02a61e01c0558a2ac7e31984676ba02e70a63b25bc65e319d3e65ea0a9",
+      "tools/native_wmma_lowering.py": "be71a42630a6a091c7e380743a029d66cd9a250050253037cb7ccd25ea0e7ca3"
+    }
+  },
+  "static_review": {
+    "inventory": [
+      {
+        "directory": "src",
+        "source_files": 375,
+        "source_lines": 71923,
+        "data_files": 0
+      },
+      {
+        "directory": "include",
+        "source_files": 14,
+        "source_lines": 4749,
+        "data_files": 0
+      },
+      {
+        "directory": "benchmarks",
+        "source_files": 83,
+        "source_lines": 23928,
+        "data_files": 63
+      },
+      {
+        "directory": "tools",
+        "source_files": 384,
+        "source_lines": 94253,
+        "data_files": 7
+      },
+      {
+        "directory": "tests",
+        "source_files": 217,
+        "source_lines": 44396,
+        "data_files": 13
+      },
+      {
+        "directory": "cmake",
+        "source_files": 19,
+        "source_lines": 3736,
+        "data_files": 2
+      },
+      {
+        "directory": ".github",
+        "source_files": 0,
+        "source_lines": 0,
+        "data_files": 3
+      }
+    ],
+    "manual_scope": "Risk-directed critical paths; not a proof of every inventoried source line.",
+    "clang_tidy_translation_units": 54,
+    "clang_tidy_cpu_only": true,
+    "clang_tidy_selected_results": [
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_exact_epilogue.cpp",
+        "exit_code": 0,
+        "seconds": 15.25,
+        "log": "temp\\branch-audit-20261027\\tidy-api_exact_epilogue.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_gemm.cpp",
+        "exit_code": 0,
+        "seconds": 12.81,
+        "log": "temp\\branch-audit-20261027\\tidy-api_gemm.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_stream_gemm.cpp",
+        "exit_code": 0,
+        "seconds": 10.08,
+        "log": "temp\\branch-audit-20261027\\tidy-api_stream_gemm.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_native_device.cpp",
+        "exit_code": 0,
+        "seconds": 10.28,
+        "log": "temp\\branch-audit-20261027\\tidy-api_native_device.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_pinned_host.cpp",
+        "exit_code": 0,
+        "seconds": 6.47,
+        "log": "temp\\branch-audit-20261027\\tidy-api_pinned_host.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_resident_graph.cpp",
+        "exit_code": 0,
+        "seconds": 7.52,
+        "log": "temp\\branch-audit-20261027\\tidy-api_resident_graph.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/distributed_hip.cpp",
+        "exit_code": 0,
+        "seconds": 4.9,
+        "log": "temp\\branch-audit-20261027\\tidy-distributed_hip.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/distributed_process.cpp",
+        "exit_code": 0,
+        "seconds": 1.53,
+        "log": "temp\\branch-audit-20261027\\tidy-distributed_process.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/cpu/cpu_amx.cpp",
+        "exit_code": 0,
+        "seconds": 1.81,
+        "log": "temp\\branch-audit-20261027\\tidy-cpu_amx.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/cpu/cpu_i8mm.cpp",
+        "exit_code": 0,
+        "seconds": 3.56,
+        "log": "temp\\branch-audit-20261027\\tidy-cpu_i8mm.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/cpu/cpu_reference.cpp",
+        "exit_code": 0,
+        "seconds": 3.4,
+        "log": "temp\\branch-audit-20261027\\tidy-cpu_reference.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_hip_direct/hip_backend.cpp",
+        "exit_code": 0,
+        "seconds": 2.06,
+        "log": "temp\\branch-audit-20261027\\tidy-hip_backend.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_hip_direct/hip_timing.cpp",
+        "exit_code": 0,
+        "seconds": 0.74,
+        "log": "temp\\branch-audit-20261027\\tidy-hip_timing.log"
+      }
+    ],
+    "clang_tidy_remaining_results": [
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_hipblaslt/hipblaslt_metadata.cpp",
+        "exit_code": 0,
+        "seconds": 0.87,
+        "log": "temp\\branch-audit-20261027\\tidy-hipblaslt_metadata.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/accelerator_backend.cpp",
+        "exit_code": 0,
+        "seconds": 2.13,
+        "log": "temp\\branch-audit-20261027\\tidy-accelerator_backend.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/autotune_cache.cpp",
+        "exit_code": 0,
+        "seconds": 6.39,
+        "log": "temp\\branch-audit-20261027\\tidy-autotune_cache.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_backend_info.cpp",
+        "exit_code": 0,
+        "seconds": 2.53,
+        "log": "temp\\branch-audit-20261027\\tidy-api_backend_info.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_context.cpp",
+        "exit_code": 0,
+        "seconds": 2.45,
+        "log": "temp\\branch-audit-20261027\\tidy-api_context.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_export.cpp",
+        "exit_code": 0,
+        "seconds": 3.94,
+        "log": "temp\\branch-audit-20261027\\tidy-api_export.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_exact_lift.cpp",
+        "exit_code": 0,
+        "seconds": 7.59,
+        "log": "temp\\branch-audit-20261027\\tidy-api_exact_lift.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_finite_verify.cpp",
+        "exit_code": 0,
+        "seconds": 5.08,
+        "log": "temp\\branch-audit-20261027\\tidy-api_finite_verify.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_matrix_workspace.cpp",
+        "exit_code": 0,
+        "seconds": 2.35,
+        "log": "temp\\branch-audit-20261027\\tidy-api_matrix_workspace.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_oneshot.cpp",
+        "exit_code": 0,
+        "seconds": 14.81,
+        "log": "temp\\branch-audit-20261027\\tidy-api_oneshot.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_pack.cpp",
+        "exit_code": 0,
+        "seconds": 8.78,
+        "log": "temp\\branch-audit-20261027\\tidy-api_pack.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_plan.cpp",
+        "exit_code": 0,
+        "seconds": 2.55,
+        "log": "temp\\branch-audit-20261027\\tidy-api_plan.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_pipeline_recipe.cpp",
+        "exit_code": 0,
+        "seconds": 8.7,
+        "log": "temp\\branch-audit-20261027\\tidy-api_pipeline_recipe.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_ragged.cpp",
+        "exit_code": 0,
+        "seconds": 10.15,
+        "log": "temp\\branch-audit-20261027\\tidy-api_ragged.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_split_k.cpp",
+        "exit_code": 0,
+        "seconds": 7.34,
+        "log": "temp\\branch-audit-20261027\\tidy-api_split_k.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_prepared_gram.cpp",
+        "exit_code": 0,
+        "seconds": 11.74,
+        "log": "temp\\branch-audit-20261027\\tidy-api_prepared_gram.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_gram.cpp",
+        "exit_code": 0,
+        "seconds": 4.47,
+        "log": "temp\\branch-audit-20261027\\tidy-api_gram.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/runtime_product_recipe.cpp",
+        "exit_code": 0,
+        "seconds": 12.54,
+        "log": "temp\\branch-audit-20261027\\tidy-runtime_product_recipe.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/api_sparse.cpp",
+        "exit_code": 0,
+        "seconds": 9.69,
+        "log": "temp\\branch-audit-20261027\\tidy-api_sparse.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/backend_common.cpp",
+        "exit_code": 0,
+        "seconds": 0.87,
+        "log": "temp\\branch-audit-20261027\\tidy-backend_common.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/export_plan.cpp",
+        "exit_code": 0,
+        "seconds": 3.65,
+        "log": "temp\\branch-audit-20261027\\tidy-export_plan.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/moduli.cpp",
+        "exit_code": 0,
+        "seconds": 3.73,
+        "log": "temp\\branch-audit-20261027\\tidy-moduli.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/plan_lowering.cpp",
+        "exit_code": 0,
+        "seconds": 1.85,
+        "log": "temp\\branch-audit-20261027\\tidy-plan_lowering.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/core/status.cpp",
+        "exit_code": 0,
+        "seconds": 0.03,
+        "log": "temp\\branch-audit-20261027\\tidy-status.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/cpu/cpu_parallel.cpp",
+        "exit_code": 0,
+        "seconds": 1.76,
+        "log": "temp\\branch-audit-20261027\\tidy-cpu_parallel.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/cpu/block_sparse.cpp",
+        "exit_code": 0,
+        "seconds": 5.08,
+        "log": "temp\\branch-audit-20261027\\tidy-block_sparse.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/reconstruct/crt.cpp",
+        "exit_code": 0,
+        "seconds": 7.14,
+        "log": "temp\\branch-audit-20261027\\tidy-crt.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/reconstruct/balanced_crt.cpp",
+        "exit_code": 0,
+        "seconds": 3.55,
+        "log": "temp\\branch-audit-20261027\\tidy-balanced_crt.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/reconstruct/group_crt.cpp",
+        "exit_code": 0,
+        "seconds": 5.47,
+        "log": "temp\\branch-audit-20261027\\tidy-group_crt.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/reconstruct/ragged_residues.cpp",
+        "exit_code": 0,
+        "seconds": 5.14,
+        "log": "temp\\branch-audit-20261027\\tidy-ragged_residues.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_hip_direct/hip_grouped_descriptor.cpp",
+        "exit_code": 0,
+        "seconds": 4.38,
+        "log": "temp\\branch-audit-20261027\\tidy-hip_grouped_descriptor.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_vector_alu/vector_alu_backend.cpp",
+        "exit_code": 0,
+        "seconds": 0.87,
+        "log": "temp\\branch-audit-20261027\\tidy-vector_alu_backend.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_ck/ck_backend.cpp",
+        "exit_code": 0,
+        "seconds": 1.8,
+        "log": "temp\\branch-audit-20261027\\tidy-ck_backend.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_rocwmma/rocwmma_backend.cpp",
+        "exit_code": 0,
+        "seconds": 1.89,
+        "log": "temp\\branch-audit-20261027\\tidy-rocwmma_backend.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_wrap64/wrap64_reference.cpp",
+        "exit_code": 0,
+        "seconds": 3.87,
+        "log": "temp\\branch-audit-20261027\\tidy-wrap64_reference.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_wrap64/wrap64_hip.cpp",
+        "exit_code": 0,
+        "seconds": 1.04,
+        "log": "temp\\branch-audit-20261027\\tidy-wrap64_hip.log"
+      },
+      {
+        "file": "C:/Users/sneak/Development/RNS8/src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+        "exit_code": 0,
+        "seconds": 1.99,
+        "log": "temp\\branch-audit-20261027\\tidy-amdgpu_builtins_backend.log"
+      }
+    ],
+    "triaged_reports": [
+      "Private pinned-host published-with-null-owner state is not admitted by construction/publication.",
+      "CRT return-value leak report retains ownership in cpp_int; its destructor releases the copied limbs. Boost template diagnostics did not establish a reachable project defect.",
+      "Dynamic test namespaces and immediately invoked closures account for noisy whole-tree Python findings."
+    ],
+    "changed_host_and_hip_syntax_pass": true
+  },
+  "linux_c17_execution": {
+    "status": "passed",
+    "scope": "Strict GCC13 C17 application and actual C++17 split/merge implementation linked and executed in Ubuntu24.04/WSL after shared arithmetic extraction.",
+    "log_sha256": "137ab2dd458137de4a677ed3d65edcca58dcda652f37e828e20912a1741015f7"
+  },
+  "linux_process_syntax": {
+    "status": "passed",
+    "scope": "GCC13/OpenMPI4.1.6 syntax with actual RCCL/rocSHMEM headers and HIP declarations; compile-only, no linked transport or Linux GPU execution.",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "isa": {
+    "object_sha256": "4a9e3a54a6bc416720b9757c3f7b90aa23df6aefe4c1062686dc489d844ab25b",
+    "code_object_sha256": "544487d88ab7e32309c3e428830a8bd4c6745f69be238e21fe823c7ea235c804",
+    "summary_sha256": "4da2efb28962df637f5eaad85b91c0e47ef8ef3cdd2f669aa0a8f052005e9e79",
+    "static_inventory_only": true,
+    "summary": "Unbatched ordinary and finite RDNA3 WMMA symbols contain no reciprocal instructions. Batched symbol retains two reciprocals for batch-address division; no whole-object no-divide claim.",
+    "inspection_sha256": "e273a69b912ca8c386e6ba9550dc10b22cff69edd07e8a93e94f7dc4e1cc4b39",
+    "new_speedup_claim": false
+  },
+  "remaining_qualification": [
+    "Actual gfx950 MXFP internal rounding/scale ordering, lane-map execution, adversarial exactness, performance and routing qualification.",
+    "Actual MPI/RCCL/rocSHMEM linked multi-GPU/multinode transport, device memory ordering, rank/device failure, topology and scaling qualification.",
+    "Native Linux, Instinct/CDNA, other unavailable instruction families, real device-fault/failed-drain recovery, physical counters/traffic/overlap and strongest complete-route controls.",
+    "Broader supported-provider execution, measured setup/reuse/export amortization and held-out whole-route profitability remain issue acceptance gates."
+  ],
+  "prior_evidence": {
+    "previous_local_receipt": "metadata/full-implementation-validation-20261027.json",
+    "frozen_measurement_source": "72c55c2",
+    "performance_transferred_to_current_source": false,
+    "benchmark_campaigns_resumed": false,
+    "new_speedup_claims": false,
+    "auto_promotion": false
+  },
+  "documentation": {
+    "documents": 144,
+    "local_errors": 0
+  },
+  "evidence_manifest": "metadata/branch-code-audit-validation-archive-20261027.json"
+}

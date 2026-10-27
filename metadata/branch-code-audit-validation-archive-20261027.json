@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "2c713a12572edebfd3db4f1230e5a6278fbaab74",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-followup-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-followup-20261026/branch-code-audit-validation-20261027-2c713a1.zip",
+  "bytes": 484830,
+  "sha256": "7799863074eefb8d53e929cdfa78826fb97054aec30f0f8b16d4993ab23eaac8",
+  "index_member": "archive-index.json",
+  "scope": "Branch code audit and post-repair consolidated validation: 112 indexed static scans, diagnostics, build/test logs, JUnit results, manifests, ISA and receipt snapshots. Initial build failure is preserved separately. No binaries, objects or SDK payloads.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/branch-code-audit-validation-archive-20261027.json --output temp/restored-branch-code-audit"
+}
