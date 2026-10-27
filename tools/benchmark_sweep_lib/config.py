@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
+from benchmark_cases import case_root
 
 BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 HOST_API_BATCH_BACKENDS = ["hip-direct"]
@@ -34,7 +35,10 @@ ADAPTIVE_WORKLOAD_CASES = [
 ]
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
-SCENARIO_DATA_DIR = Path(__file__).resolve().parents[2] / "benchmarks" / "scenarios"
+def scenario_data_dir() -> Path:
+    return case_root() / "scenarios"
+
+
 INPUT_PROFILES = {"uniform-small", "adaptive-bands"}
 DEFAULT_EXACT_WIDE_LIMB_COUNT = 4
 EXACT_WIDE_LIMB_VARIANTS = [1, 2, 3, 4, 8, 16, 32]

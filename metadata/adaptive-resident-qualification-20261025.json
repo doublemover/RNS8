@@ -1,0 +1,574 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+  "collection": {
+    "command": {
+      "archived_json_pointer": "/collection/command",
+      "entries": 32
+    },
+    "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+    "collector_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+    "executable_sha256": "0669d4897793603911e51098d719e0fb32620e05fe67ac2d6dbad31cad2bc13e",
+    "started_unix": 1792972445.6906495,
+    "requested_captures": 95,
+    "campaign_resumed": false,
+    "gain_gate": "disjoint observed process ranges and <=10% (max-min)/median spread for both compared modes; five independent processes",
+    "exit_code": 0,
+    "seconds": 318.43665599823,
+    "executable_unchanged": true
+  },
+  "completed_captures": 95,
+  "methodology": {
+    "process_statistic": "duration-weighted complete-call sustained mean; median over five independent processes",
+    "gain_gate": "predeclared disjoint ranges and <=10% (max-min)/median spread, with complete minimum-duration bursts",
+    "oracle_inside_production_interval": false,
+    "timing_hooks": "disabled",
+    "output_boundary": "complete public product with all P20 RNS output resident",
+    "timed_host_export": false,
+    "independent_padded_limb_and_all_plane_audits": "outside production intervals",
+    "setup_and_first_call": "separate from sustained means",
+    "promotion_eligible": false
+  },
+  "comparisons": [
+    {
+      "case": {
+        "k": 512,
+        "m": 512,
+        "n": 512,
+        "prefix": 20,
+        "repeats": 9,
+        "residency": "resident",
+        "schema": "narrow_public_case_v1",
+        "seed": 5353,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "same_compiled_artifact_and_device": true,
+      "statistics": {
+        "archived_json_pointer": "/comparisons/0/statistics",
+        "entries": 5
+      },
+      "processes": {
+        "archived_json_pointer": "/comparisons/0/processes",
+        "entries": 5
+      },
+      "summary_reuse": {
+        "baseline": "adaptive-resident-fresh",
+        "candidate": "adaptive-resident-cached",
+        "median_speedup": 1.0140097210457364,
+        "ranges_separated": false,
+        "both_process_spreads_at_most_ten_percent": true,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": false
+      },
+      "observed_best_mode": "wmma-resident-fused",
+      "best_versus_next": {
+        "baseline": "scalar-resident-fused",
+        "candidate": "wmma-resident-fused",
+        "median_speedup": 1.2882692728041019,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": true,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": true
+      },
+      "versus_fixed_rns": [
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "wmma-resident-fused",
+          "median_speedup": 3.171865940152035,
+          "ranges_separated": true,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": true
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "scalar-resident-fused",
+          "median_speedup": 2.462114099211585,
+          "ranges_separated": true,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": true
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-cached",
+          "median_speedup": 0.31850369418781704,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-fresh",
+          "median_speedup": 0.3141031960318368,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        }
+      ],
+      "setup_charged_projections": {
+        "archived_json_pointer": "/comparisons/0/setup_charged_projections",
+        "entries": 2
+      }
+    },
+    {
+      "case": {
+        "k": 65537,
+        "m": 128,
+        "n": 3,
+        "prefix": 20,
+        "repeats": 9,
+        "residency": "resident",
+        "schema": "narrow_public_case_v1",
+        "seed": 5353,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "same_compiled_artifact_and_device": true,
+      "statistics": {
+        "archived_json_pointer": "/comparisons/1/statistics",
+        "entries": 4
+      },
+      "processes": {
+        "archived_json_pointer": "/comparisons/1/processes",
+        "entries": 4
+      },
+      "summary_reuse": {
+        "baseline": "adaptive-resident-fresh",
+        "candidate": "adaptive-resident-cached",
+        "median_speedup": 1.0661299471026389,
+        "ranges_separated": false,
+        "both_process_spreads_at_most_ten_percent": false,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": false
+      },
+      "observed_best_mode": "rns-resident-public",
+      "best_versus_next": {
+        "baseline": "wmma-resident-fused",
+        "candidate": "rns-resident-public",
+        "median_speedup": 5.8779020666645865,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": false,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": false
+      },
+      "versus_fixed_rns": [
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "wmma-resident-fused",
+          "median_speedup": 0.17012872767501716,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": false,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-cached",
+          "median_speedup": 0.16053677794060567,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": false,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-fresh",
+          "median_speedup": 0.15057899684450982,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        }
+      ]
+    },
+    {
+      "case": {
+        "k": 31,
+        "m": 17,
+        "n": 19,
+        "prefix": 20,
+        "repeats": 9,
+        "residency": "resident",
+        "schema": "narrow_public_case_v1",
+        "seed": 5353,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "same_compiled_artifact_and_device": true,
+      "statistics": {
+        "archived_json_pointer": "/comparisons/2/statistics",
+        "entries": 5
+      },
+      "processes": {
+        "archived_json_pointer": "/comparisons/2/processes",
+        "entries": 5
+      },
+      "summary_reuse": {
+        "baseline": "adaptive-resident-fresh",
+        "candidate": "adaptive-resident-cached",
+        "median_speedup": 1.1125459924891583,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": true,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": true
+      },
+      "observed_best_mode": "rns-resident-public",
+      "best_versus_next": {
+        "baseline": "scalar-resident-fused",
+        "candidate": "rns-resident-public",
+        "median_speedup": 4.0766400257242426,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": false,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": false
+      },
+      "versus_fixed_rns": [
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "scalar-resident-fused",
+          "median_speedup": 0.24530004947452855,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": false,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "wmma-resident-fused",
+          "median_speedup": 0.23411258395470522,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-cached",
+          "median_speedup": 0.08569706593108507,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-fresh",
+          "median_speedup": 0.07702788604662578,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        }
+      ]
+    },
+    {
+      "case": {
+        "k": 65537,
+        "m": 17,
+        "n": 19,
+        "prefix": 20,
+        "repeats": 9,
+        "residency": "resident",
+        "schema": "narrow_public_case_v1",
+        "seed": 5353,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "same_compiled_artifact_and_device": true,
+      "statistics": {
+        "archived_json_pointer": "/comparisons/3/statistics",
+        "entries": 5
+      },
+      "processes": {
+        "archived_json_pointer": "/comparisons/3/processes",
+        "entries": 5
+      },
+      "summary_reuse": {
+        "baseline": "adaptive-resident-fresh",
+        "candidate": "adaptive-resident-cached",
+        "median_speedup": 1.0875321917249916,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": true,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": true
+      },
+      "observed_best_mode": "rns-resident-public",
+      "best_versus_next": {
+        "baseline": "scalar-resident-fused",
+        "candidate": "rns-resident-public",
+        "median_speedup": 3.893660970540231,
+        "ranges_separated": true,
+        "both_process_spreads_at_most_ten_percent": true,
+        "all_bursts_reach_duration": true,
+        "qualified_scoped_gain": true
+      },
+      "versus_fixed_rns": [
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "scalar-resident-fused",
+          "median_speedup": 0.2568277021461511,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-cached",
+          "median_speedup": 0.16319834812015566,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "adaptive-resident-fresh",
+          "median_speedup": 0.1500630044443082,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        },
+        {
+          "baseline": "rns-resident-public",
+          "candidate": "wmma-resident-fused",
+          "median_speedup": 0.1361729942003563,
+          "ranges_separated": false,
+          "both_process_spreads_at_most_ten_percent": true,
+          "all_bursts_reach_duration": true,
+          "qualified_scoped_gain": false
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "retained_production_receipt": "metadata/adaptive-summary-qualification-20261025.json",
+    "retained_production_source": "4e21e9c",
+    "unchanged_production_source": true,
+    "target_builds": [
+      {
+        "archived_json_pointer": "/validation/target_builds/0",
+        "entries": 6
+      },
+      {
+        "archived_json_pointer": "/validation/target_builds/1",
+        "entries": 6
+      }
+    ],
+    "collector_contracts": {
+      "command": [
+        "python",
+        "tools/test_collect_narrow_public_calibration.py"
+      ],
+      "tests": 6,
+      "status": "passed",
+      "source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e"
+    },
+    "target_build_manifests": {
+      "gpu": {
+        "archived_json_pointer": "/validation/target_build_manifests/gpu",
+        "entries": 9
+      },
+      "asan": {
+        "configuration": {
+          "archived_json_pointer": "/validation/target_build_manifests/asan/configuration"
+        },
+        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+        "external_dependencies": {
+          "BOOST": {
+            "bytes": 31958582,
+            "files": 2292,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\boost",
+            "sha256": "991764a777827b24937cbc1a43373345e71e2d2ae050f783f26ebafced161bbe"
+          },
+          "CATCH2_1": {
+            "bytes": 640342,
+            "files": 183,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\catch2",
+            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+          },
+          "JSON_1": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          },
+          "JSON_2": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          }
+        },
+        "identity_scope": "source-config-and-external-headers",
+        "linkage": "static-rns8",
+        "source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+        "source_digest": "8d2a5b834a775dbeb0cb3625a76604a7cdb8d43b8f15b7d05d93fc2193d97f9f",
+        "source_dirty": false,
+        "version": 2
+      }
+    }
+  },
+  "recorded_utc": "2026-10-26T00:08:25.655044+00:00",
+  "binary_instruction_resources": {
+    "schema": "rns8_resident_native_producer_isa_v1",
+    "compiled_source_commit": "3532e57f53c1c3f8bdbfe95412fbd909c742207e",
+    "target": "gfx1100",
+    "artifact": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-narrow-public-calibrate.exe",
+    "artifact_sha256": "0669d4897793603911e51098d719e0fb32620e05fe67ac2d6dbad31cad2bc13e",
+    "host_object_sha256": "38511fb38954b81569ea4a456ab241e1642573e62c1409b015e233913f8e3096",
+    "code_object_sha256": "9eb9b69a11812a3753d51065d76f9fcaa451c9e3bf715723535dfe0f6a2fd6b0",
+    "code_object_bytes": 7905968,
+    "original_code_object_membership_verified": true,
+    "selection": "Residues=true specializations selected by the actual scalar/WMMA public fused producer bridge",
+    "demangled_symbol_inventory_sha256": "b401c10077a8618045a61fb10d5931b73ee6f82addedb2d571e6df401be581a5",
+    "symbols": [
+      {
+        "symbol": "_ZN12_GLOBAL__N_128rns8_native_byte_wmma_kernelIyLb1EEEvPKT_S3_PS1_iiiiiiPai",
+        "counts": {
+          "wmma": 1,
+          "mfma": 0,
+          "smfmac": 0,
+          "swmmac": 0,
+          "matrix_instruction_count": 1,
+          "dense_integer_matrix_instruction_count": 1,
+          "sparse_integer_matrix_instruction_count": 0,
+          "mfma_dense_i8": 0,
+          "smfmac_sparse_i8": 0,
+          "wmma_dense_integer": 1,
+          "swmmac_sparse_integer": 0,
+          "global_store": 1,
+          "lds_mentions": 0,
+          "wait_instructions": 37,
+          "instruction_lines": 638,
+          "packed_dot4": 0,
+          "scalar_integer_multiply_add": 6,
+          "byte_extract_permute": 26,
+          "lds_read": 0,
+          "lds_write": 0,
+          "matrix_instruction_histogram": {
+            "v_wmma_i32_16x16x16_iu8": 1
+          },
+          "matrix_instruction_families": {
+            "archived_json_pointer": "/binary_instruction_resources/symbols/0/counts/matrix_instruction_families",
+            "entries": 1
+          },
+          "vgpr_count": 49,
+          "sgpr_count": 54,
+          "occupancy": null,
+          "lds_bytes": 0,
+          "scratch_bytes": 0,
+          "vgpr_spill_count": 0,
+          "sgpr_spill_count": 0,
+          "max_flat_workgroup_size": 32,
+          "wavefront_size": 32
+        },
+        "disassembly": "kernel-0.asm",
+        "disassembly_sha256": "10abf9499793f85f7bfda066cfaab18f960c7131ad09d9550ad7f7a402737349"
+      },
+      {
+        "symbol": "_ZN12_GLOBAL__N_128rns8_native_byte_wmma_kernelIxLb1EEEvPKT_S3_PS1_iiiiiiPai",
+        "counts": {
+          "wmma": 1,
+          "mfma": 0,
+          "smfmac": 0,
+          "swmmac": 0,
+          "matrix_instruction_count": 1,
+          "dense_integer_matrix_instruction_count": 1,
+          "sparse_integer_matrix_instruction_count": 0,
+          "mfma_dense_i8": 0,
+          "smfmac_sparse_i8": 0,
+          "wmma_dense_integer": 1,
+          "swmmac_sparse_integer": 0,
+          "global_store": 1,
+          "lds_mentions": 0,
+          "wait_instructions": 37,
+          "instruction_lines": 638,
+          "packed_dot4": 0,
+          "scalar_integer_multiply_add": 6,
+          "byte_extract_permute": 26,
+          "lds_read": 0,
+          "lds_write": 0,
+          "matrix_instruction_histogram": {
+            "v_wmma_i32_16x16x16_iu8": 1
+          },
+          "matrix_instruction_families": {
+            "archived_json_pointer": "/binary_instruction_resources/symbols/1/counts/matrix_instruction_families",
+            "entries": 1
+          },
+          "vgpr_count": 49,
+          "sgpr_count": 54,
+          "occupancy": null,
+          "lds_bytes": 0,
+          "scratch_bytes": 0,
+          "vgpr_spill_count": 0,
+          "sgpr_spill_count": 0,
+          "max_flat_workgroup_size": 32,
+          "wavefront_size": 32
+        },
+        "disassembly": "kernel-1.asm",
+        "disassembly_sha256": "06c0f034052784131834a528892ff18fcf0765a851f55e4352d47ae8c06a287a"
+      },
+      {
+        "symbol": "_ZN12_GLOBAL__N_134rns8_native_i64_narrow_gemm_kernelILb1EEEvPKxS2_PxiiiiiiPai",
+        "counts": {
+          "wmma": 0,
+          "mfma": 0,
+          "smfmac": 0,
+          "swmmac": 0,
+          "matrix_instruction_count": 0,
+          "dense_integer_matrix_instruction_count": 0,
+          "sparse_integer_matrix_instruction_count": 0,
+          "mfma_dense_i8": 0,
+          "smfmac_sparse_i8": 0,
+          "wmma_dense_integer": 0,
+          "swmmac_sparse_integer": 0,
+          "global_store": 1,
+          "lds_mentions": 0,
+          "wait_instructions": 10,
+          "instruction_lines": 482,
+          "packed_dot4": 0,
+          "scalar_integer_multiply_add": 38,
+          "byte_extract_permute": 0,
+          "lds_read": 0,
+          "lds_write": 0,
+          "matrix_instruction_histogram": {},
+          "matrix_instruction_families": {
+            "archived_json_pointer": "/binary_instruction_resources/symbols/2/counts/matrix_instruction_families",
+            "entries": 0
+          },
+          "vgpr_count": 17,
+          "sgpr_count": 18,
+          "occupancy": null,
+          "lds_bytes": 0,
+          "scratch_bytes": 0,
+          "vgpr_spill_count": 0,
+          "sgpr_spill_count": 0,
+          "max_flat_workgroup_size": 1024,
+          "wavefront_size": 32
+        },
+        "disassembly": "kernel-2.asm",
+        "disassembly_sha256": "b6affa06523da48fa676f7884f0deae99fa33d74ca1527431c0d0f1249749a3c"
+      }
+    ],
+    "limits": "Static binary instructions/resources, not achieved dynamic occupancy, traffic or profiler instruction totals.",
+    "promotion_eligible": false,
+    "analysis_script_source": {
+      "archived_json_pointer": "/binary_instruction_resources/analysis_script_source"
+    },
+    "analysis_script_sha256": "a8e00c91bf9594fcdf70deabf2ffa9b7b89d2873b595124079ef42e40beb5ddb"
+  },
+  "original_schema": "rns8_adaptive_resident_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/adaptive-resident-qualification-20261025.json",
+    "sha256": "7fb90054b971a46142f03acbf07d5488c1731ae2b9c27385798712c53c2ca8eb",
+    "bytes": 1060891
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

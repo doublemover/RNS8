@@ -7,7 +7,69 @@ extern "C" int rns8_hip_direct_pack_i64_4wide_coalesced_device(
 extern "C" int rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
     const int64_t* src, int8_t* residues, int rows, int cols, int ld, int prefix,
     const uint16_t* moduli);
+extern "C" int rns8_hip_direct_pack_i64_generic_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix);
+extern "C" int rns8_hip_direct_pack_i64_fixed_all_device(
+    const int64_t* source, int8_t* residues, int rows, int cols, int ld, int prefix);
 #endif
+
+rns8_status hip_direct_pack_i64_variant_device(int device_id, const void* device_source,
+    void* device_residues, int64_t rows, int64_t cols, int64_t ld, uint32_t prefix,
+    SignedPackVariant variant) {
+  if (!device_source || !device_residues || rows <= 0 || cols <= 0 || ld < cols ||
+      prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX ||
+      (variant != SignedPackVariant::public_selected && variant != SignedPackVariant::fixed_prefix &&
+       variant != SignedPackVariant::generic)) return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_matrix_address(rows, cols, ld, 1, 8)) return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  if (!checked_i32_shape(rows, cols, ld, prefix) || !checked_pack_elements(rows, cols, prefix))
+    return RNS8_INVALID_ARGUMENT;
+  const auto selected = set_hip_device(device_id);
+  if (selected != RNS8_SUCCESS) return selected;
+  const auto kernel = signed_pack_kernel(rows, cols, ld, variant, prefix);
+  const hipError_t err = timed_hip_operation("pack_kernel", [&]() {
+    int code = 0;
+    if (kernel == SignedPackKernel::generic) {
+      code = rns8_hip_direct_pack_i64_generic_device(
+          static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
+    } else if (kernel == SignedPackKernel::fixed_prefix) {
+      code = rns8_hip_direct_pack_i64_fixed_all_device(
+          static_cast<const int64_t*>(device_source), static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld), static_cast<int>(prefix));
+    } else if (kernel == SignedPackKernel::four_wide) {
+      code = rns8_hip_direct_pack_i64_4wide_coalesced_device(
+          static_cast<const int64_t*>(device_source),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
+    } else if (kernel == SignedPackKernel::eight_wide) {
+      code = rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
+          static_cast<const int64_t*>(device_source),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix), kDefaultModuli);
+    } else if (kernel == SignedPackKernel::small) {
+      code = rns8_hip_direct_pack_i64_persistent_small_device(
+          static_cast<const int64_t*>(device_source),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
+    } else {
+      code = rns8_hip_direct_pack_i64_device(
+          static_cast<const int64_t*>(device_source),
+          static_cast<int8_t*>(device_residues),
+          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
+          static_cast<int>(prefix));
+    }
+    if (code != static_cast<int>(hipSuccess)) return static_cast<hipError_t>(code);
+    return hipDeviceSynchronize();
+  });
+  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)device_id;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 
 rns8_status hip_direct_pack_i64_device(
     int device_id,
@@ -19,6 +81,11 @@ rns8_status hip_direct_pack_i64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, ld, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -36,44 +103,12 @@ rns8_status hip_direct_pack_i64_device(
     return status;
   }
   hipError_t err =
-      timed_hip_operation("pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation("pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
-  const int64_t cell_count = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const bool use_four_cell_pack = (ld == cols) && (cell_count >= 256) && (cell_count <= 4096);
-  const bool use_eight_cell_pack = (ld == cols) && (cell_count > 4096);
-  const bool use_small_pack = (cell_count <= 4096) && !use_four_cell_pack;
-  err = timed_hip_operation("pack_kernel", [&]() {
-    int code = 0;
-    if (use_four_cell_pack) {
-      code = rns8_hip_direct_pack_i64_4wide_coalesced_device(
-          static_cast<const int64_t*>(*upload_buffer),
-          static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(prefix));
-    } else if (use_eight_cell_pack) {
-      code = rns8_hip_direct_pack_native_i64_to_rns_vopd_device(
-          static_cast<const int64_t*>(*upload_buffer),
-          static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
-          static_cast<int>(prefix), kDefaultModuli);
-    } else if (use_small_pack) {
-      code = rns8_hip_direct_pack_i64_persistent_small_device(
-          static_cast<const int64_t*>(*upload_buffer),
-          static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
-          static_cast<int>(prefix));
-    } else {
-      code = rns8_hip_direct_pack_i64_device(
-          static_cast<const int64_t*>(*upload_buffer),
-          static_cast<int8_t*>(device_residues),
-          static_cast<int>(rows), static_cast<int>(cols), static_cast<int>(ld),
-          static_cast<int>(prefix));
-    }
-    if (code != static_cast<int>(hipSuccess)) return static_cast<hipError_t>(code);
-    return hipDeviceSynchronize();
-  });
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  return hip_direct_pack_i64_variant_device(device_id, *upload_buffer, device_residues,
+      rows, cols, ld, prefix, SignedPackVariant::public_selected);
 #else
   (void)device_id;
   (void)src;
@@ -98,6 +133,11 @@ rns8_status hip_direct_pack_u64_device(
     int64_t cols,
     int64_t ld,
     uint32_t prefix) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || !checked_i32_shape(rows, cols, ld, prefix)) {
     return RNS8_INVALID_ARGUMENT;
@@ -115,7 +155,7 @@ rns8_status hip_direct_pack_u64_device(
     return status;
   }
   hipError_t err =
-      timed_hip_operation("pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation("pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -161,6 +201,11 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     int64_t ld,
     uint32_t prefix,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
@@ -199,7 +244,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -224,7 +269,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -260,6 +305,11 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     int64_t ld,
     uint32_t prefix,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, prefix) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
@@ -298,7 +348,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -323,7 +373,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }
   return RNS8_SUCCESS;
@@ -443,6 +493,11 @@ rns8_status hip_direct_pack_finite_u8_device(
     int64_t cols,
     int64_t ld,
     uint16_t modulus) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 1)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src || !upload_buffer || !upload_bytes || !device_residues || modulus < 2 || modulus > 256 ||
       rows <= 0 || cols <= 0 || ld < cols || rows > std::numeric_limits<int>::max() ||
@@ -456,13 +511,24 @@ rns8_status hip_direct_pack_finite_u8_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  // Modulo 256 the canonical uint8 and centered int8 representations have
+  // identical object bytes. Copy only logical cells; no upload scratch or
+  // conversion kernel is needed, including for padded host rows.
+  if (modulus == 256) {
+    const hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
+      return tracked_sync_copy_2d(device_residues, static_cast<std::size_t>(cols),
+          src, static_cast<std::size_t>(ld), static_cast<std::size_t>(cols),
+          static_cast<std::size_t>(rows), hipMemcpyHostToDevice);
+    });
+    return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  }
   const std::size_t source_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(ld) * sizeof(uint8_t);
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, source_bytes, upload_buffer, upload_bytes);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   hipError_t err = timed_hip_operation(
-      "finite_pack_h2d", [&]() { return hipMemcpy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
+      "finite_pack_h2d", [&]() { return tracked_sync_copy(*upload_buffer, src, source_bytes, hipMemcpyHostToDevice); });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
@@ -505,6 +571,11 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
     int64_t ld,
     uint16_t modulus,
     uint64_t first_source_version) {
+  if (rows > 0 && cols > 0 && ld >= cols &&
+      !rns8::detail::qualified_i32_matrix_address(rows, cols, ld, 1, 8)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!src_slab || !device_src_slab || !device_residue_ptrs || !checked_i32_shape(rows, cols, ld, 1) ||
       !checked_grouped_source_versions(first_source_version, task_count) ||
@@ -540,7 +611,7 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
     return device_status;
   }
   hipError_t err = timed_hip_operation("finite_pack_h2d", [&]() {
-    return hipMemcpy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_src_slab, src_slab, source_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
@@ -565,7 +636,7 @@ rns8_status hip_direct_pack_finite_u8_grouped_matrices_device(
   }
   for (uint32_t index = 0; index < task_count; ++index) {
     rns8_matrix* matrix = matrices[index];
-    mark_device_residue_output_current(matrix);
+    mark_device_residue_output_current(matrix, matrix->prefix);
     matrix->finite_modulus = modulus;
     matrix->source_version = first_source_version + static_cast<uint64_t>(index);
   }

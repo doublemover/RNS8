@@ -1,0 +1,226 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "native-queue",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "workers", "chunk", "reuse", "repeats", "warmups", "metadata_budget_mib", "encoded_b", "mutate_b", "tasks"],
+      "defaults": {
+        "schema": "native_queue_case_v1",
+        "workers": 32,
+        "repeats": 9,
+        "warmups": 3,
+        "metadata_budget_mib": 64
+      },
+      "columns": ["chunk", "reuse", "encoded_b", "mutate_b", "tasks"],
+      "rows": [
+        [
+          "bounded-chunk32.json",
+          "a8fde7cea63d08636d2d10d214ca58ba9dffd1c5855b8da10e61bb3a706379f0",
+          32,
+          4,
+          false,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {
+                "unsigned": false
+              },
+              "rows": [
+                [0, 33, 35, 17, 20, 1],
+                [0, 1, 1, 65537, 9, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "few-large.json",
+          "56e0391ef7c504332976c3fa1a4d431b0cd60b1cd3c7bccb912eb98a6f4e4113",
+          4,
+          1,
+          false,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 256, 257, 127, 20, 4, false],
+                [0, 257, 256, 129, 9, 2, true]
+              ]
+            }
+          }
+        ],
+        [
+          "many-tiny.json",
+          "fd8aeddd8ef4d43bb9d08f3ac22bb262c333dfb403c1c7d798a97b3e297f7b2c",
+          4,
+          4,
+          false,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 1, 1, 15, 1, 1, false],
+                [0, 2, 8, 16, 2, 2, true],
+                [0, 3, 15, 17, 3, 4, false],
+                [0, 4, 3, 15, 4, 1, true],
+                [0, 5, 10, 16, 5, 2, false],
+                [0, 6, 17, 17, 6, 4, true],
+                [0, 7, 5, 15, 7, 1, false],
+                [0, 8, 12, 16, 8, 2, true],
+                [0, 9, 19, 17, 9, 4, false],
+                [0, 10, 7, 15, 10, 1, true],
+                [0, 11, 14, 16, 11, 2, false],
+                [0, 12, 2, 17, 12, 4, true],
+                [0, 13, 9, 15, 13, 1, false],
+                [0, 14, 16, 16, 14, 2, true],
+                [0, 15, 4, 17, 15, 4, false],
+                [0, 16, 11, 15, 16, 1, true],
+                [0, 17, 18, 16, 17, 2, false],
+                [0, 1, 6, 17, 18, 4, true],
+                [0, 2, 13, 15, 19, 1, false],
+                [0, 3, 1, 16, 20, 2, true],
+                [0, 4, 8, 17, 1, 4, false],
+                [0, 5, 15, 15, 2, 1, true],
+                [0, 6, 3, 16, 3, 2, false],
+                [0, 7, 10, 17, 4, 4, true],
+                [0, 8, 17, 15, 5, 1, false],
+                [0, 9, 5, 16, 6, 2, true],
+                [0, 10, 12, 17, 7, 4, false],
+                [0, 11, 19, 15, 8, 1, true],
+                [0, 12, 7, 16, 9, 2, false],
+                [0, 13, 14, 17, 10, 4, true],
+                [0, 14, 2, 15, 11, 1, false],
+                [0, 15, 9, 16, 12, 2, true],
+                [0, 16, 16, 17, 13, 4, false],
+                [0, 17, 4, 15, 14, 1, true],
+                [0, 1, 11, 16, 15, 2, false],
+                [0, 2, 18, 17, 16, 4, true],
+                [0, 3, 6, 15, 17, 1, false],
+                [0, 4, 13, 16, 18, 2, true],
+                [0, 5, 1, 17, 19, 4, false],
+                [0, 6, 8, 15, 20, 1, true],
+                [0, 7, 15, 16, 1, 2, false],
+                [0, 8, 3, 17, 2, 4, true],
+                [0, 9, 10, 15, 3, 1, false],
+                [0, 10, 17, 16, 4, 2, true],
+                [0, 11, 5, 17, 5, 4, false],
+                [0, 12, 12, 15, 6, 1, true],
+                [0, 13, 19, 16, 7, 2, false],
+                [0, 14, 7, 17, 8, 4, true],
+                [0, 15, 14, 15, 9, 1, false],
+                [0, 16, 2, 16, 10, 2, true],
+                [0, 17, 9, 17, 11, 4, false],
+                [0, 1, 16, 15, 12, 1, true],
+                [0, 2, 4, 16, 13, 2, false],
+                [0, 3, 11, 17, 14, 4, true],
+                [0, 4, 18, 15, 15, 1, false],
+                [0, 5, 6, 16, 16, 2, true],
+                [0, 6, 13, 17, 17, 4, false],
+                [0, 7, 1, 15, 18, 1, true],
+                [0, 8, 8, 16, 19, 2, false],
+                [0, 9, 15, 17, 20, 4, true],
+                [0, 10, 3, 15, 1, 1, false],
+                [0, 11, 10, 16, 2, 2, true],
+                [0, 12, 17, 17, 3, 4, false],
+                [0, 13, 5, 15, 4, 1, true]
+              ]
+            }
+          }
+        ],
+        [
+          "mutated-b-encoded.json",
+          "c7afc9bf33640fada3105d839f16823f5a3039910cfc206f85b7775e7ef77f3f",
+          4,
+          2,
+          true,
+          true,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 17, 19, 31, 3, 2, false],
+                [0, 1, 17, 33, 9, 4, true]
+              ]
+            }
+          }
+        ],
+        [
+          "short-tail-encoded.json",
+          "273fc50eef57c45efb3d8e1a55054dab0dc247f492056ecb8866debd751da3fb",
+          4,
+          8,
+          true,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 17, 19, 31, 3, 2, false],
+                [0, 1, 17, 33, 9, 4, true]
+              ]
+            }
+          }
+        ],
+        [
+          "singleton-claim.json",
+          "b5760e5bd71cb633e58d8fc0d6ce4a5bce0dba61fb4dfbe7076b2c92d1462b16",
+          1,
+          1,
+          false,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 3, 17, 31, 3, 2, false],
+                [0, 17, 3, 15, 9, 4, true]
+              ]
+            }
+          }
+        ],
+        [
+          "skew-count-k.json",
+          "a643db463043827748c3ea650fe92df9e6f6c04d4bc6fb12759e4fb529c6a25c",
+          4,
+          4,
+          false,
+          false,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned"]
+              ],
+              "defaults": {},
+              "rows": [
+                [0, 1, 1, 65537, 20, 4, false],
+                [0, 128, 129, 17, 20, 1, false],
+                [0, 17, 19, 2049, 3, 2, true],
+                [0, 3, 1, 31, 1, 1, true]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

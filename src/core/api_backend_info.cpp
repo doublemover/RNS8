@@ -6,8 +6,9 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_ki
   return requested == RNS8_BACKEND_AUTO ? default_backend : requested;
 }
 
-bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
   switch (backend) {
+    case RNS8_BACKEND_CPU_AMX:
     case RNS8_BACKEND_CPU_REFERENCE:
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
              semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
@@ -18,34 +19,40 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
              semantics == RNS8_WRAP_U64_MOD_2_64 || semantics == RNS8_FINITE_RING_U8 ||
              semantics == RNS8_FINITE_FIELD_U8;
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
-#else
-      return false;
-#endif
     case RNS8_BACKEND_WRAP64_BYTE_LIMB:
       return semantics == RNS8_WRAP_U64_MOD_2_64;
     case RNS8_BACKEND_HIPBLASLT:
-#if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
       return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
              semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
              semantics == RNS8_FINITE_RING_U8 || semantics == RNS8_FINITE_FIELD_U8;
-#else
-      return false;
-#endif
     case RNS8_BACKEND_AUTO:
       return false;
     case RNS8_BACKEND_CK:
     case RNS8_BACKEND_ROCWMMA:
     case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return rns8::detail::accelerator_backend_supports_semantics(backend, semantics);
+      return rns8::detail::accelerator_backend_source_supports_semantics(backend, semantics);
   }
   return false;
+}
+
+bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
+  if (!backend_source_supports_semantics(backend, semantics)) return false;
+  switch (backend) {
+    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64: return direct_hip_compiled() != 0;
+    case RNS8_BACKEND_HIPBLASLT: return hipblaslt_backend_compiled() != 0;
+    case RNS8_BACKEND_CK:
+    case RNS8_BACKEND_ROCWMMA:
+    case RNS8_BACKEND_AMDGPU_BUILTINS:
+      return rns8::detail::accelerator_backend_compiled(backend);
+    default: return true;
+  }
 }
 
 bool known_backend_kind(rns8_backend_kind backend) {
   switch (backend) {
     case RNS8_BACKEND_AUTO:
+    case RNS8_BACKEND_CPU_AMX:
     case RNS8_BACKEND_CPU_REFERENCE:
     case RNS8_BACKEND_HIP_DIRECT:
     case RNS8_BACKEND_HIPBLASLT:
@@ -65,6 +72,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "auto";
     case RNS8_BACKEND_CPU_REFERENCE:
       return "cpu-reference";
+    case RNS8_BACKEND_CPU_AMX:
+      return "cpu-amx-int8";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
     case RNS8_BACKEND_HIPBLASLT:
@@ -118,7 +127,16 @@ bool hip_device_backend(rns8_backend_kind backend) {
   return hip_resident_rns_backend(backend) || native_vector_backend(backend);
 }
 
+bool hip_device_backend_kind(rns8_backend_kind backend) {
+  // The separate wrap64 byte-limb backend is a CPU owner. Direct HIP supplies
+  // its own wrap64 implementation; optional providers remain device families
+  // even when this build does not compile them.
+  return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIPBLASLT ||
+      native_vector_backend(backend) || rns8::detail::accelerator_backend_kind(backend);
+}
+
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend) {
+  if (ctx.hip_failure_poisoned) return false;
   if (ctx.backend == backend) {
     return true;
   }
@@ -129,7 +147,9 @@ bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend)
 bool matrix_backend_compatible_with_plan(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
-    rns8_backend_kind plan_backend) {
+    rns8_backend_kind plan_backend, bool allow_pending_writer) {
+  if (ctx.hip_failure_poisoned) return false;
+  if (matrix.in_flight_writer && !allow_pending_writer) return false;
   if (matrix.backend == plan_backend) {
     return true;
   }
@@ -162,6 +182,19 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
 
   info.is_accelerator = accelerator_backend(backend) ? 1u : 0u;
   switch (backend) {
+    case RNS8_BACKEND_CPU_AMX:
+      info.is_accelerator=1;
+      set_text(info.enable_flag,sizeof(info.enable_flag),"RNS8_ENABLE_CPU_AMX");
+      info.is_available=rns8::detail::cpu_amx_compiled();
+      info.compiled_kernel_available=info.is_available;
+      info.supports_bounded_rns=info.is_available;info.supports_exact_wide_rns=info.is_available;info.supports_finite_u8=info.is_available;
+      set_text(info.selected_kernel,sizeof(info.selected_kernel),"cpu_amx_int8_16x16x64_centered_v1");
+      set_text(info.epilogue_mode,sizeof(info.epilogue_mode),"cpu_amx_tile_local_centered_then_reference_crt");
+      set_text(info.workspace_mode,sizeof(info.workspace_mode),"cpu_amx_per_worker_tiles_cached_b_transactional_output");
+      set_text(info.isa_evidence,sizeof(info.isa_evidence),"source_intrinsics_tdpbssd_runtime_os_worker_admission_unqualified");
+      set_text(info.status,sizeof(info.status),info.is_available?"compiled_requires_os_thread_admission":"not_compiled_in_this_build");
+      set_text(info.detail,sizeof(info.detail),"Explicit optional Linux x86-64 AMX-INT8; independent scalar oracle remains selected separately; no performance qualification.");
+      break;
     case RNS8_BACKEND_CPU_REFERENCE:
       info.is_available = 1;
       info.is_correctness_backend = 1;
@@ -169,7 +202,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "cpu_reference_scalar_rns_gemm_v1");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "host_reference_reconstruction");
       set_text(info.workspace_mode, sizeof(info.workspace_mode), "host_reference_workspace");
@@ -185,7 +217,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_finite_u8 = direct_hip_compiled();
       info.supports_wrap64 = direct_hip_compiled();
       info.compiled_kernel_available = direct_hip_compiled();
-      info.exact_differential_validated = direct_hip_compiled();
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "direct_hip_tiled_rns_gemm_v1");
       set_text(info.library_name, sizeof(info.library_name), "HIP runtime");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "fused_centered_residue_correctness");
@@ -205,7 +236,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.is_correctness_backend = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.supports_bounded_rns = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.compiled_kernel_available = rns8::detail::vector_alu_compiled() ? 1u : 0u;
-      info.exact_differential_validated = rns8::detail::vector_alu_compiled() ? 1u : 0u;
       info.performance_validated = 0;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "hip_vector_alu_i64_u64_exact_192b_v1");
       set_text(info.library_name, sizeof(info.library_name), "HIP runtime");
@@ -227,7 +257,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.is_correctness_backend = 1;
       info.supports_wrap64 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       set_text(info.selected_kernel, sizeof(info.selected_kernel), "cpu_wrap64_byte_limb_reference_v1");
       set_text(info.epilogue_mode, sizeof(info.epilogue_mode), "low64_wrap_export");
       set_text(info.workspace_mode, sizeof(info.workspace_mode), "host_byte_limb_reference_workspace");
@@ -244,7 +273,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = hipblaslt_backend_compiled();
       info.supports_finite_u8 = hipblaslt_backend_compiled();
       info.compiled_kernel_available = hipblaslt_backend_compiled();
-      info.exact_differential_validated = hipblaslt_backend_compiled();
       info.performance_validated = 0;
       info.enable_flag_fail_fast = hipblaslt_backend_compiled() ? 0u : 1u;
       info.candidate_evidence_only = hipblaslt_backend_compiled() ? 0u : 1u;
@@ -292,7 +320,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.is_matrix_engine_backend = 1;
       set_text(
           info.selected_kernel,
@@ -332,7 +359,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.performance_validated = 0;
       info.is_matrix_engine_backend = 1;
       set_text(
@@ -367,7 +393,6 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
       info.supports_exact_wide_rns = 1;
       info.supports_finite_u8 = 1;
       info.compiled_kernel_available = 1;
-      info.exact_differential_validated = 1;
       info.performance_validated = 0;
       info.is_matrix_engine_backend = 1;
       set_text(
@@ -398,6 +423,11 @@ void fill_backend_capability_info(rns8_backend_kind backend, rns8_backend_capabi
     case RNS8_BACKEND_AUTO:
       break;
   }
+  // This context-free accessor has no run/target/artifact validation receipt.
+  // Compiled availability and correctness role are inventory, not observed
+  // differential evidence. Named historical qualification stays in reports;
+  // an admitted reviewed plan can separately expose its scoped cache evidence.
+  info.exact_differential_validated = 0;
 }
 
 }  // namespace rns8::detail::api

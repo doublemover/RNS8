@@ -9,7 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_inputs import load_validated_capture
 
 
 DEFAULT_OUT_DIR = Path("temp") / "exact-wide-chain-reports"
@@ -33,16 +33,6 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
         else:
             expanded.append(path)
     return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        capture = load_capture(path)
-        validate_capture(capture, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    capture["_path"] = str(path)
-    return capture
 
 
 def backend_id(capture: dict[str, Any] | None) -> str:

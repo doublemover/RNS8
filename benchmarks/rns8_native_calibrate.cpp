@@ -1,0 +1,634 @@
+#include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
+#include "backend_hip_direct/encoded_b_backend.hpp"
+#include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/binary_layout.hpp"
+#include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_vector_alu/vector_alu_backend.hpp"
+#include "core/hip_resources.hpp"
+#include "core/internal.hpp"
+#include "epilogue_coefficients.hpp"
+#include "native_dataset.hpp"
+#include "backend_hip_direct/native_global_minimum.hpp"
+#include <charconv>
+#include <chrono>
+#include <cstring>
+#include <iostream>
+#include <nlohmann/json.hpp>
+#include <random>
+#include <stdexcept>
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_pack_i64_device(const int64_t*, int8_t*, int, int, int, int);
+extern "C" int rns8_hip_direct_pack_u64_device(const uint64_t*, int8_t*, int, int, int, int);
+#endif
+
+namespace {
+using namespace rns8::detail;
+using boost::multiprecision::cpp_int;
+void check(rns8_status status) {
+  if (status != RNS8_SUCCESS) throw std::runtime_error(rns8_status_string(status));
+}
+uint32_t number(const char* text, uint32_t low, uint32_t high) {
+  uint32_t value = 0;
+  const auto end = text + std::strlen(text);
+  const auto result = std::from_chars(text, end, value);
+  if (result.ec != std::errc{} || result.ptr != end || value < low || value > high)
+    throw std::invalid_argument("numeric argument outside supported calibration domain");
+  return value;
+}
+cpp_int native_value(uint64_t bits, bool unsigned_inputs) {
+  if (unsigned_inputs) return cpp_int(bits);
+  int64_t value;
+  std::memcpy(&value, &bits, sizeof(value));
+  return cpp_int(value);
+}
+void pack_pair(const void* a, const void* b, void* ra, void* rb,
+               int m, int n, int k, int prefix, bool unsigned_inputs) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto hip_check = [](hipError_t status) {
+    if (status != hipSuccess) throw std::runtime_error(hipGetErrorString(status));
+  };
+  hip_unique_event start, stop;
+  const bool timed = hip_direct_timing_enabled();
+  if (timed) {
+    hip_check(start.create()); hip_check(stop.create());
+    hip_check(hipEventRecord(start.get(), nullptr));
+  }
+  if (unsigned_inputs) {
+    hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(a), static_cast<int8_t*>(ra), m,k,k,prefix)));
+    hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_u64_device(static_cast<const uint64_t*>(b), static_cast<int8_t*>(rb), k,n,n,prefix)));
+  } else {
+    hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(a), static_cast<int8_t*>(ra), m,k,k,prefix)));
+    hip_check(static_cast<hipError_t>(rns8_hip_direct_pack_i64_device(static_cast<const int64_t*>(b), static_cast<int8_t*>(rb), k,n,n,prefix)));
+  }
+  if (!timed) {
+    hip_check(hipDeviceSynchronize());
+    return;
+  }
+  hip_check(hipEventRecord(stop.get(), nullptr));
+  hip_check(hipEventSynchronize(stop.get()));
+  float milliseconds = 0;
+  hip_check(hipEventElapsedTime(&milliseconds, start.get(), stop.get()));
+  hip_direct_timing_record_sample("native_calibration_pack_pair", milliseconds * 1000.0);
+#else
+  (void)a; (void)b; (void)ra; (void)rb; (void)m; (void)n; (void)k; (void)prefix; (void)unsigned_inputs;
+  throw std::runtime_error("HIP not compiled");
+#endif
+}
+template<class Prepare, class Execute, class Verify>
+nlohmann::json sustained_calls(Prepare prepare, Execute execute, Verify verify) {
+  hip_direct_timing_set_enabled(false);
+  prepare();
+  uint32_t calls = 0;
+  double elapsed_ns = 0;
+  const auto start = std::chrono::steady_clock::now();
+  do {
+    execute();
+    ++calls;
+    elapsed_ns = std::chrono::duration<double, std::nano>(
+        std::chrono::steady_clock::now() - start).count();
+  } while (calls < 4096 && (calls < 16 || elapsed_ns < 250000000.0));
+  verify();
+  return {{"calls", calls}, {"elapsed_ns", elapsed_ns}, {"mean_call_ns", elapsed_ns / calls},
+          {"final_exact_reference_passed", true},
+          {"scope", "same resident inputs and output; synchronous checked calls; no timing hooks, poison or reference readback between calls; final output and canaries verified"}};
+}
+}
+
+#include "native_narrow_calibration.inc"
+#include "complex_residue_calibration.inc"
+
+int main(int argc, char** argv) {
+  try {
+    const char* usage =
+        "usage: rns8-native-calibrate <pack_pair|packed_gemm|pack_gemm|wmma|grid_prepared|queue|queue_prepared|split_k|adaptive_grid|adaptive_compact|global_minimum|complex_3m|complex_4m|"
+        "conversion_cold|conversion_prepared|conversion_pack_gemm|tiled_register|tiled_lds|encoded_b_cold|encoded_b_warm|narrow_wmma|narrow_scalar|narrow_vector|narrow_rns|epilogue_direct|epilogue_rocwmma|epilogue_unfused> "
+        "M N K prefix group unsigned repeats warmups unique-run-id [mode-specific controls]\n"
+        "workers: queue/queue_prepared/split_k only, 1..1024 (default 32); launch clamps to descriptor count.\n"
+        "split_k: optional workers fragments fused-first|separate-control; fragments1..min(K,4096), default min(K,3).\n"
+        "adaptive_grid/global_minimum: append axis_l1; adaptive_compact: append workers axis_l1 (workers required, 1..65535, no count clamp).\n"
+        "conversion modes: append depth buffers waves replicated|cooperative|encoded_lds reuse_count stable|reverse_k; cold includes one preparation per R-call batch, prepared reports setup separately.\n"
+        "tiled modes: append k_depth lds_buffers; tiled_register requires16 0; tiled_lds requires16|32 and1|2; LDS budget65536 bytes/block.\n"
+        "encoded_b_cold/warm: append required reuse_count1..256; wmma accepts the same suffix (default1). Each timed execute is R GEMMs, one final verification. Cold includes allocate/prepare/free; warm reports one setup separately.\n"
+        "M,N:1..1024 K:1..65537 prefix:1..20 group:1,2,4 unsigned:0,1; M*N*K<=1073741824.\n"
+        "repeats:1..10000 warmups:1..1000; adaptive cases require prefix20 and group1/2/4.\n"
+        "group=1 outside wmma/encoded_b/grid_prepared/queue/queue_prepared/split_k/adaptive/tiled cases.\n"
+        "narrow cases: prefix=group=1 K<=32768; narrow_scalar requires unsigned=0.\n"
+        "epilogue cases: optional extreme|zero|copy|unit|general|channel-zero coefficient profile (default extreme).\n"
+        "paired adaptive/wmma/pack_gemm: optional final --dataset full-width-v1|uniform-small-v2|mixed-tiles-v2|zero-tiles-v2|localized-outlier-v2 --seed uint32; requires capacity20.\n"
+        "complex cases: prefix=20, group=1, unsigned=0; both output residue components, no integer export.";
+    if (argc == 2 && std::string(argv[1]) == "--help") { std::cout << usage << '\n'; return 0; }
+    bool explicit_locality=false;std::string locality_order="ordinary";uint32_t cache_displace_mib=0,cache_model_mib=0;
+    rns8_locality_desc locality{};locality.struct_size=sizeof(locality);locality.abi_version=RNS8_ABI_VERSION;
+    locality.topology_version=1;locality.cache_domains=1;locality.concurrent_groups_per_domain=1;
+    if(argc>=17 && std::string(argv[argc-6])=="--locality" && std::string(argv[argc-4])=="--cache-displace-mib" && std::string(argv[argc-2])=="--cache-model-mib"){
+      explicit_locality=true;locality_order=argv[argc-5];cache_displace_mib=number(argv[argc-3],0,1024);cache_model_mib=number(argv[argc-1],0,512);argc-=6;
+      if(locality_order!="ordinary" && locality_order!="output-neighbor" && locality_order!="modulus" && locality_order!="same-output")throw std::invalid_argument("unknown native locality order");
+      if((cache_displace_mib && (!cache_model_mib || cache_displace_mib<2*cache_model_mib)) || (!cache_displace_mib && cache_model_mib))throw std::invalid_argument("displacement must be at least twice the explicit aggregate hypothetical cache model");
+      locality.order=locality_order=="ordinary"?RNS8_LOCALITY_ORDINARY:locality_order=="output-neighbor"?RNS8_LOCALITY_OUTPUT_NEIGHBOR:locality_order=="modulus"?RNS8_LOCALITY_MODULUS:RNS8_LOCALITY_SAME_OUTPUT;
+      locality.cache_bytes_per_domain=uint64_t(cache_model_mib)*1024*1024;
+    }
+    std::string dataset_profile="full-width-v1";
+    uint32_t dataset_seed=3135;
+    bool explicit_dataset=false;
+    if(argc>=15 && std::string(argv[argc-4])=="--dataset" && std::string(argv[argc-2])=="--seed") {
+      dataset_profile=argv[argc-3];dataset_seed=number(argv[argc-1],0,UINT32_MAX);explicit_dataset=true;argc-=4;
+      if(!rns8::bench::native_dataset_profile(dataset_profile))throw std::invalid_argument("unknown versioned dataset");
+    }
+    if (argc < 11 || argc > 17) throw std::invalid_argument(usage);
+    // Preserve the original ten arguments; optional workers follows run identity.
+    const std::string candidate = argv[1], run_id = argv[10];
+    const auto m = number(argv[2],1,1024), n = number(argv[3],1,1024), k = number(argv[4],1,65537),
+               prefix = number(argv[5],1,20), group = number(argv[6],1,4), unsigned_inputs = number(argv[7],0,1),
+               repeats = number(argv[8],1,10000), warmups = number(argv[9],1,1000);
+    const bool epilogue = candidate == "epilogue_direct" || candidate == "epilogue_rocwmma" || candidate == "epilogue_unfused";
+    const bool conversion = candidate == "conversion_cold" || candidate == "conversion_prepared" || candidate == "conversion_pack_gemm";
+    const bool conversion_prepared = candidate == "conversion_prepared";
+    const bool conversion_pack = candidate == "conversion_pack_gemm";
+    if(conversion && argc!=17)throw std::invalid_argument("conversion cases require six explicit controls after run identity");
+    NativeTiledConfig conversion_config;
+    std::string conversion_name="replicated",conversion_input="stable";
+    if(conversion) {
+      conversion_config.depth=number(argv[11],16,32);conversion_config.buffers=number(argv[12],0,2);
+      conversion_config.waves=number(argv[13],1,4);conversion_name=argv[14];conversion_input=argv[16];
+      if(conversion_name=="cooperative")conversion_config.conversion=NativeConversion::cooperative;
+      else if(conversion_name=="encoded_lds")conversion_config.conversion=NativeConversion::encoded_lds;
+      else if(conversion_name=="paired_columns")conversion_config.conversion=NativeConversion::paired_columns;
+      else if(conversion_name!="replicated")throw std::invalid_argument("unknown conversion ownership");
+      const auto resources=query_native_tiled_resources(conversion_config.depth,conversion_config.buffers,65536,
+          conversion_config.conversion,group,conversion_config.waves);
+      if(resources.status!=RNS8_SUCCESS || (conversion_input!="stable" && conversion_input!="reverse_k") ||
+          (conversion_pack && (conversion_name!="replicated" || conversion_config.depth!=16 || conversion_config.buffers || conversion_config.waves!=4)))
+        throw std::invalid_argument("unsupported conversion geometry/storage/input control");
+    }
+    if(explicit_locality && candidate!="queue_prepared" && candidate!="split_k")throw std::invalid_argument("locality controls require prepared native queue or native split-K");
+    const bool queued = candidate == "queue" || candidate == "queue_prepared" || candidate == "split_k";
+    const bool adaptive = candidate == "adaptive_grid" || candidate == "adaptive_compact";
+    const bool global_minimum=candidate=="global_minimum",bound_control=adaptive || global_minimum;
+    const bool compact = candidate == "adaptive_compact";
+    if(explicit_dataset && !bound_control && candidate!="wmma" && candidate!="pack_gemm")
+      throw std::invalid_argument("dataset controls apply to adaptive, wmma and pack_gemm paired cases");
+    if(explicit_dataset && prefix!=20)throw std::invalid_argument("dataset ablations require identical completed capacity20 output");
+    const bool tiled = candidate == "tiled_register" || candidate == "tiled_lds";
+    const bool encoded = candidate == "encoded_b_cold" || candidate == "encoded_b_warm";
+    const bool encoded_warm = candidate == "encoded_b_warm";
+    const bool reuse_batch = encoded || candidate == "wmma" || conversion;
+    if (encoded && argc != 12)
+      throw std::invalid_argument("encoded_b cases require explicit reuse_count1..256 after run identity");
+    if (bound_control && ((compact ? argc != 13 : argc != 12) || prefix != 20 ||
+                     std::string(argv[compact ? 12 : 11]) != "axis_l1"))
+      throw std::invalid_argument("adaptive cases require prefix20 and explicit axis_l1; compact requires workers1..65535 before method");
+    if (tiled && argc != 13)
+      throw std::invalid_argument("tiled cases require explicit k_depth lds_buffers after run identity");
+    if (!conversion && !bound_control && !tiled && !(candidate=="split_k" && argc==14) && (argc > 12 || (argc == 12 && !queued && !reuse_batch && !epilogue)))
+      throw std::invalid_argument("workers applies only to queue/queue_prepared/split_k or explicit adaptive_compact cases");
+    const uint32_t reuse_count = conversion ? number(argv[15],1,256) : reuse_batch && argc == 12 ? number(argv[11],1,256) : 1;
+    if(explicit_dataset && reuse_count!=1)throw std::invalid_argument("dataset controls require one complete product per call");
+    const uint32_t tiled_depth = tiled ? number(argv[11],16,32) : 0;
+    const uint32_t tiled_buffers = tiled ? number(argv[12],0,2) : 0;
+    const uint64_t tiled_lds_budget = 65536;
+    NativeTiledResources tiled_resources;
+    if (tiled) {
+      tiled_resources = query_native_tiled_resources(tiled_depth,tiled_buffers,tiled_lds_budget);
+      if (tiled_resources.status != RNS8_SUCCESS ||
+          (candidate == "tiled_register" ? tiled_buffers != 0 : tiled_buffers == 0))
+        throw std::invalid_argument("tiled_register requires depth16/buffers0; tiled_lds requires depth16|32/buffers1|2 within64KiB LDS");
+    }
+    const uint32_t requested_workers = compact ? number(argv[11], 1, 65535) :
+        queued ? (argc >= 12 ? number(argv[11], 1, 1024) : 32u) : 0u;
+    const bool prepared = candidate == "queue_prepared" || candidate == "grid_prepared";
+    const bool native = conversion || candidate == "wmma" || encoded || queued || prepared || bound_control || tiled;
+    if (candidate == "complex_3m" || candidate == "complex_4m")
+      return calibrate_complex(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
+    if (candidate == "narrow_wmma" || candidate == "narrow_scalar" || candidate == "narrow_vector" || candidate == "narrow_rns")
+      return calibrate_narrow(candidate, m, n, k, prefix, group, unsigned_inputs, repeats, warmups, run_id);
+
+    const std::string coefficient_profile=epilogue && argc==12?argv[11]:"extreme";
+    int64_t alpha=0,beta=0;
+    if(!rns8::bench::epilogue_coefficients(coefficient_profile,unsigned_inputs,alpha,beta))throw std::invalid_argument("unknown epilogue coefficient profile");
+    if ((!native && !epilogue && candidate != "pack_pair" && candidate != "packed_gemm" && candidate != "pack_gemm") ||
+        run_id.empty() || (group != 1 && group != 2 && group != 4) || (!native && group != 1) ||
+        uint64_t{m} * n * k > 1073741824) throw std::invalid_argument("invalid candidate/group or reference-work limit");
+    const uint32_t splits = candidate == "split_k" ? (argc==14?number(argv[12],1,std::min(k,4096u)):std::min(k,3u)) : 1u;
+    const std::string native_merge_policy=candidate=="split_k" && argc==14?argv[13]:"fused-first";
+    if(native_merge_policy!="fused-first" && native_merge_policy!="separate-control")throw std::invalid_argument("invalid native split merge policy");
+    const bool separate_canonicalization_control=native_merge_policy=="separate-control";
+    const uint32_t queue_descriptors = queued ? ((m + 15) / 16) * ((n + 15) / 16) *
+        ((prefix + group - 1) / group) * splits : 0u;
+    const uint32_t effective_workers = compact ? requested_workers : std::min(requested_workers, queue_descriptors);
+    const std::string queue_kernel_selection = queued ? "homogeneous_group_" + std::to_string(group) +
+        (unsigned_inputs ? "_unsigned" : "_signed") : "not_applicable";
+    rns8_device_info device{};
+    std::mt19937_64 rng(dataset_seed);
+    std::vector<uint64_t> a(std::size_t{m}*k), b(std::size_t{k}*n);
+    rns8::bench::fill_native_dataset(a,b,m,n,k,unsigned_inputs,dataset_profile,dataset_seed,rng);
+    const auto dataset_identity=rns8::bench::native_dataset_identity(dataset_profile,dataset_seed);
+    nlohmann::json dataset_model=nullptr;uint32_t expected_global_prefix=0;
+    if(bound_control || explicit_dataset) {
+      // This exact preflight precedes capability probing, allocation and GPU work.
+      const auto model=rns8::bench::model_native_dataset(a,b,m,n,k,unsigned_inputs,group,dataset_profile);
+      expected_global_prefix=model.globally_required_prefix;
+      dataset_model={{"schema_version",2},{"method","axis_l1_exact_cpp_int_and_production_helper_crosscheck"},
+        {"input_hash_fnv1a64",std::to_string(model.input_hash)},{"required_prefix_histogram",model.required_histogram},
+        {"adaptive_executed_prefix_histogram",model.executed_histogram},{"zero_tiles",model.zero_tiles},
+        {"required_channels",model.required_channels},{"adaptive_executed_channels",model.executed_channels},
+        {"adaptive_group_work_items",model.group_work_items},{"fixed_capacity_group_work_items",model.fixed_capacity_group_work_items},
+        {"globally_required_prefix",model.globally_required_prefix},{"source_work_not_instruction_or_speedup",true},
+        {"actual_candidate_group_work_items",adaptive?model.group_work_items:global_minimum?uint64_t((m+15)/16)*((n+15)/16)*((std::max(1u,model.globally_required_prefix)+group-1)/group):model.fixed_capacity_group_work_items},
+        {"global_minimal_completed_output_control_implemented",true}};
+      if(global_minimum)dataset_model["global_bound_magnitude_limbs"]=model.global_bound_magnitude;
+    }
+    check(hip_direct_probe(0, device));
+    std::vector<uint64_t> d(epilogue ? std::size_t{m} * n : 0);
+    for (auto& x : d) x = rng();
+    std::vector<int8_t> expected_d(d.size() * prefix);
+    std::vector<int8_t> expected_a(a.size()*prefix), expected_b(b.size()*prefix),
+                        expected(std::size_t{m}*n*prefix + 64, 99);
+    for (uint32_t p = 0; p < prefix; ++p) {
+      for (std::size_t i = 0; i < a.size(); ++i) expected_a[p*a.size()+i] = centered_residue(native_value(a[i],unsigned_inputs),kDefaultModuli[p]);
+      for (std::size_t i = 0; i < b.size(); ++i) expected_b[p*b.size()+i] = centered_residue(native_value(b[i],unsigned_inputs),kDefaultModuli[p]);
+    }
+    for (uint32_t p = 0; p < prefix; ++p)
+      for (std::size_t i = 0; i < d.size(); ++i)
+        expected_d[p*d.size()+i] = centered_residue(native_value(d[i],unsigned_inputs),kDefaultModuli[p]);
+    if (candidate != "pack_pair") {
+      // K <= 65537 and |input| < 2^64 bound every dot product below 2^145.
+      // Even the full-width alpha/beta expression is below 2^209. Fixed Boost
+      // 256-bit arithmetic is therefore exact, with no per-product allocation.
+      // Transpose the reference B only; GPU inputs and timed work are unchanged.
+      using boost::multiprecision::int256_t;
+      std::vector<int256_t> reference_a(a.size()), reference_bt(b.size());
+      for (std::size_t i = 0; i < a.size(); ++i) reference_a[i] = int256_t(native_value(a[i], unsigned_inputs));
+      for (uint32_t col = 0; col < n; ++col)
+        for (uint32_t q = 0; q < k; ++q)
+          reference_bt[std::size_t{col} * k + q] = int256_t(native_value(b[std::size_t{q} * n + col], unsigned_inputs));
+      for (uint32_t row = 0; row < m; ++row) for (uint32_t col = 0; col < n; ++col) {
+        int256_t fixed_sum = 0;
+        for (uint32_t q = 0; q < k; ++q)
+          fixed_sum += reference_a[std::size_t{row} * k + q] * reference_bt[std::size_t{col} * k + q];
+        cpp_int sum = fixed_sum;
+        // Independent unbounded audit of both edge columns in every row.
+        if (col == 0 || col + 1 == n) {
+          cpp_int audit = 0;
+          for (uint32_t q = 0; q < k; ++q)
+            audit += native_value(a[row*k+q], unsigned_inputs) * native_value(b[q*n+col], unsigned_inputs);
+          if (audit != sum) throw std::runtime_error("fixed-width reference differs from unbounded audit");
+        }
+        if (epilogue) sum = cpp_int(alpha) * sum + cpp_int(beta) * native_value(d[row*n+col],unsigned_inputs);
+        for (uint32_t p = 0; p < prefix; ++p) expected[(std::size_t{p}*m+row)*n+col] = centered_residue(sum,kDefaultModuli[p]);
+      }
+    }
+    hip_direct_device_buffer da, db, ra, rb, rd, intermediate, dc;
+    check(da.allocate(0,a.size()*8)); check(db.allocate(0,b.size()*8));
+    const bool reserve_residue_inputs=!conversion || conversion_pack;
+    if(reserve_residue_inputs) {check(ra.allocate(0,expected_a.size()));check(rb.allocate(0,expected_b.size()));}
+    check(dc.allocate(0,expected.size()));
+    check(hip_direct_copy_host_to_device(0,da.get(),a.data(),a.size()*8));
+    check(hip_direct_copy_host_to_device(0,db.get(),b.data(),b.size()*8));
+    if (epilogue) {
+      check(rd.allocate(0,expected_d.size()));
+      check(hip_direct_copy_host_to_device(0,rd.get(),expected_d.data(),expected_d.size()));
+      // Reserve identical scratch for all three epilogue cases; only unfused
+      // writes it. This keeps allocation footprint out of the timing comparison.
+      check(intermediate.allocate(0,std::size_t{m}*n*prefix));
+    }
+    if(reserve_residue_inputs)pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
+    const auto compare = [&](void* pointer, const std::vector<int8_t>& reference) {
+      std::vector<int8_t> observed(reference.size());
+      check(hip_direct_copy_device_to_host(0,observed.data(),pointer,observed.size()));
+      if (observed != reference) throw std::runtime_error("native calibration differs from exact reference or canary");
+    };
+    if(reserve_residue_inputs){compare(ra.get(),expected_a);compare(rb.get(),expected_b);}
+    std::vector<NativeWmmaTask> tasks{{da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs}};
+    NativeWmmaPreparedQueue prepared_queue;rns8_locality_info locality_receipt{};
+    hip_direct_device_buffer cache_displacement;uint64_t displacement_calls=0;double displacement_total_ns=0;
+    const uint64_t displacement_bytes=uint64_t(cache_displace_mib)*1024*1024;
+    if(displacement_bytes){check(cache_displacement.allocate(0,displacement_bytes));check(hip_direct_zero(0,cache_displacement.get(),displacement_bytes));}
+
+    NativeTiledPrepared conversion_owner;
+    double conversion_prepare_ns=0;
+    if(conversion_prepared) {
+      hip_direct_timing_set_enabled(false);
+      const auto start=std::chrono::steady_clock::now();
+      check(conversion_owner.prepare(0,tasks.front(),conversion_config));
+      conversion_prepare_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-start).count();
+    }
+    auto reverse_a=a,reverse_b=b;
+    if(conversion && conversion_input=="reverse_k") {
+      for(uint32_t row=0;row<m;++row)for(uint32_t q=0;q<k;++q)reverse_a[row*k+q]=a[row*k+k-1-q];
+      for(uint32_t q=0;q<k;++q)for(uint32_t col=0;col<n;++col)reverse_b[q*n+col]=b[(k-1-q)*n+col];
+    }
+    bool reversed_inputs=false;
+    EncodedBLayout encoded_layout;
+    hip_direct_device_buffer encoded_storage;
+    double encoded_prepare_ns = 0;
+    if (encoded) {
+      encoded_layout = encoded_b_layout(k,n,n,prefix,UINT64_MAX);
+      check(encoded_layout.status);
+      if (encoded_warm) {
+        hip_direct_timing_set_enabled(false);
+        const auto start=std::chrono::steady_clock::now();
+        check(encoded_storage.allocate(0,encoded_layout.total_bytes));
+        check(hip_prepare_encoded_b(0,db.get(),encoded_storage.get(),k,n,n,prefix,
+                                    unsigned_inputs,encoded_layout.total_bytes));
+        encoded_prepare_ns=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-start).count();
+      }
+    }
+    double queue_prepare_ns = 0;
+    if (prepared) {
+      hip_direct_timing_set_enabled(false);
+      const auto start = std::chrono::steady_clock::now();
+      check(prepared_queue.prepare(0, tasks, requested_workers ? requested_workers : 32, UINT64_MAX,{},explicit_locality?&locality:nullptr));
+      queue_prepare_ns = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count();
+    }
+    if(explicit_locality && prepared)locality_receipt=prepared_queue.locality_info();
+    NativeGlobalMinimumReceipt global_receipt;
+    const auto global_json=[&]() {return nlohmann::json{{"required_prefix",global_receipt.required_prefix},{"compute_prefix",global_receipt.compute_prefix},
+        {"bound_limbs",{global_receipt.bound.magnitude[0],global_receipt.bound.magnitude[1],global_receipt.bound.magnitude[2]}},
+        {"proof_readback_bytes",global_receipt.proof_readback_bytes},{"discovery_ns",global_receipt.discovery_ns},
+        {"conversion_product_ns",global_receipt.conversion_product_ns},{"completion_ns",global_receipt.completion_ns},
+        {"commit_ns",global_receipt.commit_ns},{"cleanup_ns",global_receipt.cleanup_ns}};};
+    const auto execute = [&]() {
+      if(displacement_bytes){const auto before=std::chrono::steady_clock::now();cache_displacement.mark_pending();
+        const auto status=hip_direct_cache_displace(0,cache_displacement.get(),displacement_bytes,1);
+        if(status!=RNS8_SUCCESS){if(hip_direct_synchronize(0)==RNS8_SUCCESS)cache_displacement.mark_completed();check(status);}
+        cache_displacement.mark_completed();++displacement_calls;
+        displacement_total_ns+=std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-before).count();}
+      if(conversion) {
+        bool written=false;
+        NativeTiledPrepared cold;
+        if(!conversion_prepared && !conversion_pack)check(cold.prepare(0,tasks.front(),conversion_config));
+        for(uint32_t reuse=0;reuse<reuse_count;++reuse) {
+          if(conversion_pack) {
+            pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
+            check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
+          } else {
+            check(conversion_prepared ? conversion_owner.execute(written) : cold.execute(written));
+            if(!written)throw std::runtime_error("prepared conversion succeeded without committing output");
+          }
+        }
+        return;
+      }
+      if (candidate == "pack_pair" || candidate == "pack_gemm") pack_pair(da.get(),db.get(),ra.get(),rb.get(),m,n,k,prefix,unsigned_inputs);
+      if (candidate == "pack_pair") return;
+      bool written = false;
+      if (candidate == "epilogue_direct") check(hip_direct_gemm_rns_axpby_device(0,ra.get(),rb.get(),rd.get(),dc.get(),m,n,k,k,n,n,n,prefix,alpha,beta));
+      else if (candidate == "epilogue_rocwmma") check(rocwmma_exact_axpby_device(0,ra.get(),rb.get(),rd.get(),dc.get(),m,n,k,k,n,n,n,prefix,alpha,beta));
+      else if (candidate == "epilogue_unfused") {
+        check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),intermediate.get(),m,n,k,k,n,n,prefix));
+        check(hip_direct_axpby_residues_device(0,intermediate.get(),rd.get(),dc.get(),m,n,n,n,n,prefix,alpha,beta));
+      }
+      else if (candidate == "wmma") {
+        for (uint32_t reuse=0;reuse<reuse_count;++reuse)
+          check(hip_direct_gemm_native_wmma_grouped_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs));
+      }
+      else if (encoded) {
+        hip_direct_device_buffer cold_storage;
+        void* storage=encoded_storage.get();
+        if (!encoded_warm) {
+          check(cold_storage.allocate(0,encoded_layout.total_bytes));
+          storage=cold_storage.get();
+          check(hip_prepare_encoded_b(0,db.get(),storage,k,n,n,prefix,unsigned_inputs,encoded_layout.total_bytes));
+        }
+        for (uint32_t reuse=0;reuse<reuse_count;++reuse) {
+          check(hip_gemm_encoded_b(0,da.get(),storage,dc.get(),m,n,k,k,n,prefix,group,unsigned_inputs,written));
+          if (!written) throw std::runtime_error("encoded B operation succeeded without committing output");
+        }
+        // Release stays inside the cold batch's host interval, including status.
+        if (!encoded_warm) check(cold_storage.reset());
+      }
+      else if (tiled) {
+        check(hip_direct_gemm_native_tiled_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+            m,n,k,k,n,n,prefix,group,unsigned_inputs,tiled_depth,tiled_buffers,tiled_lds_budget,written));
+        if (!written) throw std::runtime_error("tiled operation returned success without committing output");
+      }
+      else if (candidate == "queue") check(hip_direct_gemm_native_wmma_queue(0,tasks,requested_workers,UINT64_MAX,written));
+      else if (candidate == "queue_prepared") check(prepared_queue.execute(written));
+      else if (candidate == "grid_prepared") check(prepared_queue.execute_ordinary(written));
+      else if (candidate == "split_k") check(hip_direct_gemm_native_wmma_split_k_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),m,n,k,k,n,n,prefix,group,unsigned_inputs,splits,requested_workers,UINT64_MAX,written,separate_canonicalization_control,explicit_locality?&locality:nullptr,explicit_locality?&locality_receipt:nullptr));
+      else if(global_minimum) {
+        check(hip_direct_gemm_global_minimum_native_device(0,da.get(),db.get(),static_cast<int8_t*>(dc.get()),
+            m,n,k,k,n,n,unsigned_inputs,prefix,group,UINT64_MAX,written,global_receipt));
+        if(!written)throw std::runtime_error("global minimum succeeded without completed output commit");
+      }
+      else if (adaptive) {
+        check(hip_direct_gemm_adaptive_native_device(0, da.get(), db.get(), static_cast<int8_t*>(dc.get()),
+            m, n, k, k, n, n, unsigned_inputs, prefix, group, UINT64_MAX, written,
+            NativeBoundMethod::axis_l1, 256, compact ? requested_workers : 0));
+        if (!written) throw std::runtime_error("adaptive operation returned success without committing output");
+      }
+      else check(hip_direct_gemm_rns_device(0,ra.get(),rb.get(),dc.get(),m,n,k,k,n,n,prefix));
+    };
+    const auto prepare = [&]() {
+      if(conversion && conversion_input=="reverse_k") {
+        reversed_inputs=!reversed_inputs;
+        const auto& next_a=reversed_inputs?reverse_a:a;
+        const auto& next_b=reversed_inputs?reverse_b:b;
+        check(hip_direct_copy_host_to_device(0,da.get(),next_a.data(),next_a.size()*8));
+        check(hip_direct_copy_host_to_device(0,db.get(),next_b.data(),next_b.size()*8));
+      }
+      std::vector<int8_t> poison(expected.size(),99);
+      check(hip_direct_copy_host_to_device(0,dc.get(),poison.data(),poison.size()));
+      if (epilogue) check(hip_direct_zero(0,intermediate.get(),std::size_t{m}*n*prefix));
+      if (candidate == "pack_pair" || candidate == "pack_gemm") {
+        check(hip_direct_zero(0,ra.get(),expected_a.size())); check(hip_direct_zero(0,rb.get(),expected_b.size()));
+      }
+    };
+    const auto verify = [&]() {
+      if(global_minimum && global_receipt.required_prefix!=expected_global_prefix)
+        throw std::runtime_error("device global prefix differs from independent exact axis-L1 oracle");
+      if (candidate == "pack_pair" || candidate == "pack_gemm") { compare(ra.get(),expected_a); compare(rb.get(),expected_b); }
+      if (candidate != "pack_pair") compare(dc.get(),expected);
+    };
+    for (uint32_t i=0;i<warmups;++i) { prepare(); execute(); verify(); }
+    nlohmann::json samples = nlohmann::json::array();
+    hip_direct_timing_set_enabled(true);
+    for (uint32_t i=0;i<repeats;++i) {
+      prepare(); hip_direct_timing_reset();
+      const auto start = std::chrono::steady_clock::now();
+      execute();
+      const double host_ns = std::chrono::duration<double,std::nano>(std::chrono::steady_clock::now()-start).count();
+      hip_direct_timing_flush_pending_events();
+      nlohmann::json events = nlohmann::json::array();
+      for (const auto& event : hip_direct_timing_snapshot()) events.push_back({{"label",event.label},
+          {"elapsed_ns",event.microseconds>0 ? nlohmann::json(event.microseconds*1000) : nlohmann::json(nullptr)}});
+      verify();
+      const auto instrumented_global=global_minimum?global_json():nlohmann::json(nullptr);
+      hip_direct_timing_set_enabled(false);
+      prepare();
+      const auto production_start = std::chrono::steady_clock::now();
+      execute();
+      const double production_ns = std::chrono::duration<double,std::nano>(
+          std::chrono::steady_clock::now()-production_start).count();
+      verify();
+      hip_direct_timing_set_enabled(true);
+      samples.push_back({{"host_call_ns",host_ns>0 ? nlohmann::json(host_ns) : nlohmann::json(nullptr)},
+                         {"uninstrumented_host_call_ns",production_ns},
+                         {"uninstrumented_exact_reference_passed",true},
+                         {"events",events},{"exact_reference_passed",true},
+                         {"global_minimum",instrumented_global},{"uninstrumented_global_minimum",global_minimum?global_json():nlohmann::json(nullptr)}});
+    }
+    hip_direct_timing_set_enabled(false);
+    auto sustained = sustained_calls(prepare, execute, verify);
+    if (reuse_batch) {
+      const uint64_t gemm_calls=sustained["calls"].get<uint64_t>()*reuse_count;
+      sustained.update({{"gemm_calls",gemm_calls},
+          {"mean_gemm_ns",sustained["elapsed_ns"].get<double>()/gemm_calls},
+          {"verified_outputs_per_batch",1}});
+    }
+    nlohmann::json report{{"schema","rns8_native_microcase_v2"},{"run_id",run_id},{"candidate",candidate},
+        {"sustained",sustained},
+        {"queue_prepare_ns",queue_prepare_ns},
+        {"queue_preparation_scope",prepared ? "one host preparation including allocation, capability check and descriptor upload; excluded from steady calls" : "not_applicable"},
+        {"queue_descriptor_storage_bytes",queued ? std::size_t(splits)*sizeof(NativeWmmaTask)+std::size_t(queue_descriptors)*sizeof(NativeWmmaWork)+sizeof(uint32_t) : prepared ? sizeof(NativeWmmaTask) + std::size_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)*sizeof(NativeWmmaWork)+sizeof(uint32_t) : 0},
+        {"m",m},{"n",n},{"k",k},{"prefix",prefix},{"group",group},{"unsigned_inputs",bool(unsigned_inputs)},
+        {"splits",splits},{"requested_workers",requested_workers},{"effective_workers",effective_workers},
+        {"queue_descriptors",queue_descriptors},{"queue_kernel_selection",queue_kernel_selection},{"seed",dataset_seed},{"repeats",repeats},{"warmups",warmups},
+        {"input_domain",(candidate=="packed_gemm" || epilogue) ? "resident_centered_residues" : "resident_native_64"},
+        {"output_contract",candidate=="pack_pair" ? "operand_residue_planes" : epilogue ? "integer_alpha_ab_plus_beta_d_residues_no_integer_export" : "product_residues_default_basis_no_integer_export"},
+        {"coefficient_profile",epilogue ? nlohmann::json(coefficient_profile) : nlohmann::json(nullptr)},
+        {"expression",epilogue ? nlohmann::json{{"alpha",alpha},{"beta",beta},{"coefficients","original_integers"},{"d_dataset","seed_3135_after_a_b"}}
+                                : nlohmann::json(nullptr)},
+        {"reserved_intermediate_bytes",epilogue ? std::size_t{m}*n*prefix : 0},
+        {"materialized_intermediate_bytes",candidate=="epilogue_unfused" ? std::size_t{m}*n*prefix : 0},
+        {"device",device.name},{"target",device.gcn_arch},{"runtime_version",device.hip_runtime_version},
+        {"build_manifest",nlohmann::json::parse(RNS8_BUILD_MANIFEST_JSON)},
+        {"reference_method",candidate=="pack_pair" ? "boost_cpp_int_operand_residues" :
+            "boost_int256_full_product_with_cpp_int_row_edge_audits_and_epilogue"},
+        {"reference_operand_storage_bytes",candidate=="pack_pair" ? std::size_t{0} :
+            (a.size()+b.size())*sizeof(boost::multiprecision::int256_t)},
+        {"native_input_storage_bytes",(a.size()+b.size())*8},{"residue_input_storage_bytes",reserve_residue_inputs ? expected_a.size()+expected_b.size()+expected_d.size() : 0},
+        {"residue_output_bytes",std::size_t{m}*n*prefix},{"actual_hbm_bytes",nullptr},{"timing_resolution_ns",nullptr},
+        {"isa_verified",false},{"promotion_eligible",false},{"samples",samples},
+        {"timing_scope",prepared ? "resident inputs and prepared descriptors; host calls include synchronous execution (cursor reset for queue only); one-time queue_prepare_ns reported separately; initial upload, poison and Boost verification excluded" : "resident inputs; host calls include per-call allocations/capability/sync; labeled HIP events; initial upload, poison and Boost verification excluded"},
+        {"cache_state","repeated inputs; destination reinitialized outside every timed call"}};
+    if(explicit_locality){
+      report.update({{"locality_order",locality_order},{"cache_displace_mib",cache_displace_mib},{"cache_model_mib",cache_model_mib}});
+      uint32_t first=0,last=0;if(displacement_bytes){check(hip_direct_copy_device_to_host(0,&first,cache_displacement.get(),4));
+        check(hip_direct_copy_device_to_host(0,&last,static_cast<uint8_t*>(cache_displacement.get())+displacement_bytes-64,4));
+        const uint32_t expected=uint32_t(displacement_calls*UINT64_C(0x9e3779b9));if(first!=expected || last!=expected)throw std::runtime_error("cache displacement witness mismatch");}
+      report["locality"]={{"version",1},{"requested_order",locality_order},{"applied_order",locality_receipt.applied_order},
+        {"applied",bool(locality_receipt.applied)},{"target_id",locality_receipt.target_id},{"topology_version",1},
+        {"physical_affinity_established",false},{"representation","raw_native64"},{"modulus_group",group},{"fragments",splits},
+        {"active_entries",locality_receipt.active_entries},{"directory_bytes",locality_receipt.directory_bytes},
+        {"requested_source_bytes",locality_receipt.requested_source_bytes},{"unique_source_bytes",locality_receipt.unique_source_bytes},
+        {"partial_output_bytes",locality_receipt.output_read_write_bytes},{"permutation_fingerprint",locality_receipt.permutation_fingerprint}};
+      report["cache_displacement"]={{"version",1},{"allocation_bytes",displacement_bytes},{"modeled_cache_bytes",locality.cache_bytes_per_domain},
+        {"line_stride_bytes",64},{"passes_per_call",displacement_bytes?1:0},{"submissions",displacement_calls},
+        {"host_ns",displacement_total_ns},{"first_word",first},{"last_word",last},{"witness_verified",true},
+        {"inside_timed_call",true},{"before_every_sustained_call",true},{"cold_cache_verified",false}};
+      report["timing_scope"]="resident native compute including explicit displacement when requested; queue setup excluded only for prepared queue; native split setup and merge charged per call; complete oracle outside interval";
+      report["cache_state"]=displacement_bytes?"explicit unrelated line-walk before every call; eviction/cold state unverified":"retained inputs without explicit displacement; hot state unverified";
+      report["sustained"]["scope"]="checked native calls including optional explicit cache displacement before every call; final output and displacement witnesses verified";
+    }
+    if(candidate=="split_k")report.update({{"fragments",splits},{"merge_policy",native_merge_policy},
+      {"native_partial_format","centered_int8"},{"merge_output_format","canonical_uint8"},
+      {"native_split_scratch_bytes",uint64_t{m}*n*prefix*(splits+(splits+127)/128)},
+      {"standalone_canonicalization_logical_bytes",separate_canonicalization_control?uint64_t{2}*splits*prefix*m*n:0},
+      {"standalone_canonicalization_launches",separate_canonicalization_control?1:0},
+      {"merge_maximum_integer_sum",128*255},{"source_counts_not_measured_HBM",true}});
+    if(bound_control || explicit_dataset)report.update({{"dataset_profile",dataset_profile},{"dataset_seed",dataset_seed},
+      {"dataset_identity",dataset_identity},{"dataset_model",dataset_model}});
+    if (reuse_batch && !conversion) {
+      report.update({{"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
+          {"reuse_batch_boundary","R_synchronous_calls_same_native_A_B_one_final_verified_output"},
+          {"reuse_comparison_boundary","private_raw_residue_no_public_matrix_proof_or_generation"},
+          {"reuse_dataset",dataset_identity},
+          {"encoded_b_layout",encoded ? "modulus_n_k_packed_word32_v1" : "none"},
+          {"encoded_b_k_words",encoded ? encoded_layout.k_words : 0},
+          {"encoded_b_cache_logical_bytes",encoded ? encoded_layout.total_bytes : 0},
+          {"encoded_b_preparation_in_batch",encoded && !encoded_warm},
+          {"encoded_b_preparation_scope",encoded_warm ? "one_preparation_outside_batches_cached_consume" :
+              encoded ? "per_batch_allocate_probe_encode_consume_release" : "none_direct_native_grouped_each_call"},
+          {"encoded_b_prepare_ns",encoded_warm ? nlohmann::json(encoded_prepare_ns) : nlohmann::json(nullptr)},
+          {"encoded_b_resident_cache_bytes",encoded_warm ? encoded_layout.total_bytes : 0},
+          {"encoded_b_transient_cache_bytes",encoded && !encoded_warm ? encoded_layout.total_bytes : 0},
+          {"encoded_b_same_B_immutable",true},{"encoded_b_public_ownership_measured",false},
+          {"encoded_b_kernel_selection",std::string(encoded ? "encoded_b_grouped_g" : "native_grouped_g")+
+              std::to_string(group)+(unsigned_inputs ? "_unsigned" : "_signed")}});
+      report["timing_scope"]=encoded_warm ?
+          "R synchronous private cached GEMMs per batch; one allocation/probe/B conversion reported separately; no upload, poison or verification in interval" : encoded ?
+          "one allocation/probe/B conversion, R synchronous private cached GEMMs and cache release per batch; no upload, poison or verification in interval" :
+          "R synchronous grouped native GEMMs per batch, including ordinary per-call capability/allocation policy; no upload, poison or verification in interval";
+      report["cache_state"]="same immutable native A/B; C poisoned before sampled batches and once before sustained burst";
+    }
+    if(conversion) {
+      const auto resources=query_native_tiled_resources(conversion_config.depth,conversion_config.buffers,65536,
+          conversion_config.conversion,group,conversion_config.waves);
+      report.update({{"k_depth",conversion_config.depth},{"lds_buffers",conversion_config.buffers},
+          {"waves",conversion_config.waves},{"conversion",conversion_name},{"input_change",conversion_input},
+          {"reuse_count",reuse_count},{"batch_gemm_calls",reuse_count},
+          {"conversion_identity",native_conversion_identity(conversion_config.conversion)},
+          {"conversion_column_map",conversion_config.conversion==NativeConversion::paired_columns ?
+              nlohmann::json{{"version",1},{"target_family","rdna3_wmma_iu8_wave32"},{"wave_size",32},{"opcode",1},
+                {"element_bits",8},{"input_bits",5},{"output_bits",5},{"columns",{2,4,8,16,1}},
+                {"fingerprint",rns8::detail::binary_layout::fingerprint(rns8::detail::binary_layout::paired_columns,0x11,32,1,8)}} : nlohmann::json(nullptr)},
+          {"conversion_prepare_ns",conversion_prepared?nlohmann::json(conversion_prepare_ns):nlohmann::json(nullptr)},
+          {"conversion_preparation_in_batch",!conversion_prepared && !conversion_pack},
+          {"conversion_prepared_capability_bytes",conversion_pack?0:4},
+          {"conversion_public_ownership_measured",false},
+          {"conversion_raw_lds_bytes",conversion_pack?0:resources.raw_lds_bytes},
+          {"conversion_encoded_lds_bytes",conversion_pack?0:resources.encoded_lds_bytes},
+          {"conversion_total_lds_bytes",conversion_pack?0:resources.total_lds_bytes},
+          {"conversion_source_counts_measured",false},
+          {"conversion_output_tile_rows",conversion_pack?0:resources.output_rows},
+          {"conversion_output_tile_cols",conversion_pack?0:resources.output_cols},
+          {"conversion_grid_workgroups",conversion_pack?uint64_t(0):((uint64_t(m)+resources.output_rows-1)/resources.output_rows)*
+              ((uint64_t(n)+resources.output_cols-1)/resources.output_cols)*((prefix+group-1)/group)},
+          {"conversion_scalars_per_interior_panel",conversion_pack?0:resources.conversions_per_panel},
+          {"conversion_raw_scalars_per_interior_panel",conversion_pack?0:resources.raw_operand_scalars_per_panel},
+          {"conversion_accumulator_i32_per_lane",conversion_pack?0:resources.accumulator_i32_per_lane},
+          {"conversion_fragment_words_per_lane",conversion_pack?0:resources.fragment_words_per_lane},
+          {"conversion_lds_word_layout",conversion_config.conversion==NativeConversion::encoded_lds ? "A_row_Kword_B_column_Kword_odd_padded_stride" : "not_applicable"},
+          {"conversion_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"conversion_input_upload_scope",conversion_input=="reverse_k" ? "alternate_common_K_reversal_before_each_sample_and_once_before_sustained_burst_outside_interval" : "initial_upload_only"}});
+      report["timing_scope"]=conversion_pack ? "R resident-native pack-pair plus direct GEMM calls; no upload, poison or verification in interval" :
+          conversion_prepared ? "R prepared synchronous conversion GEMMs; one measured preparation reported separately; no upload, poison or verification in interval" :
+          "one capability/allocation preparation, R synchronous conversion GEMMs and owner release per batch; no upload, poison or verification in interval";
+    }
+    if (tiled) {
+      report.update({{"k_depth",tiled_depth},{"lds_buffers",tiled_buffers},
+          {"tiled_output_rows",tiled_resources.output_rows},{"tiled_output_cols",tiled_resources.output_cols},
+          {"tiled_waves",tiled_resources.waves},{"tiled_raw_lds_bytes",tiled_resources.raw_lds_bytes},
+          {"tiled_lds_budget_bytes",tiled_lds_budget},{"tiled_resource_query_is_device_qualification",false},
+          {"tiled_dataset","full_width_native64_mt19937_64_seed3135_forced_extrema_v1"},
+          {"tiled_storage",tiled_buffers ? "raw_native_padded_lds_encoded_fragments_in_registers" : "direct_native_register_loads"},
+          {"tiled_prefetch",tiled_buffers == 2 ? "next_disjoint_buffer_loaded_before_current_arithmetic" :
+              tiled_buffers == 1 ? "single_buffer_load_barrier_reuse" : "direct_native_register_loads"},
+          {"tiled_kernel_selection",std::string("native32x32_w4_g") + std::to_string(group) +
+              (unsigned_inputs ? "_unsigned_d" : "_signed_d") + std::to_string(tiled_depth) +
+              "_b" + std::to_string(tiled_buffers)},
+          {"tiled_control_scope","four_wave_32x32_same_output_residency_reference_and_slab_cap"}});
+    }
+    if(global_minimum) {
+      const auto support=query_native_global_minimum_support(m,n,k,k,n,n,prefix,group,UINT64_MAX);check(support.status);
+      report.update({{"bound_method","axis_l1"},{"global_minimum_control",{{"version",1},
+          {"proof_source","fresh_device_axis_l1_tile_bound_maximum"},{"summary_reuse",false},{"zero_compute_prefix_floor",1},
+          {"proof_readback_bytes_per_call",sizeof(NativeTileBound)+sizeof(uint32_t)},
+          {"requested_scratch_high_water_bytes",support.peak_scratch_bytes},{"scratch_is_observed_allocator_peak",false},
+          {"output_scope","uniform_minimum_prefix_then_exact_suffix_and_staged_full_capacity_commit"}}}});
+      report["timing_scope"]="resident immutable native inputs; fresh device axis-L1 discovery/compaction, device maximum reduction, proof readback, uniform native WMMA conversion/product, exact suffix, staged commit, all allocations/frees and synchronization charged per call; oracle outside timing; no summary reuse";
+    }
+    if (adaptive) {
+      const auto support = query_adaptive_native_support(m,n,k,k,n,n,prefix,group,
+          NativeBoundMethod::axis_l1,256,compact ? requested_workers : 0,UINT64_MAX);
+      check(support.status);
+      report.update({{"adaptive_peak_scratch_bytes", support.peak_scratch_bytes},
+          {"adaptive_static_support_version", support.version},
+          {"adaptive_static_support_is_device_qualification", false}});
+      report.update({{"bound_method", "axis_l1"}, {"adaptive_launch", compact ? "compact_workers" : "dense_grid"},
+          {"adaptive_dataset", dataset_identity},
+          {"adaptive_dense_group_upper_bound", uint64_t((m+15)/16)*((n+15)/16)*((prefix+group-1)/group)},
+          {"adaptive_actual_compact_groups", nullptr}, {"adaptive_compact_count_source", "device_offsets_not_read_back"},
+          {"adaptive_worker_policy", compact ? "exact_requested_worker_launch_no_count_clamp" : "dense_grid_control"},
+          {"adaptive_kernel_selection", std::string(compact ? "compact_group_" : "grid_group_") + std::to_string(group) +
+              (unsigned_inputs ? "_unsigned_axis_l1" : "_signed_axis_l1")},
+          {"adaptive_output_scope", "fresh bounds and per-tile prefix; exact suffix completes every capacity20 output plane"}});
+      report["timing_scope"] = "resident versioned native inputs; per-call capability, allocation, axis_l1 discovery/compaction, grouped WMMA, exact suffix, staged commit and synchronization; no compact-count readback; upload, poison and complete Boost verification excluded";
+    }
+    std::cout << report.dump(2) << '\n';
+    return 0;
+  } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
+}

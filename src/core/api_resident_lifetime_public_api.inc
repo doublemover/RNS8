@@ -223,7 +223,7 @@ rns8_status rns8_get_resident_lifetime_info(
     set_text(
         out->source_version_policy,
         sizeof(out->source_version_policy),
-        "monotonic_per_import_pack_or_gemm_output_hash");
+        "matrix_instance_plus_monotonic_content_generation");
     set_text(
         out->workspace_binding_policy,
         sizeof(out->workspace_binding_policy),

@@ -16,8 +16,15 @@ rns8_status hipblaslt_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix,
     rns8_workspace* workspace_state,
-    uint64_t a_source_version,
-    uint64_t b_source_version) {
+    uint64_t a_generation,
+    uint64_t b_generation,
+    uint64_t a_instance_id,
+    uint64_t b_instance_id) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if (!handle || !device_a_residues || !device_b_residues || !device_c_residues || !int32_scratch ||
       !workspace || !checked_common_shape(m, n, k, lda, ldb, ldc) ||
@@ -45,19 +52,19 @@ rns8_status hipblaslt_gemm_rns_device(
     }
     cached_a_plane_bytes = packed_a_plane_bytes_for(cache_shape);
     cached_b_plane_bytes = packed_b_plane_bytes_for(cache_shape);
-    rns8_status cache_status =
-        ensure_a_prepack_cache(device_id, a_base, *workspace_state, a_source_version, m, k, lda, prefix, cache_shape);
-    if (cache_status != RNS8_SUCCESS) {
-      return cache_status;
+    const auto policy=hipblaslt_prepack_policy();
+    if(hipblaslt_prepack_a_enabled(policy)) {
+      const auto status=ensure_a_prepack_cache(device_id,a_base,*workspace_state,a_generation,a_instance_id,m,k,lda,prefix,cache_shape);
+      if(status!=RNS8_SUCCESS) return status;
+      cached_a_base=static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
     }
-    cache_status =
-        ensure_b_prepack_cache(device_id, b_base, *workspace_state, b_source_version, k, n, ldb, prefix, cache_shape);
-    if (cache_status != RNS8_SUCCESS) {
-      return cache_status;
+    if(hipblaslt_prepack_b_enabled(policy)) {
+      const auto status=ensure_b_prepack_cache(device_id,b_base,*workspace_state,b_generation,b_instance_id,k,n,ldb,prefix,cache_shape);
+      if(status!=RNS8_SUCCESS) return status;
+      cached_b_base=static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
     }
-    cached_a_base = static_cast<const int8_t*>(workspace_state->hipblaslt_a_prepack_cache);
-    cached_b_base = static_cast<const int8_t*>(workspace_state->hipblaslt_b_prepack_cache);
   }
+  matmul_call_metadata metadata;
   for (uint32_t p = 0; p < prefix; ++p) {
     const std::size_t a_offset =
         static_cast<std::size_t>(p) * static_cast<std::size_t>(m) * static_cast<std::size_t>(lda);
@@ -86,12 +93,13 @@ rns8_status hipblaslt_gemm_rns_device(
         ldc,
         kHipblasLtDefaultModuli[p],
         cached_a_for_plane,
-        cached_b_for_plane);
+        cached_b_for_plane,metadata);
     if (status != RNS8_SUCCESS) {
       return status;
     }
   }
   const hipError_t sync_status = hipDeviceSynchronize();
+  metadata.drained=sync_status==hipSuccess;
   return sync_status == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -111,8 +119,10 @@ rns8_status hipblaslt_gemm_rns_device(
   (void)ldc;
   (void)prefix;
   (void)workspace_state;
-  (void)a_source_version;
-  (void)b_source_version;
+  (void)a_generation;
+  (void)b_generation;
+  (void)a_instance_id;
+  (void)b_instance_id;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

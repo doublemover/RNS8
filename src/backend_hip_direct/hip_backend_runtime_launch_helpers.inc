@@ -10,6 +10,7 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   hip_unique_event_pair events;
   hipError_t event_status = events.create_and_record_start();
   if (event_status != hipSuccess) {
+    hip_direct_timing_record_failure(label,"create_or_record_start",static_cast<int>(event_status));
     return fn();
   }
 
@@ -17,9 +18,10 @@ hipError_t timed_hip_operation(const char* label, Fn&& fn) {
   if (op_status == hipSuccess) {
     event_status = events.record_stop();
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+      hip_direct_timing_record_pending_event(label, std::move(events));
       return op_status;
     }
+    hip_direct_timing_record_failure(label,"record_stop",static_cast<int>(event_status));
   }
   return op_status;
 }
@@ -188,13 +190,13 @@ hipError_t copy_compact_matrix_device_to_host_direct(
     std::size_t cell_bytes) {
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   if (dst_ld == cols) {
-    return hipMemcpy(
+    return tracked_sync_copy(
         dst,
         src,
         static_cast<std::size_t>(rows) * compact_row_bytes,
         hipMemcpyDeviceToHost);
   }
-  return hipMemcpy2D(
+  return tracked_sync_copy_2d(
       dst,
       static_cast<std::size_t>(dst_ld) * cell_bytes,
       src,
@@ -213,18 +215,19 @@ hipError_t copy_compact_matrix_device_to_host(
     int64_t rows,
     int64_t cols,
     std::size_t cell_bytes,
-    bool default_padded_staging = true) {
+    bool default_padded_staging = true,
+    bool allow_pinned_staging = true) {
   if (!dst || !src || dst_ld < cols || !checked_output_bytes(rows, cols, cell_bytes) ||
       !checked_output_bytes(rows, dst_ld, cell_bytes)) {
     return hipErrorInvalidValue;
   }
   const std::size_t compact_row_bytes = static_cast<std::size_t>(cols) * cell_bytes;
   const std::size_t compact_bytes = static_cast<std::size_t>(rows) * compact_row_bytes;
-  if (pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
+  if (allow_pinned_staging && pinned_export_staging_enabled(compact_bytes, dst_ld != cols, default_padded_staging)) {
     void* pinned = ensure_pinned_export_staging(device_id, compact_bytes);
     if (pinned) {
       hipError_t err = timed_hip_operation(label, [&]() {
-        return hipMemcpy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
+        return tracked_sync_copy(pinned, src, compact_bytes, hipMemcpyDeviceToHost);
       });
       if (err != hipSuccess) {
         return err;
@@ -294,6 +297,8 @@ rns8_status validate_grouped_rns_matrices(
     if (require_current && !matrix->device_residues_current) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (require_current && !api::materialized_rns_prefix_covers(*matrix, matrix->prefix))
+      return RNS8_RANGE_ERROR;
     if (index == 0) {
       device_id = matrix->hip_device_id;
       prefix = matrix->prefix;

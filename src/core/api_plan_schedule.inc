@@ -107,6 +107,7 @@ bool plan_has_zero_row_col_proofs(const rns8_plan& plan) {
 }
 
 rns8_status configure_plan_schedule(rns8_plan& plan) {
+  plan.validated_contract.reset();
   const uint32_t tile_m = plan.desc.tile_m == 0 ? 128u : plan.desc.tile_m;
   const uint32_t tile_n = plan.desc.tile_n == 0 ? 128u : plan.desc.tile_n;
   const uint32_t requested_max_prefix = plan.prefix;
@@ -172,6 +173,17 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     plan.schedule_prefix_group_count = 0;
     plan.schedule_adaptive_prefix_active = 0;
     plan.schedule_adaptive_skip_active = 0;
+    return RNS8_SUCCESS;
+  }
+
+  if(plan.desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND) {
+    // No actual value is bound yet. Zero range bits means unknown, not zero.
+    // The requested fixed basis is a capacity envelope; exact_gemm/axpby_range
+    // remains mandatory at every ordinary, prepared and graph invocation.
+    plan.prefix=requested_max_prefix;plan.modulus_product=rns8::detail::modulus_product(plan.prefix);
+    plan.schedule_range_bit_length=0;plan.schedule_min_required_prefix=plan.schedule_max_required_prefix=plan.prefix;
+    plan.schedule_min_selected_prefix=plan.schedule_max_selected_prefix=plan.prefix;
+    plan.schedule_prefix_group_count=1;plan.schedule_adaptive_prefix_active=0;plan.schedule_adaptive_skip_active=0;
     return RNS8_SUCCESS;
   }
 
@@ -254,7 +266,10 @@ rns8_status configure_plan_schedule(rns8_plan& plan) {
     if (plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
         plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
         plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
-        plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0) {
+        plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0 &&
+        std::all_of(plan.tile_bounds.begin(), plan.tile_bounds.end(),
+                    [&](uint64_t bound) { return bound == plan.tile_bounds.front(); })) {
+      // A common prefix alone does not imply a common export range contract.
       plan.tile_schedule.clear();
     }
     return RNS8_SUCCESS;

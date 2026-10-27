@@ -14,6 +14,8 @@ void initialize_workspace_identity(rns8_workspace& workspace, const rns8_context
 }
 
 void initialize_workspace_schedule_contract(rns8_workspace& workspace, const rns8_plan& plan) {
+  workspace.validated_plan_contract = plan.validated_contract;
+  workspace.equivalent_plan_contract.reset();
   workspace.schedule_tile_rows = plan.schedule_tile_rows;
   workspace.schedule_tile_cols = plan.schedule_tile_cols;
   workspace.schedule_tile_count = plan.schedule_tile_count;
@@ -50,6 +52,8 @@ bool workspace_identity_matches_plan(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (ctx.hip_failure_poisoned) return false;
+  if (workspace.in_flight) return false;
   if (!context_accepts_backend(ctx, plan.backend) || workspace.backend != plan.backend) {
     return false;
   }
@@ -67,6 +71,17 @@ bool workspace_identity_matches_plan(
 }
 
 bool workspace_schedule_contract_matches_plan(const rns8_plan& plan, const rns8_workspace& workspace) {
+  if (plan.validated_contract && workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.validated_plan_contract &&
+      plan.validated_contract != workspace.equivalent_plan_contract) {
+    ++plan_validation_work.equivalent_comparisons;
+    // The hash is only a rejection filter. Admit a distinct plan by complete
+    // canonical structural equality, then retain its immutable identity.
+    if (plan.validated_contract->fingerprint != workspace.validated_plan_contract->fingerprint ||
+        plan.validated_contract->canonical_workspace_key !=
+            workspace.validated_plan_contract->canonical_workspace_key) return false;
+    workspace.equivalent_plan_contract = plan.validated_contract;
+  }
   return workspace.bound == plan.desc.bound &&
          workspace.finite_modulus == plan.desc.finite_modulus &&
          workspace.tile_m == plan.desc.tile_m &&
@@ -110,6 +125,7 @@ rns8_status release_workspace_device_buffer(int device_id, T*& ptr, std::size_t&
     return RNS8_SUCCESS;
   }
   const rns8_status status = rns8::detail::hip_direct_free(device_id, ptr);
+  if (status != RNS8_SUCCESS) return status;
   ptr = nullptr;
   bytes = 0;
   return status;
@@ -153,7 +169,8 @@ void reset_workspace_active_schedule_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_a_prepack_current = false;
-  workspace.hipblaslt_a_prepack_source_version = 0;
+  workspace.hipblaslt_a_prepack_generation = 0;
+  workspace.hipblaslt_a_prepack_instance_id = 0;
   workspace.hipblaslt_a_prepack_m = 0;
   workspace.hipblaslt_a_prepack_k = 0;
   workspace.hipblaslt_a_prepack_lda = 0;
@@ -163,7 +180,8 @@ void reset_workspace_hipblaslt_a_prepack_contract(rns8_workspace& workspace) {
 
 void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
   workspace.hipblaslt_b_prepack_current = false;
-  workspace.hipblaslt_b_prepack_source_version = 0;
+  workspace.hipblaslt_b_prepack_generation = 0;
+  workspace.hipblaslt_b_prepack_instance_id = 0;
   workspace.hipblaslt_b_prepack_k = 0;
   workspace.hipblaslt_b_prepack_n = 0;
   workspace.hipblaslt_b_prepack_ldb = 0;
@@ -172,6 +190,12 @@ void reset_workspace_hipblaslt_b_prepack_contract(rns8_workspace& workspace) {
 }
 
 rns8_status release_workspace_resources(rns8_workspace& workspace) {
+  if (workspace.in_flight) return RNS8_BUSY;
+  if (workspace.adaptive_summary_owner.pending()) {
+    const auto drained=rns8::detail::hip_direct_synchronize(workspace.hip_device_id);
+    if (drained!=RNS8_SUCCESS) return drained;
+    workspace.adaptive_summary_owner.mark_completed();
+  }
   rns8_status status = RNS8_SUCCESS;
   const auto keep_first_error = [&](rns8_status free_status) {
     if (status == RNS8_SUCCESS) {
@@ -195,27 +219,24 @@ rns8_status release_workspace_resources(rns8_workspace& workspace) {
         workspace.hip_device_id, workspace.hip_zero_b_cols, workspace.hip_zero_b_cols_bytes));
   }
   reset_workspace_active_schedule_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
-  clear_workspace_arena_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hipblaslt_a_prepack_device_id,
-      workspace.hipblaslt_a_prepack_cache,
-      workspace.hipblaslt_a_prepack_cache_bytes));
-  reset_workspace_hipblaslt_a_prepack_contract(workspace);
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hipblaslt_b_prepack_device_id,
-      workspace.hipblaslt_b_prepack_cache,
-      workspace.hipblaslt_b_prepack_cache_bytes));
-  reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  keep_first_error(workspace.bilinear_scratch_owner.reset());
+  keep_first_error(workspace.exact_auto_scratch_owner.reset());
+  keep_first_error(workspace.adaptive_summary_owner.reset());
+  workspace.adaptive_summary_identity[0] = {};
+  workspace.adaptive_summary_identity[1] = {};
+  keep_first_error(workspace.arena_owner.reset_alias(workspace.hip_workspace_arena, workspace.hip_workspace_arena_bytes));
+  if (!workspace.hip_workspace_arena) clear_workspace_arena_contract(workspace);
+  keep_first_error(workspace.int32_scratch_owner.reset_alias(workspace.hipblaslt_int32_scratch, workspace.hipblaslt_int32_scratch_bytes));
+  keep_first_error(workspace.matmul_workspace_owner.reset_alias(workspace.hipblaslt_workspace, workspace.hipblaslt_workspace_bytes));
+  keep_first_error(workspace.a_prepack_owner.reset_alias(workspace.hipblaslt_a_prepack_cache, workspace.hipblaslt_a_prepack_cache_bytes));
+  if (!workspace.hipblaslt_a_prepack_cache) reset_workspace_hipblaslt_a_prepack_contract(workspace);
+  else workspace.hipblaslt_a_prepack_current = false;
+  keep_first_error(workspace.b_prepack_owner.reset_alias(workspace.hipblaslt_b_prepack_cache, workspace.hipblaslt_b_prepack_cache_bytes));
+  if (!workspace.hipblaslt_b_prepack_cache) reset_workspace_hipblaslt_b_prepack_contract(workspace);
+  else workspace.hipblaslt_b_prepack_current = false;
   keep_first_error(release_workspace_device_buffer(
       workspace.hip_device_id, workspace.accelerator_auxiliary, workspace.accelerator_auxiliary_bytes));
-  keep_first_error(release_workspace_device_buffer(
-      workspace.hip_device_id, workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
+  keep_first_error(workspace.accelerator_workspace_owner.reset_alias(workspace.accelerator_workspace, workspace.accelerator_workspace_bytes));
   return status;
 }
 
@@ -223,6 +244,8 @@ rns8_status validate_plan_context_workspace(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_workspace& workspace) {
+  if (workspace.in_flight) return RNS8_BUSY;
+  if((plan.backend==RNS8_BACKEND_CPU_AMX)!=bool(workspace.cpu_amx))return RNS8_INVALID_ARGUMENT;
   if (!plan_schedule_contract_matches(plan)) {
     return RNS8_INVALID_ARGUMENT;
   }

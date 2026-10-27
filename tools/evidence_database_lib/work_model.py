@@ -6,6 +6,7 @@ from typing import Any
 
 from .config import DIAGNOSTIC_PHASES, OPTIMIZATION_HINTS, PHASES
 from .io import event_medians, median_phase
+from .event_cover import disjoint_event_cover
 from .isa import normalized_backend, normalized_target, safe_float, sorted_strings
 
 def selected_residue_planes(capture: dict[str, Any]) -> int:
@@ -41,6 +42,18 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     n = int(capture.get("n", 0) or 0)
     k = int(capture.get("k", 0) or 0)
     semantics = capture.get("semantics")
+    host = capture.get("host_api_batch") or {}
+    grouped = capture.get("grouped_dispatch") or {}
+    tasks = max(host.get("tasks_per_measured_repeat", host.get("batch_size", 1)), grouped.get("task_count", 1))
+    unavailable = (capture.get("residue_chain_length", 1) != 1 or grouped.get("heterogeneous") is True or
+                   type(tasks) is not int or tasks < 1)
+    if unavailable:
+        keys = ("estimated_ops", "estimated_input_a_bytes", "estimated_input_b_bytes", "estimated_input_bytes",
+                "estimated_output_bytes", "estimated_residue_bytes", "estimated_bytes", "arithmetic_intensity_ops_per_byte",
+                "measured_gops", "pack_bandwidth_gbs", "pack_a_bandwidth_gbs", "pack_b_bandwidth_gbs", "export_bandwidth_gbs")
+        return {**{key: None for key in keys}, "work_estimate_available": False,
+                "work_estimate_reason": "dependent_or_heterogeneous_stage_shapes_not_described",
+                "work_observation_unit": "unavailable"}
     planes = selected_residue_planes(capture)
     if semantics == "wrap_u64_mod_2_64":
         logical_ops = 2 * m * n * k * 36
@@ -53,8 +66,16 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
         residue_bytes = m * n * max(planes, 1)
     input_a_bytes = m * k * native_input_bytes_per_element(capture)
     input_b_bytes = k * n * native_input_bytes_per_element(capture)
+    input_a_bytes *= tasks
+    input_b_bytes *= tasks
+    logical_ops *= tasks
+    residue_bytes *= tasks
+    mode = capture.get("pack_mode", "prepacked_reuse" if capture.get("reuse_packed_inputs") else "per_repeat_repack")
+    if mode in ("prepacked_reuse", "prepacked_reuse_a"): input_a_bytes = 0
+    if mode in ("prepacked_reuse", "prepacked_reuse_b"): input_b_bytes = 0
     input_bytes = input_a_bytes + input_b_bytes
-    output_bytes = m * n * output_bytes_per_element(capture)
+    output_bytes = m * n * output_bytes_per_element(capture) * tasks
+    if capture.get("residue_output_mode", "host_export") != "host_export": output_bytes = 0
     estimated_bytes = input_bytes + output_bytes + residue_bytes
     gemm_us = median_phase(capture, "rns_gemm")
     pack_us = median_phase(capture, "pack")
@@ -62,6 +83,13 @@ def estimate_work(capture: dict[str, Any]) -> dict[str, float | int | None]:
     pack_b_us = median_phase(capture, "pack_b")
     export_us = median_phase(capture, "crt_export")
     return {
+        "work_estimate_available": True,
+        "work_estimate_reason": "homogeneous_independent_tasks_actual_pack_export_boundary",
+        "work_observation_unit": "one_measured_batch" if tasks > 1 else "one_measured_call",
+        "tasks_per_work_observation": tasks,
+        "traffic_kind": "modeled_logical_payload_not_measured_hbm_or_pcie",
+        "useful_integer_gemm_ops": 2 * m * n * k * tasks,
+        "estimated_residue_or_byte_limb_ops": logical_ops,
         "estimated_ops": logical_ops,
         "estimated_input_a_bytes": input_a_bytes,
         "estimated_input_b_bytes": input_b_bytes,
@@ -163,7 +191,11 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
         }[phase]
         bottleneck_phase = phase
         bottleneck_share = share
-    event_class, event_share, event_categories = classify_event_bottleneck(event_medians(capture))
+    cover = disjoint_event_cover(capture)
+    event_categories = cover["category_medians_us"]
+    category_total = sum(event_categories.values())
+    event_class = max(event_categories, key=event_categories.get) + "_event_bound" if category_total > 0 else None
+    event_share = max(event_categories.values()) / category_total if category_total > 0 else None
     return {
         "phase_medians_us": medians,
         "phase_shares": phase_shares,
@@ -174,6 +206,8 @@ def classify_bottleneck(capture: dict[str, Any]) -> dict[str, Any]:
         "event_bottleneck_class": event_class,
         "event_bottleneck_share": event_share,
         "event_category_medians_us": event_categories,
+        "event_cover": cover,
+        "event_share_interpretation": "share_of_summarized_disjoint_service_not_wall_time",
         **pack_split_diagnostics(capture),
     }
 

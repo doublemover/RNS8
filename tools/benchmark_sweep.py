@@ -37,7 +37,7 @@ from benchmark_sweep_lib.config import (
     PROMOTABLE_RELEASE_SHAPES,
     RELEASE_MIN_REPEATS,
     RELEASE_MIN_WARMUPS,
-    SCENARIO_DATA_DIR,
+    scenario_data_dir,
     WRAP64_ROCWMMA_CANDIDATE_BACKEND,
     ScenarioItem,
     SweepCase,

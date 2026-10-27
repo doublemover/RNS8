@@ -6,6 +6,14 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <limits>
+#include <nlohmann/json.hpp>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include "core/autotune_cache.hpp"
 
@@ -76,6 +84,7 @@ rns8::detail::AutotuneCacheEntry cache_entry(
   entry.performance_validated = performance_validated;
   entry.validation_status = validation_status;
   entry.schema_version = schema_version;
+  entry.measured_median_end_to_end_us = 1.0;
   return entry;
 }
 
@@ -1013,4 +1022,138 @@ TEST_CASE("autotune cache reader requires explicit root and entry schema version
   }
 
   std::filesystem::remove(path);
+}
+
+TEST_CASE("autotune cache rejects malformed numeric and ambiguous records transactionally", "[autotune-transaction]") {
+  using json = nlohmann::ordered_json;
+  const auto path = unique_cache_fixture_path("rns8-cache-strict");
+  ScopedAutotuneCachePath scoped(path);
+  write_cache_fixture(path, true, true);
+  std::ifstream input(path);
+  const json valid = json::parse(input);
+  input.close();
+  struct Mutation { const char* pointer; json value; };
+  const std::vector<Mutation> mutations{
+      {"/shape/m", 512.5}, {"/shape/n", uint64_t{1} << 63}, {"/shape/k", "512"},
+      {"/k_block_size", 512.0}, {"/tile_m", (uint64_t{1} << 32) + 128},
+      {"/tile_n", -1}, {"/workspace_bytes", -1}, {"/workspace_bytes", 0.5},
+      {"/shape", json::array()}, {"/measured_medians_us", json::array()},
+      {"/measured_medians_us/pack", -1.0}, {"/measured_medians_us/end_to_end", "4.0"},
+      {"/measured_medians_us/rns_gemm", nullptr}, {"/performance_validated", 1},
+  };
+  for (const auto& mutation : mutations) {
+    INFO(mutation.pointer << " = " << mutation.value);
+    auto root = valid;
+    auto bad = root["entries"][0];
+    bad["key"] = "different-key";
+    bad[json::json_pointer(mutation.pointer)] = mutation.value;
+    root["entries"].push_back(bad); // An earlier valid entry must not leak through.
+    { std::ofstream out(path); out << root; }
+    auto snapshot = rns8::detail::read_autotune_cache();
+    CHECK_FALSE(snapshot.loaded);
+    CHECK(snapshot.entries.empty());
+    CHECK_FALSE(snapshot.error.empty());
+    CHECK(rns8::detail::find_exact_autotune_entry(snapshot, reviewed_key()) == nullptr);
+  }
+  for (const std::string malformed : {
+      std::string("{\"schema_version\":1,\"schema_version\":1,\"entries\":[]}"),
+      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"a\",\"shape\":{\"m\":1,\"m\":2}}]}"),
+      std::string("{\"schema_version\":1,\"entries\":[null]}"),
+      std::string("{\"schema_version\":1,\"entries\":{}}"),
+      std::string("{\"schema_version\":1}"),
+      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"a\"},{\"key\":\"a\"}]}"),
+      std::string("{\"schema_version\":1,\"entries\":[{\"key\":\"\"}]}"),
+  }) {
+    INFO(malformed);
+    { std::ofstream out(path); out << malformed; }
+    const auto snapshot = rns8::detail::read_autotune_cache();
+    CHECK_FALSE(snapshot.loaded);
+    CHECK(snapshot.entries.empty());
+  }
+  std::filesystem::remove(path);
+}
+
+TEST_CASE("autotune selection rejects invalid timing and duplicate key identities", "[autotune-transaction]") {
+  const auto key = reviewed_key();
+  const auto valid = cache_entry(key.c_str(), "ck", true,
+      "reviewed_release_same_contract_fastest_windows_gfx1100");
+  rns8::detail::AutotuneCacheSnapshot snapshot{};
+  snapshot.loaded = true;
+  for (double bad : {-1.0, 0.0, std::numeric_limits<double>::infinity(),
+                     std::numeric_limits<double>::quiet_NaN()}) {
+    auto entry = valid;
+    entry.measured_median_end_to_end_us = bad;
+    snapshot.entries = {entry};
+    CHECK(rns8::detail::find_validated_autotune_entry(snapshot, key) == nullptr);
+    CHECK(rns8::detail::autotune_selection_rationale(snapshot, key, "hip-direct") ==
+          "exact_cache_hit_rejected_identity:invalid_entry_timings");
+  }
+  for (const auto suffix : {";m=512", ";target_id=gfx1100", ";version=7.1", ";not-a-field"}) {
+    auto entry = valid;
+    entry.key += suffix;
+    snapshot.entries = {entry};
+    CHECK(rns8::detail::find_validated_autotune_entry(snapshot, entry.key) == nullptr);
+  }
+}
+
+TEST_CASE("autotune persistence preserves prior bytes on rejected writes", "[autotune-transaction]") {
+  const auto directory = unique_cache_fixture_path("rns8-cache-write");
+  REQUIRE(std::filesystem::create_directory(directory));
+  const auto path = directory / "cache.json";
+  ScopedAutotuneCachePath scoped(path);
+  const auto key = reviewed_key();
+  auto entry = cache_entry(key.c_str(), "ck", true,
+      "reviewed_release_same_contract_fastest_windows_gfx1100");
+  std::string error = "stale error";
+  REQUIRE(rns8::detail::write_autotune_cache_entry(entry, error));
+  CHECK(error.empty());
+  auto read_bytes = [&] {
+    std::ifstream stream(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+  };
+  const auto before = read_bytes();
+  auto check_preserved = [&] {
+    CHECK_FALSE(error.empty());
+    CHECK(read_bytes() == before);
+    CHECK(std::distance(std::filesystem::directory_iterator(directory),
+                        std::filesystem::directory_iterator{}) == 1);
+  };
+  entry.updated_utc = std::string(1, static_cast<char>(0xff));
+  CHECK_FALSE(rns8::detail::write_autotune_cache_entry(entry, error));
+  check_preserved();
+  entry.updated_utc.clear();
+  entry.measured_median_pack_us = std::numeric_limits<double>::infinity();
+  CHECK_FALSE(rns8::detail::write_autotune_cache_entry(entry, error));
+  check_preserved();
+  entry.measured_median_pack_us = 0;
+  entry.schema_version = 2;
+  CHECK_FALSE(rns8::detail::write_autotune_cache_entry(entry, error));
+  check_preserved();
+  entry.schema_version = 1;
+#if defined(_WIN32)
+  // Allow reading, but deny deletion/replacement. Staging must succeed and the
+  // commit must fail without changing the original or leaking staging files.
+  HANDLE locked = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  REQUIRE(locked != INVALID_HANDLE_VALUE);
+  entry.measured_median_end_to_end_us = 2;
+  const bool locked_write = rns8::detail::write_autotune_cache_entry(entry, error);
+  CloseHandle(locked);
+  CHECK_FALSE(locked_write);
+  check_preserved();
+#endif
+  entry.measured_median_end_to_end_us = 3;
+  REQUIRE(rns8::detail::write_autotune_cache_entry(entry, error));
+  auto snapshot = rns8::detail::read_autotune_cache();
+  REQUIRE(snapshot.loaded);
+  REQUIRE(snapshot.entries.size() == 1);
+  CHECK(snapshot.entries[0].measured_median_end_to_end_us == 3);
+  for (const auto fixture : {"{\"schema_version\":2,\"entries\":[]}",
+                              "{\"entries\":[]}", "{broken"}) {
+    { std::ofstream out(path); out << fixture; }
+    CHECK_FALSE(rns8::detail::write_autotune_cache_entry(entry, error));
+    CHECK(read_bytes() == fixture);
+  }
+  std::filesystem::remove(path);
+  REQUIRE(std::filesystem::remove(directory));
 }

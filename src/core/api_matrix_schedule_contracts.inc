@@ -62,11 +62,16 @@ bool zero_row_col_contract_matches(const rns8_plan& plan) {
 }
 
 bool plan_schedule_contract_matches(const rns8_plan& plan) {
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+  return plan.validated_contract || revalidate_plan_schedule_contract(plan);
+}
+
+bool revalidate_plan_schedule_contract(const rns8_plan& plan) {
+  ++plan_validation_work.exhaustive_validations;
+  constexpr uint32_t allowed_flags = rns8::detail::kSupportedPlanFlags;
   constexpr uint32_t known_tile_schedule_flags =
       RNS8_TILE_SCHEDULE_ZERO_OUTPUT | RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT;
-  if (!backend_supports_semantics(plan.backend, plan.desc.semantics) ||
+  if (!plan.arithmetic_guard || !plan.arithmetic_guard->checked.admitted() ||
+      !backend_supports_semantics(plan.backend, plan.desc.semantics) ||
       !configured_tile_size_valid(plan.desc.tile_m) || !configured_tile_size_valid(plan.desc.tile_n) ||
       (plan.desc.flags & ~allowed_flags) != 0 ||
       !zero_row_col_contract_matches(plan)) {
@@ -169,6 +174,9 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       return false;
     }
   }
+  if((plan.desc.flags&RNS8_PLAN_EXACT_VALUE_BOUND) &&
+      (!rns8::detail::exact_wide_semantics(plan.desc.semantics) || !(plan.desc.flags&RNS8_PLAN_FORCE_FIXED_PREFIX) ||
+       plan.schedule_range_bit_length!=0 || plan.schedule_min_required_prefix!=plan.prefix || plan.prefix!=plan.desc.max_prefix))return false;
   if (!per_tile) {
     const bool fixed_prefix_requested = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
     return plan.desc.tile_bounds == nullptr && plan.desc.tile_bounds_count == 0 && plan.tile_bounds.empty() &&
@@ -197,7 +205,10 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
     return plan.schedule_prefix_group_count == 1 && plan.schedule_min_required_prefix == plan.prefix &&
            plan.schedule_max_required_prefix == plan.prefix && plan.schedule_min_selected_prefix == plan.prefix &&
            plan.schedule_max_selected_prefix == plan.prefix && plan.schedule_adaptive_prefix_active == 0 &&
-           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0;
+           plan.schedule_adaptive_skip_active == 0 && plan.schedule_flags == 0 &&
+           !plan.tile_bounds.empty() &&
+           std::all_of(plan.tile_bounds.begin(), plan.tile_bounds.end(),
+                       [&](uint64_t bound) { return bound == plan.tile_bounds.front(); });
   }
   if (plan.tile_schedule.size() != plan.tile_bounds.size()) {
     return false;
@@ -220,6 +231,16 @@ bool plan_schedule_contract_matches(const rns8_plan& plan) {
       return false;
     }
     const uint64_t tile_bound = plan.tile_bounds[static_cast<std::size_t>(index)];
+    const int64_t expected_row = static_cast<int64_t>(entry.tile_row * plan.desc.tile_m);
+    const int64_t expected_col = static_cast<int64_t>(entry.tile_col * plan.desc.tile_n);
+    const auto range = bounded_range_from_bound(plan.desc.semantics, tile_bound);
+    const auto required = rns8::detail::required_prefix_for_range(range);
+    const auto selected = (plan.desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) ? plan.prefix : required;
+    if (entry.row_offset != expected_row || entry.col_offset != expected_col ||
+        entry.row_extent != std::min<int64_t>(plan.desc.tile_m, plan.desc.m - expected_row) ||
+        entry.col_extent != std::min<int64_t>(plan.desc.tile_n, plan.desc.n - expected_col) ||
+        entry.required_prefix != required || entry.selected_prefix != selected ||
+        entry.range_bit_length != rns8::detail::bit_length(range)) return false;
     uint32_t expected_flags =
         allow_proven_zero_tile_skips && tile_bound == 0 ? RNS8_TILE_SCHEDULE_ZERO_OUTPUT : 0u;
     if (allow_proven_zero_row_col_skips) {
@@ -250,15 +271,17 @@ bool wrap_matrix_storage_matches(const rns8_matrix& matrix, rns8_backend_kind ba
     return false;
   }
   if (!matrix.residues.empty() || matrix.hip_residues || matrix.hip_residue_bytes != 0 ||
-      matrix.byte_limbs.size() != expected_bytes || matrix.host_residues_current ||
+      matrix.host_residues_current ||
       matrix.device_residues_current) {
     return false;
   }
   if (backend == RNS8_BACKEND_HIP_DIRECT) {
-    return !matrix.host_byte_limbs_current && matrix.hip_byte_limbs != nullptr &&
+    return (matrix.byte_limbs.empty() || matrix.byte_limbs.size() == expected_bytes) &&
+           !matrix.host_byte_limbs_current && matrix.hip_byte_limbs != nullptr &&
            matrix.hip_byte_limb_bytes == expected_bytes;
   }
-  return matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0 &&
+  return matrix.byte_limbs.size() == expected_bytes &&
+         matrix.hip_byte_limbs == nullptr && matrix.hip_byte_limb_bytes == 0 &&
          matrix.hip_upload_buffer == nullptr && matrix.hip_upload_bytes == 0 &&
          matrix.hip_export_buffer == nullptr && matrix.hip_export_bytes == 0 &&
          matrix.hip_status_buffer == nullptr && matrix.hip_status_bytes == 0 &&

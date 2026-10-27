@@ -97,7 +97,7 @@ void print_comparison_baseline(const Args& args, const rns8_device_info& info, c
   std::cout << "  },\n";
 }
 
-void print_single_u64_array(uint64_t value) {
+void print_single_timing_array(double value) {
   std::cout << "[" << value << "]";
 }
 
@@ -156,6 +156,14 @@ void capture_backend_info(rns8_plan* plan, BenchmarkResult& result) {
     fail_status("rns8_get_plan_backend_info", status);
   }
   result.backend_info_available = true;
+  result.auto_trace.struct_size=sizeof(result.auto_trace);result.auto_trace.abi_version=RNS8_ABI_VERSION;
+  uint32_t required=0;
+  auto trace_status=rns8_get_plan_auto_decisions(plan,&result.auto_trace,nullptr,0,&required);
+  if(trace_status!=RNS8_SUCCESS)fail_status("rns8_get_plan_auto_decisions",trace_status);
+  result.auto_decisions.resize(required);
+  trace_status=rns8_get_plan_auto_decisions(plan,&result.auto_trace,result.auto_decisions.data(),required,&required);
+  if(trace_status!=RNS8_SUCCESS)fail_status("rns8_get_plan_auto_decisions",trace_status);
+  result.auto_trace_available=true;
   update_result_target_id_from_key(result);
 }
 
@@ -549,3 +557,19 @@ const char* bounded_native_b_reuse_a_large_colpair_pack_h2d_label() {
   return "bounded_native_b_h2d";
 }
 
+
+
+rns8_status create_benchmark_workspace(rns8_context* ctx,const rns8_plan* plan,const Args& args,
+    BenchmarkResult& result,rns8_workspace** workspace) {
+  if(args.locality_order.empty())return rns8_create_workspace(ctx,plan,workspace);
+  rns8_locality_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
+  desc.order=args.locality_order=="output-neighbor"?RNS8_LOCALITY_OUTPUT_NEIGHBOR:
+      args.locality_order=="modulus"?RNS8_LOCALITY_MODULUS:
+      args.locality_order=="same-output"?RNS8_LOCALITY_SAME_OUTPUT:RNS8_LOCALITY_ORDINARY;
+  desc.topology_version=1;desc.cache_domains=args.locality_model_domains;
+  desc.concurrent_groups_per_domain=args.locality_model_concurrency;desc.cache_bytes_per_domain=args.locality_model_cache_bytes;
+  auto status=rns8_create_locality_workspace(ctx,plan,&desc,workspace);
+  if(status!=RNS8_SUCCESS)return status;
+  result.locality_info.struct_size=sizeof(result.locality_info);result.locality_info.abi_version=RNS8_ABI_VERSION;
+  return rns8_get_workspace_locality_info(*workspace,&result.locality_info);
+}

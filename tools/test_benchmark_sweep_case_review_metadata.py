@@ -1,3 +1,4 @@
+from test_capture_identity_support import synthetic_isa_index
 from benchmark_sweep_lib.review import build_review_summary
 
 
@@ -17,10 +18,9 @@ benchmark_sweep.attach_cache_write_status(report, False, Path("unused.json"), 0)
 assert report["schema_version"] == 3
 assert report["review_mode"] == "release"
 assert report["group_count"] == 1
-assert len(report["promotable_autotune_entries"]) == 1
-assert report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert report["promotable_autotune_entries"] == []  # diagnostic-only timings cannot promote
 assert report["summary"]["group_count"] == 1
-assert report["summary"]["promotable_autotune_entry_count"] == 1
+assert report["summary"]["promotable_autotune_entry_count"] == 0
 assert report["summary"]["missing_required_baseline_group_count"] == 0
 assert report["summary"]["checksum_mismatch_group_count"] == 0
 assert report["summary"]["fastest_production_route_counts"] == {"ck": 1}
@@ -31,7 +31,9 @@ assert report["summary"]["loss_phase_by_backend"] == {}
 assert report["summary"]["loss_phase_by_semantics"] == {}
 assert report["summary"]["loss_phase_by_shape_family"] == {}
 assert report["summary"]["loss_phase_by_scenario_family"] == {}
-assert report["summary"]["next_work"] == []
+assert {item["work"] for item in report["summary"]["next_work"]} == {
+    "attach_pack_a_b_phase_split_timing_before_pack_kernel_work", "address_compute_bound",
+}
 group = report["groups"][0]
 ck_candidate = next(item for item in group["candidates"] if item["backend"] == "ck")
 assert ck_candidate["tile_shape_variant"] == "finite-ring-u8-default-128x128"
@@ -51,7 +53,7 @@ assert group["source_metadata"]["configured_amdgpu_targets"] == ["gfx1100"]
 assert group["source_metadata"]["hip_runtime_versions"] == ["70260201"]
 assert group["source_metadata"]["hip_driver_versions"] == ["70260201"]
 assert group["source_metadata"]["compilers"] == ["msvc 1944.194435227"]
-assert group["source_metadata"]["git_commits"] == ["fixture"]
+assert group["source_metadata"]["git_commits"] == ["a" * 40]
 assert group["source_metadata"]["seeds"] == [13]
 assert group["source_metadata"]["warmups"] == [benchmark_sweep.RELEASE_MIN_WARMUPS]
 assert group["source_metadata"]["repeats"] == [benchmark_sweep.RELEASE_MIN_REPEATS]
@@ -124,11 +126,7 @@ assert "missing_amdgpu_builtin_matrix_isa_histogram" in amdgpu_missing_isa_candi
 amdgpu_missing_isa_next_work = {row["work"] for row in amdgpu_missing_isa_report["summary"]["next_work"]}
 assert "attach_compiled_matrix_isa_reports_before_builtin_promotion" in amdgpu_missing_isa_next_work
 
-amdgpu_wrong_isa_index = {
-    "amdgpu-builtins|gfx1100": [
-        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu4": 4}},
-    ],
-}
+amdgpu_wrong_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu4": 4})
 amdgpu_wrong_isa_report = benchmark_sweep.review_captures(
     [amdgpu, direct, cpu],
     review_mode="release",
@@ -144,11 +142,7 @@ assert amdgpu_wrong_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_
 amdgpu_wrong_isa_next_work = {row["work"] for row in amdgpu_wrong_isa_report["summary"]["next_work"]}
 assert "compile_selected_amdgpu_builtin_kernel_with_expected_matrix_instruction" in amdgpu_wrong_isa_next_work
 
-amdgpu_isa_index = {
-    "amdgpu-builtins|gfx1100": [
-        {"isa_matrix_instruction_histogram": {"v_wmma_i32_16x16x16_iu8": 4}},
-    ],
-}
+amdgpu_isa_index = synthetic_isa_index(amdgpu, {"v_wmma_i32_16x16x16_iu8": 4})
 amdgpu_with_isa_report = benchmark_sweep.review_captures(
     [amdgpu, direct, cpu],
     review_mode="release",
@@ -162,7 +156,8 @@ assert "missing_amdgpu_builtin_matrix_isa_histogram" not in amdgpu_with_isa_cand
 assert "missing_selected_amdgpu_builtin_matrix_instruction" not in amdgpu_with_isa_candidate["promotion_blockers"]
 assert amdgpu_with_isa_candidate["matrix_instruction_histogram"] == {"v_wmma_i32_16x16x16_iu8": 4}
 assert amdgpu_with_isa_candidate["expected_matrix_instruction_mnemonic"] == "v_wmma_i32_16x16x16_iu8"
-assert amdgpu_with_isa_report["promotable_autotune_entries"][0]["selected_backend"] == "amdgpu-builtins"
+assert amdgpu_with_isa_report["promotable_autotune_entries"] == []
+assert "diagnostic_instrumented_host_time_not_production_evidence" in amdgpu_with_isa_candidate["promotion_blockers"]
 
 amdgpu_wrong_semantic_kernel = copy.deepcopy(amdgpu)
 amdgpu_wrong_semantic_kernel_name = "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1"
@@ -409,7 +404,7 @@ bad_sparse["backend_metadata"]["autotune_key"] = bad_sparse["backend_metadata"][
 bad_sparse_report = benchmark_sweep.review_captures(
     [bad_sparse],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+    isa_index=synthetic_isa_index(bad_sparse, {"v_smfmac_i32_16x16x64_i8": 4}),
 )
 bad_sparse_candidate = bad_sparse_report["groups"][0]["candidates"][0]
 assert bad_sparse_candidate["backend"] == "amdgpu-builtins-sparse-a-runtime"
@@ -419,7 +414,7 @@ assert "attach_sparse_a_4_to_2_autotune_contract_metadata" in bad_sparse_next_wo
 valid_sparse_report = benchmark_sweep.review_captures(
     [sparse_amdgpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_16x16x64_i8": 4}}]},
+    isa_index=synthetic_isa_index(sparse_amdgpu, {"v_smfmac_i32_16x16x64_i8": 4}),
 )
 valid_sparse_candidate = valid_sparse_report["groups"][0]["candidates"][0]
 assert "missing_sparse_a_4_to_2_autotune_contract" not in valid_sparse_candidate["promotion_blockers"]
@@ -450,7 +445,7 @@ wide_sparse_amdgpu["backend_metadata"]["autotune_key"] = with_accumulator_key_fi
 wide_sparse_report = benchmark_sweep.review_captures(
     [wide_sparse_amdgpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_smfmac_i32_32x32x32_i8": 4}}]},
+    isa_index=synthetic_isa_index(wide_sparse_amdgpu, {"v_smfmac_i32_32x32x32_i8": 4}),
 )
 wide_sparse_candidate = wide_sparse_report["groups"][0]["candidates"][0]
 assert wide_sparse_candidate["expected_matrix_instruction_mnemonic"] == "v_smfmac_i32_32x32x32_i8"
@@ -480,7 +475,7 @@ amdgpu_tile["tile_shape_variant"] = {
 amdgpu_tile_report = benchmark_sweep.review_captures(
     [amdgpu_tile, direct, cpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx1100": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_16x16x32_i8": 4}}]},
+    isa_index=synthetic_isa_index(amdgpu_tile, {"v_mfma_i32_16x16x32_i8": 4}),
 )
 amdgpu_tile_candidate = next(
     item for item in amdgpu_tile_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
@@ -505,7 +500,7 @@ amdgpu_tile_wide_finite["backend_metadata"]["autotune_key"] = (
 amdgpu_tile_wide_report = benchmark_sweep.review_captures(
     [amdgpu_tile_wide_finite, direct, cpu],
     review_mode="release",
-    isa_index={"amdgpu-builtins|gfx942": [{"isa_matrix_instruction_histogram": {"v_mfma_i32_32x32x16_i8": 4}}]},
+    isa_index=synthetic_isa_index(amdgpu_tile_wide_finite, {"v_mfma_i32_32x32x16_i8": 4}),
 )
 amdgpu_tile_wide_candidate = next(
     item for item in amdgpu_tile_wide_report["groups"][0]["candidates"] if item["backend"] == "amdgpu-builtins"
@@ -765,7 +760,7 @@ cpu_anchor["cpu_parallel"] = {
 anchor_report = benchmark_sweep.review_captures([ck, direct, cpu_anchor], review_mode="release")
 anchor_group = anchor_report["groups"][0]
 anchor_ck_candidate = next(item for item in anchor_group["candidates"] if item["backend"] == "ck")
-assert anchor_report["promotable_autotune_entries"][0]["selected_backend"] == "ck"
+assert anchor_report["promotable_autotune_entries"] == []
 assert anchor_group["release_review_satisfied"] is True
 assert "cpu-reference" not in anchor_group["warmup_counts"]
 assert "cpu-reference" not in anchor_group["repeat_counts"]
@@ -823,7 +818,8 @@ reuse_candidate_group = next(
     if any(candidate["capture"] == "rocwmma-reuse-b-production.json" for candidate in group["candidates"])
 )
 reuse_candidate = reuse_candidate_group["candidates"][0]
-assert reuse_candidate["promotable"] is True
+assert reuse_candidate["promotable"] is False
+assert "diagnostic_instrumented_host_time_not_production_evidence" in reuse_candidate["promotion_blockers"]
 assert reuse_candidate["selection_end_to_end_us"] == 610.0
 assert reuse_candidate["prepacked_reuse_review"]["prepack_setup_us"] == 90.0
 assert reuse_candidate["prepacked_reuse_review"]["setup_inclusive_median_end_to_end_us"] == 610.0
@@ -831,8 +827,8 @@ assert reuse_candidate["prepacked_reuse_review"]["same_backend_nonreuse_median_e
 assert reuse_candidate["prepacked_reuse_review"]["best_nonreuse_backend"] == "hip-direct"
 assert reuse_candidate["prepacked_reuse_review"]["blockers"] == []
 assert "prepacked_reuse_not_autotune_promotable" not in reuse_candidate["promotion_blockers"]
-assert reuse_report["promotable_autotune_entries"][0]["selected_backend"] == "rocwmma"
-assert reuse_report["promotable_autotune_entries"][0]["selection_end_to_end_us"] == 610.0
+assert reuse_report["promotable_autotune_entries"] == []
+assert reuse_candidate["selection_end_to_end_us"] == 610.0
 
 slow_reuse_candidate = copy.deepcopy(reuse_rocwmma_candidate)
 slow_reuse_candidate["_path"] = "rocwmma-reuse-b-slow.json"
@@ -912,8 +908,8 @@ assert group["repeat_count_complete"] is True
 assert group["repeat_count_compatible"] is True
 assert group["duplicate_backends"] == []
 assert group["finite_modulus"] == 255
-assert group["fastest_promotable"]["backend"] == "ck"
-assert group["candidates"][0]["promotion_blockers"] == []
+assert group["fastest_promotable"] is None
+assert "diagnostic_instrumented_host_time_not_production_evidence" in group["candidates"][0]["promotion_blockers"]
 assert group["candidates"][0]["bottleneck"]["class"] in {
     "compute_bound",
     "export_bound",
@@ -1391,3 +1387,19 @@ assert sorted(group["contract_key"].split("export_variant=", 1)[1].split(";", 1)
     "tree-crt-export-candidate",
 ]
 
+
+for field in ("build_manifest", "artifact_capture"):
+    missing = finite_capture("ck",190)
+    missing.pop(field)
+    provenance_report = benchmark_sweep.review_captures([missing,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+    assert not provenance_report["promotable_autotune_entries"]
+dirty = finite_capture("ck",190)
+dirty["build_manifest"]["source_dirty"] = True
+provenance_report = benchmark_sweep.review_captures([dirty,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+assert not provenance_report["promotable_autotune_entries"]
+
+for field in ("dependency_digest", "linkage", "identity_scope"):
+    incomplete=finite_capture("ck",190)
+    incomplete["build_manifest"].pop(field)
+    provenance_report=benchmark_sweep.review_captures([incomplete,finite_capture("hip-direct",300),finite_capture("cpu-reference",500)],review_mode="release")
+    assert not provenance_report["promotable_autotune_entries"]

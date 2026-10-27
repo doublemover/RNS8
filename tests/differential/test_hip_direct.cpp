@@ -3,19 +3,32 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <charconv>
+#include <chrono>
+#include <iostream>
+#include <nlohmann/json.hpp>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <random>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/group_crt.hpp"
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/backend_common.hpp"
+#include "core/hip_resources.hpp"
 #include "core/internal.hpp"
+#include "../support/experimental_basis_fixture.hpp"
+#include "core/api_internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
+#include "../support/ragged_fixture.hpp"
 #include "rns8/rns8.h"
 
 namespace {
@@ -25,6 +38,7 @@ namespace {
 
 }  // namespace
 
+#include "test_hip_direct_buffer_ownership_cases.inc"
 #include "test_hip_direct_ring_cases.inc"
 #include "test_hip_direct_finite_native_cases.inc"
 #include "test_hip_direct_finite_persistent_cases.inc"
@@ -43,3 +57,99 @@ namespace {
 #include "test_hip_direct_result_cache_cases.inc"
 
 #include "test_hip_direct_qualification_cases.inc"
+#include "test_hip_basis_transfer_cases.inc"
+
+#include "test_hip_direct_exact_lift_cases.inc"
+#include "test_hip_direct_split_k_cases.inc"
+#include "test_hip_direct_epilogue_cases.inc"
+#include "test_hip_direct_complex_cases.inc"
+#include "test_hip_direct_narrow_cases.inc"
+#include "test_hip_direct_int4_cases.inc"
+#include "test_hip_direct_tdm_cases.inc"
+#if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+#include "native_variants.hpp"
+#endif
+#include "test_hip_direct_native_wmma_cases.inc"
+#include "test_hip_direct_native_queue_cases.inc"
+#include "test_hip_direct_bound_cases.inc"
+#include "test_hip_direct_adaptive_native_cases.inc"
+#include "test_hip_direct_ragged_cases.inc"
+#include "test_hip_direct_block_sparse_cases.inc"
+#include "test_hip_direct_layout_cases.inc"
+#include "test_hip_direct_direct_crt_cases.inc"
+#include "test_hip_direct_group_crt_cases.inc"
+#include "test_hip_direct_strassen_cases.inc"
+#include "test_hip_direct_integrity_cases.inc"
+
+#include "test_hip_direct_wide_gemm_cases.inc"
+#include "test_hip_direct_large_address_cases.inc"
+
+#include "test_hip_runtime_product_recipe_cases.inc"
+
+#include "test_hip_finite_verify_cases.inc"
+
+#include "../support/ragged_owner_fixture.hpp"
+TEST_CASE("public ragged owner extends compact tiles before a HIP GEMM consumer") {
+  if(!hip_available()) SKIP("no HIP device for public ragged owner");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool u:{false,true}) {ragged_owner_fixture::roundtrip(ctx,u);ragged_owner_fixture::wide_roundtrip(ctx,u);}
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+#include "../support/gram_fixture.hpp"
+#include "../support/gram_five_fixture.hpp"
+TEST_CASE("single-source HIP Gram scalar and WMMA match Boost") {
+  if (!hip_available()) SKIP("no HIP device for Gram");
+  check_public_gram(RNS8_BACKEND_HIP_DIRECT);
+}
+
+TEST_CASE("prepared HIP Gram reuses jobs and matches Boost") {
+  if (!hip_available()) SKIP("no HIP device for prepared Gram");
+  check_public_gram(RNS8_BACKEND_HIP_DIRECT,true);
+}
+
+#include "test_hip_direct_stream_panels_cases.inc"
+
+#include "test_hip_direct_fixed_conversion_cases.inc"
+
+#include "test_hip_direct_word_mod_cases.inc"
+
+#include "test_hip_native_device_cases.inc"
+
+#include "test_hip_instruction_roof_cases.inc"
+
+#include "test_hip_public_native_group_cases.inc"
+
+#include "../support/ragged_recipe_fixture.hpp"
+TEST_CASE("direct HIP ragged producer binds retained multi-output recipe consumers") {
+  if(!hip_available())SKIP("no HIP device for ragged recipe binding");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})ragged_recipe_fixture::check(ctx,u);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("direct HIP Gram native, transpose and independent reconstruction ablations") {
+  if(!hip_available()){SKIP("HIP direct unavailable");}
+  check_gram_prepared_ablations(RNS8_BACKEND_HIP_DIRECT);
+}
+TEST_CASE("direct HIP five-product Gram preserves prime and composite channels") {
+  if(!hip_available())SKIP("no HIP device for five-product Gram");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,false);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+TEST_CASE("matrix five-product Gram executes qualified builtin subproducts") {
+  if(!hip_available() || !rns8::detail::amdgpu_builtins_compiled())SKIP("requires actual compiled AMDGPU matrix provider");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);gram_five_fixture::check(ctx,true);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("experimental direct-HIP ordered bases match Boost products and conversion") {
+  if(!hip_available())SKIP("no HIP device for experimental ordered bases");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);
+  for(bool sign:{false,true})experimental_basis_fixture::roundtrip(ctx,sign);
+  experimental_basis_fixture::slab_edges(ctx);
+  REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}
+
+TEST_CASE("HIP materialized recipes consume and refresh differently tiled ragged producers") {
+  if(!hip_available())SKIP("no HIP device for packed ragged product recipe");
+  auto* ctx=create_context(RNS8_BACKEND_HIP_DIRECT);for(bool u:{false,true})for(bool experimental:{false,true})ragged_recipe_fixture::check(ctx,u,true,experimental);REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);
+}

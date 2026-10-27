@@ -102,6 +102,8 @@ void print_requested_next_op_json(const Args& args, const BenchmarkResult& resul
 
 void print_output_policy_json(const Args& args, int64_t output_ld) {
   std::cout << "  \"output_policy\": {\n";
+  std::cout << "    \"completion_boundary\": \"" << (args.grouped_compact_output ? "compact_task_major_host_slab" : "per_task_host_destinations") << "\",\n";
+  std::cout << "    \"destination_materialization\": \"" << (args.grouped_compact_output ? "outside_timing_for_oracle_only" : "inside_each_timed_export") << "\",\n";
   std::cout << "    \"destination_layout\": \"" << output_destination_layout(args) << "\",\n";
   std::cout << "    \"logical_ld\": " << output_ld << ",\n";
   std::cout << "    \"ld_padding\": " << args.output_ld_padding << ",\n";
@@ -146,6 +148,12 @@ void print_counter_object(const rns8::detail::hip_direct_allocation_counters& co
             << "\"allocate_calls\": " << counters.allocate_calls << ", "
             << "\"free_calls\": " << counters.free_calls << ", "
             << "\"allocated_bytes\": " << counters.allocated_bytes
+            << ", \"h2d_calls\": " << counters.h2d_calls
+            << ", \"h2d_bytes\": " << counters.h2d_bytes
+            << ", \"d2h_calls\": " << counters.d2h_calls
+            << ", \"d2h_bytes\": " << counters.d2h_bytes
+            << ", \"d2d_calls\": " << counters.d2d_calls
+            << ", \"d2d_bytes\": " << counters.d2d_bytes
             << "}";
 }
 
@@ -156,6 +164,12 @@ rns8::detail::hip_direct_allocation_counters allocation_delta(
   delta.allocate_calls = after.allocate_calls >= before.allocate_calls ? after.allocate_calls - before.allocate_calls : 0;
   delta.free_calls = after.free_calls >= before.free_calls ? after.free_calls - before.free_calls : 0;
   delta.allocated_bytes = after.allocated_bytes >= before.allocated_bytes ? after.allocated_bytes - before.allocated_bytes : 0;
+  delta.h2d_calls = after.h2d_calls >= before.h2d_calls ? after.h2d_calls - before.h2d_calls : 0;
+  delta.h2d_bytes = after.h2d_bytes >= before.h2d_bytes ? after.h2d_bytes - before.h2d_bytes : 0;
+  delta.d2h_calls = after.d2h_calls >= before.d2h_calls ? after.d2h_calls - before.d2h_calls : 0;
+  delta.d2h_bytes = after.d2h_bytes >= before.d2h_bytes ? after.d2h_bytes - before.d2h_bytes : 0;
+  delta.d2d_calls = after.d2d_calls >= before.d2d_calls ? after.d2d_calls - before.d2d_calls : 0;
+  delta.d2d_bytes = after.d2d_bytes >= before.d2d_bytes ? after.d2d_bytes - before.d2d_bytes : 0;
   return delta;
 }
 
@@ -197,6 +211,7 @@ void print_device_allocation_json(const Args& args, const BenchmarkResult& resul
   std::cout << "  \"device_allocation\": {\n";
   std::cout << "    \"tracking_available\": " << (result.allocation_tracking_available ? "true" : "false") << ",\n";
   std::cout << "    \"source\": \"hip_direct_allocation_counters_snapshot\",\n";
+  std::cout << "    \"transfer_scope\": \"direct_backend_successful_synchronous_api_payload\",\n";
   std::cout << "    \"setup_scope\": \"" << benchmark_setup_scope(args) << "\",\n";
   std::cout << "    \"source_version_inputs\": \"monotonic_source_version_per_repeat_when_packing_runs\",\n";
   std::cout << "    \"before\": ";
@@ -225,74 +240,37 @@ void print_device_allocation_json(const Args& args, const BenchmarkResult& resul
   std::cout << "  },\n";
 }
 
-void print_auto_selector_json(
-    const Args& args,
-    const rns8_device_info& info,
-    const BenchmarkResult& result,
-    const char* selected_backend) {
-  const auto snapshot = rns8::detail::read_autotune_cache();
-  const std::string selected_key =
-      result.backend_info.autotune_key[0] != '\0' ? std::string(result.backend_info.autotune_key) : std::string();
-  rns8::detail::AutotuneRuntimeIdentity runtime{};
-  runtime.target_id = benchmark_key_target_id(result);
-  runtime.hip_sdk_or_library_version =
-      result.backend_info.accelerator_version[0] != '\0'
-          ? std::string(result.backend_info.accelerator_version)
-          : std::string(RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION);
-  const auto* exact_hit = selected_key.empty() ? nullptr : rns8::detail::find_exact_autotune_entry(snapshot, selected_key);
-  const auto* validated_hit =
-      selected_key.empty() ? nullptr : rns8::detail::find_validated_autotune_entry_for_runtime(snapshot, selected_key, runtime);
+void print_auto_selector_json(const Args& args,const rns8_device_info& info,const BenchmarkResult& result,const char* selected_backend) {
+  const auto& trace=result.auto_trace;
+  const std::string selected_key=result.backend_info.autotune_key;
   std::cout << "  \"auto_selector\": {\n";
-  std::cout << "    \"source\": \"private_benchmark_selector_report\",\n";
+  std::cout << "    \"source\": \"immutable_plan_selection_trace_v1\",\n";
   std::cout << "    \"requested_backend\": \"" << requested_backend_name(args) << "\",\n";
   std::cout << "    \"selected_backend\": \"" << selected_backend << "\",\n";
-  std::cout << "    \"selected_key\": ";
-  print_nullable_std_string(selected_key);
-  std::cout << ",\n";
-  std::cout << "    \"cache_path\": \"" << json_escape(snapshot.path.string()) << "\",\n";
-  std::cout << "    \"cache_exists\": " << (snapshot.exists ? "true" : "false") << ",\n";
-  std::cout << "    \"cache_loaded\": " << (snapshot.loaded ? "true" : "false") << ",\n";
-  std::cout << "    \"cache_entry_count\": " << snapshot.entries.size() << ",\n";
-  std::cout << "    \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
-  std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
-  std::cout << "    \"exact_hit\": " << (exact_hit ? "true" : "false") << ",\n";
-  std::cout << "    \"validated_hit\": " << (validated_hit ? "true" : "false") << ",\n";
-  std::cout << "    \"fallback_reason\": \""
-            << json_escape(
-                   selected_key.empty()
-                       ? "no exact entry"
-                       : rns8::detail::autotune_selection_rationale(snapshot, selected_key, selected_backend, runtime))
-            << "\",\n";
-  std::cout << "    \"rejection_reason_vocabulary\": ["
-            << "\"unsupported semantics\", "
-            << "\"per-tile unsupported\", "
-            << "\"backend not compiled\", "
-            << "\"probe failed\", "
-            << "\"no exact entry\", "
-            << "\"unvalidated entry\", "
-            << "\"identity/runtime mismatch\", "
-            << "\"workspace mismatch\", "
-            << "\"slower than selected\"],\n";
-  std::cout << "    \"rejected_candidates\": [";
-  if (args.backend == RNS8_BACKEND_AUTO) {
-    const std::array<const char*, 6> candidates = {
-        "cpu-reference", "hip-direct", "hipblaslt", "ck", "rocwmma", "hip-vector-alu-int64"};
-    bool first = true;
-    for (const char* candidate : candidates) {
-      if (std::string(candidate) == selected_backend) {
-        continue;
-      }
-      std::cout << (first ? "\n" : ",\n");
-      std::cout << "      {\"backend\": \"" << candidate << "\", \"reason\": \"no exact entry\"}";
-      first = false;
-    }
-    if (!first) {
-      std::cout << "\n    ";
-    }
-  }
-  std::cout << "]\n";
-  std::cout << "  },\n";
-  (void)info;
+  std::cout << "    \"selected_key\": ";print_nullable_std_string(selected_key);std::cout << ",\n";
+  std::cout << "    \"trace_recorded\": " << (result.auto_trace_available?"true":"false") << ",\n";
+  std::cout << "    \"selection_performed\": " << (trace.selection_performed?"true":"false") << ",\n";
+  std::cout << "    \"cache_path\": \"" << json_escape(trace.cache_path) << "\",\n";
+  std::cout << "    \"cache_exists\": " << (trace.cache_exists?"true":"false") << ",\n";
+  std::cout << "    \"cache_loaded\": " << (trace.cache_loaded?"true":"false") << ",\n";
+  std::cout << "    \"cache_entry_count\": " << trace.cache_entry_count << ",\n";
+  std::cout << "    \"runtime_target_id\": \"" << json_escape(benchmark_key_target_id(result)) << "\",\n";
+  std::cout << "    \"runtime_version\": \"" << json_escape(result.backend_info.accelerator_version) << "\",\n";
+  std::cout << "    \"exact_hit\": " << (trace.selected_exact_entry?"true":"false") << ",\n";
+  std::cout << "    \"validated_hit\": " << (trace.selected_validated_entry?"true":"false") << ",\n";
+  std::cout << "    \"fallback_reason\": \"" << json_escape(result.auto_trace_available?trace.decision:"unknown; plan trace not recorded") << "\",\n";
+  std::cout << "    \"rejection_reason_vocabulary\": [\"unsupported semantics\",\"unsupported modulus\",\"per-tile unsupported\",\"backend not compiled\",\"probe failed\",\"no exact entry\",\"unvalidated entry\",\"identity/runtime mismatch\",\"workspace mismatch\",\"slower than selected\",\"tied with selected\",\"arithmetic proof rejected\"],\n";
+  std::cout << "    \"candidate_decisions\": [";bool first=true;
+  for(const auto& d:result.auto_decisions){std::cout<<(first?"\n":",\n");first=false;
+    std::cout << "      {\"backend\":\"" << backend_name(static_cast<rns8_backend_kind>(d.backend)) << "\",\"disposition\":"<<d.disposition
+      <<",\"reason_code\":"<<d.reason_code<<",\"reason\":\""<<json_escape(d.reason)<<"\",\"exact_entry_present\":"<<(d.exact_entry_present?"true":"false")
+      <<",\"validated_entry_present\":"<<(d.validated_entry_present?"true":"false")<<",\"required_workspace_bytes\":"<<d.required_workspace_bytes
+      <<",\"reviewed_median_us\":";if(d.reason_code==RNS8_AUTO_SLOWER || d.reason_code==RNS8_AUTO_TIED || d.reason_code==RNS8_AUTO_SELECTED)std::cout<<d.reviewed_median_us;else std::cout<<"null";
+    std::cout<<",\"key_sha256\":\""<<d.key_sha256<<"\"}";}
+  std::cout << "\n    ],\n    \"rejected_candidates\": [";first=true;
+  for(const auto& d:result.auto_decisions)if(d.disposition==0){std::cout<<(first?"\n":",\n");first=false;
+    std::cout<<"      {\"backend\":\""<<backend_name(static_cast<rns8_backend_kind>(d.backend))<<"\",\"reason\":\""<<json_escape(d.reason)<<"\"}";}
+  std::cout << "\n    ]\n  },\n";(void)info;
 }
 
 const char* reuse_operand_role(const Args& args) {

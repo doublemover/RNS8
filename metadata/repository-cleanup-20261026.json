@@ -1,0 +1,100 @@
+{
+  "schema": "rns8_repository_cleanup_v1",
+  "date": "2026-10-26",
+  "baseline_commit": "25f774642a5276285e10931d3f55251358a5d832",
+  "scope": "Repository evidence representation, benchmark input catalogs, tooling/default paths and documentation. Library/kernel source and historical measurement values unchanged; existing Git history retained.",
+  "archive_manifest": "metadata/research-evidence-20261026.json",
+  "archive_sha256": "0e72767327f9c3e40af321b88649d729ea78f330e95dcca368a15fb980cfce32",
+  "archive_bytes": 2973562,
+  "published_download_verified": true,
+  "restored_members": 2110,
+  "reports": {
+    "compacted": 21,
+    "before_lines": 587853,
+    "after_lines": 7944,
+    "archived_json_pointers_verified": 462
+  },
+  "benchmark_inputs": {
+    "total": 2075,
+    "catalogs": 25,
+    "compacted_documents": 2037,
+    "retained_documents": 38,
+    "identity": "All 2075 expanded documents match source-commit Git bytes; native Windows line endings materialized separately.",
+    "command": [
+      "python",
+      "tools/benchmark_cases.py",
+      "--output",
+      "temp/benchmark-cases/current",
+      "--json"
+    ]
+  },
+  "initial_python_batch": {
+    "registered": 305,
+    "passed": 288,
+    "failed": 0,
+    "skipped": 17,
+    "scope": "Collector contracts, catalog/restoration regressions, docs and wide-magnitude scenario before the subsequent default scenario-directory repair.",
+    "log": {
+      "path": "temp/research-evidence-20261026/python-validation.log",
+      "sha256": "1a62e52aaf2d93b243a3c90b074b82e0d32bc386808a9586dd7fe3a62869b9c0"
+    }
+  },
+  "final_integration": {
+    "registered": 63,
+    "passed": 52,
+    "failed": 0,
+    "skipped": [
+      "fp8_fp8_capture_smoke",
+      "fp8_fp8-materialized_capture_smoke",
+      "tdm_tdm_capture_smoke",
+      "tdm_multicast2_capture_smoke",
+      "tdm_multicast4_capture_smoke",
+      "tdm_ordinary-wmma_capture_smoke",
+      "tdm_tdm-wmma_capture_smoke",
+      "tdm_multicast2-wmma_capture_smoke",
+      "tdm_multicast4-wmma_capture_smoke",
+      "tdm_multicast2-wmma-neighbor_capture_smoke",
+      "tdm_multicast4-wmma-neighbor_capture_smoke"
+    ],
+    "seconds": 143.4319188594818,
+    "command": [
+      "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+      "tools/windows_dev.py",
+      "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/ctest.exe",
+      "--test-dir",
+      "build/hip101-qualified-20261026/windows-gfx110X-all-10.1.0",
+      "--tests-from-file",
+      "C:/Users/sneak/Development/RNS8/temp/research-evidence-20261026/ctest-selection.txt",
+      "--output-on-failure",
+      "--output-junit",
+      "C:/Users/sneak/Development/RNS8/temp/research-evidence-20261026/cleanup-ctest.xml",
+      "--no-tests=error",
+      "-j",
+      "1"
+    ],
+    "junit": {
+      "path": "temp/research-evidence-20261026/cleanup-ctest.xml",
+      "sha256": "64b5c9d8f5fc243dabea7c62e26a8cd110fdc3791b79ae97763869858ca15463"
+    },
+    "log": {
+      "path": "temp/hip101-20261026/cleanup-ctest.log",
+      "sha256": "f304ea7ad24d71583cf90771074e942a7c660fbf79dc3a94208ce8bb14427003"
+    },
+    "generated_input_consumers": 39,
+    "sweep_self_test": "passed after lazy default scenario-directory repair",
+    "sweep_log": {
+      "path": "temp/research-evidence-20261026/sweep-validation.log",
+      "sha256": "d5d3ee34f321930140bd3a3423b8e4facc18897a943bff2088797645347b889f"
+    }
+  },
+  "guards": [
+    "SHA256 validation for each expanded catalog document.",
+    "SHA256/size validation for the archive and all indexed members before restoration.",
+    "Output containment, unsafe-member rejection, atomic file publication and tamper regression tests.",
+    "512 KiB metadata JSON budget; future raw captures belong in durable evidence archives."
+  ],
+  "tooling_sha256": {
+    "benchmark_cases.py": "033ed6d6837698bb7fee5ebe745e217eaaf4e43038e4d8d28b8469e2748dd6d0",
+    "research_evidence.py": "09ffcae5302fe62c6f5090c5295bd206dc268c2028f59e43c5bce753eb93284f"
+  }
+}

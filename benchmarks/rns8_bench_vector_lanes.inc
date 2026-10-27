@@ -42,8 +42,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
-    uint64_t pack_a_us = 0;
-    uint64_t pack_b_us = 0;
+    double pack_a_us = 0;
+    double pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
     const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
@@ -131,6 +131,8 @@ BenchmarkResult run_vector_alu_i64(rns8_context* ctx, const Args& args, uint64_t
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif
@@ -180,8 +182,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
-    uint64_t pack_a_us = 0;
-    uint64_t pack_b_us = 0;
+    double pack_a_us = 0;
+    double pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
     const auto pack_a_start = std::chrono::steady_clock::now();
     rns8_status status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
@@ -269,6 +271,8 @@ BenchmarkResult run_vector_alu_u64(rns8_context* ctx, const Args& args, uint64_t
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 #endif

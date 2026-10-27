@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import uuid
 import json
 import os
 import subprocess
+import hashlib
+import shutil
 import sys
 import threading
 import time
 from pathlib import Path
+
+from autotune_paths import default_autotune_cache_path
+from benchmark_request import request_identity, request_mismatch
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
@@ -50,20 +56,7 @@ def parse_backend_bench(values: list[str]) -> dict[str, Path]:
 
 
 def autotune_cache_path() -> Path:
-    override = os.environ.get("RNS8_AUTOTUNE_CACHE_PATH")
-    if override:
-        return Path(override)
-    if os.name == "nt":
-        root = os.environ.get("LOCALAPPDATA") or os.environ.get("USERPROFILE")
-        if root:
-            suffix = ["rns8-gemm", "autotune.json"]
-            if root == os.environ.get("USERPROFILE"):
-                suffix = ["AppData", "Local", *suffix]
-            return Path(root).joinpath(*suffix)
-    root = os.environ.get("XDG_CACHE_HOME") or os.environ.get("HOME")
-    if root:
-        return Path(root) / ".cache" / "rns8-gemm" / "autotune.json"
-    return Path("rns8-gemm") / "autotune.json"
+    return default_autotune_cache_path()
 
 
 def _timeout_text(value: str | bytes | None) -> str:
@@ -110,6 +103,12 @@ def run_command(
     run_env = os.environ.copy()
     if env_overrides:
         run_env.update(env_overrides)
+    execution_id = str(uuid.uuid4())
+    capture_start = time.perf_counter()
+    request = request_identity(command, env_overrides, run_env)
+    executable = Path(shutil.which(command[0]) or command[0]).resolve()
+    executable_hash = hashlib.sha256(executable.read_bytes()).hexdigest()
+    capture_overhead = time.perf_counter() - capture_start
     started = time.perf_counter()
     if progress:
         sys.stderr.write(f"[benchmark_sweep] start {output}: {' '.join(command)}\n")
@@ -201,6 +200,18 @@ def run_command(
             sys.stderr.write(f"[benchmark_sweep] fail {output}: {duration:.3f}s returncode={returncode}\n")
             sys.stderr.flush()
         return False
+    try:
+        capture = json.loads(stdout_text)
+        capture["execution_id"] = execution_id
+        capture["request_identity"] = request
+        capture["artifact_capture"] = {
+            "executable_sha256": executable_hash, "executable_path": str(executable),
+            "hash_seconds": capture_overhead, "rns8_linkage": "static",
+            "unchanged_during_run": hashlib.sha256(executable.read_bytes()).hexdigest() == executable_hash,
+        }
+        stdout_text = json.dumps(capture, indent=2)
+    except (ValueError, TypeError):
+        pass  # Preserve malformed output for the schema diagnostic.
     output.write_text(stdout_text, encoding="utf-8")
     if progress:
         sys.stderr.write(f"[benchmark_sweep] done {output}: {duration:.3f}s\n")
@@ -230,7 +241,7 @@ def annotate_scenario_metadata(path: Path, scenario: dict[str, Any] | None) -> N
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
-def existing_capture_valid(path: Path) -> bool:
+def existing_capture_valid(path: Path, requested: dict | None = None) -> bool:
     if not path.exists():
         return False
     try:
@@ -238,17 +249,20 @@ def existing_capture_valid(path: Path) -> bool:
         validate_capture(data, path)
     except (BenchmarkSchemaError, OSError, json.JSONDecodeError):
         return False
-    return True
+    return requested is None or request_mismatch(data, requested) is None
 
 
 def execute_sweep_entries(
     entries: list[SweepCommand],
     args: argparse.Namespace,
     capture_paths: list[Path],
-) -> dict[str, int]:
+) -> dict[str, Any]:
     stats = {
         "planned_captures": len(entries),
         "skipped_existing_captures": 0,
+        "matched_existing_captures": 0,
+        "stale_existing_captures": 0,
+        "stale_existing_reasons": {},
         "new_captures_attempted": 0,
         "new_captures_completed": 0,
         "deduped_cpu_captures": 0,
@@ -267,13 +281,27 @@ def execute_sweep_entries(
     for entry in entries:
         entry_index += 1
         dedupe_key = _cpu_reference_dedupe_key(entry)
-        if getattr(args, "skip_existing", False) and existing_capture_valid(entry.output):
-            annotate_scenario_metadata(entry.output, entry.scenario)
-            capture_paths.append(entry.output)
-            stats["skipped_existing_captures"] += 1
-            if dedupe_key is not None:
-                completed_cpu_captures[dedupe_key] = entry.output
-            continue
+        stale = False
+        if getattr(args, "skip_existing", False) and entry.output.exists():
+            reason = "existing capture is not schema-valid"
+            if existing_capture_valid(entry.output):
+                try:
+                    requested = request_identity(entry.command, entry.env)
+                    reason = request_mismatch(load_capture(entry.output), requested)
+                except OSError as exc:
+                    reason = f"requested executable cannot be identified: {exc}"
+            if reason is None:
+                # A later campaign label is not an execution fact. Leave the
+                # retained capture byte-for-byte intact on a matching resume.
+                capture_paths.append(entry.output)
+                stats["skipped_existing_captures"] += 1
+                stats["matched_existing_captures"] += 1
+                if dedupe_key is not None:
+                    completed_cpu_captures[dedupe_key] = entry.output
+                continue
+            stale = True
+            stats["stale_existing_captures"] += 1
+            stats["stale_existing_reasons"][str(entry.output)] = reason
         if dedupe_key is not None and dedupe_key in completed_cpu_captures:
             _copy_capture(completed_cpu_captures[dedupe_key], entry.output)
             annotate_scenario_metadata(entry.output, entry.scenario)
@@ -284,6 +312,12 @@ def execute_sweep_entries(
             stats["deferred_captures"] += 1
             continue
         stats["new_captures_attempted"] += 1
+        if stale:
+            # Retain the original observation even when this slot is recollected.
+            digest = hashlib.sha256(entry.output.read_bytes()).hexdigest()[:16]
+            archived = entry.output.with_name(entry.output.stem + ".stale-" + digest + ".json")
+            if not archived.exists():
+                _copy_capture(entry.output, archived)
         if run_command(
             entry.command,
             entry.output,

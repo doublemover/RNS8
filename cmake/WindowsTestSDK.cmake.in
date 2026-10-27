@@ -1,0 +1,9 @@
+# Process-local CTest environment; no user/system environment is modified.
+set(ENV{HIP_PATH} [==[@RNS8_HIP_ROOT@]==])
+set(ENV{HIP_PLATFORM} amd)
+set(ENV{LLVM_PATH} [==[@_rns8_test_llvm_root@]==])
+set(ENV{HIP_DEVICE_LIB_PATH} [==[@RNS8_HIP_DEVICE_LIB_DIR@]==])
+string(CONCAT _rns8_test_sdk_path
+  [==[@RNS8_HIP_ROOT@/bin;@_rns8_test_compiler_bin@;]==] "$ENV{PATH}")
+set(ENV{PATH} "${_rns8_test_sdk_path}")
+unset(_rns8_test_sdk_path)

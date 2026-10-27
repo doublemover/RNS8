@@ -7,6 +7,8 @@
 
 #include "backend_common/finite_u8_reducer.hpp"
 #include "core/internal.hpp"
+#include "backend_common/garner_constants.hpp"
+#define RNS8_EXPERIMENTAL_GARNER_TABLE 1
 
 // Host execution of scalar arithmetic only. This does not validate HIP code
 // generation, GPU memory behavior, wave operations, synchronization, or timing.

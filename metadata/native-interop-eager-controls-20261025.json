@@ -1,0 +1,345 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "0f26d9694a834bf1b6092c38f9896862b018bdb8",
+  "benchmark_artifact": {
+    "executable_sha256": "e6bae2f752e205755cc5a4cb95ea5c4653f0d7a9a072eaf4a0b8d64a1d71717e",
+    "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-native-interop-calibrate.exe",
+    "hash_seconds": 0.02435190003598109,
+    "rns8_linkage": "static",
+    "unchanged_during_run": true
+  },
+  "collector_source_commit": "29de8304f044145c11e4288a64b67f960f9e7df3",
+  "prior_production_qualification": "metadata/adaptive-summary-qualification-20261025.json",
+  "production_source_unchanged": true,
+  "capture_count": 80,
+  "gain_gate": "five processes per mode; disjoint ranges and at most 10% (max-min)/median spread in both compared modes",
+  "builds": {
+    "gpu": {
+      "source_commit": "0f26d9694a834bf1b6092c38f9896862b018bdb8",
+      "lane": "gpu",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/0/command",
+            "entries": 37
+          },
+          "exit_code": 0,
+          "seconds": 21.44257640838623
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 177.69768047332764
+        }
+      ],
+      "old_qualified_benchmark_sha256": "e386bfa13bb228842fb457df1b9205593c53b030721fca98a5e497521c7f16b1",
+      "targets": [
+        "rns8-native-interop-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    },
+    "asan": {
+      "source_commit": "0f26d9694a834bf1b6092c38f9896862b018bdb8",
+      "lane": "asan",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/0/command",
+            "entries": 26
+          },
+          "exit_code": 0,
+          "seconds": 5.3494038581848145
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 54.74821090698242
+        }
+      ],
+      "old_qualified_benchmark_sha256": "fe5e7b1ebab2b12ef4814200f4d0ca727f1e9e34cdeb78ae03799feea9a32377",
+      "targets": [
+        "rns8-native-interop-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    }
+  },
+  "collector_regressions": {
+    "command": [
+      "python",
+      "tools/test_collect_native_interop.py"
+    ],
+    "passed": 8,
+    "failures": 0
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 29
+    },
+    "compiled_source_commit": "0f26d9694a834bf1b6092c38f9896862b018bdb8",
+    "collector_source_commit": "29de8304f044145c11e4288a64b67f960f9e7df3",
+    "executable_sha256": "e6bae2f752e205755cc5a4cb95ea5c4653f0d7a9a072eaf4a0b8d64a1d71717e",
+    "started_unix": 1792975739.5997727,
+    "requested_captures": 80,
+    "campaign_resumed": false,
+    "gain_gate": "disjoint observed process ranges and <=10% (max-min)/median spread for both compared modes; five independent processes",
+    "exit_code": 0,
+    "seconds": 238.59019565582275,
+    "executable_unchanged": true
+  },
+  "metrics": [
+    {
+      "case": {
+        "dataset": "small",
+        "k": 4097,
+        "m": 257,
+        "max_payload_bytes": 1073741824,
+        "n": 3,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/0/costs",
+        "entries": 4
+      },
+      "comparisons": {
+        "device-stream": {
+          "speedup": 273.3522592489731,
+          "disjoint": true,
+          "baseline_spread": 0.1322095664596384,
+          "candidate_spread": 0.11749381434286148,
+          "passes_predeclared_sustained_gate": false
+        },
+        "device-graph": {
+          "speedup": 260.06010854466774,
+          "disjoint": true,
+          "baseline_spread": 0.1322095664596384,
+          "candidate_spread": 0.14696022906538592,
+          "passes_predeclared_sustained_gate": false
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "small",
+        "k": 128,
+        "m": 128,
+        "max_payload_bytes": 1073741824,
+        "n": 128,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/1/costs",
+        "entries": 4
+      },
+      "comparisons": {
+        "device-stream": {
+          "speedup": 56.62781329479744,
+          "disjoint": true,
+          "baseline_spread": 0.06532665084969654,
+          "candidate_spread": 0.2078201941920294,
+          "passes_predeclared_sustained_gate": false
+        },
+        "device-graph": {
+          "speedup": 53.34531878350778,
+          "disjoint": true,
+          "baseline_spread": 0.06532665084969654,
+          "candidate_spread": 0.09258746370726519,
+          "passes_predeclared_sustained_gate": true
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 31,
+        "m": 17,
+        "max_payload_bytes": 1073741824,
+        "n": 19,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/2/costs",
+        "entries": 4
+      },
+      "comparisons": {
+        "device-stream": {
+          "speedup": 5.9452997795183515,
+          "disjoint": true,
+          "baseline_spread": 0.06862295474012546,
+          "candidate_spread": 0.06942623688365944,
+          "passes_predeclared_sustained_gate": true
+        },
+        "device-graph": {
+          "speedup": 6.098039557790374,
+          "disjoint": true,
+          "baseline_spread": 0.06862295474012546,
+          "candidate_spread": 0.08141937498739504,
+          "passes_predeclared_sustained_gate": true
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 65537,
+        "m": 1,
+        "max_payload_bytes": 1073741824,
+        "n": 3,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/3/costs",
+        "entries": 4
+      },
+      "comparisons": {
+        "device-stream": {
+          "speedup": 53.63813757511129,
+          "disjoint": true,
+          "baseline_spread": 0.024517815101829345,
+          "candidate_spread": 0.01714515109082713,
+          "passes_predeclared_sustained_gate": true
+        },
+        "device-graph": {
+          "speedup": 54.01937615829107,
+          "disjoint": true,
+          "baseline_spread": 0.024517815101829345,
+          "candidate_spread": 0.012043980116073775,
+          "passes_predeclared_sustained_gate": true
+        }
+      }
+    }
+  ],
+  "all_observations": {
+    "archived_json_pointer": "/all_observations",
+    "entries": 80
+  },
+  "remaining": [
+    "hardware launch counts and physical memory peaks are unmeasured",
+    "real failed-drain device-fault injection remains separate from safe status/cancellation and host mocks",
+    "no Linux GPU or other target qualification; optional DLPack adapter deferred"
+  ],
+  "campaign_resumed": false,
+  "promotion_eligible": false,
+  "excluded_first_attempt": {
+    "launch": {
+      "command": {
+        "archived_json_pointer": "/excluded_first_attempt/launch/command",
+        "entries": 29
+      },
+      "compiled_source_commit": "1a4dfc475dcbaaa4cd26f438ef8518f6120b9ab9",
+      "collector_source_commit": "1a4dfc475dcbaaa4cd26f438ef8518f6120b9ab9",
+      "executable_sha256": "c236909e65f8c69844816b51c5c6599b5156beb06d2963b3294e6f6d18f578d8",
+      "started_unix": 1792975436.175215,
+      "requested_captures": 80,
+      "campaign_resumed": false,
+      "gain_gate": "disjoint observed process ranges and <=10% (max-min)/median spread for both compared modes; five independent processes",
+      "exit_code": 1,
+      "seconds": 4.502478361129761,
+      "executable_unchanged": true
+    },
+    "failed": [
+      {
+        "command": {
+          "archived_json_pointer": "/excluded_first_attempt/failed/0/command",
+          "entries": 3
+        },
+        "environment": {},
+        "returncode": 1,
+        "timed_out": false,
+        "duration_seconds": 0.7819675999926403,
+        "stdout": "",
+        "stderr": "unsupported backend\n"
+      }
+    ],
+    "exact_captures": [
+      {
+        "archived_json_pointer": "/excluded_first_attempt/exact_captures/0",
+        "entries": 3
+      },
+      {
+        "archived_json_pointer": "/excluded_first_attempt/exact_captures/1",
+        "entries": 3
+      }
+    ]
+  },
+  "all_bursts_reached_minimum": true,
+  "completed_calls": 37771,
+  "unchanged_compiled_code_since_artifact": true,
+  "prior_native_gpu_tests": [
+    {
+      "name": "copy-owned native HIP leases survive external mutation and deallocation",
+      "seconds": 1.03128,
+      "state": "passed"
+    },
+    {
+      "name": "distinct immutable native leases share reads but never an external writer or mutation epoch",
+      "seconds": 0.645931,
+      "state": "passed"
+    },
+    {
+      "name": "native HIP leases import and export full-width padded views without host payload",
+      "seconds": 0.685529,
+      "state": "passed"
+    },
+    {
+      "name": "native HIP limb exports preserve exact wide products and padded destinations",
+      "seconds": 0.566691,
+      "state": "passed"
+    },
+    {
+      "name": "native import lift GEMM and host export share one observed graph transaction",
+      "seconds": 0.849831,
+      "state": "passed"
+    },
+    {
+      "name": "native transfer prepared owners retain leases, refresh generations and replay checked graphs",
+      "seconds": 0.77771,
+      "state": "passed"
+    },
+    {
+      "name": "prepared native export shares every signed/unsigned prefix and limb-width kernel",
+      "seconds": 3.52047,
+      "state": "passed"
+    }
+  ],
+  "comparison_acceptance": "insufficient strongest control: host-packed eager proof metadata differs from device-import scalar facts; no interop gain qualified",
+  "product_benefit_qualified": false,
+  "original_schema": "rns8_native_interop_eager_controls_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/native-interop-eager-controls-20261025.json",
+    "sha256": "22d0287c12ee1fe65ad72ccc1aec2293f48e94cdab8d9d8bc502c51f43c2d5fb",
+    "bytes": 1354617
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

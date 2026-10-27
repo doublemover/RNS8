@@ -1,4 +1,4 @@
-extern "C" int rns8_rocwmma_gemm_rns_device(
+static int rns8_rocwmma_gemm_rns_device_impl(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -11,7 +11,10 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int prefix) {
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats,void* raw_stream) {
+  auto stream=static_cast<hipStream_t>(raw_stream);
+  if(packing_policy>3)return rocwmma_invalid_argument;
+  RocwmmaPackingState packing{packing_policy,packing_stats};
   if (hipSetDevice(device_id) != hipSuccess) {
     return rocwmma_backend_failure;
   }
@@ -33,8 +36,42 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
       static_cast<int>(lda),
       static_cast<int>(ldb),
       static_cast<int>(ldc),
-      prefix);
+      prefix,&packing,stream);
 }
+extern "C" int rns8_rocwmma_gemm_rns_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats) {
+  return rns8_rocwmma_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,packing_policy,packing_stats,nullptr);
+}
+extern "C" int rns8_rocwmma_gemm_rns_device_on_stream(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats,void* raw_stream) {
+  if(!raw_stream)return rocwmma_invalid_argument;
+  return rns8_rocwmma_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,packing_policy,packing_stats,raw_stream);
+}
+
 
 extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,
@@ -129,7 +166,9 @@ extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     long long k,
     long long lda,
     long long ldc,
-    unsigned int prefix) {
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats) {
+  if(packing_policy>3)return rocwmma_invalid_argument;
+  RocwmmaPackingState packing{packing_policy,packing_stats};
   if (hipSetDevice(device_id) != hipSuccess) {
     return rocwmma_backend_failure;
   }
@@ -150,7 +189,7 @@ extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
       static_cast<int>(k),
       static_cast<int>(lda),
       static_cast<int>(ldc),
-      prefix);
+      prefix,&packing);
 }
 
 extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
@@ -167,7 +206,9 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
     long long ldb,
     long long ldc,
     const rns8_plan_tile_schedule_entry* entries,
-    unsigned long long entry_count) {
+    unsigned long long entry_count, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats) {
+  if(packing_policy>3)return rocwmma_invalid_argument;
+  RocwmmaPackingState packing{packing_policy,packing_stats};
   if (hipSetDevice(device_id) != hipSuccess) {
     return rocwmma_backend_failure;
   }
@@ -208,24 +249,10 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
   }
   auto* b_pack = a_pack + a_bytes;
   const int safe_k_block = k < kRns8SignedSafeInt32KBlock ? static_cast<int>(k) : kRns8SignedSafeInt32KBlock;
-  for (unsigned long long entry_index = 0; entry_index < entry_count; ++entry_index) {
-    const auto& entry = entries[entry_index];
-    if ((entry.flags & kRns8TileScheduleZeroOutput) != 0) {
-      const int status = zero_tile_residues(
-          c,
-          m,
-          ldc,
-          entry.row_offset,
-          entry.col_offset,
-          entry.row_extent,
-          entry.col_extent,
-          entry.selected_prefix);
-      if (status != rocwmma_success) {
-        return status;
-      }
-      continue;
-    }
-    for (uint32_t modulus_index = 0; modulus_index < entry.selected_prefix; ++modulus_index) {
+  const auto run_plane=[&](const rns8_plan_tile_schedule_entry& entry,uint32_t modulus_index) -> int {
+    if((entry.flags&kRns8TileScheduleZeroOutput)!=0)
+      return zero_tile_residues(c+int64_t(modulus_index)*m*ldc,m,ldc,
+          entry.row_offset,entry.col_offset,entry.row_extent,entry.col_extent,1);
       const uint16_t modulus = kDefaultModuli[modulus_index];
       const auto plane_a = a + static_cast<int64_t>(modulus_index) * static_cast<int64_t>(m) * lda +
                            static_cast<int64_t>(entry.row_offset) * lda;
@@ -248,12 +275,49 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
           static_cast<int>(modulus),
           modulus_reciprocal_u32(modulus),
           safe_k_block,
-          static_cast<int>(modulus_index));
+          static_cast<int>(modulus_index),&packing);
       if (status != rocwmma_success) {
         return status;
       }
+    return rocwmma_success;
+  };
+  if(packing_policy&2) {
+    // One plane at a time keeps the current A/B panel useful to adjacent tiles.
+    // Entry order within each plane is unchanged, including zero-output entries.
+    uint32_t max_prefix=0;
+    for(unsigned long long i=0;i<entry_count;++i)if(entries[i].selected_prefix>max_prefix)max_prefix=entries[i].selected_prefix;
+    for(uint32_t p=0;p<max_prefix;++p)for(unsigned long long i=0;i<entry_count;++i) {
+      if(p>=entries[i].selected_prefix)continue;
+      const auto status=run_plane(entries[i],p);if(status!=rocwmma_success)return status;
+    }
+  } else for(unsigned long long i=0;i<entry_count;++i) {
+    const auto& entry=entries[i];
+    if((entry.flags&kRns8TileScheduleZeroOutput)!=0) {
+      const auto status=zero_tile_residues(c,m,ldc,entry.row_offset,entry.col_offset,
+          entry.row_extent,entry.col_extent,entry.selected_prefix);
+      if(status!=rocwmma_success)return status;continue;
+    }
+    for(uint32_t p=0;p<entry.selected_prefix;++p) {
+      const auto status=run_plane(entry,p);if(status!=rocwmma_success)return status;
     }
   }
   return hipDeviceSynchronize() == hipSuccess ? rocwmma_success : rocwmma_backend_failure;
 }
 
+
+extern "C" int rns8_rocwmma_exact_axpby_device(
+    int device_id, const int8_t* a, const int8_t* b, const int8_t* d, int8_t* c,
+    int m, int n, int k, int lda, int ldb, int ldd, int ldc, int prefix, int64_t alpha, int64_t beta) {
+  if (prefix <= 0 || prefix > 20) return rocwmma_invalid_argument;
+  // Reduce once per plane on the host; passing the small table by value avoids
+  // device division, a device allocation, and a coefficient upload kernel.
+  RocwmmaExactCoefficients coefficients{};
+  if(!rns8::detail::lower_residue_axpby_table(alpha,beta,kDefaultModuli,prefix,coefficients))
+    return rocwmma_invalid_argument;
+  if (hipSetDevice(device_id) != hipSuccess) return rocwmma_backend_failure;
+  hipLaunchKernelGGL(rocwmma_exact_axpby_kernel,
+      dim3((static_cast<uint64_t>(n) + 15) / 16, (static_cast<uint64_t>(m) + 15) / 16, prefix),
+      dim3(kRns8WmmaWaveThreads), 0, nullptr, a, b, d, c, m, n, k, lda, ldb, ldd, ldc, coefficients);
+  return hipGetLastError() == hipSuccess && hipDeviceSynchronize() == hipSuccess
+             ? rocwmma_success : rocwmma_backend_failure;
+}

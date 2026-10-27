@@ -482,13 +482,14 @@ TEST_CASE("direct HIP exact-wide unsigned RNS output matches CPU residues") {
   REQUIRE(rns8_create_matrix(hip, &a_desc, &hip_a) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &b_desc, &hip_b) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &c_desc, &hip_c) == RNS8_SUCCESS);
+  std::vector<int8_t> hip_c_audit(hip_c->hip_residue_bytes);
   REQUIRE(rns8_pack_u64(hip, hip_a, A, k, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, hip_b, B, n, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
-              hip_c->hip_device_id, hip_c->residues.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) ==
+              hip_c->hip_device_id, hip_c_audit.data(), hip_c->hip_residues, hip_c->hip_residue_bytes) ==
           RNS8_SUCCESS);
-  CHECK(hip_c->residues == cpu_c->residues);
+  CHECK(hip_c_audit == cpu_c->residues);
   constexpr uint32_t limb_count = 3;
   constexpr int64_t limb_ld = 3;
   std::vector<uint64_t> cpu_limbs(static_cast<std::size_t>(m * limb_ld * limb_count), 0xbbbbbbbbbbbbbbbbull);

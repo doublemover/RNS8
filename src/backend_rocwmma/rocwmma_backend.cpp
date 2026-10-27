@@ -1,4 +1,7 @@
+#include "backend_common/address_domain.hpp"
+#include "backend_common/finite_u8_reducer.hpp"
 #include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_rocwmma/rocwmma_packing_policy.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/backend_common.hpp"
@@ -20,7 +23,7 @@ extern "C" int rns8_rocwmma_gemm_rns_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int prefix);
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 // Event recording uses run_timed_device_code in the dispatch functions below.
 // The rocWMMA backend is a separate build target that cannot reference
@@ -42,7 +45,7 @@ extern "C" int rns8_rocwmma_gemm_rns_tiled_device(
     long long ldb,
     long long ldc,
     const rns8_plan_tile_schedule_entry* entries,
-    unsigned long long entry_count);
+    unsigned long long entry_count, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 extern "C" int rns8_rocwmma_prepack_b_rns_device(
     int device_id,
@@ -86,7 +89,7 @@ extern "C" int rns8_rocwmma_gemm_rns_prepacked_b_device(
     long long k,
     long long lda,
     long long ldc,
-    unsigned int prefix);
+    unsigned int prefix, unsigned int packing_policy, rns8::detail::RocwmmaPackingStats* packing_stats);
 
 extern "C" int rns8_rocwmma_gemm_finite_u8_device(
     int device_id,
@@ -113,7 +116,29 @@ extern "C" int rns8_rocwmma_wrap64_gemm_byte_limbs_candidate_device(
     long long k);
 #endif
 
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+extern "C" int rns8_rocwmma_exact_axpby_device(int, const int8_t*, const int8_t*, const int8_t*, int8_t*,
+    int, int, int, int, int, int, int, int, int64_t, int64_t);
+#endif
+
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+extern "C" int rns8_rocwmma_gemm_rns_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,unsigned,rns8::detail::RocwmmaPackingStats*,void*);
+extern "C" int rns8_rocwmma_gemm_finite_u8_device_on_stream(int,const void*,const void*,void*,void*,unsigned long long,long long,long long,long long,long long,long long,long long,unsigned,void*);
+#endif
+
 namespace rns8::detail {
+
+namespace {
+thread_local RocwmmaPackingPolicy packing_policy=RocwmmaPackingPolicy::packed;
+thread_local RocwmmaPackingStats packing_stats;
+RocwmmaPackingStats* rocwmma_packing_stats_sink(){return &packing_stats;}
+}
+RocwmmaPackingPolicy rocwmma_packing_policy(){return packing_policy;}
+bool rocwmma_set_packing_policy(RocwmmaPackingPolicy value) {
+  if(uint32_t(value)>3)return false;packing_policy=value;return true;
+}
+void rocwmma_reset_packing_stats(){packing_stats={};}
+RocwmmaPackingStats rocwmma_packing_stats(){return packing_stats;}
 
 bool rocwmma_compiled() {
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
@@ -197,6 +222,11 @@ rns8_status rocwmma_gemm_rns_device(
     int64_t ldb,
     int64_t ldc,
     uint32_t prefix) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_rns_device(
@@ -212,7 +242,7 @@ rns8_status rocwmma_gemm_rns_device(
         static_cast<long long>(lda),
         static_cast<long long>(ldb),
         static_cast<long long>(ldc),
-        prefix);
+        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -248,6 +278,11 @@ rns8_status rocwmma_gemm_rns_tiled_device(
     int64_t ldc,
     const rns8_plan_tile_schedule_entry* entries,
     uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, RNS8_MAX_SUPPORTED_PREFIX)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_rns_tiled_device(
@@ -264,7 +299,7 @@ rns8_status rocwmma_gemm_rns_tiled_device(
         static_cast<long long>(ldb),
         static_cast<long long>(ldc),
         entries,
-        static_cast<unsigned long long>(entry_count));
+        static_cast<unsigned long long>(entry_count), uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -418,7 +453,7 @@ rns8_status rocwmma_gemm_rns_prepacked_b_device(
         static_cast<long long>(k),
         static_cast<long long>(lda),
         static_cast<long long>(ldc),
-        prefix);
+        prefix, uint32_t(rocwmma_packing_policy()), rocwmma_packing_stats_sink());
   });
   return status_from_device_code(code);
 #else
@@ -452,6 +487,11 @@ rns8_status rocwmma_gemm_finite_u8_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_rocwmma_gemm_finite_u8_device(
@@ -520,4 +560,44 @@ rns8_status rocwmma_wrap64_gemm_byte_limbs_candidate_device(
 #endif
 }
 
+rns8_status rocwmma_exact_axpby_device(
+    int device_id, const void* a, const void* b, const void* d, void* c,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldd, int64_t ldc,
+    uint32_t prefix, int64_t alpha, int64_t beta) {
+  if (!a || !b || !d || !c || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldd < n || ldc < n ||
+      !prefix || prefix > RNS8_MAX_SUPPORTED_PREFIX) return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, prefix) ||
+      !qualified_i32_matrix_address(m, n, ldd, prefix)) return RNS8_UNSUPPORTED_BACKEND;
+  const uint64_t output_bytes = static_cast<uint64_t>(m) * ldc * prefix;
+  if (!nonoverlapping_byte_ranges(c, output_bytes, a, static_cast<uint64_t>(m) * lda * prefix) ||
+      !nonoverlapping_byte_ranges(c, output_bytes, b, static_cast<uint64_t>(k) * ldb * prefix) ||
+      !nonoverlapping_byte_ranges(c, output_bytes, d, static_cast<uint64_t>(m) * ldd * prefix))
+    return RNS8_INVALID_ARGUMENT;
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+  return status_from_device_code(run_timed_device_code("rocwmma_exact_axpby_kernel", [&]() {
+    return rns8_rocwmma_exact_axpby_device(device_id,
+        static_cast<const int8_t*>(a), static_cast<const int8_t*>(b), static_cast<const int8_t*>(d),
+        static_cast<int8_t*>(c), static_cast<int>(m), static_cast<int>(n), static_cast<int>(k),
+        static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldd), static_cast<int>(ldc), prefix, alpha, beta);
+  }));
+#else
+  (void)device_id; (void)alpha; (void)beta;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+
+rns8_status rocwmma_enqueue_dense(int device,const void* a,const void* b,void* c,void* workspace,std::size_t bytes,
+    int64_t m,int64_t n,int64_t k,int64_t lda,int64_t ldb,int64_t ldc,uint32_t value,bool finite,void* stream) {
+  if(!stream || !a || !b || !c || !workspace || !value || (!finite && value>20) ||
+      (finite && (value<2 || value>256)))return RNS8_INVALID_ARGUMENT;
+  if(!qualified_i32_gemm_address(m,n,k,lda,ldb,ldc,finite?1:value))return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
+  const auto code=finite?rns8_rocwmma_gemm_finite_u8_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,stream):
+      rns8_rocwmma_gemm_rns_device_on_stream(device,a,b,c,workspace,bytes,m,n,k,lda,ldb,ldc,value,0,nullptr,stream);
+  return status_from_device_code(code);
+#else
+  (void)device;(void)bytes;return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
 }  // namespace rns8::detail

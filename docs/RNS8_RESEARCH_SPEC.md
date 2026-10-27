@@ -1,7 +1,8 @@
-> This specification includes intended and research behavior. For the current
-> implementation and verified limits, read the [October 2026 audit](audit-2026-10-06.md)
-> and [release gates](roadmap.md). Source registration and historical completion
-> labels do not establish hardware qualification.
+> This specification owns normative architecture and research acceptance rules.
+> It includes proposals as well as implemented behavior. Current public contracts
+> live in the [API](../include/rns8/rns8.h) and [correctness guide](correctness.md);
+> [backend capabilities](backend-notes.md), [dated validation](local-all-features-20261023.md)
+> and the [roadmap](roadmap.md) identify implementation, evidence and remaining work.
 
 # RNS8 Technical Specification
 
@@ -168,7 +169,7 @@ Required for Windows GPU execution:
 - AMD HIP SDK, latest production release available for Windows.
 - HIP SDK Core, HIP Libraries development files, HIP Runtime Compiler
   development files, and AMD GPU driver.
-- Visual Studio 2022 Build Tools with MSVC C++ and Windows SDK.
+- Visual Studio 2026 Build Tools with MSVC C++ and Windows SDK.
 - CMake and Ninja.
 - Python packages: `numpy`, `pandas`, `matplotlib`, `pytest`, and `scipy`.
 
@@ -369,6 +370,18 @@ for signed reconstruction. Missing summaries retain the scalar proof; prepacked
 and sparse routes currently use it. Insufficient range or unwritten input planes
 return `RNS8_RANGE_ERROR` before output mutation. No automatic prefix growth is
 performed. Repacking replaces the proof.
+For native inputs through 64 bits, moment construction may use fixed exact
+accumulators before publishing those same multiprecision facts. An axis has at
+most `INT64_MAX` elements: absolute/signed/deviation sums are below `2^127` and
+squared sums below `2^191`. Signed midpoint division retains truncation toward
+zero, and distances use unsigned subtraction to cover the full native span.
+Bounded column blocks keep scratch independent of matrix dimensions. This
+implementation visits each logical cell four times across row/column scans;
+it removes per-value variable-precision operations and the temporary column
+midpoint vector without discarding any retained facts. Performance requires its
+own matched measurements; the arithmetic bound alone establishes no speedup.
+Arbitrary-width limb imports retain the unbounded multiprecision scan; the
+native accumulator ceiling never constrains their values or squared moments.
 An explicit `rns8_lift_exact_wide_cpu` operation now stages missing CPU residue
 planes within an existing matrix's allocated prefix ceiling. The source proof
 must already identify the integer uniquely; centered source reconstruction cannot
@@ -661,6 +674,19 @@ Rules:
 The default adaptive bound tile is `128 x 128` output elements. The tile size
 is configurable in powers of two from 64 to 512.
 
+The explicit native-input adaptive experiment uses 16 by 16 device proof tiles,
+independently of that caller-bound plan tile policy. Its optional
+`rns8_gemm_adaptive_exact_cached` route retains A/B axis summaries in the workspace,
+bound independently to live internal matrix instances/content generations and
+owned native allocations, explicit semantics, device, shape, role and discovery
+policy. Reuse never follows from a pointer or caller source version alone.
+Changed operands must rescan before rebuilding strict tile-prefix certificates;
+ordinary exact proofs and complete suffix materialization remain required.
+Retained summary bytes are charged together with transient adaptive scratch.
+The [native adaptive contract](adaptive-native-product.md#workspace-owned-summary-reuse)
+owns this experimental lifetime and observation API. No default selection or
+performance qualification follows from summary reuse alone.
+
 For `RNS8_BOUND_PER_TILE_MAX_ABS` and `RNS8_BOUND_PER_TILE_MAX_UNSIGNED`,
 `rns8_gemm_desc.bound` must be zero and `rns8_gemm_desc.tile_bounds` points to
 row-major output-tile bounds with
@@ -676,6 +702,12 @@ valid when their required and selected prefixes are otherwise well formed.
 Direct HIP all-zero scheduled exports zero-fill the compact native export
 buffer directly and do not upload tile schedule/bounds metadata for the export
 because no tile-local CRT work can run on that contract.
+A per-tile bounded plan may fold its physical schedule into a uniform launch
+only when every tile has the same bound as well as the same required/selected
+prefix and no adaptive or skip work remains. The owned tile bounds remain the
+export range contract; a folded plan's zero global descriptor bound is not a
+substitute. Different bounds sharing one prefix retain per-tile export checks.
+
 Per-tile bounded descriptors may also opt into
 `RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS` with `zero_a_rows` and
 `zero_b_cols` proof masks whose lengths are exactly `m` and `n`. A set A-row
@@ -1130,14 +1162,14 @@ matrix-engine backend can claim speedup. It must not be used for exact-wide,
 finite, or wrap64 semantics; strict `mod 2^64` wraparound remains a byte-limb
 backend responsibility.
 
-Feature detection does not enable a backend. hipBLASLt is the baseline
-correctness exception only under the explicit `RNS8_ENABLE_HIPBLASLT=ON`
-build/test preset; discovery still remains candidate evidence. CK and rocWMMA
-become opt-in correctness backends only after compiled kernels, explicit
-semantic coverage, exact CPU differentials, direct-HIP differentials,
-benchmark-schema coverage, and target ISA evidence exist. Production promotion
-still requires measured performance evidence. AMDGPU builtin paths remain
-accelerator candidates until the same correctness and evidence gates exist.
+Feature detection does not enable a backend. hipBLASLt, CK, rocWMMA and
+AMDGPU builtins are implemented public opt-in paths under their explicit build
+flags. Their target/semantic restrictions and compiled capability declarations
+are listed in [backend capabilities](backend-notes.md). The
+[October 23 Windows/gfx1100 record](local-all-features-20261023.md) identifies
+applicable exact differentials and ISA checks actually executed. Linux/Instinct
+and other architecture families still require their own qualification. Production
+promotion additionally requires matched reviewed performance evidence.
 CK integration patches to pinned repo-local CK headers must be deterministic,
 exact-match guarded at configure time, emitted as build-tree include overlays,
 and tracked as source dependencies for the compiled HIP object they affect. If
@@ -1481,6 +1513,16 @@ The reviewed-cache installer must reject stale or non-reviewed destination
 entries during normal merges and require an explicit replacement operation
 before discarding them.
 
+Runtime cache admission rejects duplicate JSON members/entry keys, fractional
+or out-of-range integer metadata, malformed records, and negative/non-finite
+timings. Reviewed AUTO candidates additionally require a positive end-to-end
+median and unambiguous plan-key fields. Failed reads expose no partial entries.
+The C++ cache writer serializes and checks a uniquely staged sibling file before
+atomically replacing the destination; failed writes preserve the prior file.
+It refuses to overwrite an unreadable or unsupported-schema cache. This is
+failure-safe single-writer persistence, not concurrent read-modify-write merging
+or a power-loss durability guarantee. These checks do not qualify performance.
+
 Benchmark outputs include:
 
 - command line,
@@ -1564,6 +1606,14 @@ Decision: split by modulus, not by K.
 Ship rule: multi-GPU ships only on Linux ROCm after the modulus split reaches
 at least 1.55x speedup for 8192 square bounded GEMM.
 
+The private [modulus-sharded HIP owner](distributed-hip.md) implements selected
+device discovery, resident native replication, bounded packing slots, explicit
+plane membership, peer/portable-pinned gather, per-tile checked CRT and complete
+epoch publication. Its uniform device materialization uses the globally unique
+result, never an isolated shard. Cancellation, deadlines, retained readers and
+quarantine share the existing resource contracts. This source implementation
+does not satisfy the Linux performance or broader hardware qualification gate.
+
 ### 17.6 AMDGPU Builtins
 
 Decision: not production until CK or rocWMMA diagnostics identify a concrete
@@ -1627,10 +1677,24 @@ prepack cache.
 
 Decision: FP8/Ozaki paths are research modes only.
 
+The explicit [native integer split](../include/rns8/integer_split.h) is a host
+representation baseline: ten caller-owned low-first signed radix128 planes,
+exact full-int64 reconstruction, checked strides/capacity and transactional
+merge. It executes no floating matrix instruction and introduces no floating-input
+FP64-emulation contract. Floating component formats and their hardware proofs
+remain owned by the separate research descriptors.
+
 Ship rule: no default exact integer API may route through FP8/Ozaki. A research
 mode may be accepted only with explicit verification metadata, exact reference
 differentials for the advertised contract, split-matrix and K-block accounting,
 and measured verification overhead.
+
+The initial [gfx942 FNUZ FP8 source](fp8-modular-research.md) implements four
+fixed-digit products and reduced integer recombination for explicit finite
+research calls. Its acknowledged instruction model is conditional; compile-only
+checks do not satisfy the device differential, emitted-ISA or performance ship
+gates above. [CDNA5 TDM source](cdna5-tdm-research.md) separately explores raw-native
+data movement and has no floating-format or production-routing implication.
 
 ### 17.10 Finite-U8 Specialized Reducers
 
@@ -1938,7 +2002,7 @@ Exit gate:
 
 - GEMMul8: https://github.com/RIKEN-RCCS/GEMMul8
 - ozIMMU: https://github.com/enp1s0/ozIMMU
-- OzBLAS: https://github.com/RIKEN-RCCS/ozblas
+- OzBLAS: https://www.r-ccs.riken.jp/labs/lpnctrt/projects/ozblas/
 - GRNS: https://github.com/kisupov/grns
 - MPRES-BLAS: https://github.com/kisupov/mpres-blas
 - FFLAS-FFPACK: https://linbox-team.github.io/fflas-ffpack/
@@ -2001,3 +2065,135 @@ portable CPU and direct HIP paths first, then earn production status per target
 family by amortizing packing, fusing reduction, and selecting the fastest
 available AMD matrix-engine backend on that OS and GPU.
 ```
+
+### Strict wrap64 signed compute view
+
+Canonical persistent wrap64 storage retains unsigned byte semantics. A private
+carry-recoded signed radix256 compute view is permitted when its ring identity
+and exact per-pair accumulator bound are certified. Version 1 computes
+`(x + 0x8080808080808080) ^ 0x8080808080808080` with unsigned 64-bit wrapping,
+then feeds its signed bytes to 36 low-product WMMA pairs. Each pair is folded
+into a uint64 ring accumulator before combining diagonals; negative signed
+shifts and unchecked INT32 diagonal fusion are forbidden. This view establishes
+no bounded/exact-wide CRT proof and changes no public storage contract.
+The current private RDNA3 implementation uses a 16-term zero-initialized MMA
+per pair and includes a matched native unsigned IU8 control. See
+[the candidate contract](wrap64-signed-radix.md). Both remain unqualified;
+existing wrap64 shipping and evidence gates still apply.
+
+### Word-size modular baseline (source implementation, pending qualification)
+
+The private [word-modular research path](word-modular-research.md) has explicit
+ring/prime-field semantics, canonical uint64 storage, overflow-safe CPU/HIP
+double/add arithmetic and an exact host decomposition-bound planner. It does
+not extend finite-u8 storage. An explicit scalar binary64 asymmetric schedule
+now recomputes an exact host coefficient bound before launch; matrix-instruction
+lowering remains separate and all device qualification is pending.
+Full-width Boost differential fixtures are authored for the final campaign.
+
+### Native HIP interoperability (source implementation, pending qualification)
+
+The initial [native device lease interface](native-device-interop.md) admits
+synchronous borrowed i64/u64 views for direct-HIP import and staged native
+export. Typed spans, owner callbacks, conservative unique-range proof and
+failed-drain quarantine are explicit. It reuses existing pack/CRT kernels,
+transfers no host payload, and does not imply prepared async or DLPack support.
+
+
+### Reusable explicit split-K ownership (pending qualification)
+
+The public direct-HIP residue split-K owner retains generation-bound exact-wide
+inputs and a reusable canonical-byte partial/merge arena. The final range proof
+is separate from fragment accumulator safety: every fragment obeys the 65536
+product cap regardless of cancellation in the complete result, and each merge
+reduces before global storage. Failed work cannot publish an eligible output;
+uncertain device completion retains reservations and scratch for cleanup retry.
+See [split-K ownership](native-split-k.md). This does not promote split-K into
+AUTO or imply that the private native matrix-engine route shares this owner.
+
+
+## Research group-CRT bridge
+
+The internal default-basis candidate partitions active channels into nonempty
+canonical groups. Each group has at most eight byte moduli, a checked product
+below 2^64 and checked local Garner inverses. Group outputs are unsigned
+residues in [0, P_group); they have no independent signed-integer uniqueness
+claim. A checked merge tree consumes stable group IDs and reconstructs the root
+in [0, P). Every root product is below 2^160; checked merge intermediates use
+three 64-bit limbs. Signed centering and destination-width interpretation belong
+after the complete root, never to a subgroup.
+
+One implementation reconstructs groups locally before merging. A second writes
+one uint64 per group/cell, then launches a separate merge. Producer rotations
+and reversals preserve logical slots/tree positions. Default groups require
+ceil(prefix/8) words per cell: P20 uses 24 bytes versus 20 residue bytes, so this
+bridge does not inherently reduce storage. The static provider query reports
+the exact scratch payload and rejects short budgets before writes. Raw input,
+output and scratch aliases reject before launch. Public dispatch is unchanged;
+this is synchronous research code, not a multi-GPU or fused-GEMM qualification.
+
+At **287737d**, both full builds and complete CPU-ASan/gfx1100 suites pass,
+including CPU/Boost and real-HIP root/subgroup differentials, all default prefixes,
+irregular group sizes, shuffled producer assignments, source/canary preservation
+and rejection cases. CPU tests additionally cover noncontiguous partitions.
+The 150-capture matched study retains all outcomes and exact static resources in
+[its source-bound receipt](../metadata/group-crt-qualification-20261026.json).
+No production policy or broader-target qualification follows from this local
+canonical-root experiment.
+
+## Concrete resident DAG admission
+
+Execution-mode discovery must agree with an implemented owner. Resident DAG
+creation and public GEMM/prepared-operation discovery share the CPU-reference,
+direct-HIP and wrap64-byte-limb backend predicate. Other synchronous dense GEMM
+providers do not implicitly support resident DAGs. This source-mode declaration
+is independent of compilation/runtime availability and still requires concrete
+operand, context, semantic and lifetime binding before execution.
+
+
+### Orthogonal operation inventory
+
+Static source semantics, compiled operation inventory, matching-context runtime
+availability and correctness/performance qualification are separate facts.
+Compilation-gated helpers must not erase a provider's source arithmetic domain
+from discovery. Ordinary executable admission retains compilation requirements.
+A rejected query with no completed resource computation reports unsupported
+resources, never an apparently known zero-byte requirement. Device-family
+classification is independent of compilation; an unobserved target stays unknown.
+
+
+### Prepared integer CRT publication
+
+Explicit integer CRT policies share one complete-root validation and publication
+contract. Reconstruct canonical values over the entire ordered default basis
+before centering or narrowing; subgroup values are never signed partial answers.
+Prepared owners reserve their full host/device payload envelope and use current
+engine-owned source proofs. Rebinding changes source identity only after all
+fallible admission/certificate work succeeds, and retains allocated payloads.
+No policy performs caller writes until every cell and GPU completion succeeds.
+Failed drains retain read references with the live owner; CPU unwinding releases
+them. Policy-specific algebra, default routing and target qualification remain
+separate. Local source availability is not a measured performance promotion.
+
+
+The runtime pipeline shortlist also enumerates concrete prepared checked integer
+CRT policies through the same operation provider. Complete owner costs remain
+unknown in the six-rate profile until policy-specific measurements exist; no
+default rate substitution or promotion is permitted. See
+[prepared integer CRT shortlist contracts](planning-recipes.md#prepared-integer-crt-policies-in-the-shortlist)
+for binding, identity and padded-payload admission. This source addition is
+syntax checked only; execution qualification remains deferred.
+
+
+Explicit materialized recipes price cold and steady replay separately, including
+preparation, calibration, orchestration and final publication over a declared
+reuse lifetime. Retained external packed B is bound to full basis identity,
+input instance and content generation; intermediate caches cannot survive a
+replay. A projected amortization guard never substitutes for measured gains.
+See [materialized replay contracts](materialized-replay-lifetimes.md). Uniform
+bound recipes preserve bounded, finite and wrap semantics, and direct-HIP
+exact-wide asynchronous host exports use token-qualified checked pinned owners.
+Experimental ordered bases compose with ragged/packed recipes and explicit
+prepared GEMM stream/graph owners; ordinary default-basis APIs still reject
+experimental storage. Reference caches bind full mathematical contracts and
+actual input bytes, compare every output word, and remain outside timed calls.

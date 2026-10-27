@@ -397,6 +397,7 @@ TEST_CASE("direct HIP wrap64 rejects CRT-style descriptors") {
   const uint32_t original_tile_m = valid_plan->desc.tile_m;
   const uint32_t original_tile_n = valid_plan->desc.tile_n;
   auto check_rejects_plan_mutation = [&](auto mutate, auto restore) {
+    valid_plan->validated_contract.reset(); // Force exhaustive corruption diagnostics.
     mutate();
     CHECK(rns8_gemm_wrap_u64(hip, valid_plan, wrap_a, wrap_b, wrap_c, workspace) == RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_wrap_u64(hip, valid_plan, wrap_c, C, n) == RNS8_INVALID_ARGUMENT);

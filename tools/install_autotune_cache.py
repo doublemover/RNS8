@@ -9,6 +9,8 @@ import json
 import os
 import tempfile
 from pathlib import Path
+
+from autotune_paths import default_autotune_cache_path
 from typing import Any
 
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS
@@ -41,26 +43,6 @@ ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
 class AutotuneCacheInstallError(ValueError):
     pass
 
-
-def default_autotune_cache_path() -> Path:
-    override = os.environ.get("RNS8_AUTOTUNE_CACHE_PATH")
-    if override:
-        return Path(override)
-    if os.name == "nt":
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            return Path(local_app_data) / "rns8-gemm" / "autotune.json"
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / "AppData" / "Local" / "rns8-gemm" / "autotune.json"
-    else:
-        xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
-        if xdg_cache_home:
-            return Path(xdg_cache_home) / "rns8-gemm" / "autotune.json"
-        home = os.environ.get("HOME")
-        if home:
-            return Path(home) / ".cache" / "rns8-gemm" / "autotune.json"
-    return Path("rns8-gemm") / "autotune.json"
 
 
 def key_fields(key: str) -> dict[str, str]:

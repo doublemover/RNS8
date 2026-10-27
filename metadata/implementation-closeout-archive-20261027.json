@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "cf0ad32fb81899094daa686161c9fdb667a61772",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-followup-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-followup-20261026/implementation-closeout-20261027-cf0ad32.zip",
+  "bytes": 455914,
+  "sha256": "463b58e3a577a455a24a9ffffd7cee370975d597aea90ca224867ba10f68255f",
+  "index_member": "archive-index.json",
+  "scope": "October27 eight-issue implementation closeout: 34 indexed validation/build/manifest/compile-only files. No executable binaries or SDK payloads.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/implementation-closeout-archive-20261027.json --output temp/restored-implementation-closeout"
+}

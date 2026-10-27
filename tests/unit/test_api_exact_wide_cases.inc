@@ -1,6 +1,6 @@
 TEST_CASE("public exact-wide export ABI rejects invalid limb layout") {
   rns8_context* ctx = create_cpu_context();
-  constexpr int64_t m = 1;
+  constexpr int64_t m = 2;
   constexpr int64_t n = 2;
   constexpr int64_t k = 1;
   constexpr uint64_t sentinel = 0x5e5e5e5e5e5e5e5eull;
@@ -490,3 +490,36 @@ TEST_CASE("public exact-wide export rejects bounded and wrap shortcuts") {
   rns8_destroy_context(ctx);
 }
 
+
+TEST_CASE("retained native exact inputs require explicit direct HIP storage") {
+  auto* ctx = create_cpu_context();
+  for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
+    auto descriptor = exact_matrix_desc(2, 2, semantics);
+    rns8_matrix* matrix = nullptr;
+    descriptor.flags = RNS8_MATRIX_RETAIN_NATIVE_INPUT;
+    CHECK(rns8_create_matrix(ctx, &descriptor, &matrix) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(matrix == nullptr);
+    descriptor.flags = 0x80000000u;
+    CHECK(rns8_create_matrix(ctx, &descriptor, &matrix) == RNS8_INVALID_ARGUMENT);
+    CHECK(matrix == nullptr);
+  }
+  rns8_destroy_context(ctx);
+}
+
+TEST_CASE("adaptive summary observation is versioned and excludes in-flight ownership") {
+  rns8_workspace workspace;
+  rns8_adaptive_summary_info info{};
+  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_INVALID_ARGUMENT);
+  info.struct_size=sizeof(info); info.abi_version=RNS8_ABI_VERSION;
+  CHECK(rns8_get_adaptive_summary_info(nullptr,&info)==RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_SUCCESS);
+  CHECK(info.retained_bytes==0);
+  CHECK(info.a_instance==0);
+  CHECK(info.a_scans==0);
+  workspace.in_flight=true;
+  CHECK(rns8_get_adaptive_summary_info(&workspace,&info)==RNS8_BUSY);
+  CHECK(rns8_destroy_workspace(&workspace)==RNS8_BUSY);
+  workspace.in_flight=false;
+  CHECK(rns8_gemm_adaptive_exact_cached(nullptr,nullptr,nullptr,nullptr,nullptr,
+      RNS8_ADAPTIVE_AXIS_L1,256,1,0,0,&workspace)==RNS8_INVALID_ARGUMENT);
+}

@@ -23,9 +23,18 @@ class SuiteCase:
     name: str
     category: str
     command: list[str]
+    retired_reason: str | None = None
 
 
 DEFAULT_CASES = [
+    SuiteCase("queue_calibration_contracts", "metadata_drift", [sys.executable, "tools/test_collect_queue_calibration.py"]),
+    SuiteCase("streaming_measurement_contracts", "metadata_drift", [sys.executable, "tools/test_streaming_measurement.py"]),
+    SuiteCase("public_measurement_contracts", "metadata_drift", [sys.executable, "tools/test_public_measurement_contracts.py"]),
+    SuiteCase("wide_magnitude_receipts", "metadata_drift", [sys.executable, "tools/test_wide_magnitude.py"]),
+    SuiteCase("ci_benchmark_smoke", "metadata_drift", [sys.executable, "tools/test_ci_benchmark_smoke.py"]),
+    SuiteCase("observation_cohorts", "metadata_drift", [sys.executable, "tools/test_observation_cohorts.py"]),
+    SuiteCase("measurement_evidence_contracts", "metadata_drift", [sys.executable, "tools/test_measurement_evidence_contracts.py"]),
+    SuiteCase("tooling_contracts", "metadata_drift", [sys.executable, "tools/test_tooling_contracts.py"]),
     SuiteCase("gpu_qualification", "target_readiness", [sys.executable, "tools/test_gpu_qualification.py"]),
     SuiteCase("performance_dashboard", "documentation_claims", [sys.executable, "tools/test_performance_dashboard.py"]),
     SuiteCase("metadata_registry", "metadata_drift", [sys.executable, "tools/test_metadata_registry.py"]),
@@ -75,11 +84,7 @@ DEFAULT_CASES = [
         "scheduler_overlap",
         [sys.executable, "tools/test_adaptive_grouped_scheduler_report.py"],
     ),
-    SuiteCase(
-        "streaming_overlap_report",
-        "scheduler_overlap",
-        [sys.executable, "tools/test_streaming_overlap_report.py"],
-    ),
+    SuiteCase("streaming_overlap_report", "scheduler_overlap", [], 'Retired report; scheduler_overlap_report and prepared execution own current contracts.'),
     SuiteCase(
         "modulus_set_search",
         "performance_evidence_drift",
@@ -104,11 +109,7 @@ DEFAULT_CASES = [
     SuiteCase("multigpu_shard_report", "target_readiness", [sys.executable, "tools/test_multigpu_shard_report.py"]),
     SuiteCase("cdna_env_summary", "target_readiness", [sys.executable, "tools/test_cdna_env_summary.py"]),
     SuiteCase("cdna_scripts", "target_readiness", [sys.executable, "tools/test_cdna_scripts.py"]),
-    SuiteCase(
-        "bounded_i64_1024_review",
-        "performance_evidence_drift",
-        [sys.executable, "tools/test_bounded_i64_1024_review.py"],
-    ),
+    SuiteCase("bounded_i64_1024_review", "performance_evidence_drift", [], 'Retired historical report; benchmark sweep release review owns current admission.'),
     SuiteCase("tile_shape_report", "performance_evidence_drift", [sys.executable, "tools/test_tile_shape_report.py"]),
     SuiteCase(
         "zero_skip_expansion_report",
@@ -125,11 +126,7 @@ DEFAULT_CASES = [
         "performance_evidence_drift",
         [sys.executable, "tools/test_error_detection_policy_report.py"],
     ),
-    SuiteCase(
-        "cache_promotion_closeout",
-        "performance_evidence_drift",
-        [sys.executable, "tools/test_cache_promotion_closeout.py"],
-    ),
+    SuiteCase("cache_promotion_closeout", "performance_evidence_drift", [], 'Retired historical report; install_autotune_cache owns current promotion.'),
     SuiteCase(
         "fhe_workload_report",
         "performance_evidence_drift",
@@ -191,11 +188,18 @@ DEFAULT_CASES = [
 
 
 def run_case(case: SuiteCase) -> dict[str, Any]:
+    if case.retired_reason is not None:
+        return {"name": case.name, "category": case.category, "status": "retired",
+                "passed": False, "attempted": False, "tested": False,
+                "returncode": None, "output": case.retired_reason}
     result = run_capture(case.command, cwd=REPO_ROOT, label=case.name)
     return {
         "name": case.name,
         "category": case.category,
         **result,
+        "status": "passed" if result["returncode"] == 0 and not result["timed_out"] else "failed",
+        "attempted": True,
+        "tested": True,
         "passed": result["returncode"] == 0 and not result["timed_out"],
         "output": result["stdout"] + result["stderr"],
     }
@@ -210,7 +214,11 @@ def write_report(results: list[dict[str, Any]], out_dir: Path) -> Path:
         "summary": {
             "total": len(results),
             "passed": sum(1 for item in results if item["passed"]),
-            "failed": sum(1 for item in results if not item["passed"]),
+            "attempted": sum(1 for item in results if item.get("attempted", True)),
+            "tested": sum(1 for item in results if item.get("tested", True)),
+            "retired": sum(1 for item in results if item.get("status") == "retired"),
+            "skipped": sum(1 for item in results if item.get("status") == "skipped"),
+            "failed": sum(1 for item in results if not item["passed"] and item.get("tested", True)),
             "categories": sorted({str(item["category"]) for item in results}),
         },
     }
@@ -224,7 +232,7 @@ def write_report(results: list[dict[str, Any]], out_dir: Path) -> Path:
         "|---|---|---|",
     ]
     for item in results:
-        result = "PASS" if item["passed"] else f"FAIL ({item['returncode']})"
+        result = item.get("status", "passed" if item["passed"] else "failed").upper()
         lines.append(f"| {item['name']} | {item['category']} | {result} |")
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return md_path
@@ -240,10 +248,10 @@ def main() -> int:
         results.append(run_case(case))
     report_path = write_report(results, args.out_dir)
     for item in results:
-        result = "PASS" if item["passed"] else f"FAIL ({item['returncode']})"
+        result = item.get("status", "passed" if item["passed"] else "failed").upper()
         print(f"{item['name']}: {result}")
     print(report_path)
-    return 0 if all(item["passed"] for item in results) else 1
+    return 0 if all(item["passed"] or item.get("status") in {"retired", "skipped"} for item in results) else 1
 
 
 if __name__ == "__main__":

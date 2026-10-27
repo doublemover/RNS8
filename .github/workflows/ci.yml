@@ -7,6 +7,12 @@ on:
       - main
       - "codex/**"
 
+# Keep the latest branch and PR-merge checks independently. Rapid development
+# pushes should not leave obsolete eight-way compiler matrices queued.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   ubuntu-cpu:
     runs-on: ubuntu-24.04
@@ -16,20 +22,42 @@ jobs:
       GIT_CONFIG_VALUE_0: main
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; Node24 runner >=2.327.1
         with:
           submodules: false
+
+      - name: Select locked Python
+        id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node24 runner >=2.327.1
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
 
       - name: Install native Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ python3 catch2 nlohmann-json3-dev libboost-dev
 
+      - name: Select locked build tools in a job-local environment
+        run: |
+          python -m venv temp/dependency-tools
+          temp/dependency-tools/bin/python -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
+          echo "$PWD/temp/dependency-tools/bin" >> "$GITHUB_PATH"
+
       - name: Python tooling tests
         run: |
+          python tools/test_dependency_policy.py
+          python tools/check_dependencies.py --check-lock
+          python tools/test_documentation.py
+          python tools/check_documentation.py
           python tools/test_check_dependencies.py
           python tools/test_benchmark_schema.py
           python tools/test_result_compare.py
+          python tools/test_ci_benchmark_smoke.py
+          python tools/test_wide_magnitude.py
+          python tools/test_collect_queue_calibration.py
+          python tools/test_streaming_measurement.py
+          python tools/test_public_measurement_contracts.py
           python tools/test_benchmark_sweep.py
           python tools/test_autotune_cache_install.py
           python tools/check_release_tree.py
@@ -67,3 +95,45 @@ jobs:
 
       - name: Test CPU
         run: ctest --preset linux-cpu-debug --output-on-failure
+
+  linux-openmp-matrix:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+        parallel: ["ON", "OFF"]
+        shared: ["ON", "OFF"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; Node24 runner >=2.327.1
+      - name: Select locked Python
+        id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node24 runner >=2.327.1
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+
+      - name: Install compiler and native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ clang libomp-dev python3 catch2 nlohmann-json3-dev libboost-dev
+      - name: Select locked build tools in a job-local environment
+        run: |
+          python -m venv temp/dependency-tools
+          temp/dependency-tools/bin/python -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
+          echo "$PWD/temp/dependency-tools/bin" >> "$GITHUB_PATH"
+      - name: Configure enabled or disabled OpenMP branch
+        run: >-
+          cmake -S . -B build/ci-openmp -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+          -DRNS8_ENABLE_HIP=OFF
+          -DRNS8_ENABLE_CPU_PARALLEL=${{ matrix.parallel }}
+          -DRNS8_REQUIRE_OPENMP=${{ matrix.parallel }}
+          -DRNS8_BUILD_SHARED=${{ matrix.shared }}
+      - name: Compile complete CPU targets
+        run: cmake --build build/ci-openmp --parallel 2
+      - name: Exercise CPU tests with bounded OpenMP teams
+        env:
+          OMP_NUM_THREADS: 3
+        run: ctest --test-dir build/ci-openmp --output-on-failure --parallel 2

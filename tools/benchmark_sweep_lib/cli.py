@@ -3,24 +3,28 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from benchmark_references import cached_arguments,prepare,DEFAULT_INDEX
 
 from evidence_database_lib.isa import load_isa_index
+from diagnostic_companion import load_bindings
 from evidence_database_lib.io import discover_capture_paths, discover_isa_report_paths
 
 from .commands import scenario_names, sweep_command_entries
 from .scenario_lint import validate_scenario_catalog
-from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, SCENARIO_DATA_DIR, SweepCommand
+from .config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS, scenario_data_dir, SweepCommand
 from .execution import autotune_cache_path, execute_sweep_entries, validate_paths
 from .reports import write_markdown_report, write_scenario_manifest
 from .review import attach_cache_write_status, review_captures, write_promoted_cache_entries
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--list-scenarios",
         action="store_true",
         help="print supported scenario names as JSON and exit without creating captures",
     )
+    parser.add_argument("--reference-cache-dir",type=Path,help="read-only full integer reference cache for eligible single products; fixtures restored before execution")
+    parser.add_argument("--reference-cache-index",type=Path,default=DEFAULT_INDEX)
     parser.add_argument("--bench", type=Path, help="path to rns8-bench executable")
     parser.add_argument(
         "--bench-for",
@@ -58,6 +62,7 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="gpu_isa_report.py JSON summary or directory of *-isa-summary.json reports to attach to review candidates",
     )
+    parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[],help="immutable matched production/diagnostic sidecar; revalidated without modifying captures")
     parser.add_argument("--review-only", action="store_true", help="only review --capture files")
     parser.add_argument(
         "--dry-run",
@@ -340,7 +345,7 @@ def parse_args() -> argparse.Namespace:
         help="write performance_validated cache entries only for fastest promotable release-reviewed captures",
     )
     parser.add_argument("--autotune-cache", type=Path, help="override autotune cache output path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.max_new_captures is not None and args.max_new_captures < 0:
         parser.error("--max-new-captures must be non-negative")
     if args.dry_run and args.review_only:
@@ -523,8 +528,10 @@ def main() -> int:
         if args.bench is None:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
-        lint_errors = validate_scenario_catalog(SCENARIO_DATA_DIR)
+        lint_errors = validate_scenario_catalog(scenario_data_dir())
         output = {
             "scenario_lint": "ok" if not lint_errors else "errors_found",
             "scenario_lint_errors": lint_errors,
@@ -540,6 +547,8 @@ def main() -> int:
         if args.bench is None:
             args.bench = Path("rns8-bench")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
         scenario_paths = write_scenario_manifest(entries, args, args.out_root)
         release_readiness = release_preflight_readiness(args, entries)
         command_paths = write_command_plan(entries, args.out_root, release_readiness)
@@ -562,11 +571,14 @@ def main() -> int:
         if args.bench is None:
             raise SystemExit("--bench is required unless --review-only is used")
         entries = sweep_command_entries(args)
+        if args.reference_cache_dir:
+            for entry in entries:entry.command[:]=cached_arguments(entry.command,args.reference_cache_dir)
+        if args.reference_cache_dir:prepare(args.reference_cache_index,args.reference_cache_dir)
         execution_stats = execute_sweep_entries(entries, args, capture_paths)
 
     captures = validate_paths(capture_paths)
     isa_index = load_required_isa_index(args.isa_report) if args.isa_report else None
-    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index)
+    report = review_captures(captures, review_mode=args.review_mode, isa_index=isa_index, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     promoted = 0
     cache_path = args.autotune_cache or autotune_cache_path()
     if args.write_autotune_cache:

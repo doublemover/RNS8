@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
+import math
+import re
 
 from metadata_registry_constants import (
     FUSION_MODES,
@@ -16,6 +18,8 @@ from metadata_registry_constants import (
     STATUS_HANDLING,
     TARGET_NAMESPACES,
 )
+
+SELECTOR_LEGACY_REJECTION_REASONS = SELECTOR_REJECTION_REASONS - {"unsupported modulus","tied with selected","arithmetic proof rejected"}
 
 from .core_shared import GENERATED_REDUCER_RE
 
@@ -291,7 +295,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
             if selected_key is not None and not isinstance(selected_key, str):
                 self._error("auto_selector.selected_key must be a string or null")
             vocabulary = auto_selector.get("rejection_reason_vocabulary")
-            if not isinstance(vocabulary, list) or set(vocabulary) != SELECTOR_REJECTION_REASONS:
+            if not isinstance(vocabulary, list) or set(vocabulary) not in (SELECTOR_REJECTION_REASONS,SELECTOR_LEGACY_REJECTION_REASONS):
                 self._error("auto_selector.rejection_reason_vocabulary must match fixed rejection reasons")
             rejected = auto_selector.get("rejected_candidates")
             if rejected is not None:
@@ -307,6 +311,54 @@ def validate_helper_lane_metadata(self: Any) -> None:
                                 f"auto_selector.rejected_candidates[{index}].reason must be a fixed rejection reason"
                             )
 
+            if auto_selector.get("source")=="immutable_plan_selection_trace_v1":
+                for flag in ("trace_recorded","selection_performed","cache_exists","cache_loaded","exact_hit","validated_hit"):
+                    if type(auto_selector.get(flag)) is not bool:self._error(f"auto_selector.{flag} must be boolean")
+                decisions=auto_selector.get("candidate_decisions")
+                if type(decisions) is not list or len(decisions)>6:
+                    self._error("auto_selector candidate_decisions must be bounded actual trace")
+                else:
+                    reasons={0:"baseline policy",1:"unsupported semantics",2:"unsupported modulus",3:"per-tile unsupported",4:"backend not compiled",
+                        5:"probe failed",6:"no exact entry",7:"unvalidated entry",8:"identity/runtime mismatch",9:"workspace mismatch",
+                        10:"slower than selected",11:"reviewed exact entry selected",12:"arithmetic proof rejected",13:"tied with selected"}
+                    backends=set();selected=0;projected=[]
+                    for d in decisions:
+                        if type(d) is not dict:self._error("auto_selector invalid decision");continue
+                        code=d.get("reason_code");backend=d.get("backend")
+                        if type(code) is not int or code not in reasons or d.get("reason")!=reasons.get(code):self._error("auto_selector decision reason/code mismatch")
+                        if type(backend) is not str or backend in backends:self._error("auto_selector duplicate/invalid decision backend")
+                        elif backend:backends.add(backend)
+                        disposition=d.get("disposition")
+                        if type(disposition) is not int or disposition!=(2 if code==0 else 1 if code==11 else 0):self._error("auto_selector decision disposition mismatch")
+                        if disposition==1:
+                            selected+=1
+                            if backend!=auto_selector.get("selected_backend"):self._error("auto_selector selected trace backend mismatch")
+                        if disposition==0:projected.append({"backend":backend,"reason":d.get("reason")})
+                        for flag in ("exact_entry_present","validated_entry_present"):
+                            if type(d.get(flag)) is not bool:self._error("auto_selector decision hit flag must be boolean")
+                        if code in (7,8,9,10,11,13) and d.get("exact_entry_present") is not True:self._error("auto_selector exact entry falsely absent")
+                        if code in (9,10,11,13) and d.get("validated_entry_present") is not True:self._error("auto_selector validated entry falsely absent")
+                        if code==6 and d.get("exact_entry_present") is not False:self._error("auto_selector no-exact reason contradicts hit")
+                        median=d.get("reviewed_median_us")
+                        if code in (10,11,13):
+                            if type(median) not in (int,float) or not math.isfinite(median) or median<=0:self._error("auto_selector invalid admitted median")
+                        elif median is not None:self._error("auto_selector unevaluated cost must be unknown")
+                        if not _is_int(d.get("required_workspace_bytes")) or d["required_workspace_bytes"]<0:self._error("auto_selector invalid workspace")
+                        digest=d.get("key_sha256")
+                        if type(digest) is not str or (digest and not re.fullmatch(r"[0-9a-f]{64}",digest)):self._error("auto_selector invalid candidate key identity")
+                    winners=[d for d in decisions if type(d) is dict and d.get("reason_code")==11]
+                    if len(winners)==1 and type(winners[0].get("reviewed_median_us")) in (int,float):
+                        best=winners[0]["reviewed_median_us"]
+                        for d in decisions:
+                            if type(d) is not dict or type(d.get("reviewed_median_us")) not in (int,float):continue
+                            if d.get("reason_code")==10 and not d["reviewed_median_us"]>best:self._error("auto_selector slower reason contradicts measured ordering")
+                            if d.get("reason_code")==13 and d["reviewed_median_us"]!=best:self._error("auto_selector tie reason contradicts measured ordering")
+                    if projected!=auto_selector.get("rejected_candidates"):self._error("auto_selector rejection projection differs from actual trace")
+                    if selected>1 or bool(selected)!=auto_selector.get("validated_hit"):self._error("auto_selector selected validation mismatch")
+                    if auto_selector.get("trace_recorded") is False and decisions:self._error("auto_selector unrecorded trace has invented decisions")
+                    if auto_selector.get("selection_performed") is True and backends!={"hip-direct","hip-vector-alu-int64","hipblaslt","ck","rocwmma","amdgpu-builtins"}:
+                        self._error("auto_selector actual candidate set incomplete")
+
     device_allocation = self.data.get("device_allocation")
     if device_allocation is not None:
         if not isinstance(device_allocation, dict):
@@ -314,6 +366,8 @@ def validate_helper_lane_metadata(self: Any) -> None:
         else:
             if not isinstance(device_allocation.get("tracking_available"), bool):
                 self._error("device_allocation.tracking_available must be a boolean")
+            if device_allocation.get("transfer_scope") != "direct_backend_successful_synchronous_api_payload":
+                self._error("device_allocation.transfer_scope must identify direct backend synchronous API payload")
             for key in ["source", "setup_scope", "source_version_inputs"]:
                 if not isinstance(device_allocation.get(key), str):
                     self._error(f"device_allocation.{key} must be a string")

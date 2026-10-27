@@ -15,6 +15,11 @@ rns8_status hipblaslt_gemm_finite_u8_device(
     int64_t ldb,
     int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
   if (!handle || !device_a_residues || !device_b_residues || !device_c_residues || !int32_scratch ||
       !workspace || !checked_common_shape(m, n, k, lda, ldb, ldc) ||
@@ -25,6 +30,7 @@ rns8_status hipblaslt_gemm_finite_u8_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  matmul_call_metadata metadata;
   const rns8_status status = gemm_one_plane(
       device_id,
       static_cast<hipblasLtHandle_t>(handle),
@@ -42,11 +48,12 @@ rns8_status hipblaslt_gemm_finite_u8_device(
       ldc,
       modulus,
       nullptr,
-      nullptr);
+      nullptr,metadata);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   const hipError_t sync_status = hipDeviceSynchronize();
+  metadata.drained=sync_status==hipSuccess;
   return sync_status == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

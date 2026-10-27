@@ -37,7 +37,7 @@ rns8_status rns8_get_prepack_cache_key_info(
     out->semantics = plan->desc.semantics;
     out->operand_role = operand_role;
     out->cache_key_valid = 1;
-    const bool stable_source_version = matrix->source_version != 0;
+    const bool stable_source_version = matrix->source_version != 0 && !matrix->generation_exhausted;
     const bool reusable_cache =
         stable_source_version && operand_role == RNS8_OPERAND_B && rocwmma_b_prepack_cache_supported(*plan);
     const bool production_cache =
@@ -96,7 +96,7 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_UNSUPPORTED_BACKEND;
     }
     if (!context_accepts_backend(*ctx, plan->backend) || !prepack_operand_matrix_compatible(*plan, *matrix, operand_role) ||
-        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0) {
+        matrix->hip_device_id != ctx->device_id || !matrix->device_residues_current || matrix->source_version == 0 || matrix->generation_exhausted) {
       return RNS8_INVALID_ARGUMENT;
     }
 
@@ -109,7 +109,8 @@ rns8_status rns8_create_prepack_cache(
       return RNS8_RANGE_ERROR;
     }
 
-    auto* cache = new (std::nothrow) rns8_prepack_cache();
+    auto cache_owner = std::unique_ptr<rns8_prepack_cache>(new (std::nothrow) rns8_prepack_cache());
+    auto* cache = cache_owner.get();
     if (!cache) {
       return RNS8_INTERNAL_ERROR;
     }
@@ -149,9 +150,8 @@ rns8_status rns8_create_prepack_cache(
     cache->device_bytes = total_cache_bytes;
     cache->operand_pack_bytes = b_pack_bytes;
 
-    rns8_status status = rns8::detail::hip_direct_allocate(ctx->device_id, total_cache_bytes, &cache->device_data);
+    rns8_status status = cache->data_owner.allocate_alias(ctx->device_id, total_cache_bytes, cache->device_data);
     if (status != RNS8_SUCCESS) {
-      delete cache;
       return status;
     }
     status = rns8::detail::rocwmma_prepack_b_rns_device(
@@ -164,12 +164,9 @@ rns8_status rns8_create_prepack_cache(
         matrix->desc.cols,
         plan->prefix);
     if (status != RNS8_SUCCESS) {
-      (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
-      cache->device_data = nullptr;
-      delete cache;
       return status;
     }
-    *out = cache;
+    *out = cache_owner.release();
     return RNS8_SUCCESS;
   });
 }
@@ -229,7 +226,8 @@ rns8_status create_b_prepack_cache_from_native(
   synthetic_source.hip_device_id = ctx->device_id;
   synthetic_source.device_native_current = true;
 
-  auto* cache = new (std::nothrow) rns8_prepack_cache();
+  auto cache_owner = std::unique_ptr<rns8_prepack_cache>(new (std::nothrow) rns8_prepack_cache());
+  auto* cache = cache_owner.get();
   if (!cache) {
     return RNS8_INTERNAL_ERROR;
   }
@@ -271,17 +269,15 @@ rns8_status create_b_prepack_cache_from_native(
   cache->device_bytes = total_cache_bytes;
   cache->operand_pack_bytes = b_pack_bytes;
 
-  rns8_status status = rns8::detail::hip_direct_allocate(ctx->device_id, total_cache_bytes, &cache->device_data);
+  rns8_status status = cache->data_owner.allocate_alias(ctx->device_id, total_cache_bytes, cache->device_data);
   if (status != RNS8_SUCCESS) {
-    delete cache;
     return status;
   }
 
+  rns8::detail::hip_direct_device_buffer native_owner;
   void* native_device = nullptr;
-  status = rns8::detail::hip_direct_allocate(ctx->device_id, native_bytes, &native_device);
+  status = native_owner.allocate_alias(ctx->device_id, native_bytes, native_device);
   if (status != RNS8_SUCCESS) {
-    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
-    delete cache;
     return status;
   }
 
@@ -323,21 +319,15 @@ rns8_status create_b_prepack_cache_from_native(
     }
   }
 
-  const rns8_status free_status = rns8::detail::hip_direct_free(ctx->device_id, native_device);
+  const rns8_status free_status = native_owner.reset();
   if (status != RNS8_SUCCESS) {
-    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
-    cache->device_data = nullptr;
-    delete cache;
     return status;
   }
   if (free_status != RNS8_SUCCESS) {
-    (void)rns8::detail::hip_direct_free(ctx->device_id, cache->device_data);
-    cache->device_data = nullptr;
-    delete cache;
     return free_status;
   }
 
-  *out = cache;
+  *out = cache_owner.release();
   return RNS8_SUCCESS;
 }
 
@@ -431,7 +421,8 @@ rns8_status rns8_destroy_prepack_cache(rns8_prepack_cache* cache) {
   }
   rns8_status status = RNS8_SUCCESS;
   if (cache->device_data) {
-    status = rns8::detail::hip_direct_free(cache->hip_device_id, cache->device_data);
+    status = cache->data_owner.reset_alias(cache->device_data, cache->device_bytes);
+    if (status != RNS8_SUCCESS) return status;
     cache->device_data = nullptr;
     cache->device_bytes = 0;
   }

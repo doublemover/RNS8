@@ -1,110 +1,87 @@
-# Platform Readiness
+# Platform readiness and evidence
 
-This file describes readiness policy, not a fresh validation record.
+Readiness describes a prerequisite or capability; validation records an actual
+build or execution. Use the [Windows](platform-windows.md) or
+[Linux](platform-linux.md) guide for setup, [backend reference](backend-notes.md)
+for selectable paths, and [GPU qualification](gpu-qualification.md) for the run plan.
 
-## Host Gates
+## Evidence classes
 
-- Windows Radeon `gfx1100` remains the local direct-HIP bring-up target.
-- Windows readiness requires host/reference tooling, Windows HIP SDK detection,
-  GPU architecture detection, and the Windows RDNA3 direct-HIP gate.
-- Windows evidence does not validate Linux ROCm, Instinct CDNA, profiling,
-  power, or cluster gates.
-- Linux ROCm and Instinct gates are represented in presets and dependency
-  reports, but they are unvalidated on Windows. They require a real Linux ROCm
-  host and actual supported Radeon or Instinct hardware.
+| Class | Establishes | Owner |
+|---|---|---|
+| Discovered | A tool, header, library or target was found | `tools/check_dependencies.py` and CMake find modules |
+| Implemented | A real path exists with explicit contracts and rejection behavior | [Public headers](../include/rns8/rns8.h), source and [backend reference](backend-notes.md) |
+| Compiled | A recorded configuration produced the target objects/executables | Build log and immutable manifest |
+| Device validated | The applicable cases executed with independent exact references on that device | Dated correctness record and raw logs |
+| Measured | Matched workloads executed at a stated timing/output boundary | Dated performance report |
+| Promoted | Reviewed evidence authorizes a specific route/cache key | [Performance gates](performance.md) and explicit cache review |
 
-## Exact-Wide ABI Readiness
+These classes are separate. A source implementation may be available on targets
+without device evidence. A measured result may still lack promotion gates.
 
-- `RNS8_EXACT_WIDE_SIGNED` and `RNS8_EXACT_WIDE_UNSIGNED` use
-  `RNS8_BOUND_NONE`, `bound = 0`, persistent RNS storage, and explicit limb
-  export.
-- `ld` is a leading dimension in matrix elements, not limbs.
-- `limb_count` is the fixed output width and must be in `[1, 32]`.
-- Signed export emits fixed-width little-endian two's-complement limbs for the
-  centered exact integer. The centered threshold is `x >= ceil(P / 2)` for the
-  selected modulus product `P`, so an even-product half residue class is
-  represented as negative.
-- Unsigned export emits fixed-width little-endian magnitude limbs for the
-  canonical nonnegative integer.
-- Too-small widths return `RNS8_RANGE_ERROR`; invalid width, stride, or null
-  pointers return `RNS8_INVALID_ARGUMENT`.
-- CPU export stages all cells before writing the caller's host layout; direct
-  HIP export checks the device status before copying compact output back. In
-  both cases, range errors preserve every destination limb.
-- Direct HIP exact-wide export requires device-current, device-resident RNS
-  output. Host-current stale device residues are malformed for this export
-  surface and are rejected instead of being copied implicitly.
-- Exact-wide export is not bounded `i64/u64` export and is not strict
-  `mod 2^64` wraparound.
+## Recorded platform boundary
 
-## Requirement Audit
+The [October 23 expanded record](local-all-features-20261023.md) documents
+`51ae8d8`, Windows, VS2026/HIP 7.1 and RX 7900 XTX/gfx1100 with the locally
+available optional backends enabled: 489 passes and three expected
+target-inapplicable sparse skips. Earlier sanitizer/rocWMMA configurations retain
+their own separate scope.
+The [larger-workload measurements](7900xtx-large-throughput-2026-10-23.md) use that
+recorded stack and keep public/native/residue boundaries separate. A later source
+revision requires its own evidence for changed paths.
 
-| Requirement | Current contract |
-|---|---|
-| Explicit bound-none exact-wide descriptors | Exact-wide plan descriptors require `RNS8_BOUND_NONE`, `bound = 0`, and no `tile_bounds` pointer or count. Exact-wide matrix descriptors also require `RNS8_BOUND_NONE`. Stale bound metadata is malformed input and returns `RNS8_INVALID_ARGUMENT`, not an accelerator or alternate route. |
-| Fixed-width signed limbs | Signed export reconstructs the centered exact integer with the `x >= ceil(P / 2)` negative threshold and emits exactly `limb_count` little-endian two's-complement limbs. Too-small widths return `RNS8_RANGE_ERROR`; no low-limb truncation or wrap interpretation is accepted. |
-| Fixed-width unsigned limbs | Unsigned export reconstructs the canonical nonnegative integer and emits exactly `limb_count` little-endian magnitude limbs. Too-small widths return `RNS8_RANGE_ERROR`; no low-limb truncation or wrap interpretation is accepted. |
-| Public export ABI | `ld` is an element stride, `limb_count` must be in `[1, 32]`, null `ctx`, `plan`, `matrix`, or `dst` arguments are invalid API calls, and range-error exports preserve the caller's destination. |
-| Public storage rejection | Exact-wide exports reject stale-prefix RNS matrices, bounded RNS matrices, wrap64 byte-limb matrices, and signed/unsigned cross-export calls. None of those handles are alternate routes into exact-wide limbs. |
-| Direct HIP currentness | Exact-wide direct-HIP export requires device-current resident RNS output. Host-current stale device residues are rejected; export does not perform an implicit hot-path upload. |
-| Accelerator enablement | hipBLASLt, CK, and rocWMMA have opt-in Windows `gfx1100` correctness backends under their dedicated enable flags and presets. Probes collect candidate evidence only and do not enable those backends by themselves. AMDGPU builtin enablement intentionally fails fast until real correctness kernels exist. CTest negative configure cases pin the fail-fast message for still-disabled accelerators and for accelerators when they are not enabled by a dedicated preset. |
-| Linux ROCm and Instinct | Linux ROCm, Radeon Linux, and Instinct CDNA gates are represented by presets, target metadata, and dependency reports. Windows evidence does not validate them; they require a real Linux ROCm host with supported hardware. |
+Linux CPU CI evidence is recorded independently. Linux Radeon/Instinct GPU,
+RDNA2/RDNA4 and CDNA2/CDNA3/CDNA4 requests remain per-device qualification work.
+The [README hardware matrix](../README.md#hardware-tested-and-hardware-wanted)
+links AMD's release-specific compatibility sources; source coverage target lists
+cannot establish installable or validated stacks.
 
-## Readiness Output Classes
+## Dependency reports and optional backends
 
-- Dependency checks report prerequisites and candidate evidence. They do not
-  validate correctness backends.
-- `readiness.correctness_backend_validation` separates implemented correctness
-  backend families from accelerator candidates. Its
-  `validated_by_this_report` list is empty and
-  `validated_correctness_backend_count` is `0` because correctness validation
-  requires separate build/test/smoke runs.
-- Accelerator component and probe records carry
-  `evidence_class=candidate_accelerator_evidence_only` and
-  `candidate_evidence_is_correctness_validation=false`.
-- `hard_cut_self_checks` is an internal report-consistency section.
-  It checks that accelerator enablement stays disabled, candidate evidence is
-  not promoted to correctness validation, and Windows host evidence is not
-  promoted to Linux ROCm or Instinct validation. It does not run external
-  validation commands.
+The dependency checker collects host commands, SDK/device metadata, package
+presence, optional components and preset coverage. Its JSON records use
+`evidence_class=candidate_accelerator_evidence_only` and
+`candidate_evidence_is_correctness_validation=false` for probes. Those fields
+describe the probe, not the absence of an implemented runtime backend.
 
-## Accelerator Gates
+`readiness.correctness_backend_validation.validated_by_this_report` remains
+empty, with count zero, because discovery runs no backend differential campaign.
+`exact_wide_platform_validation` keeps Windows evidence separate from Linux and
+Instinct. `hard_cut_self_checks` tests report consistency rather than hardware.
+Some discovery fields retain conservative historical enablement wording; consult
+compiled capabilities and the dated records for actual runtime support.
 
-- `RNS8_ENABLE_HIPBLASLT` builds the opt-in hipBLASLt baseline only in HIP
-  presets where the backend is explicitly enabled and validated. It is not
-  enabled from discovery evidence alone.
-- `RNS8_ENABLE_CK` and `RNS8_ENABLE_ROCWMMA` build opt-in correctness backends
-  only in presets where the backend is explicitly enabled and validated. They
-  are not enabled from discovery evidence alone.
-- `RNS8_ENABLE_AMDGPU_BUILTINS` intentionally fails fast until real
-  target-specific correctness kernels exist.
-- The CTest suite registers configure-negative tests for still-disabled
-  accelerator flags, and for hipBLASLt in presets where it is not explicitly
-  enabled. Each scratch configure must fail before any placeholder backend is
-  generated and must direct users to evidence-only probes instead.
-- `RNS8_PROBE_ACCELERATORS=ON` and
-  `tools/check_dependencies.py --accelerator-probes` collect evidence only.
-  They never enable backends and never satisfy correctness.
-- The dependency checker's JSON readiness object includes
-  `accelerator_enablement`, whose probe records are evidence only. CK,
-  rocWMMA, and AMDGPU builtin records keep `backend_enablement=disabled`,
-  `correctness_backend=not_implemented`,
-  `validated_correctness_backend=false`, `can_enable_correctness_backend=false`,
-  `candidate_evidence_is_correctness_validation=false`, and
-  `enable_flags_fail_fast=true` until a real exact correctness backend exists.
-  hipBLASLt backend validation is represented by the dedicated build/test
-  preset, not by dependency discovery.
-- The same JSON readiness object includes
-  `exact_wide_platform_validation`. On this Windows bring-up host it records
-  Windows `gfx1100` exact-wide evidence scope only, sets
-  `windows_evidence_validates_linux_rocm=false` and
-  `windows_evidence_validates_instinct=false`, and keeps Linux ROCm and
-  Instinct validation false until a real supported Linux ROCm host runs exact
-  CPU differentials.
-- hipBLASLt, CK, and rocWMMA probes may report discovered files or tiny
-  compile/run probe status. Only the hipBLASLt backend preset currently turns
-  that evidence into a compiled correctness baseline. None of these records is
-  an optimized GPU performance claim.
-- AMDGPU builtins have no discovery-only readiness path; they remain not ready
-  until target-specific exact kernels, CPU differentials, and ISA evidence
-  exist.
+hipBLASLt, CK, rocWMMA and AMDGPU builtins are implemented opt-in public paths.
+They require `RNS8_ENABLE_HIP=ON`, their explicit enable switches, compatible
+components and the selected target. Probe-only presets disable those switches.
+Invalid combinations fail configuration; enabling AMDGPU builtins with HIP is
+not universally rejected. Its source includes target-specific WMMA/MFMA and
+sparse instructions, with runtime restrictions described in the backend guide.
+
+`rns8_get_backend_capability_info` reports compiled/source declarations.
+`rns8_get_plan_backend_info` adds the selected kernel, accumulation and workspace.
+Neither runs validation. Context-free exact/performance validation flags are zero
+without a bound receipt; a reviewed-plan cache entry can carry its separately
+admitted evidence. Use dated test configurations to establish what was exercised.
+
+## Exact-wide ABI owner
+
+The authoritative [exact-wide contract](correctness.md#exact-wide-output) covers
+bound-none descriptors, 1–32 little-endian limbs, element strides, signed
+centering, sufficient represented range and export destination preservation.
+The [export/error rules](correctness.md#export-and-error-handling) cover status
+and currentness. Setup/readiness prose does not redefine arithmetic or device
+storage semantics.
+
+## Remaining setup acceptance
+
+[#57](https://github.com/doublemover/RNS8/issues/57) owns automatic toolchain and
+dependency-root discovery, [#58](https://github.com/doublemover/RNS8/issues/58)
+owns reproducible bounded Linux GPU sessions, and
+[#60](https://github.com/doublemover/RNS8/issues/60) owns compatibility-gated
+upgrades and locks. Shared discovery selects coherent existing components;
+explicit overrides take precedence. Bounded session plans and the new non-GPU
+version policy are authored, while native Linux rehearsal and the upgraded-stack
+validation remain pending. ROCm 10.1 migration is deferred by the user.
+Documentation checks verify names, paths and links; clean-install
+configure/build/example execution still needs each matching supported OS/GPU.

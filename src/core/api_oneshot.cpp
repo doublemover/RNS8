@@ -13,6 +13,7 @@ resident_oneshot_state::~resident_oneshot_state() {
 
 struct direct_hip_native_oneshot_state {
   rns8_plan* plan = nullptr;
+  rns8_plan** retained_plan = nullptr;
   rns8_matrix* C = nullptr;
   rns8::detail::hip_direct_device_buffer device_a;
   rns8::detail::hip_direct_device_buffer device_b;
@@ -22,6 +23,7 @@ struct direct_hip_native_oneshot_state {
   direct_hip_native_oneshot_state& operator=(const direct_hip_native_oneshot_state&) = delete;
   ~direct_hip_native_oneshot_state() {
     rns8_destroy_matrix(C);
+    if(retained_plan && !*retained_plan){*retained_plan=plan;plan=nullptr;}
     rns8_destroy_plan(plan);
   }
 };
@@ -58,11 +60,12 @@ rns8_matrix_desc make_matrix_desc(
   return desc;
 }
 
-bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld) {
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld, uint64_t element_bytes) {
   if (rows <= 0 || cols <= 0 || ld < cols) {
     return false;
   }
-  return rows <= std::numeric_limits<int64_t>::max() / ld;
+  rns8::detail::AddressDomain domain;
+  return rns8::detail::checked_host_plane_address(rows, cols, ld, 1, element_bytes, domain);
 }
 
 bool valid_api_tile_size(uint32_t value) {
@@ -70,7 +73,7 @@ bool valid_api_tile_size(uint32_t value) {
 }
 
 bool finite_backend_supports(rns8_backend_kind backend) {
-  return backend == RNS8_BACKEND_CPU_REFERENCE || backend == RNS8_BACKEND_HIP_DIRECT ||
+  return host_rns_backend(backend) || backend == RNS8_BACKEND_HIP_DIRECT ||
          backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
          backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
@@ -94,9 +97,13 @@ rns8_status validate_finite_u8_oneshot_contract(
       !valid_api_tile_size(desc.tile_m) || !valid_api_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!valid_matrix_access(desc.m, desc.k, lda) || !valid_matrix_access(desc.k, desc.n, ldb) ||
-      !valid_matrix_access(desc.m, desc.n, ldc)) {
+  if (!valid_matrix_access(desc.m, desc.k, lda, 1) || !valid_matrix_access(desc.k, desc.n, ldb, 1) ||
+      !valid_matrix_access(desc.m, desc.n, ldc, 1)) {
     return RNS8_INVALID_ARGUMENT;
+  }
+  if (!host_rns_backend(ctx.backend) && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+      !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
   }
   const rns8_backend_kind requested = effective_backend(desc.requested_backend, ctx.backend);
   if (requested != ctx.backend || !finite_backend_supports(requested)) {
@@ -108,7 +115,7 @@ rns8_status create_resident_oneshot_state(
     rns8_context* ctx,
     const rns8_gemm_desc& desc,
     resident_oneshot_state& state) {
-  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -190,7 +197,7 @@ rns8_status create_direct_hip_native_oneshot_state(
     const rns8_gemm_desc& desc,
     rns8_semantics semantics,
     direct_hip_native_oneshot_state& state) {
-  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -209,7 +216,7 @@ rns8_status create_direct_hip_finite_native_oneshot_state(
     rns8_semantics semantics,
     uint16_t modulus,
     direct_hip_native_oneshot_state& state) {
-  rns8_status status = rns8_create_plan(ctx, &desc, &state.plan);
+  rns8_status status = state.plan ? RNS8_SUCCESS : rns8_create_plan(ctx, &desc, &state.plan);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -230,8 +237,10 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     const int64_t* B,
     int64_t ldb,
     int64_t* C,
-    int64_t ldc) {
-  direct_hip_native_oneshot_state state;
+    int64_t ldc,
+    rns8_plan** retained_plan) {
+  direct_hip_native_oneshot_state state;state.retained_plan=retained_plan;
+  if(retained_plan){state.plan=*retained_plan;*retained_plan=nullptr;}
   rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_I64, state);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -280,7 +289,7 @@ rns8_status direct_hip_i64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_i64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -294,8 +303,10 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     const uint64_t* B,
     int64_t ldb,
     uint64_t* C,
-    int64_t ldc) {
-  direct_hip_native_oneshot_state state;
+    int64_t ldc,
+    rns8_plan** retained_plan) {
+  direct_hip_native_oneshot_state state;state.retained_plan=retained_plan;
+  if(retained_plan){state.plan=*retained_plan;*retained_plan=nullptr;}
   rns8_status status = create_direct_hip_native_oneshot_state(ctx, desc, RNS8_BOUNDED_U64, state);
   if (status != RNS8_SUCCESS) {
     return status;
@@ -344,7 +355,7 @@ rns8_status direct_hip_u64_native_prefix9_oneshot(
     }
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     status = rns8_export_u64(ctx, state.plan, state.C, C, ldc);
   }
   return status;
@@ -397,7 +408,7 @@ rns8_status direct_hip_finite_u8_native_oneshot(
         modulus);
   }
   if (status == RNS8_SUCCESS) {
-    mark_output_device_residues_current(*state.C);
+    mark_output_device_residues_current(*state.C, state.plan);
     state.C->finite_modulus = modulus;
     status = rns8_export_finite_u8(ctx, state.plan, modulus, state.C, C, ldc);
   }
@@ -426,15 +437,8 @@ rns8_status finite_u8_oneshot_resident(
 }
 
 bool valid_limb_export_access(int64_t rows, int64_t cols, int64_t ld, uint32_t limb_count) {
-  if (!valid_matrix_access(rows, cols, ld) || limb_count == 0 || limb_count > 32) {
-    return false;
-  }
-  const auto max = std::numeric_limits<int64_t>::max();
-  if (ld > max / static_cast<int64_t>(limb_count)) {
-    return false;
-  }
-  const int64_t limb_ld = ld * static_cast<int64_t>(limb_count);
-  return rows <= max / limb_ld;
+  return limb_count != 0 && limb_count <= 32 &&
+      valid_matrix_access(rows, cols, ld, sizeof(uint64_t) * static_cast<uint64_t>(limb_count));
 }
 
 rns8_status validate_typed_oneshot_contract(
@@ -457,6 +461,10 @@ rns8_status validate_typed_oneshot_contract(
   if (!valid_matrix_access(desc.m, desc.k, lda) || !valid_matrix_access(desc.k, desc.n, ldb) ||
       !valid_matrix_access(desc.m, desc.n, ldc)) {
     return RNS8_INVALID_ARGUMENT;
+  }
+  if (!host_rns_backend(ctx.backend) && ctx.backend != RNS8_BACKEND_WRAP64_BYTE_LIMB &&
+      !rns8::detail::qualified_i32_gemm_address(desc.m, desc.n, desc.k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
   }
   const rns8_backend_kind requested = effective_backend(desc.requested_backend, ctx.backend);
   if (requested != ctx.backend || !backend_supports_semantics(requested, desc.semantics)) {
@@ -526,17 +534,17 @@ rns8_status rns8_gemm_i64_oneshot(
       return preflight;
     }
 
+    resident_oneshot_state state;
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT &&
         (desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
          desc->bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) &&
         (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
-      const rns8_status status = direct_hip_i64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc);
+      const rns8_status status = direct_hip_i64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc, &state.plan);
       if (status != RNS8_UNSUPPORTED_BACKEND) {
         return status;
       }
     }
 
-    resident_oneshot_state state;
     rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
     if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.A, A, lda, 1);
     if (status == RNS8_SUCCESS) status = rns8_pack_i64(ctx, state.B, B, ldb, 1);
@@ -565,17 +573,17 @@ rns8_status rns8_gemm_u64_oneshot(
       return preflight;
     }
 
+    resident_oneshot_state state;
     if (ctx->backend == RNS8_BACKEND_HIP_DIRECT &&
         (desc->bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
          desc->bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) &&
         (desc->max_prefix == 0 || desc->max_prefix == RNS8_DEFAULT_BOUNDED_PREFIX)) {
-      const rns8_status status = direct_hip_u64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc);
+      const rns8_status status = direct_hip_u64_native_prefix9_oneshot(ctx, *desc, A, lda, B, ldb, C, ldc, &state.plan);
       if (status != RNS8_UNSUPPORTED_BACKEND) {
         return status;
       }
     }
 
-    resident_oneshot_state state;
     rns8_status status = create_resident_oneshot_state(ctx, *desc, state);
     if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.A, A, lda, 1);
     if (status == RNS8_SUCCESS) status = rns8_pack_u64(ctx, state.B, B, ldb, 1);

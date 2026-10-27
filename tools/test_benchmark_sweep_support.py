@@ -19,9 +19,16 @@ from metadata_registry_constants import (
     GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_AND_FINITE_EXPORT_KERNEL_BATCHED_D2H,
 )
 from test_benchmark_schema import as_host_api_batch_capture
+from test_capture_identity_support import synthetic_identity, synthetic_host_measurements
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
+
+
+def attach_test_provenance(capture):
+    # Synthetic evidence only; these fixtures never represent a measured build.
+    synthetic_identity(capture, commit="a" * 40)
+    synthetic_host_measurements(capture)
 
 
 def set_phase(capture: dict, end_to_end: int) -> None:
@@ -202,6 +209,7 @@ def finite_capture(backend: str, end_to_end: int) -> dict:
         metadata["autotune_key"] = metadata["autotune_key"].replace("backend=ck", "backend=hip-direct")
     metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -388,6 +396,7 @@ def bounded_capture(backend: str, end_to_end: int) -> dict:
         metadata["autotune_key"] = with_accumulator_key_fields(metadata["autotune_key"], capture)
     attach_final_output_metadata(capture)
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -431,6 +440,7 @@ def exact_wide_capture(backend: str, end_to_end: int) -> dict:
         capture,
     )
     attach_final_output_metadata(capture)
+    attach_test_provenance(capture)
     return capture
 
 
@@ -530,6 +540,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
             "reason": "measured with host steady_clock around fixed 16x16 candidate schedule metadata initialization",
         }
     set_phase(capture, end_to_end)
+    attach_test_provenance(capture)
     return capture
 
 

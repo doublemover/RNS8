@@ -18,9 +18,10 @@ TEST_CASE("qualification pack covers dispatch thresholds and plane tails", "[qua
         REQUIRE(rns8_create_matrix(hip, &md, &hm) == RNS8_SUCCESS);
         REQUIRE(rns8_pack_i64(cpu, cm, values.data(), cols + padding, 1) == RNS8_SUCCESS);
         REQUIRE(rns8_pack_i64(hip, hm, values.data(), cols + padding, 1) == RNS8_SUCCESS);
+        std::vector<int8_t> observed(hm->hip_residue_bytes);
         REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
-            hip->device_id, hm->residues.data(), hm->hip_residues, hm->hip_residue_bytes) == RNS8_SUCCESS);
-        CHECK(hm->residues == cm->residues);
+            hip->device_id, observed.data(), hm->hip_residues, hm->hip_residue_bytes) == RNS8_SUCCESS);
+        CHECK(observed == cm->residues);
         rns8_destroy_matrix(hm);
         rns8_destroy_matrix(cm);
       }
@@ -160,6 +161,7 @@ TEST_CASE("qualification tiled GEMM never infers tile zero from host mirrors", "
       for (unsigned operand = 0; operand < 2; ++operand) {
         if ((host_mirrors & (1u << operand)) == 0) continue;
         auto* matrix = operand == 0 ? ha : hb;
+        matrix->residues.resize(matrix->hip_residue_bytes);
         REQUIRE(rns8::detail::hip_direct_copy_device_to_host(
                     hip->device_id, matrix->residues.data(), matrix->hip_residues,
                     matrix->hip_residue_bytes) == RNS8_SUCCESS);

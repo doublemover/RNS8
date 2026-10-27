@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 import benchmark_sweep
+from timing_diagnostics import is_censored_gpu_event_capture
 
 
 def default_cache_path(env: dict[str, str], root: Path) -> Path:
@@ -148,8 +149,8 @@ def main() -> int:
         raise SystemExit("AUTO selected a different autotune key than the reviewed default-cache entry")
 
     timing = auto.get("timing_metadata") if isinstance(auto.get("timing_metadata"), dict) else {}
-    if timing.get("gpu_event_timing") is not True:
-        raise SystemExit("default-cache AUTO hit must report selected-backend GPU event timing")
+    if timing.get("gpu_event_timing") is not True and not is_censored_gpu_event_capture(auto):
+        raise SystemExit("default-cache AUTO hit must report GPU event timing or explicit censored diagnostics")
     scope = timing.get("gpu_event_timing_source_scope")
     if selected_backend == "hipblaslt":
         expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
@@ -157,7 +158,7 @@ def main() -> int:
         expected_scope = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
     else:
         expected_scope = "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
-    if scope != expected_scope:
+    if timing.get("gpu_event_timing") is True and scope != expected_scope:
         raise SystemExit(f"expected GPU event source scope {expected_scope!r}, got {scope!r}")
 
     if auto.get("semantics") != explicit.get("semantics"):

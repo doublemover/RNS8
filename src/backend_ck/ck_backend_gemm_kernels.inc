@@ -88,7 +88,7 @@ hipError_t launch_pack_a(
     int gemm_k_block,
     int lda,
     int k_offset,
-    int modulus) {
+    int modulus,hipStream_t stream=nullptr) {
   const int total = padded_rows * gemm_k_block;
   const int block = 256;
   const int grid = (total + block - 1) / block;
@@ -97,7 +97,7 @@ hipError_t launch_pack_a(
       dim3(grid),
       dim3(block),
       0,
-      nullptr,
+      stream,
       a,
       packed,
       rows,
@@ -119,7 +119,7 @@ hipError_t launch_pack_b(
     int padded_n,
     int ldb,
     int k_offset,
-    int modulus) {
+    int modulus,hipStream_t stream=nullptr) {
   const int total = gemm_k_block * padded_n;
   const int block = 256;
   const int grid = (total + block - 1) / block;
@@ -128,7 +128,7 @@ hipError_t launch_pack_b(
       dim3(grid),
       dim3(block),
       0,
-      nullptr,
+      stream,
       b,
       packed,
       valid_k_block,
@@ -147,11 +147,11 @@ hipError_t launch_copy_centered(
     int rows,
     int cols,
     int src_ld,
-    int dst_ld) {
+    int dst_ld,hipStream_t stream=nullptr) {
   const int total = rows * cols;
   const int block = 256;
   const int grid = (total + block - 1) / block;
-  hipLaunchKernelGGL(copy_centered_residue_kernel, dim3(grid), dim3(block), 0, nullptr, src, dst, rows, cols, src_ld,
+  hipLaunchKernelGGL(copy_centered_residue_kernel, dim3(grid), dim3(block), 0, stream, src, dst, rows, cols, src_ld,
                      dst_ld);
   return hipGetLastError();
 }
@@ -164,12 +164,12 @@ hipError_t launch_add_centered(
     int rhs_ld,
     int dst_ld,
     int modulus,
-    uint32_t reciprocal) {
+    uint32_t reciprocal,hipStream_t stream=nullptr) {
   const int total = rows * cols;
   const int block = 256;
   const int grid = (total + block - 1) / block;
   hipLaunchKernelGGL(
-      add_centered_residue_kernel, dim3(grid), dim3(block), 0, nullptr, rhs, dst, rows, cols, rhs_ld, dst_ld, modulus,
+      add_centered_residue_kernel, dim3(grid), dim3(block), 0, stream, rhs, dst, rows, cols, rhs_ld, dst_ld, modulus,
       reciprocal);
   return hipGetLastError();
 }
@@ -191,7 +191,7 @@ int run_ck_tile_modulus_impl(
     int modulus,
     uint32_t reciprocal,
     int prefix_index,
-    CElementwiseOperation epilogue) {
+    CElementwiseOperation epilogue,hipStream_t stream=nullptr) {
   char pack_a_label[64];
   char pack_b_label[64];
   char matmul_label[64];
@@ -234,15 +234,15 @@ int run_ck_tile_modulus_impl(
     const int gemm_k_block = valid_k_block < 64 ? 64 : valid_k_block;
     hipError_t err = timed_hip_launch(pack_a_timing_label, pack_a_alias, [&]() {
       return launch_pack_a(
-          a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus);
-    });
+          a, a_workspace, m, gemm_m, valid_k_block, gemm_k_block, lda, static_cast<int>(k_offset), modulus,stream);
+    },stream);
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
     err = timed_hip_launch(pack_b_timing_label, pack_b_alias, [&]() {
       return launch_pack_b(
-          b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus);
-    });
+          b, b_workspace, valid_k_block, gemm_k_block, n, gemm_n, ldb, static_cast<int>(k_offset), modulus,stream);
+    },stream);
     if (err != hipSuccess) {
       return ck_backend_failure;
     }
@@ -269,26 +269,26 @@ int run_ck_tile_modulus_impl(
     const int matmul_status = timed_ck_operation(matmul_timing_label, matmul_alias, [&]() {
       try {
         auto invoker = GemmInstance::MakeInvoker();
-        (void)invoker.Run(arg);
+        (void)invoker.Run(arg,StreamConfig{stream,false});
       } catch (const std::exception&) {
         return ck_backend_failure;
       } catch (...) {
         return ck_backend_failure;
       }
       return ck_success;
-    });
+    },stream);
     if (matmul_status != ck_success) {
       return ck_backend_failure;
     }
     if (write_workspace_output) {
       if (have_accumulated) {
         err = timed_hip_launch(add_timing_label, add_alias, [&]() {
-          return launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal);
-        });
+          return launch_add_centered(temp_c, c, m, n, gemm_n, ldc, modulus, reciprocal,stream);
+        },stream);
       } else {
         err = timed_hip_launch(copy_timing_label, copy_alias, [&]() {
-          return launch_copy_centered(temp_c, c, m, n, gemm_n, ldc);
-        });
+          return launch_copy_centered(temp_c, c, m, n, gemm_n, ldc,stream);
+        },stream);
       }
       if (err != hipSuccess) {
         return ck_backend_failure;
@@ -313,7 +313,7 @@ int run_ck_tile_modulus_fixed(
     int lda,
     int ldb,
     int ldc,
-    int prefix_index) {
+    int prefix_index,hipStream_t stream=nullptr) {
   return run_ck_tile_modulus_impl(
       a,
       b,
@@ -330,7 +330,7 @@ int run_ck_tile_modulus_fixed(
       static_cast<int>(Modulus),
       modulus_reciprocal_u32(static_cast<uint16_t>(Modulus)),
       prefix_index,
-      CenteredModuloFixed<Modulus>{});
+      CenteredModuloFixed<Modulus>{},stream);
 }
 
 int run_ck_tile_modulus(
@@ -348,12 +348,11 @@ int run_ck_tile_modulus(
     int ldc,
     int modulus,
     uint32_t reciprocal,
-    int prefix_index) {
-  (void)reciprocal;
+    int prefix_index,hipStream_t stream=nullptr) {
 #define RNS8_CK_FIXED_MODULUS_CASE(modulus_value)                                                        \
   case modulus_value:                                                                                    \
     return run_ck_tile_modulus_fixed<modulus_value>(                                                     \
-        a, b, c, a_workspace, b_workspace, temp_c, m, n, k, lda, ldb, ldc, prefix_index)
+        a, b, c, a_workspace, b_workspace, temp_c, m, n, k, lda, ldb, ldc, prefix_index,stream)
 
   switch (modulus) {
     RNS8_CK_FIXED_MODULUS_CASE(256);
@@ -387,7 +386,10 @@ int run_ck_tile_modulus(
     RNS8_CK_FIXED_MODULUS_CASE(131);
     RNS8_CK_FIXED_MODULUS_CASE(127);
     default:
-      return ck_unsupported_backend;
+      if (modulus < 2 || modulus > 256) return ck_unsupported_backend;
+      return run_ck_tile_modulus_impl(a, b, c, a_workspace, b_workspace, temp_c,
+          m, n, k, lda, ldb, ldc, modulus, reciprocal, prefix_index,
+          CenteredModulo{modulus, reciprocal}, stream);
   }
 #undef RNS8_CK_FIXED_MODULUS_CASE
 }

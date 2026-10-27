@@ -12,6 +12,13 @@ namespace rns8::detail::finite_u8 {
 
 constexpr uint64_t kReciprocalScale = 1ull << 32u;
 
+struct ByteModulusReciprocals {
+  uint32_t values[257]{};
+  constexpr ByteModulusReciprocals() {
+    for(uint32_t q=2;q<=256;++q)values[q]=uint32_t(kReciprocalScale/q);
+  }
+};
+
 RNS8_FINITE_U8_INLINE uint32_t modulus_reciprocal_u32(uint32_t modulus) {
   return static_cast<uint32_t>(kReciprocalScale / modulus);
 }
@@ -64,9 +71,50 @@ RNS8_FINITE_U8_INLINE uint32_t reduce_u32_small_modulus(
     uint32_t reciprocal) {
   const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
   uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
+  // With R=2^32 and reciprocal=floor(R/m), 0 <= x/m-x*reciprocal/R < 1
+  // for every uint32 x and 2<=m<=256. The estimated quotient is exact or
+  // one low, so 0<=residue<2m and exactly one conditional subtraction suffices.
   residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
   return residue;
+}
+
+// For 2 <= modulus <= 256, split a native word at radix 2^32. Each
+// reciprocal reduction is exact: floor(x * floor(2^32/m) / 2^32) is at
+// most one below floor(x/m), hence the unreduced remainder is below 2m.
+// The recombined value is at most (m-1)^2+(m-1) <= 65280.
+// Keep constants outside the dot-product loop instead of speculatively
+// evaluating every constant-modulus division in a large switch.
+struct Native64Reducer {
+  uint32_t modulus, reciprocal, radix32, signed_bias;
+};
+
+RNS8_FINITE_U8_INLINE Native64Reducer native64_reducer(uint32_t modulus) {
+  const uint32_t reciprocal = modulus_reciprocal_u32(modulus);
+  const uint32_t radix32 = static_cast<uint32_t>(kReciprocalScale - uint64_t{reciprocal} * modulus);
+  const uint32_t signed_bias = reduce_u32_small_modulus(radix32 * radix32, modulus, reciprocal);
+  return {modulus, reciprocal, radix32, signed_bias};
+}
+
+RNS8_FINITE_U8_INLINE uint32_t canonical_native_u64(uint64_t value, const Native64Reducer& reducer) {
+  const uint32_t low = reduce_u32_small_modulus(static_cast<uint32_t>(value), reducer.modulus, reducer.reciprocal);
+  const uint32_t high = reduce_u32_small_modulus(static_cast<uint32_t>(value >> 32), reducer.modulus, reducer.reciprocal);
+  return reduce_u32_small_modulus(high * reducer.radix32 + low, reducer.modulus, reducer.reciprocal);
+}
+
+RNS8_FINITE_U8_INLINE int8_t center_native_u64(uint64_t value, const Native64Reducer& reducer) {
+  const uint32_t residue = canonical_native_u64(value, reducer);
+  return static_cast<int8_t>(static_cast<int32_t>(residue) -
+      static_cast<int32_t>(reducer.modulus * (residue >= (reducer.modulus + 1) / 2)));
+}
+
+RNS8_FINITE_U8_INLINE int8_t center_native_i64(int64_t value, const Native64Reducer& reducer) {
+  // Conversion to unsigned is defined modulo 2^64, including INT64_MIN.
+  // Subtract 2^64 mod m for negative inputs without taking a signed absolute.
+  int32_t residue = static_cast<int32_t>(canonical_native_u64(static_cast<uint64_t>(value), reducer)) -
+      static_cast<int32_t>(reducer.signed_bias * (value < 0));
+  residue += static_cast<int32_t>(reducer.modulus) * (residue < 0);
+  residue -= static_cast<int32_t>(reducer.modulus) * (residue >= static_cast<int32_t>((reducer.modulus + 1) / 2));
+  return static_cast<int8_t>(residue);
 }
 
 RNS8_FINITE_U8_INLINE uint32_t reduce_u32_mod255(uint32_t value) {
@@ -168,22 +216,7 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_accelerator_i32(
     int32_t value,
     uint32_t modulus,
     uint32_t reciprocal) {
-  if (modulus == 256u) {
-    return reduce_to_centered_mod256_i32(value);
-  }
-  if (modulus == 255u) {
-    return reduce_to_centered_mod255_i32(value);
-  }
-  if (modulus == 251u) {
-    return reduce_to_centered_mod251_i32(value);
-  }
-  const uint32_t magnitude = abs_i32_to_u32(value);
-  uint32_t residue = reduce_u32_small_modulus(magnitude, modulus, reciprocal);
-  const uint32_t negative_nonzero =
-      static_cast<uint32_t>(value < 0) & static_cast<uint32_t>(residue != 0);
-  const uint32_t negative_mask = 0u - negative_nonzero;
-  residue = (residue & ~negative_mask) | ((modulus - residue) & negative_mask);
-  return center_unsigned_residue(residue, modulus);
+  return reduce_to_centered_i32(value, modulus, reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_ck_i32(
@@ -277,6 +310,13 @@ RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_static_byte_modulus_i32(int32_t 
     default:
       return 0;
   }
+}
+
+// The runtime-basis path also admits small/composite channels outside the
+// specialized default-ladder switch. The reciprocal proof covers every byte q.
+RNS8_FINITE_U8_INLINE int8_t reduce_to_centered_byte_modulus_i32(int32_t value,uint32_t modulus,uint32_t reciprocal) {
+  if(static_byte_modulus_supported(modulus))return reduce_to_centered_static_byte_modulus_i32(value,modulus);
+  return reduce_to_centered_i32(value,modulus,reciprocal);
 }
 
 RNS8_FINITE_U8_INLINE int8_t center_u8(uint8_t value, uint32_t modulus) {

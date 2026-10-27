@@ -1,33 +1,61 @@
-name: Performance Regression Check
+name: Non-promoting Benchmark Smoke
+
+# This lane collects bounded diagnostic captures; it has no regression baseline
+# or numeric speed gate. Scientific release qualification is a separate campaign.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Serialize physical-device use across every ref without interrupting a running
+# capture. Runner assignment must reserve gfx1100 from other device campaigns.
+concurrency:
+  group: rns8-gfx1100-benchmark-smoke
+  cancel-in-progress: false
+
 jobs:
   benchmark:
-    runs-on: [self-hosted, windows, gfx1100]
+    # Operator must verify Node24-compatible runner >=2.327.1 before assigning node24.
+    runs-on: [self-hosted, windows, gfx1100, node24]
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; Node24 runner >=2.327.1
 
-      - name: Build HIP debug
-        run: |
-          python tools/windows_dev.py cmake --preset windows-msvc-hip-debug
-          python tools/windows_dev.py cmake --build --preset windows-debug
+      - name: Select locked Python
+        id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0; Node24 runner >=2.327.1
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
 
-      - name: Run lightweight benchmark matrix
+      - name: Select locked build tools in a job-local environment
         run: |
-          python tools/benchmark_sweep.py --scenario bounded-i64-512 bounded-u64-512 finite-field-u8-512 --bench build/windows-msvc-hip-debug/rns8-bench.exe --out-root temp/perf-regression-ci --warmups 1 --repeats 3 --progress
+          python -m venv temp/dependency-tools
+          temp/dependency-tools/Scripts/python.exe -m pip install --require-hashes --only-binary=:all: --no-deps -r scripts/requirements-build-tools.txt
+          "$pwd/temp/dependency-tools/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Compare against baseline
+      - name: Build HIP Release
         run: |
-          python tools/result_compare.py temp/perf-regression-ci --baseline temp/perf-baseline.json --max-regression 5.0
+          python tools/windows_dev.py cmake --preset windows-msvc-hip-release
+          python tools/windows_dev.py cmake --build --preset windows-release
+
+      - name: Plan bounded smoke through the supported sweep parser
+        run: |
+          python tools/ci_benchmark_smoke.py --bench build/windows-msvc-hip-release/rns8-bench.exe --out-root temp/benchmark-smoke-ci --plan-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect smoke captures (no promotion or regression claim)
+        run: |
+          python tools/ci_benchmark_smoke.py --bench build/windows-msvc-hip-release/rns8-bench.exe --out-root temp/benchmark-smoke-ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Archive results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2; Node24 runner >=2.327.1
         with:
-          name: perf-results
-          path: temp/perf-regression-ci
+          name: non-promoting-benchmark-smoke-${{ github.sha }}
+          path: temp/benchmark-smoke-ci

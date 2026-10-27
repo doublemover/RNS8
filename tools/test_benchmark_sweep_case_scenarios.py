@@ -19,7 +19,7 @@ assert benchmark_sweep.cli_backend("hip-vector-alu-int64") == "hip-vector-alu-in
 assert benchmark_sweep.cli_backend("hip-direct") == "hip-direct"
 
 catalog = benchmark_sweep.scenario_catalog()
-scenario_files = sorted(benchmark_sweep.SCENARIO_DATA_DIR.glob("*.json"))
+scenario_files = sorted(benchmark_sweep.scenario_data_dir().glob("*.json"))
 assert len(scenario_files) == len(catalog)
 loaded_families = set(catalog)
 for path in scenario_files:
@@ -113,7 +113,7 @@ for family, items in catalog.items():
 
 with tempfile.TemporaryDirectory() as temp_dir:
     scenario_path = Path(temp_dir) / "bad_scenario.json"
-    payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "grouped_dispatch.json").read_text(encoding="utf-8"))
+    payload = json.loads((benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(encoding="utf-8"))
     payload["items"][0]["review_mode_expectation"] = "unregistered_review_mode"
     scenario_path.write_text(json.dumps(payload), encoding="utf-8")
     try:
@@ -123,7 +123,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
     else:
         raise AssertionError("expected stale scenario review mode to fail validation")
 
-    payload = json.loads((benchmark_sweep.SCENARIO_DATA_DIR / "grouped_dispatch.json").read_text(encoding="utf-8"))
+    payload = json.loads((benchmark_sweep.scenario_data_dir() / "grouped_dispatch.json").read_text(encoding="utf-8"))
     payload["items"][0]["promotion_eligibility"] = "unregistered_promotion_scope"
     scenario_path.write_text(json.dumps(payload), encoding="utf-8")
     try:

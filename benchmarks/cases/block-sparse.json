@@ -1,0 +1,187 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "block-sparse",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "cases"],
+      "defaults": {
+        "schema": "rns8_block_sparse_cases_v1"
+      },
+      "columns": ["cases"],
+      "rows": [
+        [
+          "512-reuse.json",
+          "47586a21e56f241ac8496049c8b0218f0fde517aee47ee7f8e6e156d0b92d051",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 512,
+                "n": 512,
+                "k": 512
+              },
+              "rows": [
+                [0, "dense", "dense", 1, 0],
+                [0, "sparse_scalar", "dense", 1, 0],
+                [0, "sparse_wmma", "dense", 1, 0],
+                [0, "sparse_hybrid", "dense", 1, 1],
+                [0, "sparse_scalar_cold", "dense", 1, 0],
+                [0, "sparse_wmma_cold", "dense", 1, 0],
+                [0, "sparse_hybrid_cold", "dense", 1, 1],
+                [0, "dense", "dense", 8, 0],
+                [0, "sparse_scalar", "dense", 8, 0],
+                [0, "sparse_wmma", "dense", 8, 0],
+                [0, "sparse_hybrid", "dense", 8, 1],
+                [0, "sparse_scalar_cold", "dense", 8, 0],
+                [0, "sparse_wmma_cold", "dense", 8, 0],
+                [0, "sparse_hybrid_cold", "dense", 8, 1],
+                [0, "dense", "dense", 32, 0],
+                [0, "sparse_scalar", "dense", 32, 0],
+                [0, "sparse_wmma", "dense", 32, 0],
+                [0, "sparse_hybrid", "dense", 32, 1],
+                [0, "sparse_scalar_cold", "dense", 32, 0],
+                [0, "sparse_wmma_cold", "dense", 32, 0],
+                [0, "sparse_hybrid_cold", "dense", 32, 1],
+                [0, "dense", "mixed", 1, 0],
+                [0, "sparse_scalar", "mixed", 1, 0],
+                [0, "sparse_wmma", "mixed", 1, 0],
+                [0, "sparse_hybrid", "mixed", 1, 1],
+                [0, "sparse_scalar_cold", "mixed", 1, 0],
+                [0, "sparse_wmma_cold", "mixed", 1, 0],
+                [0, "sparse_hybrid_cold", "mixed", 1, 1],
+                [0, "dense", "mixed", 8, 0],
+                [0, "sparse_scalar", "mixed", 8, 0],
+                [0, "sparse_wmma", "mixed", 8, 0],
+                [0, "sparse_hybrid", "mixed", 8, 1],
+                [0, "sparse_scalar_cold", "mixed", 8, 0],
+                [0, "sparse_wmma_cold", "mixed", 8, 0],
+                [0, "sparse_hybrid_cold", "mixed", 8, 1],
+                [0, "dense", "mixed", 32, 0],
+                [0, "sparse_scalar", "mixed", 32, 0],
+                [0, "sparse_wmma", "mixed", 32, 0],
+                [0, "sparse_hybrid", "mixed", 32, 1],
+                [0, "sparse_scalar_cold", "mixed", 32, 0],
+                [0, "sparse_wmma_cold", "mixed", 32, 0],
+                [0, "sparse_hybrid_cold", "mixed", 32, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "smoke.json",
+          "41b5db648a6973be002e622da70f1ff89b6c5a1cb5b71e3b33c9bb5cab8d2456",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 129,
+                "pattern": "mixed",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "dense", 0],
+                [0, "sparse_scalar", 0],
+                [0, "sparse_wmma", 0],
+                [0, "sparse_hybrid", 1],
+                [0, "sparse_scalar_cold", 0],
+                [0, "sparse_wmma_cold", 0],
+                [0, "sparse_hybrid_cold", 1]
+              ]
+            }
+          }
+        ],
+        [
+          "tail-reuse.json",
+          "5d1eab557259db581add31d451cceab1cfe56c3913234bb0102f00d941026778",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "mode", "m", "n", "k", "pattern", "reuse_count", "hybrid_threshold"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 257
+              },
+              "rows": [
+                [0, "dense", "dense", 1, 0],
+                [0, "sparse_scalar", "dense", 1, 0],
+                [0, "sparse_wmma", "dense", 1, 0],
+                [0, "sparse_hybrid", "dense", 1, 1],
+                [0, "sparse_scalar_cold", "dense", 1, 0],
+                [0, "sparse_wmma_cold", "dense", 1, 0],
+                [0, "sparse_hybrid_cold", "dense", 1, 1],
+                [0, "dense", "dense", 8, 0],
+                [0, "sparse_scalar", "dense", 8, 0],
+                [0, "sparse_wmma", "dense", 8, 0],
+                [0, "sparse_hybrid", "dense", 8, 1],
+                [0, "sparse_scalar_cold", "dense", 8, 0],
+                [0, "sparse_wmma_cold", "dense", 8, 0],
+                [0, "sparse_hybrid_cold", "dense", 8, 1],
+                [0, "dense", "dense", 32, 0],
+                [0, "sparse_scalar", "dense", 32, 0],
+                [0, "sparse_wmma", "dense", 32, 0],
+                [0, "sparse_hybrid", "dense", 32, 1],
+                [0, "sparse_scalar_cold", "dense", 32, 0],
+                [0, "sparse_wmma_cold", "dense", 32, 0],
+                [0, "sparse_hybrid_cold", "dense", 32, 1],
+                [0, "dense", "mixed", 1, 0],
+                [0, "sparse_scalar", "mixed", 1, 0],
+                [0, "sparse_wmma", "mixed", 1, 0],
+                [0, "sparse_hybrid", "mixed", 1, 1],
+                [0, "sparse_scalar_cold", "mixed", 1, 0],
+                [0, "sparse_wmma_cold", "mixed", 1, 0],
+                [0, "sparse_hybrid_cold", "mixed", 1, 1],
+                [0, "dense", "mixed", 8, 0],
+                [0, "sparse_scalar", "mixed", 8, 0],
+                [0, "sparse_wmma", "mixed", 8, 0],
+                [0, "sparse_hybrid", "mixed", 8, 1],
+                [0, "sparse_scalar_cold", "mixed", 8, 0],
+                [0, "sparse_wmma_cold", "mixed", 8, 0],
+                [0, "sparse_hybrid_cold", "mixed", 8, 1],
+                [0, "dense", "mixed", 32, 0],
+                [0, "sparse_scalar", "mixed", 32, 0],
+                [0, "sparse_wmma", "mixed", 32, 0],
+                [0, "sparse_hybrid", "mixed", 32, 1],
+                [0, "sparse_scalar_cold", "mixed", 32, 0],
+                [0, "sparse_wmma_cold", "mixed", 32, 0],
+                [0, "sparse_hybrid_cold", "mixed", 32, 1],
+                [0, "dense", "disjoint", 1, 0],
+                [0, "sparse_scalar", "disjoint", 1, 0],
+                [0, "sparse_wmma", "disjoint", 1, 0],
+                [0, "sparse_hybrid", "disjoint", 1, 1],
+                [0, "sparse_scalar_cold", "disjoint", 1, 0],
+                [0, "sparse_wmma_cold", "disjoint", 1, 0],
+                [0, "sparse_hybrid_cold", "disjoint", 1, 1],
+                [0, "dense", "disjoint", 8, 0],
+                [0, "sparse_scalar", "disjoint", 8, 0],
+                [0, "sparse_wmma", "disjoint", 8, 0],
+                [0, "sparse_hybrid", "disjoint", 8, 1],
+                [0, "sparse_scalar_cold", "disjoint", 8, 0],
+                [0, "sparse_wmma_cold", "disjoint", 8, 0],
+                [0, "sparse_hybrid_cold", "disjoint", 8, 1],
+                [0, "dense", "disjoint", 32, 0],
+                [0, "sparse_scalar", "disjoint", 32, 0],
+                [0, "sparse_wmma", "disjoint", 32, 0],
+                [0, "sparse_hybrid", "disjoint", 32, 1],
+                [0, "sparse_scalar_cold", "disjoint", 32, 0],
+                [0, "sparse_wmma_cold", "disjoint", 32, 0],
+                [0, "sparse_hybrid_cold", "disjoint", 32, 1]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

@@ -221,6 +221,9 @@ def starfoundry_capture() -> dict:
         "stream_safety": "single_stream_owner",
         "promotion_eligible": False,
     }
+    for counters in ("setup_allocation_delta", "measured_repeat_allocation_delta"):
+        capture["workspace_arena"][counters].update(
+            h2d_calls=0, h2d_bytes=0, d2h_calls=0, d2h_bytes=0, d2d_calls=0, d2d_bytes=0)
     capture["streaming_overlap"] = {
         "requested": True,
         "pipeline": "pack_next_gemm_current_export_previous",
@@ -456,7 +459,9 @@ def main() -> int:
         assert reviewed_entry["review_report_promotable"] is True
         assert reviewed_entry["performance_validated"] is True
         assert reviewed_entry["speedup_margin"] == 1.5
-        assert reviewed_entry["promotion_blockers"] == []
+        # Legacy synthetic captures with an unbound authored review are still
+        # descriptive evidence, not an admissible timing comparison.
+        assert "timing_comparison_binding_missing" in reviewed_entry["promotion_blockers"]
         selector_review_capture = copy.deepcopy(reviewed_capture)
         selector_review_capture["export_variant"]["name"] = "compact-d2h-export-candidate"
         selector_review_capture["export_variant"]["promotion_eligible"] = False

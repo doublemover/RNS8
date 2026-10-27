@@ -97,6 +97,21 @@ inline constexpr std::array<std::string_view, 9> pack_layouts{{
     "wrap64_byte_limb_planes"
 }};
 
+struct BuiltinEventFamily {std::string_view family, integer_event, finite_event;};
+inline constexpr std::array<BuiltinEventFamily, 7> builtin_event_families{{
+    {"cdna3_mfma_i32_32x32x16_i8", "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_kernel", "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_kernel"},
+    {"cdna3_mfma_i32_16x16x32_i8", "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_kernel", "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_kernel"},
+    {"rdna3_wmma_i32_16x16x16_iu8", "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel", "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_kernel"},
+    {"rdna4_wmma_i32_16x16x16_iu8", "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_kernel", "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_kernel"},
+    {"cdna3_smfmac_i32_32x32x32_i8", "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_kernel", "amdgpu_builtin_cdna3_smfmac_i32_32x32x32_i8_sparse_a_finite_kernel"},
+    {"cdna3_smfmac_i32_16x16x64_i8", "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_kernel", "amdgpu_builtin_cdna3_smfmac_i32_16x16x64_i8_sparse_a_finite_kernel"},
+    {"rdna4_swmmac_i32_16x16x32_iu8", "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_kernel", "amdgpu_builtin_rdna4_swmmac_i32_16x16x32_iu8_sparse_a_finite_kernel"},
+}};
+inline constexpr const char* builtin_event_label(std::string_view kernel,bool finite) {
+  for(const auto& row:builtin_event_families) if(kernel.find(row.family)!=std::string_view::npos)
+    return (finite || kernel.find("_finite")!=std::string_view::npos ? row.finite_event : row.integer_event).data();
+  return "amdgpu_builtin_rns_matrix_core_kernel";
+}
 inline constexpr std::array<std::string_view, 14> gpu_event_source_scopes{{
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export",
     "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export",
@@ -121,13 +136,14 @@ inline constexpr std::array<std::string_view, 4> epilogue_types{{
     "residue_current_rns_output"
 }};
 
-inline constexpr std::array<std::string_view, 18> backend_epilogue_modes{{
+inline constexpr std::array<std::string_view, 19> backend_epilogue_modes{{
     "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
     "ck_fused_i32_to_centered_residue_rns_output",
     "ck_fused_i32_to_centered_residue_then_canonical_u8_export",
     "ck_fused_i32_to_centered_residue_then_crt_export",
+    "cpu_amx_tile_local_centered_then_reference_crt",
     "direct_int64_export",
     "fused_centered_residue_then_crt_export",
     "low64_wrap_export",
@@ -160,7 +176,7 @@ inline constexpr std::array<std::string_view, 15> generated_reducer_identities{{
     "not_applicable"
 }};
 
-inline constexpr std::array<std::string_view, 76> selected_kernels{{
+inline constexpr std::array<std::string_view, 95> selected_kernels{{
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1",
     "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1",
@@ -180,6 +196,7 @@ inline constexpr std::array<std::string_view, 76> selected_kernels{{
     "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2",
     "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
     "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3",
+    "cpu_amx_int8_16x16x64_centered_v1",
     "cpu_reference",
     "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
     "direct_hip_native_a_finite_u8_gemm_mod251_v1",
@@ -199,6 +216,7 @@ inline constexpr std::array<std::string_view, 76> selected_kernels{{
     "direct_hip_pack_i64_4wide_coalesced_v1",
     "direct_hip_persistent_small_gemm_rns_v1",
     "direct_hip_persistent_small_pack_i64_v1",
+    "direct_hip_persistent_small_rns_gemm_v1",
     "direct_hip_prefix20_grouped_rns_gemm_v1",
     "direct_hip_prefix9_grouped_rns_gemm_v1",
     "direct_hip_prefix9_native_input_colpair_grouped_rns_gemm_v2",
@@ -207,6 +225,9 @@ inline constexpr std::array<std::string_view, 76> selected_kernels{{
     "direct_hip_prefix9_rns_gemv_n1_u64_v1",
     "direct_hip_prefix9_rns_gemv_small_n_i64_v1",
     "direct_hip_prefix9_rns_gemv_small_n_u64_v1",
+    "direct_hip_selected_prefix_grouped_rns_gemm_v1",
+    "direct_hip_selected_prefix_rns_gemv_n1_v1",
+    "direct_hip_selected_prefix_rns_gemv_small_n_v1",
     "direct_hip_tiled_active_prefix_rns_gemm_v2",
     "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1",
     "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3",
@@ -225,9 +246,23 @@ inline constexpr std::array<std::string_view, 76> selected_kernels{{
     "direct_hip_wrap64_byte_gemm36_u64acc_tiled_2d_v4",
     "hip_vector_alu_i64_exact_192b_v1",
     "hip_vector_alu_i64_gemv_n1_exact_192b_v1",
+    "hip_vector_alu_i64_gemv_n2_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n3_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n4_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n5_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n6_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n7_exact_width_192b_v1",
+    "hip_vector_alu_i64_gemv_n8_exact_width_192b_v1",
     "hip_vector_alu_i64_gemv_small_n_exact_192b_v1",
     "hip_vector_alu_u64_exact_192b_v1",
     "hip_vector_alu_u64_gemv_n1_exact_192b_v1",
+    "hip_vector_alu_u64_gemv_n2_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n3_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n4_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n5_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n6_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n7_exact_width_192b_v1",
+    "hip_vector_alu_u64_gemv_n8_exact_width_192b_v1",
     "hip_vector_alu_u64_gemv_small_n_exact_192b_v1",
     "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
     "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1",

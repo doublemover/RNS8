@@ -27,7 +27,7 @@ int run_ck_entry(
     int64_t col_offset,
     int64_t row_extent,
     int64_t col_extent,
-    uint32_t selected_prefix) {
+    uint32_t selected_prefix,hipStream_t stream=nullptr) {
   if (!checked_i32_shape(row_extent) || !checked_i32_shape(col_extent) || !checked_i32_shape(k) ||
       !checked_i32_shape(lda) || !checked_i32_shape(ldb) || !checked_i32_shape(ldc) ||
       selected_prefix == 0 || selected_prefix > kRns8MaxSupportedPrefix) {
@@ -55,7 +55,7 @@ int run_ck_entry(
         static_cast<int>(ldc),
         static_cast<int>(modulus),
         reciprocal,
-        static_cast<int>(p));
+        static_cast<int>(p),stream);
     if (result != ck_success) {
       return result;
     }
@@ -104,7 +104,7 @@ int run_ck_finite(
     int64_t lda,
     int64_t ldb,
     int64_t ldc,
-    uint16_t modulus) {
+    uint16_t modulus,hipStream_t stream=nullptr) {
   if (modulus < 2 || modulus > 256) {
     return ck_invalid_argument;
   }
@@ -123,7 +123,7 @@ int run_ck_finite(
           static_cast<int>(lda),
           static_cast<int>(ldb),
           static_cast<int>(ldc),
-          -1);
+          -1,stream);
     case 255:
       return run_ck_tile_modulus_fixed<255>(
           a,
@@ -138,7 +138,7 @@ int run_ck_finite(
           static_cast<int>(lda),
           static_cast<int>(ldb),
           static_cast<int>(ldc),
-          -1);
+          -1,stream);
     case 256:
       return run_ck_tile_modulus_fixed<256>(
           a,
@@ -153,7 +153,7 @@ int run_ck_finite(
           static_cast<int>(lda),
           static_cast<int>(ldb),
           static_cast<int>(ldc),
-          -1);
+          -1,stream);
     default:
       break;
   }
@@ -172,7 +172,7 @@ int run_ck_finite(
       static_cast<int>(ldc),
       static_cast<int>(modulus),
       modulus_reciprocal_u32(modulus),
-      -1);
+      -1,stream);
 }
 
 int checked_common(

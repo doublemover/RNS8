@@ -1,0 +1,39 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "system-roof",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "device", "mode", "words", "blocks", "iterations", "stride", "displacement_words", "budget_bytes", "warmups", "repeats"],
+      "defaults": {
+        "schema": "rns8_system_roof_case_v1",
+        "device": 0
+      },
+      "columns": ["mode", "words", "blocks", "iterations", "stride", "displacement_words", "budget_bytes", "warmups", "repeats"],
+      "rows": [
+        ["descriptor-smoke.json", "a6d0241bd6fc2924012629c2dc85b2767443ecd16fcd11995678fea0391d5de9", "descriptor", 257, 1, 1, 1, 0, 1073741824, 1, 3],
+        ["event-smoke.json", "ffe3eae47a91063c1fad9a3850fffe3e561e5b63c3240d7df8d33767cb0d4394", "event", 1, 1, 1, 1, 0, 1073741824, 1, 3],
+        ["global-copy-smoke.json", "28a08d43dd638510095b5df3a795d27a286442bf4989fbd4ce491c368ed0a9cf", "global-copy", 257, 1, 1, 1, 0, 1073741824, 1, 3],
+        ["global-displaced.json", "3127faaae3d603065c32ddb101e6fecaabfdaea5fe2b34561c0e1322824c306e", "global-copy", 134217728, 4096, 1, 1, 134217728, 4294967296, 3, 7],
+        ["global-large.json", "4fcb765eb777e91f06e79f00a61f1c0f0238fa80e792c3515d5d8b0d539a0c35", "global-copy", 134217728, 4096, 1, 1, 0, 4294967296, 3, 7],
+        ["global-reuse.json", "af5731cae535ecf9c7ebbf47b8080594ef00573dcdae586ba9cab6d4369411ab", "global-copy", 16384, 4096, 1, 1, 0, 4294967296, 3, 7],
+        ["graph-smoke.json", "f69014e69928584a1ca2f3054e5e1f2d75a1a85873659eade329097af62b4935", "graph", 1, 1, 1, 1, 0, 1073741824, 1, 3],
+        ["launch-smoke.json", "c8eee0e19870943f2977e6eecd5a186f150e9203dab9301842692d79428d9343", "launch", 1, 1, 1, 1, 0, 1073741824, 1, 3],
+        ["lds-read-smoke.json", "43429e0d73003485de4f85d907800b987a4145556c56024e09a2b9d8a97dd617", "lds-read", 384, 3, 17, 32, 0, 1073741824, 1, 3],
+        ["lds-read-stride1.json", "464f646bc40c5776a3d613b6987346db9b2851f83c13c096f43b1b04b0e6153d", "lds-read", 65536, 512, 1024, 1, 0, 1073741824, 3, 7],
+        ["lds-read-stride16.json", "7babab95a3cb5d5ec9aed009bc896be0be974250070527c81730677885238b7f", "lds-read", 65536, 512, 1024, 16, 0, 1073741824, 3, 7],
+        ["lds-read-stride2.json", "7868412fec0c4b84ab8a1bd82f8d005608fae1d628224065e9d6acd0b3ad076a", "lds-read", 65536, 512, 1024, 2, 0, 1073741824, 3, 7],
+        ["lds-read-stride32.json", "0a95679327b883469f5e1b51b7f928b913a6371c076b69364763781383202da1", "lds-read", 65536, 512, 1024, 32, 0, 1073741824, 3, 7],
+        ["lds-read-stride4.json", "c8826be43a3c318a6c389480ad8dd3bfd42380fd1ac9eb4b1a9e88912af2db06", "lds-read", 65536, 512, 1024, 4, 0, 1073741824, 3, 7],
+        ["lds-read-stride8.json", "edefdd7c4141ed514f4a03359775704861349a0f1244081ef5f11df62bf44bec", "lds-read", 65536, 512, 1024, 8, 0, 1073741824, 3, 7],
+        ["lds-read-write-smoke.json", "768a1733caa2f3291eeb6bd7438c59acc374ecce305bc4af5ba3670b18e7223e", "lds-read-write", 384, 3, 17, 32, 0, 1073741824, 1, 3],
+        ["lds-read-write-stride1.json", "75563557619fedfc256693975ec821629fb8c5a0e77682ea6829d14c34d2dc81", "lds-read-write", 65536, 512, 1024, 1, 0, 1073741824, 3, 7],
+        ["lds-read-write-stride16.json", "585c22041779325d232090d060d763bd31a7f4ab680b0d080f132dff4aa07e57", "lds-read-write", 65536, 512, 1024, 16, 0, 1073741824, 3, 7],
+        ["lds-read-write-stride2.json", "dec9017ebc4d86d9fed7dbfb7a5dd5e899f4aaed446a6b27fe3150d52f532452", "lds-read-write", 65536, 512, 1024, 2, 0, 1073741824, 3, 7],
+        ["lds-read-write-stride32.json", "a9c2ce804fb2849374a3521ba429405a0e0b416e78581759e59b328833726b84", "lds-read-write", 65536, 512, 1024, 32, 0, 1073741824, 3, 7],
+        ["lds-read-write-stride4.json", "7b2f390bdc80b3cf5010049b881330924a6c07397ec39c4561f62d302ebcc930", "lds-read-write", 65536, 512, 1024, 4, 0, 1073741824, 3, 7],
+        ["lds-read-write-stride8.json", "1521f5fe64d18015480e46fd33e80a7189a21039e4448a6d0e0b2f78fadc9138", "lds-read-write", 65536, 512, 1024, 8, 0, 1073741824, 3, 7]
+      ]
+    }
+  ]
+}

@@ -136,22 +136,7 @@ __device__ int8_t rocwmma_center_u64_fixed_modulus_device(uint64_t value) {
   return static_cast<int8_t>(static_cast<int64_t>(residue));
 }
 
-__device__ int8_t rocwmma_center_i64_device(int64_t value, int modulus) {
-  int64_t residue = value % static_cast<int64_t>(modulus);
-  residue += static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue < 0);
-  const int64_t threshold = (static_cast<int64_t>(modulus) + 1) / 2;
-  residue -= static_cast<int64_t>(modulus) & -static_cast<int64_t>(residue >= threshold);
-  return static_cast<int8_t>(residue);
-}
-
-__device__ int8_t rocwmma_center_u64_device(uint64_t value, int modulus) {
-  uint64_t residue = value % static_cast<uint64_t>(modulus);
-  const uint64_t threshold = (static_cast<uint64_t>(modulus) + 1) / 2;
-  residue -= static_cast<uint64_t>(modulus) & (0u - static_cast<uint64_t>(residue >= threshold));
-  return static_cast<int8_t>(static_cast<int64_t>(residue));
-}
-
-__device__ int8_t rocwmma_center_native_b_device(int64_t value, int modulus_index, int fallback_modulus) {
+__device__ int8_t rocwmma_center_native_b_device(int64_t value, int modulus_index) {
   switch (modulus_index) {
     case 0:
       return rocwmma_center_i64_fixed_modulus_device<256>(value);
@@ -193,12 +178,26 @@ __device__ int8_t rocwmma_center_native_b_device(int64_t value, int modulus_inde
       return rocwmma_center_i64_fixed_modulus_device<173>(value);
     case 19:
       return rocwmma_center_i64_fixed_modulus_device<167>(value);
+    case 20:
+      return rocwmma_center_i64_fixed_modulus_device<163>(value);
+    case 21:
+      return rocwmma_center_i64_fixed_modulus_device<157>(value);
+    case 22:
+      return rocwmma_center_i64_fixed_modulus_device<151>(value);
+    case 23:
+      return rocwmma_center_i64_fixed_modulus_device<149>(value);
+    case 24:
+      return rocwmma_center_i64_fixed_modulus_device<139>(value);
+    case 25:
+      return rocwmma_center_i64_fixed_modulus_device<137>(value);
+    case 26:
+      return rocwmma_center_i64_fixed_modulus_device<131>(value);
     default:
-      return rocwmma_center_i64_device(value, fallback_modulus);
+      return rocwmma_center_i64_fixed_modulus_device<127>(value);
   }
 }
 
-__device__ int8_t rocwmma_center_native_b_device(uint64_t value, int modulus_index, int fallback_modulus) {
+__device__ int8_t rocwmma_center_native_b_device(uint64_t value, int modulus_index) {
   switch (modulus_index) {
     case 0:
       return rocwmma_center_u64_fixed_modulus_device<256>(value);
@@ -240,8 +239,22 @@ __device__ int8_t rocwmma_center_native_b_device(uint64_t value, int modulus_ind
       return rocwmma_center_u64_fixed_modulus_device<173>(value);
     case 19:
       return rocwmma_center_u64_fixed_modulus_device<167>(value);
+    case 20:
+      return rocwmma_center_u64_fixed_modulus_device<163>(value);
+    case 21:
+      return rocwmma_center_u64_fixed_modulus_device<157>(value);
+    case 22:
+      return rocwmma_center_u64_fixed_modulus_device<151>(value);
+    case 23:
+      return rocwmma_center_u64_fixed_modulus_device<149>(value);
+    case 24:
+      return rocwmma_center_u64_fixed_modulus_device<139>(value);
+    case 25:
+      return rocwmma_center_u64_fixed_modulus_device<137>(value);
+    case 26:
+      return rocwmma_center_u64_fixed_modulus_device<131>(value);
     default:
-      return rocwmma_center_u64_device(value, fallback_modulus);
+      return rocwmma_center_u64_fixed_modulus_device<127>(value);
   }
 }
 
@@ -268,9 +281,8 @@ __global__ void pack_b_native_colmajor_prefix_kernel(
     packed[packed_index] = 0;
     return;
   }
-  const int modulus = rocwmma_default_modulus_device(static_cast<int>(modulus_index));
   const NativeT value = b[static_cast<int64_t>(kk) * static_cast<int64_t>(ldb) + col];
-  packed[packed_index] = rocwmma_center_native_b_device(value, static_cast<int>(modulus_index), modulus);
+  packed[packed_index] = rocwmma_center_native_b_device(value, static_cast<int>(modulus_index));
 }
 
 __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_kernel(
@@ -282,6 +294,7 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_
     int padded_rows,
     int padded_cols,
     int gemm_k_block,
+    int a_stride,
     int ldc,
     int modulus,
     uint32_t modulus_reciprocal,
@@ -305,7 +318,7 @@ __global__ void __launch_bounds__(kRns8WmmaWaveThreads) rocwmma_i8_residue_gemm_
   fill_fragment(acc, 0);
 
   for (int kk = 0; kk < gemm_k_block; kk += kRns8WmmaTileK) {
-    load_matrix_sync(frag_a, a_pack + tile_row * gemm_k_block + kk, gemm_k_block);
+    load_matrix_sync(frag_a, a_pack + tile_row * a_stride + kk, a_stride);
     load_matrix_sync(frag_b, b_pack + tile_col * gemm_k_block + kk, gemm_k_block);
     mma_sync(acc, frag_a, frag_b, acc);
   }

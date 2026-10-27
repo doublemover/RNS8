@@ -1,0 +1,55 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "public-epilogue",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "repeats", "warmups", "backend", "coefficient_profile", "residency"],
+      "defaults": {
+        "schema": "epilogue_public_case_v1",
+        "repeats": 9,
+        "warmups": 3,
+        "backend": "hip-direct"
+      },
+      "columns": ["m", "n", "k", "coefficient_profile", "residency"],
+      "rows": [
+        ["128-128-512-channel-zero-repack.json", "ce067619070a711efa65e594b69b35021df30b8a7a4cc2d8a7616e6289c5a1fd", 128, 128, 512, "channel-zero", "repack"],
+        ["128-128-512-channel-zero-resident.json", "2e91bbff80e212f63be5204fcebee9362744f71f8454d58f6a873e7798e36ac5", 128, 128, 512, "channel-zero", "resident"],
+        ["128-128-512-copy-repack.json", "5ce0507829783e69ea0c80e78bb91bfcf31842f02514e18159f9833d6d4bf6e1", 128, 128, 512, "copy", "repack"],
+        ["128-128-512-copy-resident.json", "e9f36dc78a33bd196f00b5db8de9b5821401676a3560e2dcc3adcae53d77ef72", 128, 128, 512, "copy", "resident"],
+        ["128-128-512-extreme-repack.json", "8b9f82b128de7c7b7a033f6b1b7be99ee292770976f9f4af077adb6bb6bb3f00", 128, 128, 512, "extreme", "repack"],
+        ["128-128-512-extreme-resident.json", "9ebb145d3fa3f50de109d1f4e03f3a33408dbe8c43b212e581d5a3fbb203eea8", 128, 128, 512, "extreme", "resident"],
+        ["128-128-512-general-repack.json", "986976b3be76e2e97fa344462cd0edd0e210d575582688d76cf25563d90f32ca", 128, 128, 512, "general", "repack"],
+        ["128-128-512-general-resident.json", "794bd2172fb6b59b6ff493becb30129bd829f0127317a50dbdb9f866d0ecf7a5", 128, 128, 512, "general", "resident"],
+        ["128-128-512-unit-repack.json", "90c14e75aa5e0e2a52ed4684df1f5bed5a600305d1ff98a636c1640043642730", 128, 128, 512, "unit", "repack"],
+        ["128-128-512-unit-resident.json", "5431af9d8ffe0feb6c576b7af32aca8243d8bb1519ae9c3d9c1e3b3eeded655f", 128, 128, 512, "unit", "resident"],
+        ["128-128-512-zero-repack.json", "0e503bdd5b2b863b8e74b33802052799456461965e0568bd162f76966cde543c", 128, 128, 512, "zero", "repack"],
+        ["128-128-512-zero-resident.json", "3c4900d401a5a4f51c2831714b60b07dd920a22e4ac1529d337722e97aea5f0b", 128, 128, 512, "zero", "resident"],
+        ["17-19-257-channel-zero-repack.json", "8ee0bffa2b600afe21e111e95ff232021a83f8be716dd6e3b2439c0299fdd1eb", 17, 19, 257, "channel-zero", "repack"],
+        ["17-19-257-channel-zero-resident.json", "705050f39207c087f1d56baea387b1711714a39bc4969494818d64a5320aea14", 17, 19, 257, "channel-zero", "resident"],
+        ["17-19-257-copy-repack.json", "3403a210ef5c6a6769392fdd73aedcf6c1966966d7ccfd7fe44f4f07d97c4cfb", 17, 19, 257, "copy", "repack"],
+        ["17-19-257-copy-resident.json", "e690d1e8aa306674136af5447d0e7660cdba17aed550edfa61a7bbba8dcb5fb7", 17, 19, 257, "copy", "resident"],
+        ["17-19-257-extreme-repack.json", "b069a1fd2b20f067d2d37fca5e94e1a1e6868b2bbe54a0758b2c9fe02dcbf22c", 17, 19, 257, "extreme", "repack"],
+        ["17-19-257-extreme-resident.json", "866830ab91a752bbb27c88412a7d79deb6253eafd5274fea41f55599db025b6b", 17, 19, 257, "extreme", "resident"],
+        ["17-19-257-general-repack.json", "64c940d2c7f267583fc43abe34f6ec7c82705c29ee7e79e8d1e686363f3b6655", 17, 19, 257, "general", "repack"],
+        ["17-19-257-general-resident.json", "3b4c66757fe31d08c13da232ad56acd9ba5b6f6773d747fd2f0639c3e5e7b29c", 17, 19, 257, "general", "resident"],
+        ["17-19-257-unit-repack.json", "b3c2efac03568fe39b7ec686c0f032edb3ffe40263d92c5c3f2ec8c436f88931", 17, 19, 257, "unit", "repack"],
+        ["17-19-257-unit-resident.json", "9af3568bc9452100f0d3337696b0039da492b646137ab13351d93b9d8d921ce8", 17, 19, 257, "unit", "resident"],
+        ["17-19-257-zero-repack.json", "0c139f91235465270af5531cf6c0b3e71f25ffe5a567287d4bb1e593c1a8c89a", 17, 19, 257, "zero", "repack"],
+        ["17-19-257-zero-resident.json", "1ac656c51c19ab8180b7a94dc6cbbf0392dbb3abfbe321f0fda7b01b9b7ebb59", 17, 19, 257, "zero", "resident"],
+        ["512-512-512-channel-zero-repack.json", "882821fab50530254651678c5f63a7146c7b059bb11275c3be944299ce7598bb", 512, 512, 512, "channel-zero", "repack"],
+        ["512-512-512-channel-zero-resident.json", "3dbf5c822d9c84277c7c1966e6efdc49e69784e9be62a88488fb42cc1c2c0496", 512, 512, 512, "channel-zero", "resident"],
+        ["512-512-512-copy-repack.json", "957e1f5fb846cfa4f8d893eef0eacb42ab078e35d13432ad3a7ce05a993ff7ef", 512, 512, 512, "copy", "repack"],
+        ["512-512-512-copy-resident.json", "12b7c91d3aa64f6d9ed6fcfca3ac1040b8b7f73c8d06fb18d3b9d324328e4756", 512, 512, 512, "copy", "resident"],
+        ["512-512-512-extreme-repack.json", "612470e252257b432b433a9698c7d1064337386458d0c33124ef1b0ad2953044", 512, 512, 512, "extreme", "repack"],
+        ["512-512-512-extreme-resident.json", "7f0a826619e8016783c4761580df2e7ba5f3eccb50b8ba2cdf49faa7311011c8", 512, 512, 512, "extreme", "resident"],
+        ["512-512-512-general-repack.json", "39df0cf1747b73fd2eb17132d5dfdcd9dba8ee8cff4ebbcd31137805b3160e9b", 512, 512, 512, "general", "repack"],
+        ["512-512-512-general-resident.json", "9b931462da8386af592019433e760f701926d01c4631551320d000a3f69dd25d", 512, 512, 512, "general", "resident"],
+        ["512-512-512-unit-repack.json", "f796529e28e646727473942babed5963f6771b7a68685c5a2925678f68840efa", 512, 512, 512, "unit", "repack"],
+        ["512-512-512-unit-resident.json", "4cf1c13acac7ca013a5beb0c558e061fc72df3e59dd51f1b23973d33f3506430", 512, 512, 512, "unit", "resident"],
+        ["512-512-512-zero-repack.json", "3fc91c54b352d5c2e34f4976d1b790d68fe0487406cde5bde21c581b21c2e8cd", 512, 512, 512, "zero", "repack"],
+        ["512-512-512-zero-resident.json", "8af8790640eeec91f949da1c6803369a3351a6957017421e352bc133256bbe57", 512, 512, 512, "zero", "resident"]
+      ]
+    }
+  ]
+}

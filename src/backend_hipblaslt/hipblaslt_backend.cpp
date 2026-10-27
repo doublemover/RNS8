@@ -1,3 +1,4 @@
+#include "backend_common/address_domain.hpp"
 #include "backend_hipblaslt/hipblaslt_backend.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
@@ -5,6 +6,7 @@
 #include "core/internal.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <limits>
 #include <mutex>
@@ -13,7 +15,10 @@
 
 #if defined(RNS8_ENABLE_HIPBLASLT) && RNS8_ENABLE_HIPBLASLT
 #  include <hip/hip_runtime_api.h>
-#  include <hipblaslt/hipblaslt.h>
+#  include "backend_hipblaslt/hipblaslt_headers.hpp"
+#  if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+extern "C" int rns8_hipblaslt_algorithm_index(const hipblasLtMatmulAlgo_t*);
+#  endif
 
 extern "C" int rns8_hipblaslt_reduce_i32_to_centered_device(
     const int32_t* scratch,
@@ -48,6 +53,9 @@ extern "C" int rns8_hipblaslt_reduce_i32_to_centered_strided_device(
 #endif
 
 namespace rns8::detail {
+using hipblaslt_metadata_state::metadata_policy;
+using hipblaslt_metadata_state::metadata_counters;
+using hipblaslt_metadata_state::prepack_counters;
 
 #include "hipblaslt_timing_matmul_cache.inc"
 #include "hipblaslt_prepack_cache.inc"
@@ -55,3 +63,4 @@ namespace rns8::detail {
 #include "hipblaslt_context.inc"
 #include "hipblaslt_rns_gemm.inc"
 #include "hipblaslt_finite_gemm.inc"
+#include "hipblaslt_async.inc"

@@ -1,0 +1,130 @@
+{
+  "schema": "rns8_resident_model_boundary_review_v1",
+  "date": "2026-10-27",
+  "capture_source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+  "prediction_boundary": "resident_recipe_execution_including_publication",
+  "separate_boundary": "final_host_crt_export",
+  "capture_archive_manifest": "metadata/sdk101-idle-archive-20261026.json",
+  "source_evidence": "record(\"publish\",0,0,prefix,[&]{check(hip_direct_copy_device_to_device(ctx->device_id,a.get(),result.get(),uniform.bytes));},a.get(),expected);",
+  "review_source_sha256": "6f22ddb72fc5958ddf7489373e3fb1ef6a3149929e8dbbaaca4a045b2bb18906",
+  "rows": [
+    {
+      "side": 128,
+      "relative_tolerance": 0.25,
+      "predicted_interval_ns": [
+        385492.7475089174,
+        411880.585824416
+      ],
+      "resident_measured_interval": {
+        "lower_ns": 520613.6263435322,
+        "mean_ns": 542611.1111111111,
+        "upper_ns": 564608.5958786901,
+        "independent_run_stddev_ns": 17715.327812551826,
+        "nominal_confidence": 0.95,
+        "method": "conservative_student_t_run_means_plus_resolution",
+        "assumption": "independent_approximately_normal_stationary_run_means"
+      },
+      "resident_held_out_passed": false,
+      "mean_host_crt_export_ns": 939400.0,
+      "host_crt_export_model_qualified": false,
+      "inputs": [
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-128-held-out/5f0c1fbc-62f7-4302-9ce7-1030996b4983-42ee2d635ad4-0.json",
+          "sha256": "16d5407e34df4ab87db912901abf10abb044574e97a5e08956cbb095213e8d64",
+          "execution_id": "b606053f-537f-4bc9-ab97-f980e83973a6",
+          "mean_host_crt_export_ns": 957555.5555555555,
+          "resident_mean_ns": 569166.6666666666
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-128-held-out/5f0c1fbc-62f7-4302-9ce7-1030996b4983-42ee2d635ad4-1.json",
+          "sha256": "62364926aabdafbf8f1b57f1aeb51ecd08a1c812a033194362b7a58958f385cb",
+          "execution_id": "5c5fb9c3-6a65-40c8-8f83-768392a16eef",
+          "mean_host_crt_export_ns": 934688.8888888889,
+          "resident_mean_ns": 531644.4444444445
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-128-held-out/5f0c1fbc-62f7-4302-9ce7-1030996b4983-42ee2d635ad4-2.json",
+          "sha256": "8d0ffb7577d72712214a12bff10a9ac8db07504ee6746317d93f93abdaf8b881",
+          "execution_id": "5a4e4a8d-34c2-40a3-8b12-2db123f090f8",
+          "mean_host_crt_export_ns": 942533.3333333334,
+          "resident_mean_ns": 529111.1111111111
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-128-held-out/5f0c1fbc-62f7-4302-9ce7-1030996b4983-42ee2d635ad4-3.json",
+          "sha256": "01ddd4b21d539093abb55b197232ad570933d94772131e92f49da61d26094df1",
+          "execution_id": "d072afb6-0c67-4faa-a5ec-419765115b93",
+          "mean_host_crt_export_ns": 931211.1111111111,
+          "resident_mean_ns": 552644.4444444445
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-128-held-out/5f0c1fbc-62f7-4302-9ce7-1030996b4983-42ee2d635ad4-4.json",
+          "sha256": "08ed377cb4219269c732e271ea811acbc19c763642a9b9f07194f6c75d39b60b",
+          "execution_id": "312d0167-0305-435d-90e3-90e3861b8d4d",
+          "mean_host_crt_export_ns": 931011.1111111111,
+          "resident_mean_ns": 530488.8888888889
+        }
+      ],
+      "prior_report_sha256": "d66d115d08a50756925c0ace707c0d0e52334de602b6aae78e474ba1d954391d"
+    },
+    {
+      "side": 256,
+      "relative_tolerance": 0.25,
+      "predicted_interval_ns": [
+        1016874.5092196396,
+        1062014.379669249
+      ],
+      "resident_measured_interval": {
+        "lower_ns": 1266296.4400598907,
+        "mean_ns": 1288735.5555555555,
+        "upper_ns": 1311174.6710512203,
+        "independent_run_stddev_ns": 18071.00433099564,
+        "nominal_confidence": 0.95,
+        "method": "conservative_student_t_run_means_plus_resolution",
+        "assumption": "independent_approximately_normal_stationary_run_means"
+      },
+      "resident_held_out_passed": true,
+      "mean_host_crt_export_ns": 1067760.0,
+      "host_crt_export_model_qualified": false,
+      "inputs": [
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-256-held-out/b195dd3f-50c5-41e2-977f-92dabe8e2020-3ac39b2d9788-0.json",
+          "sha256": "0ac91123a6485cfe8278ae4c69bbaa7fd34a0c2b2a28008136d8f8ec700e9b61",
+          "execution_id": "2a486149-00e4-45df-95e9-88f0483930a3",
+          "mean_host_crt_export_ns": 1049377.7777777778,
+          "resident_mean_ns": 1311555.5555555555
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-256-held-out/b195dd3f-50c5-41e2-977f-92dabe8e2020-3ac39b2d9788-1.json",
+          "sha256": "ec2cd8f147b02b5028f78bd5ce6bea5fa57ab24be1a60cb0cbe363d34a493883",
+          "execution_id": "a383d0f5-c957-4615-9173-1d9eca8fbcf8",
+          "mean_host_crt_export_ns": 1048455.5555555555,
+          "resident_mean_ns": 1264900.0
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-256-held-out/b195dd3f-50c5-41e2-977f-92dabe8e2020-3ac39b2d9788-2.json",
+          "sha256": "14aa5ff7dcf46a1be17eb6aac3fdb5868660576c3dd31fc8d78844e667cb0edb",
+          "execution_id": "bfeaa32a-50cf-4bfd-8c4a-b9113a52c677",
+          "mean_host_crt_export_ns": 1072844.4444444445,
+          "resident_mean_ns": 1278644.4444444445
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-256-held-out/b195dd3f-50c5-41e2-977f-92dabe8e2020-3ac39b2d9788-3.json",
+          "sha256": "2eb9ff12a176e6a4b2a0ad67a6d71281534e463ce1c97345160eb32229f3c82e",
+          "execution_id": "19826212-d2c1-4cf9-917e-eb97cf6abfc9",
+          "mean_host_crt_export_ns": 1071144.4444444445,
+          "resident_mean_ns": 1299477.7777777778
+        },
+        {
+          "capture": "temp/sdk101-idle-20261026/measure-model-256-held-out/b195dd3f-50c5-41e2-977f-92dabe8e2020-3ac39b2d9788-4.json",
+          "sha256": "1eb39234628412fd7510618d8c17c5e1a1a4ca23cc87dad511f155260b7bf1b0",
+          "execution_id": "27a21672-7b8a-4f64-9692-25c4012801f6",
+          "mean_host_crt_export_ns": 1096977.7777777778,
+          "resident_mean_ns": 1289100.0
+        }
+      ],
+      "prior_report_sha256": "ada2b0b4b4ef8532ed349d354362c4cb3d3015fbd8baf893d0836c55af7ae88a"
+    }
+  ],
+  "promotion_eligible": false,
+  "scope": "Re-evaluate immutable post-restart captures only; no new GPU observations and no changed tolerance. Resident pass/fail is reproduced exactly; whole-call performance measurements remain unchanged."
+}

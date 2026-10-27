@@ -1,235 +1,222 @@
 # RNS8
 
-Exact integer matrix multiplication for AMD GPUs, with a C ABI, a thin C++
-wrapper, and a portable CPU reference. RNS8 computes `C = A × B` using explicit
-integer contracts: bounded signed/unsigned results, exact-wide results, small
-finite rings/fields, or strict modulo-2⁶⁴ wraparound.
+RNS8 multiplies matrices of integers on AMD GPUs while preserving the requested
+integer result. Each output is a sum of products, computed exactly within a
+declared range or under an explicit modular-arithmetic rule. It provides a C API,
+a small C++ wrapper, and intermediate values that can stay on the GPU for
+repeated operations.
 
-**Status: pre-1.0, hardware requalification required.** The October 2026 source
-audit found correctness defects in recent fast paths and removed or repaired
-them. CPU validation is useful evidence, but does not validate HIP compilation
-or GPU execution. The old June `gfx1100` sweep summaries are preserved as
-[historical records](docs/archive/README.md); they are not performance guarantees
-for this revision. Start with the [audit](docs/audit-2026-10-06.md) and
-[hardware qualification guide](docs/gpu-qualification.md) before evaluating speed.
+Exact integer products are useful in computer algebra, Gram matrices and
+cross-products of integer data, batched finite-field linear transforms, and
+repeated computations where rounding or fixed-width overflow would change the
+answer. These are uses of the arithmetic; RNS8 supplies the matrix kernel that
+an application can build around.
 
-## What the library computes
+## Hardware tested and hardware wanted
 
-| Contract | Result and requirements |
-| --- | --- |
-| `RNS8_BOUNDED_I64` | Exact signed 64-bit result under a caller-supplied absolute output bound |
-| `RNS8_BOUNDED_U64` | Exact unsigned 64-bit result under a caller-supplied output bound |
-| `RNS8_EXACT_WIDE_SIGNED` / `_UNSIGNED` | Full-width native 64-bit inputs, range-proven RNS product, fixed-width limb export |
-| `RNS8_FINITE_RING_U8` | Arithmetic modulo an explicitly supplied integer from 2 through 256 |
-| `RNS8_FINITE_FIELD_U8` | Arithmetic modulo an explicitly supplied prime at most 251 |
-| `RNS8_WRAP_U64_MOD_2_64` | Low 64 bits of the integer product; unsigned byte-limb storage, independent of CRT bounds |
+| GPU / family | Target | OS + tested stack | Implementation availability | Actual RNS8 validation evidence | Next needed check |
+|---|---|---|---|---|---|
+| **RX 7900 XTX / RDNA3** | `gfx1100` | Windows, VS2026, HIP 7.1 | Public direct HIP, vector ALU, wrap64; opt-in hipBLASLt, CK, rocWMMA, builtins | [October 25 local correctness and sanitizer coverage](docs/local-validation-20261025.md); [matched 512³/1024³ measurements](docs/7900xtx-large-throughput-2026-10-23.md) | Matched timing for the expanded source; Linux GPU run |
+| Radeon PRO W6800 / RDNA2 | `gfx1030` | No RNS8 GPU run; Linux ROCm 7.1 candidate | Direct HIP source; optional backends subject to target support | **Validation wanted / unvalidated** | Supported Linux stack, compile and CPU differentials |
+| RX 9060 / 9060 XT / RDNA4 | `gfx1200` | No RNS8 GPU run; AMD lists Linux 7.1 and Windows HIP SDK 7.1.1 | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Exact SKU/OS/compiler check and device differentials |
+| RX 9070 / 9070 XT / 9070 GRE / RDNA4 | `gfx1201` | No RNS8 GPU run; same AMD release matrices | Direct HIP and target-specific builtin source | **Validation wanted / unvalidated** | Per-device compilation, arithmetic and ISA checks |
+| MI210 / MI250 / MI250X / CDNA2 | `gfx90a` | No RNS8 GPU run; Linux ROCm target | Direct HIP; optional libraries depend on target | **Validation wanted / unvalidated** | Real Instinct host and supported OS/ROCm pairing |
+| MI300X / MI325X / CDNA3 | `gfx942` | No RNS8 GPU run; Linux ROCm target | Direct HIP, MFMA and optional accelerator source | **Validation wanted / unvalidated** | Compile, CPU differentials and ISA on each device |
+| MI350X / MI355X / CDNA4 | `gfx950` | No RNS8 GPU run; Linux ROCm target | Direct HIP and target-dependent accelerator source | **Validation wanted / unvalidated** | Supported compiler/components and device execution |
 
-These contracts are separate APIs. A C++ type does not select the semantics.
-`EXACT_WIDE` is not unlimited-precision storage: the current implementation
-supports at most 20 of the 28 default moduli, about 154.84 bits of CRT range.
-Resident exact-wide operations propagate conservative magnitude bounds and reject
-chains that exceed the selected prefix; prefixes do not grow automatically.
-Export accepts 1–32 little-endian 64-bit limbs, which does not increase the
-information represented by the selected prefix. Signed export is two's complement.
+Future CDNA5 `gfx1250` [TDM/multicast source](docs/cdna5-tdm-research.md) and
+CDNA3 `gfx942` [FP8 finite research](docs/fp8-modular-research.md) have compile-only
+checks, with actual target execution and supported-stack qualification still needed.
 
-A bounded plan checks that its CRT range covers the declared bound. It does not
-prove the bound true for arbitrary input data. Incorrect caller bounds can alias
-modulo the CRT product; range checking cannot detect every false bound. See the
-[exactness contract](docs/correctness.md) for the precise obligations.
+[Offer hardware validation, temporary compute access, or cloud credits](https://github.com/doublemover/RNS8/issues/new?template=hardware_validation_offer.yml).
+You can volunteer to run a bounded set of checks yourself. **Do not post passwords,
+SSH keys, tokens, account credentials, private connection endpoints, or billing
+data.** Offers start a coordination conversation; no access or spending is authorized.
+
+GPU mappings follow [AMD's architecture reference](https://rocm.docs.amd.com/en/docs-7.0.0/reference/gpu-arch-specs.html)
+and the release-specific [Linux ROCm 7.1](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/reference/system-requirements.html)
+and [Windows HIP SDK 7.1.1](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/reference/system-requirements.html)
+matrices. PRO W6800 is the Linux RDNA2 candidate; that Windows matrix excludes
+RDNA2. A target name alone says nothing about a supported installation or an
+RNS8 validation result. [Platform readiness](docs/platform-readiness.md) explains
+the evidence classes and per-OS checks.
+
+## Measured RX 7900 XTX results
+
+| Shape and arithmetic/output contract | Matched baseline | Candidate | Improvement | Evidence |
+|---|---|---|---|---|
+| 1024³ bounded signed i64, repack + native host output | Direct HIP: 8.127 ms | Public AMDGPU builtins: 6.736 ms | 1.21× | [Public pipelines](docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
+| 1024³ signed byte values stored as i64, exact i64 device output | Minimal four-plane RNS pipeline: 2.783 ms | Internal checked native-byte WMMA: 1.250 ms | 2.23× | [Native output](docs/7900xtx-large-throughput-2026-10-23.md#native-bounded-integer-device-output) |
+| 512³ `alpha*AB + beta*D`, nine resident residue planes | Direct GEMM + separate combine: 760.91 µs | rocWMMA fused: 459.58 µs | 1.66× | [Residue epilogue](docs/7900xtx-large-throughput-2026-10-23.md#resident-residue-epilogue) |
+
+These October 23 results use resident inputs on the recorded Windows/HIP stack.
+The public pipeline includes repacking and host export after common allocation;
+its statistic is the median of three process medians. The other rows use five
+process burst means with timing hooks disabled; checked calls include allocation,
+admission and synchronization. Initial uploads and verification are outside timing.
+The residue epilogue has no native integer export or proof of unique reconstruction
+of the full expression. Compare rows only within their stated contract. The
+[full report](docs/7900xtx-large-throughput-2026-10-23.md) preserves ranges, commits,
+hashes, commands and exact checks; [performance methodology](docs/performance.md)
+owns the remaining measurement and promotion gates.
+
+## What it computes
+
+| Explicit contract | Result |
+|---|---|
+| Bounded signed / unsigned 64-bit | Every integer bit of the result, within the caller's declared bound |
+| Exact-wide signed / unsigned | A range-proven integer in residue storage, exported as fixed-width limbs |
+| Finite ring / prime field | Products modulo one selected integer 2–256, or prime up to 251 |
+| Strict wrap64 | The low 64 bits, with arithmetic explicitly modulo 2⁶⁴ |
+
+Execution supports prefixes of 1–20 default moduli, providing up to about 154.84
+bits of represented CRT range. Exact-wide is finite-capacity storage; exporting
+1–32 limbs does not increase that range. Bounded plans check range coverage,
+while callers remain responsible for the truth of supplied bounds. See
+[correctness and export rules](docs/correctness.md) before choosing a contract.
+All matrices use row-major layout.
 
 ## How it works
 
-1. Pack native integers into persistent modulus-major planes of centered signed
-   8-bit residues.
-2. Multiply each plane with signed `int8 × int8 → int32` arithmetic, reducing
-   between safe accumulation blocks.
-3. Reconstruct with CRT/Garner at the requested output boundary, or keep the
-   residues resident for another operation.
+A **modulus** specifies the divisor; a **residue** is the remainder. For an
+illustrative pair of moduli, 23 has residues 2 modulo 3 and 3 modulo 5. Those
+remainders identify 8 modulo 15, so they need an appropriate range bound to
+identify a particular integer. RNS8 uses its own larger, pairwise-coprime ladder.
 
-The default ladder begins `256, 255, 253, 251, 247, 239, 233, 229, 227`.
-It is pairwise coprime; its members need not all be prime. For CRT product `P`,
-bounded signed plans require `P > 2 × bound`, and unsigned plans require
-`P > bound`. Prefix 9 covers the full bounded 64-bit output ranges. Smaller
-proven bounds can use fewer planes; per-tile bounds can select different prefixes.
+1. Convert each input integer into several small residues.
+2. Compute independent small-integer matrix products, using AMD integer matrix
+   hardware where available. Reduce often enough to keep accumulation exact.
+3. Select enough moduli to cover the proven result range.
+4. **Reconstruct** the integer from its residues when the caller needs an integer
+   output, or keep the residues **resident** in GPU memory for another operation.
+5. Account for conversion, reconstruction and operand reuse when choosing a path.
 
-Strict wrap64 uses its separate byte-limb representation and low-product
-arithmetic. Small finite-ring/field operations use one explicit modulus, not a
-CRT ladder. [Design and ownership](docs/design.md) explains resident storage,
-source versions, workspaces, grouping, and export boundaries.
+Finite arithmetic uses its single explicit modulus. Strict wrap64 uses a separate
+byte-limb implementation. The [architecture guide](docs/design.md) connects these
+representations to matrix ownership, reuse and execution.
 
-## Build without a GPU
+## Build and run on an AMD GPU
 
-Requirements: a C++17 compiler, CMake 3.22+, Ninja, Python 3.10+, Boost headers,
-nlohmann-json, and Catch2 **3.x** for tests. OpenMP is optional. GMP and FLINT
-are optional reference dependencies. The build does not download dependencies.
+Required: a C++17 toolchain, a supported AMD driver and HIP/ROCm stack, CMake
+3.22+, Ninja, Git, Python 3.15.1 (selected in `.python-version`),
+Boost.Multiprecision and nlohmann-json. Catch2 3.x is
+needed when building tests. Optional accelerator libraries, OpenMP and GMP/FLINT
+serve selected paths. [Dependency setup](third_party/README.md) owns prerequisites,
+current pins and installer links. [Shared selection](docs/dependency-discovery.md)
+resolves installed SDK/toolchain paths before compiler configuration. Shipped
+presets disable automatic vcpkg manifest installation; install packages explicitly.
 
-### Linux
+### Windows PowerShell
 
-Install native development packages for those dependencies, then:
+Install the [Windows prerequisites](docs/platform-windows.md#prerequisites), then
+set paths to your actual installations; spaces and nondefault roots are supported.
+The preset uses shared discovery; explicit overrides below select the intended
+stack when several installations exist.
 
-```sh
-cmake --preset linux-cpu-debug
-cmake --build --preset linux-cpu-debug --parallel 4
-ctest --preset linux-cpu-debug --output-on-failure
-./build/linux-cpu-debug/rns8-verify
-```
-
-If your distribution provides only Catch2 2.x, install Catch2 3.x separately and
-point `CMAKE_PREFIX_PATH` at that native installation. Do not use a Windows
-vcpkg directory from Linux or WSL; the project intentionally rejects it.
-
-For a library-only build without Catch2:
-
-```sh
-cmake --preset linux-cpu-release -DRNS8_BUILD_TESTS=OFF
-cmake --build --preset linux-cpu-release --parallel 4
-```
-
-### Windows (PowerShell)
-
-Install Visual Studio 2022's C++ workload, CMake, Ninja, Python, and vcpkg. Set
-`VCPKG_ROOT` to your actual installation; the CPU presets use it explicitly.
+To reuse or provision the matching ROCm Core SDK and build with automatically
+selected paths, run `python tools/init.py`. Add `--dry-run` to preview or
+`--sdk-test` to run the registered suite after building. This entry point finds
+the exact Python selected in `.python-version`, even when `python` is older.
+It detects installed GPU targets, supports repeated
+`--sdk-target gfxNNNN` overrides, and keeps each family in its own SDK/build
+directory. SDK/compiler/LLVM/bitcode, CMake/Ninja, VS and prepared vcpkg package
+paths are selected automatically; explicit root/package overrides remain available. See
+[SDK initialization](docs/dependency-discovery.md#sdk-initialization) for full
+commands, integrity pins and platform boundaries.
 
 ```powershell
-$env:VCPKG_ROOT = 'C:\vcpkg'
-python tools\windows_dev.py cmake --preset cpu-debug
-python tools\windows_dev.py cmake --build --preset cpu-debug --parallel 4
-python tools\windows_dev.py ctest --preset cpu-debug --output-on-failure
-.\build\cpu-debug\rns8-verify.exe
+$env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
+$rns8HipRoot = 'D:/AMD SDK/ROCm/7.1'
+python tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=$rns8HipRoot" --set RNS8_ENABLE_HIP=ON
+python tools/windows_dev.py cmake --preset windows-msvc-hip-debug "-DRNS8_HIP_ROOT=$rns8HipRoot" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DRNS8_AMDGPU_TARGETS=gfx1100
+python tools/windows_dev.py cmake --build --preset windows-debug --parallel 4
+.\build\windows-msvc-hip-debug\rns8-bench.exe --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
 ```
 
-## Build for AMD hardware
+### Native Linux
 
-RNS8 uses explicit `hipcc` integration rather than CMake's HIP language on
-Windows. The default local Radeon target is RX 7900 XTX (`gfx1100`); the MI300X
-qualification target is `gfx942`. Support depends on the installed AMD software
-and target-specific backend. A preset is not evidence of hardware qualification.
-
-Windows presets currently name `C:/Program Files/AMD/ROCm/7.1` and `C:/vcpkg`.
-Override both paths if needed:
-
-```powershell
-python tools\check_dependencies.py
-python tools\windows_dev.py cmake --preset windows-msvc-hip-debug `
-  -DRNS8_HIP_ROOT='C:/Program Files/AMD/ROCm/7.1' `
-  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-python tools\windows_dev.py cmake --build --preset windows-debug --parallel 4
-python tools\windows_dev.py ctest --preset windows-debug --output-on-failure
-.\build\windows-msvc-hip-debug\rns8-verify.exe --hip-smoke
-```
-
-For a native Linux ROCm installation at `/opt/rocm`:
+Install the [native Linux prerequisites](docs/platform-linux.md#prerequisites)
+for your GPU and distribution. Choose the real ROCm root and target explicitly:
 
 ```sh
-cmake --preset linux-cdna-debug -DRNS8_AMDGPU_TARGETS=gfx942
-cmake --build --preset linux-cdna-debug --parallel 4
-ctest --preset linux-cdna-debug --output-on-failure
-./build/linux-cdna-debug/rns8-verify --hip-smoke
+rns8_rocm_root=/opt/rocm
+python3 tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=$rns8_rocm_root" --set RNS8_ENABLE_HIP=ON
+cmake --preset linux-rocm-debug "-DRNS8_HIP_ROOT=$rns8_rocm_root" -DRNS8_AMDGPU_TARGETS=gfx1100
+cmake --build --preset linux-debug --parallel 4
+./build/linux-rocm-debug/rns8-bench --backend hip-direct --semantics bounded-i64 --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 3135
 ```
 
-See [Windows setup](docs/platform-windows.md), [Linux setup](docs/platform-linux.md),
-and [backend requirements](docs/backend-notes.md). Optional accelerator builds
-are independent of the CPU/direct-HIP correctness paths.
+For Instinct, select `linux-cdna-debug` and the device target, such as `gfx942`;
+use the matching build preset and directory. Native Linux GPU commands remain
+unexecuted on this Windows host. WSL has a separate compatibility boundary in
+the [Linux guide](docs/platform-linux.md#wsl). Root selection is implemented;
+the [version policy](docs/dependency-versions.md) supplies exact non-GPU candidate
+pins, while compatibility qualification and the bounded remote-session bundle
+remain work tracked by
+[#57](https://github.com/doublemover/RNS8/issues/57),
+[#60](https://github.com/doublemover/RNS8/issues/60) and
+[#58](https://github.com/doublemover/RNS8/issues/58).
 
-| Backend | Implementation and scope |
-| --- | --- |
-| `cpu-reference` | Portable RNS arithmetic and Boost.Multiprecision oracle |
-| `wrap64-byte-limb` | CPU strict-wrap reference |
-| `hip-direct` | Direct HIP RNS, finite, and wrap kernels; checked wide CRT export |
-| `hip-vector-alu-int64` | Native multiprecision integer comparator for bounded contracts |
-| `hipblaslt` | Optional INT8 GEMM with INT32 scratch and residue reduction |
-| `ck` | Optional Composable Kernel matrix-engine path and fused reduction |
-| `rocwmma` | Optional rocWMMA matrix-engine path; internal wrap candidate is separate |
-| `amdgpu-builtins` | Target-specific WMMA/MFMA and explicit sparse-A candidates |
+## Use it
 
-`AUTO` starts from the available correctness context and only changes the plan
-backend for an eligible, exact-match reviewed cache entry. It does not benchmark
-at runtime or automatically select the fastest backend for nearby shapes.
-This revision changes the implementation key, so old entries do not silently
-qualify the repaired code. [Performance policy](docs/performance.md) describes
-review and promotion requirements.
+The [public API](include/rns8/rns8.h) exposes checked one-shot calls and persistent
+`context → plan → matrix/workspace → pack → GEMM → export` workflows. Initialize
+`struct_size` and `abi_version`, choose semantics explicitly, check returned
+statuses, and release handles after use. Input versions assert unchanged values.
+Ordinary calls are synchronous. Public [prepared submissions](docs/prepared-execution.md)
+and [resident DAGs](docs/resident-graphs.md) additionally support explicit
+fixed-prefix direct-HIP stream/capture subsets with completion tokens and retained
+resource lifetimes.
 
-## Use the API
+Experimental public calls also expose [signed complex 3M/4M products](docs/complex-residue-composition.md),
+[retained-native adaptive exact products](docs/adaptive-native-product.md#explicit-matrix-owned-native-inputs)
+and [one-level Strassen](docs/strassen-device.md#public-owner-authored-validation-pending)
+under their documented subsets. Explicit [narrow native products](docs/narrow-native-owner.md),
+[encoded B](docs/encoded-b-native.md) and [block-sparse materializations](docs/block-sparse.md#public-generation-bound-owner)
+also publish complete persistent RNS outputs with ordinary generation/proof checks.
+The [October 25 validation](docs/local-validation-20261025.md) records their
+applicable local correctness fixtures and remaining target/performance gates.
 
-The simplest complete programs are the checked-in examples:
+Start with the [example index](examples/README.md) for complete checked API
+programs and their execution boundaries. The [practical GPU workload catalogue](examples/workloads/README.md)
+adds integer Gram/cross-products, GF(251) transforms, resident versus
+export/reimport chains, split-complex products and an exactness walkthrough, using
+explicit backend and device requests. Windows installed static/shared execution
+is included in the October 25 record. Their application performance and other
+platform qualification remain open.
 
-- [Bounded signed GEMM](examples/bounded_i64_oneshot.cpp)
-- [Finite-ring GEMM](examples/finite_ring_u8_oneshot.cpp)
-- [Strict wrap64 GEMM](examples/wrap64_u64_oneshot.cpp)
-- [Exact-wide limb export](examples/exact_wide_limb_export.cpp)
-- [Opt-in CPU exact-wide continuation](examples/downstream-cmake/exact_wide_cpu_continuation.cpp)
+Install a configured build with `cmake --install <build-dir> --prefix <install-dir>`.
+Consumers use `find_package(RNS8 CONFIG REQUIRED)` and link `rns8::rns8_static`,
+or `rns8::rns8` from a shared build. The installed
+[consumer guide](examples/downstream-cmake/README.md) and sources live under
+`share/RNS8/examples/downstream-cmake`; consumers need the installed public
+package and a C++17 compiler.
 
-Initialize descriptor `struct_size` and `abi_version`, choose a semantic contract
-and backend, check every returned status, and destroy handles after use. For
-repeated products, use `context → plan → matrix/workspace → pack → GEMM → export`.
-Keep source versions accurate: reusing a version asserts that the input has not
-changed. Public operations are synchronous and row-major; column-major execution
-is unsupported. The [public header](include/rns8/rns8.h) documents individual calls.
+## Backends
 
-The continuation example demonstrates combined residue-budget rollback,
-selection above the original plan floor, matching-prefix export and input-plane
-reuse for signed and unsigned values. Its [consumer guide](examples/downstream-cmake/README.md)
-explains the payload formula and complete workflow. With examples enabled, its
-target is `rns8-example-exact-wide-cpu-continuation`.
+| Path | Availability / selection | Computes / constraints | Evidence |
+|---|---|---|---|
+| Direct HIP | Available public path; `hip-direct`, `RNS8_ENABLE_HIP` | Bounded, exact-wide, finite; separate wrap64 storage | [Local validation](docs/local-all-features-20261023.md) |
+| Native vector ALU | Available public HIP path; `hip-vector-alu-int64` | Bounded i64/u64 in native storage | [Matched public calls](docs/7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
+| hipBLASLt | Opt-in public path; `RNS8_ENABLE_HIPBLASLT` | Fixed-prefix bounded, wide, finite; separate INT32 reduction | [Details](src/backend_hipblaslt/README.md) |
+| CK | Opt-in public path; `RNS8_ENABLE_CK` | Bounded schedules, wide, finite; headers/target constraints | [Details](src/backend_ck/README.md) |
+| rocWMMA | Opt-in public path; `RNS8_ENABLE_ROCWMMA` | Bounded schedules, wide, finite; matrix-instruction support | [Details](src/backend_rocwmma/README.md) |
+| AMDGPU builtins | Opt-in public path; `RNS8_ENABLE_AMDGPU_BUILTINS` | Target-specific dense RNS/finite and explicit Sparse-A | [Capabilities](docs/backend-notes.md) |
+| Wrap64 byte limbs | Available public route; direct HIP or `wrap64-byte-limb` CPU context | Strict modulo 2⁶⁴ only | [Details](src/backend_wrap64/README.md) |
 
-Install and consume with CMake:
+Optional accelerators require HIP plus their compiler/library support.
+Compilation and device validation are recorded separately. `AUTO` uses the
+baseline context unless an eligible exact-match reviewed cache entry selects
+another backend; it performs no runtime tuning. The
+[backend reference](docs/backend-notes.md) covers limits and selection.
+[Research topics](docs/research/README.md) distinguish opt-in Strassen and private rank-23,
+low-bit and integrity prototypes from reserved public entrypoints and broader
+async/multi-GPU work.
 
-```sh
-cmake --install build/linux-cpu-debug --prefix "$PWD/temp/install-rns8"
-cmake -S "$PWD/temp/install-rns8/share/RNS8/examples/downstream-cmake" -B temp/downstream-rns8 -G Ninja \
-  -DCMAKE_PREFIX_PATH="$PWD/temp/install-rns8" -DCMAKE_BUILD_TYPE=Debug
-cmake --build temp/downstream-rns8 --parallel 2
-ctest --test-dir temp/downstream-rns8 --output-on-failure
-```
+[Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md) ·
+[Roadmap](docs/roadmap.md) · [Security](SECURITY.md) · [MIT license](LICENSE) ·
+[Financial sponsorship](https://github.com/sponsors/doublemover)
 
-In PowerShell, use an absolute prefix such as
-`"$PWD/temp/install-rns8"` and the `build/cpu-debug` build directory.
-Use the VS developer environment or `python tools/windows_dev.py cmake ...`
-for consumer configure/build commands, and match the installed build configuration
-and MSVC runtime. The development package includes the self-contained consumer
-sources/guide under `share/RNS8/examples/downstream-cmake` by default; a consumer
-needs only that package, with no repository-private or Boost include paths.
-The exported targets are `rns8::rns8` (when the shared library is built) and
-`rns8::rns8_static`. Configure the consumer with
-`-DRNS8_DOWNSTREAM_USE_SHARED=ON` to exercise the shared target and copy its DLL
-next to the programs on Windows.
-
-## Test and qualify
-
-```sh
-python tools/golden_regression_suite.py
-python tools/gpu_qualification.py --target mi300x
-python tools/gpu_qualification.py --target 7900xtx
-```
-
-The last two commands only write manifests. They enumerate source kernels,
-exact build/test/capture commands, and remaining hardware gates. Nothing uses a
-GPU unless `--execute` is supplied on the matching host. See the
-[qualification guide](docs/gpu-qualification.md) for execution and pass criteria.
-
-A small benchmark, after hardware correctness succeeds:
-
-```sh
-./build/linux-cdna-debug/rns8-bench --backend hip-direct --semantics bounded-i64 \
-  --m 32 --n 32 --k 64 --warmups 1 --repeats 3 --seed 20261006 --progress \
-  > temp/bounded-smoke.json
-python tools/benchmark_schema.py temp/bounded-smoke.json
-```
-
-This is smoke evidence, not a release performance claim. Preserve raw captures,
-compiler/runtime versions, target identity, exact reference comparisons, phase
-measurements, and ISA/counter evidence before promoting any result.
-
-## Limits and next steps
-
-- No general multi-GPU GEMM or asynchronous public execution contract
-- No implemented Ozaki/FP8, INT4/IU4, Strassen, or Freivalds backend; reserved
-  entrypoints return `RNS8_UNSUPPORTED_BACKEND`
-- Optional backends have target, shape, modulus, and accumulation limits
-- Sparse-A is explicit and target-specific; dense calls do not infer sparsity
-- HIP compilation, MI300X execution, RX 7900 XTX regression coverage, and fresh
-  performance campaigns remain required for this revision
-
-See the [documentation map](docs/README.md), [current roadmap](docs/roadmap.md),
-[research specification](docs/RNS8_RESEARCH_SPEC.md), and
-[contributing guide](CONTRIBUTING.md). License: [MIT](LICENSE).
+Explicit finite signed-INT4 research execution and reusable packed-B ownership
+are now publicly reachable; default finite routing is unchanged. See the
+[implementation/qualification distinction](docs/backend-notes.md#explicit-finite-int4-ownership).

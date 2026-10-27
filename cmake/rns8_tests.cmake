@@ -1,5 +1,441 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
+  if(WIN32 AND RNS8_ENABLE_HIP)
+    get_filename_component(_rns8_test_compiler_bin "${RNS8_HIP_CLANG}" DIRECTORY)
+    get_filename_component(_rns8_test_llvm_root "${_rns8_test_compiler_bin}" DIRECTORY)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/WindowsTestSDK.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/rns8-test-sdk.cmake" @ONLY)
+    # CTest evaluates this before Catch's discovered cases and child directories.
+    # Bind runtime helpers to the same resolved SDK used for compilation even
+    # when a plain shell still has another HIP_PATH or compiler on PATH.
+    set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+      "${CMAKE_CURRENT_BINARY_DIR}/rns8-test-sdk.cmake")
+  endif()
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  set(RNS8_BENCHMARK_CASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/benchmark-cases")
+  file(GLOB_RECURSE _rns8_case_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.json")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_cases.py" ${_rns8_case_sources})
+  execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_cases.py"
+    --output "${RNS8_BENCHMARK_CASE_DIR}" RESULT_VARIABLE _rns8_cases_status
+    OUTPUT_QUIET ERROR_VARIABLE _rns8_cases_error)
+  if(NOT _rns8_cases_status EQUAL 0)
+    message(FATAL_ERROR "Benchmark case expansion failed: ${_rns8_cases_error}")
+  endif()
+  add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
+  add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
+  add_test(NAME rank48_mathematical_certificate COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank48_certificate.py")
+  set_tests_properties(rank48_mathematical_certificate PROPERTIES LABELS "cpu;algebra;certificate" TIMEOUT 120)
+  add_test(NAME benchmark_reference_cache_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_references.py")
+  set_tests_properties(benchmark_catalog_contracts research_evidence_archive_contracts benchmark_reference_cache_contracts PROPERTIES LABELS "tools;artifacts" TIMEOUT 60)
+  add_test(NAME research_kernel_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_research_kernels.py")
+  foreach(_research_family IN ITEMS fp8 tdm)
+    if(TARGET rns8-${_research_family}-calibrate AND RNS8_ENABLE_HIP)
+      if(_research_family STREQUAL "fp8")
+        set(_research_modes int8 fp8 fp8-materialized)
+      else()
+        set(_research_modes ordinary tdm multicast2 multicast4 ordinary-wmma tdm-wmma multicast2-wmma multicast4-wmma multicast2-wmma-neighbor multicast4-wmma-neighbor)
+      endif()
+      foreach(_research_mode IN LISTS _research_modes)
+        add_test(NAME ${_research_family}_${_research_mode}_capture_smoke COMMAND rns8-${_research_family}-calibrate "${RNS8_BENCHMARK_CASE_DIR}/${_research_family}/17x19x33-${_research_mode}.json" ctest-${_research_family}-${_research_mode})
+        set_tests_properties(${_research_family}_${_research_mode}_capture_smoke PROPERTIES LABELS "hip;research;benchmark-smoke" SKIP_RETURN_CODE 77 TIMEOUT 180)
+      endforeach()
+    endif()
+  endforeach()
+  add_test(NAME stream_capacity_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_stream_capacity.py")
+  if(TARGET rns8-stream-capacity-qualify)
+    add_test(NAME stream_capacity_fixture_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_stream_capacity_fixture.py" "$<TARGET_FILE:rns8-stream-capacity-qualify>")
+    set_tests_properties(stream_capacity_fixture_contracts PROPERTIES LABELS "tools;streaming;capacity-admission" TIMEOUT 60)
+  endif()
+  add_test(NAME large_address_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_qualify_large_addresses.py")
+  add_test(NAME residue_dot_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_residue_dot.py")
+  if(TARGET rns8-residue-dot-calibrate AND RNS8_ENABLE_HIP AND (RNS8_EXPERIMENTAL_RESIDUE_DOT4 OR RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL))
+    foreach(_residue_case IN ITEMS independent-p20-sparse grouped-p20-sparse scheduled-p20-sparse region-p20-sparse grouped-fullwidth-k65 grouped-finite247 scheduled-p1-sparse scheduled-sustained-4 independent-fullwidth-k65537)
+      add_test(NAME residue_dot_${_residue_case}_smoke COMMAND rns8-residue-dot-calibrate "${RNS8_BENCHMARK_CASE_DIR}/residue-dot/${_residue_case}.json" ctest-${_residue_case})
+      set_tests_properties(residue_dot_${_residue_case}_smoke PROPERTIES LABELS "hip;residue-dot;benchmark-smoke" TIMEOUT 120)
+    endforeach()
+  endif()
+  add_test(NAME queue_calibration_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_queue_calibration.py")
+  add_test(NAME hipblaslt_metadata_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_hipblaslt_metadata.py")
+  add_test(NAME rocwmma_packing_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rocwmma_packing.py")
+  add_test(NAME host_transfer_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_host_transfers.py")
+  if(TARGET rns8-host-transfer-calibrate)
+    set_tests_properties(host_transfer_collector_contracts PROPERTIES
+      ENVIRONMENT "RNS8_HOST_TRANSFER_EXE=$<TARGET_FILE:rns8-host-transfer-calibrate>" LABELS "tools;host-transfer;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_host_domain IN ITEMS i u)
+        foreach(_host_mode IN ITEMS pageable-sync pinned-sync pinned-stream pinned-graph)
+          add_test(NAME host_transfer_${_host_domain}_${_host_mode}_smoke
+            COMMAND rns8-host-transfer-calibrate "${RNS8_BENCHMARK_CASE_DIR}/host-transfers/3x5x7-${_host_domain}-fullwidth-${_host_mode}.json"
+              ctest-host-${_host_domain}-${_host_mode})
+          set_tests_properties(host_transfer_${_host_domain}_${_host_mode}_smoke PROPERTIES
+            LABELS "hip;host-transfer;benchmark-smoke" TIMEOUT 180 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  add_test(NAME streaming_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_measurement.py")
+  add_test(NAME public_measurement_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_public_measurement_contracts.py")
+  add_test(NAME wide_magnitude_receipts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_wide_magnitude.py")
+  add_test(NAME ci_benchmark_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ci_benchmark_smoke.py")
+  add_test(NAME observation_cohorts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_observation_cohorts.py")
+  add_test(NAME finite_distribution_report_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_finite_distribution_report.py")
+  add_test(NAME rns_chain_report_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rns_chain_report.py")
+  add_test(NAME measurement_evidence_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_measurement_evidence_contracts.py")
+  add_test(NAME tooling_contract_regressions COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_tooling_contracts.py")
+  add_test(NAME dependency_policy_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_policy.py")
+  add_test(NAME documentation_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_documentation.py")
+  add_test(NAME documentation_links COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_documentation.py")
+  add_test(NAME dependency_resolution_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_dependency_resolution.py")
+  add_test(NAME rocm_sdk_init_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rocm_sdk.py")
+  add_test(NAME runtime_staging_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_runtime_staging.py")
+  add_test(NAME ck_input_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ck_input_contract.py")
+  set_tests_properties(rocm_sdk_init_self_test PROPERTIES LABELS "tools;dependencies;sdk")
+  add_test(NAME locality_schedule_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_locality_schedule.py")
+  add_test(NAME calibration_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_calibration_manifest.py")
+  add_test(NAME narrow_public_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_narrow_public_calibration.py")
+  add_test(NAME int4_public_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_int4_calibration.py")
+  add_test(NAME public_epilogue_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_epilogue_calibration.py")
+  add_test(NAME native_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_calibration.py")
+  add_test(NAME finite_verify_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_finite_verify.py")
+  add_test(NAME block_sparse_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_block_sparse.py")
+  add_test(NAME wrap64_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_wrap64.py")
+  if(TARGET rns8-wrap64-calibrate)
+    set_tests_properties(wrap64_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_WRAP64_CALIBRATION_EXE=$<TARGET_FILE:rns8-wrap64-calibrate>"
+      LABELS "tools;wrap64;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_wrap_candidate IN ITEMS signed_radix native_u8 direct_v4 rocwmma_corrected)
+        if(_wrap_candidate STREQUAL "rocwmma_corrected" AND NOT RNS8_ENABLE_ROCWMMA)
+          continue()
+        endif()
+        foreach(_wrap_scope IN ITEMS resident roundtrip cold)
+          add_test(NAME wrap64_${_wrap_candidate}_${_wrap_scope}_smoke
+            COMMAND rns8-wrap64-calibrate 0 ${_wrap_candidate} ${_wrap_scope}
+              2 3 17 carry 1 2 1 ctest-${_wrap_candidate}-${_wrap_scope})
+          set_tests_properties(wrap64_${_wrap_candidate}_${_wrap_scope}_smoke PROPERTIES
+            LABELS "hip;wrap64;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  if(TARGET rns8-block-sparse-calibrate)
+    set_tests_properties(block_sparse_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_BLOCK_SPARSE_EXE=$<TARGET_FILE:rns8-block-sparse-calibrate>"
+      LABELS "tools;sparse;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_sparse_mode IN ITEMS dense sparse_scalar sparse_wmma sparse_hybrid sparse_scalar_cold sparse_wmma_cold sparse_hybrid_cold)
+        if(_sparse_mode MATCHES "hybrid")
+          set(_sparse_threshold 1)
+        else()
+          set(_sparse_threshold 0)
+        endif()
+        add_test(NAME block_sparse_${_sparse_mode}_smoke
+          COMMAND rns8-block-sparse-calibrate 0 ${_sparse_mode} 17 19 129 mixed
+            1 ${_sparse_threshold} 2 1 ctest-${_sparse_mode})
+        set_tests_properties(block_sparse_${_sparse_mode}_smoke PROPERTIES
+          LABELS "hip;sparse;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+      endforeach()
+    endif()
+  endif()
+  if(TARGET rns8-finite-verify-calibrate)
+    set_tests_properties(finite_verify_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_FINITE_VERIFY_EXE=$<TARGET_FILE:rns8-finite-verify-calibrate>"
+      LABELS "tools;finite;verification;cli")
+    foreach(_finite_mode IN ITEMS verify_only compute_verify full_reference)
+      if(_finite_mode STREQUAL "full_reference")
+        set(_finite_trials 0)
+        set(_finite_seed 0)
+      else()
+        set(_finite_trials 4)
+        set(_finite_seed 3135)
+      endif()
+      add_test(NAME finite_verify_cpu_${_finite_mode}_smoke
+        COMMAND rns8-finite-verify-calibrate cpu-reference -1 ${_finite_mode}
+          2 3 65 250 ${_finite_trials} 2 1 ${_finite_seed} ctest-cpu-${_finite_mode})
+      set_tests_properties(finite_verify_cpu_${_finite_mode}_smoke PROPERTIES
+        LABELS "cpu;finite;verification;benchmark-smoke" TIMEOUT 60)
+      if(RNS8_ENABLE_HIP)
+        add_test(NAME finite_verify_hip_${_finite_mode}_smoke
+          COMMAND rns8-finite-verify-calibrate hip-direct 0 ${_finite_mode}
+            2 3 65 256 ${_finite_trials} 2 1 ${_finite_seed} ctest-hip-${_finite_mode})
+        set_tests_properties(finite_verify_hip_${_finite_mode}_smoke PROPERTIES
+          LABELS "hip;finite;verification;benchmark-smoke" TIMEOUT 60 SKIP_RETURN_CODE 77)
+      endif()
+    endforeach()
+  endif()
+  add_test(NAME arithmetic_composition_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_composition.py")
+  add_test(NAME modulus_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_modulus_kernels.py")
+  add_test(NAME native_wmma_logical_checker_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_native_wmma_logic.py")
+  set_tests_properties(native_wmma_logical_checker_self_test PROPERTIES TIMEOUT 900 LABELS "tools;proof;exhaustive")
+  add_test(NAME native_wmma_generator_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_native_wmma.py")
+  add_test(NAME block_gemm_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_block_gemm_research.py")
+  add_test(NAME cpu_amx_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_cpu_amx.py")
+  add_test(NAME distributed_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_distributed_calibration.py")
+  add_test(NAME native_integrity_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_integrity.py")
+  add_test(NAME native_interop_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_native_interop.py")
+  if(TARGET rns8-native-calibrate AND RNS8_ENABLE_HIP)
+    add_test(NAME native_global_minimum_axis_l1_smoke COMMAND rns8-native-calibrate
+      global_minimum 17 19 17 20 2 0 1 1 global-minimum-smoke axis_l1)
+    set_tests_properties(native_global_minimum_axis_l1_smoke PROPERTIES LABELS "hip;native;benchmark-smoke" TIMEOUT 120)
+  endif()
+  if(TARGET rns8-lift-recipe-calibrate AND RNS8_ENABLE_HIP)
+    foreach(_layout_mode IN ITEMS recipe-packed-full recipe-packed-minimum recipe-layout-model native-roundtrip manual-scalar-first)
+      foreach(_layout_shape IN ITEMS 17-chain-3-i 32-diamond-4-u)
+        add_test(NAME lift_recipe_${_layout_shape}_${_layout_mode}_smoke
+          COMMAND rns8-lift-recipe-calibrate
+            "${RNS8_BENCHMARK_CASE_DIR}/lift-recipe/${_layout_shape}-${_layout_mode}.json"
+            "ctest-${_layout_shape}-${_layout_mode}")
+        set_tests_properties(lift_recipe_${_layout_shape}_${_layout_mode}_smoke PROPERTIES
+          LABELS "hip;layout;recipe;benchmark-smoke" TIMEOUT 120)
+      endforeach()
+    endforeach()
+  endif()
+  add_test(NAME lift_recipe_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_lift_recipe.py")
+  add_test(NAME product_stage_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_product_stages.py")
+  if(TARGET rns8-product-stage-calibrate)
+    add_test(NAME product_stage_price_ingestion_self_test COMMAND rns8-product-stage-calibrate --self-test)
+  endif()
+  if(TARGET rns8-product-stage-calibrate AND RNS8_ENABLE_HIP)
+    add_test(NAME product_stage_calibration_smoke COMMAND rns8-product-stage-calibrate
+      "${RNS8_BENCHMARK_CASE_DIR}/lift-recipe/17-stage-training.json" "ctest-product-stages")
+    set_tests_properties(product_stage_calibration_smoke PROPERTIES LABELS "hip;layout;recipe;benchmark-smoke" TIMEOUT 120)
+  endif()
+  add_test(NAME bilinear_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_bilinear_calibration.py")
+  add_test(NAME rank23_october55_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_october55.py")
+  add_test(NAME rank23_slp_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank23_slp.py")
+  add_test(NAME residue_integrity_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_residue_integrity.py")
+  add_test(NAME analytical_planner_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analytical_planner.py")
+  add_test(NAME planning_recipe_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_planning_recipe.py")
+  add_test(NAME modulus_scheme_optimizer_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_modulus_scheme_optimizer.py")
+  add_test(NAME encoding_catalogue_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_encoding_catalogue.py")
+  add_test(NAME instruction_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_instruction_roof.py")
+  add_test(NAME system_roof_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_system_roof.py")
+  add_test(NAME fp8_modular_certificate_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_fp8_modular_certificate.py")
+  if(TARGET rns8-system-roof-calibrate)
+    add_test(NAME system_roof_cli_help COMMAND rns8-system-roof-calibrate --help)
+    if(RNS8_ENABLE_HIP)
+      foreach(_system_mode IN ITEMS global-copy lds-read lds-read-write launch event descriptor graph)
+        add_test(NAME system_roof_${_system_mode}_smoke COMMAND rns8-system-roof-calibrate
+          "${RNS8_BENCHMARK_CASE_DIR}/system-roof/${_system_mode}-smoke.json" ctest-system-${_system_mode})
+        set_tests_properties(system_roof_${_system_mode}_smoke PROPERTIES LABELS "hip;calibration;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+      endforeach()
+    endif()
+  endif()
+  add_test(NAME split_k_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_split_k.py")
+  add_test(NAME ragged_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_ragged.py")
+  add_test(NAME stream_panel_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_stream_panels.py")
+  if(TARGET rns8-stream-panel-calibrate)
+    set_tests_properties(stream_panel_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_STREAM_PANEL_EXE=$<TARGET_FILE:rns8-stream-panel-calibrate>"
+      LABELS "tools;stream-panels;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_stream_domain IN ITEMS signed unsigned)
+        foreach(_stream_mode IN ITEMS incore stream stream-overlap)
+          if(_stream_mode STREQUAL "stream")
+            set(_stream_panel_arguments 2 2 5 2048 192)
+          elseif(_stream_mode STREQUAL "stream-overlap")
+            # Minimum pinned/control payload includes eleven 24-byte retry nodes.
+            set(_stream_panel_arguments 2 2 5 3584 2568)
+          else()
+            set(_stream_panel_arguments 0 0 0 0 0)
+          endif()
+          add_test(NAME stream_panel_${_stream_domain}_${_stream_mode}_smoke
+            COMMAND rns8-stream-panel-calibrate 0 ${_stream_mode} 2 3 17 ${_stream_domain}
+              3 9 ${_stream_panel_arguments} 2 2 1 ctest-panels-${_stream_domain}-${_stream_mode} 0)
+          set_tests_properties(stream_panel_${_stream_domain}_${_stream_mode}_smoke PROPERTIES
+            LABELS "hip;stream-panels;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+        add_test(NAME stream_panel_${_stream_domain}_retained_b_smoke
+          COMMAND rns8-stream-panel-calibrate 0 stream 2 3 17 ${_stream_domain}
+            3 9 2 2 5 4096 448 2 2 1 ctest-panels-${_stream_domain}-retained-b 2048)
+        set_tests_properties(stream_panel_${_stream_domain}_retained_b_smoke PROPERTIES
+          LABELS "hip;stream-panels;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+      endforeach()
+    endif()
+  endif()
+  if(TARGET rns8-ragged-calibrate)
+    set_tests_properties(ragged_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_RAGGED_EXE=$<TARGET_FILE:rns8-ragged-calibrate>"
+      LABELS "tools;ragged;cli")
+    foreach(_ragged_backend IN ITEMS cpu-reference hip-direct)
+      if(_ragged_backend STREQUAL "hip-direct")
+        if(NOT RNS8_ENABLE_HIP)
+          continue()
+        endif()
+        set(_ragged_device 0)
+        set(_ragged_label hip)
+      else()
+        set(_ragged_device -1)
+        set(_ragged_label cpu)
+      endif()
+      foreach(_ragged_domain IN ITEMS signed unsigned)
+        foreach(_ragged_mode IN ITEMS uniform_export ragged_export ragged_resident)
+          add_test(NAME ragged_${_ragged_label}_${_ragged_domain}_${_ragged_mode}_smoke
+            COMMAND rns8-ragged-calibrate ${_ragged_backend} ${_ragged_device} ${_ragged_mode}
+              17 19 mixed ${_ragged_domain} 3 5 2 2 1 ctest-ragged-${_ragged_label}-${_ragged_domain}-${_ragged_mode})
+          set_tests_properties(ragged_${_ragged_label}_${_ragged_domain}_${_ragged_mode}_smoke PROPERTIES
+            LABELS "${_ragged_label};ragged;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      add_test(NAME ragged_${_ragged_label}_wide140_smoke
+        COMMAND rns8-ragged-calibrate ${_ragged_backend} ${_ragged_device} ragged_export
+          4 4 wide140 signed 1 1 1 2 1 ctest-ragged-${_ragged_label}-wide140)
+      set_tests_properties(ragged_${_ragged_label}_wide140_smoke PROPERTIES
+        LABELS "${_ragged_label};ragged;wide;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+    endforeach()
+  endif()
+  if(TARGET rns8-split-k-calibrate)
+    set_tests_properties(split_k_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_SPLIT_K_EXE=$<TARGET_FILE:rns8-split-k-calibrate>"
+      LABELS "tools;split-k;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_split_domain IN ITEMS signed unsigned)
+        foreach(_split_mode IN ITEMS unsplit full window)
+          if(_split_mode STREQUAL "unsplit")
+            set(_split_fragments 1)
+            set(_split_window 0)
+          elseif(_split_mode STREQUAL "full")
+            set(_split_fragments 3)
+            set(_split_window 3)
+          else()
+            set(_split_fragments 3)
+            set(_split_window 2)
+          endif()
+          add_test(NAME split_k_${_split_domain}_${_split_mode}_smoke
+            COMMAND rns8-split-k-calibrate 0 ${_split_mode} 2 3 17 ${_split_domain}
+              ${_split_fragments} ${_split_window} 2 2 1 ctest-split-${_split_domain}-${_split_mode})
+          set_tests_properties(split_k_${_split_domain}_${_split_mode}_smoke PROPERTIES
+            LABELS "hip;split-k;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  if(TARGET rns8-instruction-roof-calibrate)
+    set_tests_properties(instruction_roof_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_INSTRUCTION_ROOF_EXE=$<TARGET_FILE:rns8-instruction-roof-calibrate>"
+      LABELS "tools;instruction-chain;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_roof_mode IN ITEMS raw reduce251)
+        foreach(_roof_chains IN ITEMS 1 2 4 8)
+          add_test(NAME instruction_roof_${_roof_mode}_${_roof_chains}_smoke
+            COMMAND rns8-instruction-roof-calibrate 0 ${_roof_mode} ${_roof_chains} 17 5 2 1
+              ctest-roof-${_roof_mode}-${_roof_chains})
+          set_tests_properties(instruction_roof_${_roof_mode}_${_roof_chains}_smoke PROPERTIES
+            LABELS "hip;instruction-chain;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  add_test(NAME word_mod_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_word_mod_calibration.py")
+  if(TARGET rns8-word-mod-calibrate)
+    set_tests_properties(word_mod_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_WORD_MOD_CALIBRATION_EXE=$<TARGET_FILE:rns8-word-mod-calibrate>"
+      LABELS "tools;word-modular;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_mfma_method IN ITEMS asymmetric_fp64_mfma asymmetric_fp64_mfma_rows asymmetric_fp64_mfma_columns)
+        foreach(_mfma_scope IN ITEMS resident repeated_b cold)
+          add_test(NAME word_mod_${_mfma_method}_${_mfma_scope}_smoke
+            COMMAND rns8-word-mod-calibrate 0 ${_mfma_method} ${_mfma_scope} 17 19 18 ring 65536 2 1 1 2 17 ctest-${_mfma_method}-${_mfma_scope})
+          set_tests_properties(word_mod_${_mfma_method}_${_mfma_scope}_smoke PROPERTIES
+            LABELS "hip;word-modular;fp64-mfma;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      foreach(_word_method IN ITEMS baseline packed_dot4 canonical_dot4 byte_wmma)
+        foreach(_word_scope IN ITEMS resident cold)
+          foreach(_word_domain IN ITEMS ring prime_field)
+            if(_word_domain STREQUAL "ring")
+              set(_word_modulus 256)
+            else()
+              set(_word_modulus 251)
+            endif()
+            add_test(NAME word_mod_${_word_method}_${_word_scope}_${_word_domain}_smoke
+              COMMAND rns8-word-mod-calibrate 0 ${_word_method} ${_word_scope} 2 3 17
+                ${_word_domain} ${_word_modulus} 2 1 ctest-${_word_method}-${_word_scope}-${_word_domain})
+            set_tests_properties(word_mod_${_word_method}_${_word_scope}_${_word_domain}_smoke PROPERTIES
+              LABELS "hip;word-modular;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+      foreach(_word_scope IN ITEMS resident cold)
+        foreach(_word_domain IN ITEMS ring prime_field)
+          if(_word_domain STREQUAL "ring")
+            set(_word_modulus 256)
+          else()
+            set(_word_modulus 251)
+          endif()
+          foreach(_word_left IN ITEMS 1 2)
+            if(_word_left EQUAL 1)
+              set(_word_right 2)
+            else()
+              set(_word_right 1)
+            endif()
+            add_test(NAME word_mod_binary64_${_word_left}_${_word_right}_${_word_scope}_${_word_domain}_smoke
+              COMMAND rns8-word-mod-calibrate 0 asymmetric_binary64 ${_word_scope} 2 3 17
+                ${_word_domain} ${_word_modulus} 2 1 ${_word_left} ${_word_right} 17
+                ctest-binary64-${_word_left}-${_word_right}-${_word_scope}-${_word_domain})
+            set_tests_properties(word_mod_binary64_${_word_left}_${_word_right}_${_word_scope}_${_word_domain}_smoke PROPERTIES
+              LABELS "hip;word-modular;binary64;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  add_test(NAME crt_calibration_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_crt_calibration.py")
+  if(TARGET rns8-crt-calibrate)
+    set_tests_properties(crt_calibration_collector_self_test PROPERTIES
+      ENVIRONMENT "RNS8_CRT_CALIBRATION_EXE=$<TARGET_FILE:rns8-crt-calibrate>"
+      LABELS "tools;conversion;cli")
+    if(RNS8_ENABLE_HIP)
+      foreach(_conversion_candidate IN ITEMS garner direct balanced group_crt_local group_crt_split group_crt_split_shuffled fixed_dot4 tile_balanced tile_convert_balanced tile_convert_garner import_scalar_signed import_scalar_unsigned import_dot4_signed import_dot4_unsigned fixed_wmma import_wmma_signed import_wmma_unsigned)
+        foreach(_conversion_scope IN ITEMS resident cold)
+          add_test(NAME conversion_${_conversion_candidate}_${_conversion_scope}_smoke
+            COMMAND rns8-crt-calibrate ${_conversion_candidate} 17 3 2 1
+              ctest-${_conversion_candidate}-${_conversion_scope} ${_conversion_scope})
+          set_tests_properties(conversion_${_conversion_candidate}_${_conversion_scope}_smoke PROPERTIES
+            LABELS "hip;conversion;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+        endforeach()
+      endforeach()
+      foreach(_owned_crt_policy IN ITEMS garner direct balanced group_local group_split)
+        foreach(_owned_crt_sign IN ITEMS signed unsigned)
+          foreach(_owned_crt_scope IN ITEMS resident cold)
+            set(_owned_crt_candidate public_owned_${_owned_crt_policy}_${_owned_crt_sign})
+            add_test(NAME conversion_${_owned_crt_candidate}_${_owned_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_owned_crt_candidate} 17 20 2 1
+                ctest-owned-${_owned_crt_policy}-${_owned_crt_sign}-${_owned_crt_scope} ${_owned_crt_scope})
+            set_tests_properties(conversion_${_owned_crt_candidate}_${_owned_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+      foreach(_gemm_crt_policy IN ITEMS garner quarter owned_garner owned_direct owned_balanced owned_group_local owned_group_split)
+        foreach(_gemm_crt_sign IN ITEMS signed unsigned)
+          foreach(_gemm_crt_scope IN ITEMS gemm_resident gemm_cold)
+            set(_gemm_crt_candidate public_${_gemm_crt_policy}_${_gemm_crt_sign})
+            add_test(NAME conversion_${_gemm_crt_candidate}_${_gemm_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_gemm_crt_candidate} 9 3 2 1
+                ctest-gemm-${_gemm_crt_policy}-${_gemm_crt_sign}-${_gemm_crt_scope} ${_gemm_crt_scope} 65)
+            set_tests_properties(conversion_${_gemm_crt_candidate}_${_gemm_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;gemm;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+      foreach(_public_crt_candidate IN ITEMS public_garner_signed public_garner_unsigned public_quarter_signed public_quarter_unsigned)
+        foreach(_public_crt_prefix IN ITEMS 3 9)
+          foreach(_public_crt_scope IN ITEMS resident cold)
+            add_test(NAME conversion_${_public_crt_candidate}_p${_public_crt_prefix}_${_public_crt_scope}_smoke
+              COMMAND rns8-crt-calibrate ${_public_crt_candidate} 17 ${_public_crt_prefix} 2 1
+                ctest-${_public_crt_candidate}-p${_public_crt_prefix}-${_public_crt_scope} ${_public_crt_scope})
+            set_tests_properties(conversion_${_public_crt_candidate}_p${_public_crt_prefix}_${_public_crt_scope}_smoke PROPERTIES
+              LABELS "hip;conversion;public-export;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
+          endforeach()
+        endforeach()
+      endforeach()
+    endif()
+  endif()
+  add_test(NAME crt_research_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_crt_research.py")
+  add_test(NAME floating_rewrite_oracle_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_floating_rewrite_oracle.py")
+  add_test(NAME arithmetic_certificate_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_arithmetic_certificate.py")
+  add_test(NAME build_manifest_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_manifest.py")
 
   add_test(
     NAME performance_dashboard_self_test
@@ -145,6 +581,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(cdna_env_summary_self_test PROPERTIES LABELS "benchmark;evidence;targets")
+  add_test(NAME cdna_scripts_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cdna_scripts.py")
+  set_tests_properties(cdna_scripts_self_test PROPERTIES LABELS "tools;qualification")
 
   add_test(
     NAME report_capture_inputs_self_test
@@ -153,12 +591,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(report_capture_inputs_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME bounded_i64_1024_review_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_bounded_i64_1024_review.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(bounded_i64_1024_review_self_test PROPERTIES LABELS "benchmark;evidence;autotune")
 
   add_test(
     NAME tile_shape_report_self_test
@@ -181,12 +613,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(adaptive_grouped_scheduler_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
-  add_test(
-    NAME streaming_overlap_report_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_streaming_overlap_report.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(streaming_overlap_report_self_test PROPERTIES LABELS "benchmark;evidence;scheduler")
 
   add_test(
     NAME perf_variance_report_self_test
@@ -194,6 +620,14 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
   set_tests_properties(perf_variance_report_self_test PROPERTIES LABELS "benchmark;evidence;perf")
+  add_test(NAME execution_environment_identity_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_execution_environment_identity.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_tests_properties(execution_environment_identity_self_test PROPERTIES LABELS "tools;benchmark;evidence;perf")
+  add_test(NAME diagnostic_companion_self_test
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_diagnostic_companion.py"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  set_tests_properties(diagnostic_companion_self_test PROPERTIES LABELS "tools;benchmark;evidence;perf")
 
   add_test(
     NAME error_detection_policy_report_self_test
@@ -202,12 +636,6 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(error_detection_policy_report_self_test PROPERTIES LABELS "benchmark;evidence;schema")
 
-  add_test(
-    NAME cache_promotion_closeout_self_test
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cache_promotion_closeout.py"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  )
-  set_tests_properties(cache_promotion_closeout_self_test PROPERTIES LABELS "tools;autotune;evidence")
 
   add_test(
     NAME fhe_workload_report_self_test
@@ -591,6 +1019,15 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   )
   set_tests_properties(benchmark_result_compare_self_test PROPERTIES LABELS "benchmark;schema;compare")
 
+  if(TARGET rns8-verify)
+    add_test(NAME cpu_reference_verifier_smoke COMMAND rns8-verify)
+    set_tests_properties(cpu_reference_verifier_smoke PROPERTIES LABELS "tools;cpu;verification" TIMEOUT 120)
+    if(RNS8_ENABLE_HIP)
+      add_test(NAME hip_reference_verifier_smoke COMMAND rns8-verify --hip-smoke)
+      set_tests_properties(hip_reference_verifier_smoke PROPERTIES LABELS "tools;hip;verification" TIMEOUT 120)
+    endif()
+  endif()
+
   if(TARGET rns8-inspect)
     add_test(
       NAME inspect_cli_hard_cut_diagnostics
@@ -621,15 +1058,47 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   set(
     RNS8_TEST_SOURCES
     tests/unit/test_public_abi.cpp
+    tests/unit/test_integer_split.cpp
+    tests/unit/test_hip_handle_owner.cpp
     tests/unit/test_moduli.cpp
     tests/unit/test_residues.cpp
     tests/unit/test_ring_gemm.cpp
+    tests/unit/test_cpu_amx.cpp
+    tests/unit/test_cpu_i8mm.cpp
+    tests/unit/test_rank48.cpp
+    tests/unit/test_gram_five.cpp
     tests/unit/test_residue_dot.cpp
+    tests/unit/test_residue_epilogue.cpp
+    tests/unit/test_exact_lift_workspace.cpp
+    tests/unit/test_allocation_observations.cpp
+    tests/unit/test_residue_layout.cpp
     tests/unit/test_crt.cpp
+    tests/unit/test_direct_crt_constants.cpp
+    tests/unit/test_rank23_slp.cpp
+    tests/unit/test_integrity_identity.cpp
+    tests/unit/test_distributed_plan.cpp
+    tests/unit/test_distributed_hip.cpp
+    tests/unit/test_system_roof_plan.cpp
+    tests/unit/test_fp8_modular.cpp
+    tests/unit/test_native_tdm.cpp
+    tests/unit/test_int4_encoding.cpp
+    tests/unit/test_native_tile_bound.cpp
+    tests/unit/test_native_wmma_queue.cpp
+    tests/unit/test_native64_reducer.cpp
+    tests/unit/test_complex_residue_plan.cpp
+    tests/unit/test_ragged_residues.cpp
+    tests/unit/test_block_sparse.cpp
+    tests/unit/test_generated_reducers.cpp
+    tests/unit/test_generated_encodings.cpp
     tests/unit/test_api.cpp
     tests/unit/test_autotune_cache.cpp
     tests/unit/test_bounded_gemm.cpp
     tests/unit/test_bounded_reference_sweeps.cpp
+    tests/unit/test_hipblaslt_metadata.cpp
+    tests/unit/test_streaming_measurement.cpp
+    tests/unit/test_public_sustained.cpp
+    tests/unit/test_native_reference_cache.cpp
+    tests/unit/test_wide_magnitude_fixture.cpp
     tests/unit/test_exact_wide.cpp
     tests/unit/test_semantics.cpp
     tests/unit/test_wrap64.cpp
@@ -654,14 +1123,66 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   if(RNS8_ENABLE_AMDGPU_BUILTINS)
     list(APPEND RNS8_TEST_SOURCES tests/differential/test_amdgpu_builtins.cpp)
   endif()
-  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES})
+  set(_rns8_reducer_dir "${CMAKE_CURRENT_BINARY_DIR}/generated-reducer-tests")
+  set(_rns8_reducer_header "${_rns8_reducer_dir}/rns8_generated_centered_reducers.cuh")
+  add_custom_command(OUTPUT "${_rns8_reducer_header}"
+    BYPRODUCTS "${_rns8_reducer_dir}/rns8_generated_centered_reducers.json"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_modulus_kernels.py"
+            --out-dir "${_rns8_reducer_dir}"
+    DEPENDS tools/generate_modulus_kernels.py tools/arithmetic_certificate.py tools/modulus_set_search.py
+    VERBATIM)
+  set(_rns8_encoding_dir "${CMAKE_CURRENT_BINARY_DIR}/generated-encoding-tests")
+  set(_rns8_encoding_header "${_rns8_encoding_dir}/encodings.hpp")
+  add_custom_command(OUTPUT "${_rns8_encoding_header}"
+    BYPRODUCTS "${_rns8_encoding_dir}/awe6_251.hpp" "${_rns8_encoding_dir}/awe6_256.hpp"
+               "${_rns8_encoding_dir}/base13_251.hpp" "${_rns8_encoding_dir}/base13_256.hpp"
+               "${_rns8_encoding_dir}/exact_divide.hpp" "${_rns8_encoding_dir}/encodings.json"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_encoding_test_fixtures.py"
+            --out-dir "${_rns8_encoding_dir}"
+    DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
+    VERBATIM)
+  add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  set(RNS8_DLPACK_INCLUDE_DIR "" CACHE PATH "Optional official DLPack1.2 include directory for interoperability tests")
+  if(RNS8_DLPACK_INCLUDE_DIR)
+    target_sources(rns8_tests PRIVATE tests/unit/test_dlpack.cpp)
+    target_include_directories(rns8_tests SYSTEM PRIVATE "${RNS8_DLPACK_INCLUDE_DIR}")
+  endif()
+  # Stage before Catch's POST_BUILD discovery can execute this binary.
+  rns8_copy_runtime_dependencies(rns8_tests)
+  if(WIN32 AND RNS8_ENABLE_HIP)
+    target_sources(rns8_tests PRIVATE tests/unit/test_hip_runtime_identity.cpp)
+    get_filename_component(_hip_dll_name "${RNS8_HIP_RUNTIME}" NAME)
+    file(SHA256 "${RNS8_HIP_RUNTIME}" _hip_dll_hash)
+    target_compile_definitions(rns8_tests PRIVATE
+      "RNS8_TEST_HIP_DLL_NAME=\"${_hip_dll_name}\"" "RNS8_TEST_HIP_DLL_SHA256=\"${_hip_dll_hash}\"")
+    if(EXISTS "${_rns8_hip_runtime_dir}/rocm_kpack.dll")
+      file(SHA256 "${_rns8_hip_runtime_dir}/rocm_kpack.dll" _kpack_hash)
+      target_compile_definitions(rns8_tests PRIVATE "RNS8_TEST_KPACK_SHA256=\"${_kpack_hash}\"")
+    endif()
+  endif()
+  rns8_bind_manifest(rns8_tests)
   target_include_directories(
     rns8_tests
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
+      "${_rns8_reducer_dir}"
+      "${_rns8_encoding_dir}"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
   )
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>)
+  if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    target_sources(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp")
+    target_include_directories(rns8_tests PRIVATE "${RNS8_GENERATED_NATIVE_DIR}")
+    target_compile_definitions(rns8_tests PRIVATE RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=1)
+    add_test(NAME generated_native_wmma_isa_check
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_generated_native_wmma.py"
+              --object "${RNS8_GENERATED_NATIVE_OBJECT}" --generated-dir "${RNS8_GENERATED_NATIVE_DIR}"
+              --target "${RNS8_AMDGPU_TARGETS}" --hipcc "${RNS8_HIP_HIPCC}"
+              --scratch-root "${CMAKE_CURRENT_SOURCE_DIR}/temp"
+              --output "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma/isa.json"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    set_tests_properties(generated_native_wmma_isa_check PROPERTIES LABELS "hip;isa;generated-native")
+  endif()
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>)
   target_compile_definitions(rns8_tests PRIVATE $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>)
@@ -684,7 +1205,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   target_link_libraries(rns8_tests PRIVATE rns8_static Catch2::Catch2)
   rns8_copy_windows_clang_asan_runtime(rns8_tests)
   include(Catch)
-  catch_discover_tests(rns8_tests)
+  # Older distro Catch2 discovery scripts omit this property even though the
+  # runtime returns 4 when every selected test is explicitly skipped.
+  catch_discover_tests(rns8_tests PROPERTIES SKIP_RETURN_CODE 4)
   if(RNS8_ENABLE_HIP)
     list(GET RNS8_AMDGPU_TARGETS 0 RNS8_HIP_ISA_CHECK_TARGET)
     add_test(

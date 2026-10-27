@@ -1,0 +1,16 @@
+if(NOT RNS8_RUNTIME_DESTINATION OR NOT RNS8_RUNTIME_DLLS)
+  message(FATAL_ERROR "Runtime staging requires explicit source DLLs and destination")
+endif()
+file(MAKE_DIRECTORY "${RNS8_RUNTIME_DESTINATION}")
+# Several executables share an output directory and can link concurrently.
+file(LOCK "${RNS8_RUNTIME_DESTINATION}/.rns8-runtime.lock" GUARD PROCESS TIMEOUT 120)
+foreach(_runtime IN LISTS RNS8_RUNTIME_DLLS)
+  if(NOT EXISTS "${_runtime}" OR IS_DIRECTORY "${_runtime}")
+    message(FATAL_ERROR "Selected SDK runtime DLL is missing: ${_runtime}")
+  endif()
+  execute_process(COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+    "${_runtime}" "${RNS8_RUNTIME_DESTINATION}" RESULT_VARIABLE _copied)
+  if(NOT _copied EQUAL 0)
+    message(FATAL_ERROR "Cannot stage selected SDK runtime: ${_runtime}")
+  endif()
+endforeach()

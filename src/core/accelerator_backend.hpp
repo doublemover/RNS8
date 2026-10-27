@@ -27,6 +27,7 @@ struct accelerator_backend_descriptor {
 
 bool accelerator_backend_kind(rns8_backend_kind backend);
 bool accelerator_backend_compiled(rns8_backend_kind backend);
+bool accelerator_backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 bool accelerator_backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 const accelerator_backend_descriptor* accelerator_backend_descriptor_for(rns8_backend_kind backend);
 void fill_disabled_accelerator_capability(rns8_backend_kind backend, rns8_backend_capability_info& info);

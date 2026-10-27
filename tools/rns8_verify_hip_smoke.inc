@@ -70,14 +70,19 @@ bool verify_hip_smoke() {
     if (hip_status == RNS8_SUCCESS) {
       hip_status = rns8_pack_i64(hip_ctx, hip_matrix, src.data(), ld, 1);
     }
+    // Device-only matrices deliberately have no full host residue mirror.
+    std::vector<int8_t> downloaded(cpu_matrix ? cpu_matrix->residues.size() : 0);
+    if (hip_status == RNS8_SUCCESS && hip_matrix && downloaded.size() != hip_matrix->hip_residue_bytes)
+      hip_status = RNS8_INTERNAL_ERROR;
     if (hip_status == RNS8_SUCCESS && hip_matrix) {
       hip_status = rns8::detail::hip_direct_copy_device_to_host(
           hip_matrix->hip_device_id,
-          hip_matrix->residues.data(),
+          downloaded.data(),
           hip_matrix->hip_residues,
-          hip_matrix->hip_residue_bytes);
+          downloaded.size());
     }
-    const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
+    const bool equal = cpu_matrix && hip_matrix && hip_matrix->residues.empty() &&
+        downloaded.size() == hip_matrix->hip_residue_bytes && cpu_matrix->residues == downloaded;
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
     if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {
@@ -116,14 +121,18 @@ bool verify_hip_smoke() {
     if (hip_status == RNS8_SUCCESS) {
       hip_status = rns8_pack_u64(hip_ctx, hip_matrix, src.data(), ld, 1);
     }
+    std::vector<int8_t> downloaded(cpu_matrix ? cpu_matrix->residues.size() : 0);
+    if (hip_status == RNS8_SUCCESS && hip_matrix && downloaded.size() != hip_matrix->hip_residue_bytes)
+      hip_status = RNS8_INTERNAL_ERROR;
     if (hip_status == RNS8_SUCCESS && hip_matrix) {
       hip_status = rns8::detail::hip_direct_copy_device_to_host(
           hip_matrix->hip_device_id,
-          hip_matrix->residues.data(),
+          downloaded.data(),
           hip_matrix->hip_residues,
-          hip_matrix->hip_residue_bytes);
+          downloaded.size());
     }
-    const bool equal = cpu_matrix && hip_matrix && cpu_matrix->residues == hip_matrix->residues;
+    const bool equal = cpu_matrix && hip_matrix && hip_matrix->residues.empty() &&
+        downloaded.size() == hip_matrix->hip_residue_bytes && cpu_matrix->residues == downloaded;
     rns8_destroy_matrix(hip_matrix);
     rns8_destroy_matrix(cpu_matrix);
     if (cpu_status != RNS8_SUCCESS || hip_status != RNS8_SUCCESS || !equal) {

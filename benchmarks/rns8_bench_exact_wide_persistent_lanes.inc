@@ -4,7 +4,6 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     return run_exact_wide_signed_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
@@ -19,8 +18,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
           ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide signed export")
           : 0,
       UINT64_C(0x5a5a5a5a5a5a5a5a));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_exact_wide_benchmark_input(args, A, rng);
+  fill_exact_wide_benchmark_input(args, B, rng);
   if (args.sparse_a_4_to_2) {
     fill_sparse_a_4_to_2_bounded_i64_input(args, A, rng);
   }
@@ -54,8 +53,9 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_prepack_cache* b_prepack_cache = nullptr;
   rns8_result_cache* result_cache = nullptr;
   std::vector<rns8_dirty_region> result_cache_dirty_regions;
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  admit_exact_wide_benchmark_input(args, A, B, matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
@@ -100,7 +100,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -150,10 +150,10 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -186,7 +186,7 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
             fail_status("pack_exact_wide_signed_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }
@@ -310,10 +310,12 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     export_signed_limbs(latest_output_matrix, "rns8_export_exact_wide_signed_limbs(final chain checksum)");
   }
+  verify_exact_wide_benchmark_output(args, A, B, C, result);
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
@@ -356,7 +358,6 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     return run_exact_wide_unsigned_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
@@ -371,8 +372,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
           ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide unsigned export")
           : 0,
       UINT64_C(0x5a5a5a5a5a5a5a5a));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_exact_wide_benchmark_input(args, A, rng);
+  fill_exact_wide_benchmark_input(args, B, rng);
   if (args.sparse_a_4_to_2) {
     fill_sparse_a_4_to_2_bounded_u64_input(args, A, rng);
   }
@@ -406,8 +407,9 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_prepack_cache* b_prepack_cache = nullptr;
   rns8_result_cache* result_cache = nullptr;
   std::vector<rns8_dirty_region> result_cache_dirty_regions;
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  admit_exact_wide_benchmark_input(args, A, B, matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
@@ -452,7 +454,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -502,10 +504,10 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -538,7 +540,7 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
             fail_status("pack_exact_wide_unsigned_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }
@@ -662,10 +664,12 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
     export_unsigned_limbs(latest_output_matrix, "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");
   }
+  verify_exact_wide_benchmark_output(args, A, B, C, result);
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);

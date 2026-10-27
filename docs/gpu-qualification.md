@@ -9,15 +9,19 @@ specialization has been compiled or executed.
 ## Generate the manifests anywhere
 
 ```sh
-python tools/gpu_qualification.py --target mi300x --out-dir temp/qualification-mi300x-plan
-python tools/gpu_qualification.py --target 7900xtx --out-dir temp/qualification-7900xtx-plan
+python tools/gpu_qualification.py --target mi300x --devices 0 --out-dir temp/qualification-mi300x-plan
+python tools/gpu_qualification.py --target 7900xtx --devices 0 --out-dir temp/qualification-7900xtx-plan
 ```
 
 By default each plan covers direct HIP, AMDGPU builtins, hipBLASLt, CK, and
 rocWMMA. Use repeatable `--backend` arguments to prepare a smaller lane. No
 commands from the manifest are executed without `--execute`.
+Both the target and device list are required. A plan records the requested
+architecture while `observed_architecture` remains null; a requested MI300X
+does not establish that an MI300X exists. There is no all-device, device-zero,
+or `gfx942` fallback. `--devices 0` is an explicit operator selection.
 
-Each backend gets a separate `build/qualification/<gfx>/<backend>` directory,
+Each backend gets a separate `<out-dir>/build/<backend>` directory,
 explicit accelerator flags, Release configuration, and one target architecture.
 The current plans select `gfx942` on Linux for MI300X and `gfx1100` on Windows
 for RX 7900 XTX. See AMD's [compiler/target documentation](https://rocmdocs.amd.com/projects/HIP/en/latest/understand/compilers.html)
@@ -29,37 +33,60 @@ support for a different runtime or target.
 Use a clean committed checkout with native build dependencies and an already
 available supported GPU. Verify HIP/compiler paths and optional libraries first.
 The runner does not rent hardware, install dependencies, upgrade drivers, push
-source, or promote caches. Windows uses `tools/windows_dev.py` for configure,
-build, and CTest. The default Windows preset paths are documented in the README;
-use a matching installation or configure your local preset before running.
+source, or promote caches. The write-free [shared resolver](dependency-discovery.md)
+selects SDK components and supplies explicit configure bindings. Use repeatable
+`--set KEY=VALUE` dependency overrides when necessary; an invalid explicit root
+or ambiguous stack is an error, including in a plan. Missing prerequisites can
+remain pending in a plan. Windows uses `tools/windows_dev.py` for configure,
+build, and CTest. Existing user presets are never overwritten. Package installation
+and accelerator probes are disabled during configure.
 
 First execute only the direct-HIP lane on the corresponding host:
 
 ```sh
-# MI300X, native Linux; choose one visible physical GPU before launching.
-ROCR_VISIBLE_DEVICES=0 HIP_VISIBLE_DEVICES=0 python tools/gpu_qualification.py \
-  --target mi300x --backend hip-direct --execute \
+# MI300X, native Linux; explicitly select an unmasked parent runtime ordinal.
+python tools/gpu_qualification.py \
+  --target mi300x --devices 0 --backend hip-direct --execute \
+  --set RNS8_HIP_ROOT=/opt/rocm \
+  --total-seconds 7200 --timeout-seconds 1800 --jobs 4 \
   --out-dir temp/mi300x-direct-qualification
 ```
 
 ```powershell
 # RX 7900 XTX, Windows PowerShell
-$env:HIP_VISIBLE_DEVICES = '0'
-python tools\gpu_qualification.py --target 7900xtx --backend hip-direct --execute `
+python tools\windows_dev.py python tools\gpu_qualification.py --target 7900xtx --devices 0 --backend hip-direct --execute `
   --out-dir temp\7900xtx-direct-qualification
 ```
 
 After that succeeds, qualify each optional backend with the same command and a
 new `--backend` / `--out-dir`, for example `--backend amdgpu-builtins`. Omit the
 backend filter only when you intend to run all five lanes. Every command has a
-wall-clock timeout (default 1800 seconds); progress shows stage/count/elapsed
-with a ten-second heartbeat. Full CTest uses a 600-second per-test timeout.
-Use a fresh output directory for each execution to preserve previous results.
+wall-clock timeout (default 1800 seconds), bounded by the remaining session
+budget (default 7200 seconds, with 30 seconds reserved for receipts). Progress
+shows stage/count/elapsed with a ten-second heartbeat. Full CTest uses a
+600-second per-test timeout. A free-space threshold is checked before execution
+and each command (`--min-free-gib`, default 2); it is a stop threshold, not a
+promise that a complete build will fit. `--jobs` bounds build/CTest concurrency.
+The runner does not impose an OS RSS, CPU affinity, GPU memory, thermal or power
+limit. Record and enforce allocation limits separately on the actual host.
+
+Execution rejects inherited `HIP_VISIBLE_DEVICES`, `ROCR_VISIBLE_DEVICES`,
+`GPU_DEVICE_ORDINAL` and `CUDA_VISIBLE_DEVICES`, including empty masks. It also
+rejects inherited diagnostic HSA overrides. A scheduler-provided mask must not
+be cleared blindly: request an approved unmasked allocation or adapt and validate
+that scheduler's namespace first. This runner does not infer that mapping.
+For each explicit parent runtime ordinal it inspects that device, then sets only
+`HIP_VISIBLE_DEVICES=<ordinal>` in the owned child. The child inspector must
+identify the requested architecture/backend and available logical device 0 with
+matching name, memory and runtime/driver evidence before smoke work proceeds.
+The inspector exposes no PCI BDF or UUID. Those remain unknown; identical GPU
+descriptions do not prove a physical topology mapping.
 
 ## What the runner actually checks
 
 1. Configure and compile the selected backend with explicit target/flags.
-2. Inspect the requested runtime backend and reject the wrong GPU architecture.
+2. Inspect the explicit parent ordinal and isolated logical device; reject a
+   wrong architecture, backend, ordinal, unavailable GPU or inconsistent evidence.
 3. Run `rns8-verify --hip-smoke`; this fails when HIP or the device is missing.
 4. Run Catch2 `[qualification]` tests with JUnit output. Missing mandatory GPU
    tests, failures, errors, and any skips fail this stage.
@@ -76,6 +103,64 @@ small reproducibility checks. The result explicitly remains
 `smoke_passed_release_qualification_pending`; it is never a release/performance
 promotion. The runner isolates `RNS8_AUTOTUNE_CACHE` to a nonexistent path in its
 output directory and never writes a reviewed cache.
+
+## Native Linux session receipts
+
+The existing shell entrypoints dispatch to the same runner. They default to a
+direct-HIP **plan**, require the same explicit selection, and do not bootstrap
+Python packages, Catch2 or CMake. `--accelerators` explicitly requests all five
+backend lanes. Arbitrary `--bench-args`, rank scenario strings and `--skip-build`
+were removed from these bounded sessions; run a separately reviewed campaign
+after smoke instead of changing its semantics or trusting an unrelated build.
+
+```bash
+# No build, hardware probe, package installation or GPU execution.
+bash scripts/cdna_env_probe.sh --target mi300x --devices 4,7 \
+  --out-dir temp/cdna-environment-plan
+bash scripts/cdna_first_pass.sh --target mi300x --devices 4 \
+  --set RNS8_HIP_ROOT=/opt/rocm --out-dir temp/cdna-first-pass-plan
+bash scripts/cdna_smoke.sh --target mi300x --devices 4 \
+  --out-dir temp/cdna-smoke-plan
+bash scripts/cdna_multigpu_smoke.sh --target mi300x --devices 4,7 \
+  --out-dir temp/cdna-two-lanes-plan
+```
+
+Add `--execute` only on the intended host after reviewing prerequisites and the
+allocation. The environment entrypoint writes filesystem discovery and an
+allowlisted environment receipt; it does not run profiler/topology commands.
+Multiple device lanes execute sequentially within one budget, as independent
+processes. This is neither concurrent scaling evidence nor distributed GEMM.
+No RCCL collective is called. Optional benchmark rank/world-size metadata records
+the lane list; it does not establish physical device identity.
+
+`manifest.json` v2 records command dependencies, requested device namespace,
+budgets, source commit/diff and untracked-file hashes, selected tool hashes,
+dependency-resolution identity and policy hash. `dependency-resolution.json`
+retains selected/rejected prerequisite evidence. `environment-allowlist.json`
+contains only named runtime settings; authenticated URLs/control characters are
+redacted. Child build commands receive an explicit local build/runtime allowlist,
+not cloud credentials, SSH agents or arbitrary parent environment variables.
+Tool output is retained as evidence; review it before public sharing. Historical
+`env.log` files from older scripts may contain a full environment and must not be
+published without review.
+
+Each completed command checkpoints logs, validation status and artifact hashes.
+Failure stops dependents. Interrupt/timeout cleanup uses the existing owned
+process-group runner. A fresh directory preserves earlier evidence. Explicit
+`--execute --resume` accepts only the same source/dependencies/device/environment
+and ordered successful prefix with unchanged artifacts; failed work is rerun and
+its consumed time stays charged to the original budget. A changed input requires
+a new directory. Receipts are reproducibility records, not signed attestations.
+No fake benchmark captures or successful hardware results are written by a plan.
+
+The provided-log normalizer `tools/cdna_env_summary.py` v2 preserves explicitly
+indexed SMI fields, but never sorts rocminfo architectures/BDFs into guessed device
+records or copies one architecture to every requested GPU. Runtime-to-SMI mapping,
+node/visible GPU counts, profiler availability without captured evidence and
+missing topology remain unknown. This source work and its no-GPU fixtures await
+the consolidated validation run. Native Linux rehearsal, scheduler integration,
+physical UUID/BDF correlation, profiler/ISA collection and actual MI300X execution
+remain acceptance gaps under [#58](https://github.com/doublemover/RNS8/issues/58).
 
 ## Required arithmetic cases
 
@@ -122,3 +207,99 @@ The old 2048/4096 summaries do not qualify the repaired baseline.
 Stop at correctness or device errors. Preserve `manifest.json`, `results.json`,
 stdout/stderr logs, JUnit, raw captures, CTest logs, and disassembly together.
 No GPU session was run to create this preparation work.
+
+### External accelerator build identity
+
+Build manifest v2 binds enabled rocWMMA, CK and hipBLASLt include trees, plus
+CK generated/patch trees, by relative filename, byte length and SHA256 of actual
+contents. Trees may live outside the RNS8 checkout. Every build rehashes them;
+header edits/additions/deletions change the forced build identity and COFF
+mixed-object link guard. Directory links are followed with cycle rejection;
+missing, empty and unreadable configured trees fail the manifest build.
+
+Release comparison requires v2 external-tree records consistent with the enabled
+backend configuration. Shared dependencies must have matching content identities
+and vcpkg metadata digests; relocations alone do not change tree contents.
+Historical v1 captures remain readable but cannot qualify new promotions.
+This is build-input identity, not a claim that runtime-loaded shared libraries
+have been hashed. Execution artifact/environment checks remain separate gates.
+Authored isolated-tree and release-admission regressions await execution.
+
+
+## No-GPU Linux preparation lane
+
+`bash scripts/cdna_prepare.sh --target mi300x --out-dir temp/linux-preparation`
+plans a CPU-only rehearsal using the same dependency discovery, source identity,
+command runner, budgets and checkpoint logic as the GPU session. It accepts no
+device list or accelerator backend lanes. Planning is the default; `--execute`
+explicitly performs configuration, compilation and CPU CTest on a Linux host.
+This lane has not been rehearsed during the current development frontload.
+
+The lane uses the existing `linux-cpu-release` preset, disables HIP and accelerator
+probes, disables vcpkg manifest installation, and sets CMake FetchContent fully
+disconnected. Required packages must already exist in the selected local prefixes;
+it does not download, bootstrap or install them. `--set` uses the same dependency
+overrides as the doctor and live session, with selected tools and policy identities
+recorded in the manifest. This is a receipt for the selected environment, not a
+newly qualified Linux/ROCm stack lock. The ROCm upgrade remains deferred.
+
+CPU tests run serially and produce a retained JUnit artifact. Missing, empty,
+all-skipped or failed reports cannot complete preparation; expected unsupported
+GPU skips are preserved. Successful execution reports
+`cpu_preparation_passed_hardware_pending`, never GPU smoke success. Matching
+`--execute --resume` reuses successful stages only when the source, environment,
+plan and artifact hashes still match. Changed inputs require a fresh directory.
+
+A later GPU session uses its own output directory and explicit `--devices` list.
+Preparation proves neither HIP compilation nor device/runtime/ISA correctness.
+Actual Linux rehearsal, image/driver compatibility, physical device identity,
+artifact export and hardware qualification still require their own receipts.
+
+## Offline artifact cache and explicit staging
+
+The existing session runner accepts `--artifact-inventory inventory.json
+--artifact-cache /path/to/cache`. It checks every declared artifact before session
+execution and records all missing, corrupt or unsafe entries in `artifact-cache.json`.
+There is no network fallback. Planning reads the cache and writes only the declared
+session output directory. A supplied incomplete cache blocks execution before any
+build or GPU command. The inventory is explicit: its completeness does not imply
+that an operator has listed every dependency needed by the selected stack.
+
+Use `--stage-artifacts` instead of `--execute` to copy the verified inventory to
+`OUT/artifacts`. For a no-GPU packet, combine it with `--target mi300x
+--session-kind prepare`. Staging is separate from dry-run, installation and runtime
+qualification. It needs no selected GPU and does not extract archives, install
+packages, modify a working SDK or authorize cached binaries for reuse.
+
+The strict `rns8_session_artifacts_v1` JSON object contains only `schema` and an
+`artifacts` array. Each entry requires `id`, `kind`, relative POSIX `path`, exact
+`bytes`, lowercase `sha256`, `origin_url` (credential-free HTTPS or null), and
+`authentication`. Kinds distinguish `package_source`, `compiler_cache`,
+`binary_code_object`, `runtime_library` and `autotune_evidence`; these categories
+remain separate staged files and are never activated as runtime or AUTO caches.
+Authentication is a declared provenance value: `local_digest_only`,
+`upstream_checksum_verified` or `upstream_signature_verified`. The staging tool
+checks content integrity only and explicitly reports that it did not verify an
+upstream signature or authenticate the supplied digest.
+
+Paths cannot escape the cache, traverse symbolic links/junctions, overlap, use
+Windows device names, or alias by case. Staging checks free disk space including
+the session reserve, streams large files with bounded buffers, rehashes the copy,
+publishes it exclusively and atomically, and performs final readback. Existing
+mismatched destinations are preserved. A second run reuses verified files without
+copying. Interrupted copies remove their private temporary files; complete earlier
+files remain resumable. `artifact-staging.json` distinguishes complete, interrupted
+and incomplete preparation. These source additions and fixtures await the final
+validation batch; no preparation or hardware qualification has run here.
+
+### Combined accelerator lane
+
+`--all-enabled` adds a separate combined optional-accelerator build after the
+requested isolated lanes. Dependency resolution includes every optional backend
+in that combined build. Each selected device receives one complete regression/
+CTest pass for the combined binary plus explicit smoke and semantic captures
+for every backend. Parent/child device inspection and artifact names remain
+backend-specific. GPU CTest runs serially; `--jobs` controls build parallelism.
+The combined lane is explicit and is not part of CPU-only preparation. It tests
+interactions among the configured accelerator options, not availability of
+unsupported target-specific instructions or automatic backend promotion.

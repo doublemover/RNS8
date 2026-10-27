@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import result_compare
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from observation_cohorts import aggregate_captures, canonical_work, comparison_environment, phase_median, compound_median, evidence, qualified
+from report_inputs import expand_inputs, load_validated_capture
 
 
 RELEASE_MIN_WARMUPS = 3
@@ -18,26 +19,6 @@ RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
 BOUNDED_SEMANTICS = {"bounded_i64", "bounded_u64"}
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
-        else:
-            expanded.append(path)
-    return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        data = load_capture(path)
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def backend_id(capture: dict[str, Any]) -> str:
@@ -71,6 +52,7 @@ def gpu_events_available(capture: dict[str, Any]) -> bool:
 
 
 def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
+    if statistic == "median": return phase_median(capture, phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -82,6 +64,8 @@ def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) ->
 
 
 def numeric_value(capture: dict[str, Any], key: str) -> float | None:
+    if "_observation_aggregate" in capture and key.startswith("avg_") and key.endswith("_us"):
+        return phase_median(capture, key[4:-3])
     value = capture.get(key)
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
@@ -139,11 +123,10 @@ def setup_scan_us(capture: dict[str, Any]) -> float | None:
 
 
 def setup_inclusive_median_us(capture: dict[str, Any]) -> float | None:
-    median = timing_summary_value(capture, "end_to_end", "median")
-    setup = setup_scan_us(capture)
-    if median is None or setup is None:
-        return None
-    return median + setup
+    variant = bound_variant(capture)
+    if variant == "static_global": return phase_median(capture)
+    scan = "global_bound_scan" if variant == "input_scan_global" else "tile_bound_scan"
+    return compound_median(capture, ["end_to_end", scan])
 
 
 def phase_comparison(baseline: dict[str, Any] | None, candidate: dict[str, Any], phase: str) -> dict[str, Any]:
@@ -151,7 +134,7 @@ def phase_comparison(baseline: dict[str, Any] | None, candidate: dict[str, Any],
     candidate_median = timing_summary_value(candidate, phase, "median")
     speedup = (
         baseline_median / candidate_median
-        if baseline_median is not None and candidate_median not in (None, 0.0)
+        if qualified(baseline) and qualified(candidate) and baseline_median is not None and candidate_median not in (None, 0.0)
         else None
     )
     return {
@@ -162,33 +145,25 @@ def phase_comparison(baseline: dict[str, Any] | None, candidate: dict[str, Any],
 
 
 def workload_key(capture: dict[str, Any]) -> str:
-    parts = {
-        "semantics": capture.get("semantics"),
-        "m": capture.get("m"),
-        "n": capture.get("n"),
-        "k": capture.get("k"),
-        "input_distribution": capture.get("input_distribution"),
-        "seed": capture.get("seed"),
-        "layout": capture.get("layout"),
-        "output_logical_ld": capture.get("output_logical_ld", capture.get("n")),
-        "output_ld_padding": capture.get("output_ld_padding", 0),
-        "prefix": capture.get("prefix"),
-        "requested_max_prefix": capture.get("requested_max_prefix"),
-        "pack_mode": capture.get("pack_mode", "per_repeat_repack"),
-        "residue_output_mode": capture.get("residue_output_mode", "host_export"),
-    }
-    return ";".join(f"{key}={value}" for key, value in parts.items())
+    # Explicit bound-discovery A/B: proof bounds/schedules/prefix work may
+    # change, but arithmetic inputs, output/reuse/batch boundary and policy may not.
+    excluded = [key for key in result_compare.CONTRACT_KEYS if key.startswith(("bound", "schedule_metadata.", "tile_bounds_u64.",
+        "residue_planes_", "residue_count_policy.", "export_variant.selector_key")) or key in
+        {"prefix", "selected_prefix", "requested_max_prefix", "contract_prefix_policy", "tile_m", "tile_n"}]
+    return canonical_work(capture, exclude=excluded)
 
 
-def select_best_static(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
+def select_best_static(candidates: list[dict[str, Any]], candidate: dict[str, Any] | None = None) -> dict[str, Any] | None:
     valid = [
         capture
         for capture in candidates
-        if bound_variant(capture) == "static_global" and setup_inclusive_median_us(capture) is not None
+        if bound_variant(capture) == "static_global" and qualified(capture) and setup_inclusive_median_us(capture) is not None
+        and (candidate is None or comparison_environment(capture, cpu_anchor=not gpu_backend(capture)) ==
+             comparison_environment(candidate, cpu_anchor=not gpu_backend(capture)))
     ]
     if not valid:
         return None
-    return min(valid, key=lambda capture: setup_inclusive_median_us(capture) or float("inf"))
+    return min(valid, key=lambda capture: (setup_inclusive_median_us(capture), evidence(capture)["implementation_key"]))
 
 
 def decision_for(
@@ -198,7 +173,7 @@ def decision_for(
     speedup_vs_same_backend_static: float | None,
     speedup_vs_best_static: float | None,
 ) -> tuple[str, list[str]]:
-    blockers: list[str] = []
+    blockers: list[str] = list(evidence(candidate)["blockers"])
     if same_backend_static is None:
         return "missing_baseline", ["missing_same_backend_static_global_baseline"]
     if best_static is None:
@@ -233,7 +208,7 @@ def decision_for(
 
 
 def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    bounded = [capture for capture in captures if bound_variant(capture) is not None]
+    bounded = aggregate_captures([capture for capture in captures if bound_variant(capture) is not None])
     by_workload: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_workload_backend: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     candidates: list[dict[str, Any]] = []
@@ -249,8 +224,8 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
     for candidate in sorted(candidates, key=lambda item: str(item.get("_path"))):
         key = workload_key(candidate)
         backend = backend_id(candidate)
-        same_backend_static = select_best_static(by_workload_backend.get((key, backend), []))
-        best_static = select_best_static(by_workload.get(key, []))
+        same_backend_static = select_best_static(by_workload_backend.get((key, backend), []), candidate)
+        best_static = select_best_static(by_workload.get(key, []), candidate)
         candidate_setup_inclusive = setup_inclusive_median_us(candidate)
         same_backend_setup_inclusive = (
             setup_inclusive_median_us(same_backend_static) if same_backend_static is not None else None
@@ -258,12 +233,12 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
         best_static_setup_inclusive = setup_inclusive_median_us(best_static) if best_static is not None else None
         speedup_vs_same_backend_static = (
             same_backend_setup_inclusive / candidate_setup_inclusive
-            if same_backend_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
+            if qualified(candidate) and same_backend_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
             else None
         )
         speedup_vs_best_static = (
             best_static_setup_inclusive / candidate_setup_inclusive
-            if best_static_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
+            if qualified(candidate) and best_static_setup_inclusive is not None and candidate_setup_inclusive not in (None, 0.0)
             else None
         )
         decision, blockers = decision_for(
@@ -277,6 +252,10 @@ def compare_bound_discovery(captures: list[dict[str, Any]]) -> dict[str, Any]:
         comparisons.append(
             {
                 "workload_key": key,
+                "measurement_cohort": evidence(candidate),
+                "baseline_observation_cohorts": [evidence(c) for c in by_workload.get(key, []) if bound_variant(c) == "static_global"],
+                "selected_same_backend_cohort": evidence(same_backend_static),
+                "selected_best_static_cohort": evidence(best_static),
                 "variant": bound_variant(candidate),
                 "backend": backend,
                 "semantics": candidate.get("semantics"),

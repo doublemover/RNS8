@@ -7,11 +7,34 @@
 #include <string>
 
 #include "core/backend_common.hpp"
+#include "matmul_metadata_plan.hpp"
 #include "rns8/rns8.h"
 
 struct rns8_workspace;
 
 namespace rns8::detail {
+
+// Private benchmark control; thread-local and never an AUTO/cache policy.
+namespace hipblaslt_metadata_state {
+extern thread_local HipblasLtMetadataPolicy metadata_policy;
+extern thread_local HipblasLtMetadataCounters metadata_counters;
+extern thread_local bool algorithm_observations_enabled;
+extern thread_local HipblasLtAlgorithmInventory algorithm_inventory;
+extern thread_local HipblasLtPrepackPolicy prepack_policy;
+extern thread_local HipblasLtPrepackCounters prepack_counters;
+}
+void hipblaslt_metadata_set_policy(HipblasLtMetadataPolicy policy);
+HipblasLtMetadataPolicy hipblaslt_metadata_policy();
+void hipblaslt_metadata_counters_reset();
+HipblasLtMetadataCounters hipblaslt_metadata_counters_snapshot();
+void hipblaslt_algorithm_observations_set_enabled(bool enabled);
+HipblasLtAlgorithmInventory hipblaslt_algorithm_observations_snapshot();
+// Independent retained operand controls. A disabled side uses the existing
+// per-plane transient pack path; it cannot consume a previously retained pack.
+rns8_status hipblaslt_prepack_set_policy(HipblasLtPrepackPolicy policy);
+HipblasLtPrepackPolicy hipblaslt_prepack_policy();
+void hipblaslt_prepack_counters_reset();
+HipblasLtPrepackCounters hipblaslt_prepack_counters_snapshot();
 
 constexpr std::size_t kHipblasLtAlignment = 16u;
 constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = 32u * 1024u * 1024u;
@@ -74,6 +97,12 @@ inline bool hipblaslt_baseline_workspace_requirements(
 }
 
 bool hipblaslt_compiled();
+// Retained full/tail descriptors and selected algorithms. Preparation may warm
+// the library using zeroed private workspace; enqueue never runs heuristics,
+// constructs descriptors, allocates payload or observes completion.
+rns8_status hipblaslt_prepare_async(rns8_context*,const rns8_plan*,rns8_workspace*,void**);
+rns8_status hipblaslt_enqueue_async(void*,const void*,const void*,void*,int64_t,int64_t,int64_t,void* stream);
+rns8_status hipblaslt_destroy_async(void*);
 rns8_status hipblaslt_create_context(int device_id, rns8_device_info& out, void** handle, std::string& version);
 rns8_status hipblaslt_destroy_context(int device_id, void* handle);
 rns8_status hipblaslt_gemm_rns_device(
@@ -94,8 +123,10 @@ rns8_status hipblaslt_gemm_rns_device(
     int64_t ldc,
     uint32_t prefix,
     rns8_workspace* workspace_state,
-    uint64_t a_source_version,
-    uint64_t b_source_version);
+    uint64_t a_generation,
+    uint64_t b_generation,
+    uint64_t a_instance_id,
+    uint64_t b_instance_id);
 rns8_status hipblaslt_gemm_finite_u8_device(
     int device_id,
     void* handle,

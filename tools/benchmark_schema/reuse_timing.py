@@ -106,11 +106,11 @@ def validate_pack_reuse_fields(self, raw_timings: dict[str, list[float]]) -> Non
     avg_prepack_setup = self.data.get("avg_prepack_setup_us")
     prepack_setup_breakdown = self.data.get("prepack_setup_breakdown_us")
     if reuse_packed:
-        if not _is_int(prepack_setup) or prepack_setup < 0:
-            self._error("prepacked reuse captures must include nonnegative integer prepack_setup_us")
+        if not _is_number(prepack_setup) or prepack_setup < 0:
+            self._error("prepacked reuse captures must include finite nonnegative prepack_setup_us")
         if not _is_number(avg_prepack_setup):
             self._error("prepacked reuse captures must include avg_prepack_setup_us")
-        elif _is_int(prepack_setup) and not _close(float(avg_prepack_setup), float(prepack_setup)):
+        elif _is_number(prepack_setup) and not _close(float(avg_prepack_setup), float(prepack_setup)):
             self._error("avg_prepack_setup_us must match prepack_setup_us")
         breakdown = (
             _validate_prepack_setup_breakdown(

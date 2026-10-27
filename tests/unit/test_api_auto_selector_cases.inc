@@ -85,6 +85,7 @@ TEST_CASE("AUTO plan consumes reviewed vector ALU cache entry for final native b
   REQUIRE(rns8_get_plan_backend_info(auto_plan, &auto_info) == RNS8_SUCCESS);
   REQUIRE(auto_info.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64);
   CHECK(auto_info.performance_validated == 1);
+  CHECK(auto_info.exact_differential_validated == 1);
   CHECK(std::string(auto_info.autotune_key) == vector_info.autotune_key);
 
   rns8_plan_packing_info packing{};
@@ -117,6 +118,41 @@ TEST_CASE("AUTO plan consumes reviewed vector ALU cache entry for final native b
   REQUIRE(rns8_export_u64(auto_ctx, auto_plan, C, c.data(), n) == RNS8_SUCCESS);
   for (uint64_t value : c) {
     CHECK(value == static_cast<uint64_t>(k));
+  }
+
+  // Reviewed labels cannot make malformed measurements or numeric identity
+  // aliases eligible. Exercise actual AUTO fallback and native-to-RNS reuse.
+  std::ifstream cache_input(cache_path);
+  const std::string valid_cache((std::istreambuf_iterator<char>(cache_input)),
+                                std::istreambuf_iterator<char>());
+  cache_input.close();
+  for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+           {"\"end_to_end\":4.0", "\"end_to_end\":-1.0"},
+           {"\"end_to_end\":4.0", "\"end_to_end\":0.0"},
+           {"\"tile_m\":128", "\"tile_m\":4294967424"},
+           {"\"m\":32", "\"m\":32.5"},
+           {"\"schema_version\":1", "\"schema_version\":1,\"schema_version\":1"}}) {
+    INFO(replacement.second);
+    auto malformed = valid_cache;
+    const auto offset = malformed.find(replacement.first);
+    REQUIRE(offset != std::string::npos);
+    malformed.replace(offset, replacement.first.size(), replacement.second);
+    { std::ofstream cache(cache_path); cache << malformed; }
+    rns8_plan* fallback = nullptr;
+    REQUIRE(rns8_create_plan(auto_ctx, &auto_desc, &fallback) == RNS8_SUCCESS);
+    rns8_plan_backend_info fallback_info{};
+    fallback_info.struct_size = sizeof(fallback_info);
+    fallback_info.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_plan_backend_info(fallback, &fallback_info) == RNS8_SUCCESS);
+    CHECK(fallback_info.backend == RNS8_BACKEND_HIP_DIRECT);
+    CHECK(fallback_info.performance_validated == 0);
+    rns8_workspace* fallback_workspace = nullptr;
+    REQUIRE(rns8_create_workspace(auto_ctx, fallback, &fallback_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(auto_ctx, fallback, A, B, C, fallback_workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_u64(auto_ctx, fallback, C, c.data(), n) == RNS8_SUCCESS);
+    for (const auto value : c) CHECK(value == static_cast<uint64_t>(k));
+    rns8_destroy_workspace(fallback_workspace);
+    rns8_destroy_plan(fallback);
   }
 
   rns8_destroy_workspace(workspace);
@@ -498,3 +534,45 @@ TEST_CASE("AUTO plan consumes reviewed rocWMMA finite-u8 cache entry when modulu
 }
 #endif
 
+
+TEST_CASE("AUTO exposes immutable actual decisions without inventing CPU rejections","[api][auto]") {
+  auto* ctx=create_cpu_context();auto desc=exact_desc(RNS8_EXACT_WIDE_SIGNED,1,1,1);desc.requested_backend=RNS8_BACKEND_AUTO;
+  rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+  rns8_auto_trace_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;uint32_t required=99;
+  REQUIRE(rns8_get_plan_auto_decisions(plan,&info,nullptr,0,&required)==RNS8_SUCCESS);CHECK(info.selection_performed==0);REQUIRE(required==1);
+  rns8_auto_decision decision{};REQUIRE(rns8_get_plan_auto_decisions(plan,&info,&decision,1,&required)==RNS8_SUCCESS);
+  CHECK(decision.backend==RNS8_BACKEND_CPU_REFERENCE);CHECK(decision.reason_code==RNS8_AUTO_BASELINE_POLICY);CHECK(decision.disposition==2);
+  const auto before=std::string(info.decision);const auto path=unique_cache_fixture_path("trace-after-plan");
+  {std::ofstream changed(path);changed<<"{not valid json";}
+  {ScopedAutotuneCachePath other(path);REQUIRE(rns8_get_plan_auto_decisions(plan,&info,&decision,1,&required)==RNS8_SUCCESS);
+    CHECK(before==info.decision);CHECK(info.cache_loaded==0);CHECK(info.cache_entry_count==0);}
+  std::filesystem::remove(path);rns8_destroy_plan(plan);rns8_destroy_context(ctx);
+}
+TEST_CASE("resident oneshot setup consumes an already admitted plan","[api][oneshot][planning]") {
+  using namespace rns8::detail::api;auto* ctx=create_cpu_context();
+  {
+    resident_oneshot_state state;auto desc=exact_desc(RNS8_BOUNDED_I64,2,3,2);
+    desc.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS;desc.bound=10;desc.max_prefix=9;
+    REQUIRE(rns8_create_plan(ctx,&desc,&state.plan)==RNS8_SUCCESS);auto* admitted=state.plan;plan_validation_work={};
+    REQUIRE(create_resident_oneshot_state(ctx,desc,state)==RNS8_SUCCESS);
+    CHECK(state.plan==admitted);CHECK(state.plan->prefix==1);CHECK(plan_validation_work.backend_schedule_seals==0);
+  }
+  rns8_destroy_context(ctx);
+}
+TEST_CASE("HIP prefix-nine decline seals signed and unsigned oneshots exactly once","[hip][oneshot][planning]") {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  using namespace rns8::detail::api;rns8_context_options options{};options.struct_size=sizeof(options);options.abi_version=RNS8_ABI_VERSION;options.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+  rns8_context* ctx=nullptr;if(rns8_create_context(0,&options,&ctx)!=RNS8_SUCCESS)SKIP("HIP unavailable");
+  for(bool sign:{false,true})for(uint64_t bound:{16u,100000u,100000000u})for(bool fixed:{false,true}) {
+    auto desc=exact_desc(sign?RNS8_BOUNDED_I64:RNS8_BOUNDED_U64,16,16,16);desc.requested_backend=RNS8_BACKEND_HIP_DIRECT;
+    desc.bound_kind=sign?RNS8_BOUND_GLOBAL_MAX_ABS:RNS8_BOUND_GLOBAL_MAX_UNSIGNED;desc.bound=bound;desc.max_prefix=9;desc.flags=fixed?RNS8_PLAN_FORCE_FIXED_PREFIX:0;
+    std::vector<uint64_t> a(256,1),b(256,1),c(256,99);plan_validation_work={};
+    const auto status=sign?rns8_gemm_i64_oneshot(ctx,&desc,reinterpret_cast<const int64_t*>(a.data()),16,reinterpret_cast<const int64_t*>(b.data()),16,reinterpret_cast<int64_t*>(c.data()),16):
+        rns8_gemm_u64_oneshot(ctx,&desc,a.data(),16,b.data(),16,c.data(),16);
+    REQUIRE(status==RNS8_SUCCESS);CHECK(plan_validation_work.backend_schedule_seals==1);for(auto value:c)CHECK(value==16);
+  }
+  rns8_destroy_context(ctx);
+#else
+  SKIP("HIP not compiled");
+#endif
+}

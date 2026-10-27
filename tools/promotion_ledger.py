@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import load_capture, validate_capture
+from timing_eligibility import phase_blockers, bound_comparison_blockers
+from measurement_contract import host_instrumentation
+from diagnostic_companion import load_bindings, production_evidence
 import target_validation_report
 
 
@@ -215,6 +218,8 @@ def capture_entry(
     target_validation_entry: dict[str, Any] | None = None,
     target_validation_report_supplied: bool = False,
     shape_family_recommendations: list[dict[str, Any]] | None = None,
+    diagnostic_binding: dict[str, Any] | None = None,
+    diagnostic_binding_index: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     capture = load_capture(path)
     validate_capture(capture, path)
@@ -234,7 +239,22 @@ def capture_entry(
         else "selector_review_only_non_default"
     )
     shape = {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")}
-    blockers: list[str] = []
+    blockers: list[str] = phase_blockers(capture)
+    if capture.get("locality_schedule") is not None:
+        blockers.append("experimental_locality_workspace_not_runtime_auto_route")
+    if host_instrumentation(capture) != "hooks_disabled":
+        blockers.append("diagnostic_instrumented_host_time_not_production_evidence")
+    companion=production_evidence(capture,diagnostic_binding or ((reviewed_entry or {}).get("production_timing_evidence") or {}).get("binding"))
+    blockers.extend(companion["blockers"])
+    comparison = (reviewed_entry or {}).get("timing_comparison") or baseline.get("timing_comparison")
+    blockers.extend(bound_comparison_blockers(comparison, capture))
+    if isinstance(comparison,dict) and comparison.get("baseline_capture"):
+        try:
+            baseline_path=Path(comparison["baseline_capture"])
+            compared=load_capture(baseline_path)
+            baseline_binding=(diagnostic_binding_index or {}).get(path_key(baseline_path)) or (((reviewed_entry or {}).get("baseline_production_timing_evidence") or {}).get("binding"))
+            blockers.extend("baseline:"+reason for reason in production_evidence(compared,baseline_binding)["blockers"])
+        except (OSError,ValueError,TypeError):blockers.append("baseline_companion_unreadable")
     key = metadata.get("autotune_key")
     if not key:
         blockers.append("missing_autotune_key")
@@ -272,6 +292,13 @@ def capture_entry(
     if (variance_gate_required or variance_report_supplied) and variance_entry is None:
         blockers.append("missing_variance_gate_entry")
     elif variance_entry is not None:
+        from perf_variance_report import capture_digest, execution_cohort, execution_id
+        cohort, run = execution_cohort(capture), execution_id(capture)
+        if (cohort is None or run is None
+                or variance_entry.get("capture_sha256") != capture_digest(capture)
+                or variance_entry.get("execution_id") != run
+                or variance_entry.get("execution_cohort") != cohort):
+            blockers.append("variance_capture_provenance_mismatch")
         variance_ready = variance_entry.get("promotion_ready") is True
         variance_required_margin = variance_entry.get("required_speedup_margin")
         variance_observed_noise = variance_entry.get("observed_max_relative_noise")
@@ -367,6 +394,7 @@ def capture_entry(
     )
     return {
         "path": str(path),
+        "production_timing_evidence": companion,
         "autotune_key": key,
         "backend_class": "production" if _is_production_backend(capture.get("backend_selected")) else "accelerator" if _is_accelerator_backend(capture.get("backend_selected")) else "unknown",
         "backend_selected": capture.get("backend_selected"),
@@ -486,7 +514,12 @@ def build_ledger(
     counter_reports: list[Path] | None = None,
     *,
     require_variance_gate: bool = False,
+    diagnostic_binding_paths: list[Path] | None = None,
+    generated_logical_reports: list[tuple[Path, Path]] | None = None,
 ) -> dict[str, Any]:
+    from check_native_wmma_logic import load_bound_report
+    logical = [load_bound_report(directory, path) for directory, path in (generated_logical_reports or [])]
+    diagnostic_bindings=load_bindings(diagnostic_binding_paths or [])
     reviewed = load_review_entries(review_reports or [])
     variance = load_variance_entries(variance_reports or [])
     target_groups = load_target_validation_groups(target_validation_reports or [])
@@ -513,6 +546,8 @@ def build_ledger(
                 target_validation_entry=target_groups.get(str(target_row.get("target_validation_group"))),
                 target_validation_report_supplied=bool(target_validation_reports),
                 shape_family_recommendations=shape_recommendations_by_path.get(path_key(path), []),
+                diagnostic_binding=diagnostic_bindings.get(path_key(path)),
+                diagnostic_binding_index=diagnostic_bindings,
             )
         )(target_validation_report.capture_target(path))
         for path in captures
@@ -532,6 +567,8 @@ def build_ledger(
     return {
         "schema_version": 1,
         "policy": "reviewed_release_evidence_required_for_autotune_promotion",
+        "generated_logical_assurance": logical,
+        "generated_logical_assurance_policy": "source_current_diagnostic_only_never_satisfies_execution_or_promotion_gates",
         "cache_path": str(cache_path) if cache_path else None,
         "review_report_count": len(review_reports or []),
         "variance_report_count": len(variance_reports or []),
@@ -646,6 +683,9 @@ def main() -> int:
         default=[],
         help="shape_family_shadow_report.py output; recorded as non-routing recommendation/blocker metadata",
     )
+    parser.add_argument("--diagnostic-binding",type=Path,action="append",default=[])
+    parser.add_argument("--generated-logical-report", type=Path, nargs=2, action="append", default=[],
+                        metavar=("GENERATED_DIR", "REPORT"))
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
@@ -657,6 +697,8 @@ def main() -> int:
         args.target_validation_report,
         args.shape_family_shadow_report,
         require_variance_gate=args.require_variance_gate,
+        diagnostic_binding_paths=args.diagnostic_binding,
+        generated_logical_reports=args.generated_logical_report,
     )
     if args.json:
         print(json.dumps(ledger, indent=2, sort_keys=True))

@@ -1,6 +1,12 @@
 # Strict Wraparound Backend
 
-Reserved for strict `mod 2^64` byte-limb GEMM.
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
+Implemented strict `mod 2^64` byte-limb GEMM with CPU and direct-HIP routes.
 
 This path must use unsigned byte-limb semantics. It must not reuse odd-modulus
 CRT as a wraparound substitute unless an explicit exact bound is supplied by a
@@ -69,7 +75,7 @@ Current status:
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.
 
-Acceptance bar for enabling this backend:
+Arithmetic requirements for this backend and additional accelerators:
 
 - Pack inputs as unsigned base-256 limbs.
 - Compute the 36 low-64-relevant byte-product pairs across the low eight

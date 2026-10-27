@@ -1,0 +1,453 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_manifest": {
+    "configuration": {
+      "archived_json_pointer": "/compiled_manifest/configuration"
+    },
+    "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+    "external_dependencies": {
+      "BOOST": {
+        "bytes": 31958612,
+        "files": 2292,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+        "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+      },
+      "CATCH2_1": {
+        "bytes": 640342,
+        "files": 183,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+        "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+      },
+      "CK": {
+        "bytes": 18406325,
+        "files": 895,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
+        "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
+      },
+      "HIPBLASLT": {
+        "bytes": 31482707,
+        "files": 1754,
+        "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
+        "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
+      },
+      "JSON_1": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "JSON_2": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "RNS8_CK_GENERATED_INCLUDE_DIR": {
+        "bytes": 584,
+        "files": 2,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
+        "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
+      },
+      "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
+        "bytes": 52392,
+        "files": 1,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
+        "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
+      },
+      "ROCWMMA": {
+        "bytes": 1216499,
+        "files": 114,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
+        "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
+      }
+    },
+    "identity_scope": "source-config-and-external-headers",
+    "linkage": "static-rns8",
+    "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+    "source_digest": "780111954f150fc8dbd13f5fd132187ee16bd6afb23f22fa77ba964854c2a65e",
+    "source_dirty": false,
+    "version": 2
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 18
+    },
+    "compiled_source_commit": "287737d917d412fc8daf777189a146182a359d67",
+    "collector_profile_source_commit": "287737d917d412fc8daf777189a146182a359d67",
+    "executable_sha256": "30707e87a5ecc068f9fa594ff5737fa73798c6470c08f12e323e3a835509b661",
+    "cases_sha256": "5822bc6501cf91fc968c104c8fd5ae697336889dde288a21dc648fc36d12570f",
+    "requested_processes": 150,
+    "started_unix": 1792988161.5885687,
+    "cases": 30,
+    "runs": 5,
+    "warmups": 3,
+    "repeats": 9,
+    "gain_gate": "five independent processes, disjoint observed ranges and <=10% (max-min)/median spread in both compared modes; uncensored sustained interval",
+    "environment": {
+      "OMP_NUM_THREADS": "3",
+      "HIP_VISIBLE_DEVICES": null,
+      "ROCR_VISIBLE_DEVICES": null,
+      "HIP_FORCE_DEV_KERNARG": null
+    },
+    "controlled_clock_policy": "not_changed",
+    "shared_host_measurements_authorized": true,
+    "campaign_resumed": false,
+    "exit_code": 0,
+    "seconds": 624.089836359024,
+    "executable_unchanged": true,
+    "cases_unchanged": true
+  },
+  "summary": {
+    "schema": "rns8_conversion_campaign_v1",
+    "campaign_id": "5ae37b7b-1443-4c73-b18f-52ed1967b17d",
+    "promotion_eligible": false,
+    "artifact_sha256": "30707e87a5ecc068f9fa594ff5737fa73798c6470c08f12e323e3a835509b661",
+    "tool_dependencies_sha256": {
+      "collect_crt_calibration.py": "5e4d2d764c8afc14f9ae3217a5ce26620117a6aab5996430283bb34747f952ff",
+      "collect_finite_verify.py": "12090f01b4962f0566a93a3122e5fb502dffd507fa2562a2c87fc860c55ac48e",
+      "build_manifest.py": "203e459c94d356225ba79877556dea22d7f37e88d453fab6850b4e8dd9a84e57",
+      "modulus_set_search.py": "a7158af0c16bc6dc8860d2014c046de198fa1c0c7c8383528f1921fa3d3e41c6"
+    },
+    "cases_sha256": "5822bc6501cf91fc968c104c8fd5ae697336889dde288a21dc648fc36d12570f",
+    "independent_processes": 150,
+    "provenance_complete": true,
+    "comparison_rule": "compare same operation/signedness/cells/prefix/scope; repeats are not independent processes; no inferred speedup or break-even"
+  },
+  "capture_count": 150,
+  "cases": 30,
+  "costs": {
+    "archived_json_pointer": "/costs",
+    "entries": 30
+  },
+  "comparisons": {
+    "archived_json_pointer": "/comparisons",
+    "entries": 25
+  },
+  "observations": {
+    "archived_json_pointer": "/observations",
+    "entries": 150
+  },
+  "reference_validation": "Full independent integer recipe/checksums in every immutable collector capture; review checks current validator hashes, strict contract, exact flags and summary identity without a second dataset replay.",
+  "gain_gate": "Five independent processes per case; disjoint observed sustained ranges, both (max-min)/median <=10%, no censored bursts; strongest available named matched control.",
+  "prior_completed_conversion": "metadata/conversion-completed-qualification-20261025.json",
+  "group_primary_control": "Strongest measured classical Garner/direct/balanced control at identical cells/prefix/input/output/scope; subgroup centering forbidden.",
+  "actual_hbm_traffic_measured": false,
+  "promotion_eligible": false,
+  "campaign_resumed": false,
+  "validation": {
+    "gpu": {
+      "counts": {
+        "passed": 969,
+        "skipped": 16,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/validation/gpu/tests",
+        "entries": 985
+      },
+      "receipt": {
+        "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+        "lane": "gpu",
+        "phase": "group-crt-tests",
+        "records": {
+          "archived_json_pointer": "/validation/gpu/receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      },
+      "first_full_build": {
+        "archived_json_pointer": "/validation/gpu/first_full_build",
+        "entries": 5
+      },
+      "xml_sha256": "10f9ce1d5a8e06721311e397da620a8d23d2c5941b15e1f960d0db6f47caa555",
+      "compiled_manifest": {
+        "archived_json_pointer": "/validation/gpu/compiled_manifest",
+        "entries": 9
+      },
+      "artifacts": [
+        {
+          "path": "build\\validation-20261025-gpu\\rns8_tests.exe",
+          "sha256": "b364cd3ec251918d63d995e1907e38f933ec2c6c77557a5b3b632e0565b2d593",
+          "bytes": 30734336
+        },
+        {
+          "path": "build\\validation-20261025-gpu\\rns8-crt-calibrate.exe",
+          "sha256": "30707e87a5ecc068f9fa594ff5737fa73798c6470c08f12e323e3a835509b661",
+          "bytes": 17308672
+        },
+        {
+          "path": "build\\validation-20261025-gpu\\rns8-native-interop-calibrate.exe",
+          "sha256": "b82e830d044c86762930b146a0981833506d205951e9f3dee2661d663c31cffb",
+          "bytes": 17310208
+        }
+      ]
+    },
+    "asan": {
+      "counts": {
+        "passed": 559,
+        "skipped": 23,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/validation/asan/tests",
+        "entries": 582
+      },
+      "receipt": {
+        "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+        "lane": "asan",
+        "phase": "group-crt-tests",
+        "records": {
+          "archived_json_pointer": "/validation/asan/receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      },
+      "first_full_build": {
+        "archived_json_pointer": "/validation/asan/first_full_build",
+        "entries": 5
+      },
+      "xml_sha256": "bc3276fe446291a43bdd7562f7a0c6f2fd38777d696366309e4acdf6f9c07485",
+      "compiled_manifest": {
+        "configuration": {
+          "archived_json_pointer": "/validation/asan/compiled_manifest/configuration"
+        },
+        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+        "external_dependencies": {
+          "BOOST": {
+            "bytes": 31958582,
+            "files": 2292,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\boost",
+            "sha256": "991764a777827b24937cbc1a43373345e71e2d2ae050f783f26ebafced161bbe"
+          },
+          "CATCH2_1": {
+            "bytes": 640342,
+            "files": 183,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\catch2",
+            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+          },
+          "JSON_1": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          },
+          "JSON_2": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          }
+        },
+        "identity_scope": "source-config-and-external-headers",
+        "linkage": "static-rns8",
+        "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+        "source_digest": "780111954f150fc8dbd13f5fd132187ee16bd6afb23f22fa77ba964854c2a65e",
+        "source_dirty": false,
+        "version": 2
+      },
+      "artifacts": [
+        {
+          "path": "build\\validation-20261025-asan\\rns8_tests.exe",
+          "sha256": "9c1667600e1c74183e831f01e66baf642c3621ef15652c016206910865c2eba7",
+          "bytes": 22110208
+        },
+        {
+          "path": "build\\validation-20261025-asan\\rns8-crt-calibrate.exe",
+          "sha256": "f15cd736ca8578f4cdb29c4dafeedcad898aae12446a58788917ebd7fee97f7d",
+          "bytes": 4728320
+        },
+        {
+          "path": "build\\validation-20261025-asan\\rns8-native-interop-calibrate.exe",
+          "sha256": "4dfaa4c62e48ee07569353f811ac36fba7b604046815864c12b9fc18b325faf9",
+          "bytes": 1684992
+        }
+      ]
+    },
+    "unchanged_logical_proof": {
+      "reused_from": "metadata/local-validation-20261025.json",
+      "source_checkpoint": "e31cb71",
+      "seconds": 1020.41,
+      "fresh_execution": false,
+      "input_hashes": [
+        {
+          "path": "tools/test_native_wmma_logic.py",
+          "sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+          "bytes": 5306,
+          "current_sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/check_native_wmma_logic.py",
+          "sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+          "bytes": 18232,
+          "current_sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/native_wmma_lowering.py",
+          "sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+          "bytes": 9829,
+          "current_sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/generate_native_wmma.py",
+          "sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+          "bytes": 12165,
+          "current_sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/promotion_ledger.py",
+          "sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+          "bytes": 33949,
+          "current_sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+          "matches_reused_source": true
+        }
+      ],
+      "scope": "Existing generated native WMMA logical interpreter; new layout consumer is covered by its CPU/Boost and real HIP differentials.",
+      "input_comparison": "Git blobs and working files match after CRLF/LF normalization; hashes identify current working-file bytes.",
+      "current_normalized_source_comparison_passed": true,
+      "current_source_comparison": "287737d917d412fc8daf777189a146182a359d67: five unchanged checker inputs; reused execution only"
+    },
+    "installed_build": {
+      "source_checkout": "287737d917d412fc8daf777189a146182a359d67",
+      "records": [
+        {
+          "name": "install",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/0/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 1.34592604637146
+        },
+        {
+          "name": "static-configure",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/1/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 3.2828493118286133
+        },
+        {
+          "name": "static-build",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/2/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 6.298568964004517
+        },
+        {
+          "name": "shared-configure",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/3/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 3.2969563007354736
+        },
+        {
+          "name": "shared-build",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/4/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 5.673540353775024
+        }
+      ]
+    },
+    "installed_test": {
+      "source_checkout": "287737d917d412fc8daf777189a146182a359d67",
+      "records": [
+        {
+          "name": "static-test",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_test/records/0/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.445542335510254
+        },
+        {
+          "name": "shared-test",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_test/records/1/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.0858983993530273
+        }
+      ]
+    },
+    "installed_consumers": {
+      "archived_json_pointer": "/validation/installed_consumers",
+      "entries": 12
+    },
+    "github_ci": {
+      "source_commit": "287737d917d412fc8daf777189a146182a359d67",
+      "scope": "GitHub CPU/OpenMP matrix; not native Linux GPU qualification",
+      "checks": {
+        "archived_json_pointer": "/validation/github_ci/checks",
+        "entries": 18
+      }
+    }
+  },
+  "compiled_isa": {
+    "schema": "rns8_conversion_selected_isa_v1",
+    "compiled_source_commit": "287737d917d412fc8daf777189a146182a359d67",
+    "extraction": {
+      "artifact": "build\\validation-20261025-gpu\\rns8-crt-calibrate.exe",
+      "artifact_sha256": "30707e87a5ecc068f9fa594ff5737fa73798c6470c08f12e323e3a835509b661",
+      "code_objects": [
+        {
+          "path": "temp\\closeout-remaining-20261025\\group-crt-artifact-isa\\code-0.hsaco",
+          "offset": 4612608,
+          "bytes": 7930352,
+          "sha256": "c31cf2cbd7c3b5aded83d0bd221fe7cf26c3582777db57f5303bbdf4f322f068",
+          "markers": {
+            "archived_json_pointer": "/compiled_isa/extraction/code_objects/0/markers",
+            "entries": 3
+          }
+        }
+      ],
+      "method": "extract exact ELF64 EM_AMDGPU bytes from measured PE executable using checked ELF section extents; not a recompiled object",
+      "target_verification": "pending llvm-readobj",
+      "promotion_eligible": false
+    },
+    "target": "gfx1100",
+    "original_code_object_membership_verified": true,
+    "symbols": {
+      "archived_json_pointer": "/compiled_isa/symbols",
+      "entries": 16
+    },
+    "selection": "source-bound calibrator candidate wrappers; runtime prefix arguments and fixed unsigned <20,3> or signed/unsigned <20,1> quad specializations; includes narrow public Garner controls; not a dynamic profiler trace",
+    "fp_mode_reference": "https://llvm.org/docs/AMDGPUUsage.html#kernel-descriptor",
+    "fp_mode_decode": "HSA 64-byte kernel descriptor compute_pgm_rsrc1 at byte48; F32 rounding bits13:12=0 RNE, denorm bits17:16; mode writes inspected separately",
+    "limits": "static instruction sites/resources/descriptor modes; no achieved occupancy, dynamic instruction counts, launches or hardware traffic",
+    "promotion_eligible": false
+  },
+  "group_comparisons": {
+    "archived_json_pointer": "/group_comparisons",
+    "entries": 15
+  },
+  "qualified_group_gain_count": 0,
+  "remaining": [
+    "No fused-GEMM or distributed-shard integration/qualification.",
+    "Canonical root primitive does not itself publish public signed/narrow exports.",
+    "Hardware traffic, achieved occupancy and physical completion ordering are unmeasured.",
+    "Native Linux GPU and broader targets remain independently qualified/deferred."
+  ],
+  "original_schema": "rns8_group_crt_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/group-crt-qualification-20261026.json",
+    "sha256": "45090aed3bff0090e0b04950f443c46cb568af8c4e4774d1de5b19e51b06b3d7",
+    "bytes": 2024708
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

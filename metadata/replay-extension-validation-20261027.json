@@ -1,0 +1,148 @@
+{
+  "schema": "rns8_replay_extension_validation_v1",
+  "date": "2026-10-27",
+  "validated_source_commit": "9caadaf73ca8cb6f3018da1dbe6ccbcffbdb7777",
+  "source_clean_during_build": true,
+  "implementation": [
+    "schema3 cold/steady/lifetime costs, training/publication charges and strict projected payback",
+    "generation-bound external packed B across recipe replays",
+    "bounded/finite/wrap uniform recipes and event-dependent checked pinned host export",
+    "ordered-basis ragged/packed recipes and prepared stream/graph GEMM",
+    "full integer reference caching across seven contracts and additional collectors"
+  ],
+  "stack": {
+    "platform": "Windows",
+    "target": "gfx1100",
+    "device": "Radeon RX 7900 XTX",
+    "sdk": "TheRock Core10.1",
+    "hip": "7.16.26385",
+    "hip_compiler": "AMDClang24",
+    "host_compiler": "MSVC19.51.36260",
+    "python": "3.15.1",
+    "cpp_standard": 17,
+    "cpu_asan": "LLVM23.1.4 RelWithDebInfo /MD",
+    "hip_openmp": false
+  },
+  "lanes": {
+    "hip_release": {
+      "build": "build/sdk101-followup-20261026/release-serial",
+      "selected": 1119,
+      "passed": 1088,
+      "skipped": 31,
+      "failed": 0,
+      "registered": 1120,
+      "excluded": [
+        "native_wmma_logical_checker_self_test"
+      ],
+      "junit_sha256": "c74d7dcb3256ed6b24153082067ba0668f370af8d8f7444417408853bd827cf1",
+      "build_manifest_sha256": "e6dda3c4c80d09805e2d8602f9c6310596d55f0ee14585675818f77e9708f53e",
+      "source_digest": "a7538cefe195caa08d4e7fd9c26e3d677c0115edc2386a9560123acd7fbe4e7d",
+      "seconds": 741.0,
+      "command": "python tools/windows_dev.py ctest --test-dir build/sdk101-followup-20261026/release-serial --output-on-failure -E ^native_wmma_logical_checker_self_test$"
+    },
+    "cpu_asan": {
+      "build": "build/sdk101-followup-20261026/cpu-asan",
+      "selected": 645,
+      "passed": 609,
+      "skipped": 36,
+      "failed": 0,
+      "registered": 646,
+      "excluded": [
+        "native_wmma_logical_checker_self_test"
+      ],
+      "junit_sha256": "f09843e4bcec4a052fac0e55503bf73fd41de2bc08742f8fdc437666e99f1d47",
+      "build_manifest_sha256": "497abc7daf83e6e020c0a239c7b77c63c6005d18ec891f95e05471df5672e498",
+      "source_digest": "a7538cefe195caa08d4e7fd9c26e3d677c0115edc2386a9560123acd7fbe4e7d",
+      "seconds": 110.0,
+      "command": "python tools/windows_dev.py ctest --test-dir build/sdk101-followup-20261026/cpu-asan --output-on-failure -E ^native_wmma_logical_checker_self_test$"
+    }
+  },
+  "carried_symbolic_check": {
+    "name": "native_wmma_logical_checker_self_test",
+    "status": "passed",
+    "source_commit": "9e8d8debd7b2901b1cd16a8a3fb161141f039675",
+    "full_cpu_asan_tests": 645,
+    "full_cpu_asan_failures": 0,
+    "full_cpu_asan_skipped": 36,
+    "unchanged_canonical_git_blob_sha256": {
+      "tools/test_native_wmma_logic.py": "a62f38b9c22ad18977270d26b4d9ad2ee18bf28ccea967acc8c41b73568642d4",
+      "tools/check_native_wmma_logic.py": "1ba28b760beaf0ae47dc5e13d7f9148d76e57ea35c23e6c95e0eba1f083a5d6f",
+      "tools/generate_native_wmma.py": "7c325e02a61e01c0558a2ac7e31984676ba02e70a63b25bc65e319d3e65ea0a9",
+      "tools/native_wmma_lowering.py": "be71a42630a6a091c7e380743a029d66cd9a250050253037cb7ccd25ea0e7ca3"
+    }
+  },
+  "integrations": {
+    "reference_cache": {
+      "contracts": 7,
+      "valid_captures": 28,
+      "corrupt_rejections": 7,
+      "boundaries": [
+        "GPU production",
+        "GPU instrumented",
+        "CPU",
+        "independent Boost population"
+      ],
+      "logical_cells_per_capture": 323,
+      "output_padding": 3
+    },
+    "negative_dataset": {
+      "inputs": [
+        -2,
+        3
+      ],
+      "side": 8,
+      "stage_capture_passed": true,
+      "retained_recipe_capture_passed": true,
+      "completed_replays": 544,
+      "last_replay_packing_calls": 0,
+      "last_replay_reused_external_reads": 3,
+      "retained_packed_bytes": 5120
+    },
+    "paired_wide_collector": {
+      "independent_pairs": 2,
+      "captures": 4,
+      "binding_revalidation": "passed",
+      "cache_method": "cached_full_integer_reference"
+    },
+    "sweep_plan": {
+      "commands": 2,
+      "all_commands_bind_read_only_cache": true,
+      "executed": false
+    },
+    "python_collectors": {
+      "tests": 262,
+      "skipped": 16,
+      "failed": 0
+    }
+  },
+  "github_ci_for_validated_code": {
+    "passed_jobs": 18,
+    "total_jobs": 18,
+    "pr_workflow": "https://github.com/doublemover/RNS8/actions/runs/40457398298",
+    "push_workflow": "https://github.com/doublemover/RNS8/actions/runs/40457393851"
+  },
+  "repaired_failures": [
+    "strict wrap recipe used bounded-u64 export",
+    "documentation inventory and native-roundtrip fixture",
+    "CTest inherited old SDK environment; generated process-local SDK binding now passes real GPU tests",
+    "first experimental-basis replay uploaded immutable lift packet; preparation now owns upload and failed-drain state"
+  ],
+  "qualification_limits": [
+    "No new elapsed performance gain or default routing promotion is asserted.",
+    "Constant-input calibration and declared lifetime models do not qualify unseen graph/dataset prediction or observed amortization.",
+    "Broader hardware, real-device fault recovery and profitable measured routing remain separate acceptance gates."
+  ],
+  "evidence_manifest": "metadata/replay-extension-archive-20261027.json",
+  "validated_source_scope": "Compiled CPU/HIP implementations; the subsequent Python-only resident-model boundary correction is identified separately below.",
+  "resident_model_boundary_review": {
+    "report": "metadata/resident-model-boundary-review-20261027.json",
+    "prediction_boundary": "resident_recipe_execution_including_publication",
+    "separate_boundary": "final_host_crt_export",
+    "new_regression_suite_tests": 7,
+    "failed": 0,
+    "source_sha256": {
+      "tools/collect_product_stages.py": "6f22ddb72fc5958ddf7489373e3fb1ef6a3149929e8dbbaaca4a045b2bb18906",
+      "tools/test_collect_product_stages.py": "6aa14717bf5659416653884194da7f335ab1621e55d7d905724216e47d2822e0"
+    }
+  }
+}

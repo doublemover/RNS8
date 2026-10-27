@@ -1,3 +1,4 @@
+  std::cout << "  \"exact_proof_policy\": \"" << (args.exact_scalar_first ? "scalar_first_v1" : "eager_moments_v1") << "\",\n";
   std::cout << "  \"m\": " << args.m << ",\n";
   std::cout << "  \"n\": " << args.n << ",\n";
   std::cout << "  \"k\": " << args.k << ",\n";
@@ -92,9 +93,48 @@
     std::cout << "null";
   }
   std::cout << ",\n";
+  std::cout << "  \"exact_wide_magnitude\": ";
+  if (result.exact_wide_magnitude.available) {
+    const auto& magnitude = result.exact_wide_magnitude;
+    std::cout << "{\"schema\": \"exact_wide_magnitude_v1\", \"oracle\": \"boost_cpp_int_full_integer_gemm_all_limbs\", "
+              << "\"oracle_complete\": " << (magnitude.oracle_complete ? "true" : "false")
+              << ", \"a_max_abs\": \"" << magnitude.a_max_abs << "\", \"b_max_abs\": \"" << magnitude.b_max_abs
+              << "\", \"admitted_abs_bound\": \"" << magnitude.admitted_abs_bound << "\", \"basis_product\": \"" << magnitude.basis_product
+              << "\", \"a_max_magnitude_bits\": " << magnitude.a_max_magnitude_bits
+              << ", \"b_max_magnitude_bits\": " << magnitude.b_max_magnitude_bits
+              << ", \"output_min_magnitude_bits\": " << magnitude.output_min_magnitude_bits
+              << ", \"output_max_magnitude_bits\": " << magnitude.output_max_magnitude_bits
+              << ", \"output_max_magnitude_limbs\": " << (magnitude.output_max_magnitude_bits + 63u) / 64u
+              << ", \"storage_bits\": " << args.exact_wide_limb_count * 64u
+              << ", \"checked_outputs\": " << magnitude.checked_outputs
+              << ", \"checked_limbs\": " << magnitude.checked_limbs
+              << ", \"negative_outputs\": " << magnitude.negative_outputs
+              << ", \"admission_us\": " << magnitude.admission_us << ", \"oracle_us\": " << magnitude.oracle_us
+              << ", \"timing_scope\": \"outside_all_repeated_public_call_samples\"}";
+  } else std::cout << "null";
+  std::cout << ",\n";
   std::cout << "  \"exact_wide_export_status_check\": ";
   print_json_string_or_null(exact_wide_export_status_check_name(args));
   std::cout << ",\n";
+  const auto& reference = result.native_reference;
+  std::cout << "  \"native_reference_verification\": {\"method\": \"" << reference.method
+            << "\", \"cache_key\": \"" << reference.key << "\", \"payload_sha256\": \"" << reference.payload_sha256
+            << "\", \"checked_cells\": " << reference.checked_cells << ", \"elapsed_us\": " << reference.elapsed_us
+            << ", \"inside_production_interval\": false},\n";
+  std::cout << "  \"sustained_production\": {\"requested_batches\": " << args.sustained_batches
+            << ", \"min_calls\": " << args.sustained_min_calls << ", \"max_calls\": " << args.sustained_max_calls
+            << ", \"min_duration_us\": " << args.sustained_min_ms * 1000.0
+            << ", \"boundary\": \"same_completed_output_as_latency_lane\", \"instrumentation\": \"hooks_disabled\", "
+            << "\"oracle\": \"full_integer_postflight_outside_timed_interval\", \"observations\": [";
+  for (std::size_t i = 0; i < result.sustained_observations.size(); ++i) {
+    const auto& observation = result.sustained_observations[i];
+    if (i) std::cout << ", ";
+    std::cout << "{\"calls\": " << observation.calls << ", \"tasks\": " << observation.tasks
+              << ", \"duration_us\": " << observation.duration_us
+              << ", \"per_call_us\": " << observation.duration_us / observation.calls
+              << ", \"termination\": \"" << (observation.duration_reached ? "duration_and_minimum_calls" : "hard_call_cap") << "\"}";
+  }
+  std::cout << "]},\n";
   std::cout << "  \"residue_chain_length\": " << args.residue_chain_length << ",\n";
   std::cout << "  \"residue_chain_final_export\": " << (chain_final_export ? "true" : "false") << ",\n";
   std::cout << "  \"residue_chain_independent_final_export\": "
@@ -214,9 +254,13 @@
   std::cout << "  \"prepack_setup_breakdown_us\": ";
   print_prepack_setup_breakdown_json(result, "  ");
   std::cout << ",\n";
+  std::cout << "  \"input_profile\": \"" << input_profile_name(args) << "\",\n";
   std::cout << "  \"input_distribution\": \"" << input_distribution(args) << "\",\n";
   std::cout << "  \"command_line\": \"" << json_escape(cmdline) << "\",\n";
   std::cout << "  \"git_commit\": \"" << json_escape(runtime_git_commit()) << "\",\n";
+#ifdef RNS8_BUILD_MANIFEST_JSON
+  std::cout << "  \"build_manifest\": " << RNS8_BUILD_MANIFEST_JSON << ",\n";
+#endif
   std::cout << "  \"compiler\": {\n";
   std::cout << "    \"id\": \"" << compiler_id() << "\",\n";
   std::cout << "    \"version\": \"" << compiler_version() << "\"\n";
@@ -475,3 +519,19 @@
                  "synchronization, first-use persistent buffer allocation, copies, kernel launches, fused reduction, "
                  "and GPU bounded export when using HIP\",\n";
   }
+
+  std::cout << "  \"locality_schedule\": ";
+  if(result.locality_info.struct_size) {
+    const auto& v=result.locality_info;
+    std::cout << "{\"version\":1,\"representation\":\"resident_residue8\",\"modulus_group_size\":1,"
+      << "\"requested_order\":" << v.requested_order << ",\"applied_order\":" << v.applied_order
+      << ",\"target_id\":" << v.target_id << ",\"topology_version\":" << v.topology_version
+      << ",\"applied\":" << (v.applied?"true":"false") << ",\"physical_affinity_established\":false"
+      << ",\"cache_domains_model\":" << v.cache_domains << ",\"concurrent_groups_per_domain_model\":" << v.concurrent_groups_per_domain
+      << ",\"cache_bytes_per_domain_model\":" << v.cache_bytes_per_domain << ",\"active_entries\":" << v.active_entries
+      << ",\"directory_bytes\":" << v.directory_bytes << ",\"k_phases\":" << v.k_phases
+      << ",\"requested_source_bytes\":" << v.requested_source_bytes << ",\"unique_source_bytes\":" << v.unique_source_bytes
+      << ",\"output_read_write_bytes\":" << v.output_read_write_bytes << ",\"permutation_fingerprint\":" << v.permutation_fingerprint
+      << ",\"traffic_scope\":\"active_arithmetic_only_excludes_pack_zero_fill_export\",\"actual_hbm_bytes\":null,\"measured_cache_hit_rate\":null,\"promotion_eligible\":false}";
+  } else std::cout << "null";
+  std::cout << ",\n";

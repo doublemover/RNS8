@@ -2,6 +2,9 @@
 #include <cstdint>
 #include <type_traits>
 #include "rns8/rns8.h"
+static_assert(sizeof(rns8_allocation_domain_observation)==56);
+static_assert(sizeof(rns8_allocation_observation)==136);
+static_assert(std::is_standard_layout_v<rns8_allocation_observation>);
 
 #define CHECK_ENUM_ABI(type) \
   static_assert(sizeof(type) == sizeof(uint32_t)); \
@@ -19,21 +22,23 @@ CHECK_ENUM_ABI(rns8_output_domain);
 CHECK_ENUM_ABI(rns8_next_op_flags);
 CHECK_ENUM_ABI(rns8_resident_matrix_role);
 CHECK_ENUM_ABI(rns8_operand_role);
+CHECK_ENUM_ABI(rns8_resident_node_kind);
+CHECK_ENUM_ABI(rns8_complex_product_method);
+CHECK_ENUM_ABI(rns8_async_failure_stage);
+CHECK_ENUM_ABI(rns8_integer_split_format);
 #undef CHECK_ENUM_ABI
+static_assert(sizeof(rns8_integer_split_i64_desc) == 56);
+static_assert(sizeof(rns8_integer_split_i64_info) == 72);
+static_assert(std::is_standard_layout_v<rns8_integer_split_i64_desc>);
+static_assert(std::is_standard_layout_v<rns8_integer_split_i64_info>);
 
-TEST_CASE("reserved research APIs fail closed without changing outputs", "[qualification][cpu]") {
-  int8_t byte = 42;
-  int8_t* component = &byte;
-  int64_t component_ld = 77;
-  int split_count = 88;
-  CHECK(rns8_ozaki_decompose_i64(nullptr, nullptr, 1, 1, 1, &component, &component_ld, &split_count) ==
-        RNS8_UNSUPPORTED_BACKEND);
-  CHECK(component == &byte);
-  CHECK(component_ld == 77);
-  CHECK(split_count == 88);
+TEST_CASE("research APIs reject unsupported or malformed calls without changing outputs", "[qualification][cpu]") {
   double overhead = -1.0;
   CHECK(rns8_strassen_gemm_research(nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 1, &overhead) ==
-        RNS8_UNSUPPORTED_BACKEND);
+        RNS8_INVALID_ARGUMENT);
+  CHECK(overhead == -1.0);
+  CHECK(rns8_gemm_bilinear_exact(nullptr,nullptr,nullptr,nullptr,nullptr,
+      RNS8_BILINEAR_RANK23_SLP,UINT64_MAX,nullptr,&overhead)==RNS8_INVALID_ARGUMENT);
   CHECK(overhead == -1.0);
   double failure_probability = -1.0;
   CHECK(rns8_freivalds_verify(nullptr, nullptr, nullptr, nullptr, 1, 2, &failure_probability) ==

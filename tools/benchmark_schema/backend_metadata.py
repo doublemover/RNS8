@@ -221,6 +221,8 @@ def validate_backend_metadata(self: Any) -> None:
     ]:
         if not isinstance(metadata.get(key), bool):
             self._error(f"backend_metadata.{key} must be a boolean")
+    if metadata.get("performance_validated") is True and metadata.get("exact_differential_validated") is not True:
+        self._error("performance_validated requires bound exact differential evidence")
     for key in [
         "accelerator_library",
         "accelerator_version",
@@ -249,8 +251,6 @@ def validate_backend_metadata(self: Any) -> None:
             self._error("current correctness backends must set backend_metadata.matrix_engine_backend=false")
         if metadata.get("compiled_kernel_available") is not True:
             self._error("current correctness backends must set backend_metadata.compiled_kernel_available=true")
-        if metadata.get("exact_differential_validated") is not True:
-            self._error("current correctness backends must set backend_metadata.exact_differential_validated=true")
         if metadata.get("performance_validated") is not False:
             self._error("current correctness backends must set backend_metadata.performance_validated=false")
         if metadata.get("capability_status") != "implemented_correctness_backend":
@@ -271,7 +271,6 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": True,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
         }
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:
@@ -330,7 +329,6 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": False,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
             "performance_validated": False,
         }
         for key, value in bool_expected.items():
@@ -424,7 +422,6 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": True,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
         }
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:

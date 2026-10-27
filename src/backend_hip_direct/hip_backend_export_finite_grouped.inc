@@ -18,6 +18,13 @@ rns8_status hip_direct_export_finite_u8_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  if (modulus == 256) {
+    const hipError_t err = timed_hip_operation("finite_export_d2h", [&]() {
+      return copy_compact_matrix_device_to_host_direct(
+          dst, ld, device_residues, rows, cols, sizeof(uint8_t));
+    });
+    return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  }
   const std::size_t output_bytes = static_cast<std::size_t>(rows) * static_cast<std::size_t>(cols) * sizeof(uint8_t);
   rns8_status status = hip_direct_ensure_upload_buffer(device_id, output_bytes, export_buffer, export_bytes);
   if (status != RNS8_SUCCESS) {
@@ -181,7 +188,7 @@ rns8_status hip_direct_export_exact_wide_signed_limbs_to_device(
   if (requires_status) {
     int host_status = 0;
     err = timed_hip_operation("exact_wide_export_status_d2h", [&]() {
-      return hipMemcpy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
+      return tracked_sync_copy(&host_status, *status_buffer, sizeof(host_status), hipMemcpyDeviceToHost);
     });
     if (err != hipSuccess) {
       return RNS8_BACKEND_FAILURE;
@@ -280,7 +287,7 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   }
   const std::size_t table_bytes = host_ptrs.size() * sizeof(host_ptrs[0]);
   const hipError_t err = timed_hip_operation("grouped_residue_pointer_table_h2d", [&]() {
-    return hipMemcpy(device_residue_ptrs, host_ptrs.data(), table_bytes, hipMemcpyHostToDevice);
+    return tracked_sync_copy(device_residue_ptrs, host_ptrs.data(), table_bytes, hipMemcpyHostToDevice);
   });
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;

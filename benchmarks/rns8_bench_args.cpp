@@ -147,6 +147,10 @@ BoundMode parse_bound_mode(const std::string& value) {
 }
 
 InputProfile parse_input_profile(const std::string& value) {
+  if (value == "wide-two-limb-constant") return InputProfile::WideTwoLimbConstant;
+  if (value == "wide-three-limb-constant") return InputProfile::WideThreeLimbConstant;
+  if (value == "wide-two-limb-mixed") return InputProfile::WideTwoLimbMixed;
+  if (value == "wide-three-limb-mixed") return InputProfile::WideThreeLimbMixed;
   if (value == "uniform-small" || value == "uniform_small") return InputProfile::UniformSmall;
   if (value == "adaptive-bands" || value == "adaptive_bands") return InputProfile::AdaptiveBands;
   if (value == "finite-binary" || value == "finite_binary" || value == "binary") {
@@ -255,6 +259,13 @@ Args parse_args(int argc, char** argv) {
       args.cpu_parallel_threshold = parse_u64(argv[++i], "--cpu-parallel-threshold");
     } else if (arg == "--cpu-reference-mode" && i + 1 < argc) {
       args.cpu_reference_mode = parse_cpu_reference_mode(argv[++i]);
+    } else if (arg == "--reference-cache-dir" && i + 1 < argc) {
+      args.reference_cache_directory = argv[++i];
+      if (args.reference_cache_directory.empty()) usage_error("reference cache directory must not be empty");
+    } else if (arg == "--populate-reference-cache") {
+      args.populate_reference_cache = true;
+    } else if (arg == "--verify-native-output") {
+      args.verify_native_output = true;
     } else if (arg == "--progress") {
       args.progress = true;
     } else if (arg == "--seed" && i + 1 < argc) {
@@ -279,6 +290,22 @@ Args parse_args(int argc, char** argv) {
       args.finite_modulus = static_cast<uint16_t>(parsed);
     } else if (arg == "--bound-mode" && i + 1 < argc) {
       args.bound_mode = parse_bound_mode(argv[++i]);
+    } else if (arg == "--grouped-output" && i + 1 < argc) {
+      const std::string boundary(argv[++i]);
+      if (boundary != "compact-slab" && boundary != "per-task") usage_error("--grouped-output requires compact-slab or per-task");
+      args.grouped_compact_output = boundary == "compact-slab";
+    } else if (arg == "--host-timing" && i + 1 < argc) {
+      const std::string mode(argv[++i]);
+      if (mode != "instrumented" && mode != "production") usage_error("--host-timing requires instrumented or production");
+      args.production_host_timing = mode == "production";
+    } else if (arg == "--sustained-batches" && i + 1 < argc) {
+      args.sustained_batches = parse_u32(argv[++i], "--sustained-batches");
+    } else if (arg == "--sustained-min-calls" && i + 1 < argc) {
+      args.sustained_min_calls = parse_u32(argv[++i], "--sustained-min-calls");
+    } else if (arg == "--sustained-max-calls" && i + 1 < argc) {
+      args.sustained_max_calls = parse_u32(argv[++i], "--sustained-max-calls");
+    } else if (arg == "--sustained-min-ms" && i + 1 < argc) {
+      args.sustained_min_ms = parse_u32(argv[++i], "--sustained-min-ms");
     } else if (arg == "--input-profile" && i + 1 < argc) {
       args.input_profile = parse_input_profile(argv[++i]);
     } else if (arg == "--bound-source" && i + 1 < argc) {
@@ -306,6 +333,8 @@ Args parse_args(int argc, char** argv) {
       args.tile_shape_variant = argv[++i];
     } else if (arg == "--export-variant" && i + 1 < argc) {
       args.export_variant = argv[++i];
+    } else if (arg == "--exact-proof-scalar-first") {
+      args.exact_scalar_first = true;
     } else if (arg == "--reconstruction-variant" && i + 1 < argc) {
       args.reconstruction_variant = argv[++i];
     } else if (arg == "--grouped-dispatch" && i + 1 < argc) {
@@ -322,6 +351,35 @@ Args parse_args(int argc, char** argv) {
       args.adaptive_grouped_scheduler = true;
     } else if (arg == "--streaming-overlap") {
       args.streaming_overlap = true;
+    } else if (arg == "--streaming-batches" && i + 1 < argc) {
+      args.streaming_batches=parse_u32(argv[++i], "--streaming-batches");
+    } else if (arg == "--streaming-schedule" && i + 1 < argc) {
+      const std::string mode=argv[++i];
+      if(mode!="overlapped" && mode!="serial")usage_error("streaming schedule must be overlapped or serial");
+      args.streaming_serial_control=mode=="serial";
+    } else if (arg == "--locality-order" && i+1<argc) {
+      args.locality_order=argv[++i];
+      if(args.locality_order!="ordinary" && args.locality_order!="output-neighbor" && args.locality_order!="modulus" && args.locality_order!="same-output")usage_error("unknown locality order");
+    } else if (arg == "--locality-model-domains" && i+1<argc) {
+      args.locality_model_domains=parse_u32(argv[++i],"--locality-model-domains");
+    } else if (arg == "--locality-model-concurrency" && i+1<argc) {
+      args.locality_model_concurrency=parse_u32(argv[++i],"--locality-model-concurrency");
+    } else if (arg == "--locality-model-cache-bytes" && i+1<argc) {
+      args.locality_model_cache_bytes=parse_u64(argv[++i],"--locality-model-cache-bytes");
+    } else if (arg == "--rocwmma-packing-policy" && i+1<argc) {
+      args.rocwmma_packing_policy=argv[++i];args.rocwmma_packing_policy_explicit=true;
+      if(args.rocwmma_packing_policy!="packed" && args.rocwmma_packing_policy!="direct-a" &&
+          args.rocwmma_packing_policy!="reuse" && args.rocwmma_packing_policy!="direct-a-reuse")
+        usage_error("rocWMMA packing policy must be packed, direct-a, reuse or direct-a-reuse");
+    } else if (arg == "--hipblaslt-prepack-policy" && i + 1 < argc) {
+      args.hipblaslt_prepack_policy=argv[++i];args.hipblaslt_prepack_policy_explicit=true;
+      if(args.hipblaslt_prepack_policy!="none" && args.hipblaslt_prepack_policy!="a" &&
+          args.hipblaslt_prepack_policy!="b" && args.hipblaslt_prepack_policy!="both")
+        usage_error("hipBLASLt prepack policy must be none, a, b or both");
+    } else if (arg == "--hipblaslt-metadata-policy" && i + 1 < argc) {
+      const std::string policy=argv[++i];
+      if(policy!="per-call" && policy!="per-block")usage_error("hipBLASLt metadata policy must be per-call or per-block");
+      args.hipblaslt_metadata_per_block_control=policy=="per-block";
     } else if (arg == "--k-block-policy" && i + 1 < argc) {
       args.k_block_policy = argv[++i];
     } else if (arg == "--resident-redesign-candidate" && i + 1 < argc) {
@@ -381,11 +439,16 @@ Args parse_args(int argc, char** argv) {
           << "                  [--output-ld-padding N]\n"
           << "                  [--tile-m M] [--tile-n N]\n"
           << "                  [--bound-mode global|per-tile]\n"
+          << "                  [--locality-order ordinary|output-neighbor|modulus|same-output] [--locality-model-domains N] [--locality-model-concurrency N] [--locality-model-cache-bytes N]\n"
           << "                  [--input-profile uniform-small|adaptive-bands|finite-binary|finite-sparse|\n"
           << "                                   finite-low-hamming|finite-small-centered|finite-full-uniform]\n"
           << "                  [--bound-source static-profile|input-scan]\n"
           << "                  [--prefix-policy minimum-proven|fixed-requested] [--max-prefix N]\n"
+          << "                  [--host-timing instrumented|production] [--sustained-batches 0..64]\n"
+          << "                  [--sustained-min-calls N] [--sustained-max-calls N] [--sustained-min-ms N]\n"
           << "                  [--exact-wide-limbs 1..32]\n"
+          << "                  [--input-profile wide-two-limb-constant|wide-three-limb-constant|wide-two-limb-mixed|wide-three-limb-mixed]\n"
+          << "                  [--exact-proof-scalar-first]\n"
           << "                  [--residue-chain-length N]\n"
           << "                  [--residue-chain-final-export]\n"
           << "                  [--residue-chain-independent-final-export]\n"
@@ -401,7 +464,10 @@ Args parse_args(int argc, char** argv) {
           << "                  [--resident-lifetime]\n"
           << "                  [--workspace-arena]\n"
           << "                  [--adaptive-grouped-scheduler]\n"
-          << "                  [--streaming-overlap]\n"
+          << "                  [--hipblaslt-metadata-policy per-call|per-block]\n"
+          << "                  [--hipblaslt-prepack-policy none|a|b|both]\n"
+          << "                  [--rocwmma-packing-policy packed|direct-a|reuse|direct-a-reuse]\n"
+          << "                  [--streaming-overlap --streaming-batches 3..64 --streaming-schedule overlapped|serial]\n"
           << "                  [--k-block-policy NAME]\n"
           << "                  [--resident-redesign-candidate NAME]\n"
           << "                  [--resident-redesign-dimensions a,b,c]\n"
@@ -410,6 +476,7 @@ Args parse_args(int argc, char** argv) {
           << "                  [--error-detection-policy NAME]\n"
           << "                  [--cpu-small-shape-selector NAME]\n"
           << "                  [--incremental-result-cache NAME]\n"
+          << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
           << "                  [--require-adaptive-execution]\n"
           << "                  [--residue-channel-fusion]\n"
           << "                  [--oneshot]\n"
@@ -623,14 +690,34 @@ Args parse_args(int argc, char** argv) {
       usage_error("--oneshot currently requires --backend cpu or --backend hip-direct");
     }
   }
+  if (args.grouped_compact_output && (args.grouped_dispatch_tasks <= 1 || args.output_ld_padding != 0 ||
+      (exact_wide_benchmark_semantics(args.semantics) && args.exact_wide_limb_count < 3)))
+    usage_error("compact-slab output requires grouped dispatch and no per-task padding");
+  StreamingMeasurementPlan streaming_plan;
+  if(args.streaming_overlap && !streaming_measurement_plan(args.warmups,args.repeats,args.streaming_batches,streaming_plan))
+    usage_error("streaming requires calls/repeats1..65536, batches3..64, measured calls<=1048576 and warmups<=1024");
+  if(!args.streaming_overlap && (args.streaming_serial_control || args.streaming_batches!=9))
+    usage_error("streaming controls require --streaming-overlap");
+  if (args.sustained_batches > 64 || !args.sustained_min_calls || args.sustained_min_calls > args.sustained_max_calls ||
+      args.sustained_max_calls > 65536 || args.sustained_min_ms > 60000) usage_error("invalid sustained bounds");
+  if (args.sustained_batches && (!args.production_host_timing || args.residue_chain_length != 1 ||
+       args.hip_graph_replay || args.streaming_overlap || args.vector_to_rns_chain || args.incremental_result_cache != "none"))
+    usage_error("sustained public intervals require hook-disabled independent single-GEMM host-output calls; graph/overlap/chain/cache experiments have separate boundaries");
   if (args.input_profile == InputProfile::AdaptiveBands && !bounded_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile adaptive-bands is only valid for bounded-i64 or bounded-u64 semantics");
   }
   if (finite_input_profile(args.input_profile) && !finite_benchmark_semantics(args.semantics)) {
     usage_error("--input-profile finite-* values are only valid for finite-u8 semantics");
   }
+  const bool wide_magnitude = args.input_profile == InputProfile::WideTwoLimbConstant ||
+      args.input_profile == InputProfile::WideThreeLimbConstant ||
+      args.input_profile == InputProfile::WideTwoLimbMixed || args.input_profile == InputProfile::WideThreeLimbMixed;
+  if (wide_magnitude && (!exact_wide_benchmark_semantics(args.semantics) || args.residue_chain_length != 1 ||
+                         args.sparse_a_4_to_2)) {
+    usage_error("wide magnitude profiles require dense single-GEMM exact-wide semantics");
+  }
   if (args.input_profile != InputProfile::UniformSmall && args.input_profile != InputProfile::AdaptiveBands &&
-      !finite_input_profile(args.input_profile)) {
+      !finite_input_profile(args.input_profile) && !wide_magnitude) {
     usage_error("unsupported input profile");
   }
   if (args.bound_source == BoundSource::InputScan) {
@@ -664,8 +751,8 @@ Args parse_args(int argc, char** argv) {
   if (args.residue_chain_independent_final_export && args.residue_chain_length <= 1) {
     usage_error("--residue-chain-independent-final-export requires --residue-chain-length > 1");
   }
-  if (args.host_api_batch_size == 0) {
-    usage_error("--host-api-batch-size must be positive");
+  if (args.host_api_batch_size == 0 || args.host_api_batch_size > 4096) {
+    usage_error("--host-api-batch-size must be in [1, 4096]");
   }
   if (args.grouped_dispatch_tasks == 0) {
     usage_error("--grouped-dispatch must be positive");
@@ -720,8 +807,8 @@ Args parse_args(int argc, char** argv) {
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--host-api-batch-size > 1 currently requires global static-profile bounds");
     }
-    if (args.input_profile != InputProfile::UniformSmall) {
-      usage_error("--host-api-batch-size > 1 currently requires --input-profile uniform-small");
+    if (args.input_profile != InputProfile::UniformSmall && !wide_magnitude) {
+      usage_error("--host-api-batch-size > 1 requires uniform-small or an exact-wide magnitude profile");
     }
     if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
@@ -748,8 +835,8 @@ Args parse_args(int argc, char** argv) {
     if (args.bound_mode != BoundMode::Global || args.bound_source != BoundSource::StaticProfile) {
       usage_error("--grouped-dispatch > 1 currently requires global static-profile bounds");
     }
-    if (args.input_profile != InputProfile::UniformSmall) {
-      usage_error("--grouped-dispatch > 1 currently requires --input-profile uniform-small");
+    if (args.input_profile != InputProfile::UniformSmall && !wide_magnitude) {
+      usage_error("--grouped-dispatch > 1 requires uniform-small or an exact-wide magnitude profile");
     }
     if (args.oneshot || args.reuse_packed_inputs || args.vector_alu_baseline ||
         args.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || args.transient_uniform_small_inputs ||
@@ -886,6 +973,31 @@ Args parse_args(int argc, char** argv) {
             ? 0
             : -1;
   }
+  if(!args.locality_order.empty() && (args.backend!=RNS8_BACKEND_HIP_DIRECT || args.bound_mode!=BoundMode::PerTile ||
+      args.oneshot || args.host_api_batch_size!=1 || args.grouped_dispatch_tasks!=1 || args.adaptive_grouped_scheduler || args.hip_graph_replay || args.native_to_rns_bridge || args.vector_to_rns_chain || args.sparse_a_4_to_2 || args.transient_uniform_small_inputs || args.streaming_overlap || args.residue_chain_length!=1))
+    usage_error("locality ordering requires explicit direct-HIP per-tile ordinary bounded calls");
+  if(args.locality_model_domains<1 || args.locality_model_domains>128 || args.locality_model_concurrency<1 || args.locality_model_concurrency>65536)
+    usage_error("invalid hypothetical locality model dimensions");
+  if(args.locality_order.empty() && (args.locality_model_domains!=1 || args.locality_model_concurrency!=1 || args.locality_model_cache_bytes))
+    usage_error("locality model hints require an explicit locality order");
+  if(args.hipblaslt_metadata_per_block_control && args.backend!=RNS8_BACKEND_HIPBLASLT)
+    usage_error("per-block metadata control requires explicit hipblaslt backend");
+  if(args.hipblaslt_prepack_policy_explicit && (args.backend!=RNS8_BACKEND_HIPBLASLT ||
+      args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
+      args.semantics==BenchSemantics::WrapU64Mod2_64))
+    usage_error("operand prepack controls require explicit hipblaslt bounded or exact-wide RNS GEMM");
+  if(args.rocwmma_packing_policy_explicit && (args.backend!=RNS8_BACKEND_ROCWMMA ||
+      args.semantics==BenchSemantics::FiniteRingU8 || args.semantics==BenchSemantics::FiniteFieldU8 ||
+      args.semantics==BenchSemantics::WrapU64Mod2_64))
+    usage_error("rocWMMA packing controls require explicit rocwmma bounded or exact-wide RNS GEMM");
+  if (args.populate_reference_cache && args.reference_cache_directory.empty())
+    usage_error("--populate-reference-cache requires --reference-cache-dir");
+  if ((!args.reference_cache_directory.empty() || args.verify_native_output) &&
+      (args.residue_chain_length != 1 ||
+       args.host_api_batch_size != 1 || args.grouped_dispatch_tasks != 1 ||
+       args.native_to_rns_bridge || args.vector_to_rns_chain || args.transient_uniform_small_inputs ||
+       args.residue_channel_fusion || args.streaming_overlap || args.hip_graph_replay))
+    usage_error("reference cache supports ordinary single-product integer host output only");
   return args;
 }
 

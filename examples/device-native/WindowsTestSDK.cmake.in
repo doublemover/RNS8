@@ -1,0 +1,9 @@
+# Process-local test binding to the producer's configured compiler/SDK.
+set(ENV{HIP_PATH} [==[@_native_sdk_root@]==])
+set(ENV{HIP_PLATFORM} amd)
+set(ENV{LLVM_PATH} [==[@_native_llvm_root@]==])
+set(ENV{HIP_DEVICE_LIB_PATH} [==[@_native_llvm_root@/amdgcn/bitcode]==])
+string(CONCAT _native_test_path
+  [==[@_native_sdk_root@/bin;@_native_compiler_bin@;]==] "$ENV{PATH}")
+set(ENV{PATH} "${_native_test_path}")
+unset(_native_test_path)

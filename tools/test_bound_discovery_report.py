@@ -5,12 +5,20 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+import tempfile
+
+from report_inputs import expand_inputs, load_validated_capture
 
 import bound_discovery_report
+from test_capture_identity_support import synthetic_independent_runs
 from benchmark_schema import load_capture, validate_capture
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
+
+
+def compare_bound_discovery(captures):
+    return bound_discovery_report.compare_bound_discovery(synthetic_independent_runs(captures))
 
 
 def with_path(capture: dict, path: str) -> dict:
@@ -162,10 +170,27 @@ def proof_mask_capture(static_capture: dict, end_to_end: int, setup_us: int, *, 
 
 
 def main() -> int:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        invalid = root / "invalid.json"
+        invalid.write_text('{}', encoding="utf-8")
+        nested = root / "nested"
+        nested.mkdir()
+        valid = nested / "capture.json"
+        valid.write_bytes((FIXTURE_DIR / "v4_bounded_i64_ck.json").read_bytes())
+        assert expand_inputs([root, valid]) == [invalid, valid, valid]
+        capture = load_validated_capture(valid)
+        assert capture["_path"] == str(valid)
+        try:
+            load_validated_capture(invalid)
+        except SystemExit as exc:
+            assert str(invalid) in str(exc)
+        else:
+            raise AssertionError("invalid report evidence must be rejected")
     static = static_global_capture()
     input_scan_win = input_scan_global_capture(static, 700, 100)
     proof_mask_win = proof_mask_capture(static, 650, 100)
-    report = bound_discovery_report.compare_bound_discovery([static, input_scan_win, proof_mask_win])
+    report = compare_bound_discovery([static, input_scan_win, proof_mask_win])
     assert report["summary"]["comparisons"] == 2
     assert report["summary"]["candidate_wins"] == 2
     assert {item["variant"] for item in report["comparisons"]} == {"input_scan_global", "proof_mask_per_tile"}
@@ -173,7 +198,7 @@ def main() -> int:
 
     input_scan_loss = input_scan_global_capture(static, 950, 100)
     input_scan_loss["_path"] = "input-scan-global-ck-loss.json"
-    loss_report = bound_discovery_report.compare_bound_discovery([static, input_scan_loss])
+    loss_report = compare_bound_discovery([static, input_scan_loss])
     assert loss_report["summary"]["deprioritized"] == 1
     assert loss_report["comparisons"][0]["decision"] == "deprioritize"
     assert (
@@ -185,13 +210,13 @@ def main() -> int:
     missing_baseline["backend_selected"] = "hipblaslt"
     missing_baseline["backend_requested"] = "hipblaslt"
     missing_baseline["_path"] = "input-scan-global-hipblaslt-missing.json"
-    missing_report = bound_discovery_report.compare_bound_discovery([static, missing_baseline])
+    missing_report = compare_bound_discovery([static, missing_baseline])
     assert missing_report["summary"]["missing_baselines"] == 1
     assert missing_report["comparisons"][0]["decision"] == "missing_baseline"
 
     no_proof = proof_mask_capture(static, 650, 100, with_proofs=False)
     no_proof["_path"] = "tile-bound-no-proof-ck.json"
-    no_proof_report = bound_discovery_report.compare_bound_discovery([static, no_proof])
+    no_proof_report = compare_bound_discovery([static, no_proof])
     assert no_proof_report["summary"]["experimental"] == 1
     assert no_proof_report["comparisons"][0]["variant"] == "tile_bound_per_tile"
     assert "missing_zero_row_col_proof_coverage" in no_proof_report["comparisons"][0]["blockers"]

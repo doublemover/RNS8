@@ -152,6 +152,84 @@
   print_target_variant_json(args, info, result, selected_backend);
   print_auto_selector_json(args, info, result, selected_backend);
   print_device_allocation_json(args, result);
+  std::cout << "  \"hipblaslt_metadata\": {\n";
+  std::cout << "    \"abi_version\": 1, \"policy\": \"" << (args.hipblaslt_metadata_per_block_control ? "per_block_control" : "per_call_distinct_geometry") << "\",\n";
+  std::cout << "    \"scope\": \"calling_thread_library_API_attempt_counts_not_allocator_bytes_or_device_work\",\n";
+  std::cout << "    \"cross_call_raw_descriptor_retention\": false,\n";
+  auto print_metadata_counters=[](const rns8::detail::HipblasLtMetadataCounters& v) {
+    std::cout << "{";
+    std::cout << "\"descriptor_create_calls\":" << v.descriptor_create_calls << ",";
+    std::cout << "\"descriptor_destroy_calls\":" << v.descriptor_destroy_calls << ",";
+    std::cout << "\"attribute_set_calls\":" << v.attribute_set_calls << ",";
+    std::cout << "\"preference_create_calls\":" << v.preference_create_calls << ",";
+    std::cout << "\"preference_destroy_calls\":" << v.preference_destroy_calls << ",";
+    std::cout << "\"preference_attribute_calls\":" << v.preference_attribute_calls << ",";
+    std::cout << "\"heuristic_calls\":" << v.heuristic_calls << ",";
+    std::cout << "\"algorithm_cache_hits\":" << v.algorithm_cache_hits << ",";
+    std::cout << "\"descriptor_set_hits\":" << v.descriptor_set_hits << ",";
+    std::cout << "\"descriptor_sets_created\":" << v.descriptor_sets_created << ",";
+    std::cout << "\"matmul_block_calls\":" << v.matmul_block_calls << ",";
+    std::cout << "\"maximum_live_sets\":" << v.maximum_live_sets << "}";
+  };
+  std::cout << "    \"after_warmups\": "; print_metadata_counters(result.metadata_after_warmups); std::cout << ",\n";
+  std::cout << "    \"after_measured_repeats\": "; print_metadata_counters(result.metadata_after_repeats); std::cout << "\n  },\n";
+  const auto print_algorithms=[](const rns8::detail::HipblasLtAlgorithmInventory& inventory) {
+    std::cout << "{\"available\":" << (inventory.available?"true":"false")
+              << ",\"complete\":" << (inventory.complete?"true":"false")
+              << ",\"index_queries\":" << inventory.index_queries << ",\"entries\":[";
+    for(uint32_t i=0;i<inventory.size;++i) {
+      const auto& entry=inventory.entries[i];const auto& key=entry.key;
+      if(i)std::cout << ',';
+      std::cout << "{\"device_id\":" << key.device_id << ",\"m\":" << key.m << ",\"n\":" << key.n
+                << ",\"k\":" << key.k << ",\"scratch_ld\":" << key.scratch_ld
+                << ",\"workspace_bytes\":" << key.workspace_bytes << ",\"attribute_abi\":" << key.attribute_abi
+                << ",\"algorithm_index\":";
+      if(entry.algorithm_index<0)std::cout << "null";else std::cout << entry.algorithm_index;
+      std::cout << ",\"matmul_calls\":" << entry.calls << '}';
+    }
+    std::cout << "]}";
+  };
+  std::cout << "  \"hipblaslt_algorithms\": {\"abi_version\":1,"
+            << "\"scope\":\"library_build_device_padded_geometry_algorithm_index\","
+            << "\"query_policy\":\"opt_in_once_per_cached_algorithm\",\"after_warmups\":";
+  print_algorithms(result.algorithms_after_warmups);
+  std::cout << ",\"after_measured_repeats\":";print_algorithms(result.algorithms_after_repeats);
+  std::cout << "},\n";
+  std::cout << "  \"rocwmma_packing\": {\"abi_version\":1,\"policy\":\"" << args.rocwmma_packing_policy
+      << "\",\"scope\":\"calling_thread_successful_submissions_not_bytes_or_time\",\n";
+  const auto print_rocwmma=[](const rns8::detail::RocwmmaPackingStats& v) {
+    std::cout << "{\"a_pack_launches\":" << v.a_pack_launches << ",\"b_pack_launches\":" << v.b_pack_launches
+        << ",\"direct_a_blocks\":" << v.direct_a_blocks << ",\"a_panel_hits\":" << v.a_panel_hits
+        << ",\"b_panel_hits\":" << v.b_panel_hits << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_rocwmma(result.rocwmma_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_rocwmma(result.rocwmma_after_repeats);std::cout << "\n  },\n";
+  std::cout << "  \"hipblaslt_operand_prepack\": {\n    \"abi_version\":1,\"policy\":\"" << args.hipblaslt_prepack_policy
+      << "\",\"scope\":\"calling_thread_successful_pack_submissions_and_cache_matches_not_bytes_or_time\",\n";
+  auto print_prepack_counters=[](const rns8::detail::HipblasLtPrepackCounters& v) {
+    std::cout << "{\"a_retained_builds\":" << v.a_retained_builds << ",\"b_retained_builds\":" << v.b_retained_builds
+      << ",\"a_retained_hits\":" << v.a_retained_hits << ",\"b_retained_hits\":" << v.b_retained_hits
+      << ",\"a_retained_planes_packed\":" << v.a_retained_planes_packed << ",\"b_retained_planes_packed\":" << v.b_retained_planes_packed
+      << ",\"a_transient_planes_packed\":" << v.a_transient_planes_packed << ",\"b_transient_planes_packed\":" << v.b_transient_planes_packed << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_prepack_counters(result.prepack_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_prepack_counters(result.prepack_after_repeats);
+  std::cout << "\n  },\n";
+
+  std::cout << "  \"immutable_schedule_work\": {\"abi_version\":1,\"scope\":\"calling_thread_source_work_counters_not_latency\",\n";
+  auto print_schedule_work=[](const rns8::detail::api::plan_validation_counters& v) {
+    std::cout << "{\"core_exhaustive_validations\":" << v.exhaustive_validations
+      << ",\"fingerprint_traversals\":" << v.fingerprint_traversals
+      << ",\"canonical_equivalent_comparisons\":" << v.equivalent_comparisons
+      << ",\"backend_schedule_seals\":" << v.backend_schedule_seals
+      << ",\"backend_sealed_tile_visits\":" << v.backend_schedule_sealed_tile_visits
+      << ",\"backend_fast_submissions\":" << v.backend_schedule_fast_submissions
+      << ",\"backend_raw_submissions\":" << v.backend_schedule_raw_submissions << "}";
+  };
+  std::cout << "    \"after_warmups\":";print_schedule_work(result.schedule_after_warmups);
+  std::cout << ",\n    \"after_measured_repeats\":";print_schedule_work(result.schedule_after_repeats);
+  std::cout << "\n  },\n";
+
   print_reuse_contract_json(args, result, selected_backend, selected_kernel);
   print_exact_output_contract_json(args, result, output_ld, selected_kernel);
   print_export_variant_json(args, result, selected_kernel);

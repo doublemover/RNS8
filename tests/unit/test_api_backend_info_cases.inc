@@ -81,7 +81,7 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
       "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
 }
 
-TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
+TEST_CASE("Explicit direct-HIP parallel skinny plans report their actual selected-prefix route") {
   rns8_plan plan{};
   plan.backend = RNS8_BACKEND_HIP_DIRECT;
   plan.prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -89,10 +89,11 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   plan.desc.m = 512;
   plan.desc.n = 1;
   plan.desc.k = 512;
+  plan.desc.flags=RNS8_PLAN_DIRECT_RNS_PARALLEL;
 
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_n1_i64_v1");
+      "direct_hip_selected_prefix_rns_gemv_n1_v1");
   CHECK(
       rns8::detail::api::epilogue_mode_for_plan(plan) ==
       "resident_rns_gemv_n1_centered_residue_then_crt_export");
@@ -103,12 +104,12 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   plan.desc.semantics = RNS8_BOUNDED_U64;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_n1_u64_v1");
+      "direct_hip_selected_prefix_rns_gemv_n1_v1");
 
   plan.desc.n = 2;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_u64_v1");
+      "direct_hip_selected_prefix_rns_gemv_small_n_v1");
   CHECK(
       rns8::detail::api::epilogue_mode_for_plan(plan) ==
       "resident_rns_gemv_small_n_centered_residue_then_crt_export");
@@ -120,12 +121,12 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   plan.desc.n = 4;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
+      "direct_hip_selected_prefix_rns_gemv_small_n_v1");
 
   plan.desc.n = 8;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
+      "direct_hip_selected_prefix_rns_gemv_small_n_v1");
   CHECK(
       rns8::detail::api::workspace_mode_for_plan(plan) ==
       "resident_rns_inputs_skinny_n_le8_output");
@@ -133,7 +134,7 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   plan.desc.n = 9;
   CHECK(
       rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_grouped_rns_gemm_v1");
+      "direct_hip_selected_prefix_grouped_rns_gemm_v1");
   CHECK(rns8::detail::api::workspace_mode_for_plan(plan) == "resident_device_buffers");
 }
 
@@ -181,7 +182,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(cpu.is_accelerator == 0);
   CHECK(cpu.is_correctness_backend == 1);
   CHECK(cpu.compiled_kernel_available == 1);
-  CHECK(cpu.exact_differential_validated == 1);
+  CHECK(cpu.exact_differential_validated == 0);
   CHECK(cpu.performance_validated == 0);
   CHECK(std::string(cpu.status) == "implemented_correctness_backend");
   CHECK(std::string(cpu.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -212,7 +213,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_baseline_backend");
       CHECK(
@@ -232,7 +233,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
       CHECK(
@@ -261,7 +262,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_rocwmma_backend");
       CHECK(
@@ -284,7 +285,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_amdgpu_builtin_backend");
       CHECK(
@@ -387,7 +388,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(info.is_correctness_backend == 1);
     CHECK(info.is_matrix_engine_backend == 0);
     CHECK(info.compiled_kernel_available == 1);
-    CHECK(info.exact_differential_validated == 1);
+    CHECK(info.exact_differential_validated == 0);
     CHECK(info.performance_validated == 0);
     CHECK(info.workspace_required_bytes == 0);
     CHECK(std::string(info.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -408,7 +409,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.accumulator_type) == "int32");
     CHECK(std::string(info.accumulator_modulus_policy) == "selected_rns_modulus_ladder");
     CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
-    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;implementation_revision=4;target_id=cpu;semantics=bounded_u64") == 0);
+    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;implementation_revision=8;target_id=cpu;semantics=bounded_u64") == 0);
     CHECK(std::string(info.autotune_key).find(";accumulator_type=int32;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_size=4;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_cap=65536;") != std::string::npos);
@@ -486,7 +487,7 @@ TEST_CASE("public grouped dispatch contract info reports explicit grouped requir
   CHECK(info.same_shape_required == 1);
   CHECK(info.same_semantics_required == 1);
   CHECK(info.compact_row_major_required == 1);
-  CHECK(info.unique_matrix_handles_required == 1);
+  CHECK(info.unique_matrix_handles_required == 0);
   CHECK(info.unique_workspace_handles_required == 1);
   CHECK(info.same_plan_fingerprint_required == 1);
   CHECK(info.same_device_required == 1);

@@ -77,7 +77,7 @@
       gpu_event_scope = "\"direct_hip_streaming_overlap_multistream_operation_groups\"";
       gpu_event_caveat =
           "\"HIP event timings record benchmark-owned nonblocking pack, GEMM, and export streams with explicit "
-          "dependency events. The end_to_end timing samples are per-repeat pipeline throughput from the measured "
+          "dependency events. Each end_to_end sample is one complete batch mean per call, not independent per-call latency. Separate "
           "batch wall clock, not a serial sum of pack, GEMM, and export phase timings\"";
     } else if (chain_residue_output) {
       gpu_event_reason = "captured_by_residue_current_chain_backend_hooks";
@@ -206,6 +206,9 @@
   } else if (result.hip_graph_replay_requested) {
     gpu_event_reason = "hip_graph_replay_wall_clock_only";
     gpu_event_status = result.hip_graph_replay_used ? "not_requested_graph_replay" : "not_requested_graph_replay_unavailable";
+  } else if (args.production_host_timing) {
+    gpu_event_reason = "explicit_production_hooks_disabled";
+    gpu_event_status = "not_requested_production_timing";
   } else if (chain_residue_output) {
     gpu_event_reason = "selected_chain_backend_has_no_gpu_event_hooks";
     gpu_event_status = "not_requested_for_selected_chain_backend";

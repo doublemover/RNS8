@@ -225,6 +225,9 @@ def load_scenario_data_family(path: Path, cases: dict[str, SweepCase] | None = N
         label = f"{path}: items[{index}]"
         if not isinstance(raw, dict):
             raise SystemExit(f"{label} must be an object")
+        annotated_prefix = (raw.get("metadata") or {}).get("prefix")
+        if annotated_prefix is not None and raw.get("prefix_policy") == "fixed-requested" and annotated_prefix != raw.get("max_prefix"):
+            raise SystemExit(f"{label}.metadata.prefix must equal the requested fixed max_prefix; executed prefix is separate capture evidence")
         grouped_tasks = raw.get("grouped_dispatch_tasks", 1)
         if not isinstance(grouped_tasks, int) or isinstance(grouped_tasks, bool) or grouped_tasks <= 0:
             raise SystemExit(f"{label}.grouped_dispatch_tasks must be a positive integer")

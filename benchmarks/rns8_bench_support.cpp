@@ -1,6 +1,7 @@
 #include "rns8_bench_support.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -26,8 +27,19 @@
 
 namespace rns8::bench {
 
-uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
-  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+const HostClockCalibration& host_clock_calibration() {
+  static const HostClockCalibration calibration = [] {
+    std::array<double, 1001> overhead{};
+    for (auto& value : overhead) {
+      const auto start = std::chrono::steady_clock::now();
+      const auto end = std::chrono::steady_clock::now();
+      value = elapsed_us(start, end);
+    }
+    std::sort(overhead.begin(), overhead.end());
+    const double nominal_tick = duration_us(std::chrono::steady_clock::duration{1});
+    return HostClockCalibration{overhead[500], overhead[950], std::max(nominal_tick, 5 * overhead[950])};
+  }();
+  return calibration;
 }
 
 [[noreturn]] void usage_error(const std::string& message) {
@@ -78,6 +90,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--cpu-threads N]\n"
       << "                  [--cpu-parallel-threshold OPS]\n"
       << "                  [--cpu-reference-mode timed-baseline|correctness-anchor]\n"
+      << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
       << "                  [--progress]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
@@ -218,33 +231,11 @@ uint32_t benchmark_node_gpu_count() {
 }
 
 std::string runtime_git_commit() {
-#if defined(_WIN32)
-  const std::string command =
-      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>NUL";
-  FILE* pipe = _popen(command.c_str(), "r");
+#ifdef RNS8_COMPILED_COMMIT
+  return RNS8_COMPILED_COMMIT;
 #else
-  const std::string command =
-      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>/dev/null";
-  FILE* pipe = popen(command.c_str(), "r");
+  return RNS8_GIT_COMMIT;
 #endif
-  if (!pipe) {
-    return RNS8_GIT_COMMIT;
-  }
-  std::array<char, 64> buffer{};
-  std::string output;
-  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
-    output += buffer.data();
-  }
-#if defined(_WIN32)
-  const int close_status = _pclose(pipe);
-#else
-  const int close_status = pclose(pipe);
-#endif
-  output = trim_ascii_whitespace(output);
-  if (close_status != 0 || output.empty()) {
-    return RNS8_GIT_COMMIT;
-  }
-  return output;
 }
 
 std::string compiler_id() {

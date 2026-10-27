@@ -1,4 +1,27 @@
+#include "backend_common/resident_transfer_plan.hpp"
+#include "backend_common/native_locality.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
+#include "backend_common/direct_rns_route.hpp"
+#include "backend_common/instruction_roof_plan.hpp"
+#include "backend_common/split_k_plan.hpp"
+#include "backend_common/word_mod_plan.hpp"
+#include "backend_common/address_domain.hpp"
+#include "backend_common/operation_support.hpp"
+#include "backend_common/exact_lift_workspace.hpp"
+#include "backend_common/balanced_crt.hpp"
+#include "backend_common/group_crt.hpp"
+#include "backend_common/checked_crt_export.hpp"
+#include "backend_common/bilinear_resources.hpp"
+#include "backend_common/rank23_slp_resources.hpp"
+#include "backend_common/garner_constants.hpp"
+#include "backend_common/native_wmma_queue_plan.hpp"
+#include "backend_common/complex_residue_plan.hpp"
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_hip_direct/encoded_b_backend.hpp"
+#include "backend_hip_direct/finite_verify_backend.hpp"
+#include "backend_hip_direct/native_wmma_prepared.hpp"
+#include "backend_hip_direct/native_tiled_prepared.hpp"
+#include "backend_hip_direct/native_global_minimum.hpp"
 
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
@@ -7,6 +30,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +43,10 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #  include <hip/hip_runtime_api.h>
+extern "C" int rns8_hip_direct_lift_suffix_device(
+    const int8_t*, int8_t*, int, int, int, bool, uint64_t, uint64_t, uint64_t, int*, bool, void*);
 
+extern "C" int rns8_hip_guarded_copy_bytes(const void*,void*,uint64_t,uint64_t,uint64_t,uint64_t,const int*,void*);
 extern "C" int rns8_hip_direct_pack_i64_device(
     const int64_t* d_src,
     int8_t* d_residues,
@@ -610,6 +639,53 @@ extern "C" int rns8_hip_direct_export_exact_wide_unsigned_grouped_limbs_device(
 #endif
 
 namespace rns8::detail {
+namespace {
+std::atomic<hip_deferred_buffer_cleanup*> deferred_buffers{nullptr};
+// Caller has already established device-wide completion. Failed frees remain
+// queued, including their allocation record; another device's nodes stay live.
+rns8_status release_completed_buffers(int device_id,hip_deferred_buffer_cleanup* node,bool completed) {
+  rns8_status result=RNS8_SUCCESS;
+  while(node) {
+    auto* next=node->next;
+    if(!completed || node->device_id!=device_id) hip_direct_defer_buffer_cleanup(node);
+    else {
+      auto status=RNS8_UNSUPPORTED_BACKEND;
+      if(node->kind==hip_deferred_allocation_kind::device) status=hip_direct_free(device_id,node->pointer);
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+      else if(node->kind==hip_deferred_allocation_kind::pinned_host) {
+        AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
+        status=hipHostFree(node->pointer)==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+        if(status==RNS8_SUCCESS)observation.released(node->pointer,AllocationObservationDomain::pinned_host);
+      }
+      else {
+        hipError_t error=hipErrorInvalidValue;
+        switch(node->kind) {
+          case hip_deferred_allocation_kind::event: error=hipEventDestroy(static_cast<hipEvent_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::stream: error=hipStreamDestroy(static_cast<hipStream_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::graph: error=hipGraphDestroy(static_cast<hipGraph_t>(node->pointer));break;
+          case hip_deferred_allocation_kind::graph_exec: error=hipGraphExecDestroy(static_cast<hipGraphExec_t>(node->pointer));break;
+          default: break;
+        }
+        status=error==hipSuccess?RNS8_SUCCESS:RNS8_BACKEND_FAILURE;
+      }
+#endif
+      if(status==RNS8_SUCCESS) delete node;
+      else {if(result==RNS8_SUCCESS) result=status;hip_direct_defer_buffer_cleanup(node);}
+    }
+    node=next;
+  }
+  return result;
+}
+}
+void hip_direct_defer_buffer_cleanup(hip_deferred_buffer_cleanup* node) noexcept {
+  auto* head=deferred_buffers.load(std::memory_order_relaxed);
+  do {node->next=head;} while(!deferred_buffers.compare_exchange_weak(
+      head,node,std::memory_order_release,std::memory_order_relaxed));
+}
+rns8_status hip_direct_collect_deferred_buffers(int device_id) {
+  if(!deferred_buffers.load(std::memory_order_acquire)) return RNS8_SUCCESS;
+  return hip_direct_synchronize(device_id);
+}
 
 #include "hip_backend_state_counters.inc"
 #include "hip_backend_runtime_launch_helpers.inc"
@@ -621,6 +697,40 @@ namespace rns8::detail {
 #include "hip_backend_gemm.inc"
 
 #include "hip_backend_export.inc"
+#include "hip_backend_lift.inc"
+#include "hip_backend_split_k.inc"
+#include "hip_backend_epilogue.inc"
+#include "hip_backend_complex.inc"
+#include "hip_backend_narrow.inc"
+#include "hip_backend_int4.inc"
+#include "hip_backend_native_wmma.inc"
+#include "hip_backend_native_tiled.inc"
+#include "hip_backend_wide_gemm.inc"
+#include "hip_backend_native_byte.inc"
+#include "hip_backend_native_queue.inc"
+#include "hip_backend_cache_displace.inc"
+#include "hip_backend_native_split_k.inc"
+#include "hip_backend_bounds.inc"
+#include "hip_backend_ragged.inc"
+#include "hip_backend_block_sparse.inc"
+#include "hip_backend_wrap_radix.inc"
+#include "hip_backend_gram.inc"
+#include "hip_backend_fixed_conversion.inc"
+#include "hip_backend_word_mod.inc"
+#include "hip_backend_native_interop.inc"
+#include "hip_backend_stream_panels.inc"
+#include "hip_backend_instruction_roof.inc"
+#include "hip_backend_layout.inc"
+#include "hip_backend_direct_crt.inc"
+#include "hip_backend_balanced_crt.inc"
+#include "hip_backend_group_crt.inc"
+#include "hip_backend_checked_crt.inc"
+#include "hip_backend_strassen.inc"
+#include "hip_backend_rank23_slp.inc"
+#include "hip_backend_adaptive_native.inc"
+#include "hip_backend_native_global_minimum.inc"
+#include "hip_backend_integrity.inc"
+#include "hip_backend_finite_verify.inc"
 
 rns8_status hip_direct_synchronize(int device_id) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
@@ -628,12 +738,19 @@ rns8_status hip_direct_synchronize(int device_id) {
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  // Capture before the drain. Nodes queued by later concurrent submissions
+  // cannot be freed using completion of this earlier device snapshot.
+  auto* pending=deferred_buffers.exchange(nullptr,std::memory_order_acquire);
   const hipError_t err = hipDeviceSynchronize();
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  const auto cleanup=release_completed_buffers(device_id,pending,err==hipSuccess);
+  return err==hipSuccess?cleanup:RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 
+#include "hip_backend_experimental_basis.inc"
+#include "hip_backend_fp8_modular.inc"
+#include "hip_backend_native_tdm.inc"
 }  // namespace rns8::detail

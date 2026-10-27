@@ -15,9 +15,13 @@ from pathlib import Path
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
 from .config import *
+from .resolution import ACTIVE_RESOLUTION, compiler_environment, selected_command
 
 def run(args: list[str] | str, timeout: int = 20, env: dict[str, str] | None = None) -> tuple[int, str]:
     try:
+        active = ACTIVE_RESOLUTION.get()
+        if active and isinstance(args, list) and args and "hipcc" in Path(args[0]).name.lower():
+            env = {**os.environ, **(env or {}), **compiler_environment(active)}
         completed = subprocess.run(
             args,
             stdout=subprocess.PIPE,
@@ -76,6 +80,9 @@ def command_names_for_host(host_system: str | None = None) -> list[str]:
 
 
 def find_command(name: str) -> str | None:
+    handled, selected = selected_command(name)
+    if handled:
+        return selected
     candidates: list[Path] = []
     found = shutil.which(name)
     if found:

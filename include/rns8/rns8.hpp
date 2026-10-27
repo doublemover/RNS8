@@ -43,15 +43,22 @@ class Context final {
   Context& operator=(const Context&) = delete;
 
   Context(Context&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Context& operator=(Context&& other) noexcept {
+  Context& operator=(Context&& other) {
     if (this != &other) {
-      rns8_destroy_context(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Context() { rns8_destroy_context(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_context(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_context* get() const noexcept { return handle_; }
 
@@ -61,6 +68,13 @@ class Context final {
     info.abi_version = RNS8_ABI_VERSION;
     check(rns8_get_device_info(handle_, &info));
     return info;
+  }
+  rns8_allocation_observation allocation_observation() const {
+    rns8_allocation_observation result{};result.struct_size=sizeof(result);result.abi_version=RNS8_ABI_VERSION;
+    check(rns8_get_allocation_observation(handle_,&result));return result;
+  }
+  uint64_t reset_allocation_peaks() {
+    uint64_t epoch=0;check(rns8_reset_allocation_peaks(handle_,&epoch));return epoch;
   }
 
  private:
@@ -77,15 +91,22 @@ class Plan final {
   Plan& operator=(const Plan&) = delete;
 
   Plan(Plan&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Plan& operator=(Plan&& other) noexcept {
+  Plan& operator=(Plan&& other) {
     if (this != &other) {
-      rns8_destroy_plan(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Plan() { rns8_destroy_plan(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_plan(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_plan* get() const noexcept { return handle_; }
 
@@ -145,15 +166,22 @@ class Matrix final {
   Matrix& operator=(const Matrix&) = delete;
 
   Matrix(Matrix&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Matrix& operator=(Matrix&& other) noexcept {
+  Matrix& operator=(Matrix&& other) {
     if (this != &other) {
-      rns8_destroy_matrix(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Matrix() { rns8_destroy_matrix(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_matrix(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_matrix* get() const noexcept { return handle_; }
 
@@ -168,6 +196,16 @@ class Matrix final {
     check(rns8_get_matrix_storage_info(handle_, &info));
     return info;
   }
+
+  rns8_matrix_allocation_info allocation_info() const {
+    rns8_matrix_allocation_info info{};
+    info.struct_size = sizeof(info);
+    info.abi_version = RNS8_ABI_VERSION;
+    check(rns8_get_matrix_allocation_info(handle_, &info));
+    return info;
+  }
+
+  void trim_staging() { check(rns8_trim_matrix_staging(handle_)); }
 
   rns8_resident_lifetime_info resident_lifetime_info(
       rns8_resident_matrix_role role = RNS8_RESIDENT_MATRIX_ROLE_UNKNOWN) const {
@@ -222,15 +260,22 @@ class PrepackCache final {
   PrepackCache& operator=(const PrepackCache&) = delete;
 
   PrepackCache(PrepackCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  PrepackCache& operator=(PrepackCache&& other) noexcept {
+  PrepackCache& operator=(PrepackCache&& other) {
     if (this != &other) {
-      rns8_destroy_prepack_cache(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~PrepackCache() { rns8_destroy_prepack_cache(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_prepack_cache(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_prepack_cache* get() const noexcept { return handle_; }
 
@@ -246,25 +291,63 @@ class PrepackCache final {
   rns8_prepack_cache* handle_ = nullptr;
 };
 
+// Declare before prepared owners; explicitly close those owners and all access
+// windows before close(). A failed close retains the handle for safe retry.
+class PinnedHostBuffer final {
+ public:
+  PinnedHostBuffer(Context& context,const rns8_pinned_host_desc& desc,uint64_t budget) {
+    check(rns8_create_pinned_host_buffer_hip(context.get(),&desc,budget,&handle_));
+  }
+  PinnedHostBuffer(const PinnedHostBuffer&)=delete;
+  PinnedHostBuffer& operator=(const PinnedHostBuffer&)=delete;
+  PinnedHostBuffer(PinnedHostBuffer&& other) noexcept:handle_(std::exchange(other.handle_,nullptr)){}
+  PinnedHostBuffer& operator=(PinnedHostBuffer&& other){if(this!=&other){check(close());handle_=std::exchange(other.handle_,nullptr);}return *this;}
+  ~PinnedHostBuffer(){(void)rns8_destroy_pinned_host_buffer(handle_);}
+  rns8_status close() noexcept {const auto status=rns8_destroy_pinned_host_buffer(handle_);if(status==RNS8_SUCCESS)handle_=nullptr;return status;}
+  rns8_pinned_host_buffer* get() const noexcept {return handle_;}
+  std::pair<void*,uint64_t> begin_write(){void* data=nullptr;uint64_t bytes=0;check(rns8_begin_pinned_host_write(handle_,&data,&bytes));return {data,bytes};}
+  void end_write(uint64_t generation){check(rns8_end_pinned_host_write(handle_,generation));}
+  std::pair<const void*,uint64_t> begin_read(){const void* data=nullptr;uint64_t bytes=0;check(rns8_begin_pinned_host_read(handle_,&data,&bytes));return {data,bytes};}
+  void end_read(){check(rns8_end_pinned_host_read(handle_));}
+  rns8_pinned_host_info info() const {rns8_pinned_host_info out{};out.struct_size=sizeof(out);out.abi_version=RNS8_ABI_VERSION;check(rns8_get_pinned_host_info(handle_,&out));return out;}
+ private:
+  rns8_pinned_host_buffer* handle_=nullptr;
+};
+
 class Workspace final {
  public:
   Workspace(Context& context, const Plan& plan) {
     check(rns8_create_workspace(context.get(), plan.get(), &handle_));
   }
 
+  Workspace(Context& context,const Plan& plan,const rns8_locality_desc& locality) {
+    check(rns8_create_locality_workspace(context.get(),plan.get(),&locality,&handle_));
+  }
+  rns8_locality_info locality_info() const {
+    rns8_locality_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
+    check(rns8_get_workspace_locality_info(handle_,&info));return info;
+  }
+
   Workspace(const Workspace&) = delete;
   Workspace& operator=(const Workspace&) = delete;
 
   Workspace(Workspace&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  Workspace& operator=(Workspace&& other) noexcept {
+  Workspace& operator=(Workspace&& other) {
     if (this != &other) {
-      rns8_destroy_workspace(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~Workspace() { rns8_destroy_workspace(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_workspace(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_workspace* get() const noexcept { return handle_; }
 
@@ -336,15 +419,22 @@ class ResultCache final {
   ResultCache& operator=(const ResultCache&) = delete;
 
   ResultCache(ResultCache&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
-  ResultCache& operator=(ResultCache&& other) noexcept {
+  ResultCache& operator=(ResultCache&& other) {
     if (this != &other) {
-      rns8_destroy_result_cache(handle_);
+      check(close());
       handle_ = std::exchange(other.handle_, nullptr);
     }
     return *this;
   }
 
   ~ResultCache() { rns8_destroy_result_cache(handle_); }
+
+  // A failed close retains this handle, allowing completion/owner cleanup and retry.
+  rns8_status close() noexcept {
+    const auto status = rns8_destroy_result_cache(handle_);
+    if (status == RNS8_SUCCESS) handle_ = nullptr;
+    return status;
+  }
 
   rns8_result_cache* get() const noexcept { return handle_; }
 
@@ -463,6 +553,21 @@ inline void gemm_finite_u8_incremental(
       cache.get(),
       regions.empty() ? nullptr : regions.data(),
       checked_dirty_region_count(regions.size())));
+}
+
+// Discovery does not reserve storage or grant a value/stream execution lease.
+inline std::vector<rns8_operation_support> operation_support(const Context& context,const rns8_operation_query& query) {
+  uint32_t count=0;check(rns8_query_operation_support(context.get(),&query,nullptr,0,&count));
+  std::vector<rns8_operation_support> result(count);
+  check(rns8_query_operation_support(context.get(),&query,result.data(),count,&count));return result;
+}
+
+inline std::vector<rns8_pipeline_candidate> plan_pipeline(const Context& context,const rns8_pipeline_query& query,
+    const std::vector<rns8_pipeline_cost_profile>& profiles={}) {
+  if(profiles.size()>8)throw Error(RNS8_INVALID_ARGUMENT);
+  uint32_t count=0;check(rns8_plan_pipeline(context.get(),&query,profiles.data(),uint32_t(profiles.size()),nullptr,0,&count));
+  std::vector<rns8_pipeline_candidate> result(count);
+  check(rns8_plan_pipeline(context.get(),&query,profiles.data(),uint32_t(profiles.size()),result.data(),count,&count));return result;
 }
 
 }  // namespace rns8

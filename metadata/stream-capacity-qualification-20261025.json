@@ -1,0 +1,882 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "recorded_utc": "2026-10-25T21:41:19.108561+00:00",
+  "compiled_source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
+  "backend": "hip-direct",
+  "backend_identity_basis": "The driver requires actual device.backend HIP_DIRECT and hip_available before execution.",
+  "actual_total_device_bytes": 25753026560,
+  "native_a_allocation_bytes": 34362359840,
+  "minimum_proven_prefix": 8,
+  "minimum_full_a_residue_bytes": 34360786952,
+  "selected_prefix_full_a_residue_bytes": 38655885321,
+  "real_beyond_physical_device_capacity": true,
+  "completed_native_gemms": 12,
+  "checked_output_cells": 2359332,
+  "master": {
+    "schema": "rns8_stream_capacity_collection_v1",
+    "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+    "records": [
+      {
+        "run": 0,
+        "mode": "serial",
+        "run_id": "83dc57e4-7cd7-4788-9e5b-52d4860f5f65",
+        "command": {
+          "archived_json_pointer": "/master/records/0/command",
+          "entries": 7
+        },
+        "capture": "serial-00.json",
+        "capture_sha256": "d64e3777d515298ef259d3eed5e0ff1263be898bf295b607f00b1bd861cb4a09",
+        "execution_id": "7cc82fc9-ad72-47f9-aa5b-527d0a92e05e"
+      },
+      {
+        "run": 0,
+        "mode": "overlap",
+        "run_id": "c97ed716-11c4-4cff-b4cc-1e8d94b25483",
+        "command": {
+          "archived_json_pointer": "/master/records/1/command",
+          "entries": 7
+        },
+        "capture": "overlap-00.json",
+        "capture_sha256": "90a9f196e916ed829472ee8b9b0f99beeb4e27e5c11a85f6a55cba81d4c30df8",
+        "execution_id": "b3a96784-f6e1-4b21-8981-ef0a3f33c24c"
+      },
+      {
+        "run": 1,
+        "mode": "overlap",
+        "run_id": "ad6e4495-292d-42f1-ab46-bffc79459fbf",
+        "command": {
+          "archived_json_pointer": "/master/records/2/command",
+          "entries": 7
+        },
+        "capture": "overlap-01.json",
+        "capture_sha256": "16682c632a6ae39117acc07860ec16e70c71f53136a4d1982c284ea583434c51",
+        "execution_id": "0379db66-2ea5-4de6-a95f-9bcccc78c1de"
+      },
+      {
+        "run": 1,
+        "mode": "serial",
+        "run_id": "468c1feb-e01b-4815-a048-b6df6010142c",
+        "command": {
+          "archived_json_pointer": "/master/records/3/command",
+          "entries": 7
+        },
+        "capture": "serial-01.json",
+        "capture_sha256": "938758e75e04c3f9413aa75b5c4d0635f8049faa59a6ab8199abd13c6f24d56b",
+        "execution_id": "935e68a1-f19a-4e9e-9bc7-cac241d77345"
+      }
+    ],
+    "requested_processes": 4,
+    "campaign_resumed": false,
+    "promotion_eligible": false,
+    "status": "all_exact",
+    "collector_source_files": {
+      "tools/autotune_paths.py": "90f0fdda9c5f2a1513e7d3770941acfaec4e4c7780da268c0f444bcfc1eef1ed",
+      "tools/benchmark_request.py": "e514765e134a602d5c64316ff8e79dbe15825e0bc62aa9876480a63bfb827d98",
+      "tools/benchmark_schema/__init__.py": "bfbd7206019b06aa39b7510a9aaadc2e2b67e8b305893826629d00eff1c433d4",
+      "tools/benchmark_schema/backend_metadata.py": "cbe95a5b76960f70add0a551b0affdf96c2e19c9f3c1e05e4f9b28950fa4aac5",
+      "tools/benchmark_schema/cli.py": "6f1a85a6ffe736043ead088089733ffb1686f3ff9a0f34c2b95cbd9b0a111c7d",
+      "tools/benchmark_schema/contract_metadata.py": "b97cfc29241b7ff23c104f2166e55d0b1dd0a682ad7616012ca29be71085354c",
+      "tools/benchmark_schema/core.py": "c575a3be2b18fd1a7622d95f35300ac3ca31d468b75f77e933b02808e07a131e",
+      "tools/benchmark_schema/core_shared.py": "9967ca44eac8528aa8e4b99acf502e530b423afa3620d5998872be0aa9e2a516",
+      "tools/benchmark_schema/execution_modes.py": "b3c631826a5141a3b86f818e2724fd2a64da5d4bf324b25f13763feb29d4823a",
+      "tools/benchmark_schema/gpu_events.py": "5e4bf58647ce91dd3a08645a7dd103ad50cfa9ed770dce76a5af4c587e2fccb3",
+      "tools/benchmark_schema/helper_metadata.py": "ec697fb68f9b57867ea4aa89b31d1e45ade10401ddba6a6ce44b4a8777474bb4",
+      "tools/benchmark_schema/validator_base_fields.py": "04d105b2f94d2c32e17aa2e7fca4d6cbe5bd6d3cad72f9aa97add21c22dec68a",
+      "tools/benchmark_schema/validator_predicates.py": "cc8c14c2c963e42418b0201ba8be4ed77e030608b4d25393e4520532b9d2df33",
+      "tools/benchmark_schema/validator_schedule.py": "90bdd0976afa817133d2e5d0af2fe11bee1012ef96e7f584ec29a2fb7abb635b",
+      "tools/benchmark_schema/validator_timing_events.py": "5a8bb1275d28e00a5f45300d1fbecb48ae851294932345d5961e7d5d834e68d6",
+      "tools/benchmark_schema/wide_magnitude.py": "848fc92f4eceeb9243c247b9f4ea1cd662d8b92d138e5e88659ddf9a566fca59",
+      "tools/benchmark_sweep_lib/__init__.py": "ac3fc17724e6a7421f6d2bf200427e57e7543de80e98a97c06c63f9c2078ae74",
+      "tools/benchmark_sweep_lib/config.py": "be327eb1d718eaa594185e77a4aea425004431e6fcc97f243074fe1bf46b6cce",
+      "tools/benchmark_sweep_lib/execution.py": "e7a921ce8cc4ce2e5423e5c7d6e35fda871b7cf7ec64a549c88ac85e145bfda9",
+      "tools/build_manifest.py": "203e459c94d356225ba79877556dea22d7f37e88d453fab6850b4e8dd9a84e57",
+      "tools/collect_stream_capacity.py": "2bf59976fb65df540daa7a1bce7cc7621e28275b787c80c3d51ec115511fdc1b",
+      "tools/metadata_registry_constants.py": "87528345a41feba77a0581b85ed3dfaa395588171d03b3b1cc87848835e57cf6",
+      "tools/qualify_large_addresses.py": "50134def9c682dda835eb63d0d0464963a9c8074f8d9acfb3dbd39551f144a87",
+      "tools/timing_diagnostics.py": "430a30fc24d53157fae9a271866b7c04cccc6edb44398871d03de1044b70f856"
+    },
+    "python_version": "3.15.1 (tags/v3.15.1:c37e74c, Oct 21 2026, 06:24:08) [MSC v.1951 64 bit (AMD64)]"
+  },
+  "captures": [
+    {
+      "a_native_allocation_bytes": 34362359840,
+      "achieved_overlap_trace": null,
+      "actual_caller_capacity_bytes": 34378089080,
+      "actual_total_device_bytes": 25753026560,
+      "all_owned_device_and_pinned_payload_retired": true,
+      "allocation_observation_scope": "process_device_RNS8_owned_requested_capacities_excluding_driver_allocator_padding_external_buffers_and_ordinary_host_RSS",
+      "available_host_bytes_before": 93040762880,
+      "basis_product_decimal": "2964056673257199886080",
+      "build_manifest": {
+        "archived_json_pointer": "/captures/0/build_manifest",
+        "entries": 9
+      },
+      "caller_budget_bytes": 42949672960,
+      "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
+      "caller_payload_bytes": 34378089080,
+      "command_line": [
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "0",
+        "serial",
+        "42949672960",
+        "67108864",
+        "67108864",
+        "83dc57e4-7cd7-4788-9e5b-52d4860f5f65"
+      ],
+      "dataset": "affine_native_base2p20_mod15_signed_columns_v1",
+      "device": "AMD Radeon RX 7900 XTX",
+      "device_budget_bytes": 67108864,
+      "device_id": 0,
+      "full_a_residue_bytes": 38655885321,
+      "full_expression_abs_bound": 72059655640121393,
+      "hip_driver_version": 71260602,
+      "hip_runtime_version": 71260602,
+      "host_reserve_bytes": 8589934592,
+      "independent_oracle_inside_timer": false,
+      "input_generation_and_oracle_ns": 7083066300.0,
+      "k": 65537,
+      "kernel_events": null,
+      "library_host_budget_bytes": 67108864,
+      "m": 65537,
+      "max_abs_a": 1048583,
+      "max_abs_b": 1048583,
+      "minimum_full_a_residue_bytes": 34360786952,
+      "minimum_proven_prefix": 8,
+      "mode": "serial",
+      "n": 3,
+      "nominal_clock_tick_ns": 1.0,
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/0/ordered_moduli",
+        "entries": 9
+      },
+      "owner_release_ns": 435800.0,
+      "phases": [
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 15537152700.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 1,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 15535804800.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 2,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 14490985500.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 3,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 2,
+          "weighted_checksum": "-464251127042381161205148421"
+        }
+      ],
+      "prefix": 9,
+      "process_rss_measured": false,
+      "promotion_eligible": false,
+      "queried_resources": {
+        "control_reservation_bytes": 0,
+        "destination_span_bytes": 3145752,
+        "device_bytes": 18054912,
+        "event_count": 0,
+        "host_bytes": 8493056,
+        "k_panels_per_tile": 17,
+        "ordinary_host_bytes": 8493056,
+        "output_tiles": 257,
+        "pinned_host_bytes": 0,
+        "source_a_span_bytes": 34362359816,
+        "source_b_span_bytes": 3145752,
+        "stream_count": 0
+      },
+      "reference": "independent_boost_period_sum_all_outputs_plus_output_input_padding",
+      "run_id": "83dc57e4-7cd7-4788-9e5b-52d4860f5f65",
+      "schema": "rns8_stream_physical_capacity_v1",
+      "scope": "physical_capacity_three_calls_not_a_crossover_or_achieved_overlap_measurement",
+      "semantic_contract": "bounded_i64_explicit_k_amax_bmax",
+      "setup_ns": 322629800.0,
+      "setup_plus_first_completed_call_ns": 15859782500.0,
+      "target": "gfx1100",
+      "timer": "steady_clock_completed_public_host_call",
+      "timing_includes": "required_full_input_bound_scan_host_pack_upload_compute_merge_export_and_sync",
+      "execution_id": "7cc82fc9-ad72-47f9-aa5b-527d0a92e05e",
+      "request_identity": {
+        "schema": "rns8_benchmark_request_v1",
+        "arguments": {
+          "archived_json_pointer": "/captures/0/request_identity/arguments",
+          "entries": 6
+        },
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "environment": {
+          "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "HIP_PATH_71": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "OMP_NUM_THREADS": "3"
+        },
+        "overrides_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identity_sha256": "54b328424ea37a8f35a2fd541d59fc0030fd763f004bc9d72ec64e0a507c3056"
+      },
+      "artifact_capture": {
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "hash_seconds": 0.0241325999959372,
+        "rns8_linkage": "static",
+        "unchanged_during_run": true
+      }
+    },
+    {
+      "a_native_allocation_bytes": 34362359840,
+      "achieved_overlap_trace": null,
+      "actual_caller_capacity_bytes": 34378089080,
+      "actual_total_device_bytes": 25753026560,
+      "all_owned_device_and_pinned_payload_retired": true,
+      "allocation_observation_scope": "process_device_RNS8_owned_requested_capacities_excluding_driver_allocator_padding_external_buffers_and_ordinary_host_RSS",
+      "available_host_bytes_before": 93189414912,
+      "basis_product_decimal": "2964056673257199886080",
+      "build_manifest": {
+        "archived_json_pointer": "/captures/1/build_manifest",
+        "entries": 9
+      },
+      "caller_budget_bytes": 42949672960,
+      "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
+      "caller_payload_bytes": 34378089080,
+      "command_line": [
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "0",
+        "overlap",
+        "42949672960",
+        "67108864",
+        "67108864",
+        "c97ed716-11c4-4cff-b4cc-1e8d94b25483"
+      ],
+      "dataset": "affine_native_base2p20_mod15_signed_columns_v1",
+      "device": "AMD Radeon RX 7900 XTX",
+      "device_budget_bytes": 67108864,
+      "device_id": 0,
+      "full_a_residue_bytes": 38655885321,
+      "full_expression_abs_bound": 72059655640121393,
+      "hip_driver_version": 71260602,
+      "hip_runtime_version": 71260602,
+      "host_reserve_bytes": 8589934592,
+      "independent_oracle_inside_timer": false,
+      "input_generation_and_oracle_ns": 5484330000.0,
+      "k": 65537,
+      "kernel_events": null,
+      "library_host_budget_bytes": 67108864,
+      "m": 65537,
+      "max_abs_a": 1048583,
+      "max_abs_b": 1048583,
+      "minimum_full_a_residue_bytes": 34360786952,
+      "minimum_proven_prefix": 8,
+      "mode": "overlap",
+      "n": 3,
+      "nominal_clock_tick_ns": 1.0,
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/1/ordered_moduli",
+        "entries": 9
+      },
+      "owner_release_ns": 8970000.0,
+      "phases": [
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 7421778800.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 1,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 7359634800.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 2,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 6737352300.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 3,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 2,
+          "weighted_checksum": "-464251127042381161205148421"
+        }
+      ],
+      "prefix": 9,
+      "process_rss_measured": false,
+      "promotion_eligible": false,
+      "queried_resources": {
+        "control_reservation_bytes": 256,
+        "destination_span_bytes": 3145752,
+        "device_bytes": 36096000,
+        "event_count": 8,
+        "host_bytes": 16986880,
+        "k_panels_per_tile": 17,
+        "ordinary_host_bytes": 256,
+        "output_tiles": 257,
+        "pinned_host_bytes": 16986624,
+        "source_a_span_bytes": 34362359816,
+        "source_b_span_bytes": 3145752,
+        "stream_count": 3
+      },
+      "reference": "independent_boost_period_sum_all_outputs_plus_output_input_padding",
+      "run_id": "c97ed716-11c4-4cff-b4cc-1e8d94b25483",
+      "schema": "rns8_stream_physical_capacity_v1",
+      "scope": "physical_capacity_three_calls_not_a_crossover_or_achieved_overlap_measurement",
+      "semantic_contract": "bounded_i64_explicit_k_amax_bmax",
+      "setup_ns": 500048000.0,
+      "setup_plus_first_completed_call_ns": 7921826800.0,
+      "target": "gfx1100",
+      "timer": "steady_clock_completed_public_host_call",
+      "timing_includes": "required_full_input_bound_scan_host_pack_upload_compute_merge_export_and_sync",
+      "execution_id": "b3a96784-f6e1-4b21-8981-ef0a3f33c24c",
+      "request_identity": {
+        "schema": "rns8_benchmark_request_v1",
+        "arguments": {
+          "archived_json_pointer": "/captures/1/request_identity/arguments",
+          "entries": 6
+        },
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "environment": {
+          "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "HIP_PATH_71": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "OMP_NUM_THREADS": "3"
+        },
+        "overrides_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identity_sha256": "671ed3d1e4706471ae13d59dc924f0b7b7c321f2c2cceb810c138b210871bdfe"
+      },
+      "artifact_capture": {
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "hash_seconds": 0.027425800042692572,
+        "rns8_linkage": "static",
+        "unchanged_during_run": true
+      }
+    },
+    {
+      "a_native_allocation_bytes": 34362359840,
+      "achieved_overlap_trace": null,
+      "actual_caller_capacity_bytes": 34378089080,
+      "actual_total_device_bytes": 25753026560,
+      "all_owned_device_and_pinned_payload_retired": true,
+      "allocation_observation_scope": "process_device_RNS8_owned_requested_capacities_excluding_driver_allocator_padding_external_buffers_and_ordinary_host_RSS",
+      "available_host_bytes_before": 93351755776,
+      "basis_product_decimal": "2964056673257199886080",
+      "build_manifest": {
+        "archived_json_pointer": "/captures/2/build_manifest",
+        "entries": 9
+      },
+      "caller_budget_bytes": 42949672960,
+      "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
+      "caller_payload_bytes": 34378089080,
+      "command_line": [
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "0",
+        "overlap",
+        "42949672960",
+        "67108864",
+        "67108864",
+        "ad6e4495-292d-42f1-ab46-bffc79459fbf"
+      ],
+      "dataset": "affine_native_base2p20_mod15_signed_columns_v1",
+      "device": "AMD Radeon RX 7900 XTX",
+      "device_budget_bytes": 67108864,
+      "device_id": 0,
+      "full_a_residue_bytes": 38655885321,
+      "full_expression_abs_bound": 72059655640121393,
+      "hip_driver_version": 71260602,
+      "hip_runtime_version": 71260602,
+      "host_reserve_bytes": 8589934592,
+      "independent_oracle_inside_timer": false,
+      "input_generation_and_oracle_ns": 5326374700.0,
+      "k": 65537,
+      "kernel_events": null,
+      "library_host_budget_bytes": 67108864,
+      "m": 65537,
+      "max_abs_a": 1048583,
+      "max_abs_b": 1048583,
+      "minimum_full_a_residue_bytes": 34360786952,
+      "minimum_proven_prefix": 8,
+      "mode": "overlap",
+      "n": 3,
+      "nominal_clock_tick_ns": 1.0,
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/2/ordered_moduli",
+        "entries": 9
+      },
+      "owner_release_ns": 7820400.0,
+      "phases": [
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 7281864100.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 1,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 7465619500.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 2,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 6616560500.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 3,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 36096000,
+          "observed_requested_pinned_peak_delta": 16986624,
+          "source_a_generation": 2,
+          "weighted_checksum": "-464251127042381161205148421"
+        }
+      ],
+      "prefix": 9,
+      "process_rss_measured": false,
+      "promotion_eligible": false,
+      "queried_resources": {
+        "control_reservation_bytes": 256,
+        "destination_span_bytes": 3145752,
+        "device_bytes": 36096000,
+        "event_count": 8,
+        "host_bytes": 16986880,
+        "k_panels_per_tile": 17,
+        "ordinary_host_bytes": 256,
+        "output_tiles": 257,
+        "pinned_host_bytes": 16986624,
+        "source_a_span_bytes": 34362359816,
+        "source_b_span_bytes": 3145752,
+        "stream_count": 3
+      },
+      "reference": "independent_boost_period_sum_all_outputs_plus_output_input_padding",
+      "run_id": "ad6e4495-292d-42f1-ab46-bffc79459fbf",
+      "schema": "rns8_stream_physical_capacity_v1",
+      "scope": "physical_capacity_three_calls_not_a_crossover_or_achieved_overlap_measurement",
+      "semantic_contract": "bounded_i64_explicit_k_amax_bmax",
+      "setup_ns": 306162700.0,
+      "setup_plus_first_completed_call_ns": 7588026800.0,
+      "target": "gfx1100",
+      "timer": "steady_clock_completed_public_host_call",
+      "timing_includes": "required_full_input_bound_scan_host_pack_upload_compute_merge_export_and_sync",
+      "execution_id": "0379db66-2ea5-4de6-a95f-9bcccc78c1de",
+      "request_identity": {
+        "schema": "rns8_benchmark_request_v1",
+        "arguments": {
+          "archived_json_pointer": "/captures/2/request_identity/arguments",
+          "entries": 6
+        },
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "environment": {
+          "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "HIP_PATH_71": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "OMP_NUM_THREADS": "3"
+        },
+        "overrides_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identity_sha256": "fca0f49350af6bf62f2a78440ba20974e5ebd5e569a7f7d17dbfaf272b928ed6"
+      },
+      "artifact_capture": {
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "hash_seconds": 0.02722129999892786,
+        "rns8_linkage": "static",
+        "unchanged_during_run": true
+      }
+    },
+    {
+      "a_native_allocation_bytes": 34362359840,
+      "achieved_overlap_trace": null,
+      "actual_caller_capacity_bytes": 34378089080,
+      "actual_total_device_bytes": 25753026560,
+      "all_owned_device_and_pinned_payload_retired": true,
+      "allocation_observation_scope": "process_device_RNS8_owned_requested_capacities_excluding_driver_allocator_padding_external_buffers_and_ordinary_host_RSS",
+      "available_host_bytes_before": 93462593536,
+      "basis_product_decimal": "2964056673257199886080",
+      "build_manifest": {
+        "archived_json_pointer": "/captures/3/build_manifest",
+        "entries": 9
+      },
+      "caller_budget_bytes": 42949672960,
+      "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
+      "caller_payload_bytes": 34378089080,
+      "command_line": [
+        "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "0",
+        "serial",
+        "42949672960",
+        "67108864",
+        "67108864",
+        "468c1feb-e01b-4815-a048-b6df6010142c"
+      ],
+      "dataset": "affine_native_base2p20_mod15_signed_columns_v1",
+      "device": "AMD Radeon RX 7900 XTX",
+      "device_budget_bytes": 67108864,
+      "device_id": 0,
+      "full_a_residue_bytes": 38655885321,
+      "full_expression_abs_bound": 72059655640121393,
+      "hip_driver_version": 71260602,
+      "hip_runtime_version": 71260602,
+      "host_reserve_bytes": 8589934592,
+      "independent_oracle_inside_timer": false,
+      "input_generation_and_oracle_ns": 5010432800.0,
+      "k": 65537,
+      "kernel_events": null,
+      "library_host_budget_bytes": 67108864,
+      "m": 65537,
+      "max_abs_a": 1048583,
+      "max_abs_b": 1048583,
+      "minimum_full_a_residue_bytes": 34360786952,
+      "minimum_proven_prefix": 8,
+      "mode": "serial",
+      "n": 3,
+      "nominal_clock_tick_ns": 1.0,
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/3/ordered_moduli",
+        "entries": 9
+      },
+      "owner_release_ns": 285500.0,
+      "phases": [
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 14521251800.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 1,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 13644421500.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 2,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 1,
+          "weighted_checksum": "-464251127042381161203051257"
+        },
+        {
+          "all_output_and_padding_exact": true,
+          "checked_outputs": 196611,
+          "completed_host_call_ns": 11009008200.0,
+          "completed_panels": 4369,
+          "completed_tiles": 257,
+          "d2h_payload_bytes": 1573916,
+          "d2h_transfers": 514,
+          "epoch": 3,
+          "h2d_payload_bytes": 34765019168,
+          "h2d_transfers": 8738,
+          "observed_requested_device_peak_delta": 18054912,
+          "observed_requested_pinned_peak_delta": 0,
+          "source_a_generation": 2,
+          "weighted_checksum": "-464251127042381161205148421"
+        }
+      ],
+      "prefix": 9,
+      "process_rss_measured": false,
+      "promotion_eligible": false,
+      "queried_resources": {
+        "control_reservation_bytes": 0,
+        "destination_span_bytes": 3145752,
+        "device_bytes": 18054912,
+        "event_count": 0,
+        "host_bytes": 8493056,
+        "k_panels_per_tile": 17,
+        "ordinary_host_bytes": 8493056,
+        "output_tiles": 257,
+        "pinned_host_bytes": 0,
+        "source_a_span_bytes": 34362359816,
+        "source_b_span_bytes": 3145752,
+        "stream_count": 0
+      },
+      "reference": "independent_boost_period_sum_all_outputs_plus_output_input_padding",
+      "run_id": "468c1feb-e01b-4815-a048-b6df6010142c",
+      "schema": "rns8_stream_physical_capacity_v1",
+      "scope": "physical_capacity_three_calls_not_a_crossover_or_achieved_overlap_measurement",
+      "semantic_contract": "bounded_i64_explicit_k_amax_bmax",
+      "setup_ns": 314216700.0,
+      "setup_plus_first_completed_call_ns": 14835468500.0,
+      "target": "gfx1100",
+      "timer": "steady_clock_completed_public_host_call",
+      "timing_includes": "required_full_input_bound_scan_host_pack_upload_compute_merge_export_and_sync",
+      "execution_id": "935e68a1-f19a-4e9e-9bc7-cac241d77345",
+      "request_identity": {
+        "schema": "rns8_benchmark_request_v1",
+        "arguments": {
+          "archived_json_pointer": "/captures/3/request_identity/arguments",
+          "entries": 6
+        },
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "environment": {
+          "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "HIP_PATH_71": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
+          "OMP_NUM_THREADS": "3"
+        },
+        "overrides_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "identity_sha256": "e18fa468fc4ed90f7f8d0af82b93d2ae246627210d211bde976fcff112a66abf"
+      },
+      "artifact_capture": {
+        "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+        "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
+        "hash_seconds": 0.02736359997652471,
+        "rns8_linkage": "static",
+        "unchanged_during_run": true
+      }
+    }
+  ],
+  "schedule_summary": {
+    "serial": {
+      "independent_processes": 2,
+      "completed_native_gemms": 6,
+      "completed_call_seconds": [
+        15.5371527,
+        15.5358048,
+        14.4909855,
+        14.5212518,
+        13.6444215,
+        11.0090082
+      ],
+      "requested_device_peak_bytes": 18054912,
+      "requested_pinned_peak_bytes": 0,
+      "all_outputs_padding_exact": true,
+      "all_payload_retired": true
+    },
+    "overlap": {
+      "independent_processes": 2,
+      "completed_native_gemms": 6,
+      "completed_call_seconds": [
+        7.4217788,
+        7.3596348,
+        6.7373523,
+        7.2818641,
+        7.4656195,
+        6.6165605
+      ],
+      "requested_device_peak_bytes": 36096000,
+      "requested_pinned_peak_bytes": 16986624,
+      "all_outputs_padding_exact": true,
+      "all_payload_retired": true
+    }
+  },
+  "focused_validation": [
+    {
+      "lane": "asan",
+      "tests": {
+        "archived_json_pointer": "/focused_validation/0/tests",
+        "entries": 16
+      },
+      "test_receipt": {
+        "command": {
+          "archived_json_pointer": "/focused_validation/0/test_receipt/command",
+          "entries": 11
+        },
+        "exit_code": 0,
+        "seconds": 3.923352003097534,
+        "selected_tests": {
+          "archived_json_pointer": "/focused_validation/0/test_receipt/selected_tests",
+          "entries": 16
+        },
+        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823"
+      },
+      "junit_sha256": "dc7e111d39a0ed9bb95137281ffb49c2d9116240269de2d75c02e22f35f15ad3",
+      "build_receipt": {
+        "archived_json_pointer": "/focused_validation/0/build_receipt",
+        "entries": 6
+      }
+    },
+    {
+      "lane": "gpu",
+      "tests": {
+        "archived_json_pointer": "/focused_validation/1/tests",
+        "entries": 19
+      },
+      "test_receipt": {
+        "command": {
+          "archived_json_pointer": "/focused_validation/1/test_receipt/command",
+          "entries": 11
+        },
+        "exit_code": 0,
+        "seconds": 10.700462341308594,
+        "selected_tests": {
+          "archived_json_pointer": "/focused_validation/1/test_receipt/selected_tests",
+          "entries": 19
+        },
+        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823"
+      },
+      "junit_sha256": "f98a205e49cc2d39ca71738814f068bb7107a86b4a62dac13cd0d2e187647a60",
+      "build_receipt": {
+        "archived_json_pointer": "/focused_validation/1/build_receipt",
+        "entries": 6
+      }
+    }
+  ],
+  "tooling_validation": [
+    {
+      "command": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+        "tools/test_collect_stream_capacity.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+        "tools/test_hipblaslt_metadata.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+        "tools/test_public_measurement_contracts.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+        "tools/test_streaming_measurement.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\python.exe",
+        "tools/test_qualify_large_addresses.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "syntax_validation": [
+    {
+      "source": "benchmarks/rns8_stream_capacity_qualify.cpp",
+      "exit_code": 0,
+      "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\closeout-remaining-20261025\\stream-capacity-final-syntax\\rns8_stream_capacity_qualify.log"
+    },
+    {
+      "source": "tests/unit/test_api.cpp",
+      "exit_code": 0,
+      "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\closeout-remaining-20261025\\stream-capacity-final-syntax\\test_api.log"
+    }
+  ],
+  "gcc_syntax": {
+    "command": {
+      "archived_json_pointer": "/gcc_syntax/command",
+      "entries": 16
+    },
+    "exit_code": 0,
+    "scope": "Strict Linux CPU syntax; placeholder manifest string only, no link/GPU execution"
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 16
+    },
+    "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
+    "started_unix": 1792963967.2750626,
+    "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
+    "exit_code": 0,
+    "elapsed_seconds": 161.22444343566895
+  },
+  "scope": "Physical capacity and complete exact output validation; two independent processes per schedule, cold/warm/mutated call each. Not a five-process steady crossover or achieved overlap trace.",
+  "comparative_speedup_qualified": false,
+  "promotion_eligible": false,
+  "achieved_overlap_trace": null,
+  "campaign_resumed": false,
+  "production_library_changes_after_668f9ea": false,
+  "original_schema": "rns8_stream_capacity_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/stream-capacity-qualification-20261025.json",
+    "sha256": "eebc88521076081ece3096258c474feb6b904d4123b95481f50f6e9f14f2bf0e",
+    "bytes": 76837
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

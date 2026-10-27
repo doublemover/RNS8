@@ -26,7 +26,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);
@@ -42,6 +42,8 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -74,7 +76,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);
@@ -90,6 +92,8 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) { (void)version; run_iteration(nullptr); });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -225,6 +229,7 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_export_grouped_i64_task_outputs_to_host(grouped bounded i64)", status);
         }
+        if (!args.grouped_compact_output) scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "timed grouped per-task materialization");
       }
       (void)task;
       return;
@@ -265,11 +270,27 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
         export_task);
   }
   record_allocation_after_repeats(result);
-  if (grouped_pack_gemm_export_enabled) {
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_BOUNDED_I64,
+        matrix_prefix,
+        version,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
+  });
+  if (grouped_pack_gemm_export_enabled && args.grouped_compact_output) {
     scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded i64 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
@@ -410,6 +431,7 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_export_grouped_u64_task_outputs_to_host(grouped bounded u64)", status);
         }
+        if (!args.grouped_compact_output) scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "timed grouped per-task materialization");
       }
       (void)task;
       return;
@@ -450,11 +472,27 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
         export_task);
   }
   record_allocation_after_repeats(result);
-  if (grouped_pack_gemm_export_enabled) {
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(
+        args,
+        result,
+        selected_backend,
+        plan,
+        tasks,
+        RNS8_BOUNDED_U64,
+        matrix_prefix,
+        version,
+        nullptr,
+        pack_task,
+        gemm_task,
+        export_task);
+  });
+  if (grouped_pack_gemm_export_enabled && args.grouped_compact_output) {
     scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded u64 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index], batch_c[task_index], result);
     task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);

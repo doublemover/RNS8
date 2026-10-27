@@ -12,6 +12,7 @@ from typing import Any
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
 from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 from report_capture_inputs import load_report_captures
+from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
 
 
 FINITE_SEMANTICS = {"finite_ring_u8", "finite_field_u8"}
@@ -99,6 +100,7 @@ def _row(capture: dict[str, Any]) -> dict[str, Any]:
     distribution = _distribution(capture.get("input_distribution"))
     return {
         "backend": backend,
+        **row_identity(capture, exclude=("input_distribution",)),
         "capture_path": capture.get("_path"),
         "distribution": distribution,
         "distribution_role": _distribution_role(distribution),
@@ -127,15 +129,13 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, int, int, int, int, str]:
 
 
 def _baseline_key(key: tuple[str, int, int, int, int, str]) -> tuple[str, int, int, int, int, str]:
-    semantics, modulus, m, n, k, _distribution_name = key
-    return (semantics, modulus, m, n, k, "u8_full_uniform_0_modulus_minus_1")
+    semantics, modulus, m, n, k, _distribution_name = key[:6]
+    return (semantics, modulus, m, n, k, "u8_full_uniform_0_modulus_minus_1", *key[6:])
 
 
 def _winner(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
-    timed = [row for row in rows if isinstance(row.get("median_end_to_end_us"), (int, float))]
-    if not timed:
-        return None
-    best = min(timed, key=lambda row: float(row["median_end_to_end_us"]))
+    best = best_row(rows)
+    if best is None: return None
     return {
         "backend": best.get("backend"),
         "selected_kernel": best.get("selected_kernel"),
@@ -144,10 +144,7 @@ def _winner(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 
 def _backend_row(rows: list[dict[str, Any]], backend: str) -> dict[str, Any] | None:
-    for row in rows:
-        if row.get("backend") == backend:
-            return row
-    return None
+    return best_row(rows, backend)
 
 
 def _ratio(numerator: Any, denominator: Any) -> float | None:
@@ -158,6 +155,8 @@ def _ratio(numerator: Any, denominator: Any) -> float | None:
 
 def _blockers(rows: list[dict[str, Any]], baseline_rows: list[dict[str, Any]]) -> list[str]:
     blockers: list[str] = []
+    if any(not r.get("measurement_cohort", {}).get("qualified") for r in rows + baseline_rows):
+        blockers.append("independent_process_cohort_unqualified")
     backends = {row.get("backend") for row in rows}
     if "cpu-reference" not in backends:
         blockers.append("missing_cpu_reference")
@@ -227,15 +226,19 @@ def _classification(
 
 def build_report(inputs: list[Path]) -> dict[str, Any]:
     loaded = [capture for capture in load_report_captures(inputs) if capture.get("semantics") in FINITE_SEMANTICS]
+    raw_count = len(loaded)
+    loaded = aggregate_captures(loaded)
     grouped: dict[tuple[str, int, int, int, int, str], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
         grouped[_group_key(capture)].append(_row(capture))
 
+    grouped = {(*key, *partition): members for key, rows in grouped.items()
+               for partition, members in partition_rows(rows)}
     groups: list[dict[str, Any]] = []
     disposition_counts: dict[str, int] = defaultdict(int)
     distribution_counts: dict[str, int] = defaultdict(int)
     for key in sorted(grouped):
-        semantics, modulus, m, n, k, distribution = key
+        semantics, modulus, m, n, k, distribution = key[:6]
         rows = sorted(grouped[key], key=lambda row: (str(row.get("backend")), str(row.get("selected_kernel"))))
         baseline_rows = grouped.get(_baseline_key(key), [])
         classification = _classification(rows, baseline_rows, distribution)
@@ -244,6 +247,8 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
         groups.append(
             {
                 "semantics": semantics,
+                "contract_partition": key[6:],
+                "work_contract": rows[0]["work_contract"],
                 "finite_modulus": modulus,
                 "modulus_role": _modulus_role(semantics, modulus),
                 "shape": {"m": m, "n": n, "k": k},
@@ -256,7 +261,8 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
 
     return {
         "schema": "rns8_finite_distribution_report_v1",
-        "capture_count": len(loaded),
+        "capture_count": raw_count,
+        "implementation_cohort_count": len(loaded),
         "group_count": len(groups),
         "distribution_counts": dict(sorted(distribution_counts.items())),
         "disposition_counts": dict(sorted(disposition_counts.items())),

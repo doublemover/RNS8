@@ -1,0 +1,344 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "collection": {
+    "schema": "rns8_native_moment_before_after_v1",
+    "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+    "artifacts": {
+      "before": {
+        "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\closeout-remaining-20261025\\native-proof-qualified-controls\\rns8-native-interop-calibrate.exe",
+        "sha256": "07ceb9d8af77816792309b8d2a3fd6a8e0e60b424e9f7f6fc63072e5cc80195e",
+        "source_commit": "5e554b5541c9e45ac893b4b54f514bcb1a0f768a"
+      },
+      "after": {
+        "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-native-interop-calibrate.exe",
+        "sha256": "76f9b2699e644ea060a237d8b56b09908af203bb1a6e1ee054a4d8debf37cec3",
+        "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f"
+      }
+    },
+    "observations": {
+      "archived_json_pointer": "/collection/observations",
+      "entries": 40
+    },
+    "allowed_difference": "intentional source-different intervention: only src/core/exact_range.hpp changes in production code; benchmark body/output/proof policy unchanged",
+    "gate": "five fresh processes per implementation/case; disjoint process ranges and <=10% (max-min)/median spread in both; no favorable reruns",
+    "output_boundary": "full public producer->D2H/host-pack->common prepared GEMM->host-export/H2D->GPU consumer, scalar-first proof",
+    "started_unix": 1792984455.6514673,
+    "requested_captures": 40,
+    "promotion_eligible": false,
+    "campaign_resumed": false,
+    "completed": 40,
+    "seconds": 154.42548632621765,
+    "all_artifacts_unchanged": true
+  },
+  "metrics": [
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 31,
+        "m": 17,
+        "max_payload_bytes": 1073741824,
+        "mode": "host-scalar-first",
+        "n": 19,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "before": {
+          "sustained_ms": 2.4573803921568627,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/0/costs/before/range_ms",
+            "entries": 2
+          },
+          "spread": 0.11655849031697435,
+          "setup_ms": 391.07620000000003,
+          "first_ms": 4.0377,
+          "setup_plus_first_ms": 395.2121,
+          "p50_ms": 2.5726,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/0/costs/before/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/0/costs/before/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        },
+        "after": {
+          "sustained_ms": 2.2870145896656537,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/0/costs/after/range_ms",
+            "entries": 2
+          },
+          "spread": 0.06586263715536665,
+          "setup_ms": 392.3419,
+          "first_ms": 4.140899999999999,
+          "setup_plus_first_ms": 396.52360000000004,
+          "p50_ms": 2.4232,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/0/costs/after/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/0/costs/after/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        }
+      },
+      "observed_speedup": 1.0744926609830308,
+      "qualified_gain": false
+    },
+    {
+      "case": {
+        "dataset": "small",
+        "k": 128,
+        "m": 128,
+        "max_payload_bytes": 1073741824,
+        "mode": "host-scalar-first",
+        "n": 128,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "after": {
+          "sustained_ms": 3.574154028436019,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/1/costs/after/range_ms",
+            "entries": 2
+          },
+          "spread": 0.17891408668619913,
+          "setup_ms": 404.4748,
+          "first_ms": 5.0841,
+          "setup_plus_first_ms": 409.62420000000003,
+          "p50_ms": 3.6188000000000002,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/1/costs/after/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/1/costs/after/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        },
+        "before": {
+          "sustained_ms": 6.629848695652174,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/1/costs/before/range_ms",
+            "entries": 2
+          },
+          "spread": 0.21124823348395078,
+          "setup_ms": 404.691,
+          "first_ms": 7.4777,
+          "setup_plus_first_ms": 412.2654,
+          "p50_ms": 6.4589,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/1/costs/before/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/1/costs/before/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        }
+      },
+      "observed_speedup": 1.8549420766158946,
+      "qualified_gain": false
+    },
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 65537,
+        "m": 1,
+        "max_payload_bytes": 1073741824,
+        "mode": "host-scalar-first",
+        "n": 3,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "before": {
+          "sustained_ms": 87.90282916666666,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/2/costs/before/range_ms",
+            "entries": 2
+          },
+          "spread": 0.1938390634848265,
+          "setup_ms": 467.28770000000003,
+          "first_ms": 70.764,
+          "setup_plus_first_ms": 539.4975999999999,
+          "p50_ms": 72.8921,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/2/costs/before/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/2/costs/before/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        },
+        "after": {
+          "sustained_ms": 57.4686875,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/2/costs/after/range_ms",
+            "entries": 2
+          },
+          "spread": 0.09851828731370749,
+          "setup_ms": 435.3747,
+          "first_ms": 53.561099999999996,
+          "setup_plus_first_ms": 489.2916,
+          "p50_ms": 54.1013,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/2/costs/after/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/2/costs/after/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        }
+      },
+      "observed_speedup": 1.5295778099450532,
+      "qualified_gain": false
+    },
+    {
+      "case": {
+        "dataset": "small",
+        "k": 4097,
+        "m": 257,
+        "max_payload_bytes": 1073741824,
+        "mode": "host-scalar-first",
+        "n": 3,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "after": {
+          "sustained_ms": 42.42519583333333,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/3/costs/after/range_ms",
+            "entries": 2
+          },
+          "spread": 0.10019851607442007,
+          "setup_ms": 428.9968,
+          "first_ms": 44.65,
+          "setup_plus_first_ms": 473.6468,
+          "p50_ms": 42.3792,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/3/costs/after/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/3/costs/after/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        },
+        "before": {
+          "sustained_ms": 201.55116458333333,
+          "range_ms": {
+            "archived_json_pointer": "/metrics/3/costs/before/range_ms",
+            "entries": 2
+          },
+          "spread": 0.06082257297798007,
+          "setup_ms": 521.4715,
+          "first_ms": 131.3409,
+          "setup_plus_first_ms": 651.9032,
+          "p50_ms": 136.5172,
+          "owned_device_peak_bytes": {
+            "archived_json_pointer": "/metrics/3/costs/before/owned_device_peak_bytes",
+            "entries": 1
+          },
+          "owned_pinned_peak_bytes": {
+            "archived_json_pointer": "/metrics/3/costs/before/owned_pinned_peak_bytes",
+            "entries": 1
+          },
+          "all_bursts_uncensored": true
+        }
+      },
+      "observed_speedup": 4.750742115018719,
+      "qualified_gain": false
+    }
+  ],
+  "compiled_manifests": {
+    "before": {
+      "configuration": {
+        "archived_json_pointer": "/compiled_manifests/before/configuration"
+      },
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "external_dependencies": {
+        "archived_json_pointer": "/compiled_manifests/before/external_dependencies",
+        "entries": 9
+      },
+      "identity_scope": "source-config-and-external-headers",
+      "linkage": "static-rns8",
+      "source_commit": "5e554b5541c9e45ac893b4b54f514bcb1a0f768a",
+      "source_digest": "e6abbbcba0aae72385cbdc8105f50dc415a441726c887bdc007b6a26ea99e37b",
+      "source_dirty": false,
+      "version": 2
+    },
+    "after": {
+      "configuration": {
+        "archived_json_pointer": "/compiled_manifests/after/configuration"
+      },
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "external_dependencies": {
+        "archived_json_pointer": "/compiled_manifests/after/external_dependencies",
+        "entries": 9
+      },
+      "identity_scope": "source-config-and-external-headers",
+      "linkage": "static-rns8",
+      "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+      "source_digest": "437377bdcb9e1c54fa5d9d07d35c4db23754d4c8e4c32c0ebd1e2631a07866a0",
+      "source_dirty": false,
+      "version": 2
+    }
+  },
+  "observations": {
+    "archived_json_pointer": "/observations",
+    "entries": 40
+  },
+  "interpretation": "Complete scalar-first public host roundtrip; source-different intentional intervention, with only exact_range.hpp changed in production.",
+  "promotion_eligible": false,
+  "campaign_resumed": false,
+  "matched_intervention_checks": {
+    "same_manifest_fields": [
+      "configuration",
+      "dependency_digest",
+      "external_dependencies",
+      "linkage",
+      "identity_scope"
+    ],
+    "same_device_runtime_provider_output_boundary": true,
+    "same_requested_device_pinned_peaks": true
+  },
+  "validation_reference": "metadata/native-moment-validation-20261025.json",
+  "original_schema": "rns8_native_moment_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/native-moment-qualification-20261025.json",
+    "sha256": "8f52ae9ace9da892b022e552ab52ccd717014475f9049c389e3e317e9156cfcf",
+    "bytes": 491975
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

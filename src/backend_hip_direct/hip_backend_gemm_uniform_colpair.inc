@@ -9,6 +9,11 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
       lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
@@ -88,7 +93,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -109,6 +114,11 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_labe
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
       lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
@@ -169,6 +179,11 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_devic
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
       "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group",
       device_id,
@@ -215,7 +230,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matri
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -233,6 +248,11 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_devic
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
       "bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group",
       device_id,
@@ -279,7 +299,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matri
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -297,6 +317,11 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device
     int64_t lda,
     int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
       "bounded_uniform_small_i8_ab_transient_gemm_kernel_group",
       device_id,
@@ -343,7 +368,7 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;

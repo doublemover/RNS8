@@ -148,7 +148,7 @@ hipError_t enqueue_timed_stream_operation(const char* label, hipStream_t stream,
   if (status != hipSuccess) {
     return status;
   }
-  rns8::detail::hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+  rns8::detail::hip_direct_timing_record_pending_event(label, std::move(events));
   return hipSuccess;
 }
 
@@ -315,8 +315,8 @@ std::vector<double> streaming_event_values(
   return values;
 }
 
-uint64_t rounded_event_us(double value) {
-  return value <= 0.0 ? 0 : static_cast<uint64_t>(value + 0.5);
+double rounded_event_us(double value) {
+  return std::max(0.0, value);
 }
 
 void fill_streaming_overlap_event_results(BenchmarkResult& result, uint32_t repeats) {
@@ -346,10 +346,8 @@ void fill_streaming_overlap_event_results(BenchmarkResult& result, uint32_t repe
     events.timings_us["crt_export_status_d2h"].push_back(status_d2h[index]);
     events.timings_us["crt_export_d2h"].push_back(output_d2h[index]);
     events.timings_us["crt_export"].push_back(export_total);
-    result.samples.pack_us.push_back(rounded_event_us(pack_total));
-    result.samples.gemm_us.push_back(rounded_event_us(gemm[index]));
-    result.samples.export_us.push_back(rounded_event_us(export_total));
-    result.samples.end_to_end_us.push_back(result.streaming_overlap_per_repeat_pipeline_us);
+    // These are stage-service observations, never host phase timings or
+    // independent end-to-end samples. The batch supplies one host observation.
   }
 }
 
@@ -368,10 +366,13 @@ void run_bounded_streaming_overlap_pipeline(
     uint64_t bound,
     uint64_t first_source_version,
     uint32_t repeat_count,
-    bool collect_gpu_events) {
+    bool collect_gpu_events,
+    bool measured = false) {
   if (repeat_count == 0) {
     return;
   }
+  const auto setup_start=std::chrono::steady_clock::now();
+  rns8::detail::hip_direct_timing_set_enabled(false);
   const std::size_t source_bytes = checked_bytes(A.size(), sizeof(HostT), "streaming A input");
   const std::size_t output_bytes =
       checked_bytes(checked_elements(args.m, args.n, "streaming C output"), sizeof(HostT), "streaming C output");
@@ -379,15 +380,25 @@ void run_bounded_streaming_overlap_pipeline(
   rns8_matrix* c_buffers[2] = {c0, c1};
   rns8::detail::hip_pinned_host_buffer pinned_a[2];
   rns8::detail::hip_pinned_host_buffer pinned_c[2];
-  std::vector<rns8::detail::hip_pinned_host_buffer> pinned_status(repeat_count);
+  rns8::detail::hip_pinned_host_buffer pinned_status;
+  fail_streaming_hip("hipHostMalloc(streaming status slab)",pinned_status.ensure(args.device_id,std::size_t(repeat_count)*sizeof(int)));
+  auto* status_slab=static_cast<int*>(pinned_status.get());
+  std::fill(status_slab,status_slab+repeat_count,0);
   for (uint32_t buffer = 0; buffer < 2; ++buffer) {
     fail_streaming_hip("hipHostMalloc(streaming A)", pinned_a[buffer].ensure(args.device_id, source_bytes));
     fail_streaming_hip("hipHostMalloc(streaming C)", pinned_c[buffer].ensure(args.device_id, output_bytes));
     std::memcpy(pinned_a[buffer].get(), A.data(), source_bytes);
   }
-  for (uint32_t repeat = 0; repeat < repeat_count; ++repeat) {
-    fail_streaming_hip("hipHostMalloc(streaming status)", pinned_status[repeat].ensure(args.device_id, sizeof(int)));
-    *static_cast<int*>(pinned_status[repeat].get()) = 0;
+  // Capacity admission precedes every batch interval, including cold/zero-
+  // warmup captures. Both slots then participate in each actual warmup batch.
+  for(uint32_t slot=0;slot<2;++slot) {
+    const auto ensure=[&](std::size_t bytes,void** pointer,std::size_t* capacity) {
+      const auto status=rns8::detail::hip_direct_ensure_upload_buffer(args.device_id,bytes,pointer,capacity);
+      if(status!=RNS8_SUCCESS)fail_status("streaming preallocate both slots",status);
+    };
+    ensure(source_bytes,&a_buffers[slot]->hip_upload_buffer,&a_buffers[slot]->hip_upload_bytes);
+    ensure(output_bytes,&c_buffers[slot]->hip_export_buffer,&c_buffers[slot]->hip_export_bytes);
+    ensure(sizeof(int),&c_buffers[slot]->hip_status_buffer,&c_buffers[slot]->hip_status_bytes);
   }
 
   rns8::detail::hip_unique_stream pack_stream;
@@ -409,10 +420,14 @@ void run_bounded_streaming_overlap_pipeline(
   if (collect_gpu_events) {
     begin_gpu_event_phase(true);
   }
+  const auto setup_end=std::chrono::steady_clock::now();
+  const auto allocations_before=rns8::detail::hip_direct_allocation_counters_snapshot();
   const auto batch_start = std::chrono::steady_clock::now();
   const uint32_t prefix = selected_execution_prefix(args, result);
   for (uint32_t repeat = 0; repeat < repeat_count; ++repeat) {
     const uint32_t buffer = repeat & 1u;
+    if(args.streaming_serial_control && repeat)
+      fail_streaming_hip("serial pipeline waits previous export",hipStreamWaitEvent(pack_stream.get(),export_done[(repeat-1)&1u].get(),0));
     if (repeat >= 2) {
       fail_streaming_hip(
           "hipStreamWaitEvent(pack waits previous gemm)",
@@ -454,7 +469,7 @@ void run_bounded_streaming_overlap_pipeline(
         args,
         c_buffers[buffer],
         static_cast<HostT*>(pinned_c[buffer].get()),
-        static_cast<int*>(pinned_status[repeat].get()),
+        status_slab+repeat,
         output_bytes,
         prefix,
         bound,
@@ -464,21 +479,27 @@ void run_bounded_streaming_overlap_pipeline(
   fail_streaming_hip("hipStreamSynchronize(export)", hipStreamSynchronize(export_stream.get()));
   fail_streaming_hip("hipStreamSynchronize(gemm)", hipStreamSynchronize(gemm_stream.get()));
   fail_streaming_hip("hipStreamSynchronize(pack)", hipStreamSynchronize(pack_stream.get()));
-  const auto batch_end = std::chrono::steady_clock::now();
-
   for (uint32_t repeat = 0; repeat < repeat_count; ++repeat) {
-    const int host_status = *static_cast<int*>(pinned_status[repeat].get());
+    const int host_status = status_slab[repeat];
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("streaming overlap export status", static_cast<rns8_status>(host_status));
     }
   }
   const uint32_t final_buffer = (repeat_count - 1u) & 1u;
   std::memcpy(C.data(), pinned_c[final_buffer].get(), output_bytes);
+  const auto batch_end=std::chrono::steady_clock::now();
+  const auto allocations_after=rns8::detail::hip_direct_allocation_counters_snapshot();
+  if(!result.streaming_first_use_batch_us)result.streaming_first_use_batch_us=elapsed_us(batch_start,batch_end);
+  if(!measured){++result.streaming_warmup_batch_count;return;}
+  const double duration=elapsed_us(batch_start,batch_end);
+  result.streaming_observations.push_back({repeat_count,duration,elapsed_us(setup_start,setup_end),first_source_version,
+      allocations_after.allocate_calls-allocations_before.allocate_calls,allocations_after.allocated_bytes-allocations_before.allocated_bytes});
+  result.samples.end_to_end_us.push_back(duration/repeat_count);
 
   result.streaming_overlap_executed = true;
   result.streaming_overlap_stream_count = 3;
   result.streaming_overlap_buffer_count = 2;
-  result.streaming_overlap_measured_repeat_count = repeat_count;
+  result.streaming_overlap_measured_repeat_count += repeat_count;
   result.streaming_overlap_batch_wall_us = elapsed_us(batch_start, batch_end);
   result.streaming_overlap_per_repeat_pipeline_us =
       repeat_count == 0 ? 0 : result.streaming_overlap_batch_wall_us / static_cast<uint64_t>(repeat_count);
@@ -706,7 +727,7 @@ void run_hip_graph_replay_bounded_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph bounded pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -933,7 +954,7 @@ void run_hip_graph_replay_exact_wide_pack_gemm_export(
     if (host_status != static_cast<int>(RNS8_SUCCESS)) {
       fail_status("hip graph exact-wide pack/GEMM/export measured export status", static_cast<rns8_status>(host_status));
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1130,8 +1151,6 @@ void run_hip_graph_replay_finite_pack_gemm_export(
         }
         rns8::detail::api::mark_output_device_residues_current(*c_matrix);
         c_matrix->finite_modulus = args.finite_modulus;
-        c_matrix->source_version =
-            rns8::detail::api::gemm_output_source_version_values(a_matrix->source_version, b_matrix->source_version);
         enqueue_finite_graph_export(
             args,
             c_matrix,
@@ -1185,7 +1204,7 @@ void run_hip_graph_replay_finite_pack_gemm_export(
       }
       fail_status("hip graph finite pack/GEMM/export measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1362,7 +1381,7 @@ void run_hip_graph_replay_wrap64_pack_gemm_export(
       }
       fail_status("hip graph wrap64 pack/GEMM/export measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1389,7 +1408,8 @@ void run_bounded_streaming_overlap_pipeline(
     uint64_t,
     uint64_t,
     uint32_t,
-    bool) {
+    bool,
+    bool = false) {
   fail_status("streaming overlap requires a HIP-enabled benchmark build", RNS8_UNSUPPORTED_BACKEND);
 }
 

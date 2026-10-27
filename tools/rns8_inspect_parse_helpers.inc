@@ -7,6 +7,7 @@ bool parse_backend(const std::string& value, rns8_backend_kind& out) {
     out = RNS8_BACKEND_CPU_REFERENCE;
     return true;
   }
+  if(value=="cpu-amx-int8"){out=RNS8_BACKEND_CPU_AMX;return true;}
   if (value == "hip-direct") {
     out = RNS8_BACKEND_HIP_DIRECT;
     return true;
@@ -44,7 +45,7 @@ bool evidence_only_accelerator_backend(rns8_backend_kind backend) {
 }
 
 void print_usage(std::ostream& out) {
-  out << "usage: rns8-inspect [--backend auto|cpu-reference|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma|amdgpu-builtins]"
+  out << "usage: rns8-inspect [--backend auto|cpu-reference|cpu-amx-int8|hip-direct|hip-vector-alu-int64|wrap64-byte-limb|hipblaslt|ck|rocwmma|amdgpu-builtins]"
       << " [--device N] [--json] [--autotune-key KEY] [--show-autotune-cache] [--selector-shadow]\n";
 }
 
@@ -54,6 +55,8 @@ const char* backend_name(rns8_backend_kind backend) {
       return "auto";
     case RNS8_BACKEND_CPU_REFERENCE:
       return "cpu-reference";
+    case RNS8_BACKEND_CPU_AMX:
+      return "cpu-amx-int8";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:

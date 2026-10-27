@@ -1,0 +1,427 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+  "benchmark_artifact": {
+    "executable_sha256": "9ac45d33e70de7c1adb157e2c9a2bd76a9eed8bf036b062a4ce001b9a413efd2",
+    "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-native-interop-calibrate.exe",
+    "hash_seconds": 0.02616510004736483,
+    "rns8_linkage": "static",
+    "unchanged_during_run": true
+  },
+  "collector_source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+  "prior_production_qualification": "metadata/adaptive-summary-qualification-20261025.json",
+  "production_source_unchanged": true,
+  "capture_count": 100,
+  "gain_gate": "five processes per mode; disjoint ranges and at most 10% (max-min)/median spread in both compared modes",
+  "builds": {
+    "gpu": {
+      "source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+      "lane": "gpu",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/0/command",
+            "entries": 37
+          },
+          "exit_code": 0,
+          "seconds": 18.501906633377075
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 176.72596049308777
+        }
+      ],
+      "old_qualified_benchmark_sha256": "e386bfa13bb228842fb457df1b9205593c53b030721fca98a5e497521c7f16b1",
+      "targets": [
+        "rns8-native-interop-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    },
+    "asan": {
+      "source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+      "lane": "asan",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/0/command",
+            "entries": 26
+          },
+          "exit_code": 0,
+          "seconds": 5.0460286140441895
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 46.669031620025635
+        }
+      ],
+      "old_qualified_benchmark_sha256": "fe5e7b1ebab2b12ef4814200f4d0ca727f1e9e34cdeb78ae03799feea9a32377",
+      "targets": [
+        "rns8-native-interop-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    }
+  },
+  "collector_regressions": {
+    "command": [
+      "python",
+      "tools/test_collect_native_interop.py"
+    ],
+    "passed": 9,
+    "failures": 0
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 33
+    },
+    "compiled_source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+    "collector_source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+    "executable_sha256": "9ac45d33e70de7c1adb157e2c9a2bd76a9eed8bf036b062a4ce001b9a413efd2",
+    "started_unix": 1792976450.803267,
+    "requested_captures": 100,
+    "campaign_resumed": false,
+    "gain_gate": "disjoint observed process ranges and <=10% (max-min)/median spread for both compared modes; five independent processes",
+    "exit_code": 0,
+    "seconds": 306.73959517478943,
+    "executable_unchanged": true
+  },
+  "metrics": [
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 31,
+        "m": 17,
+        "max_payload_bytes": 1073741824,
+        "n": 19,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/0/costs",
+        "entries": 5
+      },
+      "comparisons": {
+        "device-stream": {
+          "control": "host-scalar-first",
+          "speedup": 3.2540921175014037,
+          "disjoint": true,
+          "baseline_spread": 0.18084336067586818,
+          "candidate_spread": 0.07248607673009955,
+          "qualified_gain": false
+        },
+        "device-graph": {
+          "control": "host-scalar-first",
+          "speedup": 3.3251355952377457,
+          "disjoint": true,
+          "baseline_spread": 0.18084336067586818,
+          "candidate_spread": 0.4138179666179317,
+          "qualified_gain": false
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "fullwidth",
+        "k": 65537,
+        "m": 1,
+        "max_payload_bytes": 1073741824,
+        "n": 3,
+        "prefix": 20,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/1/costs",
+        "entries": 5
+      },
+      "comparisons": {
+        "device-stream": {
+          "control": "host-roundtrip",
+          "speedup": 41.34928769673337,
+          "disjoint": true,
+          "baseline_spread": 0.238031410892258,
+          "candidate_spread": 0.017192741796103552,
+          "qualified_gain": false
+        },
+        "device-graph": {
+          "control": "host-roundtrip",
+          "speedup": 41.86423622763349,
+          "disjoint": true,
+          "baseline_spread": 0.238031410892258,
+          "candidate_spread": 0.03940680273248241,
+          "qualified_gain": false
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "small",
+        "k": 4097,
+        "m": 257,
+        "max_payload_bytes": 1073741824,
+        "n": 3,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": true,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/2/costs",
+        "entries": 5
+      },
+      "comparisons": {
+        "device-stream": {
+          "control": "host-scalar-first",
+          "speedup": 169.87878219362167,
+          "disjoint": true,
+          "baseline_spread": 0.26133702735841396,
+          "candidate_spread": 0.07935669612683402,
+          "qualified_gain": false
+        },
+        "device-graph": {
+          "control": "host-scalar-first",
+          "speedup": 169.871567026649,
+          "disjoint": true,
+          "baseline_spread": 0.26133702735841396,
+          "candidate_spread": 0.17873231851935242,
+          "qualified_gain": false
+        }
+      }
+    },
+    {
+      "case": {
+        "dataset": "small",
+        "k": 128,
+        "m": 128,
+        "max_payload_bytes": 1073741824,
+        "n": 128,
+        "prefix": 5,
+        "repeats": 9,
+        "schema": "native_interop_case_v1",
+        "seed": 67,
+        "unsigned_inputs": false,
+        "warmups": 3
+      },
+      "costs": {
+        "archived_json_pointer": "/metrics/3/costs",
+        "entries": 5
+      },
+      "comparisons": {
+        "device-stream": {
+          "control": "host-scalar-first",
+          "speedup": 11.538998985178232,
+          "disjoint": true,
+          "baseline_spread": 0.04106190404891105,
+          "candidate_spread": 0.3385036900041834,
+          "qualified_gain": false
+        },
+        "device-graph": {
+          "control": "host-scalar-first",
+          "speedup": 11.45699635326715,
+          "disjoint": true,
+          "baseline_spread": 0.04106190404891105,
+          "candidate_spread": 0.2353346576231361,
+          "qualified_gain": false
+        }
+      }
+    }
+  ],
+  "all_observations": {
+    "archived_json_pointer": "/all_observations",
+    "entries": 100
+  },
+  "remaining": [
+    "hardware launch counts and physical memory peaks are unmeasured",
+    "real failed-drain device-fault injection remains separate from safe status/cancellation and host mocks",
+    "no Linux GPU or other target qualification; optional DLPack adapter deferred"
+  ],
+  "campaign_resumed": false,
+  "promotion_eligible": false,
+  "prior_eager_control_study": {
+    "path": "metadata\\native-interop-eager-controls-20261025.json",
+    "sha256": "d6f4e4175623509e2a9341e9f5bf340cc9220da11a9dc0f4c8b0190e50508386",
+    "captures": 80,
+    "interop_gain_qualified": false
+  },
+  "excluded_first_attempt": {
+    "launch": {
+      "command": {
+        "archived_json_pointer": "/excluded_first_attempt/launch/command",
+        "entries": 29
+      },
+      "compiled_source_commit": "1a4dfc475dcbaaa4cd26f438ef8518f6120b9ab9",
+      "collector_source_commit": "1a4dfc475dcbaaa4cd26f438ef8518f6120b9ab9",
+      "executable_sha256": "c236909e65f8c69844816b51c5c6599b5156beb06d2963b3294e6f6d18f578d8",
+      "started_unix": 1792975436.175215,
+      "requested_captures": 80,
+      "campaign_resumed": false,
+      "gain_gate": "disjoint observed process ranges and <=10% (max-min)/median spread for both compared modes; five independent processes",
+      "exit_code": 1,
+      "seconds": 4.502478361129761,
+      "executable_unchanged": true
+    },
+    "failed": [
+      {
+        "command": {
+          "archived_json_pointer": "/excluded_first_attempt/failed/0/command",
+          "entries": 3
+        },
+        "environment": {},
+        "returncode": 1,
+        "timed_out": false,
+        "duration_seconds": 0.7819675999926403,
+        "stdout": "",
+        "stderr": "unsupported backend\n"
+      }
+    ],
+    "exact_captures": [
+      {
+        "archived_json_pointer": "/excluded_first_attempt/exact_captures/0",
+        "entries": 3
+      },
+      {
+        "archived_json_pointer": "/excluded_first_attempt/exact_captures/1",
+        "entries": 3
+      }
+    ]
+  },
+  "all_bursts_reached_minimum": true,
+  "completed_calls": 58715,
+  "unchanged_compiled_code_since_artifact": true,
+  "prior_native_gpu_tests": [
+    {
+      "name": "copy-owned native HIP leases survive external mutation and deallocation",
+      "seconds": 1.03128,
+      "state": "passed"
+    },
+    {
+      "name": "distinct immutable native leases share reads but never an external writer or mutation epoch",
+      "seconds": 0.645931,
+      "state": "passed"
+    },
+    {
+      "name": "native HIP leases import and export full-width padded views without host payload",
+      "seconds": 0.685529,
+      "state": "passed"
+    },
+    {
+      "name": "native HIP limb exports preserve exact wide products and padded destinations",
+      "seconds": 0.566691,
+      "state": "passed"
+    },
+    {
+      "name": "native import lift GEMM and host export share one observed graph transaction",
+      "seconds": 0.849831,
+      "state": "passed"
+    },
+    {
+      "name": "native transfer prepared owners retain leases, refresh generations and replay checked graphs",
+      "seconds": 0.77771,
+      "state": "passed"
+    },
+    {
+      "name": "prepared native export shares every signed/unsigned prefix and limb-width kernel",
+      "seconds": 3.52047,
+      "state": "passed"
+    }
+  ],
+  "comparison_acceptance": "all exact checks pass; no variance-qualified gain; synchronous and asynchronous GEMM route differences also prevent isolating interop cost",
+  "product_benefit_qualified": false,
+  "compiled_build_manifest": {
+    "configuration": {
+      "archived_json_pointer": "/compiled_build_manifest/configuration"
+    },
+    "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+    "external_dependencies": {
+      "BOOST": {
+        "bytes": 31958612,
+        "files": 2292,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+        "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+      },
+      "CATCH2_1": {
+        "bytes": 640342,
+        "files": 183,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+        "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+      },
+      "CK": {
+        "bytes": 18406325,
+        "files": 895,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
+        "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
+      },
+      "HIPBLASLT": {
+        "bytes": 31482707,
+        "files": 1754,
+        "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
+        "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
+      },
+      "JSON_1": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "JSON_2": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "RNS8_CK_GENERATED_INCLUDE_DIR": {
+        "bytes": 584,
+        "files": 2,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
+        "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
+      },
+      "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
+        "bytes": 52392,
+        "files": 1,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
+        "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
+      },
+      "ROCWMMA": {
+        "bytes": 1216499,
+        "files": 114,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
+        "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
+      }
+    },
+    "identity_scope": "source-config-and-external-headers",
+    "linkage": "static-rns8",
+    "source_commit": "433b89b47046314bb7cb3ffe48da2916593f02ba",
+    "source_digest": "305cc38f39566522fd268049ab7f6b8a01d62012a4380a0cd36cc6d6ac9a4bc0",
+    "source_dirty": false,
+    "version": 2
+  },
+  "original_schema": "rns8_native_interop_mixed_compute_controls_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/native-interop-mixed-compute-controls-20261025.json",
+    "sha256": "a4a775dfe9d72d7adb2d968b4138a6f053d5bf4f03f705df3a477aeadd5072f8",
+    "bytes": 1098025
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

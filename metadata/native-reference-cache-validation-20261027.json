@@ -1,0 +1,61 @@
+{
+  "schema": "rns8_native_reference_cache_validation_v1",
+  "date": "2026-10-27",
+  "language_standard": "C++17",
+  "base_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+  "source_dirty": true,
+  "source_digest": "4ab93afd471711c4faa6d29e259b014ac61d331289796e38c4bd85def0bf1ce5",
+  "compiler": "MSVC 19.51.36260.0",
+  "executable_sha256": "4651b540c94e07ff692e11483ff86c877f653dacc73bcbb7c02cf1d506e8ba58",
+  "source_files_sha256": {
+    "benchmarks/native_reference_cache.hpp": "9ea4d4f92fa15635e4ef80290fc2216b307172c50185142eb61e0b446b2bbbc8",
+    "benchmarks/rns8_bench.cpp": "954636f6fd8589cd88e1f7d643afd827fd86514b1741844b8f257c1c1975d3a7",
+    "benchmarks/rns8_bench_types.hpp": "b74b5956acd29b99913941110b2fb44c7cca745dfa5c2c946713657faa43b2aa",
+    "benchmarks/rns8_bench_args.cpp": "6ac342eefc8bb017aa08fd7ff91ee3e4759c8774dd6206d6d07c826a15c7d96c",
+    "benchmarks/rns8_bench_event_collection.inc": "095b33ee8cba7361c231eb9239f4801353eaab3024b3f7bfd54f923f0baf3bdf",
+    "benchmarks/rns8_bench_print_json_shape_schedule.inc": "47abf0d90db901e4fefb15131780f38f9c216f2dbc5802a8d1ce60587dc68034",
+    "tests/unit/test_native_reference_cache.cpp": "bf08bec43ecdd36a90708cb4fd99aa6a23f85b39fffb614119a0d27f393e8cc2",
+    "tools/benchmark_references.py": "2bfdac8e17dd3bce27d77daadc362c34eea2e7d62f5cbeaf67016b010062c44b",
+    "tools/test_benchmark_references.py": "d1134f1383f51fca8960660cd56db0172c4e238ef4fe62540a72800e0c1b50a0",
+    "tools/collect_public_calibration.py": "bc48597d1c7a969f57b2061670d1366d4ec5450242b70027b243d847722796b3",
+    "tools/benchmark_schema/public_timing.py": "79004d0577031ff15a79def622d78302618b9c3032b082ed784665e161539d8c",
+    "benchmarks/rns8_bench_bounded_i64_lane.inc": "8f8f964a9928b4cf0cfe8f9d4f9622fb14e864709519a53432059766b3b1e750",
+    "benchmarks/rns8_bench_bounded_oneshot_batch.inc": "23a47b959000c7fbc3810921bcd7ef1835428e2de37ef6201512c3898c8f5faa",
+    "benchmarks/rns8_bench_bounded_u64_lane.inc": "f679713fdce0cb0148c1b2391d0156dd0f77b1371fc0180321650cb0c7011b83",
+    "benchmarks/rns8_bench_finite_lanes.inc": "0c4673814f9b0885dc1e56f40f95adb9a7fb275c0351b8a3e67d4dacf5753af4",
+    "benchmarks/rns8_bench_support.cpp": "4d25c9193454e0410423a0055311b9e7a7bb81698894201139ab27d4e76737a2",
+    "benchmarks/rns8_bench_vector_lanes.inc": "21c4459f2767d9c575b33568794495680a1285277966367b47bcb952456ecf8e",
+    "benchmarks/rns8_bench_wrap64_lanes.inc": "bbf89419983ed4ebf02d9191b38519fe234866c9ccf66a65cc82943238cbd507",
+    "cmake/rns8_tests.cmake": "649bf3346a1d9fe614fc076cbbb9c9a396547c5a08feeab7eafbd8a5ca36a1f8"
+  },
+  "fixture_manifest": "tests/fixtures/native-reference/index.json",
+  "fixtures": 3,
+  "raw_bytes": 10488368,
+  "compressed_bytes": 3283040,
+  "checks": {
+    "gpu_cache_hits": 14,
+    "cache_miss_recomputed": true,
+    "miss_did_not_populate": true,
+    "corrupt_fixture_rejected_cleanly": true,
+    "cpp_cases": 2,
+    "cpp_assertions": 13,
+    "python_cases": 5,
+    "automatic_collector_captures": 4,
+    "catalog_corpus_unchanged": 2075
+  },
+  "illustrative_reference_only_timing": {
+    "shape": [
+      1024,
+      1024,
+      1024
+    ],
+    "full_boost_ms": 24289.8155,
+    "cached_ms_median": 140.74995,
+    "cached_ms_min": 139.56029999999998,
+    "cached_ms_max": 142.26129999999998,
+    "scope": "outside production intervals; one fresh full computation and six full cached comparisons across tested backends, not a library throughput comparison"
+  },
+  "qualification_scope": "New benchmark-only cache code validated in a modified tree atop72c55c2; source snapshots/hashes, exact binary/build manifest and all checks archived. The 350-process timing repeat uses unchanged clean72c55c2 binaries. No production arithmetic or routing change.",
+  "initial_build": "C++20 endian helpers rejected by the C++17 build; corrected before the successful consolidated rebuild and validation.",
+  "full_evidence_release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-idle-20261026"
+}

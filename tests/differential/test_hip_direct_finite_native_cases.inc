@@ -63,7 +63,8 @@ TEST_CASE("direct HIP finite u8 one-shot matches CPU for explicit ring and field
     rns8::detail::hip_direct_timing_set_enabled(false);
     CHECK(has_timing_label(hip_events, "residue_h2d_sync"));
     CHECK(has_timing_label(hip_events, "finite_native_gemm_kernel"));
-    CHECK(has_timing_label(hip_events, "finite_export_kernel"));
+    CHECK(has_timing_label(hip_events, "finite_export_kernel") == (item.modulus != 256));
+    CHECK(has_timing_label(hip_events, "finite_export_d2h"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_pack_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_resident_gemm_kernel"));
     CHECK_FALSE(has_timing_label(hip_events, "finite_ring_gemm_kernel"));
@@ -268,6 +269,7 @@ TEST_CASE("direct HIP bounded i64 native prefix9 colpair path matches CPU") {
   rns8::test::set_device_byte_limbs_current(*hip_c, false);
   rns8::test::set_host_native_current(*hip_c, false);
   rns8::test::set_device_native_current(*hip_c, false);
+  rns8::detail::api::mark_output_device_residues_current(*hip_c, hip_plan);
   REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, hip_out.data(), ldc) == RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {

@@ -34,62 +34,7 @@ void prefix_label(char* buffer, std::size_t size, int prefix_index, const char* 
   std::snprintf(buffer, size, "rocwmma_prefix_%02d_%s", prefix_index, suffix);
 }
 
-class timing_event_pair {
- public:
-  timing_event_pair() = default;
-  timing_event_pair(const timing_event_pair&) = delete;
-  timing_event_pair& operator=(const timing_event_pair&) = delete;
-  ~timing_event_pair() {
-    reset();
-  }
 
-  bool create_and_record_start() {
-    reset();
-    for (int attempt = 0; attempt < 8; ++attempt) {
-      hipError_t status = hipEventCreate(&start_);
-      if (status == hipSuccess) {
-        status = hipEventCreate(&stop_);
-      }
-      if (status == hipSuccess) {
-        status = hipEventRecord(start_, nullptr);
-      }
-      if (status == hipSuccess) {
-        return true;
-      }
-      reset();
-      if (attempt == 0) {
-        rns8::detail::hip_direct_timing_flush_pending_events();
-      }
-      if (attempt + 1 < 8) {
-        (void)hipDeviceSynchronize();
-      }
-    }
-    return false;
-  }
-
-  hipEvent_t start() const {
-    return start_;
-  }
-
-  hipEvent_t stop() const {
-    return stop_;
-  }
-
- private:
-  void reset() {
-    if (stop_) {
-      (void)hipEventDestroy(stop_);
-      stop_ = nullptr;
-    }
-    if (start_) {
-      (void)hipEventDestroy(start_);
-      start_ = nullptr;
-    }
-  }
-
-  hipEvent_t start_ = nullptr;
-  hipEvent_t stop_ = nullptr;
-};
 
 void record_synchronized_host_timing(
     const char* label,
@@ -98,20 +43,22 @@ void record_synchronized_host_timing(
   (void)hipDeviceSynchronize();
   const auto stop = std::chrono::steady_clock::now();
   const double microseconds = std::chrono::duration<double, std::micro>(stop - start).count();
-  rns8::detail::hip_direct_timing_record_sample(label, microseconds);
+  rns8::detail::hip_direct_timing_record_failure(label,"synchronized_host_fallback",-1);
+  rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+label).c_str(), microseconds);
   if (alias && alias[0] != '\0') {
-    rns8::detail::hip_direct_timing_record_sample(alias, microseconds);
+    rns8::detail::hip_direct_timing_record_failure(alias,"synchronized_host_fallback",-1);
+    rns8::detail::hip_direct_timing_record_sample((std::string("host_synchronized_fallback:")+alias).c_str(), microseconds);
   }
 }
 
 template <typename Fn>
-hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn) {
-  if (!rns8::detail::hip_direct_timing_enabled()) {
+hipError_t timed_hip_launch(const char* label, const char* alias, Fn&& fn,hipStream_t stream=nullptr) {
+  if (stream || !rns8::detail::hip_direct_timing_enabled()) {
     return fn();
   }
   const auto host_start = std::chrono::steady_clock::now();
-  timing_event_pair events;
-  if (!events.create_and_record_start()) {
+  rns8::detail::hip_unique_event_pair events;
+  if (!rns8::detail::hip_create_timing_events_with_retry(events)) {
     const hipError_t status = fn();
     if (status == hipSuccess) {
       record_synchronized_host_timing(label, alias, host_start);
@@ -250,12 +197,11 @@ __device__ uint32_t reduce_u32_small_modulus_device(uint32_t value, uint32_t mod
 }
 
 __host__ __device__ __forceinline__ bool rocwmma_static_modulus_supported(uint32_t modulus) {
-  return rns8::detail::finite_u8::static_byte_modulus_supported(modulus);
+  return modulus>=2 && modulus<=256;
 }
 
 __device__ int8_t reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {
-  (void)reciprocal;
-  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(
-      value, static_cast<uint32_t>(modulus));
+  return rns8::detail::finite_u8::reduce_to_centered_i32(
+      value, static_cast<uint32_t>(modulus), reciprocal);
 }
 

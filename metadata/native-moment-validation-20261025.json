@@ -1,0 +1,223 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+  "scope": "Fixed native exact-moment arithmetic, unbounded limb-import fallback and complete resident conversion timing fences; full available GPU/CPU-ASan suites and installed static/shared consumers.",
+  "validation": {
+    "gpu": {
+      "counts": {
+        "passed": 959,
+        "skipped": 16,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/validation/gpu/tests",
+        "entries": 975
+      },
+      "receipt": {
+        "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "lane": "gpu",
+        "phase": "native-moment-tests",
+        "records": {
+          "archived_json_pointer": "/validation/gpu/receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      },
+      "xml_sha256": "26b9984324aa0a003afbf707fa55352a438a67b8656a7798a3c35660c7cf0215",
+      "build_retry": {
+        "archived_json_pointer": "/validation/gpu/build_retry",
+        "entries": 5
+      },
+      "first_build_attempt": {
+        "archived_json_pointer": "/validation/gpu/first_build_attempt",
+        "entries": 5
+      }
+    },
+    "asan": {
+      "counts": {
+        "passed": 557,
+        "skipped": 23,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/validation/asan/tests",
+        "entries": 580
+      },
+      "receipt": {
+        "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+        "lane": "asan",
+        "phase": "native-moment-tests",
+        "records": {
+          "archived_json_pointer": "/validation/asan/receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      },
+      "xml_sha256": "a5dc225f59a872fe8b94bd59059678acac81f9c14fb51bc2aa0e0afa1e2383da",
+      "build_retry": {
+        "archived_json_pointer": "/validation/asan/build_retry",
+        "entries": 5
+      },
+      "first_build_attempt": {
+        "archived_json_pointer": "/validation/asan/first_build_attempt",
+        "entries": 5
+      }
+    },
+    "unchanged_logical_proof": {
+      "reused_from": "metadata/local-validation-20261025.json",
+      "source_checkpoint": "e31cb71",
+      "seconds": 1020.41,
+      "fresh_execution": false,
+      "input_hashes": [
+        {
+          "path": "tools/test_native_wmma_logic.py",
+          "sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+          "bytes": 5306,
+          "current_sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/check_native_wmma_logic.py",
+          "sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+          "bytes": 18232,
+          "current_sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/native_wmma_lowering.py",
+          "sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+          "bytes": 9829,
+          "current_sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/generate_native_wmma.py",
+          "sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+          "bytes": 12165,
+          "current_sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+          "matches_reused_source": true
+        },
+        {
+          "path": "tools/promotion_ledger.py",
+          "sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+          "bytes": 33949,
+          "current_sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+          "matches_reused_source": true
+        }
+      ],
+      "scope": "Existing generated native WMMA logical interpreter; new layout consumer is covered by its CPU/Boost and real HIP differentials.",
+      "input_comparison": "Git blobs and working files match after CRLF/LF normalization; hashes identify current working-file bytes.",
+      "current_normalized_source_comparison_passed": true,
+      "current_source_comparison": "763a9488e673225ebbaea2da00a5ab046065581f: five unchanged logical-checker inputs; proof reuse only, not a fresh execution"
+    },
+    "installed_build": {
+      "source_checkout": "763a9488e673225ebbaea2da00a5ab046065581f",
+      "records": [
+        {
+          "name": "install",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/0/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 1.448181390762329
+        },
+        {
+          "name": "static-configure",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/1/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 4.102967262268066
+        },
+        {
+          "name": "static-build",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/2/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 7.422367334365845
+        },
+        {
+          "name": "shared-configure",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/3/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 3.6400837898254395
+        },
+        {
+          "name": "shared-build",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_build/records/4/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 6.3261353969573975
+        }
+      ]
+    },
+    "installed_test": {
+      "source_checkout": "763a9488e673225ebbaea2da00a5ab046065581f",
+      "records": [
+        {
+          "name": "static-test",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_test/records/0/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.270613670349121
+        },
+        {
+          "name": "shared-test",
+          "argv": {
+            "archived_json_pointer": "/validation/installed_test/records/1/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.1652166843414307
+        }
+      ]
+    },
+    "installed_tests": {
+      "archived_json_pointer": "/validation/installed_tests",
+      "entries": 12
+    },
+    "compiled_artifacts": {
+      "gpu": {
+        "archived_json_pointer": "/validation/compiled_artifacts/gpu",
+        "entries": 2
+      },
+      "asan": {
+        "archived_json_pointer": "/validation/compiled_artifacts/asan",
+        "entries": 2
+      }
+    },
+    "github_ci": {
+      "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+      "scope": "GitHub CPU/OpenMP matrix; not native Linux GPU qualification",
+      "checks": {
+        "archived_json_pointer": "/validation/github_ci/checks",
+        "entries": 18
+      }
+    }
+  },
+  "prior_qualification": {
+    "path": "metadata\\adaptive-summary-qualification-20261025.json",
+    "sha256": "335cb96257951d420f19e7ae9f72fb52fda38e6758f441c3e75b64e1128fc8f2"
+  },
+  "campaign_resumed": false,
+  "performance_qualified_by_this_validation": false,
+  "original_schema": "rns8_native_moment_validation_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/native-moment-validation-20261025.json",
+    "sha256": "8c3d6eb8f7441675c194d40fb273cdca5d68bad6de9d2c45256139b6fa4741dd",
+    "bytes": 296378
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

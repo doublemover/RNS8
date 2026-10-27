@@ -130,12 +130,16 @@ def main() -> int:
         assert report["counter_inputs"][0]["numeric_metric_average"]["SQ_INSTS_VALU"] == 20.0
         assert report["counter_inputs"][1]["numeric_metric_average"]["LDS_BANK_CONFLICT"] == 3.0
         assert report["isa_summaries"][0]["instruction_totals"]["global_store"] == 4
-        assert report["resource_summary"]["memory_pressure_signal"] == 4.0
-        assert report["resource_summary"]["global_store_instruction_count"] == 4
-        assert report["resource_summary"]["vgpr"] == 42.0
-        assert report["resource_summary"]["occupancy"] == 0.5625
+        assert report["counter_observation_metrics"]["TCP_TCC_WRITE_REQ"] == 4.0
+        assert report["resource_summary"]["memory_pressure_signal"] is None
+        assert report["resource_summary"]["global_store_instruction_count"] == 0
+        assert report["counter_observation_metrics"]["VGPR_COUNT"] == 42.0
+        assert report["resource_summary"]["vgpr"] is None
+        assert report["counter_observation_metrics"]["ACHIEVED_OCCUPANCY"] == 0.5625
+        assert report["resource_summary"]["occupancy"] is None
         assert report["evidence_status"]["profiler_counter_status"] == "present"
-        assert report["evidence_status"]["isa_resource_status"] == "present"
+        assert report["evidence_status"]["isa_resource_status"] == "missing"
+        assert not report["isa_selected_association"]["isa_association"]["qualified"]
         assert report["evidence_status"]["gpu_event_timing_status"] == "present"
 
         json_path = gpu_counter_report.write_json_report(report, out_dir, "self-test")
@@ -147,8 +151,8 @@ def main() -> int:
         batch = gpu_counter_report.build_batch_report([report])
         assert batch["group_count"] == 1
         assert batch["groups"][0]["counter_evidence"] == "present"
-        assert batch["groups"][0]["resource_signal_summary"]["vgpr"]["average"] == 42.0
-        assert batch["groups"][0]["resource_signal_summary"]["occupancy"]["present_count"] == 1
+        assert batch["groups"][0]["resource_signal_summary"]["vgpr"]["average"] is None
+        assert batch["groups"][0]["resource_signal_summary"]["occupancy"]["present_count"] == 0
         batch_paths = gpu_counter_report.write_batch_reports(batch, out_dir)
         assert Path(batch_paths["json"]).exists()
         assert Path(batch_paths["markdown"]).exists()
@@ -160,14 +164,14 @@ def main() -> int:
         assert "missing_isa_summary" in missing_report["evidence_status"]["missing_evidence"]
 
         partial_report = gpu_counter_report.report_for_capture(capture, [counter_csv], [partial_isa_summary], 3)
-        assert partial_report["evidence_status"]["isa_resource_status"] == "partial"
-        assert "partial_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
+        assert partial_report["evidence_status"]["isa_resource_status"] == "missing"
+        assert "missing_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
 
         isa_only_report = gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
-        assert isa_only_report["resource_summary"]["vgpr"] == 64
-        assert isa_only_report["resource_summary"]["sgpr"] == 48
-        assert isa_only_report["resource_summary"]["lds_bytes"] == 2048
-        assert isa_only_report["evidence_status"]["isa_resource_status"] == "present"
+        assert isa_only_report["resource_summary"]["vgpr"] is None
+        assert isa_only_report["resource_summary"]["sgpr"] is None
+        assert isa_only_report["resource_summary"]["lds_bytes"] is None
+        assert isa_only_report["evidence_status"]["isa_resource_status"] == "missing"
         assert "missing_occupancy_signal" in isa_only_report["evidence_status"]["missing_evidence"]
 
         multi_batch = gpu_counter_report.build_batch_report([report, missing_report])

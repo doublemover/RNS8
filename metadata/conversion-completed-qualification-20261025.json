@@ -1,0 +1,180 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_manifest": {
+    "configuration": {
+      "archived_json_pointer": "/compiled_manifest/configuration"
+    },
+    "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+    "external_dependencies": {
+      "BOOST": {
+        "bytes": 31958612,
+        "files": 2292,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+        "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+      },
+      "CATCH2_1": {
+        "bytes": 640342,
+        "files": 183,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+        "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+      },
+      "CK": {
+        "bytes": 18406325,
+        "files": 895,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
+        "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
+      },
+      "HIPBLASLT": {
+        "bytes": 31482707,
+        "files": 1754,
+        "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
+        "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
+      },
+      "JSON_1": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "JSON_2": {
+        "bytes": 953872,
+        "files": 46,
+        "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+        "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+      },
+      "RNS8_CK_GENERATED_INCLUDE_DIR": {
+        "bytes": 584,
+        "files": 2,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
+        "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
+      },
+      "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
+        "bytes": 52392,
+        "files": 1,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
+        "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
+      },
+      "ROCWMMA": {
+        "bytes": 1216499,
+        "files": 114,
+        "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
+        "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
+      }
+    },
+    "identity_scope": "source-config-and-external-headers",
+    "linkage": "static-rns8",
+    "source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+    "source_digest": "437377bdcb9e1c54fa5d9d07d35c4db23754d4c8e4c32c0ebd1e2631a07866a0",
+    "source_dirty": false,
+    "version": 2
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 18
+    },
+    "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+    "collector_profile_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+    "executable_sha256": "b5aa461205fb74c4dfd3eb0feb8ce3f1639661af5bca277dd0c3573fafcf207e",
+    "cases_sha256": "ac1138b99e55fbb46a1be8404072c0cf5372af8945e585943984d42c42f95191",
+    "requested_processes": 425,
+    "started_unix": 1792984641.4787664,
+    "cases": 85,
+    "runs": 5,
+    "warmups": 3,
+    "repeats": 9,
+    "gain_gate": "five independent processes, disjoint observed ranges and <=10% (max-min)/median spread in both compared modes; uncensored sustained interval",
+    "environment": {
+      "OMP_NUM_THREADS": "3",
+      "HIP_VISIBLE_DEVICES": null,
+      "ROCR_VISIBLE_DEVICES": null,
+      "HIP_FORCE_DEV_KERNARG": null
+    },
+    "controlled_clock_policy": "not_changed",
+    "shared_host_measurements_authorized": true,
+    "campaign_resumed": false,
+    "exit_code": 0,
+    "seconds": 664.9539051055908,
+    "executable_unchanged": true,
+    "cases_unchanged": true
+  },
+  "summary": {
+    "schema": "rns8_conversion_campaign_v1",
+    "campaign_id": "a6c2602b-4a9d-4f80-a9d7-c76f2b4efff3",
+    "promotion_eligible": false,
+    "artifact_sha256": "b5aa461205fb74c4dfd3eb0feb8ce3f1639661af5bca277dd0c3573fafcf207e",
+    "tool_dependencies_sha256": {
+      "collect_crt_calibration.py": "9af229304c53b3e71d303dc70063e7b77091e5bba0bb282bbb2c4cb2125df858",
+      "collect_finite_verify.py": "12090f01b4962f0566a93a3122e5fb502dffd507fa2562a2c87fc860c55ac48e",
+      "build_manifest.py": "203e459c94d356225ba79877556dea22d7f37e88d453fab6850b4e8dd9a84e57",
+      "modulus_set_search.py": "a7158af0c16bc6dc8860d2014c046de198fa1c0c7c8383528f1921fa3d3e41c6"
+    },
+    "cases_sha256": "ac1138b99e55fbb46a1be8404072c0cf5372af8945e585943984d42c42f95191",
+    "independent_processes": 425,
+    "provenance_complete": true,
+    "comparison_rule": "compare same operation/signedness/cells/prefix/scope; repeats are not independent processes; no inferred speedup or break-even"
+  },
+  "capture_count": 425,
+  "cases": 85,
+  "costs": {
+    "archived_json_pointer": "/costs",
+    "entries": 85
+  },
+  "comparisons": {
+    "archived_json_pointer": "/comparisons",
+    "entries": 46
+  },
+  "observations": {
+    "archived_json_pointer": "/observations",
+    "entries": 425
+  },
+  "reference_validation": "Full independent integer recipe/checksums in every immutable collector capture; review checks current validator hashes, strict contract, exact flags and summary identity without a second dataset replay.",
+  "gain_gate": "Five independent processes per case; disjoint observed sustained ranges, both (max-min)/median <=10%, no censored bursts; strongest available named matched control.",
+  "prior_timing_quarantine": "metadata/conversion-completion-audit-20261025.json",
+  "actual_hbm_traffic_measured": false,
+  "promotion_eligible": false,
+  "campaign_resumed": false,
+  "compiled_isa": {
+    "schema": "rns8_conversion_selected_isa_v1",
+    "compiled_source_commit": "763a9488e673225ebbaea2da00a5ab046065581f",
+    "extraction": {
+      "artifact": "build\\validation-20261025-gpu\\rns8-crt-calibrate.exe",
+      "artifact_sha256": "b5aa461205fb74c4dfd3eb0feb8ce3f1639661af5bca277dd0c3573fafcf207e",
+      "code_objects": [
+        {
+          "path": "temp\\closeout-remaining-20261025\\conversion-completed-artifact-isa\\code-0.hsaco",
+          "offset": 4574720,
+          "bytes": 7905968,
+          "sha256": "9eb9b69a11812a3753d51065d76f9fcaa451c9e3bf715723535dfe0f6a2fd6b0",
+          "markers": {
+            "archived_json_pointer": "/compiled_isa/extraction/code_objects/0/markers",
+            "entries": 3
+          }
+        }
+      ],
+      "method": "extract exact ELF64 EM_AMDGPU bytes from measured PE executable using checked ELF section extents; not a recompiled object",
+      "target_verification": "pending llvm-readobj",
+      "promotion_eligible": false
+    },
+    "target": "gfx1100",
+    "original_code_object_membership_verified": true,
+    "symbols": {
+      "archived_json_pointer": "/compiled_isa/symbols",
+      "entries": 13
+    },
+    "selection": "source-bound calibrator candidate wrappers; runtime prefix arguments and fixed unsigned <20,3> or signed/unsigned <20,1> quad specializations; includes narrow public Garner controls; not a dynamic profiler trace",
+    "fp_mode_reference": "https://llvm.org/docs/AMDGPUUsage.html#kernel-descriptor",
+    "fp_mode_decode": "HSA 64-byte kernel descriptor compute_pgm_rsrc1 at byte48; F32 rounding bits13:12=0 RNE, denorm bits17:16; mode writes inspected separately",
+    "limits": "static instruction sites/resources/descriptor modes; no achieved occupancy, dynamic instruction counts, launches or hardware traffic",
+    "promotion_eligible": false
+  },
+  "validation_reference": "metadata/native-moment-validation-20261025.json",
+  "original_schema": "rns8_conversion_completed_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/conversion-completed-qualification-20261025.json",
+    "sha256": "80497018f1a9869211639a304fb55d93168bd4760a25c98ec793883741d57974",
+    "bytes": 4533949
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

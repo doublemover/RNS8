@@ -1,4 +1,4 @@
-extern "C" int rns8_ck_gemm_rns_device(
+static int rns8_ck_gemm_rns_device_impl(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -11,7 +11,8 @@ extern "C" int rns8_ck_gemm_rns_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int prefix) {
+    unsigned int prefix,void* raw_stream) {
+  auto stream=static_cast<hipStream_t>(raw_stream);
   if (prefix == 0 || prefix > kRns8MaxSupportedPrefix) {
     return ck_invalid_argument;
   }
@@ -56,12 +57,46 @@ extern "C" int rns8_ck_gemm_rns_device(
       0,
       m,
       n,
-      prefix);
+      prefix,stream);
   if (status != ck_success) {
     return status;
   }
-  return hipDeviceSynchronize() == hipSuccess ? ck_success : ck_backend_failure;
+  return stream || hipDeviceSynchronize()==hipSuccess?ck_success:ck_backend_failure;
 }
+extern "C" int rns8_ck_gemm_rns_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix) {
+  return rns8_ck_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,nullptr);
+}
+extern "C" int rns8_ck_gemm_rns_device_on_stream(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int prefix,void* raw_stream) {
+  if(!raw_stream)return ck_invalid_argument;
+  return rns8_ck_gemm_rns_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,prefix,raw_stream);
+}
+
 
 extern "C" int rns8_ck_gemm_rns_tiled_device(
     int device_id,
@@ -160,7 +195,7 @@ extern "C" int rns8_ck_gemm_rns_tiled_device(
   return hipDeviceSynchronize() == hipSuccess ? ck_success : ck_backend_failure;
 }
 
-extern "C" int rns8_ck_gemm_finite_u8_device(
+static int rns8_ck_gemm_finite_u8_device_impl(
     int device_id,
     const void* device_a_residues,
     const void* device_b_residues,
@@ -173,7 +208,8 @@ extern "C" int rns8_ck_gemm_finite_u8_device(
     long long lda,
     long long ldb,
     long long ldc,
-    unsigned int modulus) {
+    unsigned int modulus,void* raw_stream) {
+  auto stream=static_cast<hipStream_t>(raw_stream);
   int8_t* a_workspace = nullptr;
   int8_t* b_workspace = nullptr;
   int8_t* temp_c = nullptr;
@@ -211,9 +247,42 @@ extern "C" int rns8_ck_gemm_finite_u8_device(
       lda,
       ldb,
       ldc,
-      static_cast<uint16_t>(modulus));
+      static_cast<uint16_t>(modulus),stream);
   if (status != ck_success) {
     return status;
   }
-  return hipDeviceSynchronize() == hipSuccess ? ck_success : ck_backend_failure;
+  return stream || hipDeviceSynchronize()==hipSuccess?ck_success:ck_backend_failure;
+}
+extern "C" int rns8_ck_gemm_finite_u8_device(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int modulus) {
+  return rns8_ck_gemm_finite_u8_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,modulus,nullptr);
+}
+extern "C" int rns8_ck_gemm_finite_u8_device_on_stream(
+    int device_id,
+    const void* device_a_residues,
+    const void* device_b_residues,
+    void* device_c_residues,
+    void* workspace,
+    unsigned long long workspace_bytes,
+    long long m,
+    long long n,
+    long long k,
+    long long lda,
+    long long ldb,
+    long long ldc,
+    unsigned int modulus,void* raw_stream) {
+  if(!raw_stream)return ck_invalid_argument;
+  return rns8_ck_gemm_finite_u8_device_impl(device_id,device_a_residues,device_b_residues,device_c_residues,workspace,workspace_bytes,m,n,k,lda,ldb,ldc,modulus,raw_stream);
 }

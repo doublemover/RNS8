@@ -3,11 +3,14 @@
 
 #include "core/internal.hpp"
 #include "core/exact_range.hpp"
+#include "backend_common/bilinear_selection.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <algorithm>
 #include <cstddef>
+#include <chrono>
+#include <thread>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -29,11 +32,118 @@
 #include "core/backend_common.hpp"
 
 namespace rns8::detail::api {
+// Preparation-only envelope: runtime publication still requires the actual
+// producer token and its checked pending range. No fictitious matrix currentness.
+rns8_status prepare_bound_host_export_hip(rns8_context*,rns8_matrix*,rns8_pinned_host_buffer*,
+    uint32_t,const boost::multiprecision::cpp_int&,uint64_t,rns8_prepared_execution**);
+// Discovery and the concrete resident-graph owner must admit the same backend
+// families. Dense/synchronous GEMM support alone does not provide a DAG owner.
+inline bool resident_graph_backend_supported(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT ||
+      backend==RNS8_BACKEND_WRAP64_BYTE_LIMB;
+}
+inline bool checked_crt_backend_supported(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_HIP_DIRECT;
+}
+// Quarter export already consumes ordinary uniform RNS storage, independently
+// of the GEMM producer. This source predicate must not disappear with compile
+// flags, nor claim native-vector or wrap-byte storage is a residue owner.
+inline bool quarter_crt_backend_supported(rns8_backend_kind backend) {
+  return checked_crt_backend_supported(backend) || backend==RNS8_BACKEND_CPU_AMX ||
+      backend==RNS8_BACKEND_HIPBLASLT || backend==RNS8_BACKEND_CK ||
+      backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS;
+}
+rns8_operation_support operation_support(const rns8_context&,const rns8_operation_query&,rns8_backend_kind);
+rns8_status begin_synchronous_lease(rns8_context&,const rns8_matrix&,const rns8_matrix&,rns8_matrix&,rns8_workspace&,size_t&,bool input_writers=false);
+bool finish_synchronous_lease(rns8_context&,size_t,rns8_status,bool may_have_written) noexcept;
+rns8_status begin_synchronous_matrix_lease(rns8_context&,rns8_matrix&,rns8_workspace&,size_t&,bool write);
+rns8_status plan_operation_preflight(const rns8_context&,const rns8_plan&,uint32_t operation,uint32_t modes,uint32_t proof_flags=0);
+
+template<class Matrix> struct ComplexMatrixPair {
+  Matrix* real = nullptr;
+  Matrix* imag = nullptr;
+};
+// Internal synchronous paired-value owner. Uses matrix-owned exact-wide signed
+// proofs and existing reader/writer generations; backs the experimental public API.
+rns8_status complex_exact_signed_gemm(
+    rns8_context* ctx, const rns8_plan* plan,
+    ComplexMatrixPair<const rns8_matrix> a, ComplexMatrixPair<const rns8_matrix> b,
+    ComplexMatrixPair<rns8_matrix> c, rns8::detail::ComplexProductMethod method,
+    uint64_t max_scratch_bytes, rns8_workspace* workspace);
+
+struct ResourceBusy {};
+
+inline rns8_async_support_info async_support_info(rns8_status status, int device) noexcept {
+  rns8_async_support_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  info.support_status = status;
+  info.device_id = device;
+  if (status == RNS8_SUCCESS) {
+    info.max_in_flight_epochs = 1;
+    info.requires_borrowed_nondefault_stream = 1;
+    info.submission_may_allocate_host_proof = 1;
+    info.supports_owned_graph = 1;
+    info.supports_cooperative_discard = 1;
+    info.supports_timed_observation = 1;
+  }
+  return info;
+}
+
+inline void record_async_failure(rns8_async_failure_info& failure,
+                                 rns8_status status, rns8_async_failure_stage stage,
+                                 int backend_error, int device, uint64_t epoch,
+                                 uint32_t node = UINT32_MAX) noexcept {
+  if (failure.stage != RNS8_ASYNC_FAILURE_NONE) return;
+  failure.struct_size = sizeof(failure);
+  failure.abi_version = RNS8_ABI_VERSION;
+  failure.stage = stage;
+  failure.operation_status = status;
+  failure.backend_error = backend_error;
+  failure.device_id = device;
+  failure.epoch = epoch;
+  failure.failed_node = node;
+  failure.resources_retained = 1;
+}
+
+inline bool record_async_drain(rns8_context& ctx, rns8_async_failure_info& failure,
+                               int cleanup_error) noexcept {
+  if (cleanup_error != 0) {
+    if (failure.cleanup_error == 0) failure.cleanup_error = cleanup_error;
+    ctx.hip_failure_poisoned = true;
+    failure.resources_retained = 1;
+    return false;
+  }
+  failure.resources_retained = 0;
+  return true;
+}
+// A timeout is an observation result, never an ownership transition. Each
+// poll is nonblocking; kernel errors are left for explicit blocking cleanup.
+template<class Poll>
+rns8_status poll_async_until(uint64_t timeout_us, Poll&& poll) {
+  const auto start = std::chrono::steady_clock::now();
+  for (;;) {
+    const auto status = poll();
+    if (status != RNS8_BUSY) return status;
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    if (elapsed >= 0 && static_cast<uint64_t>(elapsed) >= timeout_us) return RNS8_TIMEOUT;
+    // Sleeping limits host overhead; OS scheduling can overshoot the deadline.
+    const auto remaining = timeout_us - static_cast<uint64_t>(std::max<int64_t>(elapsed, 0));
+    std::this_thread::sleep_for(std::chrono::microseconds(std::min<uint64_t>(remaining, 50)));
+  }
+}
+
+inline void require_matrix_writable(const rns8_matrix& matrix) {
+  if (matrix.in_flight_readers || matrix.in_flight_writer) throw ResourceBusy{};
+}
 
 template <typename Fn>
 rns8_status guard_api(Fn&& fn) {
   try {
     return fn();
+  } catch (const ResourceBusy&) {
+    return RNS8_BUSY;
   } catch (const std::bad_alloc&) {
     return RNS8_INTERNAL_ERROR;
   } catch (...) {
@@ -69,6 +179,10 @@ struct resident_oneshot_state {
 
 rns8_backend_kind effective_backend(rns8_backend_kind requested, rns8_backend_kind default_backend);
 
+inline bool host_rns_backend(rns8_backend_kind backend) {
+  return backend==RNS8_BACKEND_CPU_REFERENCE || backend==RNS8_BACKEND_CPU_AMX;
+}
+bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics);
 
 bool known_backend_kind(rns8_backend_kind backend);
@@ -86,13 +200,14 @@ bool hip_resident_rns_backend(rns8_backend_kind backend);
 bool native_vector_backend(rns8_backend_kind backend);
 
 bool hip_device_backend(rns8_backend_kind backend);
+bool hip_device_backend_kind(rns8_backend_kind backend);
 
 bool context_accepts_backend(const rns8_context& ctx, rns8_backend_kind backend);
 
 bool matrix_backend_compatible_with_plan(
     const rns8_context& ctx,
     const rns8_matrix& matrix,
-    rns8_backend_kind plan_backend);
+    rns8_backend_kind plan_backend, bool allow_pending_writer = false);
 
 void set_text(char* dst, std::size_t dst_size, const char* text);
 
@@ -113,7 +228,7 @@ rns8_matrix_desc make_matrix_desc(
     uint32_t tile_m = 128,
     uint32_t tile_n = 128);
 
-bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld);
+bool valid_matrix_access(int64_t rows, int64_t cols, int64_t ld, uint64_t element_bytes = sizeof(uint64_t));
 
 bool valid_api_tile_size(uint32_t value);
 
@@ -315,11 +430,19 @@ uint64_t workspace_fingerprint_mix_string(uint64_t hash, const std::string& valu
 
 uint64_t signed_to_fingerprint(int64_t value);
 
-uint64_t gemm_output_source_version_values(uint64_t a_source_version, uint64_t b_source_version);
-
-uint64_t gemm_output_source_version(const rns8_matrix& A, const rns8_matrix& B);
-
 uint64_t plan_workspace_fingerprint(const rns8_plan& plan);
+bool seal_plan_contract(rns8_plan& plan);
+bool revalidate_plan_schedule_contract(const rns8_plan& plan);
+struct plan_validation_counters {
+  uint64_t exhaustive_validations = 0;
+  uint64_t fingerprint_traversals = 0;
+  uint64_t equivalent_comparisons = 0;
+  uint64_t backend_schedule_seals = 0;
+  uint64_t backend_schedule_sealed_tile_visits = 0;
+  uint64_t backend_schedule_fast_submissions = 0;
+  uint64_t backend_schedule_raw_submissions = 0;
+};
+inline thread_local plan_validation_counters plan_validation_work{};
 
 bool matrix_descriptor_matches(
     const rns8_matrix& matrix,
@@ -361,11 +484,35 @@ void clear_byte_limb_current(rns8_matrix& matrix);
 
 void clear_device_byte_limb_current(rns8_matrix& matrix);
 
+rns8_status import_exact_wide_limbs(rns8_context& ctx, rns8_matrix& matrix, const uint64_t* src,
+                                    int64_t ld, uint32_t limb_count, bool signed_values, uint64_t source_version);
+
+void publish_matrix_value(rns8_matrix& matrix, bool imported = false, uint64_t source_version = 0);
+
+// Invalidates on unwinding or any failed post-write status, including native uploads.
+struct MatrixWriteGuard {
+  rns8_matrix& matrix;
+  bool committed = false;
+  explicit MatrixWriteGuard(rns8_matrix& value) : matrix(value) { invalidate(); }
+  void invalidate();
+  ~MatrixWriteGuard() { if (!committed) invalidate(); }
+};
+
 void invalidate_output_currentness(rns8_matrix& matrix);
 
-void mark_host_residues_current(rns8_matrix& matrix);
+// Internal resident-cache state transitions; success is published by the
+// incremental dispatcher only after the snapshot and binding are complete.
+rns8_status free_result_cache_snapshot(rns8_result_cache& cache);
+rns8_status snapshot_result_cache_from_output(rns8_context& ctx, rns8_result_cache& cache, const rns8_matrix& C);
+rns8_status restore_result_cache_to_output(rns8_context& ctx, rns8_result_cache& cache, rns8_matrix& C);
 
-void mark_device_residues_current(rns8_matrix& matrix);
+bool bounded_residue_semantics(rns8_semantics semantics);
+bool materialized_rns_prefix_covers(const rns8_matrix& matrix, uint32_t prefix);
+bool materialized_rns_export_covers(const rns8_matrix& matrix, const rns8_plan& plan);
+void record_materialized_rns_output(rns8_matrix& matrix, const rns8_plan* plan);
+void mark_host_residues_current(rns8_matrix& matrix, uint32_t written_prefix = UINT32_MAX);
+
+void mark_device_residues_current(rns8_matrix& matrix, uint32_t written_prefix = UINT32_MAX);
 
 void mark_host_byte_limbs_current(rns8_matrix& matrix);
 
@@ -373,9 +520,9 @@ void mark_device_byte_limbs_current(rns8_matrix& matrix);
 
 void mark_device_native_current(rns8_matrix& matrix);
 
-void mark_output_host_residues_current(rns8_matrix& matrix);
+void mark_output_host_residues_current(rns8_matrix& matrix, const rns8_plan* plan = nullptr);
 
-void mark_output_device_residues_current(rns8_matrix& matrix);
+void mark_output_device_residues_current(rns8_matrix& matrix, const rns8_plan* plan = nullptr);
 
 void mark_output_host_byte_limbs_current(rns8_matrix& matrix);
 
@@ -475,7 +622,14 @@ rns8_status validate_rns_gemm_operands(
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C);
+    const rns8_matrix& C,
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
+
+rns8_status validate_exact_axpby_operands(
+    const rns8_context& ctx, const rns8_plan& plan,
+    const rns8_matrix& A, const rns8_matrix& B, const rns8_matrix& D,
+    const rns8_matrix& C, int64_t alpha, int64_t beta,
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_finite_gemm_operands(
     const rns8_context& ctx,
@@ -483,14 +637,15 @@ rns8_status validate_finite_gemm_operands(
     uint16_t modulus,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C);
+    const rns8_matrix& C, bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_wrap_gemm_operands(
     const rns8_context& ctx,
     const rns8_plan& plan,
     const rns8_matrix& A,
     const rns8_matrix& B,
-    const rns8_matrix& C);
+    const rns8_matrix& C,
+    bool require_current_inputs = true, bool allow_pending_input_writers = false);
 
 rns8_status validate_export_matrix(
     const rns8_context& ctx,
@@ -498,7 +653,8 @@ rns8_status validate_export_matrix(
     const rns8_matrix& C,
     rns8_semantics semantics,
     rns8_bound_kind bound_kind,
-    uint32_t prefix);
+    uint32_t prefix,
+    bool require_current = true);
 
 rns8_status validate_finite_export_matrix(
     const rns8_context& ctx,
@@ -507,6 +663,8 @@ rns8_status validate_finite_export_matrix(
     const rns8_matrix& C);
 
 rns8_status free_hip_matrix_storage(rns8_matrix& matrix);
+rns8_status drain_failed_ragged_cleanup(rns8_context& ctx);
+rns8_status drain_failed_native_cleanup(rns8_context& ctx);
 
 rns8_status allocate_hip_matrix_storage(rns8_context& ctx, rns8_matrix& matrix);
 

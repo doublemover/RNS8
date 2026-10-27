@@ -11,13 +11,13 @@ void launch_rns8_exact_wide_signed_generic(
     int limb_count,
     int* d_status,
     int blocks,
-    int threads) {
+    int threads, hipStream_t stream = nullptr) {
   hipLaunchKernelGGL(
       rns8_export_exact_wide_signed_limbs_kernel,
       dim3(blocks),
       dim3(threads),
       0,
-      nullptr,
+      stream,
       d_residues,
       d_dst,
       rows,
@@ -37,7 +37,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
     int* d_status,
     int blocks,
     int quad_blocks,
-    int threads) {
+    int threads, hipStream_t stream = nullptr) {
   switch (limb_count) {
     case 1:
       hipLaunchKernelGGL(
@@ -45,7 +45,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -58,7 +58,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -71,7 +71,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -84,7 +84,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -97,7 +97,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -110,7 +110,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -123,7 +123,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(quad_blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -136,7 +136,7 @@ int launch_rns8_exact_wide_signed_fixed_prefix(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           d_residues,
           d_dst,
           rows,
@@ -365,51 +365,17 @@ extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device(
 }
 
 extern "C" int rns8_hip_direct_export_exact_wide_signed_limbs_device_on_stream(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    int limb_count,
-    int* d_status,
-    void* stream) {
-  if (!d_residues || !d_dst || rows <= 0 || cols <= 0 || limb_count != 4 ||
-      (prefix != kRns8ExactWideSignedExportPrefix18 && prefix != kRns8MaxSupportedPrefix)) {
-    return static_cast<int>(hipErrorInvalidValue);
-  }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
-  const hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  if (prefix == kRns8ExactWideSignedExportPrefix18) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_quad_kernel<
-                        kRns8ExactWideSignedExportPrefix18,
-                        4>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        d_status);
-    return static_cast<int>(hipGetLastError());
-  }
-  hipLaunchKernelGGL(
-      HIP_KERNEL_NAME(rns8_export_exact_wide_signed_fixed_prefix_fixed_limbs_quad_kernel<kRns8MaxSupportedPrefix, 4>),
-      dim3(quad_blocks),
-      dim3(threads),
-      0,
-      hip_stream,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      d_status);
-  return static_cast<int>(hipGetLastError());
+    const int8_t* source,uint64_t* destination,int rows,int cols,int prefix,int limbs,int* status,void* stream) {
+  if(!source || !destination || !status || rows<=0 || cols<=0 || prefix<1 || prefix>20 || limbs<1 || limbs>32 ||
+      uint64_t(rows)*cols>uint64_t(INT32_MAX-256))return int(hipErrorInvalidValue);
+  const int elements=rows*cols,threads=256,blocks=(elements+255)/256,quads=((elements+3)/4+255)/256;
+  const auto st=static_cast<hipStream_t>(stream);
+  if(prefix==kRns8ExactWideSignedExportPrefix18)return launch_rns8_exact_wide_signed_fixed_prefix<kRns8ExactWideSignedExportPrefix18>(
+      source,destination,rows,cols,limbs,status,blocks,quads,threads,st);
+  if(prefix==kRns8MaxSupportedPrefix)return launch_rns8_exact_wide_signed_fixed_prefix<kRns8MaxSupportedPrefix>(
+      source,destination,rows,cols,limbs,status,blocks,quads,threads,st);
+  launch_rns8_exact_wide_signed_generic(source,destination,rows,cols,prefix,limbs,status,blocks,threads,st);
+  return int(hipGetLastError());
 }
 
 extern "C" int rns8_hip_direct_export_exact_wide_signed_tree_crt_limbs_device(

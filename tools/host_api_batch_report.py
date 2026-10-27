@@ -10,33 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import result_compare
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from report_inputs import expand_inputs, load_validated_capture
 
 
 RELEASE_MIN_WARMUPS = 3
 RELEASE_MIN_REPEATS = 9
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
-
-
-def expand_inputs(paths: list[Path]) -> list[Path]:
-    expanded: list[Path] = []
-    for path in paths:
-        if path.is_dir():
-            expanded.extend(sorted(path.rglob("*.json")))
-        else:
-            expanded.append(path)
-    return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        data = load_capture(path)
-        validate_capture(data, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    data["_path"] = str(path)
-    return data
 
 
 def benchmark_execution_mode(capture: dict[str, Any]) -> str:
@@ -125,6 +105,10 @@ def phase_comparison(baseline: dict[str, Any], batch: dict[str, Any], phase: str
 def contract_key(capture: dict[str, Any]) -> str:
     parts = []
     for key in result_compare.CONTRACT_KEYS:
+        # This report explicitly compares aggregate and per-task scaling, not
+        # strict equal-work latency. Keep the work counts in each output row.
+        if key == "host_api_batch.work_contract":
+            continue
         value = result_compare.contract_value(capture, key)
         if key == "prepack_reuse_operands" and value is None:
             value = []

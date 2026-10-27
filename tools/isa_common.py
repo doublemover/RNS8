@@ -59,6 +59,7 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
         if not root:
             return
         root_path = Path(root)
+        append_tool_dir(root_path / "lib" / "llvm" / "bin")
         append_tool_dir(root_path / "bin")
         append_tool_dir(root_path / "llvm" / "bin")
 
@@ -74,7 +75,8 @@ def hip_sdk_tool_candidates(hipcc: Path | None, name: str) -> list[Path]:
         for candidate_hipcc in hipcc_paths:
             parent = candidate_hipcc.parent
             if parent.name == "bin" and parent.parent.name == "llvm":
-                append_hip_root(str(parent.parent.parent))
+                llvm_parent = parent.parent.parent
+                append_hip_root(str(llvm_parent.parent if llvm_parent.name == "lib" else llvm_parent))
             elif parent.name == "bin":
                 append_hip_root(str(parent.parent))
 
@@ -149,7 +151,12 @@ def extract_code_object(
     fatbin_name: str,
 ) -> Path:
     fatbin = scratch / fatbin_name
-    run_command([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object)])
+    # Without an output operand LLVM objcopy rewrites its input, including COFF
+    # headers. Inspection must never modify an artifact whose hash is evidence.
+    host_copy = scratch / "extracted-host-copy.obj"
+    if host_copy.resolve() == host_object.resolve():
+        raise ValueError("ISA extraction output aliases the inspected object")
+    run_command([objcopy, f"--dump-section=.hip_fatbin={fatbin}", str(host_object), str(host_copy)])
     listed = run_command([bundler, "--list", "--type=o", f"--input={fatbin}"])
     targets = [line.strip() for line in listed.splitlines() if line.strip()]
     device_target = bundle_target_for(targets, amdgpu_target)

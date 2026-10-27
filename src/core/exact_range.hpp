@@ -2,6 +2,9 @@
 #define RNS8_CORE_EXACT_RANGE_HPP
 
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <type_traits>
 
 #include "core/internal.hpp"
 
@@ -31,6 +34,56 @@ inline cpp_int exact_axis_deviation_max(const rns8_exact_axis_range& axis, const
   return std::max(low, high);
 }
 
+// An axis contains at most INT64_MAX native values. Its absolute/signed/deviation
+// sums are below 2^127, and its squared sum is below 2^191, even for UINT64_MAX.
+// Fixed accumulators therefore lose no information and allocate no limb storage
+// per input value. Publish the same arbitrary-precision facts once per axis.
+template <typename T>
+struct NativeAxisAccumulator {
+  using u128 = boost::multiprecision::uint128_t;
+  using i128 = boost::multiprecision::int128_t;
+  using u256 = boost::multiprecision::uint256_t;
+  static_assert(std::is_integral_v<T> && sizeof(T)<=sizeof(uint64_t),"native integer width");
+  T minimum=std::numeric_limits<T>::max(),maximum=std::numeric_limits<T>::lowest(),center=0;
+  uint64_t max_magnitude=0;
+  u128 absolute_sum=0,deviation_sum=0;
+  i128 sum=0;
+  u256 squared_sum=0;
+  bool nonempty=false;
+
+  void add(T value) {
+    const auto bits=static_cast<uint64_t>(value);
+    uint64_t magnitude=bits;
+    if constexpr(std::is_signed_v<T>)if(value<0)magnitude=uint64_t(0)-bits;
+    max_magnitude=std::max(max_magnitude,magnitude);
+    minimum=std::min(minimum,value);maximum=std::max(maximum,value);nonempty=true;
+    absolute_sum+=magnitude;sum+=value;
+    const u128 square=u128(magnitude)*magnitude;
+    squared_sum+=square;
+  }
+  void set_center() {
+    if(nonempty) {
+      const i128 midpoint=(i128(minimum)+i128(maximum))/2;
+      center=midpoint.template convert_to<T>();
+    }
+  }
+  void add_deviation(T value) {
+    // Unsigned subtraction gives the exact nonnegative distance, including the
+    // complete signed INT64_MIN..INT64_MAX span, without signed overflow.
+    const auto a=static_cast<uint64_t>(value),b=static_cast<uint64_t>(center);
+    deviation_sum+=value>=center?a-b:b-a;
+  }
+  rns8_exact_axis_range finish() const {
+    rns8_exact_axis_range out;
+    if(nonempty) {
+      out.max_magnitude=max_magnitude;out.absolute_sum=absolute_sum;out.sum=sum;
+      out.minimum=minimum;out.maximum=maximum;out.deviation_sum=deviation_sum;
+      out.squared_sum=squared_sum;out.squared_sum_known=out.sum_known=true;
+    }
+    return out;
+  }
+};
+
 inline void add_exact_native_value(rns8_exact_axis_range& axis, const cpp_int& value, bool first) {
   const cpp_int magnitude = boost::multiprecision::abs(value);
   axis.max_magnitude = std::max(axis.max_magnitude, magnitude);
@@ -48,10 +101,10 @@ inline void add_exact_native_value(rns8_exact_axis_range& axis, const cpp_int& v
   axis.sum_known = true;
 }
 
-// All arithmetic is multiprecision, including sums exceeding UINT64_MAX.
+// Arbitrary-width limb imports retain unbounded values and squared moments.
 // Stage before packing; logical padding never contributes to the proof.
 template <typename T>
-rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
+rns8_exact_matrix_ranges wide_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
                                              cpp_int& maximum) {
   rns8_exact_matrix_ranges ranges;
   ranges.rows.resize(static_cast<std::size_t>(rows));
@@ -65,6 +118,11 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
     }
     maximum = std::max(maximum, ranges.rows[row].max_magnitude);
   }
+  // Axis extrema are final after the first scan. Compute each column midpoint
+  // once rather than repeating multiprecision addition/division for every row.
+  std::vector<cpp_int> column_centers;
+  column_centers.reserve(static_cast<std::size_t>(cols));
+  for (const auto& column : ranges.cols) column_centers.push_back(exact_axis_center(column));
   // A second linear scan supplies the L1 distance from each axis midpoint.
   for (int64_t row = 0; row < rows; ++row) {
     const cpp_int row_center = exact_axis_center(ranges.rows[row]);
@@ -72,10 +130,54 @@ rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t
       const cpp_int value = src[row * ld + col];
       ranges.rows[row].deviation_sum += boost::multiprecision::abs(value - row_center);
       ranges.cols[col].deviation_sum +=
-          boost::multiprecision::abs(value - exact_axis_center(ranges.cols[col]));
+          boost::multiprecision::abs(value - column_centers[col]);
     }
   }
   return ranges;
+}
+
+// Stage before packing; logical padding never contributes to the proof. Rows
+// and bounded column blocks each scan twice. This avoids an O(rows+cols) native
+// scratch mirror and keeps the retained proof representation unchanged.
+template <typename T>
+rns8_exact_matrix_ranges native_exact_ranges(const T* src, int64_t rows, int64_t cols, int64_t ld,
+                                             cpp_int& maximum) {
+  if constexpr(!std::is_integral_v<T> || sizeof(T)>sizeof(uint64_t)) {
+    return wide_exact_ranges(src,rows,cols,ld,maximum);
+  } else {
+    rns8_exact_matrix_ranges ranges;
+    ranges.rows.resize(static_cast<std::size_t>(rows));
+    ranges.cols.resize(static_cast<std::size_t>(cols));
+    if(rows==0 || cols==0){maximum=0;return ranges;}
+    uint64_t maximum_native=0;
+    for (int64_t row = 0; row < rows; ++row) {
+      NativeAxisAccumulator<T> axis;
+      const T* input=src+row*ld;
+      for(int64_t col=0;col<cols;++col)axis.add(input[col]);
+      axis.set_center();
+      for(int64_t col=0;col<cols;++col)axis.add_deviation(input[col]);
+      maximum_native=std::max(maximum_native,axis.max_magnitude);
+      ranges.rows[static_cast<size_t>(row)]=axis.finish();
+    }
+    constexpr int64_t block_columns=16;
+    for(int64_t first=0;first<cols;) {
+      const auto count=std::min(block_columns,cols-first);
+      std::array<NativeAxisAccumulator<T>,block_columns> axes;
+      for(int64_t row=0;row<rows;++row) {
+        const T* input=src+row*ld+first;
+        for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add(input[lane]);
+      }
+      for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].set_center();
+      for(int64_t row=0;row<rows;++row) {
+        const T* input=src+row*ld+first;
+        for(int64_t lane=0;lane<count;++lane)axes[static_cast<size_t>(lane)].add_deviation(input[lane]);
+      }
+      for(int64_t lane=0;lane<count;++lane)ranges.cols[static_cast<size_t>(first+lane)]=axes[static_cast<size_t>(lane)].finish();
+      first+=count;
+    }
+    maximum=maximum_native;
+    return ranges;
+  }
 }
 
 inline cpp_int exact_axis_product_bound(const rns8_exact_axis_range& a, const rns8_exact_axis_range& b,
@@ -177,9 +279,38 @@ inline rns8_status exact_gemm_range(const rns8_plan& plan, const rns8_matrix& A,
                                     rns8_exact_matrix_ranges* output_ranges = nullptr) {
   if (!exact_wide_semantics(plan.desc.semantics)) return RNS8_SUCCESS;
   if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+  if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0) {
+    output_bound = cpp_int(plan.desc.k) * A.exact_max_magnitude * B.exact_max_magnitude;
+    if (exact_range_fits(plan.desc.semantics, output_bound, plan.modulus_product)) {
+      if (output_ranges) { output_ranges->rows.clear(); output_ranges->cols.clear(); }
+      return RNS8_SUCCESS;
+    }
+  }
   exact_gemm_bound(plan, A, B, output_bound, output_ranges);
   return exact_range_fits(plan.desc.semantics, output_bound, plan.modulus_product) ? RNS8_SUCCESS
                                                                                    : RNS8_RANGE_ERROR;
+}
+
+// Admit the complete expression, without requiring the unpublished AB to fit.
+inline rns8_status exact_axpby_range(const rns8_plan& plan, const rns8_matrix& A,
+                                    const rns8_matrix& B, const rns8_matrix& D,
+                                    int64_t alpha, int64_t beta, cpp_int& bound) {
+  if (!exact_wide_semantics(plan.desc.semantics) ||
+      (plan.desc.semantics == RNS8_EXACT_WIDE_UNSIGNED && (alpha < 0 || beta < 0)))
+    return RNS8_INVALID_ARGUMENT;
+  if (A.exact_range_prefix < plan.prefix || B.exact_range_prefix < plan.prefix ||
+      D.exact_range_prefix < plan.prefix) return RNS8_RANGE_ERROR;
+  // Only an original integer zero removes the AB bound. A coefficient that
+  // vanishes in one residue channel still contributes its full integer magnitude.
+  bound=0;
+  if(alpha!=0) {
+    cpp_int product_bound;
+    exact_gemm_bound(plan,A,B,product_bound);
+    bound=boost::multiprecision::abs(cpp_int(alpha))*product_bound;
+  }
+  if(beta!=0)bound+=boost::multiprecision::abs(cpp_int(beta))*D.exact_max_magnitude;
+  return exact_range_fits(plan.desc.semantics, bound, plan.modulus_product)
+             ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
 }
 
 inline void commit_exact_range(rns8_matrix& matrix, const rns8_plan& plan, cpp_int& bound,

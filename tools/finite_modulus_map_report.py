@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from observation_cohorts import aggregate_captures, row_identity, partition_rows, best_row
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase, selected_kernel
 from benchmark_sweep_lib.config import RELEASE_MIN_REPEATS, RELEASE_MIN_WARMUPS
 
@@ -134,6 +135,7 @@ def _row(capture: dict[str, Any]) -> dict[str, Any]:
     end_to_end = median_phase(capture, "end_to_end")
     return {
         "backend": backend,
+        **row_identity(capture),
         "capture_path": capture.get("_path"),
         "selected_kernel": selected_kernel(capture),
         "epilogue_mode": metadata.get("epilogue_mode"),
@@ -174,13 +176,12 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, int, int, int, int]:
 
 
 def _winner(rows: list[dict[str, Any]], direct_median: float | None, cpu_median: float | None) -> dict[str, Any] | None:
-    timed = [row for row in rows if isinstance(row.get("median_end_to_end_us"), (int, float))]
-    if not timed:
-        return None
-    best = min(timed, key=lambda row: float(row["median_end_to_end_us"]))
+    best = best_row(rows)
+    if best is None: return None
     median = float(best["median_end_to_end_us"])
     return {
         "backend": best.get("backend"),
+        "measurement_cohort": best.get("measurement_cohort"),
         "selected_kernel": best.get("selected_kernel"),
         "epilogue_mode": best.get("epilogue_mode"),
         "median_end_to_end_us": median,
@@ -207,6 +208,8 @@ def build_report(
         for path, from_directory in _iter_paths(captures)
         if (capture := _load_finite_capture(path, from_directory=from_directory)) is not None
     ]
+    raw_count = len(loaded)
+    loaded = aggregate_captures(loaded)
     grouped: dict[tuple[str, int, int, int, int], list[dict[str, Any]]] = defaultdict(list)
     for capture in loaded:
         grouped[_group_key(capture)].append(_row(capture))
@@ -216,54 +219,61 @@ def build_report(
     groups = []
     for key in expected_keys:
         semantics, modulus, m, n, k = key
-        rows = sorted(grouped.get(key, []), key=lambda row: (row["backend"], row["selected_kernel"] or ""))
-        by_backend = {str(row["backend"]): row for row in rows}
-        missing_backends = [backend for backend in expected_backends if backend not in by_backend]
-        missing_gpu_events = [
-            backend
-            for backend, row in by_backend.items()
-            if row.get("gpu_events_required") and not row.get("gpu_events_available")
-        ]
-        release_not_ready = [backend for backend, row in by_backend.items() if not row.get("release_ready")]
-        cpu_median = by_backend.get("cpu-reference", {}).get("median_end_to_end_us")
-        direct_median = by_backend.get("hip-direct", {}).get("median_end_to_end_us")
-        if not rows:
-            missing_expected_groups.append(
+        all_rows = grouped.get(key, [])
+        for partition_key, rows in partition_rows(all_rows) or [(None, [])]:
+            present = {str(row["backend"]) for row in rows}
+            by_backend = {backend: best for backend in sorted(present) if (best := best_row(rows, backend)) is not None}
+            unqualified = sorted(present - set(by_backend))
+            missing_backends = [backend for backend in expected_backends if backend not in by_backend]
+            missing_gpu_events = [
+                backend
+                for backend, row in by_backend.items()
+                if row.get("gpu_events_required") and not row.get("gpu_events_available")
+            ]
+            release_not_ready = sorted({row["backend"] for row in rows if not row.get("release_ready")})
+            cpu_median = by_backend.get("cpu-reference", {}).get("median_end_to_end_us")
+            direct_median = by_backend.get("hip-direct", {}).get("median_end_to_end_us")
+            if not rows:
+                missing_expected_groups.append(
+                    {
+                        "semantics": semantics,
+                        "finite_modulus": modulus,
+                        "shape": {"m": m, "n": n, "k": k},
+                    }
+                )
+            groups.append(
                 {
-                    "semantics": semantics,
-                    "finite_modulus": modulus,
-                    "shape": {"m": m, "n": n, "k": k},
+                    "key": {
+                        "semantics": semantics,
+                        "finite_modulus": modulus,
+                        "modulus_class": _modulus_class(modulus),
+                        "modulus_role": _modulus_role(semantics, modulus),
+                        "shape": {"m": m, "n": n, "k": k},
+                    },
+                    "present_backends": sorted(present),
+                    "unqualified_backends": unqualified,
+                    "contract_partition": partition_key,
+                    "work_contract": rows[0]["work_contract"] if rows else None,
+                    "missing_backends": missing_backends,
+                    "missing_required_baselines": [
+                        backend for backend in ("cpu-reference", "hip-direct") if backend not in by_backend
+                    ],
+                    "missing_gpu_events": sorted(missing_gpu_events),
+                    "release_not_ready": sorted(release_not_ready),
+                    "map_group_ready": bool(rows) and not missing_backends and not missing_gpu_events and not release_not_ready and not unqualified,
+                    "winner": _winner(rows, direct_median, cpu_median),
+                    "rows": rows,
+                    "promotion_eligible": False,
+                    "promotion_blockers": ["non_promoting_modulus_map"],
                 }
             )
-        groups.append(
-            {
-                "key": {
-                    "semantics": semantics,
-                    "finite_modulus": modulus,
-                    "modulus_class": _modulus_class(modulus),
-                    "modulus_role": _modulus_role(semantics, modulus),
-                    "shape": {"m": m, "n": n, "k": k},
-                },
-                "present_backends": sorted(by_backend),
-                "missing_backends": missing_backends,
-                "missing_required_baselines": [
-                    backend for backend in ("cpu-reference", "hip-direct") if backend not in by_backend
-                ],
-                "missing_gpu_events": sorted(missing_gpu_events),
-                "release_not_ready": sorted(release_not_ready),
-                "map_group_ready": bool(rows) and not missing_backends and not missing_gpu_events and not release_not_ready,
-                "winner": _winner(rows, direct_median, cpu_median),
-                "rows": rows,
-                "promotion_eligible": False,
-                "promotion_blockers": ["non_promoting_modulus_map"],
-            }
-        )
 
     ready_groups = sum(1 for group in groups if group["map_group_ready"])
     return {
         "schema": "rns8_finite_modulus_map_report_v1",
         "policy": "finite_modulus_family_map_non_promoting_exact_modulus_shape_target",
-        "capture_count": len(loaded),
+        "capture_count": raw_count,
+        "implementation_cohort_count": len(loaded),
         "expected": {
             "shapes": expected_shapes,
             "ring_moduli": expected_ring_moduli,

@@ -168,3 +168,33 @@ TEST_CASE("wrap64 36-byte-pair oracle covers full-width randomized signed-int8 c
   }
 }
 
+
+TEST_CASE("carry-recoded signed radix256 preserves the entire wrap64 ring") {
+  using namespace rns8::detail;
+  const auto reconstruct=[](uint64_t packed) {
+    uint64_t value=0;
+    for(unsigned i=0;i<8;++i) value+=uint64_t(int64_t(wrap64_signed_digit(packed,i)))<<(8*i);
+    return value;
+  };
+  for(unsigned shift=0;shift<=48;shift+=8)
+    for(uint64_t value=0;value<65536;++value)
+      REQUIRE(reconstruct(wrap64_signed_recode(value<<shift))==(value<<shift));
+  std::vector<uint64_t> values={0,1,127,128,255,256,UINT64_MAX,UINT64_C(1)<<63,
+    UINT64_C(0x7f7f7f7f7f7f7f7f),UINT64_C(0x8080808080808080),
+    UINT64_C(0xff00ff00ff00ff00)};
+  for(unsigned byte=1;byte<8;++byte) values.push_back((UINT64_C(1)<<(8*byte))-1);
+  for(auto a:values) for(auto b:values) {
+    REQUIRE(wrap64_signed_product(a,b)==low64(boost::multiprecision::cpp_int(a)*b));
+    REQUIRE(wrap64_signed_product(a,b)==wrap64_byte_limb_product(a,b));
+  }
+  std::mt19937_64 random(641);
+  for(unsigned i=0;i<10000;++i) {
+    const auto a=random(),b=random();
+    REQUIRE(wrap64_signed_product(a,b)==a*b);
+  }
+  // Raw signed reinterpretation omits the carry and is demonstrably wrong.
+  CHECK(reconstruct(255)!=255);
+  CHECK(reconstruct((255+wrap64_radix_bias)^UINT64_C(0x8080808080808000))!=255);
+  CHECK(wrap64_signed_pair_k_cap==131071);
+  CHECK(wrap64_unsigned_pair_k_cap==33025);
+}

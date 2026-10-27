@@ -157,8 +157,8 @@ BenchmarkResult run_vector_to_rns_chain(
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
-    uint64_t pack_a_us = 0;
-    uint64_t pack_b_us = 0;
+    double pack_a_us = 0;
+    double pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
     auto operand_pack_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {

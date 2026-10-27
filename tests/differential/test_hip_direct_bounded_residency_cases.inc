@@ -28,6 +28,7 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(2)});
     fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(3), boost::multiprecision::cpp_int(4)});
     upload_exact_residues_to_hip(b_matrix);
+    c_matrix->residues.resize(c_matrix->hip_residue_bytes);
     std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==
@@ -76,6 +77,7 @@ TEST_CASE("direct HIP bounded GEMM rejects host-current stale device inputs") {
     fill_exact_residue_matrix(a_matrix, {boost::multiprecision::cpp_int(5), boost::multiprecision::cpp_int(6)});
     fill_exact_residue_matrix(b_matrix, {boost::multiprecision::cpp_int(7), boost::multiprecision::cpp_int(8)});
     upload_exact_residues_to_hip(a_matrix);
+    c_matrix->residues.resize(c_matrix->hip_residue_bytes);
     std::fill(c_matrix->residues.begin(), c_matrix->residues.end(), c_sentinel);
     REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
                 hip->device_id, c_matrix->hip_residues, c_matrix->residues.data(), c_matrix->hip_residue_bytes) ==

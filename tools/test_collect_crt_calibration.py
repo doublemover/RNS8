@@ -1,0 +1,367 @@
+"""Authored exact conversion receipts and malformed collector/CLI fixtures."""
+from benchmark_cases import case_root
+import argparse
+from copy import deepcopy
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+from collect_crt_calibration import (CANDIDATES,BASE_CANDIDATES,QUARTER_CANDIDATES,GROUP_CANDIDATES,OWNED_CANDIDATES,SCOPES,GEMM_SCOPES,checked_owner_contract,collect,contract,dataset,load_cases,validate_capture,validate_case,checksum)
+from test_capture_identity_support import synthetic_identity
+
+BASE=dict(candidate="fixed_dot4",cells=17,prefix=3,scope="resident")
+
+def fixture(case=None,run_id="fixture-run",repeats=2,warmups=1):
+    case=case or BASE;capture=contract(case,run_id,repeats,warmups);synthetic_identity(capture)
+    cold=case["scope"] in ("cold","gemm_cold");gemm=case["scope"] in GEMM_SCOPES
+    source,expected=dataset(case)
+    capture.update(device="synthetic mocked GPU only",target="gfx1100",runtime_version=70100000,
+        input_checksum=checksum(source),output_checksum=checksum(expected),oracle_and_dataset_ns=1000,
+        resident_setup_ns=None if cold else 1000,
+        samples=[dict(host_call_ns=150+index,uninstrumented_host_call_ns=100+index,events=[dict(label="mock",elapsed_ns=1.5)],
+            exact_reference_passed=True,uninstrumented_exact_reference_passed=True) for index in range(repeats)],
+        sustained=dict(calls=16,minimum_calls=16,maximum_calls=4096,target_ns=250000000,independent_audit_inside_interval=False,elapsed_ns=320000000,mean_call_ns=20000000.,final_exact_reference_passed=True,
+            scope="fresh_buffers_transfer_inclusive_no_intermediate_reference" if cold else "resident_same_buffers_no_intermediate_poison_or_reference"))
+    if case["candidate"] in QUARTER_CANDIDATES+OWNED_CANDIDATES:
+        import math
+        from modulus_set_search import DEFAULT_MODULI
+        narrow="narrow" in case["candidate"] or case["candidate"].startswith("public_")
+        bound=case["k"] if gemm else math.prod(DEFAULT_MODULI[:case["prefix"]])//4
+        if narrow and not gemm:bound=min(bound,(1 << (63 if case["candidate"].endswith("_signed") else 64))-1)
+        if case["candidate"].startswith("public_"):
+            actual=bound if gemm else 0 if case["cells"]==1 else bound;capture["certified_magnitude_bound"]=str(actual)
+            if not cold:
+                capture["retained_public_device_payload_bytes"]=case["cells"]*(case["prefix"]+8)+4
+                if case["candidate"].startswith("public_quarter_"):
+                    capture.update(quarter_owner_payload_bytes=case["cells"]*16,quarter_certificate_sha256="a"*64,
+                        delayed_digits=max(1,(actual.bit_length()+1+15)//16))
+        else:capture["quarter_certificate"]=dict(sha256="a"*64,magnitude_bound=str(bound),digits=max(1,(bound.bit_length()+1+15)//16) if narrow else 12,
+            output_mode=(1 if case["candidate"].endswith("_unsigned") else 0) if narrow else 2,setup_ns=1000,error_numerator=168940,error_denominator=33554432,
+            target_execution="not_run",source_scope="private_fixture_immutable_for_process")
+    if not case['candidate'].startswith('public_'):capture['resident_completion_count']=warmups+2*repeats+16 if case['scope']=='resident' else 0
+    if case["candidate"] in OWNED_CANDIDATES:
+        capture["checked_owner"]=dict(checked_owner_contract(case),source_instance=11,source_generation=2,
+            successful_exports=1 if cold else warmups+2*repeats+16,certificate_sha256="b"*64)
+    if gemm:
+        delta=0 if cold else warmups+2*repeats+16
+        capture.update(workspace_payload_bytes=4096,aggregate_payload_admission_bytes=capture['logical_payload_envelope_bytes']+4096,
+            gemm_completed_products=1+delta,gemm_initial_source_generation=2,gemm_final_source_generation=2+delta)
+        if case['candidate'] in OWNED_CANDIDATES:capture['checked_owner']['source_generation']=2+delta
+    if case['candidate'] in GROUP_CANDIDATES:capture['group_plan_setup_ns']=1000
+    return capture
+
+
+def arguments(directory,cases=None):
+    root=Path(directory);exe=root/"fake.exe";exe.write_bytes(b"synthetic executable")
+    return argparse.Namespace(exe=exe,output=root/"captures",cases=cases,candidates=["direct","fixed_dot4"],cells=[17],prefixes=[3],scopes=["resident"],
+        runs=1,repeats=2,warmups=1,timeout=10,order_seed=3903)
+
+
+def successful(command,**kwargs):
+    case=dict(candidate=command[1],cells=int(command[2]),prefix=int(command[3]),scope=command[7])
+    if len(command)==9:case["k"]=int(command[8])
+    return subprocess.CompletedProcess(command,0,json.dumps(fixture(case,command[6],int(command[4]),int(command[5]))),"")
+
+
+class Captures(unittest.TestCase):
+    def test_gemm_export_replay_matches_scalar_integer_products_across_word_tails(self):
+        for sign in ('signed','unsigned'):
+            for k in (1,7,63,64,65,129):
+                case=dict(candidate='public_owned_direct_'+sign,cells=9,prefix=3,scope='gemm_resident',k=k)
+                source,expected=dataset(case);side=3;count=side*k
+                a=[v-256 if v>=128 else v for v in source[:count]]
+                b=[v-256 if v>=128 else v for v in source[count*case['prefix']:count*(case['prefix']+1)]]
+                for row in range(side):
+                    for col in range(side):
+                        value=sum(a[row*k+i]*b[i*side+col] for i in range(k))
+                        offset=(row*side+col)*8
+                        self.assertEqual(int.from_bytes(expected[offset:offset+8],'little',signed=sign=='signed'),value)
+                self.assertEqual(int.from_bytes(expected[:8],'little'),k)
+                self.assertEqual(expected[-64:],bytes([99])*64)
+                for policy in ('public_garner_','public_quarter_',*[c.rsplit('_',1)[0]+'_' for c in OWNED_CANDIDATES[::2]]):
+                    self.assertEqual(dataset(dict(case,candidate=policy+sign)),(source,expected))
+
+    def test_gemm_export_contract_charges_products_workspace_and_owner_refresh(self):
+        public=tuple(c for c in CANDIDATES if c.startswith('public_'))
+        for candidate in public:
+            for scope in GEMM_SCOPES:
+                for prefix in (1,3,9,20):
+                    case=validate_case(dict(candidate=candidate,cells=9,prefix=prefix,scope=scope,k=64))
+                    capture=fixture(case);validate_capture(capture,case,'fixture-run',2,1)
+                    for key,value in [('gemm_measured',False),('workspace_payload_bytes',-1),('aggregate_payload_admission_bytes',1),
+                                      ('gemm_completed_products',0),('gemm_final_source_generation',0),('certified_magnitude_bound','63')]:
+                        bad=deepcopy(capture);bad[key]=value
+                        with self.subTest(candidate=candidate,scope=scope,prefix=prefix,key=key),self.assertRaises(ValueError):
+                            validate_capture(bad,case,'fixture-run',2,1)
+                    for key,value in [('products_per_timed_call',0),('selected_prefix',2),('k',63),('export_refresh','unbound_export')]:
+                        bad=deepcopy(capture);bad['gemm'][key]=value
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+        base=dict(candidate='public_owned_direct_signed',cells=9,prefix=1,scope='gemm_resident',k=64)
+        for bad in (dict(base,k=65),dict(base,k=True),dict(base,cells=17),dict(base,candidate='direct'),
+                    dict(base,scope='resident'),{k:v for k,v in base.items() if k!='k'}):
+            with self.assertRaises(ValueError):validate_case(bad)
+
+    def test_checked_public_policies_share_the_public_garner_dataset_and_charge_retained_payloads(self):
+        for candidate in OWNED_CANDIDATES:
+            for prefix in (1,8,9,16,17,20):
+                for scope in SCOPES:
+                    case=dict(BASE,candidate=candidate,prefix=prefix,scope=scope)
+                    capture=fixture(case);validate_capture(capture,case,'fixture-run',2,1)
+                    baseline=dict(case,candidate='public_garner_'+('signed' if candidate.endswith('_signed') else 'unsigned'))
+                    self.assertEqual(dataset(case),dataset(baseline))
+                    info=capture['checked_owner']
+                    self.assertEqual(info['retained_host_bytes']+info['retained_device_bytes'],capture['checked_owner_payload_reservation_bytes'])
+                    self.assertEqual(capture['logical_payload_envelope_bytes']-contract(baseline,'fixture-run',2,1)['logical_payload_envelope_bytes'],capture['checked_owner_payload_reservation_bytes'])
+                    for key,value in [('algorithm',8),('mode',2),('retained_host_bytes',0),('retained_device_bytes',0),
+                                      ('group_scratch_bytes',True),('source_generation',0),('successful_exports',0),('certificate_sha256','')]:
+                        bad=deepcopy(capture);bad['checked_owner'][key]=value
+                        with self.subTest(candidate=candidate,prefix=prefix,scope=scope,key=key),self.assertRaises(ValueError):
+                            validate_capture(bad,case,'fixture-run',2,1)
+                    if info['groups']:
+                        bad=deepcopy(capture);bad['checked_owner']['groups'][0]['channel_mask']=0
+                        with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
+    def test_group_crt_retains_canonical_group_ids_physical_scratch_and_root_semantics(self):
+        for candidate in GROUP_CANDIDATES:
+            case=dict(BASE,candidate=candidate,prefix=20)
+            c=fixture(case);validate_capture(c,case,'fixture-run',2,1)
+            groups=c['group_crt']['groups']
+            self.assertEqual([g['channels'] for g in groups],[7,7,6])
+            self.assertEqual([g['channel_mask'] for g in groups],[127,127 << 7,63 << 14])
+            self.assertEqual(c['group_crt']['scratch_bytes'],0 if candidate=='group_crt_local' else 17*3*8)
+            for key,value in [('signed_centering_before_root',True),('producer_order',7),('scratch_bytes',1),('merge_bits',64)]:
+                bad=deepcopy(c);bad['group_crt'][key]=value
+                with self.subTest(candidate=candidate,key=key),self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+            bad=deepcopy(c);bad['group_crt']['groups'][1]['id']=0
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+            bad=deepcopy(c);bad.pop('group_plan_setup_ns')
+            with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
+    def test_checked_public_manifest_includes_matched_maintained_controls(self):
+        root=case_root()/"conversion-calibration"
+        cases=load_cases(root/"checked-public-exports.json")
+        self.assertEqual(len(cases),224)
+        self.assertEqual({c['candidate'] for c in cases},set(OWNED_CANDIDATES)|{'public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'})
+        self.assertEqual({c['cells'] for c in cases},{257,1048576})
+        self.assertEqual({c['prefix'] for c in cases},{1,3,9,20})
+
+    def test_checked_gemm_manifest_spans_compute_sizes_and_seals_reduction(self):
+        root=case_root()/"conversion-calibration"
+        cases=load_cases(root/"checked-gemm-exports.json")
+        self.assertEqual(len(cases),364)
+        self.assertEqual({c['candidate'] for c in cases},{c for c in CANDIDATES if c.startswith('public_')})
+        self.assertEqual({c['k'] for c in cases},{64,256,1024,4096})
+        self.assertEqual({c['scope'] for c in cases},set(GEMM_SCOPES))
+        self.assertEqual(max(2*c['cells']*c['k'] for c in cases),2147483648)
+
+    def test_enqueue_only_resident_times_cannot_be_complete_conversion_costs(self):
+        c=fixture();validate_capture(c,BASE,'fixture-run',2,1)
+        for key,value in [('completion_inside_interval',False),('completion_scope','enqueue_only'),('resident_completion_count',0),('resident_completion_count',22)]:
+            bad=deepcopy(c);bad[key]=value
+            with self.subTest(key=key,value=value),self.assertRaises(ValueError):validate_capture(bad,BASE,'fixture-run',2,1)
+
+    def test_public_exports_bind_current_values_instead_of_a_full_native_product(self):
+        for candidate in ('public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'):
+            for prefix in (1,3,9,20):
+                case=dict(BASE,candidate=candidate,prefix=prefix)
+                c=fixture(case);validate_capture(c,case,'fixture-run',2,1)
+                for key,value in [('plan_admission_policy','full_native_type_product'),('gemm_measured',True)]:
+                    bad=deepcopy(c);bad[key]=value
+                    with self.subTest(candidate=candidate,prefix=prefix,key=key),self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
+
+    def test_tracked_manifests_cover_all_controls_and_prefixes(self):
+        root=case_root()/"conversion-calibration"
+        for name,count in (("smoke",40),("every-prefix",800),("large",160)):
+            cases=load_cases(root/(name+".json"))
+            self.assertEqual(len(cases),count)
+            self.assertEqual({case["candidate"] for case in cases},set(BASE_CANDIDATES))
+            self.assertEqual({case["scope"] for case in cases},set(SCOPES))
+        self.assertEqual({case["prefix"] for case in load_cases(root/"every-prefix.json")},set(range(1,21)))
+
+    def test_every_candidate_scope_prefix_and_layout_tail(self):
+        for candidate in CANDIDATES:
+            for scope in SCOPES:
+                for prefix in range(1,21):
+                    for cells in (1,17,256,257,512):
+                        case=validate_case(dict(candidate=candidate,scope=scope,cells=cells,prefix=prefix))
+                        validate_capture(fixture(case),case,"fixture-run",2,1)
+        validate_case(dict(BASE,cells=1048576,prefix=20))
+
+    def test_dataset_semantics_and_matched_controls(self):
+        for prefix in range(1,21):
+            direct=dataset(dict(BASE,candidate="direct",prefix=prefix))
+            for candidate in ("garner","balanced","fixed_dot4","fixed_wmma","tile_balanced","tile_convert_balanced","tile_convert_garner"):
+                source,expected=dataset(dict(BASE,candidate=candidate,prefix=prefix))
+                self.assertEqual(expected,direct[1])
+            for signed in ("signed","unsigned"):
+                scalar=dataset(dict(BASE,candidate="import_scalar_"+signed,prefix=prefix))
+                self.assertEqual(scalar,dataset(dict(BASE,candidate="import_dot4_"+signed,prefix=prefix)))
+                self.assertEqual(scalar,dataset(dict(BASE,candidate="import_wmma_"+signed,prefix=prefix)))
+            if prefix>1:
+                self.assertNotEqual(dataset(dict(BASE,candidate="import_scalar_signed",prefix=prefix))[1],
+                                    dataset(dict(BASE,candidate="import_scalar_unsigned",prefix=prefix))[1])
+        self.assertNotEqual(dataset(dict(BASE,candidate="direct"))[0],dataset(dict(BASE,candidate="tile_balanced"))[0])
+        source,expected=dataset(dict(BASE,candidate="import_scalar_unsigned",cells=6))
+        self.assertEqual(int.from_bytes(source[16:24],"little"),(1 << 64)-1)
+        self.assertEqual(expected[-64:],bytes([99])*64)
+
+    def test_public_fixed_generic_padded_and_minimal_cold_contracts(self):
+        for cells in (255,256,257,4095,4096,4097,8192):
+            for padded in (False,True):
+                suffix="padded_signed" if padded else "signed"
+                cases=[dict(BASE,candidate="import_"+kind+"_"+suffix,cells=cells,scope="cold") for kind in ("public","fixed","generic")]
+                self.assertEqual(dataset(cases[0]),dataset(cases[1]))
+                self.assertEqual(dataset(cases[1]),dataset(cases[2]))
+                for case in cases:
+                    c=contract(case,"fixture",2,1)
+                    self.assertEqual(c["device_buffer_bytes"]["plain"],0)
+                    self.assertEqual(c["common_status_capacity_bytes"],0)
+                    self.assertEqual(c["output_allocation_bytes"],cells*case["prefix"]+64)
+                    self.assertEqual(c["source_physical_bytes"],c["logical_rows"]*c["logical_ld"]*8)
+                    self.assertFalse(c["public_ownership_measured"])
+        for candidate in ("direct","balanced","tile_balanced","fixed_dot4"):
+            c=contract(dict(BASE,candidate=candidate),"fixture",2,1)
+            self.assertEqual(c["device_buffer_bytes"]["native"],0)
+            self.assertEqual(c["common_status_capacity_bytes"],0)
+        c=contract(dict(BASE,candidate="tile_balanced"),"fixture",2,1)
+        self.assertEqual(c["device_buffer_bytes"]["plain"],0)
+
+    def test_malformed_and_irrelevant_controls(self):
+        for key,values in {"candidate":("auto",None,True),"scope":("warm",None,True),"cells":(0,1048577,True,1.,"1"),"prefix":(0,21,True,1.)}.items():
+            for value in values:
+                with self.subTest(key=key,value=value),self.assertRaises(ValueError): validate_case({**BASE,key:value})
+        for case in ({**BASE,"workers":1},{key:value for key,value in BASE.items() if key!="scope"}):
+            with self.assertRaises(ValueError): validate_case(case)
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"cases.json"
+            for cases in ([],[BASE,BASE],[dict(BASE,prefix=True)]):
+                path.write_text(json.dumps(dict(schema="rns8_conversion_cases_v1",cases=cases)))
+                with self.assertRaises(ValueError):load_cases(path)
+            path.write_text('{"schema":"rns8_conversion_cases_v1","cases":[],"cases":[]}')
+            with self.assertRaises(ValueError):load_cases(path)
+
+    def test_all_contract_fields_and_integer_types_bound(self):
+        for key in contract(BASE,"fixture-run",2,1):
+            capture=fixture();capture.pop(key)
+            with self.subTest(key=key),self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
+        for changes in (dict(cells=True),dict(prefix=3.),dict(promotion_eligible=True),dict(probe_bytes=0),dict(output_boundary="host"),dict(memory_budget_bytes=1)):
+            capture=fixture();capture.update(changes)
+            with self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
+
+    def test_malformed_evidence_and_diagnostic_provenance(self):
+        mutations=[lambda c:c.update(input_checksum="0"*16),lambda c:c.update(output_checksum="0"*16),lambda c:c.update(runtime_version=True),
+            lambda c:c.update(target="gfx942"),lambda c:c.update(resident_setup_ns=None),lambda c:c.update(oracle_and_dataset_ns=0),
+            lambda c:c.update(samples=[]),lambda c:c["samples"][0].update(uninstrumented_exact_reference_passed=False),
+            lambda c:c["samples"][0].update(host_call_ns=float("nan")),lambda c:c["samples"][0].update(uninstrumented_host_call_ns=0),
+            lambda c:c["samples"][0]["events"][0].update(elapsed_ns=0),lambda c:c["samples"][0]["events"][0].update(label=""),
+            lambda c:c["sustained"].update(calls=15),lambda c:c["sustained"].update(calls=True),lambda c:c["sustained"].update(mean_call_ns=1),
+            lambda c:c["sustained"].update(elapsed_ns=160,mean_call_ns=10),lambda c:c["sustained"].update(final_exact_reference_passed=False),
+            lambda c:c["sustained"].update(scope="made_up"),lambda c:c["sustained"].update(independent_audit_inside_interval=True),
+            lambda c:c["sustained"].update(maximum_calls=True),lambda c:c["build_manifest"].update(source_digest="bad")]
+        for mutation in mutations:
+            capture=fixture();mutation(capture)
+            with self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
+        capture=fixture();capture["samples"][0]["events"][0]["elapsed_ns"]=None
+        validate_capture(capture,BASE,"fixture-run",2,1)
+        for key,value in (("source_dirty",True),("dependency_digest","unavailable")):
+            capture=fixture();capture["build_manifest"][key]=value
+            validate_capture(capture,BASE,"fixture-run",2,1)
+        capture=fixture();capture["build_manifest"]["configuration"]=capture["build_manifest"]["configuration"]+"\ngarner_table=ON"
+        validate_capture(capture,BASE,"fixture-run",2,1)
+        self.assertFalse(capture["promotion_eligible"])
+
+
+class Collection(unittest.TestCase):
+    def test_gemm_export_command_seals_k_and_keeps_distinct_reductions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=arguments(directory);args.candidates=['public_owned_direct_signed','public_garner_signed']
+            args.cells=[9];args.prefixes=[3];args.scopes=['gemm_resident'];args.k=[7,65]
+            with patch('collect_crt_calibration.subprocess.run',side_effect=successful):summary=collect(args)
+            self.assertEqual(summary['independent_processes'],4)
+            records=[json.loads(p.read_text()) for p in args.output.glob('*.json') if not p.name.endswith('.summary.json')]
+            for record in records:self.assertEqual(int(record['command'][8]),record['case']['k'])
+
+    def test_matched_records_and_tools_are_bound(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args=arguments(directory)
+            with patch("collect_crt_calibration.subprocess.run",side_effect=successful): summary=collect(args)
+            self.assertEqual(summary["independent_processes"],2);self.assertFalse(summary["promotion_eligible"])
+            records=[json.loads(path.read_text()) for path in args.output.glob("*.json") if not path.name.endswith(".summary.json")]
+            for record in records:
+                self.assertTrue(record["validated"]);self.assertEqual(len(record["collector_sha256"]),64)
+                self.assertIn("build_manifest.py",record["tool_dependencies_sha256"]);self.assertEqual(len(record["python_sha256"]),64)
+                self.assertFalse(record["promotion_eligible"])
+
+    def test_metadata_build_device_output_and_json_mismatch_retained(self):
+        for mutation in (lambda c:c.update(candidate="balanced"),lambda c:c.update(scope="cold"),lambda c:c.update(device="another GPU"),
+            lambda c:c.update(output_checksum="0"*16),lambda c:c["build_manifest"].update(source_dirty=True)):
+            with tempfile.TemporaryDirectory() as directory:
+                args=arguments(directory);count=0
+                def run(command,**kwargs):
+                    nonlocal count
+                    result=successful(command);count+=1
+                    if count==2:
+                        capture=json.loads(result.stdout);mutation(capture);result.stdout=json.dumps(capture)
+                    return result
+                with patch("collect_crt_calibration.subprocess.run",side_effect=run),self.assertRaises(ValueError):collect(args)
+                failed=[json.loads(p.read_text()) for p in args.output.glob("*.json") if "failure" in json.loads(p.read_text())]
+                self.assertEqual(len(failed),1);self.assertFalse(failed[0]["validated"]);self.assertIn("stdout",failed[0])
+        with tempfile.TemporaryDirectory() as directory:
+            args=arguments(directory)
+            with patch("collect_crt_calibration.subprocess.run",return_value=subprocess.CompletedProcess([],0,'{"schema":1,"schema":2}',"")),self.assertRaises(ValueError):collect(args)
+
+    def test_diagnostic_provenance_stays_ineligible(self):
+        for diagnostic in ("dirty","missing_dependency","experimental_garner"):
+            with tempfile.TemporaryDirectory() as directory:
+                args=arguments(directory)
+                def run(command,**kwargs):
+                    result=successful(command);capture=json.loads(result.stdout)
+                    if diagnostic=="dirty": capture["build_manifest"]["source_dirty"]=True
+                    elif diagnostic=="missing_dependency": capture["build_manifest"]["dependency_digest"]="unavailable"
+                    else: capture["build_manifest"]["configuration"]+="\ngarner_table=ON"
+                    result.stdout=json.dumps(capture);return result
+                with patch("collect_crt_calibration.subprocess.run",side_effect=run):summary=collect(args)
+                self.assertFalse(summary["provenance_complete"]);self.assertFalse(summary["promotion_eligible"])
+
+    def test_timeout_nonzero_and_artifact_or_case_changes(self):
+        for failure in ("timeout","exit","artifact","cases"):
+            with tempfile.TemporaryDirectory() as directory:
+                args=arguments(directory)
+                if failure=="cases":
+                    args.cases=Path(directory)/"cases.json";args.cases.write_text(json.dumps(dict(schema="rns8_conversion_cases_v1",cases=[BASE])))
+                def run(command,**kwargs):
+                    if failure=="timeout": raise subprocess.TimeoutExpired(command,10,output=b"partial",stderr=b"error")
+                    if failure=="exit":return subprocess.CompletedProcess(command,1,"partial","error")
+                    result=successful(command)
+                    if failure=="artifact":args.exe.write_bytes(b"changed")
+                    else:args.cases.write_text("[]")
+                    return result
+                with patch("collect_crt_calibration.subprocess.run",side_effect=run),self.assertRaises(ValueError):collect(args)
+                records=[json.loads(p.read_text()) for p in args.output.glob("*.json")]
+                self.assertEqual(len(records),1);self.assertFalse(records[0]["validated"]);self.assertIn("failure",records[0])
+
+
+@unittest.skipUnless(os.environ.get("RNS8_CRT_CALIBRATION_EXE"),"compiled CLI supplied by final build")
+class CompiledCli(unittest.TestCase):
+    def invoke(self,args):
+        return subprocess.run([os.environ["RNS8_CRT_CALIBRATION_EXE"],*args],text=True,capture_output=True,timeout=10)
+    def test_help(self):
+        result=self.invoke(["--help"]);self.assertEqual(result.returncode,0)
+        for candidate in CANDIDATES:self.assertIn(candidate,result.stdout)
+        self.assertIn("resident|cold",result.stdout)
+    def test_precontext_rejection(self):
+        base=["fixed_dot4","17","3","2","1","negative","resident"]
+        for index,value in ((0,"auto"),(1,"0"),(1,"1048577"),(1,"17x"),(2,"0"),(2,"21"),(3,"0"),(4,"0"),(5,"bad run"),(6,"warm")):
+            args=base.copy();args[index]=value
+            result=self.invoke(args);self.assertEqual(result.returncode,1);self.assertTrue(result.stderr)
+        self.assertEqual(self.invoke(base+["extra"]).returncode,1)
+        for args in (["public_owned_direct_signed","9","1","2","1","negative","gemm_resident"],
+                     ["public_owned_direct_signed","9","1","2","1","negative","gemm_resident","65"],
+                     ["public_garner_unsigned","17","3","2","1","negative","gemm_cold","64"],
+                     ["public_quarter_signed","9","3","2","1","negative","resident","64"]):
+            result=self.invoke(args);self.assertEqual(result.returncode,1);self.assertTrue(result.stderr)
+
+if __name__=="__main__":unittest.main()

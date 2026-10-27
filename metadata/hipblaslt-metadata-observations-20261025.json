@@ -1,0 +1,53 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "source_commit": "668f9ea",
+  "estimator": "median_of_five_independent_process_duration_weighted_sustained_call_means",
+  "shared_host": true,
+  "campaign_resumed": false,
+  "promotion_eligible": false,
+  "records": {
+    "archived_json_pointer": "/records",
+    "entries": 300
+  },
+  "comparisons": {
+    "archived_json_pointer": "/comparisons",
+    "entries": 15
+  },
+  "timing_review_policy": "No added elapsed-time gains table row: tiny median differences overlap process ranges, or fail the ten-percent process-spread gate. Descriptor API work reductions are reported separately.",
+  "first_attempt_complete_captures_excluded_from_comparisons": 28,
+  "collector_launch": {
+    "command": {
+      "archived_json_pointer": "/collector_launch/command",
+      "entries": 14
+    },
+    "exit_code": 0,
+    "elapsed_seconds": 1464.4122996330261,
+    "collector_source_commit": "c7b1e45dbbfd955d57183ca7c61e4df6a8b42117",
+    "collector_sha256": "df5eaaae9624a4947ce438d040a3ac50c5bf9ed26ec7b362f897f46ff32917ec",
+    "case_manifest_sha256": "2525fc292ea98bba5ffe12e56cd143536fba80922819dea5f0053e2bf8eaf3e4",
+    "executable_sha256": "e6441f10fc36eb1200e73f652b814d4402fb4e1ab87791e0493b5e5e15304b4b",
+    "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+    "fresh_collection_after_profile_repair": true,
+    "campaign_resumed": false
+  },
+  "first_attempt_failure": {
+    "command": {
+      "archived_json_pointer": "/first_attempt_failure/command",
+      "entries": 35
+    },
+    "environment": {},
+    "returncode": 1,
+    "timed_out": false,
+    "duration_seconds": 0.39371630002278835,
+    "stdout": "",
+    "stderr": "rns8_create_plan: range error\n"
+  },
+  "original_schema": "rns8_hipblaslt_metadata_policy_review_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/hipblaslt-metadata-observations-20261025.json",
+    "sha256": "51e531155e888c12e3dbd2d3e7be2d9707416d65f250b46240d789e913b8f41b",
+    "bytes": 377778
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

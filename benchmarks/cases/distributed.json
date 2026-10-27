@@ -1,0 +1,30 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "distributed",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "prefix", "tile", "slots", "devices", "transport", "scope", "host_budget", "pinned_budget", "device_budget", "warmups", "repeats", "basis", "native_integrity", "axis", "k_fragments", "rank_grid_rows", "rank_grid_cols"],
+      "defaults": {"schema": "rns8_distributed_case_v3", "slots": 2, "scope": "resident-device-limbs", "host_budget": 8589934592, "pinned_budget": 1048576, "device_budget": 17179869184},
+      "columns": ["m", "n", "k", "prefix", "tile", "devices", "transport", "warmups", "repeats", "basis", "native_integrity", "axis", "k_fragments", "rank_grid_rows", "rank_grid_cols"],
+      "rows": [
+        ["single-8192.json", "3ff65c7757b35797620b1913bb9f568db39493401a7c7cbd3b6f80a547565ee0", 8192, 8192, 8192, 9, 128, [0], "local", 3, 5, [], false, "modulus", 0, 0, 0],
+        ["single-smoke.json", "900519ea70dc8895480c5bb727e04b219580a0e689a776b1589f491dc57d3f9a", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], false, "modulus", 0, 0, 0],
+        ["two-peer-smoke.json", "873a1a16053029576688d43ae80ab49ae35845df54859f1ca5ea9cf1a80acff9", 17, 19, 65, 3, 16, [0, 1], "peer", 3, 5, [], false, "modulus", 0, 0, 0],
+        ["two-staged-8192.json", "747acbf23ebd2d7658f0e98da1f40f08124c4e287f17ad08ebb8d6d1626d054a", 8192, 8192, 8192, 9, 128, [0, 1], "pinned", 3, 5, [], false, "modulus", 0, 0, 0],
+        ["two-staged-smoke.json", "de18af48d66fd11e320ad713a0346b1644aa96b7097e1eefae8ad3a1fef66603", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], false, "modulus", 0, 0, 0],
+        ["single-smoke-integrity.json", "cbc4f2ddc5598f3931ff2e4ea0049f81f6f216b45394cb571d0f81d7017b52e7", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], true, "modulus", 0, 0, 0],
+        ["two-staged-smoke-integrity.json", "38f5db3f3bd5c00937c4989b642166cc732b4fb25f099cd67fc6668574071d93", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], true, "modulus", 0, 0, 0],
+        ["axes-1-rows.json", "3bda0ba7b5e50af9b16f0c1ab7e160d26c864d68f24d373df8c13aa654aa7822", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], false, "rows", 0, 0, 0],
+        ["axes-1-columns.json", "44a099bd77fd32340bc9d246478b42f5548ae3af18d69c2204b2f1b02e7c6117", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], false, "columns", 0, 0, 0],
+        ["axes-1-2d.json", "652deb3e66d95d31148a8197319bea114ec0d82bc212404cd2a8d17ec809df65", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], false, "2d", 0, 1, 1],
+        ["axes-1-contraction.json", "bc8936737024a0dc8c1ea26a44d44ca7e666e46df0a1e1883f46d87c5a5ef22d", 17, 19, 65, 3, 16, [0], "local", 3, 5, [], false, "contraction", 3, 0, 0],
+        ["axes-2-rows.json", "2b8cc592616b7ee823bd0c8c07f072bdbfb08c932a13850faf15fab6fcc24cdc", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], false, "rows", 0, 0, 0],
+        ["axes-2-columns.json", "580c45d8cf52fbb3335ec5bb7262d85b5791128ba62699893adea5dc4d627e61", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], false, "columns", 0, 0, 0],
+        ["axes-2-2d.json", "37c0da2a346daa6d71b4f0996064e7ff7eaf972da0551602d44f04f2c4a20cf9", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], false, "2d", 0, 1, 2],
+        ["axes-2-contraction.json", "12dcc1724faf3dce3910cc283cbc8ac9df3235a9540002e5934c6b963447de35", 17, 19, 65, 3, 16, [0, 1], "pinned", 3, 5, [], false, "contraction", 3, 0, 0],
+        ["single-custom-basis-k65.json", "c35afa2f6483ca1932fecf0a129e26418a43868c920a08a2ce2156b39349396e", 17, 19, 65, 3, 16, [0], "local", 1, 3, [9, 16, 25], false, "contraction", 3, 0, 0]
+      ]
+    }
+  ]
+}

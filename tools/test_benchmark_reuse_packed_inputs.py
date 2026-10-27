@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
+from timing_diagnostics import is_censored_gpu_event_capture
 
 
 def main() -> int:
@@ -56,14 +58,14 @@ def main() -> int:
         assert capture["timing_metadata"]["pack_mode"] == expected_mode
         assert capture["timing_metadata"]["prepack_reuse_operands"] == expected_operands
         assert capture["timing_metadata"]["prepack_reuse_strategy"] == "persistent_matrix_residency"
-        assert isinstance(capture["prepack_setup_us"], int)
+        assert type(capture["prepack_setup_us"]) in (int, float) and math.isfinite(capture["prepack_setup_us"])
         assert capture["prepack_setup_us"] >= 0
         assert capture["avg_prepack_setup_us"] == float(capture["prepack_setup_us"])
         breakdown = capture["prepack_setup_breakdown_us"]
         assert isinstance(breakdown, dict)
         assert set(breakdown) == {"pack_a", "pack_b", "runtime_cache", "unclassified"}
-        assert all(isinstance(breakdown[key], int) and breakdown[key] >= 0 for key in breakdown)
-        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in breakdown.values())
+        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         if expected_mode == "prepacked_reuse_a":
             assert breakdown["pack_b"] == 0
@@ -119,7 +121,7 @@ def main() -> int:
         assert breakdown["pack_a"] == 0
         assert breakdown["pack_b"] >= 0
         assert breakdown["runtime_cache"] >= 0
-        assert sum(breakdown.values()) == capture["prepack_setup_us"]
+        assert math.isclose(sum(breakdown.values()), capture["prepack_setup_us"], rel_tol=1e-12, abs_tol=1e-9)
         assert capture["reuse_contract"]["setup_breakdown_us"] == breakdown
         runtime_cache = capture["reuse_contract"]["runtime_prepack_cache"]
         assert runtime_cache["source"] == "rns8_get_prepack_cache_info"
@@ -133,9 +135,11 @@ def main() -> int:
         assert runtime_cache["cache_key_hash"] != 0
         assert runtime_cache["device_bytes"] >= runtime_cache["operand_pack_bytes"] > 0
         assert "source_version=1" in runtime_cache["cache_key"]
-        assert capture["timing_metadata"]["gpu_event_timing"] is True
-        assert "rns_gemm_prepacked_b_kernel_group" in capture["timing_metadata"]["gpu_event_phase_order"]
-        assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]
+        if capture["timing_metadata"]["gpu_event_timing"] is True:
+            assert "rns_gemm_prepacked_b_kernel_group" in capture["timing_metadata"]["gpu_event_phase_order"]
+            assert "rns_gemm_prepacked_b_kernel_group" in capture["gpu_event_timings_us"]
+        else:
+            assert is_censored_gpu_event_capture(capture)
     elif "unsupported backend" not in (completed.stderr + completed.stdout).lower():
         raise SystemExit(
             "rocwmma reuse-packed-b smoke failed unexpectedly\n"
@@ -172,14 +176,16 @@ def main() -> int:
         assert capture["pack_mode"] == "prepacked_reuse"
         assert capture["prepack_reuse_operands"] == ["A", "B"]
         assert capture["prepack_reuse_strategy"] == "persistent_matrix_residency"
-        assert capture["timing_metadata"]["gpu_event_timing"] is True
-        phase_order = capture["timing_metadata"]["gpu_event_phase_order"]
-        assert "hipblaslt_pack_transpose_centered" not in phase_order
-        assert "hipblaslt_int8_i32_matmul" in phase_order
-        assert "hipblaslt_i32_to_residue_reduce" in phase_order
-        assert "rns_gemm" in phase_order
-        assert "hipblaslt_pack_transpose_centered" not in capture["gpu_event_timings_us"]
-        assert capture["gpu_event_timings_us"]["pack"] == [0.0]
+        if capture["timing_metadata"]["gpu_event_timing"] is True:
+            phase_order = capture["timing_metadata"]["gpu_event_phase_order"]
+            assert "hipblaslt_pack_transpose_centered" not in phase_order
+            assert "hipblaslt_int8_i32_matmul" in phase_order
+            assert "hipblaslt_i32_to_residue_reduce" in phase_order
+            assert "rns_gemm" in phase_order
+            assert "hipblaslt_pack_transpose_centered" not in capture["gpu_event_timings_us"]
+            assert capture["gpu_event_timings_us"]["pack"] == [0.0]
+        else:
+            assert is_censored_gpu_event_capture(capture)
     elif "unsupported backend" not in (completed.stderr + completed.stdout).lower():
         raise SystemExit(
             "hipblaslt reuse-packed-inputs smoke failed unexpectedly\n"

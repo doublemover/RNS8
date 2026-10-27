@@ -26,6 +26,10 @@ __device__ __constant__ int rns8_amdgpu_default_moduli[kRns8DefaultModulusCount]
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
+// q is uniform per plane. Keep its reciprocal out of per-output arithmetic,
+// including arbitrary byte channels admitted by the explicit-basis owner.
+__device__ __constant__ rns8::detail::finite_u8::ByteModulusReciprocals rns8_amdgpu_reciprocals{};
+
 enum class rns8_amdgpu_arch_kind {
   unsupported,
   cdna3,
@@ -88,7 +92,8 @@ __device__ __forceinline__ int8_t center_canonical_u8(uint8_t value, int modulus
   if (modulus == 256) {
     return static_cast<int8_t>(value);
   }
-  const uint32_t residue = static_cast<uint32_t>(value % static_cast<uint8_t>(modulus));
+  const uint32_t residue = rns8::detail::finite_u8::reduce_u32_small_modulus(
+      value,uint32_t(modulus),rns8_amdgpu_reciprocals.values[modulus]);
   return rns8::detail::finite_u8::center_unsigned_residue(residue, static_cast<uint32_t>(modulus));
 }
 
@@ -129,7 +134,10 @@ __device__ __forceinline__ uint32_t sparse_index_for_group(
 }
 
 __device__ __forceinline__ int8_t reduce_centered(int32_t value, int modulus) {
-  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(value, static_cast<uint32_t>(modulus));
+  using namespace rns8::detail::finite_u8;
+  const auto q=static_cast<uint32_t>(modulus);
+  if(static_byte_modulus_supported(q))return reduce_to_centered_static_byte_modulus_i32(value,q);
+  return reduce_to_centered_i32(value,q,rns8_amdgpu_reciprocals.values[q]);
 }
 
 __device__ __forceinline__ void store_rns_accumulator(
@@ -179,7 +187,7 @@ __device__ __forceinline__ void store_accumulator(
   }
 }
 
-template <bool Finite>
+template <bool Finite, bool Batched = false>
 __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
     const int8_t* a,
     const int8_t* b,
@@ -198,7 +206,14 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
   const int k_group = lane >> 4;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched,"batched route is planar RNS only");
+  const int plane = Finite ? 0 : Batched ? static_cast<int>(blockIdx.z)%plane_count_or_modulus : static_cast<int>(blockIdx.z);
+  if constexpr(Batched) {
+    const uint64_t batch=uint64_t(blockIdx.z)/plane_count_or_modulus;
+    a+=batch*plane_count_or_modulus*uint64_t(m)*lda;
+    b+=batch*plane_count_or_modulus*uint64_t(k)*ldb;
+    c+=batch*plane_count_or_modulus*uint64_t(m)*ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x4 acc = {0, 0, 0, 0};
@@ -240,7 +255,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
 #endif
 }
 
-template <bool Finite>
+template <bool Finite, bool Batched = false>
 __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
     const int8_t* a,
     const int8_t* b,
@@ -259,7 +274,14 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
   const int lane_half = lane >> 5;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseCdnaWideTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseCdnaWideTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched,"batched route is planar RNS only");
+  const int plane = Finite ? 0 : Batched ? static_cast<int>(blockIdx.z)%plane_count_or_modulus : static_cast<int>(blockIdx.z);
+  if constexpr(Batched) {
+    const uint64_t batch=uint64_t(blockIdx.z)/plane_count_or_modulus;
+    a+=batch*plane_count_or_modulus*uint64_t(m)*lda;
+    b+=batch*plane_count_or_modulus*uint64_t(k)*ldb;
+    c+=batch*plane_count_or_modulus*uint64_t(m)*ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x16 acc = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -300,7 +322,7 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
 #endif
 }
 
-template <bool Finite>
+template <bool Finite, bool Batched = false>
 __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
     const int8_t* a,
     const int8_t* b,
@@ -318,7 +340,14 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
   const int lane_col = lane & 15;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched,"batched route is planar RNS only");
+  const int plane = Finite ? 0 : Batched ? static_cast<int>(blockIdx.z)%plane_count_or_modulus : static_cast<int>(blockIdx.z);
+  if constexpr(Batched) {
+    const uint64_t batch=uint64_t(blockIdx.z)/plane_count_or_modulus;
+    a+=batch*plane_count_or_modulus*uint64_t(m)*lda;
+    b+=batch*plane_count_or_modulus*uint64_t(k)*ldb;
+    c+=batch*plane_count_or_modulus*uint64_t(m)*ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x8 acc = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -357,7 +386,7 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
 #endif
 }
 
-template <bool Finite>
+template <bool Finite, bool Batched = false>
 __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
     const int8_t* a,
     const int8_t* b,
@@ -376,7 +405,14 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
   const int lane_col = lane & 15;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched,"batched route is planar RNS only");
+  const int plane = Finite ? 0 : Batched ? static_cast<int>(blockIdx.z)%plane_count_or_modulus : static_cast<int>(blockIdx.z);
+  if constexpr(Batched) {
+    const uint64_t batch=uint64_t(blockIdx.z)/plane_count_or_modulus;
+    a+=batch*plane_count_or_modulus*uint64_t(m)*lda;
+    b+=batch*plane_count_or_modulus*uint64_t(k)*ldb;
+    c+=batch*plane_count_or_modulus*uint64_t(m)*ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x8 acc = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -668,7 +704,7 @@ bool use_cdna3_smfmac_32x32x32(int m, int n, int k) {
   return m >= 128 && n >= 128 && k >= 128;
 }
 
-template <bool Finite>
+template <bool Finite, bool Batched = false>
 int launch_dense(
     int device_id,
     const void* device_a_residues,
@@ -681,7 +717,7 @@ int launch_dense(
     int ldb,
     int ldc,
     int plane_count_or_modulus,
-    int dense_kernel_variant) {
+    int dense_kernel_variant,int batches=1,hipStream_t stream=nullptr,bool asynchronous=false) {
   rns8_amdgpu_arch_kind kind{};
   const int arch_status = active_device_arch_kind(device_id, kind);
   if (arch_status != 0) {
@@ -694,13 +730,13 @@ int launch_dense(
         const dim3 grid(
             (static_cast<unsigned>(n) + 31u) / 32u,
             (static_cast<unsigned>(m) + 31u) / 32u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
         hipLaunchKernelGGL(
-            (cdna3_dense_mfma_32x32x16_kernel<Finite>),
+            (cdna3_dense_mfma_32x32x16_kernel<Finite,Batched>),
             grid,
             dim3(64),
             0,
-            0,
+            stream,
             static_cast<const int8_t*>(device_a_residues),
             static_cast<const int8_t*>(device_b_residues),
             static_cast<int8_t*>(device_c_residues),
@@ -715,13 +751,13 @@ int launch_dense(
         const dim3 grid(
             (static_cast<unsigned>(n) + 15u) / 16u,
             (static_cast<unsigned>(m) + 15u) / 16u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
         hipLaunchKernelGGL(
-            (cdna3_dense_mfma_kernel<Finite>),
+            (cdna3_dense_mfma_kernel<Finite,Batched>),
             grid,
             dim3(64),
             0,
-            0,
+            stream,
             static_cast<const int8_t*>(device_a_residues),
             static_cast<const int8_t*>(device_b_residues),
             static_cast<int8_t*>(device_c_residues),
@@ -742,13 +778,13 @@ int launch_dense(
       const dim3 grid(
           (static_cast<unsigned>(n) + 15u) / 16u,
           (static_cast<unsigned>(m) + 15u) / 16u,
-          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
       hipLaunchKernelGGL(
-          (rdna3_dense_wmma_kernel<Finite>),
+          (rdna3_dense_wmma_kernel<Finite,Batched>),
           grid,
           dim3(32),
           0,
-          0,
+          stream,
           static_cast<const int8_t*>(device_a_residues),
           static_cast<const int8_t*>(device_b_residues),
           static_cast<int8_t*>(device_c_residues),
@@ -766,13 +802,13 @@ int launch_dense(
       const dim3 grid(
           (static_cast<unsigned>(n) + 15u) / 16u,
           (static_cast<unsigned>(m) + 15u) / 16u,
-          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus)*(Batched?static_cast<unsigned>(batches):1u));
       hipLaunchKernelGGL(
-          (rdna4_dense_wmma_kernel<Finite>),
+          (rdna4_dense_wmma_kernel<Finite,Batched>),
           grid,
           dim3(32),
           0,
-          0,
+          stream,
           static_cast<const int8_t*>(device_a_residues),
           static_cast<const int8_t*>(device_b_residues),
           static_cast<int8_t*>(device_c_residues),
@@ -792,6 +828,7 @@ int launch_dense(
   if (err != hipSuccess) {
     return 3;
   }
+  if(asynchronous)return 0;
   err = hipDeviceSynchronize();
   return err == hipSuccess ? 0 : 3;
 }
@@ -957,6 +994,12 @@ extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
       dense_kernel_variant);
 }
 
+extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int device_id,const void* a,const void* b,void* c,
+    int m,int n,int k,int lda,int ldb,int ldc,int prefix,int batches,int dense_kernel_variant) {
+  if(!common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || prefix<1 || prefix>20 || batches<1 || batches>64)return 1;
+  return launch_dense<false,true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,prefix,dense_kernel_variant,batches);
+}
+
 extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int device_id,
     const void* device_a_residues,
@@ -971,7 +1014,7 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
     int modulus,
     int dense_kernel_variant) {
   if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+      (modulus<2 || modulus>256)) {
     return 1;
   }
   return launch_dense<true>(
@@ -1022,9 +1065,19 @@ extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
     int ldc,
     int modulus) {
   if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+      (modulus<2 || modulus>256)) {
     return 1;
   }
   return launch_sparse_a<true>(
       device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
+}
+
+// Allocation/timing-free stream entry. The prepared owner admitted the exact
+// target, shape, prefix/modulus and workspace before any enqueue.
+extern "C" int rns8_amdgpu_builtin_enqueue_dense(int device_id,const void* a,const void* b,void* c,
+    int m,int n,int k,int lda,int ldb,int ldc,unsigned value,bool finite,void* stream) {
+  if(!stream || !common_dense_args_valid(a,b,c,m,n,k,lda,ldb,ldc) || k>65536 ||
+      (finite?(value<2 || value>256):value<1 || value>20))return 1;
+  return finite?launch_dense<true>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true):
+      launch_dense<false>(device_id,a,b,c,m,n,k,lda,ldb,ldc,int(value),0,1,static_cast<hipStream_t>(stream),true);
 }

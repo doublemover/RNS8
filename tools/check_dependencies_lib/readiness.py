@@ -18,14 +18,22 @@ from .accelerators import *
 from .config import *
 from .discovery import *
 from .system import *
+from .resolution import ACTIVE_RESOLUTION
 
 def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[str, object]]:
     report: dict[str, dict[str, object]] = {}
+    resolution = ACTIVE_RESOLUTION.get()
     for package in OPTIONAL_CPP_PACKAGES:
+        component = resolution["optional_components"].get(package) if resolution else None
         report[package] = {
-            "ok": package in vcpkg_installed,
+            "ok": False,
             "required": False,
-            "version": vcpkg_installed.get(package),
+            "version": None,
+            "package_inventory_version": vcpkg_installed.get(package),
+            "status": component["status"] if component else "not_probed",
+            "selected": component.get("selected") if component else None,
+            "compatibility": "not_run",
+            "detail": "inventory/path evidence alone does not establish version/API/ABI/transitive-link compatibility",
         }
     return report
 

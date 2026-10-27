@@ -8,6 +8,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <random>
@@ -27,6 +28,7 @@
 #include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
+#include "rns8/generated/metadata_registry.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
 #  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
@@ -184,8 +186,8 @@ rns8_status capture_hip_graph_replay(
     int device_id,
     const std::function<rns8_status(void*)>& capture_body,
     HipGraphReplayState& state,
-    uint64_t& capture_us,
-    uint64_t& instantiate_us,
+    double& capture_us,
+    double& instantiate_us,
     std::string& error_text);
 rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text);
 
@@ -232,7 +234,8 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 #include "rns8_bench_print_json.inc"
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
+  (void)rns8::bench::host_clock_calibration(); // Outside every workload timing interval.
   const Args args = parse_args(argc, argv);
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
     explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {
@@ -343,6 +346,21 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  rns8::detail::hipblaslt_metadata_set_policy(args.hipblaslt_metadata_per_block_control ?
+      rns8::detail::HipblasLtMetadataPolicy::per_block_control : rns8::detail::HipblasLtMetadataPolicy::per_call);
+  rns8::detail::hipblaslt_metadata_counters_reset();
+  rns8::detail::hipblaslt_algorithm_observations_set_enabled(true);
+  const auto prepack_policy=args.hipblaslt_prepack_policy=="none"?rns8::detail::HipblasLtPrepackPolicy::none:
+      args.hipblaslt_prepack_policy=="a"?rns8::detail::HipblasLtPrepackPolicy::a:
+      args.hipblaslt_prepack_policy=="b"?rns8::detail::HipblasLtPrepackPolicy::b:rns8::detail::HipblasLtPrepackPolicy::both;
+  (void)rns8::detail::hipblaslt_prepack_set_policy(prepack_policy);
+  rns8::detail::hipblaslt_prepack_counters_reset();
+  const auto packing_policy=args.rocwmma_packing_policy=="direct-a"?rns8::detail::RocwmmaPackingPolicy::direct_a:
+      args.rocwmma_packing_policy=="reuse"?rns8::detail::RocwmmaPackingPolicy::reuse:
+      args.rocwmma_packing_policy=="direct-a-reuse"?rns8::detail::RocwmmaPackingPolicy::direct_a_reuse:
+      rns8::detail::RocwmmaPackingPolicy::packed;
+  (void)rns8::detail::rocwmma_set_packing_policy(packing_policy);
+  rns8::detail::rocwmma_reset_packing_stats();
   rns8::detail::hip_direct_allocation_counters_reset();
   const auto allocation_before = rns8::detail::hip_direct_allocation_counters_snapshot();
   BenchmarkResult result{};
@@ -369,11 +387,15 @@ int main(int argc, char** argv) {
   }
   result.allocation_before = allocation_before;
   if (!result.allocation_after_repeats_available) {
+    result.prepack_after_repeats=rns8::detail::hipblaslt_prepack_counters_snapshot();
+    result.rocwmma_after_repeats=rns8::detail::rocwmma_packing_stats();
     result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
     result.allocation_after_repeats_available = true;
   }
   result.allocation_tracking_available = true;
   if (!result.allocation_after_warmups_available) {
+    result.prepack_after_warmups=result.prepack_after_repeats;
+    result.rocwmma_after_warmups=result.rocwmma_after_repeats;
     result.allocation_after_warmups = result.allocation_after_repeats;
     result.allocation_after_warmups_available = true;
   }
@@ -386,4 +408,7 @@ int main(int argc, char** argv) {
   }
   print_json(args, info, result, effective_bound, cmdline);
   return 0;
+} catch (const std::exception& error) {
+  std::cerr << "rns8-bench: " << error.what() << '\n';
+  return 1;
 }

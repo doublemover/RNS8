@@ -121,6 +121,15 @@ const char* packed_layout_version(const Args& args) {
 }
 
 const char* input_distribution(const Args& args) {
+  switch (args.input_profile) {
+    case InputProfile::WideTwoLimbConstant: return "native_constant_2pow40";
+    case InputProfile::WideThreeLimbConstant: return "native_constant_2pow62";
+    case InputProfile::WideTwoLimbMixed: return args.semantics == BenchSemantics::ExactWideSigned ?
+        "signed_seeded_2pow40_plus_10bit_jitter_mixed_sign" : "unsigned_seeded_2pow40_plus_10bit_jitter";
+    case InputProfile::WideThreeLimbMixed: return args.semantics == BenchSemantics::ExactWideSigned ?
+        "signed_seeded_2pow62_plus_10bit_jitter_mixed_sign" : "unsigned_seeded_2pow62_plus_10bit_jitter";
+    default: break;
+  }
   if (args.input_profile == InputProfile::AdaptiveBands) {
     return args.semantics == BenchSemantics::BoundedI64 ? "signed_adaptive_bands_-16_16"
                                                         : "unsigned_adaptive_bands_0_16";
@@ -153,8 +162,7 @@ const char* input_distribution(const Args& args) {
       case InputProfile::FiniteFullUniform:
       case InputProfile::UniformSmall:
         return "u8_full_uniform_0_modulus_minus_1";
-      case InputProfile::AdaptiveBands:
-        return "invalid_finite_adaptive_bands";
+      default: return "invalid_finite_input_profile";
     }
   }
   switch (args.semantics) {

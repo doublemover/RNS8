@@ -1,7 +1,13 @@
 # rocWMMA And AMDGPU Builtin Backend
 
-Opt-in rocWMMA accelerator backend plus reserved AMDGPU builtin hot-kernel
-path.
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
+Opt-in rocWMMA matrix-engine backend. AMDGPU builtins are a separate
+implemented opt-in backend with target-specific runtime restrictions.
 
 The rocWMMA backend is compiled only with `RNS8_ENABLE_ROCWMMA=ON`. It uses the
 pinned repo-local rocWMMA headers and RNS8-owned HIP kernels to pack centered
@@ -34,13 +40,33 @@ it consumes compact byte-limb device buffers, uses signed matrix instructions
 plus high-bit correction terms to recover unsigned byte products, and writes
 compact byte-limb output for comparison against direct HIP and the CPU byte-pair
 oracle. That candidate is not a public backend and is not AUTO-selected.
-Benchmark fixtures currently record host wall-clock evidence only, so the
-backend keeps `performance_validated=false` until reviewed captures prove a
-target-shape win.
+The [larger-workload report](../../docs/7900xtx-large-throughput-2026-10-23.md)
+contains fresh public and private residue-epilogue comparisons with explicit
+host/event scopes. `performance_validated=false` metadata continues to distinguish
+measurement from reviewed automatic routing.
 
-Dependency discovery and primitive compile probes remain evidence only; they
-do not enable rocWMMA by themselves. `RNS8_ENABLE_AMDGPU_BUILTINS` now exposes
-the public AMDGPU builtin backend identity and disabled capability metadata,
-but runtime contexts and GEMM dispatch remain unsupported until target-specific
-MFMA/WMMA/SMFMAC/SWMMAC kernels have exact CPU parity, timing, and ISA
-evidence.
+Dependency discovery and primitive probes do not enable either runtime backend.
+`RNS8_ENABLE_AMDGPU_BUILTINS=ON` with HIP compiles the separate target-specific
+WMMA/MFMA/SMFMAC/SWMMAC path described in the backend reference. The source target,
+compiled configuration and device validation remain distinct evidence.
+# Explicit packing controls
+
+The private `--rocwmma-packing-policy packed|direct-a|reuse|direct-a-reuse`
+benchmark control selects independent direct-A reads and call-local panel reuse
+for ordinary bounded/exact-wide RNS dispatch. `packed` remains the default.
+Direct reads require complete 16-row/16-K tiles, aligned source pointers and
+strides divisible by 16; all other blocks pack with zero padding. Both ordinary
+and retained-B paths pass the actual A stride into fragment loads.
+
+The reuse control visits tiled schedules by modulus while preserving entry
+order within each plane. One A and one B scratch panel retain full source,
+extent, valid/padded K, stride and slab-offset keys within the call. No key
+survives completion, and metadata consumes no extra device allocation. Zero
+tiles remain ordered within each plane. Multi-slab calls may have no hits.
+
+JSON receipts record successful pack launches, direct-A blocks and panel hits
+after warmups and measured calls. Cohort/variance grouping separates policies;
+the counters establish source work, not latency or byte traffic. Matched cases
+are in `temp/benchmark-cases/current/public-calibration/rocwmma-packing.json`. Host/device syntax
+and authored CPU/GPU fixtures precede deferred runtime validation and paired
+measurements. These controls do not change AUTO policy or reviewed cache entries.

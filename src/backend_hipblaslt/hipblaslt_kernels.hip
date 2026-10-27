@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+#if defined(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE) && RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE
+#include "hipblaslt_algorithm_index_bridge.hpp"
+#endif
+
 #include "../backend_common/finite_u8_reducer.hpp"
 
 namespace {
@@ -13,11 +17,7 @@ uint32_t rns8_modulus_reciprocal_host(int modulus) {
 }
 
 __device__ uint32_t rns8_reduce_u32_small_modulus_device(uint32_t value, uint32_t modulus, uint32_t reciprocal) {
-  const uint32_t quotient = static_cast<uint32_t>((static_cast<uint64_t>(value) * reciprocal) >> 32u);
-  uint32_t residue = value - quotient * modulus;
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));
-  return residue;
+  return rns8::detail::finite_u8::reduce_u32_small_modulus(value, modulus, reciprocal);
 }
 
 __device__ int8_t rns8_reduce_to_centered_device(int32_t value, int modulus, uint32_t reciprocal) {
@@ -114,7 +114,7 @@ int launch_reduce_i32_to_centered(
     int ldc,
     int modulus,
     uint32_t modulus_reciprocal,
-    int accumulate) {
+    int accumulate,hipStream_t stream=nullptr) {
   if (!scratch || !residues || rows <= 0 || cols <= 0 || scratch_ld < cols || ldc < cols || modulus < 2 ||
       modulus > 256 || modulus_reciprocal != rns8_modulus_reciprocal_host(modulus)) {
     return static_cast<int>(hipErrorInvalidValue);
@@ -129,7 +129,7 @@ int launch_reduce_i32_to_centered(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           scratch,
           residues,
           rows,
@@ -144,7 +144,7 @@ int launch_reduce_i32_to_centered(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           scratch,
           residues,
           rows,
@@ -159,7 +159,7 @@ int launch_reduce_i32_to_centered(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           scratch,
           residues,
           rows,
@@ -174,7 +174,7 @@ int launch_reduce_i32_to_centered(
           dim3(blocks),
           dim3(threads),
           0,
-          nullptr,
+          stream,
           scratch,
           residues,
           rows,
@@ -249,4 +249,43 @@ extern "C" int rns8_hipblaslt_reduce_i32_to_centered_strided_device(
     int accumulate) {
   return launch_reduce_i32_to_centered(
       scratch, residues, rows, cols, scratch_ld, ldc, modulus, modulus_reciprocal, accumulate);
+}
+
+extern "C" int rns8_hipblaslt_pack_transpose_centered_on_stream(
+    const int8_t* src,
+    int8_t* dst,
+    int src_rows,
+    int src_cols,
+    int src_ld,
+    int dst_rows,
+    int dst_cols,
+    int dst_ld,void* stream) {
+  if (!src || !dst || src_rows <= 0 || src_cols <= 0 || src_ld < src_cols || dst_rows < src_cols ||
+      dst_cols < src_rows || dst_ld < dst_rows) {
+    return static_cast<int>(hipErrorInvalidValue);
+  }
+  const int threads = 256;
+  const int64_t elements = static_cast<int64_t>(dst_rows) * static_cast<int64_t>(dst_cols);
+  const int blocks = static_cast<int>((elements + threads - 1) / threads);
+  hipLaunchKernelGGL(
+      rns8_hipblaslt_pack_transpose_centered_kernel,
+      dim3(blocks),
+      dim3(threads),
+      0,
+      static_cast<hipStream_t>(stream),
+      src,
+      dst,
+      src_rows,
+      src_cols,
+      src_ld,
+      dst_rows,
+      dst_cols,
+      dst_ld);
+  return static_cast<int>(hipGetLastError());
+}
+
+
+extern "C" int rns8_hipblaslt_reduce_i32_to_centered_on_stream(const int32_t* scratch,int8_t* residues,
+    int rows,int cols,int scratch_ld,int ldc,int modulus,uint32_t reciprocal,int accumulate,void* stream) {
+  return launch_reduce_i32_to_centered(scratch,residues,rows,cols,scratch_ld,ldc,modulus,reciprocal,accumulate,static_cast<hipStream_t>(stream));
 }

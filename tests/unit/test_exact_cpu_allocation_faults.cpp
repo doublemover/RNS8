@@ -10,6 +10,7 @@
 #include "../support/allocation_fault.hpp"
 #include "../support/noninteractive_errors.hpp"
 #include "core/internal.hpp"
+#include "core/prepared_export_read.hpp"
 #include "rns8/rns8.hpp"
 
 namespace {
@@ -315,7 +316,12 @@ void allocator_self_check() {
   require(reinterpret_cast<std::uintptr_t>(aligned) % 64 == 0, "aligned allocation hook");
   ::operator delete(aligned, std::align_val_t(64));
   void* array = ::operator new[](8);
+#if defined(__cpp_sized_deallocation)
   ::operator delete[](array, std::size_t(8));
+#else
+  // Clang does not enable sized deallocation by default on every platform.
+  ::operator delete[](array);
+#endif
   require(fault::live_allocations() == live, "hook paired deallocation accounting");
 }
 
@@ -360,6 +366,166 @@ void reused_scratch_boundary_check() {
   std::puts("PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0");
 }
 
+void bounded_writer_faults(bool profile_only) {
+  auto gd=gemm_desc(RNS8_BOUNDED_I64,2,2,2);
+  gd.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS; gd.bound=10000; gd.max_prefix=2;
+  auto md=matrix_desc(RNS8_BOUNDED_I64,2,2);
+  md.bound_kind=RNS8_BOUND_GLOBAL_MAX_ABS; md.max_prefix=2;
+  rns8::Context ctx(-1,RNS8_BACKEND_CPU_REFERENCE);
+  rns8::Plan plan(ctx,gd); rns8::Workspace ws(ctx,plan);
+  rns8::Matrix a(ctx,md),b(ctx,md),c(ctx,md);
+  const int64_t av[]={1,2,3,4}, bv[]={5,6,7,8}, old[]={42,42,42,42};
+  rns8::check(rns8_pack_i64(ctx.get(),a.get(),av,2,1));
+  rns8::check(rns8_pack_i64(ctx.get(),b.get(),bv,2,1));
+  auto compute=[&]() { return rns8_gemm_rns(ctx.get(),plan.get(),a.get(),b.get(),c.get(),ws.get()); };
+  fault::begin(); const auto status=compute(); const auto profile=fault::end();
+  require(status==RNS8_SUCCESS,"bounded profile computes");
+  if (!profile_only) for (std::size_t point=0;point<profile.calls;++point) {
+    rns8::check(rns8_pack_i64(ctx.get(),c.get(),old,2,99));
+    fault::begin(point); const auto failed=compute(); const auto injected=fault::end();
+    require(injected.triggered && failed==RNS8_INTERNAL_ERROR,"bounded fault is caught");
+    int64_t output[4]{};
+    const auto exported=rns8_export_i64(ctx.get(),plan.get(),c.get(),output,2);
+    require(exported!=RNS8_SUCCESS || (output[0]==42 && output[1]==42 && output[2]==42 && output[3]==42),
+            "bounded failure never publishes mixed CRT planes");
+    require(compute()==RNS8_SUCCESS,"bounded retry succeeds");
+    require(rns8_export_i64(ctx.get(),plan.get(),c.get(),output,2)==RNS8_SUCCESS &&
+            output[0]==19 && output[1]==22 && output[2]==43 && output[3]==50,"bounded retry exact output");
+  }
+  std::printf("PASS bounded allocation_points=%zu bytes=%zu\n",profile.calls,profile.bytes);
+}
+
+
+void prepared_product_topology_faults(bool profile_only) {
+  current_case="prepared-product-topology";
+  rns8::Context ctx;rns8::Matrix a(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,2));
+  rns8::Matrix b(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,2));
+  rns8::Matrix c(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,2));
+  rns8::Matrix d(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,2));
+  const int64_t ones[]={1,1,1,1},identity[]={1,0,0,1};
+  rns8::check(rns8_pack_i64(ctx.get(),a.get(),ones,2,1));rns8::check(rns8_pack_i64(ctx.get(),b.get(),identity,2,1));
+  const rns8_matrix* inputs[]={a.get(),a.get()};const rns8_product_node nodes[]={{0,1},{2,1}};
+  rns8_product_recipe_desc desc{};desc.struct_size=sizeof(desc);desc.abi_version=RNS8_ABI_VERSION;
+  desc.inputs=inputs;desc.input_count=2;desc.nodes=nodes;desc.node_count=2;desc.prefix_policy=RNS8_PRODUCT_FULL_PREFIX;
+  desc.max_arena_and_lift_bytes=UINT64_MAX;rns8_product_recipe* single=nullptr;rns8_product_recipe* multiple=nullptr;
+  rns8::check(rns8_create_product_recipe(ctx.get(),&desc,&single));const uint32_t ids[]={2,3};
+  rns8::check(rns8_create_product_recipe_outputs(ctx.get(),&desc,ids,2,&multiple));
+  const auto verify=[&](rns8_matrix* output,int64_t value) {
+    for(uint32_t p=0;p<20;++p)for(unsigned cell=0;cell<4;++cell) {
+      const int64_t modulus=rns8_default_modulus(p);auto residue=value%modulus;if(residue>=(modulus+1)/2)residue-=modulus;
+      require(output->residues[p*4+cell]==residue,"prepared product exact output across every plane");
+    }
+    require(!output->in_flight_writer && !output->in_flight_readers && !output->prepared_references,"prepared product output reservations retire");
+  };
+  rns8_matrix* outputs[]={c.get(),d.get()};
+  for(unsigned binding=0;binding<3;++binding) {
+    if(binding){inputs[1]=binding==1?b.get():a.get();rns8::check(rns8_rebind_product_recipe_inputs(single,inputs,2));
+      rns8::check(rns8_rebind_product_recipe_inputs(multiple,inputs,2));}
+    for(unsigned repeat=0;repeat<3;++repeat) {
+      fault::begin(0);const auto one=rns8_execute_product_recipe(single,d.get());const auto one_profile=fault::end();
+      require(one==RNS8_SUCCESS && one_profile.calls==0 && !one_profile.triggered,"small-proof full-prefix single product reuses topology without host allocation");
+      verify(d.get(),binding==1?1:4);
+      fault::begin(0);const auto many=rns8_execute_product_recipe_outputs(multiple,outputs,2);const auto many_profile=fault::end();
+      require(many==RNS8_SUCCESS && many_profile.calls==0 && !many_profile.triggered,"small-proof full-prefix multi-output product reuses topology without host allocation");
+      verify(c.get(),binding==1?1:2);verify(d.get(),binding==1?1:4);
+      require(a.get()->in_flight_readers==0 && b.get()->in_flight_readers==0,"deduplicated product readers retire after rebind");
+    }
+  }
+  const auto generation=c.get()->content_generation;rns8_matrix* duplicate[]={c.get(),c.get()};
+  fault::begin(0);const auto rejected=rns8_execute_product_recipe_outputs(multiple,duplicate,2);const auto rejected_profile=fault::end();
+  require(rejected==RNS8_INVALID_ARGUMENT && rejected_profile.calls==0 && c.get()->content_generation==generation,"allocation-free duplicate output rejection preserves generation");
+  rns8_product_recipe* probe=nullptr;fault::begin();const auto prepared=rns8_create_product_recipe(ctx.get(),&desc,&probe);const auto profile=fault::end();
+  require(prepared==RNS8_SUCCESS && probe,"prepared product allocation profile succeeds");rns8::check(rns8_destroy_product_recipe(probe));probe=nullptr;
+  const auto context_refs=ctx.get()->prepared_references,a_refs=a.get()->prepared_references,b_refs=b.get()->prepared_references;
+  if(!profile_only)for(std::size_t point=0;point<profile.calls;++point) {
+    current_point=point;const auto live=fault::live_allocations();
+    fault::begin(point);const auto failed=rns8_create_product_recipe(ctx.get(),&desc,&probe);const auto injected=fault::end();
+    require(injected.triggered && failed==RNS8_INTERNAL_ERROR && !probe,"every prepared topology allocation failure is caught before ownership publication");
+    require(fault::live_allocations()==live && ctx.get()->prepared_references==context_refs && a.get()->prepared_references==a_refs && b.get()->prepared_references==b_refs,
+        "prepared topology failure leaks no allocation or reference");
+    require(rns8_execute_product_recipe(single,d.get())==RNS8_SUCCESS,"healthy recipe survives neighboring preparation failure");verify(d.get(),4);
+  }
+  rns8::check(rns8_destroy_product_recipe(multiple));rns8::check(rns8_destroy_product_recipe(single));
+  std::printf("PASS prepared-product topology allocation_points=%zu small_proof_steady_allocations=0 authored_scope=cpu_full_prefix\n",profile.calls);
+}
+
+void prepared_crt_export_faults(bool profile_only) {
+  rns8::Context ctx;
+  for (bool fixed : {false, true}) {
+  auto d=gemm_desc(RNS8_EXACT_WIDE_SIGNED,2,3,1);
+  d.flags=fixed?RNS8_PLAN_FORCE_FIXED_PREFIX:0;
+  rns8::Plan plan(ctx,d);rns8::Matrix source(ctx,matrix_desc(RNS8_EXACT_WIDE_SIGNED,2,3));
+  const auto prefix=plan.get()->prefix;
+  const int64_t values[]={-63,0,63,-1,17,2};
+  rns8::check(rns8_pack_i64(ctx.get(),source.get(),values,3,1));
+  // Fixed-word exports can allocate nothing after acquiring their reader.
+  // Exercise the shared guard's exception branch explicitly instead of treating
+  // an empty allocation-point loop as evidence that exception cleanup ran.
+  if (!profile_only) {
+    current_case="prepared-export-reader-exception";
+    current_point=0;
+    bool pending=false,threw=false;
+    const auto live=fault::live_allocations();
+    try {
+      rns8::detail::api::PreparedExportReadLease read(*source.get(),pending);
+      require(source.get()->in_flight_readers==1,"prepared export reader acquired before exception");
+      fault::begin(0);
+      void* unexpected=::operator new(8);
+      fault::end();::operator delete(unexpected);
+      require(false,"reader exception hook must throw");
+    } catch (const std::bad_alloc&) {
+      const auto injected=fault::end();
+      require(injected.triggered,"reader exception test reached injected allocation");threw=true;
+    }
+    require(threw && source.get()->in_flight_readers==0 && fault::live_allocations()==live,
+        "reader lease unwinds an actual CPU exception without leaking");
+    std::printf("PASS prepared-export-reader prefix=%u injected_exceptions=1\n",prefix);
+  }
+  for(uint32_t policy=0;policy<=5;++policy) {
+    current_case=policy==5?"quarter-export-reader-unwind":"checked-crt-export-publication";
+    rns8_crt_export* checked=nullptr;rns8_quarter_crt_export* quarter=nullptr;
+    if(policy==5) {
+      rns8_quarter_crt_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
+      config.mode=2;config.limb_count=3;config.max_scratch_bytes=UINT64_MAX;
+      rns8::check(rns8_prepare_quarter_crt_export(ctx.get(),plan.get(),source.get(),&config,&quarter));
+    } else {
+      rns8_crt_export_desc config{};config.struct_size=sizeof(config);config.abi_version=RNS8_ABI_VERSION;
+      config.algorithm=policy;config.mode=2;config.limb_count=3;config.max_scratch_bytes=UINT64_MAX;
+      rns8::check(rns8_prepare_crt_export(ctx.get(),plan.get(),source.get(),&config,&checked));
+    }
+    std::array<uint64_t,30> output{};
+    const auto invoke=[&] {return quarter?rns8_export_quarter_crt_limbs(quarter,output.data(),5):
+        rns8_export_crt_limbs(checked,output.data(),5);};
+    const auto verify=[&] {
+      // Capacity is not the active basis: a non-fixed plan may select fewer
+      // planes. Canonical roots belong to that selected product for every policy.
+      cpp_int product=1;
+      for(uint32_t p=0;p<plan.get()->prefix;++p)product*=rns8_default_modulus(p);
+      for(unsigned row=0;row<2;++row)for(unsigned col=0;col<5;++col)for(unsigned limb=0;limb<3;++limb) {
+        if(col>=3) {require(output[(row*5+col)*3+limb]==99,"prepared CRT caller padding");continue;}
+        cpp_int expected=values[row*3+col];if(expected<0)expected+=product;
+        require(output[(row*5+col)*3+limb]==static_cast<uint64_t>((expected>>(64*limb))&UINT64_MAX),"prepared CRT exact canonical output");
+      }
+    };
+    output.fill(99);fault::begin();const auto status=invoke();const auto profile=fault::end();
+    require(status==RNS8_SUCCESS,"prepared CRT profile succeeds");verify();
+    MatrixSnapshot snapshot(*source.get());
+    if(!profile_only)for(std::size_t point=0;point<profile.calls;++point) {
+      current_point=point;output.fill(99);const auto live=fault::live_allocations();
+      fault::begin(point);const auto failed=invoke();const auto injected=fault::end();
+      require(injected.triggered && failed==RNS8_INTERNAL_ERROR,"prepared CRT catches every allocation failure");
+      require(source.get()->in_flight_readers==0,"prepared CRT releases CPU readers on exception");
+      for(auto word:output)require(word==99,"prepared CRT publishes no partial caller output on failure");
+      require(fault::live_allocations()==live,"prepared CRT failure leaks no allocation");snapshot.check(*source.get());
+      require(invoke()==RNS8_SUCCESS,"prepared CRT retry succeeds");verify();
+    }
+    if(quarter)rns8::check(rns8_destroy_quarter_crt_export(quarter));
+    if(checked)rns8::check(rns8_destroy_crt_export(checked));
+    std::printf("PASS prepared-crt prefix=%u policy=%u allocation_points=%zu bytes=%zu\n",prefix,policy,profile.calls,profile.bytes);
+  }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -377,6 +543,15 @@ int main(int argc, char** argv) {
 #endif
   allocator_self_check();
   reused_scratch_boundary_check();
+  bounded_writer_faults(profile_only);
+  if (rns8::detail::cpu_parallel_runtime_available()) {
+    rns8::detail::configure_cpu_parallel(2,1,false);
+    bounded_writer_faults(profile_only);
+    rns8::detail::configure_cpu_parallel(1,UINT64_MAX,false);
+    std::printf("PASS bounded OpenMP two-worker allocation sweep\n");
+  }
+  prepared_crt_export_faults(profile_only);
+  prepared_product_topology_faults(profile_only);
   std::size_t points = 0;
   Fixture signed_dual(RNS8_EXACT_WIDE_SIGNED);
   points += exercise("signed-dual-2x13", signed_dual, profile_only);

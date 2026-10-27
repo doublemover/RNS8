@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import Any
 
 from .capture_metadata import requested_pack_mode
@@ -21,7 +22,8 @@ from .config import (
     PROMOTABLE_RELEASE_SHAPES,
     PUBLIC_ONESHOT_BACKENDS,
     RNS_CHAIN_SEMANTICS,
-    SCENARIO_DATA_DIR,
+    scenario_data_dir,
+    ScenarioItem,
     SweepCase,
     SweepCommand,
     WRAP64_BACKENDS,
@@ -154,7 +156,7 @@ def exact_wide_limb_counts_for(semantics: str, args: argparse.Namespace) -> list
 
 
 def scenario_catalog() -> dict[str, list[ScenarioItem]]:
-    return load_scenario_data_catalog(SCENARIO_DATA_DIR)
+    return load_scenario_data_catalog(scenario_data_dir())
 
 def scenario_names() -> list[str]:
     return sorted(scenario_catalog())

@@ -4,31 +4,61 @@ set(RNS8_PUBLIC_HEADERS
   include/rns8/semantics.h
   include/rns8/bounds.h
   include/rns8/moduli.h
+  include/rns8/experimental_basis.h
+  include/rns8/dlpack.hpp
+  include/rns8/cpu_i8mm.h
+  include/rns8/integer_split.h
   include/rns8/rns8.h
+  include/rns8/pipeline_recipe.h
   include/rns8/rns8.hpp
 )
 
 set(RNS8_SOURCES
+  src/backend_hipblaslt/hipblaslt_metadata.cpp
   src/core/accelerator_backend.cpp
   src/core/autotune_cache.cpp
+  src/core/api_experimental_basis.cpp
   src/core/api_backend_info.cpp
   src/core/api_context.cpp
   src/core/api_export.cpp
   src/core/api_exact_lift.cpp
+  src/core/api_exact_epilogue.cpp
+  src/core/api_finite_verify.cpp
+  src/core/api_fp8.cpp
   src/core/api_gemm.cpp
+  src/core/api_integer_split.cpp
   src/core/api_matrix_workspace.cpp
   src/core/api_oneshot.cpp
   src/core/api_pack.cpp
   src/core/api_plan.cpp
+  src/core/api_pipeline_recipe.cpp
+  src/core/api_prepared.cpp
+  src/core/api_ragged.cpp
+  src/core/api_split_k.cpp
+  src/core/api_prepared_gram.cpp
+  src/core/api_gram.cpp
+  src/core/api_stream_gemm.cpp
+  src/core/api_native_device.cpp
+  src/core/api_pinned_host.cpp
+  src/core/api_resident_graph.cpp
+  src/core/runtime_product_recipe.cpp
+  src/core/distributed_hip.cpp
+  src/core/distributed_process.cpp
   src/core/api_sparse.cpp
   src/core/backend_common.cpp
   src/core/export_plan.cpp
   src/core/moduli.cpp
   src/core/plan_lowering.cpp
   src/core/status.cpp
+  src/cpu/cpu_amx.cpp
+  src/cpu/cpu_i8mm.cpp
   src/cpu/cpu_parallel.cpp
   src/cpu/cpu_reference.cpp
+  src/cpu/block_sparse.cpp
   src/reconstruct/crt.cpp
+  src/reconstruct/balanced_crt.cpp
+  src/reconstruct/group_crt.cpp
+  src/reconstruct/ragged_residues.cpp
   src/backend_hip_direct/hip_backend.cpp
   src/backend_hip_direct/hip_grouped_descriptor.cpp
   src/backend_hip_direct/hip_timing.cpp
@@ -39,6 +69,20 @@ set(RNS8_SOURCES
   src/backend_wrap64/wrap64_hip.cpp
   src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp
 )
+
+set(RNS8_CPU_I8MM_COMPILED OFF)
+if(RNS8_ENABLE_CPU_I8MM AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+    CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$" AND
+    CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag("-march=armv8.2-a+i8mm" RNS8_CPU_I8MM_FLAG)
+  if(NOT RNS8_CPU_I8MM_FLAG)
+    message(FATAL_ERROR "The selected Arm compiler does not support explicit +i8mm isolation")
+  endif()
+  list(APPEND RNS8_SOURCES src/cpu/cpu_i8mm_kernel.cpp)
+  set_source_files_properties(src/cpu/cpu_i8mm_kernel.cpp PROPERTIES COMPILE_OPTIONS "-march=armv8.2-a+i8mm;-fno-lto")
+  set(RNS8_CPU_I8MM_COMPILED ON)
+endif()
 
 function(rns8_apply_ck_wmma_no_divide_patch out_include_dir out_header)
   set(_ck_gridwise_source "${RNS8_CK_INCLUDE_DIR}/ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp")
@@ -107,6 +151,27 @@ if(RNS8_ENABLE_HIP)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hip_direct/hip_direct_kernels.hip"
   )
   unset(RNS8_HIP_SOURCE_DEPENDS)
+  if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    if(NOT RNS8_AMDGPU_TARGETS MATCHES "^gfx110[012]$")
+      message(FATAL_ERROR "Generated native WMMA requires one gfx1100/gfx1101/gfx1102 target")
+    endif()
+    set(RNS8_GENERATED_NATIVE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-native-wmma")
+    set(_rns8_native_source "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hip")
+    add_custom_command(OUTPUT "${_rns8_native_source}" "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp"
+      BYPRODUCTS "${RNS8_GENERATED_NATIVE_DIR}/native_variants.json"
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_native_wmma.py"
+              --out-dir "${RNS8_GENERATED_NATIVE_DIR}" --target "${RNS8_AMDGPU_TARGETS}"
+      DEPENDS tools/generate_native_wmma.py tools/native_wmma_lowering.py tools/arithmetic_certificate.py tools/modulus_set_search.py
+              tools/arithmetic_composition.py tools/planning_recipe.py tools/analytical_planner.py
+              ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS}
+      VERBATIM)
+    set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_HIP_DIRECT_KERNEL_DEPENDS})
+    rns8_compile_hip_source(RNS8_GENERATED_NATIVE_OBJECT "${_rns8_native_source}")
+    unset(RNS8_HIP_SOURCE_INCLUDE_DIRS)
+    unset(RNS8_HIP_SOURCE_DEPENDS)
+    list(APPEND RNS8_SOURCES "${RNS8_GENERATED_NATIVE_OBJECT}")
+  endif()
   file(
     GLOB
     RNS8_WRAP64_HIP_KERNEL_DEPENDS
@@ -150,10 +215,18 @@ if(RNS8_ENABLE_HIP)
   if(RNS8_ENABLE_HIPBLASLT)
     find_package(RNS8HIPBLASLT REQUIRED)
     set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS})
+    if(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE)
+      list(APPEND RNS8_HIP_SOURCE_COMPILE_OPTIONS "-DRNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE=1")
+      list(APPEND RNS8_HIP_SOURCE_DEPENDS "${RNS8_HIPBLASLT_INCLUDE_DIR}/hipblaslt/hipblaslt-ext.hpp")
+      list(APPEND RNS8_HIP_SOURCE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_algorithm_index_bridge.hpp")
+    endif()
     rns8_compile_hip_source(
       RNS8_HIPBLASLT_KERNEL_OBJECT
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_hipblaslt/hipblaslt_kernels.hip"
     )
+    if(RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE)
+      list(POP_BACK RNS8_HIP_SOURCE_COMPILE_OPTIONS)
+    endif()
     unset(RNS8_HIP_SOURCE_DEPENDS)
     list(APPEND RNS8_SOURCES src/backend_hipblaslt/hipblaslt_backend.cpp "${RNS8_HIPBLASLT_KERNEL_OBJECT}")
   endif()
@@ -167,10 +240,14 @@ if(RNS8_ENABLE_HIP)
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_ck/*.inc"
     )
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_CK_WMMA_PATCH_INCLUDE_DIR}" "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
-    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_CK_KERNEL_DEPENDS} "${RNS8_CK_WMMA_PATCHED_HEADER}")
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_CK_KERNEL_DEPENDS}
+      "${RNS8_CK_WMMA_PATCHED_HEADER}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_handle_owner.hpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp")
     set(
       RNS8_HIP_SOURCE_COMPILE_OPTIONS
       "-DRNS8_CK_USE_XDL=${RNS8_CK_USE_XDL}"
+      "-DRNS8_CK_WMMA_SIGNED_INPUTS=${RNS8_CK_WMMA_SIGNED_INPUTS}"
       "-DRNS8_CK_SHAPE_ALIGNMENT=${RNS8_CK_SHAPE_ALIGNMENT}"
     )
     if(MSVC)
@@ -192,6 +269,7 @@ if(RNS8_ENABLE_HIP)
       RNS8_ROCWMMA_KERNEL_DEPENDS
       CONFIGURE_DEPENDS
       "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/*.inc"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/*.hpp"
     )
     set(RNS8_ROCWMMA_WAVE_THREADS 32)
     if(RNS8_AMDGPU_TARGETS)
@@ -201,7 +279,9 @@ if(RNS8_ENABLE_HIP)
       endif()
     endif()
     set(RNS8_HIP_SOURCE_INCLUDE_DIRS "${RNS8_ROCWMMA_INCLUDE_DIR}")
-    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_ROCWMMA_KERNEL_DEPENDS})
+    set(RNS8_HIP_SOURCE_DEPENDS ${RNS8_COMMON_HIP_KERNEL_DEPENDS} ${RNS8_ROCWMMA_KERNEL_DEPENDS}
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_handle_owner.hpp"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/hip_runtime_handles.hpp")
     set(RNS8_HIP_SOURCE_COMPILE_OPTIONS "-DRNS8_ROCWMMA_WAVE_THREADS=${RNS8_ROCWMMA_WAVE_THREADS}")
     rns8_compile_hip_source(
       RNS8_ROCWMMA_KERNEL_OBJECT

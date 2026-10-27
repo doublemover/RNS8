@@ -1,0 +1,402 @@
+# Practical exact integer workloads
+
+These five C++17 programs use installed public RNS8 headers and exported CMake
+targets. Each starts with a task, proves its required integer range, compares
+every output against an independent Boost.Multiprecision reference, and prints
+an all-output checksum. GPU execution requests a named backend and device;
+unsupported requests return status `unsupported`, exit77, and never fall back
+to CPU. `--reference-only` explicitly selects CPU reference, device−1.
+
+The original four programs and their Windows installed consumers passed CPU and direct
+HIP checks at `51ae8d8` on the RX 7900 XTX. Large application measurements and
+Linux installed-consumer qualification remain pending execution. Existing
+[kernel measurements](../../docs/native-queue-performance-2026-10-23.md) describe
+different scopes and do not establish an application speedup here.
+The new `complex-product` program uses the experimental public split-complex API;
+its source and fixtures await the consolidated build/validation run. No complex
+application measurement or installed-consumer pass is claimed yet.
+
+## Tasks and tiny answers
+
+| Program / target suffix | Task and arithmetic | Tiny row-major answer | All-output checksum |
+|---|---|---|---|
+| `exactness-walkthrough` | Checked exact integer arithmetic above64 and128bits, signed decimal and limbs | First witness `1180591620717411303409` (`2^70−15`); five fixed witnesses | `86e3a3eb9c2c71e6` |
+| `integer-cross-product` | Transform integer observations by integer coefficients, exact bounded i64; `--wide` selects exact-wide | `[20,-27,4,-14]` | `93c5204bc9b095c2` |
+| `integer-cross-product --gram` | Integer Gram matrix `XᵀX`, K observations and M=N features; squared feature units | `[14,-22,-22,161]` | `b18e5fce6ed0647a` |
+| `gf251-transform` | Batched linear transform over prime field GF(251); canonical byte output | `[44,48,139,154]` | `af3cec33c3f7c268` |
+| `resident-chain` | Two exact integer transforms `(AB)T`, same final signed192 output with resident or exported/reimported intermediate | `[67,-34,22,-24]` | `f4de4c5aad00cd96` |
+| `complex-product` | Split-complex integer `AB`, explicit public 3M and 4M, both components signed192 | Real `[19,-25,9,-19]`; imaginary `[-12,26,14,10]` | Printed after complete pair verification; pending execution |
+
+Target names start with `rns8-workload-`. Checksums cover every output, including
+all limbs, with the versioned serialization in [recipes.json](recipes.json).
+They are reproducibility aids; correctness compares full outputs. The tiny
+fixture is2×2×3, selected by `--size tiny` with no explicit seed/bits and the
+default seeded pattern. Explicit seed/bits selects generated data instead.
+`--gram` uses B as the observation matrix and derives A by transposition.
+
+The exactness walkthrough evaluates four two-term products: `2^70−15`, signed
+cancellation to zero, zero operands against full-width inputs, and
+`INT64_MIN+INT64_MAX=−1`. Checked64 rejects overflowing multiplication or ordered
+partial sums before executing them. Unsigned64 produces explicitly labeled
+low bits; it is a wraparound negative control. Actual runtime binary64
+conversion/multiplication/addition loses15 in the first witness under recorded
+round-to-nearest. A genuine compiler `__int128` comparator runs when available;
+MSVC reports it unavailable rather than substituting a Boost type. A separate
+resident scalar chain yields `2^129`, beyond even unsigned128, then rejects
+`2^156` outside the20-plane range while preserving the previous result.
+Arbitrary-precision CPU arithmetic can compute all these finite expressions.
+
+## Build and run
+
+Use the explicit dependency/compiler configuration in the
+[Windows](../../docs/platform-windows.md) or
+[Linux](../../docs/platform-linux.md) setup guide. `RNS8_BUILD_EXAMPLES=ON`
+builds these targets along with the existing tiny API examples. No new installer,
+dependency autodetection, asynchronous API, or sparse API is required.
+
+For an already configured build, the following PowerShell commands request
+the direct HIP backend on device0. Replace `build/issues-all` with your own
+build directory; on Linux omit `.exe`.
+
+```powershell
+cmake --build build/issues-all --target rns8-workload-exactness-walkthrough rns8-workload-integer-cross-product rns8-workload-gf251-transform rns8-workload-resident-chain rns8-workload-complex-product
+build/issues-all/examples/workloads/rns8-workload-exactness-walkthrough.exe --backend hip-direct --device 0 --size tiny --json
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --backend hip-direct --device 0 --size tiny --repeats 3 --warmups 1 --json
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --backend hip-direct --device 0 --gram --size modest --bits 12 --seed 3135 --json
+build/issues-all/examples/workloads/rns8-workload-gf251-transform.exe --backend hip-direct --device 0 --size modest --seed 3135 --json
+build/issues-all/examples/workloads/rns8-workload-resident-chain.exe --backend hip-direct --device 0 --size tiny --json
+build/issues-all/examples/workloads/rns8-workload-complex-product.exe --backend hip-direct --device 0 --size tiny --json
+```
+
+The walkthrough always makes one observation per fixed witness; its only
+accepted explicit repetition controls are `--repeats 1 --warmups 0`. For other
+programs, unchanged inputs reuse source version1; an actual A change uses
+version2 and triggers a new independent complete reference comparison. Gram
+updates the corresponding B entry too. A deterministic cyclic order rotates
+comparators between warmups and repetitions. These are synchronous calls, not
+overlapped GPU work. Other named backends can be requested with `--backend`;
+their implemented semantic contracts determine support. No AUTO route exists
+in this harness. The finite, resident and walkthrough programs reject controls
+that do not apply to their contracts.
+
+For explicit CPU correctness runs use, for example:
+
+```powershell
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --reference-only --size tiny --json
+ctest --test-dir build/issues-all -R "^workload_" --output-on-failure
+```
+
+The CTest workload set includes CPU cases, configured HIP cases, independent
+baseline unit checks, CLI/report checks, and installed consumers. The installed
+consumer tests deliberately install/configure/build in test-owned build
+subdirectories and may take several minutes. GPU cases skip only when the
+actual request reports unsupported; a CPU run is never counted as GPU coverage.
+
+## Range, comparators and resource limits
+
+For retained single-source Gram cohorts, use `integer-cross-product --gram
+--gram-reuse R --gram-export each|once`, with R in1..256. Inputs are packed once
+per generation, then every application call recomputes R complete products.
+The dense control uses a public prepared GEMM owner. Separate triangular
+scalar/WMMA candidates compare the ordinary synchronous Gram API with a public
+prepared Gram owner, retaining both controls and charging first-use setup.
+Changed-input calls report actual refresh or explicit owner recreation when
+the new magnitude expands the original proof envelope. `each`
+reconstructs/downloads R outputs; `once` reconstructs only the final output.
+CPU comparators still serialize their native result after each product and
+report that distinct boundary. The [Gram cohort guide](../../docs/gram-prepared-reuse.md)
+defines measured work, mutation refresh, sustained intervals and collector
+checks. These additions are authored only, pending consolidated validation.
+
+The complex workload computes `Cr=ArBr−AiBi`, `Ci=ArBi+AiBr` without conjugation.
+It uses only public `rns8_gemm_complex_exact_signed`, explicitly selecting 3M and
+4M on CPU reference or direct HIP; other named backends report unsupported.
+Both candidates pack the same four native signed input components, recompute
+the composition and export every real cell followed by every imaginary cell
+as three signed little-endian u64 limbs. Input generation is versioned
+`splitmix64_split_complex_signed_v1`; the tiny fixture is independently readable
+in [recipes.json](recipes.json). Generation2 changes only `Ar[0]`, including
+the corresponding range bound and full pair reference. Native input sums are
+not formed in signed64 by the workload; 3M input transforms occur in residue
+space inside the public call.
+
+Admission proves `P20 > 2*max(K*(max|Ar|max|Br|+max|Ai|max|Bi|),
+K*(max|Ar|max|Bi|+max|Ai|max|Br|))`, including the changed input. The fixed
+20-plane basis has independent final-component uniqueness obligations. The
+reference and timed naive/blocked Boost comparators use four integer products;
+native64 and genuine native128 comparators run only when the complete absolute
+partial-sum bound fits. No Boost type is labeled native128 on MSVC.
+
+Both public methods include transient scratch allocation/release and required
+synchronization in their composition phase; transformed operands are not
+cached. Both final reconstructions/downloads are charged. Host phase timings,
+cold resource/input setup, unchanged version1 reuse, version2 mutation and
+optional sustained calls use the same existing harness. Mathematical useful
+work is four real products per complex multiply regardless of implementation;
+method selection and actual three/four real product counts stay explicit in
+metadata. This supplies matched correctness/application scopes, not a claim
+that 3M is faster. It does not exercise the separate resident graph API.
+
+The integer cross-product admits bounded64 only when
+`K*max_abs(A)*max_abs(B) <= INT64_MAX`, including the changed input. This bounds
+every ordered partial sum without relying on cancellation. `--wide` requires
+`P20 > 2*bound` and exports three signed little-endian u64 limbs per cell. The
+actual selected prefix and its information range are recorded.
+
+The resident experiment proves `AB` fits signed64, then proves the full `(AB)T`
+envelope is uniquely represented by the20-plane odd-modulus product. Both
+variants retain their allocations, pack the same initial native inputs, perform
+both GEMMs every time, and export the same final signed192 matrix. One variant
+keeps `AB` resident; the other reconstructs/downloads one signed64 limb per cell,
+copies its bit pattern into i64, and calls public `pack_i64` with version0 to
+force reimport. This charges the actual intermediate reconstruction, transfer,
+repacking and proof work. Public arbitrary-width limb import is unavailable;
+the experiment therefore rejects a wider intermediate rather than using private
+headers. It demonstrates storage reuse for a matched two-stage computation,
+not a general arbitrary-width import/export loop or result-cache speedup.
+
+Integer baselines include straightforward `cpp_int`, blocked `cpp_int`, blocked
+native64 where the entire expression fits, and genuine native128 where supported
+and sufficient. Their measured loops include conversion to the same final word
+format as RNS8. They are serial C++ comparators, not vendor-tuned BLAS or a claim
+of the fastest possible CPU implementation. Optional GMP and FLINT adapters add
+real exact matrix products to cross-product, Gram and resident-chain reports;
+their contracts are described below. The
+field compares reduction after every product with a blocked u32 implementation
+reducing every256 K terms. Its partial maximum is
+`250 + 256*250² = 16000250 < 2^32`. GF(251) is neither GF(2^8) nor the mod256 ring.
+
+Defaults are M=N64,K96,bits8,seed3135,three repeats and one warmup. `--size tiny`
+uses2×2×3; `--size large` explicitly opts into256³. `--m/--n/--k` override
+individual dimensions within1..512. Work above4million scalar products requires
+`--size large`; all programs retain a complete independent reference, so this
+is also a real CPU cost. `--baseline-max-products` bounds whether the additional
+naive comparator is timed; omitted timing stays `not_run`, without extrapolation.
+All reports retain the strongest implemented correct blocked comparator.
+
+Before allocating data, a shared budget reserves1024bytes per modeled host
+input/intermediate/output cell for all simultaneously retained baselines and
+old/new references. Cross-product counts `MK+KN+MN` cells; the chain counts
+`MK+KN+NN+3MN`. At allowed inputs each exact value stays below192bits, requiring
+at most three significant64-bit limbs; the allowance covers two retained
+`cpp_int` comparator states (four intermediate/output arrays for a chain),
+native64/128 arrays, their serialized outputs, inputs and full reference
+temporaries. This is a conservative storage model, including room for normal
+multiprecision capacity growth; it is not an allocator-independent peak bound.
+Every retained RNS8 candidate then adds its own128bytes per matrix cell plus
+publicly reported workspace bytes to the same aggregate budget before allocating
+those matrices/workspaces. Both resident and roundtrip candidates are charged,
+including the latter's extra imported matrix. The aggregate reservation must
+fit `--memory-mib` (default256, range1..4096), and is emitted in the report.
+For a large chain, explicitly raise the budget, for example `--size large
+--memory-mib 2048` when both optional exact adapters are enabled. Device envelopes also check total device memory. These are
+estimated admission envelopes, not free-memory measurements; allocation
+failures remain real errors. There
+is no machine-independent time bound. The collector timeout bounds each process
+and retains timeout/error output. Large examples are opt-in and may be slow in
+debug/reference builds.
+
+For the complex case, the host allowance is `1024*2*(MK+KN+MN)` bytes, covering
+four input components, both old/new exact references, retained naive/blocked
+and admitted native baseline arrays plus their complete serialized outputs.
+Allowed shapes/bits keep exact values below `2^138` (at most three significant
+u64 limbs); normal multiprecision capacity overhead is covered conservatively.
+Each retained public method additionally charges `128*2*(MK+KN+MN)` plus its
+reported workspace. One shared transient cap `128*(MK+KN+6MN)` is reserved
+because variants execute serially; that cap exceeds the current 3M payload
+`20*(MK+KN+5MN)` and 4M payload `20*6MN`. The public API enforces the cap,
+which is not a minimum-scratch query or an allocator-independent peak bound.
+All these reservations contribute to the reported aggregate budget. Large
+complex inputs need an explicit larger budget, for example `--size large
+--memory-mib 1024`. Free device memory remains runtime checked.
+
+## Optional GMP and FLINT comparisons
+
+Build with the existing `RNS8_ENABLE_GMP=ON` and `RNS8_ENABLE_FLINT=ON` dependency
+options to enable the corresponding workload adapters by default. The narrower
+`RNS8_WORKLOAD_ENABLE_GMP` and `RNS8_WORKLOAD_ENABLE_FLINT` options can disable
+either adapter without changing library semantics. Missing explicitly selected
+headers or libraries fail configure; a disabled adapter remains an `unavailable`
+row with a reason. Neither optional library is required for RNS8 correctness.
+GF251, complex and exactness programs do not claim these integer adapters.
+
+`gmp_mpz_blocked` uses actual GMP integers and a serial 32-by-32 blocked
+`mpz_addmul` loop. `flint_fmpz_mat_mul` calls FLINT's exact matrix multiplication
+dispatcher with one FLINT worker. Both retain their matrix allocations, convert
+the same signed64 native A/B inputs on every call, recompute the full product,
+and serialize every result to the same checked signed one/three-limb output as
+RNS8. Windows `unsigned long` width is never used to truncate64-bit input:
+conversion uses `mpz_import`, including signed extrema. Negative output uses
+checked two's-complement serialization; arbitrary-width results are not relabeled
+native128. Chain variants retain AB in the optional library's integer matrices,
+compute `(AB)T`, and serialize only the full final output. Gram batches recompute
+R products and serialize R native outputs, as do the other CPU comparators.
+
+Input conversion, exact GEMM and output serialization have separate diagnostic
+phase times. They all remain inside the full application interval. Allocation
+setup, first call and eventual teardown contribute to the existing cold lifecycle
+total. Stable input calls, actual changed-input conversion and sustained intervals
+use the same harness; every complete output is compared with the independent
+Boost reference outside timing. Sustained loops contain no oracle or checksum.
+These adapters always charge native conversion per product; a separate retained
+GMP/FLINT input-conversion cohort is not implemented or inferred from these rows.
+
+Reports record header/runtime versions, configured header hashes, link-input
+hashes and optional explicit static-link dependency hashes. Header/runtime
+version mismatch fails the run. Configured link files may be import libraries;
+their hashes do not attest the binary actually loaded by the OS. Therefore
+`runtime_binary_sha256` stays null and `runtime_binary_verified` stays false.
+The collector additionally binds executable, adapter source/configuration and
+independent-process identities, replays all integer outputs in Python, and
+rejects changed library identities, missing conversion phases or false available
+rows. Raw reports remain ineligible for promotion.
+
+Each enabled adapter reserves its own modeled memory allowance before allocating:
+`1024*(MK+KN+MN) + 24*MN + 4096` bytes for a product, or
+`1024*(MK+KN+NN+2*MN) + 24*MN + 4096` for a chain. These charges are added to the
+common host/reference allowance and every retained RNS8 candidate in the shared
+budget. Allowed native inputs and admitted chain bounds keep exact arithmetic
+within192 output bits; each value is checked again before serialization. GMP
+buffers begin with256-bit capacity. FLINT may choose internal multiplication
+temporaries and grow integer capacities, so its library-private peak is unknown;
+the allowance is a reproducible admission model, not a measured or allocator-
+independent peak guarantee. No observed memory traffic or speedup is claimed.
+
+Installed workload sources ship the optional helper and consume the same explicit
+components. For example, after configuring the normal RNS8 installed consumer:
+
+```powershell
+cmake -S PATH_TO_INSTALLED_WORKLOADS -B build/optional-workloads -G Ninja `
+  -DCMAKE_PREFIX_PATH=PATH_TO_RNS8_INSTALL `
+  -DRNS8_WORKLOAD_ENABLE_GMP=ON -DRNS8_WORKLOAD_ENABLE_FLINT=ON `
+  -DRNS8_GMP_INCLUDE_DIR=PATH_TO_SELECTED_INCLUDE -DRNS8_GMP_LIBRARY=PATH_TO_SELECTED_GMP_LIBRARY `
+  -DRNS8_FLINT_INCLUDE_DIR=PATH_TO_SELECTED_INCLUDE -DRNS8_FLINT_LIBRARY=PATH_TO_SELECTED_FLINT_LIBRARY
+```
+
+This consumes selected files and performs no package installation or alternative
+SDK search. Keep optional shared runtime libraries available through the selected
+toolchain/runtime deployment. Existing imported-target transitive dependencies
+are preserved. Static FLINT installations that need extra link inputs such as
+MPFR can pass their exact files in `RNS8_WORKLOAD_FLINT_EXTRA_LIBRARIES`, a quoted
+semicolon-separated CMake list; these files are hashed and linked before GMP.
+The installed-consumer fixture forwards the parent's explicit components and
+optional-adapter enablement, with vcpkg installation disabled.
+
+`optional-reference-cases.json` freezes18 CPU application cohorts: tiny, zero,
+sparse, tail, wide40/full64, Gram/reuse and two-stage chain cases, including bounded
+larger shapes. The explicit512-cubed cross/Gram cohorts request4096MiB because
+all retained references, both optional adapters and RNS8 states are charged
+together;2048MiB is insufficient for that modeled aggregate. It does not require
+a GPU. Select the executable and case explicitly:
+
+```powershell
+python tools/collect_workload_examples.py `
+  --exe build/issues-all/rns8-workload-integer-cross-product.exe `
+  --case-file examples/workloads/optional-reference-cases.json --case cross-full64-wide `
+  --runs 5 --timeout 600 --output temp/optional-cross-full64.json
+```
+
+Use `rns8-workload-resident-chain` for `chain-*` cases. The collector checks the
+program name, retains the case-file digest, and detects manifest changes around
+every process. Large cases use sustained250ms intervals with explicit memory
+budgets; each process remains an independent observation. New adapter fixtures,
+smoke registrations and installed-consumer coverage are authored only, awaiting
+the consolidated validation campaign.
+
+## Measurement and independent collection
+
+Use `--sustained-ms 250` to add a production-style repeated-call interval for
+each implemented comparator. Every call recomputes and exports the full result
+with stable input versions and retained allocations. Reference comparisons,
+checksums and diagnostic phase clocks are disabled inside that interval; the
+complete final output is checked afterward. Public API admission, proof work,
+transfers and required synchronization remain part of each application call.
+The harness stops at the requested duration or 4096 calls and records which
+limit ended the interval, its actual elapsed time and mean time per call.
+A slow call may exceed the target duration. The collector's process timeout
+provides the external bound. The option defaults to zero (disabled), accepts
+at most 10000 ms, and does not apply to the fixed exactness walkthrough.
+
+These bursts complement the individually verified diagnostic samples below.
+Use the same duration, input recipe, output boundary and independent process
+count for both sides of a sustained comparison. A burst is one observation,
+not thousands of independent samples; allocation and first-call costs remain
+available in the cold lifecycle report.
+
+Each JSON observation keeps the raw host monotonic samples, clock calibration,
+nominal resolution, timer-pair median/p95, warmup count, order, setup, teardown,
+phase scopes, complete reference cost, and separately measured verification.
+`median_steady_ns` is the usual median (average of the two central values for
+even counts); `calls_per_second` counts complete application calls, not INT8
+TOPS or mathematical products. Min/max show within-process variation.
+
+Cold application total is explicitly the sum of measured common input/layout
+preparation, per-variant resource setup, first synchronous call and eventual
+resource teardown. Teardown occurs after the reuse experiment; this sum is not
+one contiguous wall-clock sample. Steady samples retain allocations and stable
+input generations, but recompute and export every result under the default
+single-product contract. Explicit Gram batches use their recorded `each`/`once`
+export policy. Verification, report
+formatting and I/O are outside both measured calls. Public APIs combine pack/
+upload and reconstruction/download, so isolated transfers, kernel-only timing
+and device events remain null with a reason. No invented timing separation is
+reported. Bounds/proof work inside the public calls stays charged.
+
+Collect independent processes rather than treating inner repetitions as
+independent experiments:
+
+```powershell
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/cross-modest.json --runs 5 --timeout 120 -- --backend hip-direct --device 0 --size modest --bits 12 --seed 3135 --repeats 9 --warmups 3 --sustained-ms 250
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-resident-chain.exe --output temp/workloads/chain-tiny.json --runs 5 -- --backend hip-direct --device 0 --size tiny --repeats 9 --warmups 3
+```
+
+The collector binds executable hashes before/after each process, unique run IDs,
+commands, collector hash, compiler/library build manifest, example source and
+recipe hashes, requested/effective device/backend, semantic/output contracts,
+exact range, full checksums, and changed-input generations. It reconstructs the
+recipe bytes and records their SHA-256. Cross-process metadata disagreement,
+binary mutation, unsupported requests, malformed output and failed comparisons
+are retained as failed collection records; no fallback or success substitution
+occurs. The library manifest and independent example source identity describe
+different source scopes. An installed consumer records its copied library
+manifest and newly compiled example hashes; this alone is not runtime attestation
+of an arbitrary substituted shared library.
+
+The optional `--isa-file FILE --variant NAME --instruction LABEL --clocks-policy
+POLICY --power-policy POLICY` adapter uses the existing
+[`rns8_calibration_v1` tooling](../../docs/calibration.md) for one complete
+steady application variant in units of calls. Supply a real ISA artifact; no
+placeholder digest is generated. Below-threshold times are preserved raw and
+censored to null in the adapter. A file hash alone does not verify correspondence
+between instructions and selected kernel: `isa_verified=false`, rate export and
+promotion remain ineligible. Direct observations are not benchmark-schema4
+qualification. There is no speedup conclusion or winner selection in this
+harness; matched cold/steady costs can show a slowdown or an inconclusive result.
+
+## Installed public consumer
+
+After the configured library and workload targets build:
+
+```powershell
+cmake --install build/issues-all --prefix temp/workload-package
+cmake -S temp/workload-package/share/RNS8/examples/workloads -B temp/workload-consumer -G Ninja -DCMAKE_PREFIX_PATH="$PWD/temp/workload-package" -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DRNS8_WORKLOAD_GPU_TESTS=OFF
+cmake --build temp/workload-consumer
+temp/workload-consumer/rns8-workload-integer-cross-product.exe --backend hip-direct --device 0 --size tiny --json
+```
+
+The consumer requires external Boost.Multiprecision headers and nlohmann-json;
+use the existing [dependency guide](../../third_party/README.md) overrides if
+needed. It links `rns8::rns8_static` by default; select
+`-DRNS8_WORKLOAD_USE_SHARED=ON` when the installed package exports `rns8::rns8`.
+No private source headers, repository data files, source-tree caches, or network
+downloads are needed by the installed source. The separate
+[small downstream consumer](../downstream-cmake/README.md) remains available.
+
+These are arithmetic primitives for integer statistics, symbolic computations
+and prime-field transforms, not complete application integrations; see the
+[application research catalogue](../../docs/research/README.md). Sparse input
+contracts and installed sparse examples remain owned by
+[#51](https://github.com/doublemover/RNS8/issues/51). Multi-GPU and asynchronous
+workloads require their own implemented lifecycle and evidence. Setup/session
+and dependency acceptance gaps tracked by#57/#58/#60 remain separate from these
+application sources; no untested platform or backend qualification is implied.

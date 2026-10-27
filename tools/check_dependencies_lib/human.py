@@ -25,6 +25,26 @@ def print_human(report: dict[str, object]) -> None:
     print(f"platform: {system['platform']}")
     print(f"python:   {system['python']}")
     print()
+    policy = report.get("dependency_version_policy")
+    if isinstance(policy, dict):
+        print("Reviewed dependency candidate (version matches do not establish compatibility)")
+        print("  policy: " + str(policy["policy_sha256"]))
+        for item in policy["components"]:
+            if item["selected"]:
+                print(f"  {item['name']}: selected {item['selected']['version']}; observed {item['observed_version'] or 'unknown'}")
+        for error in policy["consistency_errors"]: print("  ERROR: " + error)
+        for name in policy.get("required_version_failures", []): print("  VERSION GATE: " + name)
+        print()
+    resolution = report.get("dependency_resolution")
+    if isinstance(resolution, dict):
+        print("Shared filesystem selection (compatibility/runtime probes remain separate)")
+        for name in ("hip", "vcpkg"):
+            item = resolution[name]; selected = item.get("selected")
+            print(f"[{item['status']}] {name}: {selected['canonical_root'] if selected else item['selection_reason']}")
+            if selected:
+                print(f"  source: {selected['origin']}; version: {selected['version'] or 'unknown'}")
+        for error in resolution["errors"]: print("  ERROR: " + error)
+        print()
 
     print("Commands")
     commands = report["commands"]
@@ -106,7 +126,11 @@ def print_human(report: dict[str, object]) -> None:
     for name in OPTIONAL_CPP_PACKAGES:
         item = optional_refs[name]
         assert isinstance(item, dict)
-        print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item.get('version') or 'not installed'}")
+        print(f"[{item.get('status', 'not_probed')}] {name}: compatibility {item.get('compatibility', 'not_run')}")
+        if item.get("package_inventory_version"):
+            print(f"  inventory version only: {item['package_inventory_version']}")
+        if item.get("selected"):
+            print(f"  selected root: {item['selected']['canonical_root']}")
     print()
 
     print("RCCL / rccl-tests readiness")

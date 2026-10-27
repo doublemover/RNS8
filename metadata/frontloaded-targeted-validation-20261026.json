@@ -1,0 +1,174 @@
+{
+  "schema": "rns8_frontloaded_targeted_followup_v1",
+  "recorded_utc": "2026-10-26T17:38:11.720515+00:00",
+  "artifact_source": "84b4d9c",
+  "explicit_additional_allowance": true,
+  "scope": "Two CPU cases once per configuration; actual HIP export execution remains in the earlier f406c29 full batch.",
+  "lanes": {
+    "gpu": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "test_names": [
+        "bounded per-tile schedule retains distinct bounds sharing the full prefix",
+        "exact_cpu_allocation_faults"
+      ],
+      "records": [
+        {
+          "name": "build",
+          "argv": [
+            "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+            "--build",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu",
+            "--parallel",
+            "3",
+            "--target",
+            "rns8_tests",
+            "rns8_exact_cpu_allocation_faults",
+            "--",
+            "-k",
+            "0"
+          ],
+          "exit_code": 0,
+          "seconds": 233.46517276763916
+        },
+        {
+          "name": "ctest",
+          "argv": [
+            "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+            "--test-dir",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu",
+            "-R",
+            "^(bounded per-tile schedule retains distinct bounds sharing the full prefix|exact_cpu_allocation_faults)$",
+            "--no-tests=error",
+            "--output-on-failure",
+            "--test-output-size-passed",
+            "65536",
+            "-j",
+            "1",
+            "--output-junit",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\frontloaded-targeted-allowed\\gpu\\ctest.xml"
+          ],
+          "exit_code": 0,
+          "seconds": 1.5941998958587646
+        }
+      ],
+      "binary_sha256": {
+        "rns8_tests.exe": "6bc6c41811e1996918afa6a967cc68d167dd662261e43fdec48e17838ad9c089",
+        "rns8_exact_cpu_allocation_faults.exe": "815d0d81a4ee363754c406dead207d499ad0a5d9b20211d650dcf09e2fa8fdbb"
+      },
+      "junit_sha256": "f07f948a9ea61a4565eae1b6aed6d0eed23f5102136a5af1de928e38c2e11ace",
+      "allocation_output": [
+        "PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0",
+        "PASS bounded allocation_points=2 bytes=32",
+        "PASS bounded allocation_points=3 bytes=64",
+        "PASS bounded OpenMP two-worker allocation sweep",
+        "PASS prepared-export-reader prefix=17 injected_exceptions=1",
+        "PASS prepared-crt prefix=17 policy=0 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=1 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=2 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=3 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=4 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=5 allocation_points=0 bytes=0",
+        "PASS prepared-export-reader prefix=20 injected_exceptions=1",
+        "PASS prepared-crt prefix=20 policy=0 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=1 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=2 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=3 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=4 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=5 allocation_points=0 bytes=0",
+        "PASS prepared-product topology allocation_points=45 small_proof_steady_allocations=0 authored_scope=cpu_full_prefix",
+        "case=signed-dual-2x13 selected=19 allocations=242 requested_bytes=19066 fault_points=242",
+        "case=unsigned-dual-2x13 selected=20 allocations=224 requested_bytes=17955 fault_points=224",
+        "case=signed-asymmetric-2x13 selected=19 allocations=223 requested_bytes=17935 fault_points=223",
+        "case=unsigned-shared-2x2 selected=20 allocations=53 requested_bytes=4053 fault_points=53",
+        "case=signed-lift selected=20 allocations=8 requested_bytes=407 fault_points=8",
+        "case=unsigned-lift selected=20 allocations=6 requested_bytes=279 fault_points=6",
+        "PASS scenarios=6 allocation_failures=756 mode=faults"
+      ]
+    },
+    "asan": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "test_names": [
+        "bounded per-tile schedule retains distinct bounds sharing the full prefix",
+        "exact_cpu_allocation_faults"
+      ],
+      "records": [
+        {
+          "name": "build",
+          "argv": [
+            "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+            "--build",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-asan",
+            "--parallel",
+            "3",
+            "--target",
+            "rns8_tests",
+            "rns8_exact_cpu_allocation_faults",
+            "--",
+            "-k",
+            "0"
+          ],
+          "exit_code": 0,
+          "seconds": 140.96178889274597
+        },
+        {
+          "name": "ctest",
+          "argv": [
+            "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+            "--test-dir",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-asan",
+            "-R",
+            "^(bounded per-tile schedule retains distinct bounds sharing the full prefix|exact_cpu_allocation_faults)$",
+            "--no-tests=error",
+            "--output-on-failure",
+            "--test-output-size-passed",
+            "65536",
+            "-j",
+            "1",
+            "--output-junit",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\frontloaded-targeted-allowed\\asan\\ctest.xml"
+          ],
+          "exit_code": 0,
+          "seconds": 3.8213353157043457
+        }
+      ],
+      "binary_sha256": {
+        "rns8_tests.exe": "e2852fcad873e75f4e5512240c28249774afcd33b93e37ef2e44403247189d33",
+        "rns8_exact_cpu_allocation_faults.exe": "da8ae8e392449db0c1283af6a8b9aeb9d62ee18e823e80d7c28f5d068420411c"
+      },
+      "junit_sha256": "a942d21954c09e724dd2fc24625c426fb05d9863f3cd30f81bbe1f84f232437d",
+      "allocation_output": [
+        "PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0",
+        "PASS bounded allocation_points=2 bytes=32",
+        "PASS prepared-export-reader prefix=17 injected_exceptions=1",
+        "PASS prepared-crt prefix=17 policy=0 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=1 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=2 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=3 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=4 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=17 policy=5 allocation_points=0 bytes=0",
+        "PASS prepared-export-reader prefix=20 injected_exceptions=1",
+        "PASS prepared-crt prefix=20 policy=0 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=1 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=2 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=3 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=4 allocation_points=0 bytes=0",
+        "PASS prepared-crt prefix=20 policy=5 allocation_points=0 bytes=0",
+        "PASS prepared-product topology allocation_points=45 small_proof_steady_allocations=0 authored_scope=cpu_full_prefix",
+        "case=signed-dual-2x13 selected=19 allocations=242 requested_bytes=19066 fault_points=242",
+        "case=unsigned-dual-2x13 selected=20 allocations=224 requested_bytes=17955 fault_points=224",
+        "case=signed-asymmetric-2x13 selected=19 allocations=223 requested_bytes=17935 fault_points=223",
+        "case=unsigned-shared-2x2 selected=20 allocations=53 requested_bytes=4053 fault_points=53",
+        "case=signed-lift selected=20 allocations=8 requested_bytes=407 fault_points=8",
+        "case=unsigned-lift selected=20 allocations=6 requested_bytes=279 fault_points=6",
+        "PASS scenarios=6 allocation_failures=756 mode=faults"
+      ]
+    }
+  },
+  "campaign_resumed": false,
+  "dedicated_residue_harness_repeated": false,
+  "issues_closed": []
+}

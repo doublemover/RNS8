@@ -1,16 +1,65 @@
-# Third-Party Policy
+# Dependencies and third-party policy
 
 RNS8 uses vcpkg-managed C++ dependencies declared in `vcpkg.json` on Windows.
 Linux builds use distro packages or native CMake package prefixes instead of
 Windows vcpkg roots.
 
-Required Phase 0 dependencies are Catch2 for tests and Boost.Multiprecision for
-exact CRT and wide-integer reference behavior. GMP and FLINT are optional
+## Shared prerequisites
+
+This page owns the current dependency requirements; the
+[Windows](../docs/platform-windows.md) and [Linux](../docs/platform-linux.md)
+guides own OS-specific commands. The current source uses C++17, CMake 3.22+,
+Ninja and Git. Stable Python 3.15.1 is the selected development interpreter in
+[.python-version](../.python-version); older/minimum support is a separate
+compatibility lane. The dated [dependency version policy](../docs/dependency-versions.md)
+owns exact candidate versions, artifact hashes, installed receipts and upgrade
+gates. Candidate pins do not inherit the qualification of an earlier
+[dated build](../docs/local-all-features-20261023.md).
+
+| Role | Dependency | Installation source |
+|---|---|---|
+| Required C++ headers | Boost.Multiprecision, nlohmann-json | [Windows vcpkg](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started), or native Linux development packages |
+| GPU compiler/runtime | AMD driver plus HIP SDK/ROCm development stack | [Windows HIP SDK](https://rocm.docs.amd.com/projects/install-on-windows/en/docs-7.1.1/how-to/install.html), [Linux ROCm](https://rocm.docs.amd.com/projects/install-on-linux/en/docs-7.1.0/install/install-methods/package-manager/package-manager-ubuntu.html) |
+| Windows host compiler | VS2026 C++ desktop workload + Windows SDK for the recorded local build | [Microsoft C++ installation](https://learn.microsoft.com/en-us/cpp/build/vscpp-step-0-installation) |
+| Build tooling | CMake, Ninja, Git, Python | [CMake](https://cmake.org/download/), [Ninja](https://ninja-build.org/), [Git](https://git-scm.com/downloads), [Python](https://www.python.org/downloads/) |
+| Tests only | Catch2 3.x | vcpkg or native Linux package/prefix; `RNS8_BUILD_TESTS=OFF` omits test targets |
+| Optional exact references | GMP, FLINT | vcpkg `optional-exact-libs` feature or native packages, with explicit enable flags |
+| Optional accelerators | hipBLASLt, CK, rocWMMA | Compatible AMD packages or the pinned source headers below |
+| Optional CPU parallelism | OpenMP runtime/compiler support | Native compiler toolchain; serial reference remains available |
+
+The Windows manifest currently includes Catch2 even when test targets are
+disabled. Disabling tests changes the build requirement, not the manifest's
+package list. Required C++ packages are in [vcpkg.json](../vcpkg.json); its
+`builtin-baseline` pins the registry snapshot. RNS8 does not provide a system installer.
+The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`;
+an existing cache or explicit vcpkg setting can retain its previous behavior.
+Install the manifest packages explicitly
+from the repository root before configuring:
+
+```powershell
+$env:VCPKG_ROOT = 'D:/Development Tools/vcpkg'
+& "$env:VCPKG_ROOT/vcpkg.exe" install --triplet x64-windows
+```
+
+This command installs packages. `python tools/check_dependencies.py` only reports
+existing dependencies; optional compile probes require `--accelerator-probes`.
+The [shared discovery contract](../docs/dependency-discovery.md) is consumed by
+the checker and early CMake path. GPU presets accept explicit `RNS8_HIP_ROOT`,
+`CMAKE_TOOLCHAIN_FILE`, `CMAKE_PREFIX_PATH`, `RNS8_CK_ROOT` and `RNS8_ROCWMMA_ROOT`
+overrides; invalid explicit roots fail and ambiguous SDKs require selection.
+Filesystem selection does not establish API/ABI/runtime compatibility. Broader
+probes and installation qualification remain tracked by
+[#57](https://github.com/doublemover/RNS8/issues/57).
+
+## Optional exact references and accelerator pins
+
+Boost.Multiprecision supplies exact CRT and wide-integer reference behavior. GMP and FLINT are optional
 differential references on Windows and must not be required for core
 correctness. hipBLASLt, CK, rocWMMA, and AMDGPU builtins remain
 feature-detected accelerator paths and are not correctness requirements.
 
-CK and rocWMMA source is repo-local only through pinned Git submodules:
+Repo-local CK and rocWMMA source is tracked through pinned Git submodules;
+Linux can alternatively use compatible native package headers:
 
 - `third_party/rocm/composable_kernel`
 - `third_party/rocm/rocWMMA`
@@ -24,6 +73,11 @@ URL, and commit SHA:
 | Composable Kernel | `third_party/rocm/composable_kernel` | `release/rocm-rel-7.1` | `d9272218c4c59a58e41d3d346362cdaa707c30ce` |
 | rocWMMA | `third_party/rocm/rocWMMA` | `release/rocm-rel-7.1` | `1ab208f49945c38626b79e3f0c284d65ac44a781` |
 
+
+The user has explicitly deferred the ROCm10.1 migration. Keep these exact
+HIP7.1-era pins until that work resumes. The latest bundle source candidate is
+recorded separately in the [version policy](../docs/dependency-versions.md);
+it is not selected, installed or qualified by these retained pins.
 Initialize and probe them with:
 
 ```powershell
@@ -36,6 +90,60 @@ RNS8-owned int8 matrix-engine primitive probes for `gfx1100`. That output is
 dependency readiness evidence only; it is not backend execution, differential
 correctness validation, ISA evidence, or performance evidence.
 
-Do not clone these repositories under `C:\` or commit upstream build products.
+Do not clone this repository under `C:\` or commit upstream build products.
 Generated dependency artifacts belong under ignored `temp/`, `out/`, or
 `build/` paths.
+
+
+## Attribution and provenance
+
+[NOTICE](../NOTICE) and upstream licenses retain attribution. Preserve submodule
+commit identities, configured external include-tree hashes and build manifests
+when comparing results. Configure-time CK compatibility overlays are generated
+in the build tree and exact-match guarded; they do not edit installed/upstream
+headers. The LLVM HIP math wrapper compatibility overlay likewise remains
+build-local. The [version policy](../docs/dependency-versions.md) owns deliberate lock refreshes; no automatic upgrade or cache promotion occurs.
+
+### October rank-23 mathematical artifact
+
+`tools/data/rank23-october-55.txt` is the unchanged Apache-2.0 SLP from
+`gsidebottom/logic` commit `938ea3feddc3ebf44eace7a55222d0292a96c1dd`, blob
+`f3b618ea06ec620180317e6054b3e901b24a0781`. License and attribution are retained
+under `third_party/rank23-october-55/`. RNS8's strict importer consumes mathematical
+data only; no upstream executables, dependency installation or runtime code are used.
+
+The optional installed `rns8/dlpack.hpp` consumer requires the official
+[DLPack1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h)
+(Apache-2.0). It is supplied externally through `RNS8_DLPACK_INCLUDE_DIR` for
+tests/examples; neither the core library nor ordinary consumers depend on it.
+The header adapter rejects unsupported version/format/ownership contracts.
+
+`third_party/rank48/` retains three unmodified sparse rational coefficient
+matrices and their canonical arithmetic SLP artifacts from [PLinOpt](https://github.com/jgdumas/plinopt) revision
+`7c2006504a67caf3071ed4bd34ed772f6ed1a1a6`, their CeCILL-B license and
+SHA256/Git-blob provenance. The first-party importer independently checks the
+4096 rational tensor equations before emitting a compact twice-coefficient
+table. The SLP importer additionally proves each linear map and the204-operation
+schedule before emitting live-slot tables. Licensed SLP text is parsed through a
+restricted arithmetic grammar; it is never evaluated as general upstream code.
+
+
+## Optional process transport dependencies
+
+`RNS8_ENABLE_DISTRIBUTED_MPI` requires an actual MPI3+ C++ development package and
+HIP kernels. `RNS8_ENABLE_RCCL` additionally requires a native Linux RCCL library
+with linked nonblocking init/progress/abort and grouped P2P APIs.
+`RNS8_ENABLE_ROCSHMEM` requires native Linux rocSHMEM headers/library and a
+HIP compiler capable of device-linking its RDC symbols. These flags default OFF;
+ordinary exact arithmetic has no MPI/RCCL/rocSHMEM requirement. Header/library
+content hashes and MPI version join the build manifest; installed optional
+packages must satisfy the same dependency contract.
+
+No upstream transport source or binary is vendored. The small first-party
+rocSHMEM shared helper links the selected installed library and exposes one
+runtime/arena instance, preventing unrelated static runtime contexts. Its
+explicit collective initialization and symmetric allocation require an external
+bounded job runner. See the [process transport contract](../docs/distributed-process.md)
+for build flags, arena leases, unknown opaque headroom and the authored runner.
+Native Windows rejects RCCL/rocSHMEM enablement; source checks against upstream
+headers are not installed-library or native Linux GPU qualification.

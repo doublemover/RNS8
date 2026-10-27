@@ -93,6 +93,7 @@ def capture(
             "selector_key": f"semantics=exact_wide_signed;backend={backend};selected_kernel={backend}_export",
         },
         "timing_metadata": {
+            "host_instrumentation_state": "diagnostic_gpu_events",
             "benchmark_execution_mode": (
                 "residue_chain_independent_final_host_export" if independent else "residue_chain_final_host_export"
             ),

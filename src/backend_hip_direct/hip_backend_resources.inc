@@ -61,12 +61,14 @@ rns8_status hip_direct_allocate(int device_id, std::size_t bytes, void** out) {
     return device_status;
   }
   void* ptr = nullptr;
+  AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
   const hipError_t err = hipMalloc(&ptr, bytes);
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
   g_hip_direct_allocate_calls.fetch_add(1, std::memory_order_relaxed);
   g_hip_direct_allocated_bytes.fetch_add(static_cast<uint64_t>(bytes), std::memory_order_relaxed);
+  observation.allocated(ptr,bytes,AllocationObservationDomain::device);
   *out = ptr;
   return RNS8_SUCCESS;
 #else
@@ -86,11 +88,13 @@ rns8_status hip_direct_free(int device_id, void* ptr) {
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  AllocationObservationLedger::Transaction observation(hip_direct_allocation_ledger(device_id));
   const hipError_t err = hipFree(ptr);
   if (err != hipSuccess) {
     return RNS8_BACKEND_FAILURE;
   }
   g_hip_direct_free_calls.fetch_add(1, std::memory_order_relaxed);
+  observation.released(ptr,AllocationObservationDomain::device);
   return RNS8_SUCCESS;
 #else
   (void)device_id;
@@ -108,8 +112,13 @@ rns8_status hip_direct_zero(int device_id, void* ptr, std::size_t bytes) {
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
+  // hipMemset may return before its default-stream write completes. A caller
+  // can immediately hand this storage to a nonblocking stream, which has no
+  // implicit dependency on that write. Finish initialization before publishing
+  // the allocation; synchronizing only its stream avoids a device-wide fence.
   const hipError_t err = hipMemset(ptr, 0, bytes);
-  return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+  if (err != hipSuccess) return RNS8_BACKEND_FAILURE;
+  return hipStreamSynchronize(nullptr) == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
   (void)ptr;
@@ -128,7 +137,7 @@ rns8_status hip_direct_copy_device_to_host(int device_id, void* dst, const void*
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation("residue_d2h_sync", [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyDeviceToHost); });
+      timed_hip_operation("residue_d2h_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToHost); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -154,7 +163,7 @@ rns8_status hip_direct_copy_host_to_device_labeled(
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation(timing_label, [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyHostToDevice); });
+      timed_hip_operation(timing_label, [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyHostToDevice); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;
@@ -180,7 +189,7 @@ rns8_status hip_direct_copy_device_to_device(int device_id, void* dst, const voi
     return device_status;
   }
   const hipError_t err =
-      timed_hip_operation("residue_d2d_sync", [&]() { return hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice); });
+      timed_hip_operation("residue_d2d_sync", [&]() { return tracked_sync_copy(dst, src, bytes, hipMemcpyDeviceToDevice); });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
   (void)device_id;

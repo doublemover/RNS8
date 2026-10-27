@@ -320,7 +320,7 @@ TEST_CASE("bounded per-tile zero row and column product skips require explicit p
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix") {
+TEST_CASE("bounded per-tile schedule retains distinct bounds sharing the full prefix") {
   rns8_context* ctx = create_cpu();
   const auto prefix8_product = rns8::detail::modulus_product(RNS8_DEFAULT_BOUNDED_PREFIX - 1u);
   const uint64_t first_full_signed_bound = (prefix8_product / 2).convert_to<uint64_t>();
@@ -347,7 +347,7 @@ TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile n
   REQUIRE(plan->tile_bounds.size() == 4);
   CHECK(plan->desc.tile_bounds == nullptr);
   CHECK(plan->desc.tile_bounds_count == 4);
-  CHECK(plan->tile_schedule.empty());
+  CHECK(plan->tile_schedule.size() == 4);
 
   rns8_plan_schedule_info info{};
   info.struct_size = sizeof(info);

@@ -140,6 +140,8 @@ std::string export_backend_name(rns8_backend_kind backend) {
   switch (backend) {
     case RNS8_BACKEND_CPU_REFERENCE:
       return "cpu";
+    case RNS8_BACKEND_CPU_AMX:
+      return "cpu-amx-int8";
     case RNS8_BACKEND_HIP_DIRECT:
       return "hip-direct";
     case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:

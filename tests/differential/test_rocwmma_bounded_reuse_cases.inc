@@ -223,26 +223,31 @@ TEST_CASE("rocWMMA reusable B prepack cache matches normal GEMM and CPU") {
   REQUIRE(rns8_export_i64(rocwmma, rocwmma_plan, cached_c, native_cached_out.data(), n) == RNS8_SUCCESS);
   require_same_i64(cpu_out, native_cached_out);
 
-  rns8_prepack_cache role_mismatch = *b_cache;
-  role_mismatch.operand_role = RNS8_OPERAND_A;
-  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, &role_mismatch, cached_c, cached_workspace) ==
+  // The cache owns device storage and is deliberately noncopyable. Mutate one
+  // identity field at a time, check rejection, then restore the live owner.
+  const auto original_role = b_cache->operand_role;
+  b_cache->operand_role = RNS8_OPERAND_A;
+  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, b_cache, cached_c, cached_workspace) ==
         RNS8_INVALID_ARGUMENT);
+  b_cache->operand_role = original_role;
 
-  rns8_prepack_cache target_mismatch = *b_cache;
-  target_mismatch.target_id = "gfx0000";
-  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, &target_mismatch, cached_c, cached_workspace) ==
+  const auto original_target = b_cache->target_id;
+  b_cache->target_id = "gfx0000";
+  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, b_cache, cached_c, cached_workspace) ==
         RNS8_INVALID_ARGUMENT);
+  b_cache->target_id = original_target;
 
-  rns8_prepack_cache device_mismatch = *b_cache;
-  device_mismatch.hip_device_id = 999;
-  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, &device_mismatch, cached_c, cached_workspace) ==
+  const auto original_device = b_cache->hip_device_id;
+  b_cache->hip_device_id = 999;
+  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, b_cache, cached_c, cached_workspace) ==
         RNS8_INVALID_ARGUMENT);
+  b_cache->hip_device_id = original_device;
 
-  rns8_prepack_cache source_version_mismatch = *b_cache;
-  ++source_version_mismatch.source_version;
-  CHECK(rns8_gemm_rns_prepacked_b(
-            rocwmma, rocwmma_plan, rocwmma_a, &source_version_mismatch, cached_c, cached_workspace) ==
+  const auto original_version = b_cache->source_version;
+  ++b_cache->source_version;
+  CHECK(rns8_gemm_rns_prepacked_b(rocwmma, rocwmma_plan, rocwmma_a, b_cache, cached_c, cached_workspace) ==
         RNS8_INVALID_ARGUMENT);
+  b_cache->source_version = original_version;
 
   rns8_destroy_prepack_cache(native_b_cache);
   rns8_destroy_prepack_cache(b_cache);

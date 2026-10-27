@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_captures
+from observation_cohorts import aggregate_captures, canonical_work, comparison_environment, phase_median, evidence, qualified, best_implementation
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
@@ -41,25 +42,11 @@ def shape(capture: dict[str, Any]) -> dict[str, Any]:
 
 
 def timing_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("timing_summary_us")
-    if not isinstance(summary, dict):
-        return None
-    item = summary.get(phase)
-    if not isinstance(item, dict):
-        return None
-    value = item.get("median")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return phase_median(capture, phase)
 
 
 def event_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("gpu_event_timing_summary_us")
-    if not isinstance(summary, dict):
-        return None
-    item = summary.get(phase)
-    if not isinstance(item, dict):
-        return None
-    value = item.get("median")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return phase_median(capture, phase, event=True)
 
 
 def phase_attribution(capture: dict[str, Any]) -> dict[str, float | None]:
@@ -111,6 +98,10 @@ def contract_key(capture: dict[str, Any], baseline_name: str | None = None) -> t
     scenario = scenario_metadata(capture)
     return (
         baseline_name or scenario.get("name"),
+        canonical_work(capture, exclude=("export_variant.name", "export_variant.selector_status_policy", "export_variant.d2h_policy",
+            "export_variant.selector_key", "reconstruction_variant.name", "output_logical_ld", "output_ld_padding",
+            "output_policy.destination_layout", "export_variant.output_layout", "requested_next_op.resolved")),
+        comparison_environment(capture),
         backend_id(capture),
         target_id(capture),
         scenario.get("semantics") or capture.get("semantics"),
@@ -166,11 +157,12 @@ def actual_layout_deltas(candidate: dict[str, Any], baseline: dict[str, Any]) ->
 
 
 def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    captures = aggregate_captures(captures)
     baselines: dict[tuple[Any, ...], dict[str, Any]] = {}
     for capture in captures:
         metadata = layout_metadata(capture)
         if metadata.get("layout_variant_role") == "baseline":
-            baselines[contract_key(capture)] = capture
+            baselines.setdefault(contract_key(capture), []).append(capture)
 
     rows: list[dict[str, Any]] = []
     for capture in sorted(captures, key=lambda item: str(item.get("_path", ""))):
@@ -178,8 +170,9 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if metadata.get("layout_variant_role") != "candidate":
             continue
         baseline_name = str(metadata.get("layout_baseline_name") or "")
-        baseline = baselines.get(contract_key(capture, baseline_name=baseline_name))
-        blockers: list[str] = []
+        baseline_options = baselines.get(contract_key(capture, baseline_name=baseline_name), [])
+        baseline = best_implementation(baseline_options, candidate=capture)
+        blockers: list[str] = list(evidence(capture)["blockers"])
         baseline_median = None
         speedup = None
         deltas: list[str] = []
@@ -201,7 +194,7 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             blockers.append("missing_candidate_end_to_end_timing")
         if baseline is not None and baseline_median is None:
             blockers.append("missing_baseline_end_to_end_timing")
-        if candidate_median is not None and baseline_median and baseline_median > 0:
+        if qualified(capture) and candidate_median is not None and baseline_median and baseline_median > 0:
             speedup = baseline_median / candidate_median
         if not release_reviewed(capture):
             blockers.append("candidate_not_release_reviewed")
@@ -231,11 +224,11 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 decision = "drop/deprioritize"
             elif speedup >= PROMOTION_SPEEDUP_THRESHOLD and not blockers:
                 decision = "promote locally"
-            elif speedup < 1.0 and baseline is not None and "missing_default_layout_baseline" not in blockers:
-                decision = "drop/deprioritize"
         rows.append(
             {
                 "capture": capture.get("_path"),
+                "measurement_cohort": evidence(capture),
+                "baseline_observation_cohorts": [evidence(c) for c in baseline_options],
                 "baseline_capture": baseline.get("_path") if baseline else None,
                 "layout_variant_name": metadata.get("layout_variant_name") or scenario_metadata(capture).get("name"),
                 "layout_role": metadata.get("layout_role"),

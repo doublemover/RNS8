@@ -104,6 +104,7 @@ std::vector<int8_t> exact_residues_for(boost::multiprecision::cpp_int value, uin
 void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::multiprecision::cpp_int>& values) {
   REQUIRE(matrix != nullptr);
   REQUIRE(values.size() == static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols));
+  matrix->residues.resize(static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols) * matrix->prefix);
   for (uint32_t p = 0; p < matrix->prefix; ++p) {
     for (int64_t row = 0; row < matrix->desc.rows; ++row) {
       for (int64_t col = 0; col < matrix->desc.cols; ++col) {
@@ -114,6 +115,10 @@ void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::mul
       }
     }
   }
+  matrix->materialized_rns_prefix = matrix->prefix;
+  matrix->materialized_rns_schedule.reset();
+  // Raw CRT fixtures deliberately include values outside the represented
+  // interval. Record written planes, without inventing an integer range proof.
   rns8::test::set_host_residues_current(*matrix, true);
   rns8::test::set_device_residues_current(*matrix, false);
 }
