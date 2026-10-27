@@ -64,3 +64,11 @@ compiled this installed example with HIP 7.1 / VS2026 and passed both modes
 with static and shared linkage on the RX 7900 XTX (`gfx1100`). The record binds
 the result to its installed library artifact. This tiny example checks
 lifecycle and ordering; matched performance and other targets remain separate.
+
+To exercise the optional tensor boundary, supply the official DLPack1.2 header
+directory as `-DRNS8_DLPACK_INCLUDE_DIR=...` and run `--dlpack` or
+`--dlpack-prepared`. The same GPU producer, padded inputs, exact product and
+GPU consumer then use `DLManagedTensorVersioned` leases. Each tensor deleter
+must run once after all prepared owners retire. These modes retain the complete
+independent host oracle and require no Python framework. Existing native-only
+execution receipts do not establish these new modes' qualification.

@@ -98,7 +98,27 @@ RNS storage, export stages native data and performs a D2D copy, and compact
 status travels to the host. Conversion/reconstruction timings remain separate
 from status and commit traffic. Authored CPU descriptor and HIP full-width
 Boost/residue/output/padding/ownership fixtures await the consolidated campaign.
-Prepared async/graph binding is implemented below. DLPack remains optional;
+Prepared async/graph binding is implemented below. The optional DLPack1.2
+C++ consumer is installed as `rns8/dlpack.hpp`. `rns8::dlpack::consume` accepts
+versioned ROCm tensors with scalar signed/unsigned64 elements, positive row
+strides and contiguous columns. The caller supplies the real allocation base
+and byte capacity, explicit access, owner identity/generation and completed
+producer readiness. DLPack does not encode an exact range or RNS semantics;
+ordinary verified import and plan admission establish those facts.
+
+Successful consumption transfers the tensor to the native lease; its deleter
+runs exactly once after lease destruction and all prepared borrowers retire.
+Rejected consumption leaves ownership with the caller. Read-only output,
+unsupported device/dtype/version/flags, negative/transposed strides and
+out-of-allocation views reject before acquisition. Copied producer tensors are
+accepted as their actual owned allocation; RNS8 adds no payload copy. The
+existing native device example accepts `--dlpack` and `--dlpack-prepared` when
+configured with `RNS8_DLPACK_INCLUDE_DIR`. Its external producer/consumer and
+full independent output/padding oracle exercise this adapter. The adapter uses
+the [official1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h);
+it adds no framework or core dependency. Framework stream negotiation occurs
+before consumption; the adapter does not infer an ordering guarantee from a
+pointer. DLPack support remains separately qualified from historical native runs;
 new execution/failed-drain qualification and matched performance receipts remain
 unverified. No measured speedup or
 broader target support is claimed.
@@ -366,7 +386,8 @@ snapshots, callbacks, complete commands and artifact/profile hashes. Its shared
 compiled manifest is stored once and referenced by each normalized capture.
 The two earlier diagnostic studies and original failed attempt remain separate.
 Real failed-drain device-fault and native Linux GPU qualification remain open;
-optional DLPack integration is a follow-on.
+optional DLPack integration now has its own source/consumer fixtures, whose
+execution does not inherit this older native-only evidence.
 
 ## Native moment implementation comparison
 

@@ -5,6 +5,7 @@ set(RNS8_PUBLIC_HEADERS
   include/rns8/bounds.h
   include/rns8/moduli.h
   include/rns8/experimental_basis.h
+  include/rns8/dlpack.hpp
   include/rns8/rns8.h
   include/rns8/pipeline_recipe.h
   include/rns8/rns8.hpp

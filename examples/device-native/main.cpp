@@ -1,4 +1,7 @@
 #include <rns8/rns8.h>
+#if defined(RNS8_CONSUMER_DLPACK)
+#include <rns8/dlpack.hpp>
+#endif
 #include <hip/hip_runtime_api.h>
 #include <array>
 #include <cstdint>
@@ -28,8 +31,12 @@ rns8_native_device_desc view(void* base,uint64_t bytes,int64_t rows,int64_t cols
 }
 }
 int main(int argc,char** argv) {
-  const bool prepared=argc==2 && std::string(argv[1])=="--prepared";
-  if(argc!=1 && !prepared){std::cerr<<"usage: native-consumer [--prepared]\n";return EXIT_FAILURE;}
+  const bool prepared=argc==2 && (std::string(argv[1])=="--prepared" || std::string(argv[1])=="--dlpack-prepared");
+  const bool dlpack=argc==2 && (std::string(argv[1])=="--dlpack" || std::string(argv[1])=="--dlpack-prepared");
+  if(argc!=1 && !prepared && !dlpack){std::cerr<<"usage: native-consumer [--prepared|--dlpack|--dlpack-prepared]\n";return EXIT_FAILURE;}
+#if !defined(RNS8_CONSUMER_DLPACK)
+  if(dlpack){std::cerr<<"configure RNS8_DLPACK_INCLUDE_DIR for the pinned1.2 header\n";return EXIT_FAILURE;}
+#endif
   // Failure exits preserve allocations/leases until process teardown. Never
   // release an external allocation merely because a failed operation returned.
   try {
@@ -42,7 +49,25 @@ int main(int argc,char** argv) {
     const std::array<rns8_native_device_desc,3> views={view(a,22*8,3,5,7,RNS8_NATIVE_DEVICE_READ,owners[0],101),
       view(b,21*8,5,2,4,RNS8_NATIVE_DEVICE_READ,owners[1],202),view(c,13*8,3,2,4,RNS8_NATIVE_DEVICE_WRITE,owners[2],303)};
     std::array<rns8_native_device_lease*,3> leases{};std::array<rns8_matrix*,3> matrices{};
+#if defined(RNS8_CONSUMER_DLPACK)
+    std::array<DLManagedTensorVersioned,3> tensors{};
+    std::array<std::array<int64_t,2>,3> shapes{},strides{};
+#endif
     for(std::size_t i=0;i<3;++i) {
+#if defined(RNS8_CONSUMER_DLPACK)
+      if(dlpack) {
+        auto& tensor=tensors[i];tensor.version={1,2};tensor.manager_ctx=&owners[i];
+        tensor.deleter=[](DLManagedTensorVersioned* value){release(value->manager_ctx);};
+        shapes[i]={views[i].rows,views[i].cols};strides[i]={views[i].ld,1};
+        auto& t=tensor.dl_tensor;t.data=views[i].allocation_base;t.device={kDLROCM,0};
+        t.ndim=2;t.dtype={kDLInt,64,1};t.shape=shapes[i].data();t.strides=strides[i].data();t.byte_offset=8;
+        if(i<2)tensor.flags=DLPACK_FLAG_BITMASK_READ_ONLY;
+        rns8::dlpack::Binding binding;binding.allocation_base=views[i].allocation_base;
+        binding.allocation_bytes=views[i].allocation_bytes;binding.owner_identity=views[i].owner_identity;
+        binding.generation=1;binding.access=views[i].access;binding.producer_complete=true;
+        check(acquire(&owners[i]));check(rns8::dlpack::consume(ctx,&tensor,binding,&leases[i]));
+      } else
+#endif
       check(rns8_create_native_device_lease(ctx,&views[i],&leases[i]));
       rns8_matrix_desc md{};md.struct_size=sizeof(md);md.abi_version=RNS8_ABI_VERSION;
       md.rows=views[i].rows;md.cols=views[i].cols;md.logical_ld=md.cols;md.logical_layout=RNS8_LAYOUT_ROW_MAJOR;

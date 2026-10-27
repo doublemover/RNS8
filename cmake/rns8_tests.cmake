@@ -1134,6 +1134,11 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     DEPENDS tools/generate_encoding_test_fixtures.py tools/encoding_catalogue.py tools/arithmetic_certificate.py
     VERBATIM)
   add_executable(rns8_tests tests/support/test_main.cpp ${RNS8_TEST_SOURCES} "${_rns8_reducer_header}" "${_rns8_encoding_header}")
+  set(RNS8_DLPACK_INCLUDE_DIR "" CACHE PATH "Optional official DLPack1.2 include directory for interoperability tests")
+  if(RNS8_DLPACK_INCLUDE_DIR)
+    target_sources(rns8_tests PRIVATE tests/unit/test_dlpack.cpp)
+    target_include_directories(rns8_tests SYSTEM PRIVATE "${RNS8_DLPACK_INCLUDE_DIR}")
+  endif()
   # Stage before Catch's POST_BUILD discovery can execute this binary.
   rns8_copy_runtime_dependencies(rns8_tests)
   if(WIN32 AND RNS8_ENABLE_HIP)

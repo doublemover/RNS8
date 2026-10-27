@@ -111,3 +111,9 @@ build-local. The [version policy](../docs/dependency-versions.md) owns deliberat
 `f3b618ea06ec620180317e6054b3e901b24a0781`. License and attribution are retained
 under `third_party/rank23-october-55/`. RNS8's strict importer consumes mathematical
 data only; no upstream executables, dependency installation or runtime code are used.
+
+The optional installed `rns8/dlpack.hpp` consumer requires the official
+[DLPack1.2 header](https://github.com/dmlc/dlpack/blob/v1.2/include/dlpack/dlpack.h)
+(Apache-2.0). It is supplied externally through `RNS8_DLPACK_INCLUDE_DIR` for
+tests/examples; neither the core library nor ordinary consumers depend on it.
+The header adapter rejects unsupported version/format/ownership contracts.
