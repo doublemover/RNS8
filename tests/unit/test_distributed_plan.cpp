@@ -125,7 +125,7 @@ TEST_CASE("distributed output and contraction axes own exact complete fragment c
     }
     for(uint32_t seed:{3u,97u}){d::MockExecution execution(plan);uint64_t clock=10;
       REQUIRE(execution.begin(1,inputs,clock,1000000));finish(execution,clock,seed);
-      REQUIRE(execution.result());CHECK(*execution.result()==expected);}
+      REQUIRE(execution.publish(++clock));REQUIRE(execution.result());CHECK(*execution.result()==expected);}
     CHECK(plan->identity()!=distributed_plan(distributed_request(ranks))->identity());
   }
 }
@@ -136,7 +136,7 @@ TEST_CASE("distributed K fragments reduce enormous canceling partials without us
   d::MockExecution execution(plan);uint64_t clock=10;REQUIRE(execution.begin(1,inputs,clock,1000000));
   d::Fragment fragment;REQUIRE(execution.produce(0,fragment));auto altered=fragment;altered.work.k_end=2;
   CHECK(execution.local_complete(std::move(altered),++clock).status==RNS8_INVALID_ARGUMENT);
-  finish(execution,clock,7);REQUIRE(execution.result());CHECK(execution.result()->at(0)==0);
+  finish(execution,clock,7);REQUIRE(execution.publish(++clock));REQUIRE(execution.result());CHECK(execution.result()->at(0)==0);
 }
 
 TEST_CASE("distributed immutable coverage owns each tile plane and full K exactly once", "[distributed][cpu]") {

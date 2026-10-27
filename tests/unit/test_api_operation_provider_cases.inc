@@ -123,7 +123,12 @@ TEST_CASE("operation inventory separates source semantics compilation and unknow
       if(row.device)CHECK_FALSE(support.runtime_observed);
       q.execution_modes=RNS8_EXEC_CALLER_CAPTURE;
       REQUIRE(rns8_query_operation_support(ctx,&q,&support,1,&count)==RNS8_SUCCESS);
-      CHECK(support.reason_code==RNS8_SUPPORT_EXECUTION_MODE);CHECK(support.resource_status==3);
+      const bool caller=row.backend==RNS8_BACKEND_HIP_DIRECT || row.backend==RNS8_BACKEND_HIPBLASLT ||
+          row.backend==RNS8_BACKEND_CK || row.backend==RNS8_BACKEND_ROCWMMA || row.backend==RNS8_BACKEND_AMDGPU_BUILTINS;
+      if(caller){CHECK(support.supported_execution_modes&RNS8_EXEC_CALLER_CAPTURE);
+        CHECK(support.reason_code==(capability.compiled_kernel_available?RNS8_SUPPORT_COMPATIBLE:RNS8_SUPPORT_NOT_COMPILED));
+        CHECK(support.resource_status==(capability.compiled_kernel_available?1u:3u));
+      }else{CHECK(support.reason_code==RNS8_SUPPORT_EXECUTION_MODE);CHECK(support.resource_status==3);}
       CHECK(support.source_implemented==1);
       CHECK(bool(support.compiled_inventory)==bool(capability.compiled_kernel_available));
     }

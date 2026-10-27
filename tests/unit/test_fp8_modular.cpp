@@ -21,6 +21,9 @@ TEST_CASE("FNUZ balanced digits preserve every signed byte and finite ring", "[f
 TEST_CASE("three FP8 products and RDNA4 fragments preserve exact byte arithmetic", "[fp8][cpu]") {
   namespace f=rns8::detail::fp8_modular;
   CHECK(f::Rdna4Layout::bijective());CHECK(f::three_algebra());
+  CHECK(f::Rdna4Layout::a(0,4).col==4);CHECK(f::Rdna4Layout::a(16,0).col==8);
+  CHECK(f::Rdna4Layout::a(31,7).col==15);CHECK(f::Rdna4Layout::c(16,0).row==8);
+  for(bool ocp:{false,true})for(int x=-16;x<=16;++x)CHECK(f::decode(f::encode(x,ocp),ocp)==x);
   for(bool ocp:{false,true})for(int x=-128;x<=127;++x)for(unsigned term=0;term<3;++term){
     const int digit=f::component(x,term,true);CHECK(f::decode(f::encode(digit,ocp),ocp)==digit);
   }

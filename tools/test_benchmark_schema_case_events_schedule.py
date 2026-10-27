@@ -782,6 +782,7 @@ expect_invalid(bad_event_phase_order_nullability, "gpu_event_phase_order must be
 
 # Event loss is a valid censored observation, never an event-timing success.
 from timing_diagnostics import is_censored_gpu_event_capture
+from test_benchmark_auto_backend import validate_gpu_timing
 for original in (v4_ck_adaptive_u64, v4_rocwmma_i64, v4_finite_ring_ck, bounded):
     censored = copy.deepcopy(original)
     diagnostic = dict(label="operation", phase="synchronized_host_fallback", backend_status=-1)
@@ -794,6 +795,7 @@ for original in (v4_ck_adaptive_u64, v4_rocwmma_i64, v4_finite_ring_ck, bounded)
     censored["gpu_event_timings_us"] = censored["gpu_event_timing_summary_us"] = None
     validate_capture(censored)
     assert is_censored_gpu_event_capture(censored)
+    validate_gpu_timing(censored)
     for field, value in (("phase", []), ("phase", "invented"), ("label", ""), ("backend_status", True)):
         malformed = copy.deepcopy(censored)
         malformed["timing_metadata"]["gpu_event_failure_diagnostics"][0][field] = value
@@ -801,6 +803,12 @@ for original in (v4_ck_adaptive_u64, v4_rocwmma_i64, v4_finite_ring_ck, bounded)
     silent = copy.deepcopy(censored)
     silent["timing_metadata"]["gpu_event_timing_unavailable_reasons"] = []
     expect_invalid(silent, "censored GPU event diagnostics")
+    try:
+        validate_gpu_timing(silent)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("AUTO smoke accepted silent timing loss")
     fabricated = copy.deepcopy(censored)
     fabricated["timing_metadata"]["gpu_event_timing"] = True
     expect_invalid(fabricated, "censored GPU event diagnostics")

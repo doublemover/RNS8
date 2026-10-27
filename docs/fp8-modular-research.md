@@ -98,3 +98,11 @@ The fragment/opcode basis is AMD's [RDNA4 WMMA reference](https://rocm-handbook.
 The [AMD FP8 progression](https://rocm.blogs.amd.com/software-tools-optimization/rdna-fp8-gemm/README.html)
 provides a bring-up reference; its restricted input validation does not qualify
 RNS8's larger digit alphabets or accumulator model.
+
+The RDNA4 FP8 source map follows AMD's separately named FP8 policy: each
+lane group supplies eight contiguous K bytes, with eight contiguous accumulator
+rows per lane group. This is distinct from the generic FP16 fragment diagram.
+The reviewed [official FP8 source blob](https://api.github.com/repos/ROCm/rocm-blogs/git/blobs/add24ccf438a24f30094e4de98858f005aa503f8)
+is identified by Git blob `add24ccf438a24f30094e4de98858f005aa503f8` (the blob
+identity, not a commit revision). Compile-only assembly emits the named MFMA and
+WMMA instructions; actual accumulator/lane behavior still requires those GPUs.

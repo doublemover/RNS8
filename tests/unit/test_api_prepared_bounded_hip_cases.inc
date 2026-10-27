@@ -12,7 +12,11 @@ TEST_CASE("prepared bounded HIP preserves declared ranges and checked exports", 
     if(created==RNS8_UNSUPPORTED_BACKEND || created==RNS8_UNSUPPORTED_ARCH)continue;REQUIRE(created==RNS8_SUCCESS);
     auto desc=bounded_gemm_desc(semantics,2,2,2);desc.requested_backend=backend;
     desc.bound=small_bound?31:(signed_values?uint64_t(INT64_MAX):UINT64_MAX);
-    rns8_plan* plan=nullptr;REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
+    rns8_plan* plan=nullptr;
+    if(backend==RNS8_BACKEND_CK && !signed_values){
+      CHECK(rns8_create_plan(ctx,&desc,&plan)==RNS8_UNSUPPORTED_BACKEND);CHECK(plan==nullptr);
+      REQUIRE(rns8_destroy_context(ctx)==RNS8_SUCCESS);continue;}
+    REQUIRE(rns8_create_plan(ctx,&desc,&plan)==RNS8_SUCCESS);
     rns8_workspace* workspace=nullptr;REQUIRE(rns8_create_workspace(ctx,plan,&workspace)==RNS8_SUCCESS);
     auto md=bounded_matrix_desc(2,2,semantics);
     rns8_matrix *a=nullptr,*b=nullptr,*c=nullptr;

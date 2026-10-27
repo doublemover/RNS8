@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from benchmark_cases import ROOT, catalog_documents, expand_value, materialize, safe_relative
 
@@ -44,9 +45,9 @@ class CatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "cases"
             report = materialize(output)
-            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2075, 25, 38))
+            self.assertEqual((report["cases"], report["catalogs"], report["retained_files"]), (2109, 25, 38))
             files = sorted(output.rglob("*.json"))
-            self.assertEqual(len(files), 2075)
+            self.assertEqual(len(files), 2109)
             before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
             materialize(output)
             self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in files})
@@ -58,6 +59,20 @@ class CatalogTests(unittest.TestCase):
     def test_source_destination_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "temp/"):
             materialize(ROOT / "benchmarks")
+
+    def test_concurrent_identical_publication_survives_a_windows_reader(self):
+        for identical in (True,False):
+            with tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);catalogs=root/'benchmarks/cases';catalogs.mkdir(parents=True)
+                value,_=self.fixture();(catalogs/'fixture.json').write_text(json.dumps(value))
+                def occupied_reader(source,target):
+                    Path(target).write_bytes(Path(source).read_bytes() if identical else b'wrong winner')
+                    raise PermissionError('simulated replacement denied while another reader is open')
+                with patch('benchmark_cases.os.replace',side_effect=occupied_reader):
+                    if identical:self.assertEqual(materialize(root/'temp/cases',root)['cases'],1)
+                    else:
+                        with self.assertRaises(PermissionError):materialize(root/'temp/cases',root)
+                self.assertFalse(list((root/'temp/cases/fixture').glob('tmp*')))
 
     def test_default_sweep_catalog_contains_materialized_wide_cases(self):
         from benchmark_sweep_lib.commands import scenario_catalog

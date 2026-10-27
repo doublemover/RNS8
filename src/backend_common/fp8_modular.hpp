@@ -10,7 +10,9 @@ namespace rns8::detail::fp8_modular {
 inline constexpr uint32_t format_version=1,safe_k=65536;
 struct Coordinate{unsigned row,col;};
 struct Rdna4Layout {
-  RNS8_FP8_HD static constexpr Coordinate a(unsigned lane,unsigned byte){return {lane&15,(lane>>4)*4+(byte/4)*8+byte%4};}
+  // The official FP8 policy splits K into contiguous eight-byte lane groups.
+  // Its two packed registers differ from FP16's four-register interleave.
+  RNS8_FP8_HD static constexpr Coordinate a(unsigned lane,unsigned byte){return {lane&15,(lane>>4)*8+byte};}
   RNS8_FP8_HD static constexpr Coordinate b(unsigned lane,unsigned byte){const auto v=a(lane,byte);return {v.col,v.row};}
   RNS8_FP8_HD static constexpr Coordinate c(unsigned lane,unsigned reg){return {(lane>>4)*8+reg,lane&15};}
   static constexpr bool bijective(){
@@ -35,8 +37,9 @@ RNS8_FP8_HD constexpr int high(int value){return (value-low(value))/16;}
 RNS8_FP8_HD constexpr uint8_t encode(int value,bool ocp=false) {
   if(!value)return 0;
   const unsigned magnitude=value<0?unsigned(-value):unsigned(value);
-  const unsigned exponent=magnitude>=8?3:magnitude>=4?2:magnitude>=2?1:0;
-  return uint8_t((value<0?128:0)|((exponent+(ocp?7:8))<<3)|((magnitude<<(3-exponent))-8));
+  const unsigned exponent=magnitude>=16?4:magnitude>=8?3:magnitude>=4?2:magnitude>=2?1:0;
+  const unsigned significand=exponent<=3?magnitude<<(3-exponent):magnitude>>(exponent-3);
+  return uint8_t((value<0?128:0)|((exponent+(ocp?7:8))<<3)|(significand-8));
 }
 constexpr int decode(uint8_t code,bool ocp=false) {
   if(!code)return 0;

@@ -125,7 +125,15 @@ def materialize(output: Path, root: Path = ROOT) -> dict:
             with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
                 temporary = Path(stream.name)
                 stream.write(native)
-            os.replace(temporary, target)
+            try:
+                os.replace(temporary, target)
+            except PermissionError:
+                # Concurrent immutable publishers can win while another
+                # Windows process holds a reader that forbids replacement.
+                # Accept only independently verified identical destination
+                # bytes; a different/absent value remains a real failure.
+                if not target.is_file() or target.read_bytes() != native:
+                    raise
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)

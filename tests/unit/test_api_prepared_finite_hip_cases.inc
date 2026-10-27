@@ -74,8 +74,13 @@ TEST_CASE("prepared finite HIP streams and graphs publish explicit ring results"
     const bool limited=backend==RNS8_BACKEND_CK || backend==RNS8_BACKEND_ROCWMMA || backend==RNS8_BACKEND_AMDGPU_BUILTINS;
     const uint16_t other=limited?(modulus==251?256:251):(modulus==2?3:2);
     std::vector<uint8_t> zeros(m*(k+1),0);
-    REQUIRE(rns8_pack_finite_u8(ctx,a,other,zeros.data(),k+1,0)==RNS8_SUCCESS);
-    CHECK(rns8_refresh_prepared_inputs(prepared[0])==RNS8_INVALID_ARGUMENT);
+    if(limited && semantics==RNS8_FINITE_FIELD_U8){const auto before=a->content_generation;
+      CHECK(rns8_pack_finite_u8(ctx,a,other,zeros.data(),k+1,0)==RNS8_INVALID_ARGUMENT);
+      CHECK(a->content_generation==before);
+    }else{
+      REQUIRE(rns8_pack_finite_u8(ctx,a,other,zeros.data(),k+1,0)==RNS8_SUCCESS);
+      CHECK(rns8_refresh_prepared_inputs(prepared[0])==RNS8_INVALID_ARGUMENT);
+    }
     av[0]=uint8_t((av[0]+1)%modulus);pack();
     rns8_completion_token token{77,88};
     CHECK(rns8_submit_prepared_hip(prepared[0],first.get(),&token)==RNS8_INVALID_ARGUMENT);
