@@ -19,7 +19,7 @@ retains its original source. No new performance campaign ran.
 |---|---|---|
 | #32 | Ordered-basis transfers/lift, library and distributed providers, opt-in costed basis selection | Broader targets, measured complete-pipeline basis/form selection |
 | #43 | Provider streams, finite/wrap token pipelines, multi-body caller graphs and bounded in-flight pools | Native Linux/CDNA, real fault recovery, physical overlap and payoff |
-| #45 | gfx942/gfx1201 FP8 and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
+| #45 | Exact caller-owned native radix128 split/merge, gfx942/gfx1201 FP8 and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed recipes | Actual target lane/accumulator behavior, exact execution and complete-route timing |
 | #48 | Coefficient control plus canonical 200-addition/four-halving rank48 SLP, retained/recomputed matrix/direct forms | Large-shape strongest-control performance/memory gates |
 | #50 | All partition axes plus explicit MPI/RCCL/rocSHMEM process transports and exact membership epochs | Actual multi-GPU transport/failure/scaling qualification |
 | #54 | Optional isolated Linux AArch64 I8MM owner beside AMX | Actual supported CPU/OS execution and end-to-end measurements |
@@ -155,7 +155,10 @@ pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 40 open issues;
 child acceptance gates remain the roadmap's retirement criterion. All five previously
 deferred source extensions are implemented; no known implementation item remains
-in the requested backlog. The current receipt records the consolidated repair and
+in the requested backlog as of that receipt. A fresh full-inventory audit found
+the reserved native-decomposition stub; its explicit radix128 split/merge
+replacement is now written, with execution pending the new consolidated batch.
+The current receipt records the consolidated repair and
 combined retest, including stopped lanes and unavailable-target limits.
 
 ## Stop conditions for hardware work

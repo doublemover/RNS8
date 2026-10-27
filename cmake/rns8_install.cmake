@@ -83,3 +83,7 @@ install(FILES examples/device-native/CMakeLists.txt examples/device-native/READM
     examples/device-native/WindowsTestSDK.cmake.in
   DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/device-native"
   COMPONENT Development)
+
+install(FILES examples/integer-split/CMakeLists.txt examples/integer-split/main.c
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/examples/integer-split"
+  COMPONENT Development)

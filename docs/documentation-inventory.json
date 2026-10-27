@@ -5727,6 +5727,10 @@
           "reference": "../fp8-modular-research.md"
         },
         {
+          "source": "docs/research/README.md",
+          "reference": "../fp8-modular-research.md#exact-native-integer-splitting"
+        },
+        {
           "source": "docs/roadmap.md",
           "reference": "fp8-modular-research.md"
         },
@@ -5737,6 +5741,7 @@
       ],
       "anchors": [
         "cdna4-fp4-fp6-dynamic-scales-and-mixed-formats",
+        "exact-native-integer-splitting",
         "explicit-fp8-modular-research",
         "matched-capture-source",
         "rdna4-and-three-product-source-extension"

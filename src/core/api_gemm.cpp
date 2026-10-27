@@ -1561,20 +1561,6 @@ rns8_status rns8_gemm_wrap_u64(
 
 // Research entrypoints with explicit per-operation support.
 
-RNS8_API rns8_status rns8_ozaki_decompose_i64(
-    rns8_context* ctx,
-    const int64_t* src,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    int8_t** out_components,
-    int64_t* out_component_ld,
-    int* out_split_count) {
-  (void)ctx; (void)src; (void)rows; (void)cols; (void)ld;
-  (void)out_components; (void)out_component_ld; (void)out_split_count;
-  return RNS8_UNSUPPORTED_BACKEND; /* Research path, not implemented */
-}
-
 RNS8_API rns8_status rns8_prepare_bilinear_workspace(rns8_context* ctx,const rns8_plan* plan,
     rns8_bilinear_method method,uint64_t budget,rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {

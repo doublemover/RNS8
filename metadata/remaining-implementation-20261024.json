@@ -608,7 +608,7 @@
           "files": [
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/checked-gemm-exports.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -622,28 +622,7 @@
             "tests/unit/test_system_roof_plan.cpp",
             "cmake/rns8_targets.cmake",
             "cmake/rns8_tests.cmake",
-            "benchmarks/system-roof/descriptor-smoke.json",
-            "benchmarks/system-roof/event-smoke.json",
-            "benchmarks/system-roof/global-copy-smoke.json",
-            "benchmarks/system-roof/global-displaced.json",
-            "benchmarks/system-roof/global-large.json",
-            "benchmarks/system-roof/global-reuse.json",
-            "benchmarks/system-roof/graph-smoke.json",
-            "benchmarks/system-roof/launch-smoke.json",
-            "benchmarks/system-roof/lds-read-smoke.json",
-            "benchmarks/system-roof/lds-read-stride1.json",
-            "benchmarks/system-roof/lds-read-stride16.json",
-            "benchmarks/system-roof/lds-read-stride2.json",
-            "benchmarks/system-roof/lds-read-stride32.json",
-            "benchmarks/system-roof/lds-read-stride4.json",
-            "benchmarks/system-roof/lds-read-stride8.json",
-            "benchmarks/system-roof/lds-read-write-smoke.json",
-            "benchmarks/system-roof/lds-read-write-stride1.json",
-            "benchmarks/system-roof/lds-read-write-stride16.json",
-            "benchmarks/system-roof/lds-read-write-stride2.json",
-            "benchmarks/system-roof/lds-read-write-stride32.json",
-            "benchmarks/system-roof/lds-read-write-stride4.json",
-            "benchmarks/system-roof/lds-read-write-stride8.json"
+            "benchmarks/cases/system-roof.json"
           ]
         }
       ],
@@ -859,7 +838,7 @@
           "files": [
             "src/core/api_plan_workspace_fingerprint.inc",
             "src/backend_hip_direct/hip_backend_gemm_finite_tiled.inc",
-            "benchmarks/public-calibration/immutable-schedule.json"
+            "benchmarks/cases/public-calibration.json"
           ]
         },
         {
@@ -869,7 +848,7 @@
             "benchmarks/rns8_native_calibrate.cpp",
             "tools/native_dataset.py",
             "tools/collect_native_calibration.py",
-            "benchmarks/native-calibration/adaptive-distributions.json"
+            "benchmarks/cases/native-calibration.json"
           ]
         },
         {
@@ -971,11 +950,7 @@
           "files": [
             "benchmarks/rns8_native_calibrate.cpp",
             "tools/collect_native_calibration.py",
-            "benchmarks/native-calibration/conversion-ownership-tail.json",
-            "benchmarks/native-calibration/conversion-ownership-512.json",
-            "benchmarks/native-calibration/conversion-ownership-skinny.json",
-            "benchmarks/native-calibration/conversion-ownership-large-grid.json",
-            "benchmarks/native-calibration/conversion-ownership-changed-input.json"
+            "benchmarks/cases/native-calibration.json"
           ]
         }
       ],
@@ -1026,7 +1001,7 @@
             "src/backend_common/locality_schedule.hpp",
             "src/core/api_workspace_public_api.inc",
             "include/rns8/rns8.h",
-            "benchmarks/public-calibration/locality.json"
+            "benchmarks/cases/public-calibration.json"
           ]
         },
         {
@@ -1094,7 +1069,7 @@
             "src/backend_common/split_k_partial.hpp",
             "src/backend_hip_direct/hip_direct_split_k_kernels.cuh",
             "src/backend_hip_direct/hip_backend_native_split_k.inc",
-            "benchmarks/native-calibration/native-split-merge.json"
+            "benchmarks/cases/native-calibration.json"
           ]
         }
       ],
@@ -1245,8 +1220,7 @@
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
             "tools/crt_research.py",
-            "benchmarks/conversion-calibration/quarter-every-prefix.json",
-            "benchmarks/conversion-calibration/quarter-tails.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -1263,7 +1237,7 @@
           "files": [
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/checked-public-exports.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -1271,7 +1245,7 @@
           "files": [
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/checked-gemm-exports.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -1451,7 +1425,7 @@
             "src/backend_hipblaslt/hipblaslt_metadata.cpp",
             "benchmarks/rns8_bench_args.cpp",
             "benchmarks/rns8_bench_print_json_header_backend.inc",
-            "benchmarks/public-calibration/hipblaslt-prepack.json",
+            "benchmarks/cases/public-calibration.json",
             "tools/benchmark_schema/hipblaslt_metadata.py",
             "tools/observation_cohorts.py",
             "tools/perf_variance_report.py"
@@ -1463,7 +1437,7 @@
             "src/backend_rocwmma/rocwmma_packing_policy.hpp",
             "src/backend_rocwmma/rocwmma_backend_wrap64_kernel.inc",
             "src/backend_rocwmma/rocwmma_backend_rns_wrappers.inc",
-            "benchmarks/public-calibration/rocwmma-packing.json",
+            "benchmarks/cases/public-calibration.json",
             "tools/benchmark_schema/rocwmma_packing.py"
           ]
         },
@@ -1475,7 +1449,7 @@
             "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
             "src/backend_common/native_tiled_resources.hpp",
             "tools/collect_native_calibration.py",
-            "benchmarks/native-calibration/paired-columns.json"
+            "benchmarks/cases/native-calibration.json"
           ]
         }
       ],
@@ -1745,7 +1719,7 @@
             "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
             "src/backend_common/native_tiled_resources.hpp",
             "tools/collect_native_calibration.py",
-            "benchmarks/native-calibration/paired-columns.json"
+            "benchmarks/cases/native-calibration.json"
           ]
         },
         {
@@ -2169,13 +2143,25 @@
             "tools/test_collect_research_kernels.py",
             "tools/test_fp8_modular_certificate.py"
           ]
+        },
+        {
+          "summary": "Hard-cut the ambiguous reserved decomposition API to explicit caller-owned signed-radix128 native integer split/query/merge; allocation-free full-width host arithmetic, checked pitched spans, canonical-digit admission and transactional merge.",
+          "files": [
+            "include/rns8/integer_split.h",
+            "src/core/api_integer_split.cpp",
+            "tests/unit/test_integer_split.cpp",
+            "examples/integer-split/main.c",
+            "examples/integer-split/CMakeLists.txt"
+          ]
         }
       ],
       "regressions": [
         "tests/unit/test_fp8_modular.cpp",
         "tests/unit/test_api_fp8_cases.inc",
         "tools/test_fp8_modular_certificate.py",
-        "tools/test_collect_research_kernels.py"
+        "tools/test_collect_research_kernels.py",
+        "tests/unit/test_integer_split.cpp",
+        "examples/integer-split/main.c"
       ],
       "commits": [
         "543fa115e6b7e9313928d09b206186de57dc6f25",
@@ -2208,7 +2194,17 @@
       "current_scope_receipt": "metadata/remaining-code-validation-20261027.json",
       "historical_pre_extension_remaining_20261027": [
         "Compile-only gfx942 MFMA and gfx1201 WMMA code generation is recorded. Actual target lane/accumulator/adversarial exact arithmetic and complete INT8-versus-FP8 route costs require those GPUs. FP4/FP6/dynamic/mixed-scale contracts remain separately gated later forms."
-      ]
+      ],
+      "integer_split_implementation_20261027": {
+        "status": "implemented_execution_pending",
+        "audit": "metadata/full-implementation-audit-20261027.json",
+        "retired_symbol": "rns8_ozaki_decompose_i64",
+        "replacement": [
+          "rns8_query_integer_split_i64",
+          "rns8_split_i64",
+          "rns8_merge_i64"
+        ]
+      }
     },
     {
       "issue": 46,
@@ -3560,7 +3556,7 @@
             "include/rns8/rns8.h",
             "benchmarks/rns8_stream_panel_calibrate.cpp",
             "tools/collect_stream_panels.py",
-            "benchmarks/stream-panels/retained-b.json"
+            "benchmarks/cases/stream-panels.json"
           ]
         },
         {
@@ -3670,7 +3666,7 @@
             "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
             "benchmarks/rns8_crt_calibrate.cpp",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/signed-pack-crossovers.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -3678,7 +3674,7 @@
           "files": [
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/checked-public-exports.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -3686,7 +3682,7 @@
           "files": [
             "benchmarks/rns8_crt_public_cases.inc",
             "tools/collect_crt_calibration.py",
-            "benchmarks/conversion-calibration/checked-gemm-exports.json"
+            "benchmarks/cases/conversion-calibration.json"
           ]
         },
         {
@@ -3810,7 +3806,7 @@
           "files": [
             "src/backend_hipblaslt/matmul_metadata_plan.hpp",
             "src/backend_hipblaslt/hipblaslt_timing_matmul_cache.inc",
-            "benchmarks/public-calibration/hipblaslt-metadata.json",
+            "benchmarks/cases/public-calibration.json",
             "tools/benchmark_schema/hipblaslt_metadata.py"
           ]
         },
@@ -3973,7 +3969,7 @@
           "files": [
             "benchmarks/exact_wide_magnitude.hpp",
             "benchmarks/rns8_bench_exact_wide_lanes.inc",
-            "benchmarks/scenarios/exact_wide_magnitude.json",
+            "benchmarks/cases/scenarios.json",
             "tools/benchmark_schema/wide_magnitude.py"
           ]
         }

@@ -46,7 +46,9 @@ Packed INT4/IU4 has an explicit opt-in finite-ring owner with certified signed
 nibbles and generation-bound packed B; it does not enable new public integer
 semantics or change ordinary finite dispatch. The [explicit floating owner](../fp8-modular-research.md) implements gfx942 FNUZ,
 gfx1201 OCP and gfx950 FP4/FP6/FP8 fixed/dynamic/mixed forms. Their actual target
-arithmetic/instruction/ISA qualification and Ozaki remain separate gates under #45/#46. The
+arithmetic/instruction/ISA qualification remains open under #45/#46. The separate
+[native integer split/merge](../fp8-modular-research.md#exact-native-integer-splitting)
+implements exact caller-owned radix128 components on the host. The
 [specification](../RNS8_RESEARCH_SPEC.md#17-technique-decisions-and-retirement-rules)
 keeps their retirement and production criteria.
 

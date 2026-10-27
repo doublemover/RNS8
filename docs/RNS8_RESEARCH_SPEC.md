@@ -1677,6 +1677,13 @@ prepack cache.
 
 Decision: FP8/Ozaki paths are research modes only.
 
+The explicit [native integer split](../include/rns8/integer_split.h) is a host
+representation baseline: ten caller-owned low-first signed radix128 planes,
+exact full-int64 reconstruction, checked strides/capacity and transactional
+merge. It executes no floating matrix instruction and introduces no floating-input
+FP64-emulation contract. Floating component formats and their hardware proofs
+remain owned by the separate research descriptors.
+
 Ship rule: no default exact integer API may route through FP8/Ozaki. A research
 mode may be accepted only with explicit verification metadata, exact reference
 differentials for the advertised contract, split-matrix and K-block accounting,

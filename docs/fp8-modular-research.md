@@ -3,7 +3,8 @@
 The public `rns8_prepare_fp8_recipe` / `rns8_gemm_fp8_research` owner implements
 two separately identified formats: CDNA3 `gfx942` E4M3 **FNUZ** and
 RDNA4 `gfx1201` E4M3 **OCP**, with fixed exact integer encodings. It accepts finite ring/field moduli2..256 through ordinary finite
-matrix ownership. There is no Ozaki decomposition or default integer dispatch.
+matrix ownership. The separate host integer split below has its own representation;
+default integer dispatch is unchanged.
 
 Every signed storage byte is split into two balanced radix16 digits. Four
 matrix products accumulate separate FP32 vectors: gfx942 uses
@@ -180,3 +181,47 @@ references. The CPU model/certificate checks pass the
 [current consolidated batch](../metadata/remaining-code-validation-20261027.json);
 gfx950 assembly emits the scaled f8f6f4 MFMA instruction. Actual gfx950 execution,
 internal arithmetic adversaries and measured comparisons remain open.
+
+
+## Exact native integer splitting
+
+`rns8_query_integer_split_i64`, `rns8_split_i64` and `rns8_merge_i64` implement
+an allocation-free host baseline over caller-owned buffers. The public
+[format/descriptor](../include/rns8/integer_split.h) fixes ten low-first signed
+radix128 planes: x=sum(d[s]*2^(7*s)). Each nonzero digit has the input sign,
+with magnitude at most127; the highest digit has magnitude at most1.
+Magnitude extraction uses unsigned arithmetic, including INT64_MIN. No native
+integer passes through double, and values beyond2^53 retain every bit.
+
+The descriptor binds rows, columns, native element stride, component byte row
+stride and component byte plane stride. Zero component strides select compact
+storage. Query returns exact accessible spans through the final logical cell,
+component count, radix and layout version. The caller allocates and releases
+all memory; no context, device, allocator callback or hidden lifetime is involved.
+Split/merge touch logical cells alone, preserving row/plane/outer padding.
+Address overflow, overlap, alignment, dimensions, ABI/format and insufficient
+capacity reject before writes. Merge first validates every component cell:
+-128, mixed-sign digits and an invalid top digit are malformed; an otherwise
+canonical magnitude outside int64 is a range error. A bad final cell preserves
+the complete old destination. Inputs must remain stable throughout the call.
+
+This is the native integer-splitting contract owned by #45. Floating-input
+FP64 emulation has a different numerical contract; the split API contains
+signed INT8 digits and no FP8 bytes or scale metadata. The old ambiguous
+reserved decomposition entrypoint is removed in the same cutover.
+
+The installed strict C17 consumer exercises full-width values, padding, repeated
+calls and capacity checks through either exported linkage:
+
+```text
+cmake -S examples/integer-split -B temp/integer-split-consumer -DCMAKE_PREFIX_PATH=/path/to/installed/RNS8 -DRNS8_SPLIT_USE_SHARED=ON
+cmake --build temp/integer-split-consumer
+ctest --test-dir temp/integer-split-consumer --output-on-failure
+```
+
+Use `RNS8_SPLIT_USE_SHARED=OFF` for the static target. The development package
+ships the same source under `share/RNS8/examples/integer-split`. CPU fixtures
+independently reconstruct every digit with Boost, cover signed byte values,
+full-width/power-of-two/2^53 boundaries and deterministic arbitrary bit patterns,
+and check failure preservation for malformed final cells and invalid spans.
+Execution of this new source awaits the consolidated batch.

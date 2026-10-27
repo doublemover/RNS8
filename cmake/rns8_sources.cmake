@@ -7,6 +7,7 @@ set(RNS8_PUBLIC_HEADERS
   include/rns8/experimental_basis.h
   include/rns8/dlpack.hpp
   include/rns8/cpu_i8mm.h
+  include/rns8/integer_split.h
   include/rns8/rns8.h
   include/rns8/pipeline_recipe.h
   include/rns8/rns8.hpp
@@ -25,6 +26,7 @@ set(RNS8_SOURCES
   src/core/api_finite_verify.cpp
   src/core/api_fp8.cpp
   src/core/api_gemm.cpp
+  src/core/api_integer_split.cpp
   src/core/api_matrix_workspace.cpp
   src/core/api_oneshot.cpp
   src/core/api_pack.cpp

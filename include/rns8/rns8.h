@@ -9,6 +9,7 @@
 #include "rns8/moduli.h"
 #include "rns8/semantics.h"
 #include "rns8/status.h"
+#include "rns8/integer_split.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -2876,20 +2877,6 @@ RNS8_API rns8_status rns8_gemm_finite_field_u8_oneshot(
     int64_t ldc);
 
 
-
-/*
- * Ozaki decomposition remains reserved and returns
- * RNS8_UNSUPPORTED_BACKEND without modifying outputs.
- */
-RNS8_API rns8_status rns8_ozaki_decompose_i64(
-    rns8_context* ctx,
-    const int64_t* src,
-    int64_t rows,
-    int64_t cols,
-    int64_t ld,
-    int8_t** out_components,
-    int64_t* out_component_ld,
-    int* out_split_count);
 
 typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_STRASSEN = 0,

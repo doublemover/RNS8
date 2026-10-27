@@ -101,13 +101,14 @@ public API envelope.
 | Wide-index residue control | Private scalar64-bit offsets plus public panel streaming with a completed >32GiB native-input capacity study; each path keeps its own indexing/output contract | [Wide-index control](wide-index-gemm.md), [capacity study](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx) |
 | Strassen / rank-23 / rank48 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23 and canonical retained/recomputed rank48; applicable local checks pass; performance qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
 | Packed INT4/IU4 | Explicit public finite signed-nibble owner and versioned packed B; gfx1100/1101/1102 implementation; target/performance qualification deferred | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
-| Floating encodings / Ozaki | Explicit finite gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 kernels with conditional instruction models; actual target execution/performance unqualified; Ozaki reserved | [FP8 owner](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Floating encodings / integer splitting | Explicit finite gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 kernels with conditional instruction models; separate caller-owned host radix128 split/merge; floating target execution/performance unqualified | [FP8 and split contracts](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
 | Redundant checks / Freivalds | Native-input independent residue sentinel, producer-attached public integrity and distributed commit check; public finite Freivalds verifier with explicit randomness metadata | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
 | Sparse/hybrid | Public structured Sparse-A and generation-bound block-sparse owners with explicit scalar/WMMA/hybrid methods; provider restrictions and measured cohorts remain scoped | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
 | Multi-GPU | Private HIP all-axis shards, staged/peer and MPI/RCCL/rocSHMEM process transports, bounded ownership and independent commit integrity; actual linked cluster qualification pending | [Real HIP owner](distributed-hip.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
 
-The Ozaki entrypoint returns `RNS8_UNSUPPORTED_BACKEND`. The seeded Freivalds
-entrypoint delegates to the public finite verifier; other arithmetic domains
+The [integer split API](../include/rns8/integer_split.h) exposes exact signed
+radix128 host components with explicit strides, capacity and transactional merge.
+The seeded Freivalds entrypoint delegates to the public finite verifier; other arithmetic domains
 remain unsupported. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.
 
 Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
