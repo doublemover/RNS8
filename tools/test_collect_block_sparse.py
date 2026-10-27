@@ -1,4 +1,5 @@
 """Synthetic public sparse capture/collector fixtures, authored without execution."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -139,7 +140,7 @@ class Captures(unittest.TestCase):
             validate_capture(capture, accelerated, "fixture-run", 2, 1)
 
     def test_tracked_manifests_have_complete_controls(self):
-        root = Path(__file__).resolve().parents[1]/"benchmarks"/"block-sparse"
+        root = case_root()/"block-sparse"
         for name, count in (("smoke.json", 7), ("tail-reuse.json", 63), ("512-reuse.json", 42)):
             cases = load_cases(root/name); self.assertEqual(len(cases), count)
             for shape in {(case["pattern"], case["reuse_count"]) for case in cases}:

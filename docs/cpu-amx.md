@@ -107,13 +107,17 @@ These define the platform contract; they are not RNS8 qualification receipts.
 
 `rns8-cpu-amx-calibrate` uses the public context/plan/matrix/workspace APIs for
 both the independent CPU reference and AMX. The 560 checked-in input cases in
-`benchmarks/cpu-amx/` cover tiny, 16-cell tails, long-K skinny, and square
+`temp/benchmark-cases/current/cpu-amx/` cover tiny, 16-cell tails, long-K skinny, and square
 products; bounded and exact-wide signed/unsigned and finite mod255/mod256;
 prefixes 5/9/20 as legal for those contracts; one/four requested threads; cold,
 resident, A-only/B-only/both repacking. Cold calls own construction, pack, GEMM,
 CRT export and destruction; steady calls retain exactly the declared inputs.
 Packing unchanged values still advances host generation, so the B-cache tests
 measure the real generation contract rather than assuming source-version reuse.
+
+The inputs are now represented by `benchmarks/cases/cpu-amx.json` and expand
+under `temp/benchmark-cases/current/cpu-amx/`; see
+[case materialization](performance.md#research-evidence-and-benchmark-inputs).
 
 The harness emits setup, native packing/setup, public GEMM (including internal
 AMX B packing when needed), CRT/export, and cleanup phases. Sample totals sum

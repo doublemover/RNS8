@@ -128,7 +128,7 @@ three-limb host adapter. Setup, first call, steady latency and sustained bursts
 stay separate; the oracle stays outside timing. Counters must prove one initial
 scan per side and reuse on every later completed cached call. The affine-small
 fixture isolates summary reuse and does not replace heterogeneous distributions.
-The focused shortlist is `benchmarks/narrow-public/adaptive-summaries/`.
+The focused shortlist expands to `temp/benchmark-cases/current/narrow-public/adaptive-summaries/`.
 
 The slice passes the complete local batch at compiled source **4e21e9c**:
 **556 sanitizer passes / 23 expected skips**, **942 GPU passes / 16 expected
@@ -172,7 +172,7 @@ preserves all samples, counters, identities, capture hashes and full validation.
 ### Separate resident-output boundary
 
 The authored resident shortlist in
-`benchmarks/narrow-public/adaptive-summaries-resident/` measures completed public
+`temp/benchmark-cases/current/narrow-public/adaptive-summaries-resident/` measures completed public
 products with full P20 RNS output retained on device. `adaptive-resident-fresh`
 and `adaptive-resident-cached` share the same native/RNS input owners and scalar-first
 proof policy. `rns-resident-public`, `wmma-resident-fused` and the signed

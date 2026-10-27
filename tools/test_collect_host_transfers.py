@@ -1,4 +1,5 @@
 """Synthetic receipts validate collection contracts; timings are not evidence."""
+from benchmark_cases import case_root
 from copy import deepcopy
 import json
 import os
@@ -58,7 +59,7 @@ class HostTransfers(unittest.TestCase):
         for key,value in [('device',True),('m',0),('k',65538),('max_payload_bytes',8),('unsigned_inputs',1),('mode','auto')]:
             bad=case();bad[key]=value
             with self.assertRaises(ValueError):validate_case(bad)
-        root=Path(__file__).resolve().parents[1]/'benchmarks/host-transfers'
+        root=case_root() / 'host-transfers'
         groups={}
         for path in root.glob('*.json'):
             c=validate_case(json.loads(path.read_text()));key=tuple(c[k] for k in ('m','n','k','dataset','unsigned_inputs'))

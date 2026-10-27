@@ -1,4 +1,5 @@
 """Authored mock receipts and pre-context CLI fixtures; no measured evidence."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -139,7 +140,7 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
 
     def test_case_sets_are_matched_and_boundaries_explicit(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks/split-k"
+        root=case_root() / 'split-k'
         for name in ("smoke","merge-tails","large-reuse"):
             cases=load_cases(root/(name+".json"));self.assertEqual({case["mode"] for case in cases},set(MODES));self.assertEqual({case["domain"] for case in cases},{"signed","unsigned"})
         tails=load_cases(root/"merge-tails.json");self.assertTrue({127,128,129,4096}<={case["fragments"] for case in tails})

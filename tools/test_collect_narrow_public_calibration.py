@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import json
 from pathlib import Path
@@ -8,7 +9,7 @@ from test_capture_identity_support import synthetic_identity
 
 class NarrowPublicCollection(unittest.TestCase):
     def test_checked_in_adaptive_cases_are_individual_matched_collector_inputs(self):
-        folder=Path(__file__).resolve().parents[1]/'benchmarks/narrow-public/adaptive-summaries'
+        folder=case_root() / 'narrow-public/adaptive-summaries'
         cases=[validate_case(json.loads(path.read_text())) for path in sorted(folder.glob('*.json'))]
         self.assertEqual(len(cases),8)
         groups={}
@@ -22,7 +23,7 @@ class NarrowPublicCollection(unittest.TestCase):
         return dict(schema='narrow_public_case_v1', m=17, n=19, k=31, prefix=0, unsigned_inputs=False, mode='scalar-fused', residency='resident', repeats=3, warmups=1, seed=5353)
 
     def test_resident_shortlist_has_best_same_output_controls(self):
-        folder=Path(__file__).resolve().parents[1]/'benchmarks/narrow-public/adaptive-summaries-resident'
+        folder=case_root() / 'narrow-public/adaptive-summaries-resident'
         cases=[validate_case(json.loads(path.read_text())) for path in sorted(folder.glob('*.json'))]
         self.assertEqual(len(cases),19)
         groups={}

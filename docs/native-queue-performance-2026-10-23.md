@@ -228,8 +228,8 @@ Validation logs are `temp/1bb5e33-tests-retry.log` and
 From a matching all-feature build:
 
 ```powershell
-python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases benchmarks/native-calibration/all-modes-smoke.json --output temp/native-v2-smoke --runs 1 --repeats 1 --warmups 1 --timeout 120
-python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases benchmarks/native-calibration/queue-workers.json --output temp/queue-worker-captures --runs 5 --repeats 9 --warmups 3 --timeout 900
+python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/all-modes-smoke.json --output temp/native-v2-smoke --runs 1 --repeats 1 --warmups 1 --timeout 120
+python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/queue-workers.json --output temp/queue-worker-captures --runs 5 --repeats 9 --warmups 3 --timeout 900
 ```
 
 Tracked manifests provide every case without a private scratch prerequisite.

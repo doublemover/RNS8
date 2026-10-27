@@ -142,8 +142,8 @@ inputs/outputs, zero and nonuniform tile prefixes, suffix materialization,
 retained readers and cancellation. Its Boost oracle is independent of device CRT.
 
 `rns8-distributed-calibrate CASE.json unique-run-id` records complete operations.
-The [single-device case](../benchmarks/distributed/single-smoke.json) and
-[two-device staged case](../benchmarks/distributed/two-staged-smoke.json) share
+The [single-device case](../benchmarks/cases/distributed.json) and
+[two-device staged case](../benchmarks/cases/distributed.json) share
 one exact separable signed workload. The 8192-square controls have explicit
 8 GiB complete host and 16 GiB per-rank device budgets; edit ordinal inventories
 for the actual host. Complete-output audits use a closed form independently

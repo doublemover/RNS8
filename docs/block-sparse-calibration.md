@@ -117,12 +117,12 @@ selected device0, a bounded example is:
 build/issues-all/rns8-block-sparse-calibrate.exe 0 sparse_hybrid 17 19 257 mixed 8 1 9 3 warm-hybrid-1
 build/issues-all/rns8-block-sparse-calibrate.exe 0 sparse_hybrid_cold 17 19 257 mixed 8 1 9 3 cold-hybrid-1
 build/issues-all/rns8-block-sparse-calibrate.exe 0 dense 17 19 257 mixed 8 0 9 3 dense-1
-python tools/collect_block_sparse.py --exe build/issues-all/rns8-block-sparse-calibrate.exe --cases benchmarks/block-sparse/tail-reuse.json --output temp/block-sparse-tail --runs 5 --repeats 9 --warmups 3
+python tools/collect_block_sparse.py --exe build/issues-all/rns8-block-sparse-calibrate.exe --cases temp/benchmark-cases/current/block-sparse/tail-reuse.json --output temp/block-sparse-tail --runs 5 --repeats 9 --warmups 3
 ```
 
-Tracked [smoke cases](../benchmarks/block-sparse/smoke.json) cover all seven modes.
-The [tail/reuse set](../benchmarks/block-sparse/tail-reuse.json) uses all three
-patterns at R=1/8/32; the [512-cubed set](../benchmarks/block-sparse/512-reuse.json)
+Tracked [smoke cases](../benchmarks/cases/block-sparse.json) cover all seven modes.
+The [tail/reuse set](../benchmarks/cases/block-sparse.json) uses all three
+patterns at R=1/8/32; the [512-cubed set](../benchmarks/cases/block-sparse.json)
 uses dense/mixed patterns at those same reuse counts. Copy and edit a manifest
 under ignored `temp/` to select another actual device. Do not silently filter
 unsupported modes or replace their measurements with scalar timing.

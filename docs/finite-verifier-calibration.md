@@ -91,14 +91,14 @@ build/issues-all/rns8-finite-verify-calibrate.exe cpu-reference -1 full_referenc
 ```
 
 Use `hip-direct 0` only when deliberately selecting that available device. The
-tracked [matched cases](../benchmarks/finite-verification/matched.json) contain
+tracked [matched cases](../benchmarks/cases/finite-verification.json) contain
 prime/composite/power-of-two rings for both explicit backends and all three modes.
-The [K-boundary cases](../benchmarks/finite-verification/k-boundary.json) exercise
+The [K-boundary cases](../benchmarks/cases/finite-verification.json) exercise
 65537. Select the actual HIP ordinal by editing a copied manifest under ignored
 `temp/` when needed; do not silently fall back or filter failed cases.
 
 ```powershell
-python tools/collect_finite_verify.py --exe build/issues-all/rns8-finite-verify-calibrate.exe --cases benchmarks/finite-verification/matched.json --output temp/finite-verification --runs 5 --repeats 9 --warmups 3
+python tools/collect_finite_verify.py --exe build/issues-all/rns8-finite-verify-calibrate.exe --cases temp/benchmark-cases/current/finite-verification/matched.json --output temp/finite-verification --runs 5 --repeats 9 --warmups 3
 ```
 
 Each case/run is a fresh process. Within-process samples are not independent

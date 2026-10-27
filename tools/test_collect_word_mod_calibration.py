@@ -1,4 +1,5 @@
 """Authored exact word-modular receipt/collection/CLI fixtures; no measurements."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -78,7 +79,7 @@ class Captures(unittest.TestCase):
         for p in (0,1,4,341,561,3215031751,(1 << 64)-1):self.assertFalse(prime(p))
 
     def test_tracked_manifests_and_full_width_boundary_words(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"word-mod-calibration"
+        root=case_root()/"word-mod-calibration"
         for name,count in (("smoke",16),("widths-tail",208),("slab-boundaries",64),("large",192),("tile-tails",112)):
             cases=load_cases(root/(name+".json"));self.assertEqual(len(cases),count)
             self.assertEqual({case["method"] for case in cases},set(INTEGER_METHODS));self.assertEqual({case["scope"] for case in cases},{"resident","cold"})
@@ -229,7 +230,7 @@ class FloatingCaptures(unittest.TestCase):
         with self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
 
     def test_matched_floating_manifests(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"word-mod-calibration"
+        root=case_root()/"word-mod-calibration"
         for name,count in (("floating-smoke",16),("floating-pairs",392),("floating-slabs",144),("floating-large",192)):
             cases=load_cases(root/(name+".json"));self.assertEqual(len(cases),count)
             self.assertEqual({case["method"] for case in cases},{"baseline","packed_dot4","asymmetric_binary64"})
@@ -276,7 +277,7 @@ class Fp64MfmaContracts(unittest.TestCase):
             self.assertEqual(len(set(identities)),3)
 
     def test_cdna_manifests_have_checked_baseline_and_same_scalar_schedule(self):
-        root=Path(__file__).resolve().parents[1]/'benchmarks/word-mod-calibration'
+        root=case_root() / 'word-mod-calibration'
         for name,count in [('cdna-fp64.json',750),('cdna-fp64-sustained.json',90)]:
             cases=load_cases(root/name);self.assertEqual(len(cases),count)
             self.assertEqual({c['scope'] for c in cases},set(SCOPES))

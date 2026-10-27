@@ -1,4 +1,5 @@
 """Source-authored receipt/identity/scenario regressions; no GPU required."""
+from benchmark_cases import case_root
 import copy
 import math
 from pathlib import Path
@@ -27,7 +28,7 @@ def main():
             bad=copy.deepcopy(data);del bad["exact_wide_magnitude"]
             assert validate_magnitude(bad)
             assert contract_value(data,"input_profile") != contract_value({},"input_profile")
-    items=load_scenario_data_family(Path(__file__).resolve().parents[1]/"benchmarks/scenarios/exact_wide_magnitude.json")
+    items=load_scenario_data_family(case_root() / 'scenarios/exact_wide_magnitude.json')
     assert len(items)==20
     assert {item.case.input_profile for item in items} == {"uniform-small","wide-two-limb-constant","wide-three-limb-constant","wide-two-limb-mixed","wide-three-limb-mixed"}
     assert all(item.backends==("cpu","hip-direct") and item.max_prefix==20 for item in items)

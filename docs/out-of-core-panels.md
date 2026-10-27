@@ -205,9 +205,9 @@ that an allocation exceeded device memory. The serial path asserts no overlap.
 After building with `RNS8_BUILD_BENCHMARKS=ON`, collect independent processes:
 
 ```powershell
-python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/smoke.json --output temp/stream-panels-smoke --runs 5 --repeats 9 --warmups 3
-python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/tails.json --output temp/stream-panels-tails --runs 5 --repeats 9 --warmups 3
-python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases benchmarks/stream-panels/large-bounded.json --output temp/stream-panels-large --runs 5 --repeats 9 --warmups 3
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases temp/benchmark-cases/current/stream-panels/smoke.json --output temp/stream-panels-smoke --runs 5 --repeats 9 --warmups 3
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases temp/benchmark-cases/current/stream-panels/tails.json --output temp/stream-panels-tails --runs 5 --repeats 9 --warmups 3
+python tools/collect_stream_panels.py --exe build/issues-all/rns8-stream-panel-calibrate.exe --cases temp/benchmark-cases/current/stream-panels/large-bounded.json --output temp/stream-panels-large --runs 5 --repeats 9 --warmups 3
 ```
 
 Use the same executable names without `.exe` on Linux. The manifests explicitly

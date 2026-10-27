@@ -131,7 +131,7 @@ Compact cases additionally require an explicit integer `workers` in1..65535;
 there is no default. Grid cases reject `workers`. Prefixes other than20,
 unsupported methods, booleans/floats, missing/irrelevant fields and out-of-range
 workers are rejected before launching a child. Existing queue defaults/bounds
-remain unchanged. The [adaptive case set](../benchmarks/native-calibration/adaptive-native.json)
+remain unchanged. The [adaptive case set](../benchmarks/cases/native-calibration.json)
 covers32³/512³, signedness, groups1/2/4, compact32/512 and matched ordinary
 native/pack-direct controls. It is authored input, not completed measurement.
 
@@ -237,13 +237,13 @@ This flag reports the existing release-provenance checks; neither it nor
 timeouts retain raw stdout/stderr, commands and a failure reason; partial timeout
 output is preserved too.
 
-The tracked [queue worker sweep](../benchmarks/native-calibration/queue-workers.json)
+The tracked [queue worker sweep](../benchmarks/cases/native-calibration.json)
 contains 14 explicit 512³/prefix-9 cases spanning ordinary WMMA groups, queue
 worker counts, split-K and direct pack+GEMM. To collect it after building the
 current executable:
 
 ```powershell
-python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases benchmarks/native-calibration/queue-workers.json --output temp/native-queue-workers --runs 5 --repeats 9 --warmups 3
+python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/queue-workers.json --output temp/native-queue-workers --runs 5 --repeats 9 --warmups 3
 ```
 
 Each child also performs the sustained burst described above. This fixture is a
@@ -288,16 +288,16 @@ is not claimed. Full-width inputs, the int256/cpp_int oracle, complete output
 canaries, paired calls and sustained intervals use the same existing scopes.
 Checked capability/status/synchronization remains inside host call timing.
 
-The tracked [tail campaign](../benchmarks/native-calibration/tiled-native-tail.json)
-uses 17x19x257; the [512 campaign](../benchmarks/native-calibration/tiled-native-512.json)
+The tracked [tail campaign](../benchmarks/cases/native-calibration.json)
+uses 17x19x257; the [512 campaign](../benchmarks/cases/native-calibration.json)
 uses 512 cubed. Each has 38 cases: all five four-wave storage variants plus the
 single-wave wmma control for every signedness/group, and a pack-plus-direct
 control per signedness. Storage variants compare against the identical four-wave
 register control; the single-wave case separately measures the output-tile/wave
 change. Do not attribute that change to LDS staging.
 
-    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases benchmarks/native-calibration/tiled-native-tail.json --output temp/native-tiled-tail --runs 5 --repeats 9 --warmups 3
-    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases benchmarks/native-calibration/tiled-native-512.json --output temp/native-tiled-512 --runs 5 --repeats 9 --warmups 3
+    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/tiled-native-tail.json --output temp/native-tiled-tail --runs 5 --repeats 9 --warmups 3
+    python tools/collect_native_calibration.py --exe build/windows-msvc-hip-debug/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/tiled-native-512.json --output temp/native-tiled-512 --runs 5 --repeats 9 --warmups 3
 
 These are reproducible candidate commands, not executed results. Both manifests,
 collector metadata/identity fixtures and no-GPU malformed CLI checks are authored
@@ -393,7 +393,7 @@ including their existing per-call admission/capability policy.
 .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe encoded_b_cold 17 19 257 9 2 0 9 3 cold-eight 8
 .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe encoded_b_warm 17 19 257 9 2 0 9 3 warm-eight 8
 .\build\windows-msvc-hip-debug\rns8-native-calibrate.exe wmma 17 19 257 9 2 0 9 3 direct-eight 8
-python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases benchmarks/native-calibration/encoded-b-tail.json --output temp/encoded-b-tail --runs 5 --repeats 9 --warmups 3
+python tools/collect_native_calibration.py --exe build/issues-all/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/encoded-b-tail.json --output temp/encoded-b-tail --runs 5 --repeats 9 --warmups 3
 ```
 
 The two tracked sets, `encoded-b-tail.json` (17x19x257) and

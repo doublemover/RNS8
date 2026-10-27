@@ -1,4 +1,5 @@
 """Authored validators/fixtures only; synthetic timings are never collected evidence."""
+from benchmark_cases import case_root
 import copy
 import json
 from pathlib import Path
@@ -96,7 +97,7 @@ class PublicQueueCollection(unittest.TestCase):
         case = self.case(); case['tasks'][0]['prefix'] = case['tasks'][1]['prefix'] = 1
         with self.assertRaises(ValueError):
             validate_case(case)
-        cases = [validate_case(json.loads(p.read_text())) for p in (Path(__file__).parents[1]/'benchmarks/public-native-queue').glob('*.json')]
+        cases = [validate_case(json.loads(p.read_text())) for p in (case_root() / 'public-native-queue').glob('*.json')]
         self.assertEqual({c['mode'] for c in cases}, {'persistent', 'ordinary', 'graph', 'resident'})
         self.assertEqual({c['schedule'] for c in cases}, {0, 1, 2})
         self.assertTrue(any(t['k'] == 65537 for c in cases for t in c['tasks']))

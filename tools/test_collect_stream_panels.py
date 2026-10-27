@@ -1,4 +1,5 @@
 """Authored panel receipts/CLI fixtures. Mock timings are not measurements."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -201,7 +202,7 @@ class Captures(unittest.TestCase):
         with self.assertRaises(ValueError):validate_capture(c,incore(BASE),"fixture-run",2,1)
 
     def test_manifests_cover_bounded_large_shapes_clipped_and_k_tails(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks/stream-panels"
+        root=case_root() / 'stream-panels'
         for name in ("smoke","tails","large-bounded","retained-b"):
             cases=load_cases(root/(name+".json"));self.assertEqual({c["mode"] for c in cases},set(MODES));self.assertEqual({c["domain"] for c in cases},{"signed","unsigned"})
         cases=load_cases(root/"tails.json");self.assertTrue({65535,65536,65537}<={c["k"] for c in cases})

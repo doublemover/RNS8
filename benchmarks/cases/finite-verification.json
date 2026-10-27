@@ -1,0 +1,83 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "finite-verification",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "cases"],
+      "defaults": {
+        "schema": "rns8_finite_verify_cases_v1"
+      },
+      "columns": ["cases"],
+      "rows": [
+        [
+          "k-boundary.json",
+          "c219fe5cac3b6c1a75997ef516cf12b768b02b497b664f32d2627cd8b0dd19f6",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["backend", "device", "mode", "m", "n", "k", "modulus", "trials", "challenge_seed"]
+              ],
+              "defaults": {
+                "m": 2,
+                "n": 3,
+                "k": 65537,
+                "modulus": 256
+              },
+              "rows": [
+                [0, "cpu-reference", -1, "verify_only", 8, 3135],
+                [0, "cpu-reference", -1, "compute_verify", 8, 3135],
+                [0, "cpu-reference", -1, "full_reference", 0, 0],
+                [0, "hip-direct", 0, "verify_only", 8, 3135],
+                [0, "hip-direct", 0, "compute_verify", 8, 3135],
+                [0, "hip-direct", 0, "full_reference", 0, 0]
+              ]
+            }
+          }
+        ],
+        [
+          "matched.json",
+          "29d3f777c663bff10dfabbdbf78000674a2fd6fc69f828ca40ec50741dd97100",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["backend", "device", "mode", "m", "n", "k", "modulus", "trials", "challenge_seed"]
+              ],
+              "defaults": {
+                "m": 32,
+                "n": 32,
+                "k": 65
+              },
+              "rows": [
+                [0, "cpu-reference", -1, "verify_only", 2, 8, 3135],
+                [0, "cpu-reference", -1, "compute_verify", 2, 8, 3135],
+                [0, "cpu-reference", -1, "full_reference", 2, 0, 0],
+                [0, "cpu-reference", -1, "verify_only", 6, 8, 3135],
+                [0, "cpu-reference", -1, "compute_verify", 6, 8, 3135],
+                [0, "cpu-reference", -1, "full_reference", 6, 0, 0],
+                [0, "cpu-reference", -1, "verify_only", 251, 8, 3135],
+                [0, "cpu-reference", -1, "compute_verify", 251, 8, 3135],
+                [0, "cpu-reference", -1, "full_reference", 251, 0, 0],
+                [0, "cpu-reference", -1, "verify_only", 256, 8, 3135],
+                [0, "cpu-reference", -1, "compute_verify", 256, 8, 3135],
+                [0, "cpu-reference", -1, "full_reference", 256, 0, 0],
+                [0, "hip-direct", 0, "verify_only", 2, 8, 3135],
+                [0, "hip-direct", 0, "compute_verify", 2, 8, 3135],
+                [0, "hip-direct", 0, "full_reference", 2, 0, 0],
+                [0, "hip-direct", 0, "verify_only", 6, 8, 3135],
+                [0, "hip-direct", 0, "compute_verify", 6, 8, 3135],
+                [0, "hip-direct", 0, "full_reference", 6, 0, 0],
+                [0, "hip-direct", 0, "verify_only", 251, 8, 3135],
+                [0, "hip-direct", 0, "compute_verify", 251, 8, 3135],
+                [0, "hip-direct", 0, "full_reference", 251, 0, 0],
+                [0, "hip-direct", 0, "verify_only", 256, 8, 3135],
+                [0, "hip-direct", 0, "compute_verify", 256, 8, 3135],
+                [0, "hip-direct", 0, "full_reference", 256, 0, 0]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

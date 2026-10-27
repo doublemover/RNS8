@@ -47,7 +47,7 @@ generation/identity matches, and retained/transient plane-pack submissions for
 both operands at the warmup and measured-repeat boundaries. These are source
 work counts, not byte capacities or elapsed time. Reports keep different
 retention policies in separate implementation cohorts. The authored
-`benchmarks/public-calibration/hipblaslt-prepack.json` controls include both
+`temp/benchmark-cases/current/public-calibration/hipblaslt-prepack.json` controls include both
 metadata modes, ragged/large shapes and a split-K case. The [October 25 integration](../../docs/local-validation-20261025.md#allocation-and-global-control-integration-retry)
 passes the applicable local correctness and receipt checks. Independent physical
 metadata/retention timing remains a separate qualification gate.

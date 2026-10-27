@@ -1,5 +1,5 @@
 {
-  "schema": "rns8_stream_capacity_qualification_v1",
+  "schema": "rns8_reviewed_evidence_summary_v1",
   "recorded_utc": "2026-10-25T21:41:19.108561+00:00",
   "compiled_source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
   "backend": "hip-direct",
@@ -20,15 +20,10 @@
         "run": 0,
         "mode": "serial",
         "run_id": "83dc57e4-7cd7-4788-9e5b-52d4860f5f65",
-        "command": [
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
-          "0",
-          "serial",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "83dc57e4-7cd7-4788-9e5b-52d4860f5f65"
-        ],
+        "command": {
+          "archived_json_pointer": "/master/records/0/command",
+          "entries": 7
+        },
         "capture": "serial-00.json",
         "capture_sha256": "d64e3777d515298ef259d3eed5e0ff1263be898bf295b607f00b1bd861cb4a09",
         "execution_id": "7cc82fc9-ad72-47f9-aa5b-527d0a92e05e"
@@ -37,15 +32,10 @@
         "run": 0,
         "mode": "overlap",
         "run_id": "c97ed716-11c4-4cff-b4cc-1e8d94b25483",
-        "command": [
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
-          "0",
-          "overlap",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "c97ed716-11c4-4cff-b4cc-1e8d94b25483"
-        ],
+        "command": {
+          "archived_json_pointer": "/master/records/1/command",
+          "entries": 7
+        },
         "capture": "overlap-00.json",
         "capture_sha256": "90a9f196e916ed829472ee8b9b0f99beeb4e27e5c11a85f6a55cba81d4c30df8",
         "execution_id": "b3a96784-f6e1-4b21-8981-ef0a3f33c24c"
@@ -54,15 +44,10 @@
         "run": 1,
         "mode": "overlap",
         "run_id": "ad6e4495-292d-42f1-ab46-bffc79459fbf",
-        "command": [
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
-          "0",
-          "overlap",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "ad6e4495-292d-42f1-ab46-bffc79459fbf"
-        ],
+        "command": {
+          "archived_json_pointer": "/master/records/2/command",
+          "entries": 7
+        },
         "capture": "overlap-01.json",
         "capture_sha256": "16682c632a6ae39117acc07860ec16e70c71f53136a4d1982c284ea583434c51",
         "execution_id": "0379db66-2ea5-4de6-a95f-9bcccc78c1de"
@@ -71,15 +56,10 @@
         "run": 1,
         "mode": "serial",
         "run_id": "468c1feb-e01b-4815-a048-b6df6010142c",
-        "command": [
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-stream-capacity-qualify.exe",
-          "0",
-          "serial",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "468c1feb-e01b-4815-a048-b6df6010142c"
-        ],
+        "command": {
+          "archived_json_pointer": "/master/records/3/command",
+          "entries": 7
+        },
         "capture": "serial-01.json",
         "capture_sha256": "938758e75e04c3f9413aa75b5c4d0635f8049faa59a6ab8199abd13c6f24d56b",
         "execution_id": "935e68a1-f19a-4e9e-9bc7-cac241d77345"
@@ -128,70 +108,8 @@
       "available_host_bytes_before": 93040762880,
       "basis_product_decimal": "2964056673257199886080",
       "build_manifest": {
-        "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=ON\ngarner_table=OFF\nconfig=RelWithDebInfo\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG\nhip=ON\nhip_compiler=C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe\nhip_version=HIP version: 7.1.51803-d3a86bd04 | clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/Program Files/AMD/ROCm/7.1/bin\nhip_stl_overlay_sha256=98d17b86c881a617e8fb66fbfc16729791544275cdafa97cdb1453d105f5d022\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed\ndependency_policy_sha256=f37e082935921a461b204182c33fe377c0ae1deafb3bb1b3b880ede1b6427f2a\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=f19a634ad21923dcc71d02b6ed54c7409d6366b3675ecc71facc893c8cd414b6\ndependency_tree.ROCWMMA=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA/library/include\ndependency_tree.CK=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel/include\ndependency_tree.HIPBLASLT=C:/Program Files/AMD/ROCm/7.1/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/rns8_ck_wmma_no_divide_include\n",
-        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
-        "external_dependencies": {
-          "BOOST": {
-            "bytes": 31958612,
-            "files": 2292,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
-            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
-          },
-          "CATCH2_1": {
-            "bytes": 640342,
-            "files": 183,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
-            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
-          },
-          "CK": {
-            "bytes": 18406325,
-            "files": 895,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
-            "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
-          },
-          "HIPBLASLT": {
-            "bytes": 31482707,
-            "files": 1754,
-            "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
-            "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
-          },
-          "JSON_1": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "JSON_2": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "RNS8_CK_GENERATED_INCLUDE_DIR": {
-            "bytes": 584,
-            "files": 2,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
-            "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
-          },
-          "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
-            "bytes": 52392,
-            "files": 1,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
-            "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
-          },
-          "ROCWMMA": {
-            "bytes": 1216499,
-            "files": 114,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
-            "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
-          }
-        },
-        "identity_scope": "source-config-and-external-headers",
-        "linkage": "static-rns8",
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "source_digest": "703348a977b099eeea3349e733a08ea7d0d969135ea9b04686291da550faa407",
-        "source_dirty": false,
-        "version": 2
+        "archived_json_pointer": "/captures/0/build_manifest",
+        "entries": 9
       },
       "caller_budget_bytes": 42949672960,
       "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
@@ -227,17 +145,10 @@
       "mode": "serial",
       "n": 3,
       "nominal_clock_tick_ns": 1.0,
-      "ordered_moduli": [
-        256,
-        255,
-        253,
-        251,
-        247,
-        239,
-        233,
-        229,
-        227
-      ],
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/0/ordered_moduli",
+        "entries": 9
+      },
       "owner_release_ns": 435800.0,
       "phases": [
         {
@@ -319,14 +230,10 @@
       "execution_id": "7cc82fc9-ad72-47f9-aa5b-527d0a92e05e",
       "request_identity": {
         "schema": "rns8_benchmark_request_v1",
-        "arguments": [
-          "0",
-          "serial",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "83dc57e4-7cd7-4788-9e5b-52d4860f5f65"
-        ],
+        "arguments": {
+          "archived_json_pointer": "/captures/0/request_identity/arguments",
+          "entries": 6
+        },
         "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
         "environment": {
           "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
@@ -354,70 +261,8 @@
       "available_host_bytes_before": 93189414912,
       "basis_product_decimal": "2964056673257199886080",
       "build_manifest": {
-        "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=ON\ngarner_table=OFF\nconfig=RelWithDebInfo\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG\nhip=ON\nhip_compiler=C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe\nhip_version=HIP version: 7.1.51803-d3a86bd04 | clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/Program Files/AMD/ROCm/7.1/bin\nhip_stl_overlay_sha256=98d17b86c881a617e8fb66fbfc16729791544275cdafa97cdb1453d105f5d022\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed\ndependency_policy_sha256=f37e082935921a461b204182c33fe377c0ae1deafb3bb1b3b880ede1b6427f2a\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=f19a634ad21923dcc71d02b6ed54c7409d6366b3675ecc71facc893c8cd414b6\ndependency_tree.ROCWMMA=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA/library/include\ndependency_tree.CK=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel/include\ndependency_tree.HIPBLASLT=C:/Program Files/AMD/ROCm/7.1/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/rns8_ck_wmma_no_divide_include\n",
-        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
-        "external_dependencies": {
-          "BOOST": {
-            "bytes": 31958612,
-            "files": 2292,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
-            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
-          },
-          "CATCH2_1": {
-            "bytes": 640342,
-            "files": 183,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
-            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
-          },
-          "CK": {
-            "bytes": 18406325,
-            "files": 895,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
-            "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
-          },
-          "HIPBLASLT": {
-            "bytes": 31482707,
-            "files": 1754,
-            "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
-            "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
-          },
-          "JSON_1": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "JSON_2": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "RNS8_CK_GENERATED_INCLUDE_DIR": {
-            "bytes": 584,
-            "files": 2,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
-            "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
-          },
-          "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
-            "bytes": 52392,
-            "files": 1,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
-            "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
-          },
-          "ROCWMMA": {
-            "bytes": 1216499,
-            "files": 114,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
-            "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
-          }
-        },
-        "identity_scope": "source-config-and-external-headers",
-        "linkage": "static-rns8",
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "source_digest": "703348a977b099eeea3349e733a08ea7d0d969135ea9b04686291da550faa407",
-        "source_dirty": false,
-        "version": 2
+        "archived_json_pointer": "/captures/1/build_manifest",
+        "entries": 9
       },
       "caller_budget_bytes": 42949672960,
       "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
@@ -453,17 +298,10 @@
       "mode": "overlap",
       "n": 3,
       "nominal_clock_tick_ns": 1.0,
-      "ordered_moduli": [
-        256,
-        255,
-        253,
-        251,
-        247,
-        239,
-        233,
-        229,
-        227
-      ],
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/1/ordered_moduli",
+        "entries": 9
+      },
       "owner_release_ns": 8970000.0,
       "phases": [
         {
@@ -545,14 +383,10 @@
       "execution_id": "b3a96784-f6e1-4b21-8981-ef0a3f33c24c",
       "request_identity": {
         "schema": "rns8_benchmark_request_v1",
-        "arguments": [
-          "0",
-          "overlap",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "c97ed716-11c4-4cff-b4cc-1e8d94b25483"
-        ],
+        "arguments": {
+          "archived_json_pointer": "/captures/1/request_identity/arguments",
+          "entries": 6
+        },
         "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
         "environment": {
           "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
@@ -580,70 +414,8 @@
       "available_host_bytes_before": 93351755776,
       "basis_product_decimal": "2964056673257199886080",
       "build_manifest": {
-        "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=ON\ngarner_table=OFF\nconfig=RelWithDebInfo\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG\nhip=ON\nhip_compiler=C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe\nhip_version=HIP version: 7.1.51803-d3a86bd04 | clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/Program Files/AMD/ROCm/7.1/bin\nhip_stl_overlay_sha256=98d17b86c881a617e8fb66fbfc16729791544275cdafa97cdb1453d105f5d022\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed\ndependency_policy_sha256=f37e082935921a461b204182c33fe377c0ae1deafb3bb1b3b880ede1b6427f2a\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=f19a634ad21923dcc71d02b6ed54c7409d6366b3675ecc71facc893c8cd414b6\ndependency_tree.ROCWMMA=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA/library/include\ndependency_tree.CK=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel/include\ndependency_tree.HIPBLASLT=C:/Program Files/AMD/ROCm/7.1/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/rns8_ck_wmma_no_divide_include\n",
-        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
-        "external_dependencies": {
-          "BOOST": {
-            "bytes": 31958612,
-            "files": 2292,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
-            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
-          },
-          "CATCH2_1": {
-            "bytes": 640342,
-            "files": 183,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
-            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
-          },
-          "CK": {
-            "bytes": 18406325,
-            "files": 895,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
-            "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
-          },
-          "HIPBLASLT": {
-            "bytes": 31482707,
-            "files": 1754,
-            "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
-            "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
-          },
-          "JSON_1": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "JSON_2": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "RNS8_CK_GENERATED_INCLUDE_DIR": {
-            "bytes": 584,
-            "files": 2,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
-            "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
-          },
-          "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
-            "bytes": 52392,
-            "files": 1,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
-            "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
-          },
-          "ROCWMMA": {
-            "bytes": 1216499,
-            "files": 114,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
-            "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
-          }
-        },
-        "identity_scope": "source-config-and-external-headers",
-        "linkage": "static-rns8",
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "source_digest": "703348a977b099eeea3349e733a08ea7d0d969135ea9b04686291da550faa407",
-        "source_dirty": false,
-        "version": 2
+        "archived_json_pointer": "/captures/2/build_manifest",
+        "entries": 9
       },
       "caller_budget_bytes": 42949672960,
       "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
@@ -679,17 +451,10 @@
       "mode": "overlap",
       "n": 3,
       "nominal_clock_tick_ns": 1.0,
-      "ordered_moduli": [
-        256,
-        255,
-        253,
-        251,
-        247,
-        239,
-        233,
-        229,
-        227
-      ],
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/2/ordered_moduli",
+        "entries": 9
+      },
       "owner_release_ns": 7820400.0,
       "phases": [
         {
@@ -771,14 +536,10 @@
       "execution_id": "0379db66-2ea5-4de6-a95f-9bcccc78c1de",
       "request_identity": {
         "schema": "rns8_benchmark_request_v1",
-        "arguments": [
-          "0",
-          "overlap",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "ad6e4495-292d-42f1-ab46-bffc79459fbf"
-        ],
+        "arguments": {
+          "archived_json_pointer": "/captures/2/request_identity/arguments",
+          "entries": 6
+        },
         "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
         "environment": {
           "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
@@ -806,70 +567,8 @@
       "available_host_bytes_before": 93462593536,
       "basis_product_decimal": "2964056673257199886080",
       "build_manifest": {
-        "configuration": "cpu_amx=OFF\nresidue_scalar_control=OFF\nresidue_dot4=OFF\ngenerated_native_wmma=ON\ngarner_table=OFF\nconfig=RelWithDebInfo\ncompiler=MSVC 19.51.36260.0\ncompiler_path=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe\nflags=/DWIN32 /D_WINDOWS /EHsc /Zi /O2 /Ob1 /DNDEBUG\nhip=ON\nhip_compiler=C:/Program Files/AMD/ROCm/7.1/bin/hipcc.exe\nhip_version=HIP version: 7.1.51803-d3a86bd04 | clang version 21.0.0git (git@github.com:Compute-Mirrors/llvm-project 5dcc622b51ecd499912c1062ce2b0ecda60d8e93) | Target: x86_64-pc-windows-msvc | Thread model: posix | InstalledDir: C:/Program Files/AMD/ROCm/7.1/bin\nhip_stl_overlay_sha256=98d17b86c881a617e8fb66fbfc16729791544275cdafa97cdb1453d105f5d022\ntargets=gfx1100\nhipblaslt=ON\nhipblaslt_algorithm_index=TRUE\nck=ON\nrocwmma=ON\nbuiltins=ON\nopenmp=ON\nvcpkg_installed=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed\ndependency_policy_sha256=f37e082935921a461b204182c33fe377c0ae1deafb3bb1b3b880ede1b6427f2a\nbootstrap_requirements_sha256=f2573a7485ad1e69f8ff03f7972d6c05edb7eac82c7c3a2c86a7a5f245e9ef44\ndependency_tree.BOOST=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/boost\ndependency_tree.JSON_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.JSON_2=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/nlohmann\ndependency_tree.CATCH2_1=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows/include/catch2\ndependency_resolution_sha256=f19a634ad21923dcc71d02b6ed54c7409d6366b3675ecc71facc893c8cd414b6\ndependency_tree.ROCWMMA=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA/library/include\ndependency_tree.CK=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel/include\ndependency_tree.HIPBLASLT=C:/Program Files/AMD/ROCm/7.1/include\ndependency_tree.RNS8_CK_GENERATED_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/accelerator-dependency-probes/ck-generated/include\ndependency_tree.RNS8_CK_WMMA_PATCH_INCLUDE_DIR=C:/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/build/validation-20261025-gpu/rns8_ck_wmma_no_divide_include\n",
-        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
-        "external_dependencies": {
-          "BOOST": {
-            "bytes": 31958612,
-            "files": 2292,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
-            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
-          },
-          "CATCH2_1": {
-            "bytes": 640342,
-            "files": 183,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
-            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
-          },
-          "CK": {
-            "bytes": 18406325,
-            "files": 895,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\composable_kernel\\include",
-            "sha256": "2fa7f81bc2558b0a787b39ea1f403585c32ca16e886df60d232dc59ecb8d4ebd"
-          },
-          "HIPBLASLT": {
-            "bytes": 31482707,
-            "files": 1754,
-            "root": "C:\\Program Files\\AMD\\ROCm\\7.1\\include",
-            "sha256": "fbb35fb0cd56f1d5f266662500ec83f4eff34808bff902f050dffef04d737639"
-          },
-          "JSON_1": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "JSON_2": {
-            "bytes": 953872,
-            "files": 46,
-            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
-            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
-          },
-          "RNS8_CK_GENERATED_INCLUDE_DIR": {
-            "bytes": 584,
-            "files": 2,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\accelerator-dependency-probes\\ck-generated\\include",
-            "sha256": "013ec9eb5bf04fc1403fea505201ebb5a141b97b92a508f31cbefc74acc3ba71"
-          },
-          "RNS8_CK_WMMA_PATCH_INCLUDE_DIR": {
-            "bytes": 52392,
-            "files": 1,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8_ck_wmma_no_divide_include",
-            "sha256": "ae455b8291ce33f9e9840c20491486fab7df4e61a620203d1b5fbe2fa76ce4fe"
-          },
-          "ROCWMMA": {
-            "bytes": 1216499,
-            "files": 114,
-            "root": "C:\\Users\\sneak\\Development\\RNS8\\third_party\\rocm\\rocWMMA\\library\\include",
-            "sha256": "4c6dc7334f7d4d7bc927db66dfef705379185455e2da473ae5902a9ef81ee714"
-          }
-        },
-        "identity_scope": "source-config-and-external-headers",
-        "linkage": "static-rns8",
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "source_digest": "703348a977b099eeea3349e733a08ea7d0d969135ea9b04686291da550faa407",
-        "source_dirty": false,
-        "version": 2
+        "archived_json_pointer": "/captures/3/build_manifest",
+        "entries": 9
       },
       "caller_budget_bytes": 42949672960,
       "caller_capacity_scope": "native_inputs_output_period_table_and_full_reference_output_vector_capacities_excluding_allocator_bookkeeping_and_fixed_stack",
@@ -905,17 +604,10 @@
       "mode": "serial",
       "n": 3,
       "nominal_clock_tick_ns": 1.0,
-      "ordered_moduli": [
-        256,
-        255,
-        253,
-        251,
-        247,
-        239,
-        233,
-        229,
-        227
-      ],
+      "ordered_moduli": {
+        "archived_json_pointer": "/captures/3/ordered_moduli",
+        "entries": 9
+      },
       "owner_release_ns": 285500.0,
       "phases": [
         {
@@ -997,14 +689,10 @@
       "execution_id": "935e68a1-f19a-4e9e-9bc7-cac241d77345",
       "request_identity": {
         "schema": "rns8_benchmark_request_v1",
-        "arguments": [
-          "0",
-          "serial",
-          "42949672960",
-          "67108864",
-          "67108864",
-          "468c1feb-e01b-4815-a048-b6df6010142c"
-        ],
+        "arguments": {
+          "archived_json_pointer": "/captures/3/request_identity/arguments",
+          "entries": 6
+        },
         "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
         "environment": {
           "HIP_PATH": "C:\\Program Files\\AMD\\ROCm\\7.1\\",
@@ -1060,401 +748,52 @@
   "focused_validation": [
     {
       "lane": "asan",
-      "tests": [
-        {
-          "name": "K-panel bound summation preserves carries and disjoint zero proofs",
-          "state": "passed",
-          "seconds": 0.0562301
-        },
-        {
-          "name": "capacity period oracle matches complete independent dots at long K boundaries",
-          "state": "passed",
-          "seconds": 0.240284
-        },
-        {
-          "name": "generated HIP values invalidate downstream result cache after upstream mutation",
-          "state": "skipped",
-          "seconds": 0.0561048
-        },
-        {
-          "name": "out-of-core panel plan accounts bounded storage and exact K coverage",
-          "state": "passed",
-          "seconds": 0.0621653
-        },
-        {
-          "name": "out-of-core panels do not hide overflowing global spans",
-          "state": "passed",
-          "seconds": 0.0467433
-        },
-        {
-          "name": "overlapped panel storage reserves both rings and hard-budgeted pinned controls",
-          "state": "passed",
-          "seconds": 0.0545647
-        },
-        {
-          "name": "physical streaming capacity fixture admits bounded panels without full materialization",
-          "state": "passed",
-          "seconds": 0.0496486
-        },
-        {
-          "name": "prepared finite HIP streams and graphs publish explicit ring results",
-          "state": "skipped",
-          "seconds": 0.0447755
-        },
-        {
-          "name": "prepared wrap HIP streams and graphs preserve full width byte semantics",
-          "state": "skipped",
-          "seconds": 0.0489396
-        },
-        {
-          "name": "public streaming resource query proves native output envelope",
-          "state": "passed",
-          "seconds": 0.0411217
-        },
-        {
-          "name": "stream panel shortlist uses runtime admission and identity-bound complete costs",
-          "state": "passed",
-          "seconds": 0.0392629
-        },
-        {
-          "name": "streaming B cache reload model follows bounded physical slots",
-          "state": "passed",
-          "seconds": 0.0425901
-        },
-        {
-          "name": "streaming bounded plans reject unsupported counts transactionally",
-          "state": "passed",
-          "seconds": 0.0468365
-        },
-        {
-          "name": "streaming warmups visit both slots and observations retain complete batches",
-          "state": "passed",
-          "seconds": 0.103086
-        },
-        {
-          "name": "stream_capacity_collector_contracts",
-          "state": "passed",
-          "seconds": 1.32998
-        },
-        {
-          "name": "stream_capacity_fixture_contracts",
-          "state": "passed",
-          "seconds": 0.293077
-        }
-      ],
+      "tests": {
+        "archived_json_pointer": "/focused_validation/0/tests",
+        "entries": 16
+      },
       "test_receipt": {
-        "command": [
-          "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
-          "--test-dir",
-          "build/validation-20261025-asan",
-          "--tests-from-file",
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\stream-capacity-tests\\asan\\selected.txt",
-          "--no-tests=error",
-          "--output-on-failure",
-          "-j",
-          "1",
-          "--output-junit",
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\stream-capacity-tests\\asan\\ctest.xml"
-        ],
+        "command": {
+          "archived_json_pointer": "/focused_validation/0/test_receipt/command",
+          "entries": 11
+        },
         "exit_code": 0,
         "seconds": 3.923352003097534,
-        "selected_tests": [
-          "K-panel bound summation preserves carries and disjoint zero proofs",
-          "capacity period oracle matches complete independent dots at long K boundaries",
-          "generated HIP values invalidate downstream result cache after upstream mutation",
-          "out-of-core panel plan accounts bounded storage and exact K coverage",
-          "out-of-core panels do not hide overflowing global spans",
-          "overlapped panel storage reserves both rings and hard-budgeted pinned controls",
-          "physical streaming capacity fixture admits bounded panels without full materialization",
-          "prepared finite HIP streams and graphs publish explicit ring results",
-          "prepared wrap HIP streams and graphs preserve full width byte semantics",
-          "public streaming resource query proves native output envelope",
-          "stream panel shortlist uses runtime admission and identity-bound complete costs",
-          "streaming B cache reload model follows bounded physical slots",
-          "streaming bounded plans reject unsupported counts transactionally",
-          "streaming warmups visit both slots and observations retain complete batches",
-          "stream_capacity_collector_contracts",
-          "stream_capacity_fixture_contracts"
-        ],
+        "selected_tests": {
+          "archived_json_pointer": "/focused_validation/0/test_receipt/selected_tests",
+          "entries": 16
+        },
         "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823"
       },
       "junit_sha256": "dc7e111d39a0ed9bb95137281ffb49c2d9116240269de2d75c02e22f35f15ad3",
       "build_receipt": {
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "lane": "asan",
-        "records": [
-          {
-            "name": "configure",
-            "command": [
-              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
-              "-S",
-              ".",
-              "-B",
-              "build/validation-20261025-asan",
-              "-G",
-              "Ninja",
-              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
-              "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
-              "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
-              "-DVCPKG_MANIFEST_INSTALL=OFF",
-              "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
-              "-DRNS8_BUILD_TESTS=ON",
-              "-DRNS8_BUILD_EXAMPLES=ON",
-              "-DRNS8_BUILD_TOOLS=ON",
-              "-DRNS8_BUILD_BENCHMARKS=ON",
-              "-DRNS8_BUILD_SHARED=OFF",
-              "-DCMAKE_CXX_COMPILER=C:/Users/sneak/AppData/Local/RNS8/dependencies/llvm-23.1.4/clang+llvm-23.1.4-x86_64-pc-windows-msvc/bin/clang-cl.exe",
-              "-DRNS8_ENABLE_HIP=OFF",
-              "-DRNS8_ENABLE_CPU_PARALLEL=OFF",
-              "-DRNS8_ENABLE_WINDOWS_CLANG_ASAN=ON",
-              "-DRNS8_BUILD_FUZZERS=ON",
-              "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
-              "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
-              "-DVCPKG_TARGET_TRIPLET=x64-windows-static",
-              "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/fsanitize=address /Zi /O1"
-            ],
-            "exit_code": 0,
-            "seconds": 5.75944185256958
-          },
-          {
-            "name": "build",
-            "command": [
-              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
-              "--build",
-              "build/validation-20261025-asan",
-              "--target",
-              "rns8_tests",
-              "rns8-stream-capacity-qualify",
-              "--parallel",
-              "3",
-              "--",
-              "-k",
-              "0"
-            ],
-            "exit_code": 0,
-            "seconds": 145.45066046714783
-          }
-        ],
-        "old_qualified_benchmark_sha256": "63255c34f467bce683f5525b0fb24ede1f378a82f6ff555f644cd18e7feef817",
-        "targets": [
-          "rns8_tests",
-          "rns8-stream-capacity-qualify"
-        ],
-        "old_benchmark_unchanged": true
+        "archived_json_pointer": "/focused_validation/0/build_receipt",
+        "entries": 6
       }
     },
     {
       "lane": "gpu",
-      "tests": [
-        {
-          "name": "K-panel bound summation preserves carries and disjoint zero proofs",
-          "state": "passed",
-          "seconds": 0.0723072
-        },
-        {
-          "name": "capacity period oracle matches complete independent dots at long K boundaries",
-          "state": "passed",
-          "seconds": 0.133521
-        },
-        {
-          "name": "forced-budget serial streaming completes one product across all panel tails",
-          "state": "passed",
-          "seconds": 1.39973
-        },
-        {
-          "name": "generated HIP values invalidate downstream result cache after upstream mutation",
-          "state": "passed",
-          "seconds": 0.564613
-        },
-        {
-          "name": "out-of-core panel plan accounts bounded storage and exact K coverage",
-          "state": "passed",
-          "seconds": 0.0413011
-        },
-        {
-          "name": "out-of-core panels do not hide overflowing global spans",
-          "state": "passed",
-          "seconds": 0.0365317
-        },
-        {
-          "name": "overlapped panel storage reserves both rings and hard-budgeted pinned controls",
-          "state": "passed",
-          "seconds": 0.0805143
-        },
-        {
-          "name": "physical streaming capacity fixture admits bounded panels without full materialization",
-          "state": "passed",
-          "seconds": 0.0376369
-        },
-        {
-          "name": "prepared finite HIP streams and graphs publish explicit ring results",
-          "state": "passed",
-          "seconds": 2.68648
-        },
-        {
-          "name": "prepared wrap HIP streams and graphs preserve full width byte semantics",
-          "state": "passed",
-          "seconds": 1.05287
-        },
-        {
-          "name": "public streaming resource query proves native output envelope",
-          "state": "passed",
-          "seconds": 0.0308668
-        },
-        {
-          "name": "serial streaming host budget excludes nested pinned export allocations",
-          "state": "passed",
-          "seconds": 0.557681
-        },
-        {
-          "name": "stream panel shortlist uses runtime admission and identity-bound complete costs",
-          "state": "passed",
-          "seconds": 0.0324817
-        },
-        {
-          "name": "streaming B cache reload model follows bounded physical slots",
-          "state": "passed",
-          "seconds": 0.0301224
-        },
-        {
-          "name": "streaming bounded plans reject unsupported counts transactionally",
-          "state": "passed",
-          "seconds": 0.0333049
-        },
-        {
-          "name": "streaming retained B panels bind generations addresses and conflict eviction",
-          "state": "passed",
-          "seconds": 1.35854
-        },
-        {
-          "name": "streaming warmups visit both slots and observations retain complete batches",
-          "state": "passed",
-          "seconds": 0.0259274
-        },
-        {
-          "name": "stream_capacity_collector_contracts",
-          "state": "passed",
-          "seconds": 1.03433
-        },
-        {
-          "name": "stream_capacity_fixture_contracts",
-          "state": "passed",
-          "seconds": 0.177573
-        }
-      ],
+      "tests": {
+        "archived_json_pointer": "/focused_validation/1/tests",
+        "entries": 19
+      },
       "test_receipt": {
-        "command": [
-          "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
-          "--test-dir",
-          "build/validation-20261025-gpu",
-          "--tests-from-file",
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\stream-capacity-tests\\gpu\\selected.txt",
-          "--no-tests=error",
-          "--output-on-failure",
-          "-j",
-          "1",
-          "--output-junit",
-          "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261025\\stream-capacity-tests\\gpu\\ctest.xml"
-        ],
+        "command": {
+          "archived_json_pointer": "/focused_validation/1/test_receipt/command",
+          "entries": 11
+        },
         "exit_code": 0,
         "seconds": 10.700462341308594,
-        "selected_tests": [
-          "K-panel bound summation preserves carries and disjoint zero proofs",
-          "capacity period oracle matches complete independent dots at long K boundaries",
-          "forced-budget serial streaming completes one product across all panel tails",
-          "generated HIP values invalidate downstream result cache after upstream mutation",
-          "out-of-core panel plan accounts bounded storage and exact K coverage",
-          "out-of-core panels do not hide overflowing global spans",
-          "overlapped panel storage reserves both rings and hard-budgeted pinned controls",
-          "physical streaming capacity fixture admits bounded panels without full materialization",
-          "prepared finite HIP streams and graphs publish explicit ring results",
-          "prepared wrap HIP streams and graphs preserve full width byte semantics",
-          "public streaming resource query proves native output envelope",
-          "serial streaming host budget excludes nested pinned export allocations",
-          "stream panel shortlist uses runtime admission and identity-bound complete costs",
-          "streaming B cache reload model follows bounded physical slots",
-          "streaming bounded plans reject unsupported counts transactionally",
-          "streaming retained B panels bind generations addresses and conflict eviction",
-          "streaming warmups visit both slots and observations retain complete batches",
-          "stream_capacity_collector_contracts",
-          "stream_capacity_fixture_contracts"
-        ],
+        "selected_tests": {
+          "archived_json_pointer": "/focused_validation/1/test_receipt/selected_tests",
+          "entries": 19
+        },
         "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823"
       },
       "junit_sha256": "f98a205e49cc2d39ca71738814f068bb7107a86b4a62dac13cd0d2e187647a60",
       "build_receipt": {
-        "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
-        "lane": "gpu",
-        "records": [
-          {
-            "name": "configure",
-            "command": [
-              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
-              "-S",
-              ".",
-              "-B",
-              "build/validation-20261025-gpu",
-              "-G",
-              "Ninja",
-              "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
-              "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
-              "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
-              "-DVCPKG_MANIFEST_INSTALL=OFF",
-              "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
-              "-DRNS8_BUILD_TESTS=ON",
-              "-DRNS8_BUILD_EXAMPLES=ON",
-              "-DRNS8_BUILD_TOOLS=ON",
-              "-DRNS8_BUILD_BENCHMARKS=ON",
-              "-DRNS8_BUILD_SHARED=ON",
-              "-DRNS8_AMDGPU_TARGETS=gfx1100",
-              "-DRNS8_HIP_ROOT=C:/Program Files/AMD/ROCm/7.1",
-              "-DRNS8_HIPBLASLT_ROOT=C:/Program Files/AMD/ROCm/7.1",
-              "-DRNS8_CK_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel",
-              "-DRNS8_ROCWMMA_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA",
-              "-DRNS8_GMP_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
-              "-DRNS8_FLINT_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
-              "-DRNS8_ENABLE_HIP=ON",
-              "-DRNS8_ENABLE_CPU_PARALLEL=ON",
-              "-DRNS8_ENABLE_HIPBLASLT=ON",
-              "-DRNS8_ENABLE_CK=ON",
-              "-DRNS8_ENABLE_ROCWMMA=ON",
-              "-DRNS8_ENABLE_AMDGPU_BUILTINS=ON",
-              "-DRNS8_ENABLE_GMP=ON",
-              "-DRNS8_ENABLE_FLINT=ON",
-              "-DRNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=ON",
-              "-DRNS8_EXPERIMENTAL_GARNER_TABLE=OFF",
-              "-DRNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=ON",
-              "-DRNS8_WORKLOAD_GPU_TESTS=ON",
-              "-DCMAKE_CXX_COMPILER=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe"
-            ],
-            "exit_code": 0,
-            "seconds": 23.462478637695312
-          },
-          {
-            "name": "build",
-            "command": [
-              "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
-              "--build",
-              "build/validation-20261025-gpu",
-              "--target",
-              "rns8_tests",
-              "rns8-stream-capacity-qualify",
-              "--parallel",
-              "3",
-              "--",
-              "-k",
-              "0"
-            ],
-            "exit_code": 0,
-            "seconds": 247.02080869674683
-          }
-        ],
-        "old_qualified_benchmark_sha256": "e6441f10fc36eb1200e73f652b814d4402fb4e1ab87791e0493b5e5e15304b4b",
-        "targets": [
-          "rns8_tests",
-          "rns8-stream-capacity-qualify"
-        ],
-        "old_benchmark_unchanged": true
+        "archived_json_pointer": "/focused_validation/1/build_receipt",
+        "entries": 6
       }
     }
   ],
@@ -1508,46 +847,18 @@
     }
   ],
   "gcc_syntax": {
-    "command": [
-      "wsl.exe",
-      "-d",
-      "Ubuntu-24.04",
-      "--exec",
-      "/usr/bin/g++",
-      "-std=c++17",
-      "-Wall",
-      "-Wextra",
-      "-Wpedantic",
-      "-Werror",
-      "-DRNS8_STATIC",
-      "-fsyntax-only",
-      "-I/mnt/c/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/include",
-      "-include",
-      "/mnt/c/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/temp/closeout-remaining-20261025/stream-capacity-final-syntax/linux-manifest.hpp",
-      "/mnt/c/Users/sneak/Development/RNS8/temp/worktrees/correlation-range-20261011/benchmarks/rns8_stream_capacity_qualify.cpp"
-    ],
+    "command": {
+      "archived_json_pointer": "/gcc_syntax/command",
+      "entries": 16
+    },
     "exit_code": 0,
     "scope": "Strict Linux CPU syntax; placeholder manifest string only, no link/GPU execution"
   },
   "launch": {
-    "command": [
-      "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
-      "tools/collect_stream_capacity.py",
-      "--binary",
-      "build/validation-20261025-gpu/rns8-stream-capacity-qualify.exe",
-      "--output",
-      "temp/closeout-remaining-20261025/physical-stream-capacity",
-      "--caller-budget-bytes",
-      "42949672960",
-      "--device-budget-bytes",
-      "67108864",
-      "--host-budget-bytes",
-      "67108864",
-      "--runs",
-      "2",
-      "--timeout-seconds",
-      "900"
-    ],
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 16
+    },
     "source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
     "started_unix": 1792963967.2750626,
     "executable_sha256": "52dade03d2394e52b24659adf58d35e10bce1ba217ea59520e566c48f4423efc",
@@ -1559,5 +870,13 @@
   "promotion_eligible": false,
   "achieved_overlap_trace": null,
   "campaign_resumed": false,
-  "production_library_changes_after_668f9ea": false
+  "production_library_changes_after_668f9ea": false,
+  "original_schema": "rns8_stream_capacity_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/stream-capacity-qualification-20261025.json",
+    "sha256": "eebc88521076081ece3096258c474feb6b904d4123b95481f50f6e9f14f2bf0e",
+    "bytes": 76837
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
 }

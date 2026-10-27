@@ -114,7 +114,7 @@ zero. Prepared and graph publication continue through their existing owners.
 Native calibration accepts named `extreme`, `zero`, `copy`, `unit`, `general`
 and `channel-zero` coefficients. The extreme full-width-input control is
 preserved, and all three direct/rocWMMA/unfused routes retain the same original
-integer expression identity. `benchmarks/native-calibration/epilogue-coefficients.json`
+integer expression identity. `temp/benchmark-cases/current/native-calibration/epilogue-coefficients.json`
 supplies tail, medium and large controls; some large full-width expressions
 have only a residue contract, not a claim that prefix20 uniquely reconstructs
 the unreduced integer result.

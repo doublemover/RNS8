@@ -108,6 +108,13 @@ compiler/runtime and artifact identity. Include packing/reconstruction and setup
 costs at the claimed boundary. Reviewed dated reports retain results; raw records
 stay ignored. A measured regression is useful evidence too.
 
+Keep full machine reports in durable artifacts with a checked-in source/hash
+manifest; dated repository records summarize reviewed conclusions and point to
+the complete evidence. See [research artifacts and case catalogs](docs/performance.md#research-evidence-and-benchmark-inputs).
+Before invoking collectors directly, expand their inputs with
+`python tools/benchmark_cases.py --output temp/benchmark-cases/current` and use
+the resulting family paths. CMake/CTest expands its input corpus automatically.
+
 ## Install and test a consumer
 
 Use an absolute installation prefix. After building the selected configuration,

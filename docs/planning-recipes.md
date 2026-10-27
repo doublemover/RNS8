@@ -376,8 +376,8 @@ conditional reuse of an already-trained profile is reported separately.
 For example, after a clean build:
 
 ```powershell
-python tools/collect_product_stages.py --binary build/rns8-product-stage-calibrate.exe --case benchmarks/lift-recipe/17-stage-training.json --runs 5 --output temp/product-training
-python tools/collect_lift_recipe.py --binary build/rns8-lift-recipe-calibrate.exe --cases benchmarks/lift-recipe/17-chain-3-i-recipe-measured.json --stage-prices temp/product-training/prices.json --runs 5 --output temp/product-held-out
+python tools/collect_product_stages.py --binary build/rns8-product-stage-calibrate.exe --case temp/benchmark-cases/current/lift-recipe/17-stage-training.json --runs 5 --output temp/product-training
+python tools/collect_lift_recipe.py --binary build/rns8-lift-recipe-calibrate.exe --cases temp/benchmark-cases/current/lift-recipe/17-chain-3-i-recipe-measured.json --stage-prices temp/product-training/prices.json --runs 5 --output temp/product-held-out
 python tools/collect_product_stages.py --review-held-out-plan temp/product-held-out/plan.json --prices temp/product-training/prices.json --relative-tolerance 0.25 --output temp/product-held-out/discrepancy.json
 ```
 

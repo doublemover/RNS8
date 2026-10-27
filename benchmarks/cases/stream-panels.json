@@ -1,0 +1,179 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "stream-panels",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "cases"],
+      "defaults": {
+        "schema": "rns8_stream_panel_cases_v3"
+      },
+      "columns": ["cases"],
+      "rows": [
+        [
+          "large-bounded.json",
+          "2f7c608d2d425e057b1f5915c93d8f9db15dbef4773aa2ca34c0e6f1950c98ad",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "m", "n", "k", "domain", "bits", "prefix", "reuse", "mode", "panel_m", "panel_n", "panel_k", "device_budget_bytes", "host_budget_bytes", "retained_b_budget_bytes"]
+              ],
+              "defaults": {
+                "device": 0,
+                "bits": 12,
+                "prefix": 9,
+                "retained_b_budget_bytes": 0
+              },
+              "rows": [
+                [0, 128, 128, 128, "signed", 4, "incore", 0, 0, 0, 0, 0],
+                [0, 128, 128, 128, "signed", 4, "stream", 32, 40, 37, 79360, 31552],
+                [0, 128, 128, 128, "signed", 4, "stream", 64, 64, 64, 246016, 98304],
+                [0, 128, 128, 128, "unsigned", 4, "incore", 0, 0, 0, 0, 0],
+                [0, 128, 128, 128, "unsigned", 4, "stream", 32, 40, 37, 79360, 31552],
+                [0, 128, 128, 128, "unsigned", 4, "stream", 64, 64, 64, 246016, 98304],
+                [0, 256, 256, 256, "signed", 2, "incore", 0, 0, 0, 0, 0],
+                [0, 256, 256, 256, "signed", 2, "stream", 64, 80, 127, 444672, 187264],
+                [0, 256, 256, 256, "unsigned", 2, "incore", 0, 0, 0, 0, 0],
+                [0, 256, 256, 256, "unsigned", 2, "stream", 64, 80, 127, 444672, 187264],
+                [0, 512, 512, 512, "signed", 1, "incore", 0, 0, 0, 0, 0],
+                [0, 512, 512, 512, "signed", 1, "stream", 64, 96, 129, 511232, 214272],
+                [0, 512, 512, 512, "unsigned", 1, "incore", 0, 0, 0, 0, 0],
+                [0, 512, 512, 512, "unsigned", 1, "stream", 64, 96, 129, 511232, 214272],
+                [0, 128, 128, 128, "signed", 4, "stream-overlap", 32, 40, 37, 158720, 67200],
+                [0, 128, 128, 128, "signed", 4, "stream-overlap", 64, 64, 64, 492032, 200704],
+                [0, 128, 128, 128, "unsigned", 4, "stream-overlap", 32, 40, 37, 158720, 67200],
+                [0, 128, 128, 128, "unsigned", 4, "stream-overlap", 64, 64, 64, 492032, 200704],
+                [0, 256, 256, 256, "signed", 2, "stream-overlap", 64, 80, 127, 889344, 378624],
+                [0, 256, 256, 256, "unsigned", 2, "stream-overlap", 64, 80, 127, 889344, 378624],
+                [0, 512, 512, 512, "signed", 1, "stream-overlap", 64, 96, 129, 1022464, 432640],
+                [0, 512, 512, 512, "unsigned", 1, "stream-overlap", 64, 96, 129, 1022464, 432640]
+              ]
+            }
+          }
+        ],
+        [
+          "retained-b.json",
+          "0f2006b7a976427ec578dbf87534b8b78db44c4a4018ae1407bbdfa5b21a9030",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "m", "n", "k", "domain", "bits", "prefix", "reuse", "mode", "panel_m", "panel_n", "panel_k", "device_budget_bytes", "host_budget_bytes", "retained_b_budget_bytes"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 33,
+                "bits": 7,
+                "prefix": 9,
+                "reuse": 1
+              },
+              "rows": [
+                [0, "signed", "incore", 0, 0, 0, 0, 0, 0],
+                [0, "signed", "stream", 3, 4, 5, 11008, 1496, 0],
+                [0, "signed", "stream", 3, 4, 5, 11008, 1496, 256],
+                [0, "signed", "stream", 3, 4, 5, 11008, 1496, 4608],
+                [0, "signed", "stream", 3, 4, 5, 11008, 1496, 8960],
+                [0, "unsigned", "incore", 0, 0, 0, 0, 0, 0],
+                [0, "unsigned", "stream", 3, 4, 5, 11008, 1496, 0],
+                [0, "unsigned", "stream", 3, 4, 5, 11008, 1496, 256],
+                [0, "unsigned", "stream", 3, 4, 5, 11008, 1496, 4608],
+                [0, "unsigned", "stream", 3, 4, 5, 11008, 1496, 8960],
+                [0, "signed", "stream-overlap", 3, 4, 5, 22016, 16384, 0],
+                [0, "signed", "stream-overlap", 3, 4, 5, 22016, 16384, 256],
+                [0, "signed", "stream-overlap", 3, 4, 5, 22016, 16384, 4608],
+                [0, "signed", "stream-overlap", 3, 4, 5, 22016, 16384, 8960],
+                [0, "unsigned", "stream-overlap", 3, 4, 5, 22016, 16384, 0],
+                [0, "unsigned", "stream-overlap", 3, 4, 5, 22016, 16384, 256],
+                [0, "unsigned", "stream-overlap", 3, 4, 5, 22016, 16384, 4608],
+                [0, "unsigned", "stream-overlap", 3, 4, 5, 22016, 16384, 8960]
+              ]
+            }
+          }
+        ],
+        [
+          "smoke.json",
+          "d5db6ed850d7b045d043f9bf1f4c4c81f54dc623473d67cc9f763346b201a738",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "m", "n", "k", "domain", "bits", "prefix", "reuse", "mode", "panel_m", "panel_n", "panel_k", "device_budget_bytes", "host_budget_bytes", "retained_b_budget_bytes"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 2,
+                "n": 3,
+                "k": 17,
+                "bits": 3,
+                "prefix": 9,
+                "reuse": 2,
+                "retained_b_budget_bytes": 0
+              },
+              "rows": [
+                [0, "signed", "incore", 0, 0, 0, 0, 0],
+                [0, "signed", "stream", 2, 2, 5, 2048, 192],
+                [0, "unsigned", "incore", 0, 0, 0, 0, 0],
+                [0, "unsigned", "stream", 2, 2, 5, 2048, 192],
+                [0, "signed", "stream-overlap", 2, 2, 5, 16384, 16384],
+                [0, "unsigned", "stream-overlap", 2, 2, 5, 16384, 16384]
+              ]
+            }
+          }
+        ],
+        [
+          "tails.json",
+          "2a11b7ebf3dcef2b0a952cf7ec8ba3636fd3e8f2a0492da56cbdbe8b7d431b97",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "m", "n", "k", "domain", "bits", "prefix", "reuse", "mode", "panel_m", "panel_n", "panel_k", "device_budget_bytes", "host_budget_bytes", "retained_b_budget_bytes"]
+              ],
+              "defaults": {
+                "device": 0,
+                "prefix": 9,
+                "reuse": 1,
+                "retained_b_budget_bytes": 0
+              },
+              "rows": [
+                [0, 17, 19, 33, "signed", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 17, 19, 33, "signed", 7, "stream", 3, 4, 5, 2048, 376],
+                [0, 17, 19, 33, "signed", 7, "stream", 32, 32, 64, 29952, 12088],
+                [0, 17, 19, 33, "unsigned", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 17, 19, 33, "unsigned", 7, "stream", 3, 4, 5, 2048, 376],
+                [0, 17, 19, 33, "unsigned", 7, "stream", 32, 32, 64, 29952, 12088],
+                [0, 16, 17, 129, "signed", 9, "incore", 0, 0, 0, 0, 0],
+                [0, 16, 17, 129, "signed", 9, "stream", 7, 9, 16, 7168, 2552],
+                [0, 16, 17, 129, "unsigned", 9, "incore", 0, 0, 0, 0, 0],
+                [0, 16, 17, 129, "unsigned", 9, "stream", 7, 9, 16, 7168, 2552],
+                [0, 1, 1, 65535, "signed", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65535, "signed", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 1, 1, 65535, "unsigned", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65535, "unsigned", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 1, 1, 65536, "signed", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65536, "signed", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 1, 1, 65536, "unsigned", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65536, "unsigned", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 1, 1, 65537, "signed", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65537, "signed", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 1, 1, 65537, "unsigned", 7, "incore", 0, 0, 0, 0, 0],
+                [0, 1, 1, 65537, "unsigned", 7, "stream", 1, 1, 1024, 35840, 16392],
+                [0, 17, 19, 33, "signed", 7, "stream-overlap", 3, 4, 5, 16384, 16384],
+                [0, 17, 19, 33, "signed", 7, "stream-overlap", 32, 32, 64, 59904, 28272],
+                [0, 17, 19, 33, "unsigned", 7, "stream-overlap", 3, 4, 5, 16384, 16384],
+                [0, 17, 19, 33, "unsigned", 7, "stream-overlap", 32, 32, 64, 59904, 28272],
+                [0, 16, 17, 129, "signed", 9, "stream-overlap", 7, 9, 16, 16384, 16384],
+                [0, 16, 17, 129, "unsigned", 9, "stream-overlap", 7, 9, 16, 16384, 16384],
+                [0, 1, 1, 65535, "signed", 7, "stream-overlap", 1, 1, 1024, 71680, 36880],
+                [0, 1, 1, 65535, "unsigned", 7, "stream-overlap", 1, 1, 1024, 71680, 36880],
+                [0, 1, 1, 65536, "signed", 7, "stream-overlap", 1, 1, 1024, 71680, 36880],
+                [0, 1, 1, 65536, "unsigned", 7, "stream-overlap", 1, 1, 1024, 71680, 36880],
+                [0, 1, 1, 65537, "signed", 7, "stream-overlap", 1, 1, 1024, 71680, 36880],
+                [0, 1, 1, 65537, "unsigned", 7, "stream-overlap", 1, 1, 1024, 71680, 36880]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

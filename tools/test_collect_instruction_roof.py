@@ -1,4 +1,5 @@
 """Authored instruction-chain receipts and no-GPU CLI fixtures; no measurements."""
+from benchmark_cases import case_root
 import argparse
 import json
 import os
@@ -64,7 +65,7 @@ class Captures(unittest.TestCase):
         self.assertLess(support["logical_payload_envelope_bytes"],support["memory_budget_bytes"])
 
     def test_manifests_separate_dependency_wave_sweep_and_tail_controls(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks/instruction-roof"
+        root=case_root() / 'instruction-roof'
         for name,count in (("smoke",8),("one-wave",48),("wave-chain-sweep",120),("wave-tails",160)):
             cases=load_cases(root/(name+".json"));self.assertEqual(len(cases),count)
             self.assertEqual({case["mode"] for case in cases},set(MODES));self.assertEqual({case["chains"] for case in cases},set(CHAINS))

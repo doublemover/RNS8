@@ -64,9 +64,9 @@ endpoints. This is a benchmark-process boundary, not a public runtime cleanup AP
 
 ## Future collection
 
-The checked-in [smoke case](../benchmarks/system-roof/global-copy-smoke.json),
-[512 MiB source case](../benchmarks/system-roof/global-large.json) and
-[separate displacement control](../benchmarks/system-roof/global-displaced.json)
+The checked-in [smoke case](../benchmarks/cases/system-roof.json),
+[512 MiB source case](../benchmarks/cases/system-roof.json) and
+[separate displacement control](../benchmarks/cases/system-roof.json)
 are examples. The LDS family supplies each admitted physical stride separately.
 The normal CMake benchmark build creates the executable; CTest registers seven
 mode smokes and CPU resource/oracle and collector-contract fixtures.

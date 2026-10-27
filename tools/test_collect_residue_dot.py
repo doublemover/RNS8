@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import unittest
 from unittest.mock import patch
@@ -14,7 +15,7 @@ class ResidueDotContracts(unittest.TestCase):
             source_logical_scalar_updates=cells*65 if arithmetic=='scalar' else 0,source_logical_dot4_updates=cells*17 if arithmetic=='dot4' else 0,source_count_scope='active_output_accumulator_updates_not_issued_instructions_inactive_lanes_or_total_gather_traffic',selected_kernel_scope='plan_identity_plus_explicit_public_scheduler_not_dynamic_profiler_evidence',actual_launches=None,isa_and_resources=None,sustained_body='compute_export_only_no_oracle_or_json',plan_contract=dict(global_bound=0 if mode=='scheduled' else 1,per_tile_bound_count=int(mode=='scheduled'),schedule_entries=int(mode=='scheduled'),min_selected_prefix=9,max_selected_prefix=9,min_required_prefix=1,max_required_prefix=1,effective_dispatch=mode),
             build_manifest=dict(configuration='residue_dot4='+('ON' if arithmetic=='dot4' else 'OFF')+'\nresidue_scalar_control='+('OFF' if arithmetic=='dot4' else 'ON')+'\nflags=-O3\n'),execution_id='process1',target='gfx1100',device='fixture',selected_kernel=mode,artifact_capture=dict(unchanged_during_run=True,executable_sha256=('a' if arithmetic=='scalar' else 'b')*64),setup_us=10.,first_call=phase,samples=[copy.deepcopy(phase) for _ in range(3)],sustained=[dict(calls=16,total_us=250000.,per_call_us=15625.) for _ in range(3)])
     def test_all_authored_cases_and_scope_rejections(self):
-        for path in (Path(__file__).resolve().parent.parent/'benchmarks/residue-dot').glob('*.json'):validate_case(json.loads(path.read_text()))
+        for path in (case_root() / 'residue-dot').glob('*.json'):validate_case(json.loads(path.read_text()))
         for key,value in [('tasks',True),('modulus',251),('dataset','fullwidth'),('m',1)]:
             bad=self.case();bad[key]=value
             with self.assertRaises(ValueError):validate_case(bad)

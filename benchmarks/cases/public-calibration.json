@@ -1,0 +1,1532 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "public-calibration",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema_version", "cases"],
+      "defaults": {
+        "schema_version": 1
+      },
+      "columns": ["cases"],
+      "rows": [
+        [
+          "grouped-output.json",
+          "a1e7401468e6fb012eb27fa83582b52ec8bd1db1aea10ef581ec7734d7ce6358",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "bounded-i64-compact-slab-grouped",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "9", "--output-ld-padding", "0", "--grouped-dispatch", "8", "--grouped-output", "compact-slab"]
+                ],
+                [
+                  0,
+                  "bounded-i64-per-task-grouped",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "9", "--output-ld-padding", "3", "--grouped-dispatch", "8", "--grouped-output", "per-task"]
+                ],
+                [
+                  0,
+                  "bounded-i64-per-task-ordinary",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "9", "--output-ld-padding", "3", "--host-api-batch-size", "8"]
+                ],
+                [
+                  0,
+                  "finite-u8-ring-compact-slab-grouped",
+                  ["--backend", "hip-direct", "--semantics", "finite-u8-ring", "--m", "16", "--n", "17", "--k", "65", "--modulus", "251", "--output-ld-padding", "0", "--grouped-dispatch", "8", "--grouped-output", "compact-slab"]
+                ],
+                [
+                  0,
+                  "finite-u8-ring-per-task-grouped",
+                  ["--backend", "hip-direct", "--semantics", "finite-u8-ring", "--m", "16", "--n", "17", "--k", "65", "--modulus", "251", "--output-ld-padding", "3", "--grouped-dispatch", "8", "--grouped-output", "per-task"]
+                ],
+                [
+                  0,
+                  "finite-u8-ring-per-task-ordinary",
+                  ["--backend", "hip-direct", "--semantics", "finite-u8-ring", "--m", "16", "--n", "17", "--k", "65", "--modulus", "251", "--output-ld-padding", "3", "--host-api-batch-size", "8"]
+                ],
+                [
+                  0,
+                  "exact-wide-signed-compact-slab-grouped",
+                  ["--backend", "hip-direct", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "20", "--exact-wide-limbs", "3", "--output-ld-padding", "0", "--grouped-dispatch", "8", "--grouped-output", "compact-slab"]
+                ],
+                [
+                  0,
+                  "exact-wide-signed-per-task-grouped",
+                  ["--backend", "hip-direct", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "20", "--exact-wide-limbs", "3", "--output-ld-padding", "3", "--grouped-dispatch", "8", "--grouped-output", "per-task"]
+                ],
+                [
+                  0,
+                  "exact-wide-signed-per-task-ordinary",
+                  ["--backend", "hip-direct", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "65", "--max-prefix", "20", "--exact-wide-limbs", "3", "--output-ld-padding", "3", "--host-api-batch-size", "8"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "hipblaslt-first-call.json",
+          "609f897d67049ab3c34993499991d42a78b6c21b9955e573a91333a7fae65bdd",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "metadata-4-5-8-p1-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "finite-ring-u8", "--m", "4", "--n", "5", "--k", "8", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--modulus", "256"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-8-p1-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "finite-ring-u8", "--m", "4", "--n", "5", "--k", "8", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--modulus", "256"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-512-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-512-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p18-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "18", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p18-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "18", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-512-512-512-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "512", "--n", "512", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-512-512-512-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "512", "--n", "512", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "hipblaslt-metadata.json",
+          "f1ea91de50b68a1f2e5cb5f0ac66dbe39185dfcd2ab4e21a822a57a62d6b8154",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "metadata-4-5-8-p1-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "finite-ring-u8", "--m", "4", "--n", "5", "--k", "8", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--modulus", "256"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-8-p1-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "finite-ring-u8", "--m", "4", "--n", "5", "--k", "8", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--modulus", "256"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-512-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-4-5-512-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p18-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "18", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p18-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "18", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-32-8-256-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "32", "--n", "8", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-512-512-512-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "512", "--n", "512", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-512-512-512-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "512", "--n", "512", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-1024-1024-1024-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "1024", "--n", "1024", "--k", "1024", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-1024-1024-1024-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "1024", "--n", "1024", "--k", "1024", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p19-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p19-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65535-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65535", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p19-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p19-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65536-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p9-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p9-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p19-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p19-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "19", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p20-per-block",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ],
+                [
+                  0,
+                  "metadata-2-3-65537-p20-per-call",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "2", "--n", "3", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--output-ld-padding", "2", "--input-profile", "wide-two-limb-constant"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "hipblaslt-prepack.json",
+          "6bfbb2cf0f3ecd7310ebe9d0c499987b1fccec64943c686155d01230ae249e4c",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-16-17-512-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-256-256-256-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-i64-4-5-65537-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-i64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-16-17-512-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-256-256-256-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-bounded-u64-4-5-65537-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "bounded-u64", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-16-17-512-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-256-256-256-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-signed-4-5-65537-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-signed", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-16-17-512-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "17", "--k", "512", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-256-256-256-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "256", "--n", "256", "--k", "256", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-block-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-block-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-block-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-block-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-block", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-call-none",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "none", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-call-a",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-call-b",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "b", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "prepack-exact-wide-unsigned-4-5-65537-per-call-both",
+                  ["--backend", "hipblaslt", "--semantics", "exact-wide-unsigned", "--m", "4", "--n", "5", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--hipblaslt-metadata-policy", "per-call", "--hipblaslt-prepack-policy", "both", "--output-ld-padding", "2"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "immutable-schedule.json",
+          "cc2c291d193097b89c5b66def81d9ecb0eb3182b0788851c9567da69c54836a4",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "sealed-128-1-16-global",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "128", "--n", "128", "--k", "1", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "global", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-128-1-16-per-tile",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "128", "--n", "128", "--k", "1", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-1-16-global",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "1", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "global", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-1-16-per-tile",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "1", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-2048-1-64-global",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "2048", "--n", "2048", "--k", "1", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "global", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-2048-1-64-per-tile",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "2048", "--n", "2048", "--k", "1", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-256-16-global",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "256", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "global", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-256-16-per-tile",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "256", "--tile-m", "16", "--tile-n", "16", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-256-64-global",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "256", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "global", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "sealed-512-256-64-per-tile",
+                  ["--backend", "hip-direct", "--semantics", "bounded-u64", "--m", "512", "--n", "512", "--k", "256", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--reuse-packed-inputs", "--output-ld-padding", "2"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "locality.json",
+          "d47abc3be12335323ce5377e44139627b43d45b1e47e63445ae4f5eae550c483",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "locality-129-131-17-ordinary-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-ordinary-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-output-neighbor-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-output-neighbor-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-modulus-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-modulus-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-same-output-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-17-same-output-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "17", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-ordinary-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-ordinary-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-output-neighbor-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-output-neighbor-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-modulus-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-modulus-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-same-output-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-512-512-512-same-output-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "512", "--n", "512", "--k", "512", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-ordinary-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-ordinary-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-output-neighbor-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-output-neighbor-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-modulus-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-modulus-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-same-output-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-1024-1024-64-same-output-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "1024", "--n", "1024", "--k", "64", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-ordinary-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-ordinary-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "ordinary", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-output-neighbor-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-output-neighbor-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "output-neighbor", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-modulus-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-modulus-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "modulus", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-same-output-repack",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "locality-129-131-65537-same-output-reuse",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "129", "--n", "131", "--k", "65537", "--tile-m", "64", "--tile-n", "64", "--bound-mode", "per-tile", "--input-profile", "adaptive-bands", "--locality-order", "same-output", "--output-ld-padding", "2", "--reuse-packed-inputs"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "paired.json",
+          "0091789a66466895c252efdebe6f9ef79e7d825d055b4417e15edda9cb3f2b05",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "launch-cpu",
+                  ["--backend", "cpu", "--semantics", "bounded-i64", "--m", "16", "--n", "16", "--k", "16", "--prefix-policy", "fixed-requested", "--max-prefix", "9"]
+                ],
+                [
+                  0,
+                  "launch-hip-direct",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "16", "--n", "16", "--k", "16", "--prefix-policy", "fixed-requested", "--max-prefix", "9"]
+                ],
+                [
+                  0,
+                  "larger-cpu",
+                  ["--backend", "cpu", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9"]
+                ],
+                [
+                  0,
+                  "larger-hip-direct",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9"]
+                ],
+                [
+                  0,
+                  "reuse-b-cpu",
+                  ["--backend", "cpu", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b"]
+                ],
+                [
+                  0,
+                  "reuse-b-hip-direct",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b"]
+                ],
+                [
+                  0,
+                  "wide-cpu",
+                  ["--backend", "cpu", "--semantics", "exact-wide-signed", "--m", "8", "--n", "7", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "20", "--input-profile", "wide-three-limb-mixed", "--exact-wide-limbs", "3"]
+                ],
+                [
+                  0,
+                  "wide-hip-direct",
+                  ["--backend", "hip-direct", "--semantics", "exact-wide-signed", "--m", "8", "--n", "7", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "20", "--input-profile", "wide-three-limb-mixed", "--exact-wide-limbs", "3"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "rocwmma-packing.json",
+          "c0996ac0dafe13053254612435cbd8bc2d5973facf6d781495117ebadada1632",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-128-512-4096-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-16-32-65536-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-i64-17-33-65537-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-i64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-128-512-4096-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-16-32-65536-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-per-tile-packed",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-per-tile-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-per-tile-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-bounded-u64-17-33-65537-per-tile-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "bounded-u64", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "9", "--prefix-policy", "fixed-requested", "--bound-mode", "per-tile", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-128-512-4096-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-128-512-4096-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-128-512-4096-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-128-512-4096-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-16-32-65536-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-16-32-65536-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-16-32-65536-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-16-32-65536-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-17-33-65537-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-17-33-65537-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-17-33-65537-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-signed-17-33-65537-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-signed", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-128-512-4096-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-128-512-4096-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-128-512-4096-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-128-512-4096-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "128", "--n", "512", "--k", "4096", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-16-32-65536-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-16-32-65536-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-16-32-65536-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-16-32-65536-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "16", "--n", "32", "--k", "65536", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-17-33-65537-global-packed",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "packed", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-17-33-65537-global-direct-a",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-17-33-65537-global-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "reuse", "--output-ld-padding", "2"]
+                ],
+                [
+                  0,
+                  "packing-exact-wide-unsigned-17-33-65537-global-direct-a-reuse",
+                  ["--backend", "rocwmma", "--semantics", "exact-wide-unsigned", "--m", "17", "--n", "33", "--k", "65537", "--max-prefix", "20", "--prefix-policy", "fixed-requested", "--bound-mode", "global", "--tile-m", "16", "--tile-n", "16", "--rocwmma-packing-policy", "direct-a-reuse", "--output-ld-padding", "2"]
+                ]
+              ]
+            }
+          }
+        ],
+        [
+          "streaming.json",
+          "b79d6cdf45b337e547dfafb71523f4a447e172beaf3bf3ff1b18870297c6a9f5",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["name", "arguments"]
+              ],
+              "defaults": {},
+              "rows": [
+                [
+                  0,
+                  "stream-32-overlapped",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "32", "--n", "32", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "overlapped"]
+                ],
+                [
+                  0,
+                  "stream-32-serial",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "32", "--n", "32", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "serial"]
+                ],
+                [
+                  0,
+                  "stream-32-public-control",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "32", "--n", "32", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b"]
+                ],
+                [
+                  0,
+                  "stream-128-overlapped",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "128", "--n", "128", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "overlapped"]
+                ],
+                [
+                  0,
+                  "stream-128-serial",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "128", "--n", "128", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "serial"]
+                ],
+                [
+                  0,
+                  "stream-128-public-control",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "128", "--n", "128", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b"]
+                ],
+                [
+                  0,
+                  "stream-256-overlapped",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "overlapped"]
+                ],
+                [
+                  0,
+                  "stream-256-serial",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b", "--streaming-overlap", "--streaming-batches", "9", "--streaming-schedule", "serial"]
+                ],
+                [
+                  0,
+                  "stream-256-public-control",
+                  ["--backend", "hip-direct", "--semantics", "bounded-i64", "--m", "256", "--n", "256", "--k", "512", "--prefix-policy", "fixed-requested", "--max-prefix", "9", "--reuse-packed-b"]
+                ]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

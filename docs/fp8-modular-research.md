@@ -55,7 +55,7 @@ Committed cases are under `benchmarks/fp8/`. The collector defaults to writing a
 plan, not executing it:
 
 ```text
-python tools/collect_research_kernels.py --binary build/rns8-fp8-calibrate --cases benchmarks/fp8/17x19x33-int8.json benchmarks/fp8/17x19x33-fp8.json --output temp/fp8-plan
+python tools/collect_research_kernels.py --binary build/rns8-fp8-calibrate --cases temp/benchmark-cases/current/fp8/17x19x33-int8.json temp/benchmark-cases/current/fp8/17x19x33-fp8.json --output temp/fp8-plan
 ```
 
 Explicit `--execute` starts a new collection when hardware/validation is

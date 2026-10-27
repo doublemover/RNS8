@@ -119,15 +119,15 @@ Enable the existing `RNS8_BUILD_BENCHMARKS` option. An explicit device 0 example
 build/issues-all/rns8-wrap64-calibrate.exe 0 signed_radix resident 17 19 257 carry 8 9 3 signed-resident-1
 build/issues-all/rns8-wrap64-calibrate.exe 0 native_u8 cold 17 19 257 carry 8 9 3 unsigned-cold-1
 build/issues-all/rns8-wrap64-calibrate.exe 0 direct_v4 roundtrip 17 19 257 carry 8 9 3 direct-roundtrip-1
-python tools/collect_wrap64.py --exe build/issues-all/rns8-wrap64-calibrate.exe --cases benchmarks/wrap64/tail-reuse.json --output temp/wrap64-tail --runs 5 --repeats 9 --warmups 3
+python tools/collect_wrap64.py --exe build/issues-all/rns8-wrap64-calibrate.exe --cases temp/benchmark-cases/current/wrap64/tail-reuse.json --output temp/wrap64-tail --runs 5 --repeats 9 --warmups 3
 ```
 
-Tracked [smoke](../benchmarks/wrap64/smoke.json),
-[tail/reuse](../benchmarks/wrap64/tail-reuse.json),
-[512-cubed/reuse](../benchmarks/wrap64/512-reuse.json) and
-[matched K-boundary](../benchmarks/wrap64/matched-boundaries.json) cases contain
+Tracked [smoke](../benchmarks/cases/wrap64.json),
+[tail/reuse](../benchmarks/cases/wrap64.json),
+[512-cubed/reuse](../benchmarks/cases/wrap64.json) and
+[matched K-boundary](../benchmarks/cases/wrap64.json) cases contain
 four-way controls within K<=32768. The separate
-[long-K set](../benchmarks/wrap64/long-k.json) covers 33025,65535,65536,65537 and
+[long-K set](../benchmarks/cases/wrap64.json) covers 33025,65535,65536,65537 and
 131071 using the other three candidates. It does not invent blocked rocWMMA
 accumulation or a fake timing beyond the implemented cap. Copy a case file into
 ignored `temp/` and explicitly edit the selected device when needed.

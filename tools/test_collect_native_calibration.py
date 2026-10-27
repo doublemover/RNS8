@@ -1,4 +1,5 @@
 """Authored collector fixtures mock all children; optional CLI checks never run GPU work."""
+from benchmark_cases import case_root
 import copy
 import contextlib
 import io
@@ -274,7 +275,7 @@ class CaseTest(unittest.TestCase):
             with self.assertRaises(ValueError):validate_case(dict(case,**change))
 
     def test_tracked_case_sets_cover_every_mode_and_adaptive_controls(self):
-        root = Path(__file__).resolve().parents[1] / "benchmarks/native-calibration"
+        root = case_root() / 'native-calibration'
         smoke = [validate_case(row) for row in strict_json((root / "all-modes-smoke.json").read_text(encoding="utf-8"))]
         self.assertEqual({row["candidate"] for row in smoke}, set(CANDIDATES))
         distribution = [validate_case(row) for row in strict_json((root / "adaptive-distributions.json").read_text(encoding="utf-8"))]

@@ -1,4 +1,5 @@
 """Authored synthetic ragged receipts; no runtime measurements or qualification."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -143,7 +144,7 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_capture(capture,BASE,"fixture-run",2,1)
 
     def test_explicit_cpu_and_hip_case_sets(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks/ragged"
+        root=case_root() / 'ragged'
         for backend,device,prefix in (("cpu-reference",-1,"cpu"),("hip-direct",0,"hip")):
             for kind in ("smoke","large"):
                 cases=load_cases(root/(prefix+"-"+kind+".json"));self.assertEqual({c["mode"] for c in cases},set(MODES))

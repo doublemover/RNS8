@@ -1,5 +1,18 @@
 if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  set(RNS8_BENCHMARK_CASE_DIR "${CMAKE_CURRENT_BINARY_DIR}/benchmark-cases")
+  file(GLOB_RECURSE _rns8_case_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.json")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_cases.py" ${_rns8_case_sources})
+  execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/benchmark_cases.py"
+    --output "${RNS8_BENCHMARK_CASE_DIR}" RESULT_VARIABLE _rns8_cases_status
+    OUTPUT_QUIET ERROR_VARIABLE _rns8_cases_error)
+  if(NOT _rns8_cases_status EQUAL 0)
+    message(FATAL_ERROR "Benchmark case expansion failed: ${_rns8_cases_error}")
+  endif()
+  add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
+  add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
+  set_tests_properties(benchmark_catalog_contracts research_evidence_archive_contracts PROPERTIES LABELS "tools;artifacts" TIMEOUT 60)
   add_test(NAME research_kernel_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_research_kernels.py")
   foreach(_research_family IN ITEMS fp8 tdm)
     if(TARGET rns8-${_research_family}-calibrate AND RNS8_ENABLE_HIP)
@@ -9,7 +22,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
         set(_research_modes ordinary tdm multicast2 multicast4 ordinary-wmma tdm-wmma multicast2-wmma multicast4-wmma multicast2-wmma-neighbor multicast4-wmma-neighbor)
       endif()
       foreach(_research_mode IN LISTS _research_modes)
-        add_test(NAME ${_research_family}_${_research_mode}_capture_smoke COMMAND rns8-${_research_family}-calibrate "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/${_research_family}/17x19x33-${_research_mode}.json" ctest-${_research_family}-${_research_mode})
+        add_test(NAME ${_research_family}_${_research_mode}_capture_smoke COMMAND rns8-${_research_family}-calibrate "${RNS8_BENCHMARK_CASE_DIR}/${_research_family}/17x19x33-${_research_mode}.json" ctest-${_research_family}-${_research_mode})
         set_tests_properties(${_research_family}_${_research_mode}_capture_smoke PROPERTIES LABELS "hip;research;benchmark-smoke" SKIP_RETURN_CODE 77 TIMEOUT 180)
       endforeach()
     endif()
@@ -23,7 +36,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME residue_dot_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_residue_dot.py")
   if(TARGET rns8-residue-dot-calibrate AND RNS8_ENABLE_HIP AND (RNS8_EXPERIMENTAL_RESIDUE_DOT4 OR RNS8_EXPERIMENTAL_RESIDUE_SCALAR_CONTROL))
     foreach(_residue_case IN ITEMS independent-p20-sparse grouped-p20-sparse scheduled-p20-sparse region-p20-sparse grouped-fullwidth-k65 grouped-finite247 scheduled-p1-sparse scheduled-sustained-4 independent-fullwidth-k65537)
-      add_test(NAME residue_dot_${_residue_case}_smoke COMMAND rns8-residue-dot-calibrate "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/residue-dot/${_residue_case}.json" ctest-${_residue_case})
+      add_test(NAME residue_dot_${_residue_case}_smoke COMMAND rns8-residue-dot-calibrate "${RNS8_BENCHMARK_CASE_DIR}/residue-dot/${_residue_case}.json" ctest-${_residue_case})
       set_tests_properties(residue_dot_${_residue_case}_smoke PROPERTIES LABELS "hip;residue-dot;benchmark-smoke" TIMEOUT 120)
     endforeach()
   endif()
@@ -38,7 +51,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       foreach(_host_domain IN ITEMS i u)
         foreach(_host_mode IN ITEMS pageable-sync pinned-sync pinned-stream pinned-graph)
           add_test(NAME host_transfer_${_host_domain}_${_host_mode}_smoke
-            COMMAND rns8-host-transfer-calibrate "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/host-transfers/3x5x7-${_host_domain}-fullwidth-${_host_mode}.json"
+            COMMAND rns8-host-transfer-calibrate "${RNS8_BENCHMARK_CASE_DIR}/host-transfers/3x5x7-${_host_domain}-fullwidth-${_host_mode}.json"
               ctest-host-${_host_domain}-${_host_mode})
           set_tests_properties(host_transfer_${_host_domain}_${_host_mode}_smoke PROPERTIES
             LABELS "hip;host-transfer;benchmark-smoke" TIMEOUT 180 SKIP_RETURN_CODE 77)
@@ -156,7 +169,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
       foreach(_layout_shape IN ITEMS 17-chain-3-i 32-diamond-4-u)
         add_test(NAME lift_recipe_${_layout_shape}_${_layout_mode}_smoke
           COMMAND rns8-lift-recipe-calibrate
-            "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/lift-recipe/${_layout_shape}-${_layout_mode}.json"
+            "${RNS8_BENCHMARK_CASE_DIR}/lift-recipe/${_layout_shape}-${_layout_mode}.json"
             "ctest-${_layout_shape}-${_layout_mode}")
         set_tests_properties(lift_recipe_${_layout_shape}_${_layout_mode}_smoke PROPERTIES
           LABELS "hip;layout;recipe;benchmark-smoke" TIMEOUT 120)
@@ -170,7 +183,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
   if(TARGET rns8-product-stage-calibrate AND RNS8_ENABLE_HIP)
     add_test(NAME product_stage_calibration_smoke COMMAND rns8-product-stage-calibrate
-      "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/lift-recipe/17-stage-training.json" "ctest-product-stages")
+      "${RNS8_BENCHMARK_CASE_DIR}/lift-recipe/17-stage-training.json" "ctest-product-stages")
     set_tests_properties(product_stage_calibration_smoke PROPERTIES LABELS "hip;layout;recipe;benchmark-smoke" TIMEOUT 120)
   endif()
   add_test(NAME bilinear_collector_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_bilinear_calibration.py")
@@ -189,7 +202,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     if(RNS8_ENABLE_HIP)
       foreach(_system_mode IN ITEMS global-copy lds-read lds-read-write launch event descriptor graph)
         add_test(NAME system_roof_${_system_mode}_smoke COMMAND rns8-system-roof-calibrate
-          "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/system-roof/${_system_mode}-smoke.json" ctest-system-${_system_mode})
+          "${RNS8_BENCHMARK_CASE_DIR}/system-roof/${_system_mode}-smoke.json" ctest-system-${_system_mode})
         set_tests_properties(system_roof_${_system_mode}_smoke PROPERTIES LABELS "hip;calibration;benchmark-smoke" TIMEOUT 120 SKIP_RETURN_CODE 77)
       endforeach()
     endif()

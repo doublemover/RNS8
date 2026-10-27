@@ -1,4 +1,5 @@
 """Authored exact conversion receipts and malformed collector/CLI fixtures."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -140,7 +141,7 @@ class Captures(unittest.TestCase):
             with self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
 
     def test_checked_public_manifest_includes_matched_maintained_controls(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        root=case_root()/"conversion-calibration"
         cases=load_cases(root/"checked-public-exports.json")
         self.assertEqual(len(cases),224)
         self.assertEqual({c['candidate'] for c in cases},set(OWNED_CANDIDATES)|{'public_garner_signed','public_garner_unsigned','public_quarter_signed','public_quarter_unsigned'})
@@ -148,7 +149,7 @@ class Captures(unittest.TestCase):
         self.assertEqual({c['prefix'] for c in cases},{1,3,9,20})
 
     def test_checked_gemm_manifest_spans_compute_sizes_and_seals_reduction(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        root=case_root()/"conversion-calibration"
         cases=load_cases(root/"checked-gemm-exports.json")
         self.assertEqual(len(cases),364)
         self.assertEqual({c['candidate'] for c in cases},{c for c in CANDIDATES if c.startswith('public_')})
@@ -172,7 +173,7 @@ class Captures(unittest.TestCase):
                     with self.subTest(candidate=candidate,prefix=prefix,key=key),self.assertRaises(ValueError):validate_capture(bad,case,'fixture-run',2,1)
 
     def test_tracked_manifests_cover_all_controls_and_prefixes(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        root=case_root()/"conversion-calibration"
         for name,count in (("smoke",40),("every-prefix",800),("large",160)):
             cases=load_cases(root/(name+".json"))
             self.assertEqual(len(cases),count)

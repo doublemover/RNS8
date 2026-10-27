@@ -67,6 +67,6 @@ tiles remain ordered within each plane. Multi-slab calls may have no hits.
 JSON receipts record successful pack launches, direct-A blocks and panel hits
 after warmups and measured calls. Cohort/variance grouping separates policies;
 the counters establish source work, not latency or byte traffic. Matched cases
-are in `benchmarks/public-calibration/rocwmma-packing.json`. Host/device syntax
+are in `temp/benchmark-cases/current/public-calibration/rocwmma-packing.json`. Host/device syntax
 and authored CPU/GPU fixtures precede deferred runtime validation and paired
 measurements. These controls do not change AUTO policy or reviewed cache entries.

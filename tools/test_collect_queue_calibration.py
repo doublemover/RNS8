@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import json
 from pathlib import Path
@@ -8,7 +9,7 @@ from collect_queue_calibration import MODES, commands, validate_case
 ROOT=Path(__file__).resolve().parents[1]
 class QueueCollectionTests(unittest.TestCase):
     def test_repository_controls_and_independent_order(self):
-        cases=sorted((ROOT/"benchmarks/native-queue").glob("*.json"))
+        cases=sorted((case_root() / 'native-queue').glob("*.json"))
         self.assertGreaterEqual(len(cases),7)
         for path in cases:validate_case(json.loads(path.read_text()))
         plan=commands(Path("binary"),cases,Path("output"),4,38,"collection")
@@ -19,7 +20,7 @@ class QueueCollectionTests(unittest.TestCase):
             for run in range(4):self.assertEqual({e["mode"] for e in own if e["run"]==run},set(MODES))
             self.assertGreater(len({tuple(e["mode"] for e in own if e["run"]==run) for run in range(4)}),1)
     def test_invalid_abi_limits_and_bool_integer_aliases(self):
-        good=json.loads((ROOT/"benchmarks/native-queue/many-tiny.json").read_text())
+        good=json.loads((case_root() / 'native-queue/many-tiny.json').read_text())
         for key,value in (("schema","v0"),("workers",True),("workers",1025),("chunk",33),("reuse",0),("tasks",[]),("mutate_b",1)):
             bad=copy.deepcopy(good);bad[key]=value
             with self.subTest(key=key,value=value),self.assertRaises(ValueError):validate_case(bad)

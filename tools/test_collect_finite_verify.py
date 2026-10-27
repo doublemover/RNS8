@@ -1,4 +1,5 @@
 """Authored synthetic collector/CLI fixtures; never performance evidence."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -96,7 +97,7 @@ class Cases(unittest.TestCase):
                 strict_json(text)
 
     def test_tracked_manifests_cover_matched_controls(self):
-        root = Path(__file__).resolve().parents[1]/"benchmarks"/"finite-verification"
+        root = case_root()/"finite-verification"
         for name, count in (("matched.json", 24), ("k-boundary.json", 6)):
             cases = load_cases(root/name)
             self.assertEqual(len(cases), count)

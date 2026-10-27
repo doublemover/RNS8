@@ -161,7 +161,7 @@ export. This uses the same three streams, two slots, pinned transfers, pack/GEMM
 export kernels, B residency and final output boundary, but serializes the GPU
 pipeline without introducing a per-call host synchronization. It is a matched
 **serialized pipeline**, not a claim about the ordinary public API. The focused
-`benchmarks/public-calibration/streaming.json` controls additionally retain that
+`temp/benchmark-cases/current/public-calibration/streaming.json` controls additionally retain that
 ordinary public reuse-B route. Both diagnostic and hook-disabled captures are
 collected in counterbalanced independent processes; streaming controls use their
 own batch loop rather than the incompatible ordinary sustained-loop option.
@@ -199,7 +199,7 @@ latency repeats, before the separately bounded sustained phase. The schema
 checks completed lifecycle/accounting identities, and physical policy separates
 aggregation cohorts without changing the logical comparison contract.
 
-`benchmarks/public-calibration/hipblaslt-metadata.json` pairs both policies across
+`temp/benchmark-cases/current/public-calibration/hipblaslt-metadata.json` pairs both policies across
 a one-plane finite-ring control, prefixes9/18/20, padded/skinny/medium/large
 shapes and K65535/65536/65537. The public collector reverses case order between
 independent runs as well as counterbalancing instrumented/production captures.

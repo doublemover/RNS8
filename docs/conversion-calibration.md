@@ -40,7 +40,7 @@ prefix does not have to cover a hypothetical full-native-type GEMM that this
 benchmark never executes. Captures name this admission policy and require
 `gemm_measured=false` for public controls.
 
-The first [focused closeout profile](../benchmarks/conversion-calibration/focused-closeout-20261025.json)
+The first [focused closeout profile](../benchmarks/cases/conversion-calibration.json)
 completed 23 v3 captures before a P9 public control correctly rejected its old
 type-product plan. The failure was in benchmark setup. The
 [preserved initial attempt](../metadata/conversion-closeout-initial-attempt-20261025.json)
@@ -138,14 +138,14 @@ Records keep unavailable measurements null.
 
 ## Reproducible collection
 
-Authored manifests provide [small controls](../benchmarks/conversion-calibration/smoke.json),
-[every prefix](../benchmarks/conversion-calibration/every-prefix.json), and
-[65536/1048576-cell controls](../benchmarks/conversion-calibration/large.json).
+Authored manifests provide [small controls](../benchmarks/cases/conversion-calibration.json),
+[every prefix](../benchmarks/cases/conversion-calibration.json), and
+[65536/1048576-cell controls](../benchmarks/cases/conversion-calibration.json).
 Each includes signed/unsigned import, all CRT controls and both scopes.
 
 ```powershell
-python tools/collect_crt_calibration.py --exe build/issues-all/rns8-crt-calibrate.exe --cases benchmarks/conversion-calibration/every-prefix.json --output temp/conversion-prefixes --runs 5 --repeats 9 --warmups 3
-python tools/collect_crt_calibration.py --exe build/issues-all/rns8-crt-calibrate.exe --cases benchmarks/conversion-calibration/large.json --output temp/conversion-large --runs 5 --repeats 9 --warmups 3
+python tools/collect_crt_calibration.py --exe build/issues-all/rns8-crt-calibrate.exe --cases temp/benchmark-cases/current/conversion-calibration/every-prefix.json --output temp/conversion-prefixes --runs 5 --repeats 9 --warmups 3
+python tools/collect_crt_calibration.py --exe build/issues-all/rns8-crt-calibrate.exe --cases temp/benchmark-cases/current/conversion-calibration/large.json --output temp/conversion-large --runs 5 --repeats 9 --warmups 3
 ```
 
 The existing cartesian CLI remains usable, for example
@@ -316,7 +316,7 @@ cache initialization is timed and reported separately from buffer setup and
 steady calls. Group IDs, widths, scratch and canonical-only semantics are checked
 by the collector; stale or centered-subgroup metadata rejects.
 
-The [bounded group profile](../benchmarks/conversion-calibration/group-crt-closeout-20261025.json)
+The [bounded group profile](../benchmarks/cases/conversion-calibration.json)
 contains 30 cases: all three group controls and Garner/direct/balanced baselines
 at small P3, large P9/P20, one-million-value P20 and cold P20 boundaries. Five
 fresh processes per case produce **150/150 validated captures** at **287737d**.

@@ -158,8 +158,8 @@ The following are reproduction commands, **not a request to restart**. Use a new
 output directory, the qualified configuration and the recorded Python runtime:
 
 ```powershell
-python tools/collect_native_calibration.py --exe build/final-msvc315-production/rns8-native-calibrate.exe --cases benchmarks/native-calibration/encoded-b-512.json --output temp/reproduction-encoded-b --runs 5 --repeats 9 --warmups 3 --timeout 1800
-python tools/collect_crt_calibration.py --exe build/final-msvc315-production/rns8-crt-calibrate.exe --cases benchmarks/conversion-calibration/large.json --output temp/reproduction-conversion --runs 5 --repeats 9 --warmups 3 --timeout 1800
+python tools/collect_native_calibration.py --exe build/final-msvc315-production/rns8-native-calibrate.exe --cases temp/benchmark-cases/current/native-calibration/encoded-b-512.json --output temp/reproduction-encoded-b --runs 5 --repeats 9 --warmups 3 --timeout 1800
+python tools/collect_crt_calibration.py --exe build/final-msvc315-production/rns8-crt-calibrate.exe --cases temp/benchmark-cases/current/conversion-calibration/large.json --output temp/reproduction-conversion --runs 5 --repeats 9 --warmups 3 --timeout 1800
 ```
 
 Other completed case manifests are recorded verbatim in the campaign receipt;

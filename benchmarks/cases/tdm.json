@@ -1,0 +1,52 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "tdm",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "mode", "repeats", "warmups", "seed", "prefix", "group", "signed_input", "compute", "cluster_axis"],
+      "defaults": {
+        "schema": "native_tdm_case_v1",
+        "repeats": 3,
+        "warmups": 1,
+        "seed": 52645,
+        "prefix": 9,
+        "group": 4,
+        "signed_input": true
+      },
+      "columns": ["m", "n", "k", "mode", "compute", "cluster_axis"],
+      "rows": [
+        ["128x128x4096-multicast2-wmma-neighbor.json", "5c16bdb572724ce9d8e223bec0dd1f9f2e3fedfecb823201529042fdc6e6bf91", 128, 128, 4096, "multicast2", "wmma", "output-neighbor"],
+        ["128x128x4096-multicast2-wmma.json", "b6b7c36a5755903b4885fc9960ce2a386fbc91e2b173f69cd0443c5ca2660294", 128, 128, 4096, "multicast2", "wmma", "moduli"],
+        ["128x128x4096-multicast2.json", "987adf635b968cac35c7590be18b10859cf665ee29b6b5bfb9c865ee6a87fa7f", 128, 128, 4096, "multicast2", "scalar", "moduli"],
+        ["128x128x4096-multicast4-wmma-neighbor.json", "851871c8f7babcdb32133a19d6b6e8cd56e908d10227789ca73cb0007c1ddfdf", 128, 128, 4096, "multicast4", "wmma", "output-neighbor"],
+        ["128x128x4096-multicast4-wmma.json", "61727c8418f31bda7b978d5ca6821381543eb981a3fc765acf723810e275cf5e", 128, 128, 4096, "multicast4", "wmma", "moduli"],
+        ["128x128x4096-multicast4.json", "859cdbfdd7081d0857336a13e3c0eef3f0e0aeafb2cffacdb59f4c23604a75f9", 128, 128, 4096, "multicast4", "scalar", "moduli"],
+        ["128x128x4096-ordinary-wmma.json", "6489aa0af3b1e5652b897f459997f2a6d0e14a2f525d36e3d79a60b451aefb72", 128, 128, 4096, "ordinary", "wmma", "moduli"],
+        ["128x128x4096-ordinary.json", "de84ead3ef2bea224ef1362f86b6e6b2ec8f4e0cb043c27da089ebd1fe362f8d", 128, 128, 4096, "ordinary", "scalar", "moduli"],
+        ["128x128x4096-tdm-wmma.json", "7f84a8185d9ed625ecdda29ebb87c11ec9ebf8260151a4a10d6e73bb475a7be6", 128, 128, 4096, "tdm", "wmma", "moduli"],
+        ["128x128x4096-tdm.json", "8c709de72c3f9cdc283f34b430075347e611c369ff817c9e14a379a4de8ef5ae", 128, 128, 4096, "tdm", "scalar", "moduli"],
+        ["16x16x65537-multicast2-wmma-neighbor.json", "9fb9ce6eff6bd54e3e0d659b56618a6c00a9c8b30f0a1b11d245fc9316ca4b8a", 16, 16, 65537, "multicast2", "wmma", "output-neighbor"],
+        ["16x16x65537-multicast2-wmma.json", "99a564aeab8d365c8271c474021137ac0ff1043d1f68f80b533f2b7a174414f9", 16, 16, 65537, "multicast2", "wmma", "moduli"],
+        ["16x16x65537-multicast2.json", "5a1fe89d5031d3ed5848266ee1d04a6c002b503085c661e5e3d2279b7b693cbd", 16, 16, 65537, "multicast2", "scalar", "moduli"],
+        ["16x16x65537-multicast4-wmma-neighbor.json", "e745f71e8cf573bb1e4d3c943127ead4ca52461e13680b436bc20437651e42d6", 16, 16, 65537, "multicast4", "wmma", "output-neighbor"],
+        ["16x16x65537-multicast4-wmma.json", "fe2960569abedf9f5bded07632e344be8df091d2c1f4102e6277e2b6c910c0b5", 16, 16, 65537, "multicast4", "wmma", "moduli"],
+        ["16x16x65537-multicast4.json", "2585536889bc5bb2c3ba205f10f6cb21f1066053e1c53f6af509dbb73a39ef6f", 16, 16, 65537, "multicast4", "scalar", "moduli"],
+        ["16x16x65537-ordinary-wmma.json", "dcec9a04c5b8592f22312192e947e9b03312fbf4f40f04af77c07905efb62fb4", 16, 16, 65537, "ordinary", "wmma", "moduli"],
+        ["16x16x65537-ordinary.json", "864bb0aa5414050802e8e7f0bafc3d35b21d602f9e1e2979349a120370cab841", 16, 16, 65537, "ordinary", "scalar", "moduli"],
+        ["16x16x65537-tdm-wmma.json", "572993807c964dc8cdaf9dd84f4c9e76cc498c5484a17102f4964890a0087be1", 16, 16, 65537, "tdm", "wmma", "moduli"],
+        ["16x16x65537-tdm.json", "d5159014499f896f065c903cb4e9b78868d01d8a172025b406600c56d6040f12", 16, 16, 65537, "tdm", "scalar", "moduli"],
+        ["17x19x33-multicast2-wmma-neighbor.json", "51a7e0fcb340f080ef2e5741f83f17a3a7a947a135c8997f332cbf2f2e86457c", 17, 19, 33, "multicast2", "wmma", "output-neighbor"],
+        ["17x19x33-multicast2-wmma.json", "5c09d356ff4a46ffa06f2e810605bc3e28ee5ac8ad5c3e145b044e77fdbdffc5", 17, 19, 33, "multicast2", "wmma", "moduli"],
+        ["17x19x33-multicast2.json", "d2e1f25e45945fc5186430e25e3dbaf81b943b18e8484881d962880868c13aac", 17, 19, 33, "multicast2", "scalar", "moduli"],
+        ["17x19x33-multicast4-wmma-neighbor.json", "e14a772cb5db29a1fd16f97138ee5bde1df15943b9cadc5d683d2b4f66b80609", 17, 19, 33, "multicast4", "wmma", "output-neighbor"],
+        ["17x19x33-multicast4-wmma.json", "cd9c35b0e410172322fafacdc6d52eb8619b15745ede522bbfe3cd16ce1e1145", 17, 19, 33, "multicast4", "wmma", "moduli"],
+        ["17x19x33-multicast4.json", "a28715647be9cf75d3d63d86b4676b5378a5f45f22051a10065f327ed23d969f", 17, 19, 33, "multicast4", "scalar", "moduli"],
+        ["17x19x33-ordinary-wmma.json", "d149d85f00c11dec8681fef1b8fbe924edd0df1933bb50644d9d3e85dce65f86", 17, 19, 33, "ordinary", "wmma", "moduli"],
+        ["17x19x33-ordinary.json", "e4d3d78be5462e74510ea0bc54f494e5817d73aa7a5a3d81021f61aa21fdc98b", 17, 19, 33, "ordinary", "scalar", "moduli"],
+        ["17x19x33-tdm-wmma.json", "d65c5658c97d6bbbda9c6536568596496c0f67d47cc8eae2f97e7d0365616a3a", 17, 19, 33, "tdm", "wmma", "moduli"],
+        ["17x19x33-tdm.json", "b3a8bb0db93efce117ad41b137021f74e464c0e7c1ba5da68fd66215591855a1", 17, 19, 33, "tdm", "scalar", "moduli"]
+      ]
+    }
+  ]
+}

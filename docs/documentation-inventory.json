@@ -3340,6 +3340,10 @@
           "reference": "docs/performance.md"
         },
         {
+          "source": "CONTRIBUTING.md",
+          "reference": "docs/performance.md#research-evidence-and-benchmark-inputs"
+        },
+        {
           "source": "README.md",
           "reference": "docs/performance.md"
         },
@@ -3408,6 +3412,10 @@
           "reference": "performance.md"
         },
         {
+          "source": "docs/cpu-amx.md",
+          "reference": "performance.md#research-evidence-and-benchmark-inputs"
+        },
+        {
           "source": "docs/documentation-maintenance.md",
           "reference": "performance.md"
         },
@@ -3446,6 +3454,7 @@
         "paired-residue-dot-scheduler-controls",
         "performance-evidence-and-promotion",
         "promotion-boundaries",
+        "research-evidence-and-benchmark-inputs",
         "residue-dot-calibration-ownership-and-timing-body",
         "selected-static-isa-and-proof-work-identity",
         "synchronous-transfer-payload-accounting",

@@ -225,7 +225,7 @@ counts are not measured speedups.
 
 `rns8-public-queue-calibrate` and `tools/collect_public_queue_calibration.py`
 now measure the actual public owner rather than treating private raw-pointer queue
-latency as public-call latency. Cases in `benchmarks/public-native-queue/` pair
+latency as public-call latency. Cases in `temp/benchmark-cases/current/public-native-queue/` pair
 persistent, identical-representation ordinary native grids, native graph replay
 and the ordinary resident-RNS control. The latter does not consume or charge a
 fictional encoded cache. Heterogeneous signed/unsigned tasks include shared B,

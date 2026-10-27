@@ -1,4 +1,5 @@
 """Authored synthetic wrap capture/collector fixtures; no measured evidence."""
+from benchmark_cases import case_root
 import argparse
 from copy import deepcopy
 import json
@@ -137,7 +138,7 @@ class Captures(unittest.TestCase):
             validate_capture(capture, roc, "fixture-run", 2, 1)
 
     def test_tracked_case_sets_and_explicit_rocwmma_gap(self):
-        root = Path(__file__).resolve().parents[1]/"benchmarks"/"wrap64"
+        root = case_root()/"wrap64"
         for name, count in (("smoke.json", 12), ("tail-reuse.json", 36), ("512-reuse.json", 48), ("long-k.json", 45), ("matched-boundaries.json", 12)):
             cases = load_cases(root/name); self.assertEqual(len(cases), count)
             for k in {case["k"] for case in cases}:
@@ -154,7 +155,7 @@ class Captures(unittest.TestCase):
                 broken=deepcopy(capture);broken[key]=value
                 with self.assertRaises(ValueError):validate_capture(broken,case,"fixture-run",2,1)
         for name,count in (("cdna-small.json",27),("cdna-carry-slabs.json",33),("cdna-boundaries.json",24),("cdna-sustained.json",24)):
-            cases=load_cases(Path(__file__).resolve().parents[1]/"benchmarks"/"wrap64"/name)
+            cases=load_cases(case_root()/"wrap64"/name)
             self.assertEqual(len(cases),count)
             self.assertEqual({x['candidate'] for x in cases},set(CDNA_CANDIDATES))
 

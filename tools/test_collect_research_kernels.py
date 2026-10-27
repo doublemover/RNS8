@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 from pathlib import Path
 import unittest
@@ -58,7 +59,7 @@ class ResearchCapture(unittest.TestCase):
     def test_all_committed_cases_and_closed_domain(self):
         root = Path(__file__).resolve().parents[1]
         for family in ('fp8', 'tdm'):
-            for path in (root/'benchmarks'/family).glob('*.json'):
+            for path in (case_root()/family).glob('*.json'):
                 case = validate_case(strict_json(path.read_text()))
                 bad = dict(case, k=True)
                 with self.assertRaises(ValueError):

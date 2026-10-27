@@ -1,4 +1,5 @@
 """Independent exact quotient and matched public/private harness fixtures."""
+from benchmark_cases import case_root
 from copy import deepcopy
 from fractions import Fraction
 import unittest
@@ -42,7 +43,7 @@ class QuarterCrt(unittest.TestCase):
                         with self.assertRaises(ValueError):validate_capture(capture,case,"fixture-run",2,1)
 
     def test_tracked_quarter_manifests(self):
-        root=Path(__file__).resolve().parents[1]/"benchmarks"/"conversion-calibration"
+        root=case_root()/"conversion-calibration"
         cases=load_cases(root/"quarter-every-prefix.json")
         self.assertEqual({c["prefix"] for c in cases},set(range(1,21)))
         self.assertEqual({c["candidate"] for c in cases},set(QUARTER_CANDIDATES))

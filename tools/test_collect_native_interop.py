@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import unittest
 from pathlib import Path
@@ -91,7 +92,7 @@ class NativeInteropContracts(unittest.TestCase):
     def test_checked_in_cases_are_complete_matched_routes(self):
         import json
         groups={}
-        for path in (Path(__file__).resolve().parents[1]/'benchmarks/native-interop').glob('*.json'):
+        for path in (case_root() / 'native-interop').glob('*.json'):
             c=validate_case(json.loads(path.read_text()));mode=c.pop('mode')
             groups.setdefault(json.dumps(c,sort_keys=True),set()).add(mode)
         self.assertTrue(groups)

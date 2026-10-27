@@ -175,16 +175,16 @@ are not independent process observations.
 
 ## Collection and remaining gates
 
-Versioned manifests provide [small controls](../benchmarks/word-mod-calibration/smoke.json),
-[13 widths with17x19 tails](../benchmarks/word-mod-calibration/widths-tail.json),
-[K4095/4096/4097/8193](../benchmarks/word-mod-calibration/slab-boundaries.json), and
-[32..512 output orders](../benchmarks/word-mod-calibration/large.json). They pair
+Versioned manifests provide [small controls](../benchmarks/cases/word-mod-calibration.json),
+[13 widths with17x19 tails](../benchmarks/cases/word-mod-calibration.json),
+[K4095/4096/4097/8193](../benchmarks/cases/word-mod-calibration.json), and
+[32..512 output orders](../benchmarks/cases/word-mod-calibration.json). They pair
 all four integer methods/scopes and prime/composite contracts. The widths are8,16,23,26,27,
 31,35,39,42,48,50,52 and64; moduli are explicit in each case, with no latest-prime
 lookup at execution time.
 
 The integer sets contain 16 small, 208 width/tail, 64 slab-boundary and 192 large
-cases. [112 matched tile-tail cases](../benchmarks/word-mod-calibration/tile-tails.json)
+cases. [112 matched tile-tail cases](../benchmarks/cases/word-mod-calibration.json)
 add output extents 1,15,16,17,19,31,32,33 around the 16x16 boundaries and modulus
 256/257 at the one-byte/two-byte transition. All integer cohorts use identical
 inputs, oracle, scope and mathematical product across the four methods.
@@ -206,11 +206,11 @@ certificate boundary, invalid/missing/irrelevant digits/slabs, full64 rejection,
 preserved failure records and schedule metadata mismatches.
 
 ```powershell
-python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/widths-tail.json --output temp/word-mod-widths --runs 5 --repeats 9 --warmups 3
-python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/slab-boundaries.json --output temp/word-mod-slabs --runs 5 --repeats 9 --warmups 3
-python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/tile-tails.json --output temp/word-mod-tiles --runs 5 --repeats 9 --warmups 3
-python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-pairs.json --output temp/word-mod-floating-pairs --runs 5 --repeats 9 --warmups 3
-python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases benchmarks/word-mod-calibration/floating-large.json --output temp/word-mod-floating-large --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases temp/benchmark-cases/current/word-mod-calibration/widths-tail.json --output temp/word-mod-widths --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases temp/benchmark-cases/current/word-mod-calibration/slab-boundaries.json --output temp/word-mod-slabs --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases temp/benchmark-cases/current/word-mod-calibration/tile-tails.json --output temp/word-mod-tiles --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases temp/benchmark-cases/current/word-mod-calibration/floating-pairs.json --output temp/word-mod-floating-pairs --runs 5 --repeats 9 --warmups 3
+python tools/collect_word_mod_calibration.py --exe build/issues-all/rns8-word-mod-calibrate.exe --cases temp/benchmark-cases/current/word-mod-calibration/floating-large.json --output temp/word-mod-floating-large --runs 5 --repeats 9 --warmups 3
 ```
 
 Collection shuffles independent case/process order with a recorded seed. It

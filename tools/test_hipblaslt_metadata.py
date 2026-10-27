@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import json
 import math
@@ -28,7 +29,7 @@ class MetadataContracts(unittest.TestCase):
     def test_all_declared_profiles_admit_the_initial_native_type_plan(self):
         root=Path(__file__).resolve().parents[1]
         for profile in ('hipblaslt-metadata.json','hipblaslt-prepack.json','hipblaslt-first-call.json'):
-            cases=json.loads((root/'benchmarks/public-calibration'/profile).read_text())['cases']
+            cases=json.loads((case_root() / 'public-calibration'/profile).read_text())['cases']
             self.assertTrue(commands(Path('binary'),cases,2,1,Path('out')))
         for k in (65535,65536,65537):
             args=['--semantics','exact-wide-signed','--k',str(k),'--max-prefix','18',
@@ -137,7 +138,7 @@ class MetadataContracts(unittest.TestCase):
         plan=commands(Path('binary'),cases,2,1,Path('out'))
         self.assertEqual([e['case'] for e in plan if e['position']==0],['per-call','per-block','per-block','per-call'])
     def test_operand_retention_manifest_composes_all_physical_controls(self):
-        path=Path(__file__).resolve().parents[1]/'benchmarks/public-calibration/hipblaslt-prepack.json'
+        path=case_root() / 'public-calibration/hipblaslt-prepack.json'
         cases=json.loads(path.read_text())['cases'];groups={}
         for case in cases:
             args=case['arguments'];values=dict(zip(args[::2],args[1::2]))

@@ -558,7 +558,8 @@ No overlap is inferred from stream count. The 64 matched cases include skinny,
 tail, 128³ and K65537 workloads with small and full-width inputs.
 
 ```powershell
-$hostTransferCases = (Get-ChildItem -LiteralPath benchmarks/host-transfers -Filter '*.json').FullName
+python tools/benchmark_cases.py --output temp/benchmark-cases/current
+$hostTransferCases = (Get-ChildItem -LiteralPath temp/benchmark-cases/current/host-transfers -Filter '*.json').FullName
 python tools/collect_host_transfers.py --binary build/issues-all/rns8-host-transfer-calibrate.exe --cases $hostTransferCases --output temp/host-transfers --runs 5
 ```
 

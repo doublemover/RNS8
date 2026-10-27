@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -41,7 +42,7 @@ class RocwmmaPacking(unittest.TestCase):
         self.assertEqual(packing_policy({'backend_selected':'rocwmma'}),'packed')
 
     def test_matched_manifest_contains_complete_controls(self):
-        cases=json.loads((Path(__file__).resolve().parents[1]/'benchmarks/public-calibration/rocwmma-packing.json').read_text())['cases']
+        cases=json.loads((case_root() / 'public-calibration/rocwmma-packing.json').read_text())['cases']
         groups={}
         for case in cases:
             a=case['arguments'];v=dict(zip(a[::2],a[1::2]))

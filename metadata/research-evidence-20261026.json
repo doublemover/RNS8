@@ -1,0 +1,12 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "25f774642a5276285e10931d3f55251358a5d832",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/research-evidence-pr15-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/research-evidence-pr15-20261026/rns8-pr15-evidence-25f7746.zip",
+  "bytes": 2973562,
+  "sha256": "0e72767327f9c3e40af321b88649d729ea78f330e95dcca368a15fb980cfce32",
+  "index_member": "archive-index.json",
+  "scope": "Full metadata JSON records and all 2075 benchmark JSON inputs at the source commit. Git bytes use LF; archive-index.json binds each member by SHA256.",
+  "restore_command": "python tools/research_evidence.py --output temp/restored-pr15-evidence",
+  "format": "ZIP/DEFLATE; no executables, SDKs or third-party source included"
+}

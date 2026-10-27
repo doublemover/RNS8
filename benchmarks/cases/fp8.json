@@ -1,0 +1,30 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "fp8",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "mode", "repeats", "warmups", "seed", "modulus", "residency"],
+      "defaults": {
+        "schema": "finite_fp8_public_case_v1",
+        "repeats": 3,
+        "warmups": 1,
+        "seed": 52645,
+        "modulus": 251,
+        "residency": "repeated-ab"
+      },
+      "columns": ["m", "n", "k", "mode"],
+      "rows": [
+        ["128x128x4096-fp8-materialized.json", "6fbb3620fd80a8c50ffe5e2b6419348466c1dd4cff23f3d60a6e6068998a7d4d", 128, 128, 4096, "fp8-materialized"],
+        ["128x128x4096-fp8.json", "2c131a9c501afd2e9143bec9a4eb31484ac33ece78ccfade9b8cea6394dc4909", 128, 128, 4096, "fp8"],
+        ["128x128x4096-int8.json", "bba47ec605231b04e52e135ed36943843616521f0ad990c8993f694c6878581b", 128, 128, 4096, "int8"],
+        ["16x16x65537-fp8-materialized.json", "5c45818af74ec296d2c9343956dcc76b89904d8c0ade52b38c064deeffa9a0bd", 16, 16, 65537, "fp8-materialized"],
+        ["16x16x65537-fp8.json", "fb5ea28022079bd4652677bc90a546ccdf8580b3c205c0a18d9e7a180c773d8a", 16, 16, 65537, "fp8"],
+        ["16x16x65537-int8.json", "b1aa9eab79854945224b4ef90c3a3f86eecdff806e85b463122d80d0ac15e0f8", 16, 16, 65537, "int8"],
+        ["17x19x33-fp8-materialized.json", "3004c88741460dee98fb35f6d01cb0c4e5f24fad309c3074ee27e980619cdd1f", 17, 19, 33, "fp8-materialized"],
+        ["17x19x33-fp8.json", "8600e1f287d9bdcde1ef8c1d71fb3f9f5e026bfe758a9e12a7ff5230dbf64be2", 17, 19, 33, "fp8"],
+        ["17x19x33-int8.json", "5dbafcb8f33c2f37720b0b7551a0220d4148ddc8e2abc93d78fbd7e178b6c474", 17, 19, 33, "int8"]
+      ]
+    }
+  ]
+}

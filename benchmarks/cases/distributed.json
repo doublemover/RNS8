@@ -1,0 +1,113 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "distributed",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "prefix", "tile", "slots", "devices", "transport", "scope", "host_budget", "pinned_budget", "device_budget", "warmups", "repeats"],
+      "defaults": {
+        "schema": "rns8_distributed_case_v1",
+        "slots": 2,
+        "scope": "resident-device-limbs",
+        "host_budget": 8589934592,
+        "pinned_budget": 1048576,
+        "device_budget": 17179869184,
+        "warmups": 3,
+        "repeats": 5
+      },
+      "columns": ["m", "n", "k", "prefix", "tile", "devices", "transport"],
+      "rows": [
+        [
+          "single-8192.json",
+          "61ef3afe7e08cb299485b7814a6885b3a6b9a225b9b722b9331d7279cfed6556",
+          8192,
+          8192,
+          8192,
+          9,
+          128,
+          [0],
+          "local"
+        ],
+        [
+          "single-smoke.json",
+          "852815746810008de980eb35fa250e69faf115b14b181f0badee7a04e4edabba",
+          17,
+          19,
+          65,
+          3,
+          16,
+          [0],
+          "local"
+        ],
+        [
+          "two-peer-smoke.json",
+          "de9990e1bd570e42613387b35302e331014861099fb6cce88b885f230094afd9",
+          17,
+          19,
+          65,
+          3,
+          16,
+          [0, 1],
+          "peer"
+        ],
+        [
+          "two-staged-8192.json",
+          "670bf4ddece6be84892882e795dcb03c656e9081ede460a50ec023b97fe7dc2c",
+          8192,
+          8192,
+          8192,
+          9,
+          128,
+          [0, 1],
+          "pinned"
+        ],
+        [
+          "two-staged-smoke.json",
+          "d84a298dd291d40ef41f96ebeca71fef8aca9ed1bffcea13e6574d312b1149bf",
+          17,
+          19,
+          65,
+          3,
+          16,
+          [0, 1],
+          "pinned"
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "prefix", "tile", "slots", "devices", "transport", "scope", "host_budget", "pinned_budget", "device_budget", "warmups", "repeats", "native_integrity"],
+      "defaults": {
+        "schema": "rns8_distributed_case_v1",
+        "m": 17,
+        "n": 19,
+        "k": 65,
+        "prefix": 3,
+        "tile": 16,
+        "slots": 2,
+        "scope": "resident-device-limbs",
+        "host_budget": 8589934592,
+        "pinned_budget": 1048576,
+        "device_budget": 17179869184,
+        "warmups": 3,
+        "repeats": 5,
+        "native_integrity": true
+      },
+      "columns": ["devices", "transport"],
+      "rows": [
+        [
+          "single-smoke-integrity.json",
+          "658b228825b0df1305e0c05dea50c5748e48494ffb04c0496bcd75b421e21b86",
+          [0],
+          "local"
+        ],
+        [
+          "two-staged-smoke-integrity.json",
+          "cac9b1e96a753992cd060c240a5dc4c87ed76c7ccc41f44b0c7bc16dabf5909a",
+          [0, 1],
+          "pinned"
+        ]
+      ]
+    }
+  ]
+}

@@ -59,7 +59,7 @@ bursts and independent processes use the same contracts as the
 [FP8 collector](fp8-modular-research.md#matched-capture-source).
 
 ```text
-python tools/collect_research_kernels.py --binary build/rns8-tdm-calibrate --cases benchmarks/tdm/17x19x33-ordinary.json benchmarks/tdm/17x19x33-tdm.json benchmarks/tdm/17x19x33-multicast2.json benchmarks/tdm/17x19x33-multicast4.json --output temp/tdm-plan
+python tools/collect_research_kernels.py --binary build/rns8-tdm-calibrate --cases temp/benchmark-cases/current/tdm/17x19x33-ordinary.json temp/benchmark-cases/current/tdm/17x19x33-tdm.json temp/benchmark-cases/current/tdm/17x19x33-multicast2.json temp/benchmark-cases/current/tdm/17x19x33-multicast4.json --output temp/tdm-plan
 ```
 
 This writes a plan only. Hardware litmus, emitted ISA, wait/barrier stress,

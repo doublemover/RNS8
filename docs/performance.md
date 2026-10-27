@@ -321,3 +321,48 @@ The outer wall timer still includes its loop/termination bookkeeping. The v1/v2
 contracts remain historical evidence and are not admitted as v3. Scalar
 controls and dot4 candidates must differ only in their recorded arithmetic
 options; CRT-table, compiler, dependency and other build settings must match.
+
+## Research evidence and benchmark inputs
+
+Keep reviewed conclusions, matched gain/loss tables, semantic boundaries and
+compact provenance summaries in Git. Full per-process captures, sample arrays,
+diagnostic logs and expanded experiment inputs belong in a durable artifact,
+with its source commit, byte count and SHA256 recorded in the repository.
+Do not remove failed measurements or weaken qualification gates when archiving.
+Future collections should follow this split instead of embedding entire captures
+in dated metadata JSON.
+
+The [PR15 archive manifest](../metadata/research-evidence-20261026.json) pins the
+[published evidence archive](https://github.com/doublemover/RNS8/releases/tag/research-evidence-pr15-20261026)
+at source `25f7746`. It preserves all 2,075 benchmark JSON inputs and 35 metadata
+records as exact Git bytes. Each archived file has a SHA256 in the internal
+`archive-index.json`; this archive contains data, not a software release.
+The compact dated summaries retain original schemas as `original_schema` and
+replace large payloads with JSON pointers into their full archived records.
+Restore and verify the complete records without modifying source files:
+
+```sh
+python tools/research_evidence.py --output temp/restored-pr15-evidence
+```
+
+`--archive /path/to/rns8-pr15-evidence-25f7746.zip` supports offline restoration.
+The helper verifies the pinned archive and every member before publishing files,
+rejects unsafe paths and restores into ignored scratch storage. Archived Git
+bytes use LF; the original records and historical result identities are unchanged.
+
+Benchmark definitions remain editable and reproducible from 25 compact JSON
+catalogs under `benchmarks/cases/`, plus 38 retained standalone definitions.
+Catalogs factor shared defaults and ordered record layouts into explicit rows;
+they retain case names, field ordering and an exact SHA256 for each expanded
+document. Generate all ordinary case files before running a collector:
+
+```sh
+python tools/benchmark_cases.py --output temp/benchmark-cases/current --json
+```
+
+Collectors continue accepting their ordinary JSON inputs, now under
+`temp/benchmark-cases/current/<family>/`. The materializer verifies canonical
+Git bytes, then uses native line endings so Windows case hashes match the
+earlier checkout. CMake generates its own verified inputs under the build tree
+automatically; Python corpus tests use an isolated content-addressed scratch
+directory. No benchmark is executed by materialization or restoration.

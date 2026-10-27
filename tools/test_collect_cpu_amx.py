@@ -1,3 +1,4 @@
+from benchmark_cases import case_root
 import copy
 import json
 from pathlib import Path
@@ -68,7 +69,7 @@ class CpuAmxReceipts(unittest.TestCase):
         observations[-1][1]['execution_id']=observations[0][1]['execution_id']
         with self.assertRaises(ValueError):summarize(observations)
     def test_corpus_and_immutable_counterbalance_plan(self):
-        root=Path(__file__).resolve().parents[1]/'benchmarks/cpu-amx'
+        root=case_root() / 'cpu-amx'
         files=sorted(root.glob('*.json'));self.assertGreater(len(files),100)
         for path in files:validate_case(json.loads(path.read_text()))
         with tempfile.TemporaryDirectory() as directory:
