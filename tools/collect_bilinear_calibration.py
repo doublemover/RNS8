@@ -10,7 +10,7 @@ from collect_native_calibration import strict_json, DEFAULT_MODULI
 from build_manifest import manifest_provenance_complete
 from benchmark_sweep_lib.execution import run_command
 
-MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute')
+MODES=('classical','strassen','coefficient-rank23','september-slp','october55-retained','october55-recompute','rank48-dyadic')
 
 
 def resources(c):
@@ -18,7 +18,7 @@ def resources(c):
     residue=p*(m*k+k*n+m*n)
     host=8*(m*(k+1)+k*(n+2)+m*n)+24*m*(n+3)+residue+p*m*n
     if mode=='classical':return 0,residue,host
-    blocks=2 if mode=='strassen' else 3;hm,hn,hk=((x+blocks-1)//blocks for x in (m,n,k))
+    blocks=2 if mode=='strassen' else 4 if mode=='rank48-dyadic' else 3;hm,hn,hk=((x+blocks-1)//blocks for x in (m,n,k))
     a,b,product=hm*hk*p,hk*hn*p,hm*hn*p
     retained=mode in ('september-slp','october55-retained')
     scratch=(23 if retained else 1)*(a+b)+(23 if mode in ('september-slp','october55-retained','october55-recompute') else 1)*product+p*m*n
@@ -28,12 +28,12 @@ def resources(c):
 def validate_case(c):
     fields={'schema','m','n','k','prefix','unsigned_inputs','mode','subproduct_backend','residency','instrumented','repeats','warmups','seed','max_scratch_bytes','max_host_bytes','matrix_variant'}
     if not isinstance(c,dict) or set(c)!=fields or c['schema']!='bilinear_case_v1':raise ValueError('case ABI')
-    for key,lo,hi in [('matrix_variant',0,2),('m',1,32768),('n',1,32768),('k',1,196611),('prefix',1,20),('repeats',3,100),('warmups',1,100),('seed',0,2**32-1),('max_scratch_bytes',1,2**40),('max_host_bytes',1,2**40)]:
+    for key,lo,hi in [('matrix_variant',0,2),('m',1,32768),('n',1,32768),('k',1,262149),('prefix',1,20),('repeats',3,100),('warmups',1,100),('seed',0,2**32-1),('max_scratch_bytes',1,2**40),('max_host_bytes',1,2**40)]:
         if type(c[key]) is not int or not lo<=c[key]<=hi:raise ValueError(key)
     if type(c['unsigned_inputs']) is not bool or type(c['instrumented']) is not bool or c['mode'] not in MODES or c['subproduct_backend'] not in ('direct','matrix') or c['residency'] not in ('cold','resident','repack'):raise ValueError('route')
     if c['subproduct_backend']=='direct' and c['matrix_variant']:raise ValueError('matrix variant on direct route')
     if math.prod(DEFAULT_MODULI[:c['prefix']])<=c['k']*49*(1 if c['unsigned_inputs'] else 2):raise ValueError('strict CRT capacity')
-    blocks=1 if c['mode']=='classical' else 2 if c['mode']=='strassen' else 3
+    blocks=1 if c['mode']=='classical' else 2 if c['mode']=='strassen' else 4 if c['mode']=='rank48-dyadic' else 3
     if c['subproduct_backend']=='matrix' and (c['k']+blocks-1)//blocks>65536:raise ValueError('matrix K cap')
     scratch,_,host=resources(c)
     if scratch>c['max_scratch_bytes'] or host>c['max_host_bytes']:raise ValueError('declared payload budget')
@@ -53,11 +53,12 @@ def validate_capture(c,entry):
         required_bilinear_scratch_bytes=scratch,resident_residue_payload_bytes=residue,host_payload_envelope_bytes=host,
         memory_scope='logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead',
         transform_binary_nodes=56 if mode=='september-slp' else 55 if mode.startswith('october55') else 0,
-        input_transform_evaluations_per_cell=23 if mode=='october55-recompute' else 1,
+        input_transform_evaluations_per_cell=48 if mode=='rank48-dyadic' else 23 if mode=='october55-recompute' else 1,
         output_boundary='complete_public_product_and_padded_three_limb_export',host_instrumentation_state='diagnostic_hooks_enabled' if diagnostic else 'hooks_disabled',
         exact_reference_passed=True,all_residue_planes_audited=True,residue_audit_scope='post_timing_public_product',oracle_inside_production_interval=False,promotion_eligible=False,native_useful_products=case['m']*case['n']*case['k'])
     for key,value in expected.items():
         if type(c.get(key)) is not type(value) or c[key]!=value:raise ValueError('capture '+key)
+    if mode=='rank48-dyadic' and c.get('dyadic_channel_policy')!='odd_rank48_even_classical':raise ValueError('rank48 complete-basis channel policy')
     if not manifest_provenance_complete(c.get('build_manifest')) or not c.get('execution_id'):raise ValueError('compiled/process provenance')
     artifact=c.get('artifact_capture') or {}
     if artifact.get('unchanged_during_run') is not True or len(artifact.get('executable_sha256',''))!=64:raise ValueError('artifact binding')

@@ -280,7 +280,15 @@
         ["repack-september-slp-False.json", "8bdc17dd4894cc951282738a25401403e10ac2492b9856a011af3afd225570d3", 17, 19, 31, 3, false, "september-slp", "direct", "repack", false, 4294967296, 4294967296, 0],
         ["repack-september-slp-True.json", "84c676dd6420f988b3c1a453d4370b3cbca24acbd3fabd8a728cad1362e32865", 17, 19, 31, 3, true, "september-slp", "direct", "repack", false, 4294967296, 4294967296, 0],
         ["repack-strassen-False.json", "5a481be4f1063022aff7f1af6432963b4e2630681582dc7d6156b461454e2a59", 17, 19, 31, 3, false, "strassen", "direct", "repack", false, 4294967296, 4294967296, 0],
-        ["repack-strassen-True.json", "ebda6e7f94f964ac2d0768a2612fbffb305bd8e875c801fa006e7d7c63ba3f9b", 17, 19, 31, 3, true, "strassen", "direct", "repack", false, 4294967296, 4294967296, 0]
+        ["repack-strassen-True.json", "ebda6e7f94f964ac2d0768a2612fbffb305bd8e875c801fa006e7d7c63ba3f9b", 17, 19, 31, 3, true, "strassen", "direct", "repack", false, 4294967296, 4294967296, 0],
+        ["17x19x33-p20-i-direct-rank48-production.json", "0bf515611ef8e24337ed518d033630a7c3624730f6bc81ca2eb4304644c552b0", 17, 19, 33, 20, false, "rank48-dyadic", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-direct-rank48-diagnostic.json", "7fe7af0563a6461d4dc56610aad66220e2fde7a60fc2c4b94c59b5b29ee239df", 17, 19, 33, 20, false, "rank48-dyadic", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-production.json", "ce5becf6ab2c6b9f384ad3e73cd33e681e462b7c409a195b054e1d30f9f23199", 17, 19, 33, 20, true, "rank48-dyadic", "direct", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-direct-rank48-diagnostic.json", "94d6f78a5411228557997a2dbd53b08f8de67ea86cf49b729ae17f0c685fc46e", 17, 19, 33, 20, true, "rank48-dyadic", "direct", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-production.json", "635fefb4aada3332c1911b35b4812906e4ac434cc800637d699f50c592e5908b", 17, 19, 33, 20, false, "rank48-dyadic", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-i-matrix-rank48-diagnostic.json", "2f0adee8a286a151827fcb63e82c60fa1527523c54665f97ed152ff61fa40478", 17, 19, 33, 20, false, "rank48-dyadic", "matrix", "resident", true, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-production.json", "cae98a1c21011936bce5288fd744e8ce0444524d4876604893ae88c1a8c7c393", 17, 19, 33, 20, true, "rank48-dyadic", "matrix", "resident", false, 67108864, 67108864, 0],
+        ["17x19x33-p20-u-matrix-rank48-diagnostic.json", "69bd12ac65e2bad0df646ef43c4941f68c759096b81dd782fec9a862741b4308", 17, 19, 33, 20, true, "rank48-dyadic", "matrix", "resident", true, 67108864, 67108864, 0]
       ]
     }
   ]

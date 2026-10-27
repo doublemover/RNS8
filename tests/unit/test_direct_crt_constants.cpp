@@ -16,7 +16,7 @@
 TEST_CASE("bilinear resource queries separate full-stack offsets from sub-GEMM indexing") {
   using namespace rns8::detail;
   using boost::multiprecision::cpp_int;
-  for (uint32_t blocks : {2u, 3u}) for (uint32_t prefix : {1u, 9u, 20u})
+  for (uint32_t blocks : {2u, 3u, 4u}) for (uint32_t prefix : {1u, 9u, 20u})
     for (int64_t size : {int64_t{1}, int64_t{17}, int64_t{16384}}) {
       const auto plan = query_bilinear_resources(size, size + 1, size + 2,
           size + 3, size + 4, size + 5, prefix, blocks, UINT64_MAX);

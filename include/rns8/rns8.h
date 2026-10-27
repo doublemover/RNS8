@@ -2821,7 +2821,11 @@ typedef enum rns8_bilinear_method RNS8_ENUM_BASE {
   RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX = 6,
   RNS8_BILINEAR_RANK23_SLP_MATRIX = 7,
   RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX = 8,
-  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX = 9
+  RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX = 9,
+  /* One-level4x4 rank48 dyadic program on odd channels, with original
+   * classical products on even channels. Complete original RNS basis retained. */
+  RNS8_BILINEAR_RANK48_DYADIC = 10,
+  RNS8_BILINEAR_RANK48_DYADIC_MATRIX = 11
 } rns8_bilinear_method;
 /* Opt-in direct-HIP bounded/exact-wide signed/unsigned product. One bilinear level,
  * complete prefix, staged publication, explicit scratch budget and original

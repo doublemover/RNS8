@@ -21,6 +21,7 @@
 #include "../backend_common/balanced_crt.hpp"
 #include "../backend_common/group_crt.hpp"
 #include "../backend_common/strassen_program.hpp"
+#include "../backend_common/rank48_program.hpp"
 #include "../backend_common/rank23_program.hpp"
 #include "../backend_common/rank23_slp.hpp"
 #include "../backend_common/rank23_october55.hpp"
@@ -193,9 +194,12 @@ extern "C" int rns8_hip_rank23_oct55_combine(const int8_t* products,int8_t* stag
   return static_cast<int>(hipGetLastError());
 }
 extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
-    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,bool rank23) {
+    int rows,int cols,int ld,int hr,int hc,int prefix,int product,bool lhs,int blocks) {
   const dim3 grid((static_cast<uint64_t>(hr)*hc+255)/256,prefix);
-  if (rank23) {
+  if(blocks==4) {
+    hipLaunchKernelGGL((rns8_bilinear_transform_kernel<4>),grid,dim3(256),0,nullptr,
+        source,output,rows,cols,ld,hr,hc,product,lhs);
+  } else if (blocks==3) {
     hipLaunchKernelGGL((rns8_bilinear_transform_kernel<3>),grid,dim3(256),0,nullptr,
         source,output,rows,cols,ld,hr,hc,product,lhs);
   } else {
@@ -204,9 +208,12 @@ extern "C" int rns8_hip_strassen_transform(const int8_t* source,int8_t* output,
   }
   return static_cast<int>(hipGetLastError());
 }
-extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index,bool rank23) {
+extern "C" int rns8_hip_strassen_combine(const int8_t* product,int8_t* stage,int m,int n,int hm,int hn,int prefix,int index,int blocks) {
   const dim3 grid((static_cast<uint64_t>(m)*n+255)/256,prefix);
-  if (rank23) {
+  if(blocks==4) {
+    hipLaunchKernelGGL((rns8_bilinear_combine_kernel<4>),grid,dim3(256),0,nullptr,
+        product,stage,m,n,hm,hn,index);
+  } else if (blocks==3) {
     hipLaunchKernelGGL((rns8_bilinear_combine_kernel<3>),grid,dim3(256),0,nullptr,
         product,stage,m,n,hm,hn,index);
   } else {

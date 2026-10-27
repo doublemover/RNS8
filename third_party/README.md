@@ -117,3 +117,10 @@ The optional installed `rns8/dlpack.hpp` consumer requires the official
 (Apache-2.0). It is supplied externally through `RNS8_DLPACK_INCLUDE_DIR` for
 tests/examples; neither the core library nor ordinary consumers depend on it.
 The header adapter rejects unsupported version/format/ownership contracts.
+
+`third_party/rank48/` retains three unmodified sparse rational coefficient
+matrices from [PLinOpt](https://github.com/jgdumas/plinopt) revision
+`7c2006504a67caf3071ed4bd34ed772f6ed1a1a6`, their CeCILL-B license and
+SHA256/Git-blob provenance. The first-party importer independently checks the
+4096 rational tensor equations before emitting a compact twice-coefficient
+table. Only mathematical matrices are consumed; no upstream code is executed.

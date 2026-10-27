@@ -18,7 +18,7 @@ query_bilinear_resources(int64_t m, int64_t n, int64_t k, int64_t lda,
                          uint32_t blocks, uint64_t budget) {
   BilinearResources result;
   if (m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || !prefix ||
-      prefix > 20 || (blocks != 2 && blocks != 3))
+      prefix > 20 || (blocks != 2 && blocks != 3 && blocks != 4))
     return result;
   // Original transforms/commit compute (plane*rows+row)*ld in int64. Their
   // scalar dimensions and one-plane grid domains are still qualified as i32.

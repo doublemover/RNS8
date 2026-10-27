@@ -1578,7 +1578,7 @@ RNS8_API rns8_status rns8_ozaki_decompose_i64(
 RNS8_API rns8_status rns8_prepare_bilinear_workspace(rns8_context* ctx,const rns8_plan* plan,
     rns8_bilinear_method method,uint64_t budget,rns8_workspace* workspace) {
   return guard_api([&]() -> rns8_status {
-    if(!ctx || !plan || !workspace || uint32_t(method)>9)return RNS8_INVALID_ARGUMENT;
+    if(!ctx || !plan || !workspace || !rns8::detail::bilinear_selection(uint32_t(method)).valid)return RNS8_INVALID_ARGUMENT;
     auto status=validate_plan_context_workspace(*ctx,*plan,*workspace);if(status!=RNS8_SUCCESS)return status;
     rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
     query.operation=RNS8_OP_STRASSEN;query.execution_modes=RNS8_EXEC_SYNC;query.problem=plan->desc;query.algorithm=method;query.scratch_budget=budget;
@@ -1602,7 +1602,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
   return guard_api([&]() -> rns8_status {
     using namespace rns8::detail;
     if (!ctx || !plan || !A || !B || !C || !workspace || !out_memory_overhead_ratio ||
-        A == C || B == C || method<RNS8_BILINEAR_STRASSEN || method>RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX) return RNS8_INVALID_ARGUMENT;
+        A == C || B == C || !bilinear_selection(uint32_t(method)).valid) return RNS8_INVALID_ARGUMENT;
     if (plan->backend != RNS8_BACKEND_HIP_DIRECT ||
         !uses_rns_storage(plan->desc.semantics) || is_per_tile_bound_kind(plan->desc.bound_kind)) return RNS8_UNSUPPORTED_BACKEND;
     rns8_operation_query query{};query.struct_size=sizeof(query);query.abi_version=RNS8_ABI_VERSION;
@@ -1621,14 +1621,10 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     rns8_exact_matrix_ranges ranges;
     status = exact_gemm_range(*plan, *A, *B, bound, &ranges);
     if (status != RNS8_SUCCESS) return status;
-    const auto algorithm=static_cast<rns8_bilinear_method>(uint32_t(method)%5);
-    const bool matrix_subproducts=uint32_t(method)>=5;
-    const auto resources = algorithm>=RNS8_BILINEAR_RANK23_SLP
-        ? query_rank23_slp_resources(plan->desc.m,plan->desc.n,plan->desc.k,
-            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,max_scratch_bytes,algorithm==RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE)
-        : query_bilinear_resources(plan->desc.m,plan->desc.n,plan->desc.k,
-            A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,
-            algorithm==RNS8_BILINEAR_STRASSEN?2u:3u,max_scratch_bytes);
+    const auto selected=bilinear_selection(uint32_t(method));const auto algorithm=selected.algorithm;
+    const bool matrix_subproducts=selected.matrix;
+    const auto resources=query_bilinear_method_resources(uint32_t(method),plan->desc.m,plan->desc.n,plan->desc.k,
+        A->desc.cols,B->desc.cols,C->desc.cols,plan->prefix,max_scratch_bytes);
     if (resources.status != RNS8_SUCCESS) return resources.status;
     if(workspace->bilinear_scratch_owner.bytes()>max_scratch_bytes)return RNS8_WORKSPACE_TOO_SMALL;
     if(workspace->bilinear_scratch_owner.bytes()<resources.total_bytes) {
@@ -1639,7 +1635,7 @@ RNS8_API rns8_status rns8_gemm_bilinear_exact(
     status=begin_synchronous_lease(*ctx,*A,*B,*C,*workspace,lease_token);if(status!=RNS8_SUCCESS)return status;
     struct LeaseGuard {rns8_context& ctx;size_t token;bool& written;bool active=true;
       ~LeaseGuard(){if(active)finish_synchronous_lease(ctx,token,RNS8_INTERNAL_ERROR,written);}} lease{*ctx,lease_token,commit_started};
-    const auto multiply=algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
+    const auto multiply=algorithm==5?hip_direct_gemm_rank48_device:algorithm==RNS8_BILINEAR_STRASSEN?hip_direct_gemm_strassen_device:
         algorithm==RNS8_BILINEAR_RANK23_COEFFICIENTS?hip_direct_gemm_rank23_device:
         algorithm==RNS8_BILINEAR_RANK23_SLP?hip_direct_gemm_rank23_slp_device:
         algorithm==RNS8_BILINEAR_RANK23_OCTOBER55?hip_direct_gemm_rank23_oct55_device:hip_direct_gemm_rank23_oct55_recompute_device;

@@ -23,6 +23,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   endif()
   add_test(NAME benchmark_catalog_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_cases.py")
   add_test(NAME research_evidence_archive_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_research_evidence.py")
+  add_test(NAME rank48_mathematical_certificate COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_rank48_certificate.py")
+  set_tests_properties(rank48_mathematical_certificate PROPERTIES LABELS "cpu;algebra;certificate" TIMEOUT 120)
   add_test(NAME benchmark_reference_cache_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_benchmark_references.py")
   set_tests_properties(benchmark_catalog_contracts research_evidence_archive_contracts benchmark_reference_cache_contracts PROPERTIES LABELS "tools;artifacts" TIMEOUT 60)
   add_test(NAME research_kernel_collector_contracts COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_collect_research_kernels.py")
@@ -1060,6 +1062,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_ring_gemm.cpp
     tests/unit/test_cpu_amx.cpp
     tests/unit/test_cpu_i8mm.cpp
+    tests/unit/test_rank48.cpp
     tests/unit/test_residue_dot.cpp
     tests/unit/test_residue_epilogue.cpp
     tests/unit/test_exact_lift_workspace.cpp

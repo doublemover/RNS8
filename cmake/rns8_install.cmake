@@ -1,4 +1,8 @@
 set(RNS8_INSTALL_CONFIG_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/RNS8")
+foreach(_rns8_license_component IN ITEMS Runtime Development)
+  install(FILES third_party/rank48/Licence_CeCILL-B_V1-en.txt NOTICE
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/RNS8/licenses/rank48" COMPONENT ${_rns8_license_component})
+endforeach()
 if(RNS8_WINDOWS_RUNTIME_DLLS)
   install(FILES ${RNS8_WINDOWS_RUNTIME_DLLS} DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime)
 endif()

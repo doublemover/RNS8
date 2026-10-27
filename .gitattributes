@@ -1,3 +1,4 @@
 # Certificate identities hash exact tracked bytes across Windows and Linux.
 /tools/data/wrap64_signed*.json text eol=lf
 /tools/data/rank23-october-55.txt text eol=lf
+/third_party/rank48/* text eol=lf

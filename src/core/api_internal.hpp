@@ -3,6 +3,7 @@
 
 #include "core/internal.hpp"
 #include "core/exact_range.hpp"
+#include "backend_common/bilinear_selection.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 

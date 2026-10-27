@@ -2,11 +2,15 @@ __device__ __constant__ rns8::detail::strassen::Program rns8_strassen_program =
     rns8::detail::strassen::program();
 __device__ __constant__ rns8::detail::rank23::Program rns8_rank23_program =
     rns8::detail::rank23::program();
+__device__ __constant__ rns8::detail::rank48::Program rns8_rank48_program =
+    rns8::detail::rank48::program();
 template <int Blocks> __device__ const auto &rns8_bilinear_term(int product) {
   if constexpr (Blocks == 2)
     return rns8_strassen_program.products[product];
-  else
+  else if constexpr(Blocks==3)
     return rns8_rank23_program.products[product];
+  else
+    return rns8_rank48_program.products[product];
 }
 __device__ int8_t rns8_strassen_center(int value, int modulus) {
   value %= modulus;
@@ -27,6 +31,7 @@ rns8_bilinear_transform_kernel(const int8_t *source, int8_t *output, int rows,
   if (cell >= count)
     return;
   const int plane = blockIdx.y, modulus = rns8_default_moduli_device[plane];
+  if constexpr(Blocks==4)if(!(modulus&1)){output[static_cast<int64_t>(plane)*count+cell]=0;return;}
   const auto &term = rns8_bilinear_term<Blocks>(product);
   int value = 0;
   for (int block = 0; block < Blocks * Blocks; ++block) {
@@ -39,8 +44,9 @@ rns8_bilinear_transform_kernel(const int8_t *source, int8_t *output, int rows,
       value += coefficient *
                source[(static_cast<int64_t>(plane) * rows + row) * ld + col];
   }
-  // Coefficients are -1/0/1 and there are <=9 blocks: |sum|<=1152 even
-  // for malformed full-byte source values. Reduce before the INT8 GEMM.
+  // Rank48 stores twice each dyadic coefficient. Sixteen terms with magnitude
+  // <=4 and byte inputs bound |sum|<=8192; scaling by inverse2 stays in INT32.
+  if constexpr(Blocks==4)value*=((modulus+1)/2);
   output[static_cast<int64_t>(plane) * count + cell] =
       rns8_strassen_center(value, modulus);
 }
@@ -54,6 +60,7 @@ rns8_bilinear_combine_kernel(const int8_t *product, int8_t *stage, int m, int n,
     return;
   const int64_t row = cell / n, col = cell % n;
   const int quadrant = (row / hm) * Blocks + col / hn, plane = blockIdx.y;
+  if constexpr(Blocks==4)if(!(rns8_default_moduli_device[plane]&1))return;
   const int coefficient = rns8_bilinear_term<Blocks>(product_index).c[quadrant];
   // A zero coefficient leaves this staged block unchanged. Avoid product and
   // stage traffic, and avoid division/reduction for these inactive outputs.
@@ -63,8 +70,9 @@ rns8_bilinear_combine_kernel(const int8_t *product, int8_t *stage, int m, int n,
   const int64_t input =
       (static_cast<int64_t>(plane) * hm + row % hm) * hn + col % hn;
   // Reduction after every product bounds recombination by two centered bytes.
+  const int scaled=Blocks==4?coefficient*((rns8_default_moduli_device[plane]+1)/2):coefficient;
   stage[output] =
-      rns8_strassen_center(stage[output] + coefficient * product[input],
+      rns8_strassen_center(stage[output] + scaled * product[input],
                            rns8_default_moduli_device[plane]);
 }
 __global__ void rns8_strassen_commit_kernel(const int8_t *stage, int8_t *output,

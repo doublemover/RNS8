@@ -22,20 +22,19 @@ int main(int argc,char** argv){try{
   using namespace rns8::detail;
   if(argc!=3)throw std::invalid_argument("usage: rns8-bilinear-calibrate CASE.json unique-run-id");json c;std::ifstream(argv[1])>>c;
   if(c.size()!=16 || c.at("schema")!="bilinear_case_v1" || !c.at("unsigned_inputs").is_boolean() || !c.at("instrumented").is_boolean())throw std::invalid_argument("case ABI");
-  const uint32_t m=number(c,"m",1,32768),n=number(c,"n",1,32768),k=number(c,"k",1,196611),prefix=number(c,"prefix",1,20),
+  const uint32_t m=number(c,"m",1,32768),n=number(c,"n",1,32768),k=number(c,"k",1,262149),prefix=number(c,"prefix",1,20),
       repeats=number(c,"repeats",3,100),warmups=number(c,"warmups",1,100),seed=number(c,"seed",0,UINT32_MAX);
   const uint64_t budget=number(c,"max_scratch_bytes",1,UINT64_C(1)<<40),host_budget=number(c,"max_host_bytes",1,UINT64_C(1)<<40);
   const uint32_t matrix_variant=number(c,"matrix_variant",0,2);
   const bool u=c.at("unsigned_inputs"),instrumented=c.at("instrumented");const std::string mode=c.at("mode"),backend=c.at("subproduct_backend"),residency=c.at("residency");
-  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute"};
+  const std::vector<std::string> modes{"classical","strassen","coefficient-rank23","september-slp","october55-retained","october55-recompute","rank48-dyadic"};
   const auto found=std::find(modes.begin(),modes.end(),mode);if(found==modes.end() || (backend!="direct" && backend!="matrix") || (residency!="cold" && residency!="resident" && residency!="repack"))throw std::invalid_argument("route");
   const int algorithm=int(found-modes.begin())-1;const bool matrix=backend=="matrix";if(!matrix && matrix_variant)throw std::invalid_argument("matrix variant on direct route");
-  const auto method=static_cast<rns8_bilinear_method>(algorithm+(matrix?5:0));
+  const auto method=static_cast<rns8_bilinear_method>(algorithm==5?10+int(matrix):algorithm+(matrix?5:0));
   cpp_int capacity=1;for(uint32_t p=0;p<prefix;++p)capacity*=rns8_default_modulus(p);
   if(capacity<=uint64_t(k)*49*(u?1:2))throw std::invalid_argument("strict CRT capacity");
   BilinearResources resources{};
-  if(algorithm>=2)resources=query_rank23_slp_resources(m,n,k,k,n,n,prefix,budget,algorithm==4);
-  else if(algorithm>=0)resources=query_bilinear_resources(m,n,k,k,n,n,prefix,algorithm?3:2,budget);
+  if(algorithm>=0)resources=query_bilinear_method_resources(uint32_t(method),m,n,k,k,n,n,prefix,budget);
   else {resources.status=qualified_i32_gemm_address(m,n,k,k,n,n,prefix)?RNS8_SUCCESS:RNS8_UNSUPPORTED_BACKEND;}
   checked(resources.status);
   if(matrix && (algorithm<0?k:resources.block_k)>65536)throw std::invalid_argument("matrix INT32 K cap");
@@ -80,7 +79,8 @@ int main(int argc,char** argv){try{
   std::cout<<json({{"schema","rns8_bilinear_microcase_v1"},{"case",c},{"run_id",argv[2]},{"target",target},{"device",device},{"runtime_version",runtime},{"build_manifest",json::parse(RNS8_BUILD_MANIFEST_JSON)},
     {"dataset","period15_native_small_v1"},{"selected_prefix",prefix},{"algorithm",mode},{"subproduct_backend",backend},{"matrix_family_override",matrix?(matrix_variant==0?"auto":matrix_variant==1?"cdna3_16x16x32_or_target_wmma":"cdna3_32x32x16_or_target_wmma"):"not_applicable"},{"subproduct_launch_schedule",matrix && (algorithm==2 || algorithm==3)?"batched23":"serial"},{"ordinary_plan_kernel",plan_kernel},
     {"required_bilinear_scratch_bytes",resources.total_bytes},{"resident_residue_payload_bytes",residue_payload},{"ordinary_workspace_bytes",ordinary_workspace},{"known_peak_device_payload_bytes",known_peak},{"host_payload_envelope_bytes",host_payload},
-    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm==2?56:algorithm>=3?55:0},{"input_transform_evaluations_per_cell",algorithm==4?23:1},
+    {"memory_scope","logical_live_payload_excludes_driver_allocator_and_opaque_runtime_overhead"},{"transform_binary_nodes",algorithm==2?56:algorithm==3 || algorithm==4?55:0},{"input_transform_evaluations_per_cell",algorithm==5?48:algorithm==4?23:1},
+    {"dyadic_channel_policy",algorithm==5?"odd_rank48_even_classical":"not_applicable"},
     {"output_boundary","complete_public_product_and_padded_three_limb_export"},{"host_instrumentation_state",instrumented?"diagnostic_hooks_enabled":"hooks_disabled"},{"diagnostic_events",events},{"setup_us",setup},{"first_call",first},{"samples",samples},{"sustained",sustained},
     {"exact_reference_passed",true},{"all_residue_planes_audited",true},{"residue_audit_scope","post_timing_public_product"},{"oracle_inside_production_interval",false},{"promotion_eligible",false},{"native_useful_products",uint64_t(m)*n*k}}).dump(2)<<'\n';return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -32,6 +32,14 @@ class BilinearCollection(unittest.TestCase):
         c=self.case();c.update(mode='classical',subproduct_backend='matrix',k=65537,prefix=9)
         with self.assertRaises(ValueError):validate_case(c)
 
+    def test_rank48_uses_four_block_resources_and_explicit_mixed_ring_algorithm(self):
+        c=self.case();c.update(mode='rank48-dyadic',m=17,n=19,k=33)
+        scratch,residue,host=resources(c)
+        self.assertEqual(scratch,3*(5*9+9*5+5*5+17*19))
+        self.assertEqual(validate_case(c),c)
+        c['max_scratch_bytes']=scratch-1
+        with self.assertRaises(ValueError):validate_case(c)
+
     def test_diagnostics_never_enter_latency_medians(self):
         rows=[]
         for mode in ('classical','october55-retained'):

@@ -5,10 +5,10 @@ TEST_CASE(
   using boost::multiprecision::cpp_int;
   if (!hip_available())
     SKIP("no HIP device for Strassen");
-  for (int route : {0,1,2}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
-    for (int k : {1, 2, 3, 17, route ? 196609 : 131073}) {
-      const bool rank23 = route != 0;
-      const auto multiply = route == 2 ? hip_direct_gemm_rank23_slp_device :
+  for (int route : {0,1,2,3}) for (uint32_t prefix : {1u, 3u, 9u, 20u})
+    for (int k : {1, 2, 3, 17, route==3?262145:route ? 196609 : 131073}) {
+      const bool rank23 = route==1 || route==2;
+      const auto multiply = route==3?hip_direct_gemm_rank48_device:route == 2 ? hip_direct_gemm_rank23_slp_device :
                             rank23 ? hip_direct_gemm_rank23_device : hip_direct_gemm_strassen_device;
       // The 3x3 case exercises individual rank-23 output blocks, including
       // skipped zero-coefficient contributions and a padded K block.
@@ -167,7 +167,7 @@ TEST_CASE("public Strassen owns signed and unsigned exact exports and preserves 
 
 TEST_CASE("public rank23 methods retain exact proof and output transaction ownership") {
   if(!hip_available()) SKIP("no HIP device for public rank23 methods");
-  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE}) {
+  for(auto method:{RNS8_BILINEAR_RANK23_COEFFICIENTS,RNS8_BILINEAR_RANK23_SLP,RNS8_BILINEAR_RANK23_OCTOBER55,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE,RNS8_BILINEAR_RANK48_DYADIC}) {
     check_public_strassen_owner<int64_t>(method);
     check_public_strassen_owner<uint64_t>(method);
   }
@@ -177,7 +177,7 @@ TEST_CASE("matrix-engine bilinear controls use actual builtin subproducts withou
   rns8_device_info info{};info.struct_size=sizeof(info);info.abi_version=RNS8_ABI_VERSION;
   if(rns8::detail::amdgpu_builtins_probe(0,info)!=RNS8_SUCCESS)SKIP("no compiled builtin matrix provider");
   for(auto method:{RNS8_BILINEAR_STRASSEN_MATRIX,RNS8_BILINEAR_RANK23_COEFFICIENTS_MATRIX,
-      RNS8_BILINEAR_RANK23_SLP_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX}) {
+      RNS8_BILINEAR_RANK23_SLP_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_MATRIX,RNS8_BILINEAR_RANK23_OCTOBER55_RECOMPUTE_MATRIX,RNS8_BILINEAR_RANK48_DYADIC_MATRIX}) {
     check_public_strassen_owner<int64_t>(method);check_public_strassen_owner<uint64_t>(method);
   }
 }

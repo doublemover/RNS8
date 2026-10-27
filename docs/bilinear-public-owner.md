@@ -1,8 +1,8 @@
 # Public bilinear exact products
 
-`rns8_gemm_bilinear_exact` exposes three explicit one-level direct-HIP methods:
-Strassen, the rank23 coefficient control, and the pinned alternative-basis rank23
-straight-line program. The existing Strassen research entrypoint delegates to
+`rns8_gemm_bilinear_exact` exposes explicit one-level direct-HIP methods:
+Strassen, rank23 coefficient and retained/recomputed straight-line programs,
+and the mixed-channel rank48 dyadic coefficient program. The existing Strassen research entrypoint delegates to
 the same owner and preserves its one-level contract. These methods support
 signed/unsigned exact-wide plans with complete current RNS inputs.
 
@@ -32,3 +32,26 @@ exercise signed/unsigned full-width inputs, odd dimensions, changed input epochs
 workspace/BUSY/invalid-method preservation and every exported cell against Boost.
 Private coefficient/SLP algebra and resource fixtures remain independent. All
 new public routes await the one consolidated qualification and timing campaign.
+## One-level rank48 dyadic extension
+
+Methods 10/11 add a four-block rank48 coefficient program with direct or explicit
+matrix-engine subproducts. The [pinned mathematical matrices](../third_party/rank48/provenance.json)
+and their retained license come from the [published construction](https://arxiv.org/abs/2609.12027v2).
+`tools/rank48_certificate.py` independently expands all 4,096 exact rational tensor
+coefficients. Stored coefficients are twice their rational values. Each odd
+modulus uses its exact inverse of two for both input transforms and output
+recombination; transformed values are recentered before INT8 GEMM. This includes
+odd composite rings. Even channels, including256, execute their original
+classical product into the same private stage. The full original basis and
+integer uniqueness proof are retained.
+
+One A transform, B transform and product buffer are reused across 48 products;
+the complete C stage publishes only after both algebraic and classical channel
+work succeeds. Existing retained-workspace, budget, address, lifetime and failed
+commit rules apply. Matrix subproducts keep their own K cap and target probe.
+The collector accepts `rank48-dyadic` and charges four-block padding, all 48
+transform evaluations, even-channel work, reconstruction and final output.
+This coefficient implementation does not claim the paper's204-operation SLP
+count. CPU tensor/Boost, altered-coefficient, ring, resource and public HIP
+full-width/tail fixtures are authored. Target execution and measured routing
+remain deferred; no default route changes.

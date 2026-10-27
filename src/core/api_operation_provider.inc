@@ -37,7 +37,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
   const uint32_t output_domain=query.operation==RNS8_OP_MULTI_DEVICE?5:(query.operation==RNS8_OP_NATIVE_EXPORT || query.operation==RNS8_OP_HOST_EXPORT)?(query.output_limbs?5:4):(query.operation==RNS8_OP_EXPORT || query.operation==RNS8_OP_NATIVE_EXPORT)?(finite?2:(rns8::detail::exact_wide_semantics(d.semantics)?5:4)):((query.operation==RNS8_OP_QUARTER_CRT || checked_export)?5:default_domain);
   if((query.input_domain && query.input_domain!=input_domain) || (query.output_domain && query.output_domain!=output_domain))
     return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"domain","requested representation does not match the concrete provider adapter");
-  const uint32_t max_algorithm=query.operation==RNS8_OP_FP8?1:checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?9:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
+  const uint32_t max_algorithm=query.operation==RNS8_OP_FP8?1:checked_export?14:query.operation==RNS8_OP_NARROW_NATIVE?3:query.operation==RNS8_OP_STRASSEN?11:query.operation==RNS8_OP_GRAM?11:(query.operation==RNS8_OP_GRAM || query.operation==RNS8_OP_BASE_EXTEND || query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT || query.operation==RNS8_OP_NARROW_NATIVE || query.operation==RNS8_OP_INT4?1:0);
   if(query.algorithm>max_algorithm || (query.orientation && query.operation!=RNS8_OP_GRAM))
     return reject(RNS8_INVALID_ARGUMENT,RNS8_SUPPORT_BAD_DESCRIPTOR,"algorithm","unknown concrete family method or orientation");
   if((query.operation==RNS8_OP_NATIVE_IMPORT || query.operation==RNS8_OP_HOST_IMPORT) && query.output_limbs)
@@ -100,10 +100,10 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
     case RNS8_OP_STRASSEN:
       if(!hip || !rns || adaptive)
         return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_OPERATION,"operation","bilinear owner requires uniform direct-HIP bounded/exact-wide RNS semantics");
-      if(query.operation==RNS8_OP_STRASSEN && query.algorithm>=5) {
+      if(rns8::detail::bilinear_selection(query.algorithm).matrix) {
         if(!rns8::detail::amdgpu_builtins_compiled())return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_NOT_COMPILED,"matrix_subproducts","AMDGPU matrix-engine provider was not compiled");
         if(!rdna3 && arch!="gfx942" && arch!="gfx1200" && arch!="gfx1201")return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_TARGET,"matrix_subproducts","no matrix-engine subproduct target provider");
-        const int64_t blocks=query.algorithm%5==0?2:3;
+        const int64_t blocks=rns8::detail::bilinear_selection(query.algorithm).blocks;
         if((d.k-1)/blocks+1>RNS8_SAFE_INT32_K_BLOCK)return reject(RNS8_UNSUPPORTED_BACKEND,RNS8_SUPPORT_SHAPE,"subproduct_k","matrix-engine subproduct K exceeds its certified INT32 cap");
       }break;
     case RNS8_OP_GRAM:
@@ -214,8 +214,7 @@ rns8_operation_support operation_support(const rns8_context& ctx,const rns8_oper
       if(query.operation==RNS8_OP_EXPORT && device_backend && out.resource_status!=2)out.resource_status=1;}}
   if(query.operation==RNS8_OP_NARROW_NATIVE){const auto support=rns8::detail::query_narrow_rns_support(d.m,d.n,d.k,lda,ldb,prefix,bool(query.algorithm&1),UINT64_MAX,query.algorithm>=2);
     if(support.status!=RNS8_SUCCESS)return reject(support.status,RNS8_SUPPORT_ADDRESS,"narrow_resources","shared narrow provider rejected complete shape/address domain");scratch=support.scratch_bytes;}
-  if(query.operation==RNS8_OP_STRASSEN){const auto algorithm=query.algorithm%5;const auto resources=algorithm>=2?rns8::detail::query_rank23_slp_resources(d.m,d.n,d.k,lda,ldb,ldc,prefix,UINT64_MAX,algorithm==4):
-      rns8::detail::query_bilinear_resources(d.m,d.n,d.k,lda,ldb,ldc,prefix,algorithm?3:2,UINT64_MAX);
+  if(query.operation==RNS8_OP_STRASSEN){const auto resources=rns8::detail::query_bilinear_method_resources(query.algorithm,d.m,d.n,d.k,lda,ldb,ldc,prefix,UINT64_MAX);
     if(resources.status!=RNS8_SUCCESS)return reject(resources.status,RNS8_SUPPORT_ADDRESS,"bilinear_resources","shared bilinear provider rejected shape/address/resource domain");scratch=resources.total_bytes;}
   if(query.operation==RNS8_OP_BASE_EXTEND && hip && query.source_prefix){if(d.m>INT64_MAX/d.n)return reject(RNS8_RANGE_ERROR,RNS8_SUPPORT_ADDRESS,"cells","lift cell count overflow");
     if(query.source_prefix!=prefix){const auto resources=rns8::detail::query_exact_lift_support(d.m*d.n,query.source_prefix,prefix,UINT64_MAX);
